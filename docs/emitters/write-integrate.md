@@ -20,8 +20,9 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
-  (`@morphic:ignore-file`) and region (`@morphic:keep`/`:end`) — with append-only merge. The
-  structural merge is **language-parameterised** by an adapter registered into the manifest driver
+  (`@morphic:ignore-file`) and region (`@morphic:keep <name>`/`:end`,
+  [below](#regions-follow-their-entity)) — with append-only merge. The structural merge is
+  **language-parameterised** by an adapter registered into the manifest driver
   ([Go](targets/go/overview.md#merging-and-surface-extraction),
   [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)). No adapter ⇒ skip, never
   clobber. Case-only renames go via a temp name (APFS/NTFS hazard).
@@ -44,16 +45,17 @@ type Manifest struct {
                                  // (contract/options.md)
     Inputs   Inputs              // what the generation was built from
     Files    []File              // every file written, sorted by path
-    Entities map[EntityID]Entry  // every emitted entity and each declaration derived from one
-    Steps    map[string]int      // each refine step and template that ran → its version
-    Regions  []Region            // the hand-written regions found, each by its entity (below)
+    Entities map[EntityID]Entry  // every emitted entity and each symbol derived from one
+    Steps    map[string]int      // each refine step and template that ran → its version (#702)
+    Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
 
 type Inputs struct {
     Doc     string               // the document's digest, which Plan.Version takes
                                  // (plan/overview.md)
     Plan    string               // Plan.Version
-    Emitter string               // the emitter's own version
+    Emitter string               // the Morphic version and the Go release that built it, from
+                                 // its build information
     Config  string               // SHA-256 of the decoded options, resolved policy and resolved
                                  // hints, each as its canonical JSON
 }
@@ -77,24 +79,34 @@ type Entry struct {
 ```
 
 - **The document, not the spec text.** `Inputs.Doc` is the IR's digest, canonical JSON with
-  `sources` left out. Reformatting a spec, or moving it to another path, changes the spec's bytes
-  and leaves the IR whole, so it is no new generation.
-- **A file as written.** `Digest` covers the bytes after formatting, with a byte-order mark
-  stripped, line endings made `\n` and trailing newlines dropped, so a formatter run or a checkout
-  that converts line endings is not mistaken for an edit. A file carrying the generated header
-  whose bytes on disk no longer match was edited outside its regions. The writer leaves it as it is
-  and reports it as a coded diagnostic, whose severity the engine decides, rather than overwrite
-  the edit.
-- **Nothing to do.** When every `Inputs` digest and every file's digest match the prior manifest,
-  the engine writes nothing.
+  `sources` and `diagnostics` left out. Reformatting a spec, or moving it to another path, changes
+  the spec's bytes and where its reports point, and leaves the rest of the IR whole, so it is no new
+  generation.
+- **A file as written.** `Digest` covers the bytes after formatting, each keep region's text left
+  out and its markers kept, with a byte-order mark stripped, line endings made `\n` and trailing
+  newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
+  checkout that converts line endings are not mistaken for an edit. A file carrying the generated
+  header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
+  regions. The writer leaves it as it is, reports it as a coded diagnostic, whose severity the
+  engine decides, rather than overwrite the edit, and keeps the file's prior entry in the new
+  manifest, so the next generation reports it again.
+- **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest,
+  the engine writes nothing. `Emitter` is a version, not the hash of the executable the plan and IR
+  caches key on, since a team's machines share the manifest and must agree on what it holds, and it
+  holds the Go release beside Morphic's, since its `go/format` shapes Go's output ([emit
+  rules](emit/rules.md)). A version naming no one tree, `(devel)` or one marked `+dirty`, never
+  matches, so a change being developed is never skipped.
+- **A scoped run.** A run under a `Scope` writes what the scope selects and keeps the prior
+  manifest's entry of every entity, file and region it leaves out, so its manifest is the whole
+  SDK's: the next run's names, staleness check and no-op test read what was shipped, not what one
+  run wrote.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
-  that shaped it, which [surface verification](surface-verification.md) reads to say what a
-  regeneration changed and why.
+  that shaped it, which #702 plans so that a regeneration can say which steps moved.
 - **Written once.** A file a target generates for the user to own, such as a test to fill in, is
   `Once`: written while absent, never rewritten or pruned. It is matched to a later generation by
-  its origins' correlation keys, so a renamed entity's file is not written a second time under the
-  new name.
+  its origins' correlation keys, so an entity renamed while its key holds, as a `Rename` hint
+  renames one, is not written a second time under its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
   manifest from a newer Morphic is refused, since its fields cannot be read.
@@ -102,17 +114,23 @@ type Entry struct {
 ## Regions follow their entity
 
 A `@morphic:keep <name>` region belongs to an entity: the one whose declaration encloses it, or, at
-a file's top level, the one whose declaration it follows, else the file's first origin. The
-manifest records each as a `Region`, keyed by that entity's ID, its correlation key and the region's
-name, with the region's text. So a region follows its entity: when a rename moves the entity to
-another file, the next generation writes the region after the entity's declaration there, and the
-old file, emptied of generated symbols, is pruned as any other.
+a file's top level, the one whose declaration it follows, else the file's first origin, whose
+declaration it precedes. The manifest records each as a `Region`, keyed by that entity's ID, its
+correlation key and the region's name, with the region's text and where it stood against the
+declaration. A second region of one name in one entity is reported, since the key would no longer
+tell the two apart. So a region follows its entity: when a rename moves the entity to another file,
+the next generation writes the region where it stood against the entity's declaration there, at the
+end of the declaration's body when the declaration enclosed it, so a member a user added stays a
+member, and before or after the declaration otherwise. The old file, emptied of generated symbols,
+is pruned as any other.
 
 ```go
 type Region struct {
     Entity EntityID              // the entity it belongs to
     Key    string                // that entity's correlation key
     Name   string                // the name its marker gives it, unique within the entity
+    Place  string                // where it stood against the entity's declaration: "inside" its
+                                 // body, or "before" or "after" it at the file's top level
     File   string                // where it was found
     Text   string                // what it held, markers excluded
 }
@@ -142,17 +160,20 @@ example per feature, a table of contents. A keep region protects hand-written is
 code; a README is the reverse, so it is integrated as blocks. The docs emitter
 ([docs and mocks](docs-and-mock.md)) returns each generated section as a block with a stable ID,
 between `<!-- morphic:block <id> -->` and `<!-- morphic:block:end -->`, in an artifact whose
-`Integrate.Blocks` is set. The engine's integrate step then rewrites only those blocks in the file
-on disk:
+`Integrate.Blocks` is set. The ID is written percent-encoded as a URI path segment is (RFC 3986
+§3.3), since one built from an IR ID can hold a space or `-->`, either of which would break the
+marker. The engine's integrate step then rewrites only those blocks in the file on disk:
 
 - a block found there is replaced by the new one of its ID, and everything outside the markers is
   kept byte for byte;
 - a block marked `<!-- morphic:block <id> frozen -->` is the user's, and kept as it is;
-- a block new to this generation goes after the last block it follows in the generated order, or
-  at the end;
+- a block new to this generation goes after the nearest block before it in the generated order
+  that the file holds, else before the nearest one after it, else at the end, so a section first in
+  the generated order is not written last;
 - a block the generation no longer has is removed, unless frozen, and reported;
 - the table of contents is a block of its own, rebuilt last from the headings of the merged file,
   so it lists the user's sections too.
 
-A file with no markers yet takes the generated blocks after its own text, once, and a first
-generation writes the whole artifact.
+A file that exists with no markers yet, such as a README written before the SDK was generated,
+takes the generated blocks after its own text, and where no file exists the whole artifact is
+written.

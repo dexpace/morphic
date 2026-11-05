@@ -52,7 +52,8 @@ as does a build that words a report anew. Two plans therefore share a `Version` 
 were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
 the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
 plan's policy alone: `naming.Policy` and the runtime policy shape no plan
-([plan or refine](plan-or-refine.md)), and what the manifest records of them is #713's.
+([plan or refine](plan-or-refine.md)), and the manifest records them in its configuration digest
+([what the manifest records](../write-integrate.md#what-the-manifest-records)).
 
 - **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
   says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its

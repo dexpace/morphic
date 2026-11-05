@@ -16,8 +16,8 @@ throughout these documents.
    positional models serialize by index; `WireID==0` ≠ absent.
 5. **T-5 · No-float64** — numeric defaults/constraints/enum values round-trip through `BigVal` with
    no float parsing, including any constraint-merge path.
-6. **T-6 · Determinism / golden IR→artifact** — identical IR ⇒ identical bytes; a scoped run equals
-   the corresponding slice of a full run.
+6. **T-6 · Determinism / golden IR→artifact** — identical inputs, the prior manifest among them ⇒
+   identical bytes; a scoped run equals the corresponding slice of a full run.
 7. **T-7 · Diagnostic-not-silence** — every un-lowerable construct emits a coded diagnostic, never a
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
@@ -320,12 +320,15 @@ throughout these documents.
     first, leaves an incumbent's Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
-    spec reformatted into the same IR is the same generation; a generated file edited outside its
-    regions is reported and not overwritten, while one checked out with other line endings is not
-    an edit; a region follows its entity into the file a rename moves it to, and one whose entity
-    is gone is reported and its file kept; a file written once is never written again; a hint, an
-    override and an overlay key matching nothing each draw `emitters/unmatched-key`, naming the
-    entity of the same correlation key; a README's text outside its blocks and its frozen blocks
-    survive byte for byte, and its table of contents lists the user's headings; and a manifest of
-    an older `Schema` is migrated, one of a newer refused
-    ([write / integrate](../write-integrate.md)).
+    spec reformatted, one drawing a warning among them, is the same generation; a generated file
+    edited outside its regions is reported and not overwritten, by the next generation too, while
+    one edited only inside a region, or checked out with other line endings, is not an edit; a
+    region follows its entity into the file a rename moves it to, one the declaration enclosed still
+    inside it, and one whose entity is gone is reported and its file kept; a scoped run's manifest
+    keeps every entry it left out; a file written once is never written again; a hint, an override
+    and an overlay key matching nothing each draw `emitters/unmatched-key`, naming the entity of the
+    same correlation key; a README's text outside its blocks and its frozen blocks survive byte for
+    byte, a block new to the generation lands beside its neighbours in the generated order, the
+    first of them included, a block whose ID holds `-->` keeps its markers whole, and its table of
+    contents lists the user's headings; and a manifest of an older `Schema` is migrated, one of a
+    newer refused ([write / integrate](../write-integrate.md)).
