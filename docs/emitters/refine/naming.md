@@ -67,8 +67,10 @@ entry derived the same way from its entity's, since it records the entity's key,
 key alone would find the entity's entry beside its own. An entity with no correlation key, or whose
 entry has none, has no prior entry, so rule 2 names it as on a first generation and nothing that
 follows an entity by its prior entry follows it: its ID alone is what #678 shows can name another
-entity, and two keyless entities would otherwise be taken for one. Write/integrate relies on the
-keys, so the pass computing them is one a caller cannot turn off (architecture.md §2.2).
+entity, and two keyless entities would otherwise be taken for one. Taking two revisions' entities
+for one because their keys agree is inferred, not declared, so it can be turned off with the pass
+computing the keys (INV6). Every generation is then named as a first one, and the engine reports
+that once as a warning where a prior manifest is given, since names it shipped may change.
 
 1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
    correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
