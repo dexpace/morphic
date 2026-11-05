@@ -10,8 +10,9 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   biggest win of stable-ID keying: a rename of anything an ID is not built from is "same ID, new
   symbol" — a lookup, not oagen's structural rename-inference machinery — and one of what it is
   built from is carried by the correlation key each entry records where the key's own source holds,
-  as an `operationId` does when its path is renamed. A component renamed changes its key too (#679),
-  so only the structural tier of [open question 5](../ir/open-questions.md) could carry it. A
+  as an operation's route does when a path variable is renamed. A path or a component renamed
+  changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), so only the
+  structural tier of [open question 5](../ir/open-questions.md) could carry it. A
   symbol derived from an entity keys under it, as `User.ID#create` does
   ([`User`](targets/go/models.md#user-in-go)), a union's wrappers, fallback and inclusive fields
   among them, so no two symbols share a key. Write/integrate and surface verification
@@ -31,7 +32,7 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   IR/plan snapshot is serializable (INV7). A prior entity counts as current where its entry is a
   current entity's prior entry ([the names a generation
   shipped](refine/naming.md#collisions-and-the-names-a-generation-shipped)), so an operation whose
-  path was renamed under an unchanged `operationId` is not listed as dead though its old ID is gone.
+  path variable was renamed is not listed as dead though its old ID is gone.
 
 ## What the manifest records
 
@@ -50,6 +51,8 @@ type Manifest struct {
     Files    []File              // every file of the SDK, sorted by path, written by this run
                                  // or kept from the prior manifest (below)
     Entities map[EntityID]Entry  // every entity the SDK declares and each symbol derived from one
+    Keys     int                 // irfacts.CorrelationVersion, the derivation of every Key here
+                                 // (ir/derived-facts.md#correlation-keys)
     Steps    map[string]int      // each refine step and template that ran → its version (#702)
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
@@ -73,7 +76,7 @@ type File struct {
 }
 
 type Entry struct {
-    Key    string                // the entity's correlation key, from the pass #679 plans
+    Key    string                // the entity's correlation key, which ir/irfacts derives
     Scope  string                // the scope its name was resolved in, as Ctx.Syms keys it
                                  // (refine/reserved-names.md)
     Base   string                // its rendered name before a collision was resolved
