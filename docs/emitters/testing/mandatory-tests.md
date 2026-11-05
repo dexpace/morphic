@@ -313,12 +313,13 @@ throughout these documents.
     alone would hand the newcomer the name, regenerated against the first generation's manifest,
     keeps the first symbol unchanged and gives the newcomer a suffix; the first generation is
     byte-identical in both declaration orders; a renamed `operationId` renames its symbol, and a
-    path renamed under an unchanged one keeps it, a suffix included; an ID that now names another
-    entity, its correlation key differing, is not pinned; an operation moved into a group whose
-    client shipped its name takes a suffix there, in the root unit as under a split by group, the
-    incumbent's symbol unchanged; a suffix that would make a name the scope reserves, as two groups
-    rendering `com` would on Kotlin, is passed over; and on Multiplatform a type added in another
-    unit, its ID sorting first, leaves an incumbent's Objective-C name as it shipped
+    path renamed under an unchanged one keeps it, a suffix included, and so do the symbols derived
+    from it; an ID that now names another entity, its correlation key differing, is not pinned; an
+    operation moved into a group whose client shipped its name takes a suffix there, in the root
+    unit as under a split by group, the incumbent's symbol unchanged; a suffix that would make a
+    name the scope reserves, as two groups rendering `com` would on Kotlin, is passed over; and on
+    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
+    Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
     spec reformatted, one drawing a warning among them, is the same generation; a generated file

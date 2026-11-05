@@ -58,16 +58,18 @@ when a newcomer joins. A renamer that renames every member of a collision from i
 deterministic and order-independent, and still renames `get` to `zonesGetZone` the day
 `zonesGetZoneSettings` joins its group, a breaking SDK change. Only the prior generation knows the
 incumbent, so the prior manifest ([write /
-integrate](../write-integrate.md#what-the-manifest-records)) is an input to the rule:
+integrate](../write-integrate.md#what-the-manifest-records)) is an input to the rule. An entity's
+prior entry is the one under its ID or, where its ID is new, the entity entry recording its
+correlation key under an ID the document no longer has, unless another new entity has that key too.
+A symbol derived from an entity takes the entry derived the same way from its entity's, since it
+records the entity's key, so matching it by key alone would find the entity's entry beside its own.
 
-1. **A shipped name keeps its symbol.** An entity's prior entry is the one under its ID or, where
-   its ID is new, the one recording its correlation key under an ID the document no longer has,
-   unless another new entity has that key too. Where that entry has the entity's correlation key,
-   scope and `Base`, the entity takes the entry's `Symbol` again, a suffix it was given included,
-   unless the scope now reserves it. Two such symbols were apart in that scope in the prior
-   generation and stay apart. The scope, not the unit, is what is compared: by default every group's
-   client is in the root unit, so an operation moved to another group would otherwise keep `get`
-   beside the `get` that group's client already shipped.
+1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
+   correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
+   included, unless the scope now reserves it. Two such symbols were apart in that scope in the
+   prior generation and stay apart. The scope, not the unit, is what is compared: by default every
+   group's client is in the root unit, so an operation moved to another group would otherwise keep
+   `get` beside the `get` that group's client already shipped.
 2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
    else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
    reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units

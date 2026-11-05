@@ -44,8 +44,9 @@ type Manifest struct {
     Options  int                 // OptionsVersion(), the behavior pinned for this SDK
                                  // (contract/options.md)
     Inputs   Inputs              // what the generation was built from
-    Files    []File              // every file written, sorted by path
-    Entities map[EntityID]Entry  // every emitted entity and each symbol derived from one
+    Files    []File              // every file of the SDK, sorted by path, written by this run
+                                 // or kept from the prior manifest (below)
+    Entities map[EntityID]Entry  // every entity the SDK declares and each symbol derived from one
     Steps    map[string]int      // each refine step and template that ran → its version (#702)
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
@@ -64,7 +65,8 @@ type File struct {
     Path    string
     Digest  string               // SHA-256 over the bytes written, normalized (below)
     Origins []EntityID           // as the Artifact lists them
-    Once    bool                 // written when absent, the user's thereafter
+    Once    bool                 // its Artifact's SkipIfExists: written when absent, the user's
+                                 // thereafter
 }
 
 type Entry struct {
@@ -103,10 +105,13 @@ type Entry struct {
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.
-- **Written once.** A file a target generates for the user to own, such as a test to fill in, is
-  `Once`: written while absent, never rewritten or pruned. It is matched to a later generation by
-  its origins' correlation keys, so an entity renamed while its key holds, as a `Rename` hint
-  renames one, is not written a second time under its new name.
+- **Written once.** A file a target generates for the user to own, such as a test to fill in, is an
+  artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written
+  while absent, never rewritten or pruned. It is matched to a later generation through its origins,
+  each followed to the entity whose prior entry
+  ([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped)) it is, so an entity
+  renamed while its key holds, as a `Rename` hint renames one, is not written a second time under
+  its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
   manifest from a newer Morphic is refused, since its fields cannot be read.
@@ -118,11 +123,12 @@ a file's top level, the one whose declaration it follows, else the file's first 
 declaration it precedes. The manifest records each as a `Region`, keyed by that entity's ID, its
 correlation key and the region's name, with the region's text and where it stood against the
 declaration. A second region of one name in one entity is reported, since the key would no longer
-tell the two apart. So a region follows its entity: when a rename moves the entity to another file,
-the next generation writes the region where it stood against the entity's declaration there, at the
-end of the declaration's body when the declaration enclosed it, so a member a user added stays a
-member, and before or after the declaration otherwise. The old file, emptied of generated symbols,
-is pruned as any other.
+tell the two apart. So a region follows its entity, to the one whose prior entry
+([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped)) is the region's: when
+a rename moves the entity to another file, the next generation writes the region where it stood
+against the entity's declaration there, at the end of the declaration's body when the declaration
+enclosed it, so a member a user added stays a member, and before or after the declaration otherwise.
+The old file, emptied of generated symbols, is pruned as any other.
 
 ```go
 type Region struct {
@@ -153,14 +159,14 @@ leaves the ID matching nothing, and ignoring it would drop the user's customizat
 So the engine, which alone holds every input and the prior manifest, matches each such ID against
 the document before any stage reads it, those of the inputs every emitter shares once for the run
 and an emitter's own once for that emitter. Each that matches nothing is a warning
-`emitters/unmatched-key`, which never aborts the run, since one configuration may serve several
-documents. It names the input, the ID and, where one exists, the entity whose correlation key equals
-the one the prior manifest records for that ID, as the likely new home. A stage reading such an ID
-passes over it, since it configures nothing, so each is reported once, by the one reader that can
-name where it went. A hint's `ParamKey`, which names a parameter by its wire identity rather than
-an ID, is reported so too, with no new home to name ([client
-settings](operations/client.md#client-settings)). A prior manifest's entry for a removed entity is
-not such an ID: the staleness check reports it.
+`emitters/unmatched-key`, not an error, since one configuration may serve several documents: it
+fails a run only at a threshold the caller sets to count warnings (architecture.md §4). It names the
+input, the ID and, where one exists, the entity whose correlation key equals the one the prior
+manifest records for that ID, as the likely new home. A stage reading such an ID passes over it,
+since it configures nothing, so each is reported once, by the one reader that can name where it
+went. A hint's `ParamKey`, which names a parameter by its wire identity rather than an ID, is
+reported so too, with no new home to name ([client settings](operations/client.md#client-settings)).
+A prior manifest's entry for a removed entity is not such an ID: the staleness check reports it.
 
 ## A document the user writes around
 
