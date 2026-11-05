@@ -13,12 +13,15 @@ import (
 )
 
 // FuzzCycleDetector compiles arbitrary bytes seeded from every .yaml file
-// directly under testdata/openapi and the ref-shaped specs.
+// directly under testdata/openapi, the ref-shaped specs and three literal
+// sources, the empty one among them. Plain `go test` runs the seeds;
+// scripts/fuzz.sh runs the search.
+//
 // Whatever a source holds, the compile must not panic, overflow the stack or
 // hang, and must come back with a document or with a refusal: an error
 // diagnostic saying why no document came back, or a Go error alone, which an
-// empty source raises. A cycle of schema $refs refuses nothing, so a fixture
-// seed comes back with a document.
+// empty source raises. A cycle of schema $refs refuses nothing, so a seed
+// holding only such a cycle comes back with a document.
 func FuzzCycleDetector(f *testing.F) {
 	addYAMLDir(f, cycleFixtureDir)
 	for _, spec := range testspec.RefShapedData() {
