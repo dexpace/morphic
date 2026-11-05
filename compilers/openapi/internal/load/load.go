@@ -343,8 +343,8 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 // shapeRefusals reports what of the shape of the tree idx indexes the parser
 // cannot afford to build: its nesting (scan.Nesting), its aliases
 // (scan.Aliases) and, where neither is refused, the bytes of its nodes'
-// pointers (scan.PointerAmplification), which deep nesting and aliasing both multiply, so
-// one defect is not reported twice.
+// pointers (scan.PointerAmplification), which deep nesting and aliasing both
+// multiply, so one defect is not reported twice.
 func shapeRefusals(ctx context.Context, locate scan.Locator, idx sourceindex.Index, opts Options) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
