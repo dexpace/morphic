@@ -142,8 +142,10 @@ type Ctx struct {
 	Kept *KeptOnce
 
 	// expansion charges each $ref Declared resolves what the declarations its
-	// chain names weigh. Copies share it on purpose: the budget is the run's, so
-	// once it is crossed no copy lowers a $ref, and the run is refused
+	// chain names weigh, and each additionalOperations entry what it copies of
+	// its path item (ChargeExpansion). Copies share it on purpose: the budget is
+	// the run's, so once it is crossed no copy lowers a $ref or such an entry,
+	// which is the answer it changes, and the run is refused
 	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
 	expansion *expansion
 }
@@ -219,10 +221,10 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 }
 
 // ExpansionRefusal returns the error refusing the document when the copies its
-// $refs made weighed past [Limits.MaxReferenceExpansion], and false when they
-// did not. It is meant to be asked once every lowering has returned: a $ref
-// past the budget lowers nothing, so a crossing after the question goes
-// unreported.
+// $refs and path items made weighed past [Limits.MaxReferenceExpansion], and
+// false when they did not. It is meant to be asked once every lowering has
+// returned: a copy past the budget lowers nothing, so a crossing after the
+// question goes unreported.
 func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 	return c.expansion.refusal(c.SrcIndex)
 }
@@ -383,8 +385,9 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// The caller lowers a copy of what a $ref's chain names, so each is charged
 	// what that weighs. One past the budget resolves to nothing, as an unresolved
 	// $ref does, so no caller lowers another copy and none costs anything. An
-	// inline entry is not charged, though a path item's own parameters reach
-	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
+	// inline entry is not charged here: a path item's own inline parameters are
+	// charged where its additionalOperations entries take them
+	// (ChargeExpansionAt).
 	if obj != nil && ref.GetReference() != "" &&
 		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
 		return nil, c, usePtr

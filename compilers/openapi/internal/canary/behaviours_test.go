@@ -21,6 +21,7 @@ func canaries() map[string]func(t *testing.T) {
 		"defs-order":             defsOrder,
 		"mapping-unresolved":     mappingUnresolved,
 		"reference-object-cycle": referenceObjectCycle,
+		"reference-chain-walk":   referenceChainWalk,
 		"root-defs":              rootDefs,
 		"alias-cycle":            aliasCycle,
 		"alias-expansion":        aliasExpansion,

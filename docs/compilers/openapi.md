@@ -126,15 +126,19 @@ reference into it is unresolved ([`references`](#references)), and the compile r
 `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
 than the node and alias budgets admit together, without bound where either has none, and nests no
 deeper than the scan's depth bound, so it stops on no document they admit; a check it does stop is
-an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold whatever the
-caller sets, since past them no answer the pre-parse scan gives is whole: a document nested past the
-scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep` error at the
-least pointer where its nesting passes the bound; one with more nodes than the scan indexes, as an
-`openapi/source-too-large` error; and one whose aliases expand it past a fixed multiple of its own
-size, with a floor for a small document, as an `openapi/alias-amplification` error at the least
-pointer of the smallest structures past the ratio. An overlay is held to the same refusals before it
-is applied, and so is a document an external reference names, which fails the reference instead;
-each is read no further than the byte budget. The member budget of an enum is
+an `openapi/budget-exceeded` error at the object it stopped on. Four bounds hold whatever the caller
+sets, since past them no answer the pre-parse scan gives is whole, or what the compile spends is
+out of proportion to the document: a document nested past the scan's depth bound, its aliases
+expanded, is refused as an `openapi/source-too-deep` error at the least pointer where its nesting
+passes the bound; one with more nodes than the scan indexes, as an `openapi/source-too-large`
+error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
+document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
+past the ratio; and one whose nesting and aliases the scan admits, but whose nodes' JSON pointers,
+its aliases expanded, total past a fixed multiple of the bytes it writes, with a floor for a small
+document, as an `openapi/pointer-amplification` error at the document, since the compile spells a
+pointer for each node it reads and the IR's IDs embed them. An overlay is held to the same refusals
+before it is applied, and so is a document an external reference names, which fails the reference
+instead; each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
 
 `MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
@@ -150,19 +154,29 @@ schema is weighed whole beneath a merge key, which the grammar reads as raw YAML
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
 copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
-link's is kept as written, so neither is charged. Past the budget no `$ref` lowers, and the compile
-is refused as one `openapi/budget-exceeded` error at the source and no position in it, compiling to
-no Document, beside what the load phase found and nothing the lowering did: which `$ref` crossed the
-budget, and so what lowered before it, follows the walk's order. With no Document to list the
-documents `$ref`s read, what the load phase found in one of them is left out too.
+link's is kept as written, so neither is charged. A path item's operations copy what the item
+declares itself. Its fixed methods bound those copies, and OpenAPI 3.2's `additionalOperations` does
+not, so each operation that field declares is charged too, the first among them, which charges an
+item the same in any order of its entries: an inline parameter of the item that it takes, weighed in
+the document writing it as a `$ref`'s declaration is, the entries it keeps of the item
+([`path-item-docs`](#path-item-docs)), a byte for each byte of their keywords and raw values and one
+between, and the IDs of the item's servers where it names none of its own
+([`path-item-servers`](#path-item-servers)). Past the budget no `$ref` lowers, nor such an
+operation, and the compile is refused as one `openapi/budget-exceeded` error at the source and no
+position in it, compiling to no Document, beside what the load phase found and nothing the lowering
+did: which copy crossed the budget, and so what lowered before it, follows the walk's order. With no
+Document to list the documents `$ref`s read, what the load phase found in one of them is left out
+too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
-  `openapi/alias-amplification`
+  `openapi/alias-amplification`, `openapi/pointer-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `load.TestLoad_ANamedOverlayPastTheBudgetIsRefused`,
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
+  `load.TestLoad_RefusesLongKeysNestedDeepBeforeBuildingTheModel`,
+  `load.TestLoad_ReportsAShapeOnceItsNestingRefuses`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
   `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
@@ -176,11 +190,17 @@ documents `$ref`s read, what the load phase found in one of them is left out too
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
-  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
+  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
+  `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
+  `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
+  `openapi.TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder`,
+  `openapi.TestCompile_AnItemsParameterIsWeighedInItsOwnDocument`,
+  `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path
-  item's own fields copied into each of its operations (#1428) and aliases of a long scalar (#1429)
-  cost gigabytes within every bound.
+  document budget twice (#571), aliases of a long scalar (#1429) cost gigabytes within every
+  bound, and the pointer bound counts the values a compile keeps verbatim, an example or an
+  extension, whose nodes it never names one by one, so a document whose values nest long keys deep
+  is refused though it would compile cheaply (#1499).
 
 ### `overlays`
 
@@ -190,7 +210,10 @@ from the local file `Overlay.Path` names, through the caller's reader and unconf
 caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
 is, and so are an overlay naming no file and one naming an http(s) URL, since no setting takes a
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
-tree as they hold the source, and validation and every lowering read it. Each action is charged the
+tree as they hold the source, and validation and every lowering read it. A refusal at a node the
+overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
+pointers' bytes, since the source passed the same refusals alone; its message says it reads the
+tree the overlay leaves, which the overlay's own refusal does not. Each action is charged the
 nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
 `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
 so it is refused while the tree is past the budget whatever a later action removes. An action that
@@ -221,7 +244,8 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
-  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`
+  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
+  `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is
@@ -661,7 +685,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
   JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
   it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359).
+  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
+  in the length of a chain of reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
@@ -2144,12 +2169,11 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a union
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
-  body itself writes (#1423); and comparing a nested schema's text renders it again at each level,
-  so restating one many levels deep costs about the cube of its depth (#1424). Open: keeping a
-  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
-  union's inline branches when properties sit beside it (#661).
+  body itself writes (#1423). Open: keeping a discriminated `oneOf` a union when structural keywords
+  sit beside it (#594), and distributing a union's inline branches when properties sit beside it
+  (#661).
 
 ### `union-beside-ref`
 

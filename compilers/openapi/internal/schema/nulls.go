@@ -290,12 +290,32 @@ func (n *nulls) widenRef(own, r nullReading, site nullSite) nullReading {
 // each reading, the nullable keyword's declared effect on it
 // (declaredTypeVerdict); the conjuncts differ only as each is read.
 func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
-	c, e, u := constNullVerdict(s), enumNullVerdict(s), unionNullVerdict(s)
+	v := valueNulls(n.c, s)
 	all := n.allOf(s, site)
 	return nullReading{
-		declared: foldNullVerdicts(n.declaredTypeVerdict(s), c, e, u, all.declared),
-		lenient:  foldNullVerdicts(typeNullVerdict(s), c, e, u, all.lenient),
+		declared: foldNullVerdicts(n.declaredTypeVerdict(s), v.constant, v.enum, v.union, all.declared),
+		lenient:  foldNullVerdicts(typeNullVerdict(s), v.constant, v.enum, v.union, all.lenient),
 	}
+}
+
+// valueNullsOf keys what valueNulls read of one schema.
+type valueNullsOf struct {
+	schema *oas3.Schema
+}
+
+// valueVerdicts is what a schema's const, enum and union families say of null.
+// Each reads only the schema, the same whichever reading or site asks.
+type valueVerdicts struct {
+	constant, enum, union nullVerdict
+}
+
+// valueNulls returns s's valueVerdicts, read once a run: every $ref to s asks,
+// and the enum and union families scan each member and branch, so reading them
+// at each reference would cost the references times the members.
+func valueNulls(c lowering.Ctx, s *oas3.Schema) valueVerdicts {
+	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
+		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullVerdict(s)}
+	})
 }
 
 // widen is the lenient reading of `nullable: true` on s: it admits null for

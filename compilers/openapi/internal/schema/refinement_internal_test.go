@@ -128,6 +128,26 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 	assert.Equal(t, first, nullableVoices(l.Ctx, s), "the second ask reads what the first read")
 }
 
+// TestValueNulls_ReadsASchemaOnce pins that what a schema's const, enum and union
+// say of null is read once a run, since every $ref to the schema asks and the enum
+// and union scan each member: they go after the first read, which no lowering
+// does, so only a remembered answer stays.
+func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    V: {const: null, enum: [a, null]}
+    U: {oneOf: [{type: string}, {type: 'null'}]}
+`))
+	v, u := declared(t, l, "V"), declared(t, l, "U")
+	values := valueVerdicts{constant: nullAdmitted, enum: nullAdmitted}
+	union := valueVerdicts{union: nullAdmitted}
+	require.Equal(t, values, valueNulls(l.Ctx, v))
+	require.Equal(t, union, valueNulls(l.Ctx, u))
+
+	v.Const, v.Enum, u.OneOf = nil, nil, nil
+	assert.Equal(t, values, valueNulls(l.Ctx, v), "the second ask reads what the first read")
+	assert.Equal(t, union, valueNulls(l.Ctx, u), "the second ask reads what the first read")
+}
+
 // TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition
 // reads: a branch repeating what s or a branch before it writes lends nothing
 // more, so a use pays for each entry once, while one writing a new entry lends it.

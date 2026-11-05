@@ -340,7 +340,7 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
+	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources, len(b.ids.dialects) > 0), b.ids
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
@@ -422,7 +422,8 @@ type Document struct {
 
 // Table is every schema reference a source holds, where each lands and where
 // its chain ends, the loops among them, and what the reading cost. It is built
-// once and never written after.
+// once, and no answer it gives changes after: only its base lookups write, to
+// remember the walks they make (bases), so one is not safe for concurrent use.
 type Table struct {
 	entries   map[Position]Entry
 	roots     map[Position]state
@@ -435,8 +436,11 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
-	res       resources
-	ids       *identifiers
+	// bases remembers each walk Base and InOwnResource make, filled as they
+	// ask. It changes no answer, each being what a walk from the root gives,
+	// and nothing guards it, as only the lowering asks, on one goroutine.
+	bases *bases
+	ids   *identifiers
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -516,8 +520,7 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 	if t == nil {
 		return false, true
 	}
-	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */, len(t.ids.dialects) > 0)
+	res, known := t.bases.holding(p)
 	return res.id, known
 }
 
@@ -525,15 +528,12 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 // against, its own identifier counted: its document's, or the resource's an
 // identifier at or above it names. Two schemas with one base read every
 // reference they write alike. It is false where a schema on the way may hide
-// one past the merge bound, and a nil table knows none. Each call walks from
-// the document's root, so asking at every level of a deep schema costs the
-// square of its depth (GitHub #1431).
+// one past the merge bound, and a nil table knows none.
 func (t *Table) Base(p Position) (string, bool) {
 	if t == nil {
 		return "", false
 	}
-	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */, len(t.ids.dialects) > 0)
+	res, known := t.bases.holding(p)
 	return res.uri, known
 }
 
