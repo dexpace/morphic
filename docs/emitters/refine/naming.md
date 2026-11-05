@@ -69,7 +69,9 @@ integrate](../write-integrate.md#what-the-manifest-records)) is an input to the 
    client is in the root unit, so an operation moved to another group would otherwise keep `get`
    beside the `get` that group's client already shipped.
 2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
-   else that name with the lowest numeric suffix, `2` up, that is free.
+   else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
+   reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units
+   reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's

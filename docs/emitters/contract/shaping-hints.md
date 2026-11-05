@@ -6,7 +6,7 @@ ergonomics, not API semantics* — the same category as runtime policy. It lives
 the ID is not built from, such as an `operationId`, never drops a hint (INV3). A path rename gives
 the operation a new ID, and its hint is then [a key that matches
 nothing](../write-integrate.md#a-key-that-matches-nothing), reported with the entity its correlation
-key now names:
+key now names where one does:
 
 ```go
 type ShapeHint struct {
