@@ -368,17 +368,18 @@ throughout these documents.
     hostile corpus, text decoded and written escaped, a `<p>`-led description among them, an element
     left open closed at its end and an end tag it never opened, such as `</td>`, rendered as text,
     `<key>` keeping its place, `<ul><li>a<li>b</ul>` closing the first item implicitly, an end tag
-    matching an element below the top closing it and those above it, a refused `a` its text and a
-    refused `img` its `alt`, else its tag as text, as the golden spec's `<img src="cid:logo">` is,
-    an `&#106;avascript:` destination refused once decoded and an image's `mailto:` source refused,
-    and a `<td>` or `<li>` with no parent on the description's stack rendered as text so a
-    description in a cell adds no cell to the page's table, `Example.Description` and
-    `Link.Description` read as CommonMark like `Docs.Description`, and an attribute outside the
-    list, a comment and a placeholder such as `<key>` as text, a summary escaped as text; a link
-    from spec text written only under `http`, `https` or `mailto` or, in a description, as a
-    relative path resolved against the configured base, a relative URL in a field of its own
-    rendered as text with the warning, and a `javascript:` destination, a fragment alone and a
-    relative path with no base each rendered as the link's text with the warning
+    matching an element below the top closing it and those above it, a listed tag's unlisted
+    attribute such as `target` dropped, a GitHub-style table kept as preformatted text, a refused
+    `a` its text and a refused `img` its `alt`, else its tag as text, as the golden spec's `<img
+    src="cid:logo">` is, an `&#106;avascript:` destination refused once decoded and an image's
+    `mailto:` source refused, and a `<td>` or `<li>` with no parent on the description's stack
+    rendered as text so a description in a cell adds no cell to the page's table,
+    `Example.Description` and `Link.Description` read as CommonMark like `Docs.Description`, and an
+    attribute outside the list, a comment and a placeholder such as `<key>` as text, a summary
+    escaped as text; a link from spec text written only under `http`, `https` or `mailto` or, in a
+    description, as a relative path resolved against the configured base, a relative URL in a field
+    of its own rendered as text with the warning, and a `javascript:` destination, a fragment alone
+    and a relative path with no base each rendered as the link's text with the warning
     `emitters/docs/link-unwritten`, in a description's links and images, `ExternalDocs` and every
     other URL the document gives alike, and a `TermsOfService` that is text rendered as text. Every
     channel, message, auth scheme, an `unresolved` one included, and declared type but a primitive
@@ -397,12 +398,13 @@ throughout these documents.
     the route plan, a span inside raw HTML, a link, an `a` the description opened or a code span,
     and one naming a type no route reaches, rendering as its text with no `route-missing`; a version
     switcher, listing only the labels `Routes` keys in `Document.Versions` order, links one entity
-    across snapshots, a model's page and never one of its tables, from the tables `Router` returns,
-    marks the run's `Snapshot` current, and an entity a version lacks to that version's page saying
-    so; two snapshots' pages of one entity lie under their labels' directories, neither run
-    overwriting or pruning the other's, all of them one generation whose manifest holds each run's
-    under its label, a dropped label's and a renamed slug's files pruned, the `""` snapshot written
-    at the root and a label that is no single path segment, or two differing only by case,
+    across snapshots, a model's page and never one of its tables, the page holding an anonymous
+    model's table where a version gives it no page, from the tables `Router` returns, marks the
+    run's `Snapshot` current, and an entity a version lacks to that version's page saying so; two
+    snapshots' pages of one entity lie under their labels' directories, neither run overwriting or
+    pruning the other's, all of them one generation whose manifest holds each run's under its label,
+    a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and a
+    label that is no single path segment, or two differing only by case,
     `engine/snapshot-label-invalid`, `.` and `..` among them, a label with `#` or `?`
     percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
     document `engine/target-unversioned` while run for samples alone on each snapshot, and the last
@@ -448,11 +450,12 @@ throughout these documents.
     off, so a response-form example serves a create shape and a patch body's may leave out a
     required member, one it cannot complete, or a `Strict` union's value two variants admit once
     shown in the shape, giving way to the set's next, a union value several variants admit refused
-    by `Build` where the union is `Strict` and elsewhere shown by `Shown` as the first, an
-    `Undeclared` name filled from its catch-all's set and a filled example labelled generated; a
-    property or a parameter declaring none and adding no constraint takes its type's set, an enum
-    member its own value, an operation declaring no success scenario, where every required input's
-    set holds a value, one assembled from its required parameters' sets, its optional parameters'
+    by `Build` where the union is `Strict` and elsewhere shown by `Shown` through all of them, a key
+    the catch-all admits kept, an `Undeclared` name filled from its catch-all's set and a filled
+    example labelled generated; a property or a parameter declaring none and adding no constraint
+    takes its type's set, an enum member its own value, an operation declaring no success scenario,
+    where every required input's set holds a value, one assembled, each value shown through the
+    shape its operation sends it in, from its required parameters' sets, its optional parameters'
     declared ones, its body's, required or not, and its return content's, after those it declares,
     always `Inferred`, its `Input` keyed by `ParamID` with the body under `body`, and none with
     `Assemble` off, a position whose type is a decorator its own examples, else the nearest
@@ -471,11 +474,11 @@ throughout these documents.
     and a synthesized one cut to the depth the bound leaves, so an optional recursive member ends
     and a required `Nullable` one ends with `null`; the bounds cut only optional members and the
     entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
-    deeper than `MaxDepth`, so a model requiring a list of itself ends, so a required member nested
-    deeper than `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the
-    synthesizer cannot make valid, a required cycle among them, or holding more than
-    `plan.MaxExampleValues` values is `emitters/plan/example-unsynthesized` and left out; with
-    `Synthesize` and `Assemble` off, no entry of `Plan.Examples` is `Inferred`, and with
-    `Synthesize` off a response content left with none is `emitters/mock/example-missing`, never a
-    body it invents; and a negative bound is `emitters/plan/policy-invalid` ([one set of
-    examples](../docs-and-mock.md#one-set-of-examples)).
+    deeper than `MaxDepth` or on a recurrence of its type, so a model requiring a list of itself and
+    a recursion through no model, as `cws_JSONValue`'s, end, so a required member nested deeper than
+    `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot
+    make valid, a required cycle among them, or holding more than `plan.MaxExampleValues` values is
+    `emitters/plan/example-unsynthesized` and left out; with `Synthesize` and `Assemble` off, no
+    entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
+    none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
+    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).

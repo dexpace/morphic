@@ -48,9 +48,10 @@ func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 
 // Shown is ex, a value of t, as the shape in shows it: the members in does not hold dropped, and
 // each one in requires that ex lacks taken from that member's set, which marks the result Inferred.
-// A union value several variants admit is read as the first of them, Build having refused it for
-// a Strict union; in a Strict union several variants admit in shape in, it is false, and so where
-// a required member's set is empty, so the caller takes the next.
+// A union value several variants admit keeps each member one of them holds, Build having refused
+// it for a Strict union; it is false for a Strict union several variants admit in shape in, and
+// where a required member's set is empty, so the caller takes the next. A key a catch-all admits
+// is kept.
 func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in ModelShape) (Example, bool)
 ```
 

@@ -37,7 +37,7 @@ type ExamplePolicy struct {
                                        // its own the first; required ones go as deep as needed
     MaxItems   int                     // how many entries a list or map holds, raised to its
                                        // minItems or minProps, lowered to its maxItems or maxProps;
-                                       // deeper than MaxDepth, only its minimum
+                                       // deeper than MaxDepth or on a recurrence, its minimum
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"
