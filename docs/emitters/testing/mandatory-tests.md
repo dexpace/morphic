@@ -238,11 +238,11 @@ throughout these documents.
     draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
     `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
     envelope that matches it, or as with none, drawing `emitters/plan/envelope-flag-mismatch` once
-    and only then; one no body matches, and an `Except` or `Bases` entry naming nothing, draw
-    `emitters/plan/envelope-unused`. Each field a match sets is marked `Inferred` as `envelope:` and
-    the envelope's `Name`; the docs emitter shows the member at `Value` of a response's example as
-    what the method returns, and the mock sends the envelope whole; and the surface differ reports a
-    body that gains the last name `Members` lists as a break
+    and only then; one no body matches draws `emitters/plan/envelope-unused`, and an `Except` or
+    `Bases` entry naming nothing `emitters/unmatched-key`. Each field a match sets is marked
+    `Inferred` as `envelope:` and the envelope's `Name`; the docs emitter shows the member at
+    `Value` of a response's example as what the method returns, and the mock sends the envelope
+    whole; and the surface differ reports a body that gains the last name `Members` lists as a break
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
     [return shapes](../operations/returns.md)).
 33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on a path item,
@@ -325,10 +325,11 @@ throughout these documents.
     one edited only inside a region, or checked out with other line endings, is not an edit; a
     region follows its entity into the file a rename moves it to, one the declaration enclosed still
     inside it, and one whose entity is gone is reported and its file kept; a scoped run's manifest
-    keeps every entry it left out; a file written once is never written again; a hint, an override
-    and an overlay key matching nothing each draw `emitters/unmatched-key`, naming the entity of the
-    same correlation key; a README's text outside its blocks and its frozen blocks survive byte for
-    byte, a block new to the generation lands beside its neighbours in the generated order, the
+    keeps every entry it left out; a file written once is never written again; a hint's key, a
+    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
+    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
+    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
+    for byte, a block new to the generation lands beside its neighbours in the generated order, the
     first of them included, a block whose ID holds `-->` keeps its markers whole, and its table of
     contents lists the user's headings; and a manifest of an older `Schema` is migrated, one of a
     newer refused ([write / integrate](../write-integrate.md)).

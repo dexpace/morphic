@@ -143,15 +143,24 @@ conflicts written with the markers merge tools read, never a merge of its own in
 
 ## A key that matches nothing
 
-Every input keyed by an IR ID can outlive its entity: a hint ([shaping
-hints](contract/shaping-hints.md)), a runtime-policy override
-([layers](contract/runtime-policy.md#layers-and-operations)), a per-target naming overlay, an
-overlay, the prior manifest. A spec change that removes or renames the entity leaves the key
-matching nothing, and ignoring it would drop the user's customization in silence. So every such key
-is reported, as a warning `emitters/unmatched-key` whose severity the caller controls and which
-never aborts the run. It names the key and, where one exists, the entity whose correlation key
-equals the one recorded for it, as the likely new home. A prior manifest's entry for a removed
-entity is not such a key: the staleness check reports it.
+Every ID an input names can outlive its entity: a hint's key in any layer, the group its `Remount`
+or a `Mount` names, and a per-target naming or compat overlay's key ([shaping
+hints](contract/shaping-hints.md)); a runtime-policy layer's operation key
+([layers](contract/runtime-policy.md#layers-and-operations)); and an envelope's `Except` and `Bases`
+entries ([envelopes](plan/policy.md#envelopes)). A spec change that removes or renames the entity
+leaves the ID matching nothing, and ignoring it would drop the user's customization in silence.
+
+So the engine, which alone holds every input and the prior manifest, matches each such ID against
+the document before any stage reads it, those of the inputs every emitter shares once for the run
+and an emitter's own once for that emitter. Each that matches nothing is a warning
+`emitters/unmatched-key`, which never aborts the run, since one configuration may serve several
+documents. It names the input, the ID and, where one exists, the entity whose correlation key equals
+the one the prior manifest records for that ID, as the likely new home. A stage reading such an ID
+passes over it, since it configures nothing, so each is reported once, by the one reader that can
+name where it went. A hint's `ParamKey`, which names a parameter by its wire identity rather than
+an ID, is reported so too, with no new home to name ([client
+settings](operations/client.md#client-settings)). A prior manifest's entry for a removed entity is
+not such an ID: the staleness check reports it.
 
 ## A document the user writes around
 
