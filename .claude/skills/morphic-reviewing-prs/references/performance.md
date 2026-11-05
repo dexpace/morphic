@@ -9,7 +9,9 @@ how each kind of cost claim is measured; a cost read off the code is a `question
 2. Count its work at n, 2n and 4n on that shape, on both builds
    (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`,
    `.claude/skills/morphic-measuring-performance/references/finding-cost.md#deep-generated-shapes`).
-3. Price the path every input takes (`references/performance.md#price-common-path`).
+3. Price the path every input takes (`references/performance.md#price-common-path`), and drive a
+   loop the change reruns until it settles through many turns
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#drive-a-settling-loop`).
 4. Read allocations and escapes on hot paths
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#escapes-on-hot-paths`),
    and whether a reused collection keeps its peak
@@ -25,6 +27,8 @@ is each new piece of work with its growth, bound and measured cost.
 - **Rule.** When a change adds work to a path every input takes, compare instructions retired on
   base and head
   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#instructions-not-wall-clock`)
-  for a large input of the old shape and for the golden spec, which `CLAUDE.md`'s "Priority"
-  section shows how to fetch.
-- **Why.** Allocation counts miss CPU work, and load skews wall-clock time (#1133).
+  on a spec of the old shape small enough to hold uncollected, under `GOMAXPROCS=1 GOGC=off`. The
+  golden spec, which `CLAUDE.md`'s "Priority" section shows how to fetch, answers only a claim of a
+  large effect: with the collector on, its spread hides a percent or two.
+- **Why.** Allocation counts miss CPU work, and load skews wall-clock time (#1133); two builds a nil
+  check apart spread 20% on the golden spec and read -0.23% pinned on a 1.2 MB spec (#1304).
