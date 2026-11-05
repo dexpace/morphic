@@ -2,7 +2,8 @@
 
 The first angle, as the rest weigh only correct options: whether every input gives the result a
 consumer should get, on the head as it will merge. It loads `morphic-verifying-changes` and the
-changed files' domain skill, such as `morphic-openapi-compiler` or `morphic-changing-the-ir`.
+changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changing-the-ir`, or
+`morphic-curating-skills` for `.claude/skills`.
 
 1. Read the diff before the PR body (`references/correctness.md#code-before-claims`).
 2. For each output the change alters, state the result a consumer should get on real input, then

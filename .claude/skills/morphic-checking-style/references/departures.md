@@ -174,8 +174,9 @@ the rule here rather than reading it across.
 - **Rule.** An optional interface, found by a run-time assertion such as the one `ir.WalkValues`
   makes for `ir.CycleVisitor`, is held by no build, so
   `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: a type meant
-  to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, unless
-  a test reads what the interface adds. Whether the walk should find them otherwise is #1523.
+  to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, or
+  carries a `var _`, unless a test reads what the interface adds. Whether the walk should find them
+  otherwise is #1523.
 - **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
   and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
   #1313).

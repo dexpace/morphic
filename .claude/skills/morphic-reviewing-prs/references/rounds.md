@@ -119,9 +119,8 @@ Round <n>: head <sha>, base <sha>, main <sha>
 - **Rule.** A finding rests on a rule and a fact, so attack both. Read the rule to its end for its
   scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or the guide; look for a decision on the
   line where `references/rounds.md#oddity-needs-a-comment` says one excuses it; weigh the PR's
-  stated intent, read
-  only now, after a blind first pass; and where a tool gave the count, sort its hits by what each
-  one is before calling any a defect. Report what survives.
+  stated intent, read only now, after a blind first pass; and where a tool gave the count, sort its
+  hits by what each one is before calling any a defect. Report what survives.
 - **Why.** The 298 functions `thelper` reported were filed as a breach of `t.Helper`, though
   `CONTRIBUTING.md` exempts a table's case and none was a breach (#1178), and a row said nothing
   recorded a position `CONTRIBUTING.md` holds (#1173).
