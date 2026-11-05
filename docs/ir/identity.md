@@ -10,11 +10,12 @@ type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID, EnumMemb
 type ServerID string
 ```
 
-IDs are opaque to consumers but constructed deterministically by compilers from the source
-pointer of the defining occurrence, so the same input always yields the same IDs (stable
-snapshots, cachable, diffable across spec revisions). IDs are never derived from display names
-and never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous
-types; aliases are recorded so both IDs stay resolvable.
+IDs are opaque to consumers but constructed deterministically by compilers from the source pointer
+of the defining occurrence, so the same input always yields the same IDs (stable snapshots,
+cachable, diffable across revisions that keep each entity's pointer; one that renames a path or a
+component gives what is beneath it new IDs, #419). IDs are never derived from display names and
+never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous types;
+aliases are recorded so both IDs stay resolvable.
 
 ## The ID grammar
 

@@ -145,11 +145,13 @@ everywhere, whatever a document embeds for one operation, and a document's own p
 still beats its own document-wide one. Ordering by scope first would let a document's per-operation
 settings outvote a project-wide choice, which then could not be made without naming every operation.
 
-A key naming no operation of the document is reported as a warning
-`emitters/policy/unknown-operation`, never ignored, since an operation whose ID changed would
-otherwise lose its settings in silence, and a warning rather than an error since one project's
-policy may serve several documents. Where a higher layer replaces what the document embeds, or its
-retry list takes a status from the other list the document embeds (above), an info
+A key naming no operation of the document configures nothing, and is never ignored, since an
+operation whose ID changed would otherwise lose its settings in silence: the engine reports it
+before `Resolve` runs, as a warning `emitters/unmatched-key` naming the operation that now holds its
+correlation key where one does ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)), a warning rather than an error since
+one project's policy may serve several documents. Where a higher layer replaces what the document
+embeds, or its retry list takes a status from the other list the document embeds (above), an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
 document's author can see it was overruled. A value a configuration writes outside a field's
 vocabulary or range, such as a `RetryScope` other than the three its comment names, a `MaxAttempts`
