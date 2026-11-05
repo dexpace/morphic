@@ -154,7 +154,7 @@ func isTupleRest(l bind.Landing) bool {
 // isBoolean reports whether n is a boolean scalar, a schema JSON Schema reads
 // as true or false.
 func isBoolean(n *yaml.Node) bool {
-	return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!bool"
+	return n.Kind == yaml.ScalarNode && n.Tag == "!!bool"
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test

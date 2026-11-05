@@ -147,7 +147,7 @@ func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
 func (r SchemaRules) TupleRestFinding(o Owned) (ir.Diagnostic, bool) {
 	rest := nodeview.Deref(o.rest)
 	tuple := o.Field == "items" && o.Value.Kind == yaml.SequenceNode && r.Takes("items", List)
-	if !tuple || rest == nil || rest.Kind == yaml.MappingNode || rest.Kind == yaml.ScalarNode && rest.ShortTag() == "!!bool" {
+	if !tuple || rest == nil || matches(Nested, rest) || matches(Boolean, rest) {
 		return ir.Diagnostic{}, false
 	}
 	at, code := o.at.Parent().AppendToken("additionalItems"), diag.Validation+"/"+classType
