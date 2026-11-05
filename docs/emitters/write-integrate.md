@@ -67,7 +67,8 @@ type File struct {
 
 type Entry struct {
     Key    string                // the entity's correlation key, from the pass #679 plans
-    Unit   string                // the unit the symbol was placed in
+    Scope  string                // the scope its name was resolved in, as Ctx.Syms keys it
+                                 // (refine/reserved-names.md)
     Base   string                // its rendered name before a collision was resolved
     Symbol string                // the name the generation gave it (refine/naming.md)
     Kind   string                // the target-AST node kind it was declared as
