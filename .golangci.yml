@@ -112,6 +112,28 @@ linters:
         # a panic(nil) for a return.
         - pattern: ^recover$
           msg: recover a panic through barrier.Catch
+        # How a schema or an object reads at a minor is a row of the OpenAPI
+        # compiler's rule table, which a lowering asks through its context
+        # (docs/compilers/openapi.md#later-version-construct): a lowering that
+        # reads the version a document declares states a fact a second time.
+        # The parser library's version field and accessor, its core model's
+        # field, and the table's reading of a version, are refused outside the
+        # load phase, the table and tests, which exclusions below excuse. An
+        # assignment to a field is refused as a read is, and nothing outside the
+        # load phase writes a parsed document; a struct literal naming it is no
+        # use. A member promoted through an embedding of the library's document
+        # is not seen, and nothing embeds it. The version as the YAML tree or
+        # the IR's SourceInfo.Format spells it is beyond a pattern, and nothing
+        # outside the load phase reads either.
+        - pattern: ^openapi\.OpenAPI\.(OpenAPI|GetOpenAPI)$
+          pkg: ^github\.com/speakeasy-api/openapi/openapi$
+          msg: ask the rule table how a document's version reads, not the version
+        - pattern: ^core\.OpenAPI\.OpenAPI$
+          pkg: ^github\.com/speakeasy-api/openapi/openapi/core$
+          msg: ask the rule table how a document's version reads, not the version
+        - pattern: ^oas\.ParseMinor$
+          pkg: /compilers/openapi/internal/oas$
+          msg: ask the rule table how a document's version reads, not the version
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -239,11 +261,19 @@ linters:
       # A test may print, and a forced type assertion in one fails the test by
       # panicking, which is what an assertion is for there. The comma-ok rule
       # keeps a panic from escaping a package to its callers. A test may also
-      # swap a process global, such as os.Args to drive a main, and put it back.
+      # swap a process global, such as os.Args to drive a main, and put it back,
+      # and read the version a fixture declares, which lowers nothing.
       - path: _test\.go
         linters:
           - forbidigo
-        text: forbidden by pattern|use of `recover`
+        text: forbidden by pattern|use of `recover`|not the version
+      # The OpenAPI compiler's load phase reads the version each document
+      # declares, and its rule table reads it as the rows of a minor. The paths
+      # are unanchored so the plants' look-alikes of the two are excused too.
+      - path: (^|/)compilers/openapi/internal/(load|oas)/
+        linters:
+          - forbidigo
+        text: not the version
       - path: _test\.go
         linters:
           - forcetypeassert

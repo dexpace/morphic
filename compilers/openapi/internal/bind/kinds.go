@@ -75,14 +75,57 @@ func kindOf(s state) Kind {
 // reference expects it to be; where references read one position as two
 // kinds, the lesser counts, so the answer depends on no reading order.
 func (t *Table) Kinds(p Position) []Kind {
+	var out []Kind
+	statesTo(t.roots, p, func(s state) { out = append(out, kindOf(s)) })
+	return out
+}
+
+// Reading is how the grammar reads one position (Table.ReadingAt), so that a
+// walk beneath it reads each position below without spelling out its pointer.
+// The zero Reading reads raw YAML.
+type Reading struct{ s state }
+
+// ReadingAt returns how the grammar reads p, as Kinds reads the last position
+// on the way to it. A pointer past the tokens Kinds reads, or a nil table,
+// reads raw YAML.
+func (t *Table) ReadingAt(p Position) Reading {
+	if t == nil {
+		return Reading{}
+	}
+	var r Reading
+	if !statesTo(t.roots, p, func(s state) { r = Reading{s: s} }) {
+		return Reading{}
+	}
+	return r
+}
+
+// Below returns how the grammar reads the position token names directly
+// beneath r's. Unlike Kinds, it does not read a position as a reference landing
+// there reads it: beneath raw YAML, such as an extension's value, everything
+// is raw YAML.
+func (r Reading) Below(token string) Reading { return Reading{s: step(r.s, token)} }
+
+// Schema reports whether r reads a Schema Object.
+func (r Reading) Schema() bool { return r.s == sSchema }
+
+// Referable reports whether r reads an object a reference object can stand
+// for, so a $ref written there names an object of that kind.
+func (r Reading) Referable() bool { return referenceKinds[r.s] }
+
+// statesTo hands visit how the grammar reads each position on the way to p,
+// the root's first, as Kinds documents, roots holding what the references a
+// table followed read positions as (rooted). It reports whether it read every
+// token of p's pointer rather than stopping at maxPointerTokens.
+func statesTo(roots map[Position]state, p Position, visit func(state)) bool {
 	s := sRaw
 	if p.Doc == Source {
 		s = sDocument
 	}
-	s = t.rooted(Position{Doc: p.Doc}, s)
-	out := []Kind{kindOf(s)}
+	s = rooted(roots, Position{Doc: p.Doc}, s)
+	visit(s)
 	pointer := string(p.Pointer)
-	for i := 0; i < len(pointer) && len(out) <= maxPointerTokens; {
+	i := 0
+	for tokens := 0; i < len(pointer) && tokens < maxPointerTokens; tokens++ {
 		end := strings.IndexByte(pointer[i+1:], '/')
 		if end < 0 {
 			end = len(pointer)
@@ -90,20 +133,21 @@ func (t *Table) Kinds(p Position) []Kind {
 			end += i + 1
 		}
 		token := jsontext.Pointer(pointer[i:end]).LastToken()
-		s = t.rooted(Position{Doc: p.Doc, Pointer: jsontext.Pointer(pointer[:end])}, step(s, token))
-		out = append(out, kindOf(s))
+		s = rooted(roots, Position{Doc: p.Doc, Pointer: jsontext.Pointer(pointer[:end])}, step(s, token))
+		visit(s)
 		i = end
 	}
-	return out
+	return i >= len(pointer)
 }
 
 // rooted returns s, the state the grammar reads at, or, where that is raw
-// YAML, the state a reference read at as a root of its own, where one did.
-func (t *Table) rooted(at Position, s state) state {
+// YAML, the state a reference read at as a root of its own, where roots
+// records one.
+func rooted(roots map[Position]state, at Position, s state) state {
 	if s != sRaw {
 		return s
 	}
-	if r, ok := t.roots[at]; ok {
+	if r, ok := roots[at]; ok {
 		return r
 	}
 	return s

@@ -279,10 +279,10 @@ func (m MediaTypes) adopt(c chain) bool {
 		return false
 	}
 	last := c.records[len(c.records)-1]
-	if !last.inSource() || last.node == nil {
+	if !last.inSource() || c.end == nil {
 		return false
 	}
-	model, ok := m.canonical[nodeview.Deref(last.node)]
+	model, ok := m.canonical[nodeview.Deref(c.end)]
 	if !ok || model == last.object {
 		return false
 	}

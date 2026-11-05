@@ -134,7 +134,8 @@ func TestHasError_Cases(t *testing.T) {
 func codes() []string {
 	return []string{
 		diag.Validation, diag.UnsupportedVersion, diag.UnresolvedRef, diag.CyclicRef,
-		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.TaggedMapping, diag.StreamDocumentsDropped,
+		diag.CycleScanFailed, diag.SourceTooLarge, diag.SourceTooDeep, diag.PointerAmplification, diag.TaggedMapping,
+		diag.StreamDocumentsDropped,
 		diag.UndecodableSource,
 		diag.OverlayInvalid, diag.OverlayFailed,
 		diag.OverlayAction, diag.OverlayOriginIncomplete,
@@ -154,7 +155,7 @@ func codes() []string {
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
-		diag.InvalidPathKey, diag.InferredNullable,
+		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect,
 	}
 }
 

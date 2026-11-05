@@ -72,11 +72,13 @@ gives. A clock does none of that reliably; a counter does.
 `counting-seam-for-optimizations`
 
 - **Rule.** An optimization changes no output, so a mutant that removes it survives as
-  "equivalent". Give the type doing the work a function field set at construction and count its
-  calls through an `export_test.go` helper, as `OnVerify` in `engine/export_test.go` counts
-  verifications; assert the count per scenario.
+  "equivalent". Count through the seam the code already has: a function parameter a pure function
+  takes, passed a counting closure from a `_internal_test.go` file, or, where a type does the work,
+  a function field set at construction and counted through an `export_test.go` helper, as
+  `OnVerify` in `engine/export_test.go` counts verifications. Assert the count per scenario.
 - **Why.** Removing a "do not verify again" shortcut changed no result and would have doubled
-  `--verify`'s cost (#1119).
+  `--verify`'s cost (#1119); `leastOf`'s early stop is held through the reader it takes as a
+  parameter, by `TestLeastOf_StopsAtOther` (#1435).
 - **Probe.** Remove the shortcut; the count assertion reddens.
 
 ## Measure a render through a real walk, not a zero path
