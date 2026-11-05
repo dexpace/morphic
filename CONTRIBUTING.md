@@ -297,15 +297,18 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    run compiles through, for a source table that does not describe the inputs. The refusals cannot
    be dropped apart from what settling reports, since `Finish` returns the two as one list.
 4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
-   listed, and add the package to the `engine` entry of the `rules` map. A registered compiler is
-   also held to its column of [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's
-   column header with its registered name in code, and write
-   `testdata/conformance/<format>/matrix.md`, one entry for each row the column marks expressible,
-   as `testdata/conformance/openapi/matrix.md` does.
+   listed, and add the package to the `engine` entry of the `rules` map. The registry, which does
+   not import the compiler, then calls its methods: add those calls to `callShapeBaseline` in
+   `internal/archtest/callshape_test.go`, beside `compilers/openapi`'s, as the designed seam they
+   are. A registered compiler is also held to its column of
+   [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's column header with its
+   registered name in code, and write `testdata/conformance/<format>/matrix.md`, one entry for each
+   row the column marks expressible, as `testdata/conformance/openapi/matrix.md` does.
    *Fails if missed:* `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for the column and
-   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails here
-   if the compiler is never registered, though step 5's `TestHarness_InRepoCorpus` does once its
-   fixtures are under `testdata/`, so add an engine test that compiles a document of the format.
+   the document, `TestImportGraph_LayeringHolds/engine` for the allowlist, and
+   `TestCallShape_HeldToTheBaseline` for the registry's calls. Nothing fails here if the compiler
+   is never registered, though step 5's `TestHarness_InRepoCorpus` does once its fixtures are
+   under `testdata/`, so add an engine test that compiles a document of the format.
 5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Put its
    corpus under the repository's `testdata/` (the conformance corpus is
    `testdata/conformance/<format>/`): the harness sweeps every spec there through whichever
