@@ -141,6 +141,26 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
 }
 
+// TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
+// schema is read with by its node: those of the dialect the root holding it
+// names, here a document of schemas naming draft 4 at its root, and else the
+// context's. A context with no load phase knows no root.
+func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
+	a, ok := c.Doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	x := c.Bindings().End(a)
+	require.NotNil(t, x)
+	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
+	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+		"the source's own schema reads its document's")
+	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	assert.True(t, lowering.SchemaRulesOf(bare, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+		"no load phase")
+}
+
 // TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
 // the schema readers ask of every schema they read across the bindings: the
 // source's rows come without a lookup, where one by its name would parse it as
