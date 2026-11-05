@@ -30,9 +30,13 @@ type Example struct {
                                         // false = declared as it stands
 }
 
+// MaxExampleValues bounds the values one example holds; a larger one is reported and left out.
+const MaxExampleValues = 10_000
+
 // The sets of the positions Examples has no key for: a content's, a variant's and a message's
-// declared examples, checked as Build checks the others, else their type's set, a message's
-// those of its payload's contents (../docs-and-mock.md#one-set-of-examples).
+// declared examples that Build's check admits, else their type's set, a message's those of its
+// payload's contents. Build reports what it refuses, so these report nothing
+// (../docs-and-mock.md#one-set-of-examples).
 func ContentExamples(p *Plan, doc *ir.Document, c *ir.Content) []Example
 func VariantExamples(p *Plan, doc *ir.Document, v *ir.Variant) []Example
 func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
