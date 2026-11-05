@@ -437,10 +437,9 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 func TestValidate_MessagePayloadDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
-	required := true
 	doc.Messages = map[ir.MessageID]ir.Message{}
 	for _, id := range []ir.MessageID{"msg/z", "msg/b", "msg/q", "msg/c", "msg/m"} {
-		doc.Messages[id] = ir.Message{ID: id, Payload: ir.Payload{Required: &required}}
+		doc.Messages[id] = ir.Message{ID: id, Payload: ir.Payload{Required: new(true)}}
 	}
 	want := pointers(withCode(validated(t, doc), "ir/payload-required-outside-request"))
 	require.Equal(t, []string{"msg/b", "msg/c", "msg/m", "msg/q", "msg/z"}, want)
