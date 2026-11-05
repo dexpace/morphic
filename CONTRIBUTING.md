@@ -46,12 +46,12 @@ Read the documents for your layer, and skip the rest until you need them.
   *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
   counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
 - **A fuzz target goes in a `fuzz` package of its own when its package's other tests link far more
-  than it needs.** `go test -fuzz` instruments everything a test binary links and pays for all of it
-  on every execution, and a binary links every test file's imports, so a target beside tests that
-  import `internal/decls` or testify searches at a fraction of its speed. `ir/fuzz` and
-  `compilers/openapi/e2e/fuzz` hold test files alone, import no test tooling, and read a table they
-  share with a package's other tests from `internal/ircases` or `internal/testspec`, which import
-  next to nothing, rather than restating it. A target
+  than it needs.** `go test -fuzz` instruments all a test binary links bar a few runtime packages
+  and pays for that on every execution, and a binary links every test file's imports, so a target
+  beside tests that import `internal/decls` or testify searches at a fraction of its speed.
+  `ir/fuzz` and `compilers/openapi/e2e/fuzz` hold test files alone, import no test tooling, and
+  read a table they share with a package's other tests from `internal/ircases` or
+  `internal/testspec`, which import next to nothing, rather than restating it. A target
   stays beside its code when it needs the package's internals, compares against a library its code
   links anyway, or its package's tests link little. Coverage counts only a package's own tests, so
   nothing in a `fuzz` package stands in for them. *Fails if missed:* nothing fails for a target that

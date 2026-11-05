@@ -46,10 +46,11 @@ type RefShapedSpec struct {
 	Data string
 }
 
-// RefShapedData returns specs where a structure shaped like a $ref sits outside
-// a schema position, or aliases are used without a loop, so nothing in them is a
-// cycle. The end-to-end test pins that, and the cycle detector's fuzz target
-// seeds from the same rows. Each call returns a copy.
+// RefShapedData returns specs holding a structure shaped like a $ref outside a
+// schema position, a loop of $refs through allOf, or aliases used without a
+// loop, none of which draws a cyclic-ref diagnostic. The end-to-end test pins
+// that, and the cycle detector's fuzz target seeds from the same rows. Each call
+// returns a copy.
 func RefShapedData() []RefShapedSpec { return slices.Clone(refShapedData) }
 
 var refShapedData = []RefShapedSpec{

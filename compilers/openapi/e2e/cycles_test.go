@@ -498,9 +498,10 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 }
 
 // TestCompile_RefShapedDataNotRefused pins that a structure shaped like a $ref
-// outside a schema position, or a loop-free use of aliases, compiles and is not
-// reported as a cycle. A cycle is reported and refuses nothing, so a $ref read
-// where no resolver reads one shows as that diagnostic.
+// outside a schema position, a loop of $refs through allOf, or a loop-free use
+// of aliases, compiles and draws no cyclic-ref diagnostic. A cycle is reported
+// and refuses nothing, so a $ref read where no resolver reads one shows as that
+// diagnostic.
 func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	t.Parallel()
 	for _, tc := range testspec.RefShapedData() {

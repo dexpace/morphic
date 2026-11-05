@@ -20,9 +20,9 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// fuzzSharedTables are the internal packages a fuzz package may import:
-// the tables a package's other tests share with its fuzz targets, which import
-// next to nothing.
+// fuzzSharedTables are the packages under the top-level internal/ that a fuzz
+// package may import: the tables a package's other tests share with its fuzz
+// targets, which import next to nothing.
 var fuzzSharedTables = []string{"internal/ircases", "internal/testspec"}
 
 // TestFuzzPackages_LinkNoTestTooling holds each fuzz package to the standard

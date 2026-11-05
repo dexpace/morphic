@@ -20,8 +20,8 @@ const maxRationalExp = 4096
 
 // decimalSeeds returns every spelling the decimal fuzz targets start from: the
 // spellings of one value, the adversarial grammar cases and the canonical forms
-// NewBigVal stores unchanged. Taking them from the slices their own tests keep
-// means a spelling added there reaches here.
+// NewBigVal stores unchanged. Taking them from the tables ir's tests share, and
+// the seeds beside them, means a spelling added there reaches here.
 func decimalSeeds() []string {
 	seeds := ircases.DecimalSpellings()
 	seeds = append(seeds, bigValAdversarialSeeds...)

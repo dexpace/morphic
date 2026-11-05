@@ -598,7 +598,7 @@ morphic/
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
 ├── internal/lintrules/     #           The repository's go/analysis lint rules (tooling).
-├── internal/testspec/      #           Spec fixtures shared by the tooling (tooling).
+├── internal/testspec/      #           Spec fixtures the tests across the module share (tooling).
 ├── cmd/morphic/            # Layer 4 — CLI.
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
 ├── cmd/morphic-census/     #           CLI over internal/census (tooling, not the pipeline).
