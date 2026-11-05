@@ -71,8 +71,10 @@ A table lists every member its model's flattening holds, and anchors a member on
 declaring it is rendered; another table holding it, a subtype's for an inherited member, links
 there. A model rendered as several tables anchors each member in the first of them, in
 `TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
-for each `PropID`. An anonymous model another composes in place is no table of its own: its members
-are rows of the composing model's table, anchored there, so no member is anchored twice.
+for each `PropID`. Each table has an anchor of its own, and a link to the model names the shape it
+shows, so an operation's patch body links to the patch table, never to one marking required what the
+patch relaxes. An anonymous model another composes in place is no table of its own: its members are
+rows of the composing model's table, anchored there, so no member is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -98,17 +100,20 @@ would show a Smithy model's `<p>` and `<code>` on every page. So pages and agent
 ([below](#documents-for-agents)) render it through an allowlist: `p`, `br`, `b`, `strong`, `i`,
 `em`, `code`, `pre`, `ul`, `ol`, `li`, `blockquote`, `sub`, `sup`, `table`, `thead`, `tbody`, `tr`,
 `th`, `td`, `dl`, `dt`, `dd`, `h1` to `h6` and `hr` with no attribute, `a` with an `href` and `img`
-with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, and
-the description is parsed as an HTML fragment in the place it is rendered and written back out, so
-an element it leaves open closes where it ends, and an end tag it never opened, such as a stray
-`</td>`, renders as text rather than closing the page's own table. Any other tag, attribute or
-comment renders as text, a custom element such as `<note>` among them. On the golden spec (spec
-@57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's grammar, outside
-code, and 4 comments: 11 tags a `<br/>`, which renders as a line break, one an `<img>`, which
-renders as text since the rule below refuses its `cid:` source, and 33 placeholders such as `<key>`
-and `<uuid>`, which no list names, so a placeholder stays visible where a browser handed it would
-parse it as an element and drop it. A summary, a name or any other spec string that is not
-CommonMark is escaped as text.
+with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, read
+token by token against a stack of its own: a listed start tag opens an element, `br`, `hr` and `img`
+opening none, a listed end tag closes the element on top when it matches, and every other token is
+written as text from its source bytes, so an end tag the description never opened, such as a stray
+`</td>`, renders as text rather than closing the page's own table, a placeholder such as `<key>`
+keeps its place, and what is still open closes where the description ends. An HTML parser's fragment
+mode is no substitute: it drops a stray end tag and turns `<key>` into an element holding the rest
+of the text. Any other tag, attribute or comment renders as text, a custom element such as `<note>`
+among them. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML
+tags by CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a
+line break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source,
+and 33 placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays
+visible where a browser handed it would parse it as an element and drop it. A summary, a name or any
+other spec string that is not CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
@@ -172,11 +177,12 @@ a way to show one entity across API versions. Each is decided by data, never by 
   plans, its table's and its agent documents' together, so no template can reintroduce a collision
   the catalog did not have.
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
-  with the projection it wants (a page, an anchor, the agent document of one target and language),
-  and the route plan answers it. A spec's [`Docs.Refs`](../ir/annotations.md#references-in-prose)
-  resolve the same way, so a link follows its target wherever its route moves. A page no entity
-  owns, the index of the versions or an `llms.txt`, is requested by its kind and its scope, a
-  version's label, a service's ID or an SDK target and language, which the same templates route.
+  with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
+  of one target and language), and the route plan answers it. A spec's
+  [`Docs.Refs`](../ir/annotations.md#references-in-prose) resolve the same way, so a link follows
+  its target wherever its route moves. A page no entity owns, the index of the versions or an
+  `llms.txt`, is requested by its kind and its scope, a version's label, a service's ID or an SDK
+  target and language, which the same templates route.
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
@@ -229,10 +235,11 @@ disagree about a URL:
   can set through the [embedded reader](contract/embedded-policy.md). No IR fact states it, and a
   method cannot: `DELETE` and `PUT` are idempotent and may destroy.
 - **Spec text is escaped.** A heading or a list item built from a summary or a description is
-  escaped for Markdown, raw HTML in a description is rendered through the pages' allowlist, and a
-  link is written only where a page would write it (above). A code fence around an example or a
-  sample is at least three backticks and one longer than the longest run of backticks inside it, so
-  no value closes it.
+  escaped for Markdown, a description is parsed as CommonMark and written back out within its list
+  item, so an unclosed fence closes at its end and a link reference definition reaches no other
+  description, its raw HTML rendered through the pages' allowlist, and a link is written only where
+  a page would write it (above). A code fence around an example or a sample is at least three
+  backticks and one longer than the longest run of backticks inside it, so no value closes it.
 
 ## Samples come from the SDK emitters
 
@@ -248,20 +255,21 @@ target would run with, which the engine finds as it finds any target's ([target
 options](contract/options.md)), writing none of its artifacts unless the run names it too, and hands
 it their samples in `EmitterInput.Samples`. So what a docs run shows depends on its options and
 never on which other targets share the run: a docs target whose options name `go`, run alone, shows
-the samples a run of both would. A named target the registry lacks, or one that reads samples
-itself, is an error `engine/sample-target-invalid`, which the engine reports since the docs target
-cannot see the registry, and one with no configuration is refused as an absent configuration always
-is. The engine runs a named target for its samples even when its generation writes nothing ([write /
+the samples a run of both would. A named target the registry lacks, one whose
+`Capabilities.WritesSamples` is unset, or one that reads samples itself, is an error
+`engine/sample-target-invalid`, which the engine reports since the docs target cannot see the
+registry, and one with no configuration is refused as an absent configuration always is. The engine
+runs a named target for its samples even when its generation writes nothing ([write /
 integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
 them, and, when the run names it too, runs it once with its artifacts, which on a sliced document
 only a cross-version target may be (#1531). A run made for samples alone reports what any run of
 that target reports, and the engine decides as for any run whether that is fatal: the docs show that
 SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
-for every operation its callers call, whatever its `Scope`, and none, with no diagnostic, for one
-the API starts, a webhook, a callback or a message the client receives, since no call spells it,
-which gates its artifacts alone, since its names are the whole document's: a scoped SDK run's docs
-keep every sample. A docs generation is a new one whenever the samples it is handed change, as an
-SDK target's own options can change them. A sample a target cannot render is a warning
+for every operation its callers call, whatever its `Scope`, which gates its artifacts alone, since
+its names are the whole document's: a scoped SDK run's docs keep every sample. It returns none, with
+no diagnostic, for an operation the API starts, a webhook, a callback or a message the client
+receives, since no call spells it. A docs generation is a new one whenever the samples it is handed
+change, as an SDK target's own options can change them. A sample a target cannot render is a warning
 `emitters/<target>/sample-unrendered`, never an empty code block on the page, and so is one for an
 operation whose required input holds no example. A sample shows a call that succeeds, so its values
 are the `Input` of its operation's first success scenario (below): one ending in no `Error`, since
@@ -288,7 +296,9 @@ member and operation:
   each member the shape requires and the example lacks, that member's own first value, which marks
   what is shown `Inferred`. So a response-form example serves a create shape, a patch body's may
   leave out a required member, and no shape is left without one. `plan.Shown` does this, the one
-  projection every consumer reads an example through. One they refuse is reported as a warning
+  projection every consumer reads an example through, and reports an example it cannot complete, a
+  required member's set being empty, so the consumer takes the set's next one, or reports as an
+  empty set does when none is left. One they refuse is reported as a warning
   `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
   SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
   @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
@@ -320,9 +330,13 @@ member and operation:
   document most often declares a body's examples: on the golden spec (spec @57b5196b, morphic
   @ab953d45), 435 request, response and error contents declare 651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
-  against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
-  list synthesized holds, for each member or item, the first value of that member's own set: a
-  declared value whole, and a synthesized one cut to the depth the bound leaves, so a property's
+  against the entity's type and constraints, marked `Inferred` and labelled generated. A model
+  synthesized holds, for each member, the first value of that member's own set, and a list or map,
+  for its k-th item or entry, the k-th, its set's values taken in turn and, once they run out,
+  synthesized values seeded by index, so items differ where `uniqueItems` or a map's keys require
+  it, a map's keys being distinct values of its key type; a `uniqueItems` list holds no more items
+  than distinct values exist, and one left below its minimum is unsynthesizable. Each such value is
+  a declared one whole, or a synthesized one cut to the depth the bound leaves, so a property's
   value is the same alone and inside its model wherever the bound leaves it whole, and an optional
   recursive member ends. The bounds cut only what validity leaves optional ([plan
   policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of

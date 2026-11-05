@@ -27,7 +27,8 @@ type Emitter interface {
 // on every version snapshot before any Generate, with the input that snapshot's Generate takes but
 // for Samples and Routes, and hands each run all the tables in EmitterInput.Routes
 // (../docs-and-mock.md#routes-and-links). It is pure, as Generate is, and reports nothing: each
-// run plans its own routes by the same function and reports what it finds.
+// run plans its own routes by the same function and reports what it finds. The engine asks the
+// context after it returns, as after Generate, and a done one fails the run.
 type Router interface {
     Routes(context.Context, EmitterInput) RouteTable
 }

@@ -132,7 +132,8 @@ type Entry struct {
   moves from one label's run to another's, as a file spanning versions does when another label
   becomes last, is neither pruned nor taken for a user's edit. Its manifest is a `Generations` even
   for an unsliced document, whose one label is `""`, and where a prior holds no entry for the last
-  label, as when a document gains versions, that run takes the prior's `""` entry, so the names it
+  label, as when a document gains, loses or renames versions, that run takes the prior's entry
+  holding the files spanning versions, its last label's or its `""` one, so the names the site last
   shipped carry over.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step

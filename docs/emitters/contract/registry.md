@@ -45,6 +45,7 @@ type Capabilities struct {
     ReadsSamples    bool            // reads the samples of the targets its options name, so runs
                                     // after them
                                     // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    WritesSamples   bool            // returns EmitterOutput.Samples, so a docs target may name it
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does
@@ -52,12 +53,13 @@ type Capabilities struct {
 ```
 
 `CrossVersion` and `ReadsSamples` say what a run hands the target, every snapshot's routes and the
-samples of the targets its options name, and when the engine runs it; the registry refuses a target
-that sets `CrossVersion` without implementing `Router` ([the contract](emitter.md)). `Lifecycle` is
-the one field the engine acts on otherwise, and only to tell the user, never to change an artifact.
-The states are a target's life in order. A `hidden` target is under construction: it is left out of
-every listing — help, completion, the targets a misspelt name is answered with — and runs only when
-named, with the `experimental` warning. An `experimental` target runs with a warning diagnostic
-saying its output may change in any release. A `sunset` target runs with a warning that names its
-`Successor` when it has one. The registry refuses a target that states no lifecycle, so none is
-stable by omission.
+samples of the targets its options name, and when the engine runs it, and `WritesSamples` that it
+returns samples, so a docs target naming one that does not is refused
+(`engine/sample-target-invalid`); the registry refuses a target that sets `CrossVersion` without
+implementing `Router` ([the contract](emitter.md)). `Lifecycle` is the one field the engine acts on
+otherwise, and only to tell the user, never to change an artifact. The states are a target's life in
+order. A `hidden` target is under construction: it is left out of every listing — help, completion,
+the targets a misspelt name is answered with — and runs only when named, with the `experimental`
+warning. An `experimental` target runs with a warning diagnostic saying its output may change in any
+release. A `sunset` target runs with a warning that names its `Successor` when it has one. The
+registry refuses a target that states no lifecycle, so none is stable by omission.

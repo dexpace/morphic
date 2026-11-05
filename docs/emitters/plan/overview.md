@@ -26,8 +26,8 @@ type Plan struct {
 
 type Example struct {
     Example  ir.Example                 // the example, as the IR spells one
-    Inferred bool                       // made under Policy.Examples, synthesized or assembled;
-                                        // false = declared as it stands
+    Inferred bool                       // made under Policy.Examples, synthesized, assembled or
+                                        // filled by Shown; false = declared as it stands
 }
 
 // MaxExampleValues bounds the values one synthesized example holds; a larger one is reported
@@ -44,7 +44,8 @@ func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 
 // Shown is ex, a value of t, as the shape in shows it: the members in does not hold dropped, and
 // each one in requires that ex lacks taken from that member's set, which marks the result Inferred.
-func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in ModelShape) Example
+// It is false when a required member's set is empty, so the caller takes the next example.
+func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in ModelShape) (Example, bool)
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
