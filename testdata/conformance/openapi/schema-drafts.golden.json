@@ -108,6 +108,30 @@
         "uniqueItems": false
       }
     },
+    "t/anon/components/schemas/Pairs/items": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/Pairs/items",
+      "name": {
+        "hint": "pairs_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs/items"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ]
+    },
     "t/openapi/components/schemas/Applied": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Applied",
@@ -401,6 +425,35 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Pairs": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Pairs",
+      "name": {
+        "source": "Pairs",
+        "canonical": "pairs"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-07/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pairs/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Pairs/items",
+        "nullable": false
+      }
+    },
     "t/prim/bool": {
       "kind": "primitive",
       "id": "t/prim/bool",
@@ -459,6 +512,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pair/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs/$schema"
       }
     },
     {
@@ -556,7 +618,7 @@
     {
       "format": "openapi@3.1",
       "path": "schema-drafts.yaml",
-      "hash": "0583c85d81f31a5127f4ec4761bdaa0d16e797bfc6549c08cc3cf3023d95c166"
+      "hash": "b78295499c2a7573465295844639b3e6b754aca3b85c1defd8b0858dd4a6ffe1"
     }
   ]
 }

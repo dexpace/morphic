@@ -10,12 +10,15 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -131,8 +134,12 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
 	if js.IsBool() {
-		// The parser reads a body as false too when a keyword beneath it fails to
-		// decode under its own name, so a false here may be no false (GitHub #1299).
+		if unmended(js) {
+			return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+				"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
+					"and the load phase decodes no more than %d such schemas one below another; lowered as any",
+				typed.MaxMends)}
+		}
 		if b := js.GetBool(); b != nil && !*b {
 			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
@@ -146,6 +153,15 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return refSiteRef(c, ts, js, schema, pointer, home)
 	}
 	return schemaBody(c, ts, depth, schema, pointer, home)
+}
+
+// unmended reports whether js is a boolean the parser read from a mapping the
+// document writes, which the load phase decodes again unless it lies past
+// typed.MaxMends (docs/parser-library.md#failure-beneath-itself), and which
+// says nothing of the values there.
+func unmended(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	n := nodeview.Deref(js.GetCore().GetRootNode())
+	return n != nil && n.Kind == yaml.MappingNode
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it

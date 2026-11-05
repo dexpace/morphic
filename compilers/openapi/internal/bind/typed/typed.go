@@ -138,7 +138,23 @@ type Builder struct {
 	// decode builds a schema from YAML: the parser's own decoder, which a test
 	// replaces to reach its failure.
 	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) error
+	// bools are the boolean schemas recorded and not yet mended (mend).
+	bools []recorded
 }
+
+// recorded is a schema, the position it was read at, and how many mendings
+// deep it lies (MaxMends).
+type recorded struct {
+	js    *schemaRef
+	at    bind.Position
+	mends int
+}
+
+// MaxMends bounds how many schemas mend decodes again one below another. Each
+// decoding reads the whole schema, so a chain of them costs the square of its
+// depth, and one past the bound, a mapping still read as false, is the
+// lowering's to report.
+const MaxMends = 8
 
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
@@ -168,7 +184,8 @@ func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schema
 }
 
 // Schema records that js was read at p. The first schema recorded at a
-// position is the one held there.
+// position is the one held there. A boolean one is noted, as the parser
+// decodes some written mappings as false (mend).
 func (bd *Builder) Schema(js *schemaRef, p bind.Position) {
 	if js == nil {
 		return
@@ -176,6 +193,38 @@ func (bd *Builder) Schema(js *schemaRef, p bind.Position) {
 	bd.b.at[js] = p
 	if _, held := bd.b.held[p]; !held {
 		bd.b.held[p] = js
+	}
+	if js.IsBool() {
+		bd.bools = append(bd.bools, recorded{js: js, at: p})
+	}
+}
+
+// mend decodes again, in place, each boolean schema recorded whose node is a
+// mapping, and records what it holds: the parser decodes such a position as
+// false where a keyword beneath it fails to decode under its own name
+// (docs/parser-library.md#failure-beneath-itself), though the mapping decoded
+// on its own is the schema written. A mended schema is no boolean, so each is
+// mended once, and one a mending leaves false below it, as a chain of such
+// keywords does, deeper than it, in turn: the work ends within the document's
+// nesting. One no decoding reads stays false.
+func (bd *Builder) mend(ctx context.Context) {
+	for len(bd.bools) > 0 && ctx.Err() == nil {
+		r := bd.bools[len(bd.bools)-1]
+		bd.bools = bd.bools[:len(bd.bools)-1]
+		n := nodeview.Deref(r.js.GetCore().GetRootNode())
+		if n == nil || n.Kind != yaml.MappingNode || r.mends >= MaxMends {
+			continue
+		}
+		fresh := &schemaRef{}
+		if err := bd.decodeRecovered(ctx, n, fresh); err != nil || fresh.IsBool() {
+			continue
+		}
+		*r.js = *fresh
+		below := len(bd.bools)
+		bd.Walk(ctx, r.js, r.at)
+		for i := below; i < len(bd.bools); i++ {
+			bd.bools[i].mends = r.mends + 1
+		}
 	}
 }
 
@@ -251,9 +300,10 @@ type Built struct {
 }
 
 // Build builds a schema for each of the table's landings, in order, records
-// it and everything below it, and returns what each build found. It stops
-// between landings once ctx is done, with what it built so far, which its
-// caller must not read.
+// it and everything below it, and returns what each build found. Then each
+// schema recorded, before it or by it, that the parser read as false from a
+// mapping is mended (mend). It stops between landings once ctx is done, with
+// what it built so far, which its caller must not read.
 func (bd *Builder) Build(ctx context.Context) []Built {
 	landings := bd.b.table.Landings()
 	out := make([]Built, 0, len(landings))
@@ -263,6 +313,7 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 		}
 		out = append(out, bd.build(ctx, l))
 	}
+	bd.mend(ctx)
 	return out
 }
 

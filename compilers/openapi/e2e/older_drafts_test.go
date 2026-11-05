@@ -70,7 +70,40 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 	}
 }
 
-// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
+// TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple pins a draft's tuple
+// written below a schema the parser reads as false for it
+// (docs/parser-library.md#failure-beneath-itself): as an array's items, three
+// arrays deep, and in a property of an array's items, each schema above it
+// lowers as written and the tuple as a Tuple, with no false schema reported.
+func TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: "+draft07+
+		"\npaths: {}\ncomponents:\n  schemas:\n"+
+		"    Pairs: {type: array, items: {type: array, items: [{type: string}, {type: integer}]}}\n"+
+		"    Cube: {type: array, items: {type: array, items: {type: array, items: [{type: number}]}}}\n"+
+		"    Rows: {type: array, items: {type: object, properties: {name: {type: string},\n"+
+		"      at: {type: array, items: [{type: number}, {type: number}]}}}}\n")
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "the document writes no false")
+	elem := func(id ir.TypeID) ir.TypeDef {
+		l, ok := doc.Types[id].(*ir.List)
+		require.True(t, ok, "%s is a list", id)
+		return doc.Types[l.Elem.Target]
+	}
+	pair, ok := elem(componentID("Pairs")).(*ir.Tuple)
+	require.True(t, ok, "an array's items is the tuple written")
+	assert.Len(t, pair.Elems, 2)
+	cube, ok := elem(elem(componentID("Cube")).Common().ID).(*ir.Tuple)
+	require.True(t, ok, "three arrays deep")
+	assert.Len(t, cube.Elems, 1)
+	row, ok := elem(componentID("Rows")).(*ir.Model)
+	require.True(t, ok, "an array's items above a tuple is the model written")
+	at, ok := propByWire(row, "at")
+	require.True(t, ok)
+	assert.Equal(t, ir.KindTuple, doc.Types[at.Type.Target].Kind())
+}
+
+// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
 // whose entries or rest no schema spells, which no $ref reaches, against its
 // twin written with 2020-12's prefixItems: an entry of 5 or null is an error at
 // it, a rest of 5 an error and of null a warning that it is read as left out,

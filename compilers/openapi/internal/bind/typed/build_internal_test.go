@@ -5,6 +5,7 @@ package typed
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"strings"
 	"testing"
@@ -92,4 +93,93 @@ func TestBuild_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	assert.Equal(t, "the parser panicked: "+diag.OneLine(errors.New(huge)), built[0].Err.Error())
 	assert.NotContains(t, built[0].Err.Error(), "\n")
 	assert.Less(t, len(built[0].Err.Error()), len(huge)/4, "the bound cut the value")
+}
+
+// chainOf returns a schema writing an array whose items nest depth arrays
+// deep, the innermost writing a list of items, as a draft spells a tuple.
+func chainOf(depth int) string {
+	return strings.Repeat("{type: array, items: ", depth) + "[{}]" + strings.Repeat("}", depth)
+}
+
+// decodedAt decodes src as the parser decodes a schema and records it, and
+// everything below it, at p, as the source's walk records its schemas.
+func decodedAt(t *testing.T, bd *Builder, src string, p bind.Position) {
+	t.Helper()
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &n))
+	js := &schemaRef{}
+	require.NoError(t, bd.decode(t.Context(), n.Content[0], js))
+	bd.Walk(t.Context(), js, p)
+}
+
+// TestMend_DecodesAgainAMappingTheParserReadAsFalse pins mend: a schema the
+// parser read as false from a mapping, as it reads the items above a list of
+// items, is decoded again in place, the one held and every reader's, and so
+// is each a mending leaves false below it, down to the list, which stays
+// false, no deeper than MaxMends. A written false or null stays undecoded, and
+// one whose decoding fails or reads a boolean again stays.
+func TestMend_DecodesAgainAMappingTheParserReadAsFalse(t *testing.T) {
+	t.Parallel()
+	bd := NewBuilder(nil)
+	at := func(p string) bind.Position { return bind.Position{Pointer: jsontext.Pointer(p)} }
+	decodedAt(t, bd, chainOf(3), at("/c"))
+	held := bd.Bindings().At(at("/c/items"))
+	require.NotNil(t, held)
+	require.True(t, held.IsBool(), "the parser reads the items above a list as false")
+	decodedAt(t, bd, "{items: false, not: null}", at("/w"))
+	decodedAt(t, bd, chainOf(MaxMends+2), at("/deep"))
+	decodes := 0
+	decode := bd.decode
+	bd.decode = func(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+		decodes++
+		return decode(ctx, n, js)
+	}
+	bd.mend(t.Context())
+	assert.Equal(t, 2+MaxMends, decodes, "a mapping is decoded, and no written false, null or list")
+
+	assert.Same(t, held, bd.Bindings().At(at("/c/items")), "mended in place")
+	assert.False(t, held.IsBool())
+	assert.False(t, bd.Bindings().At(at("/c/items/items")).IsBool(), "the next one down is mended in turn")
+	assert.True(t, bd.Bindings().At(at("/c/items/items/items")).IsBool(), "the list stays as the parser reads it")
+	for _, p := range []string{"/w/items", "/w/not"} {
+		assert.True(t, bd.Bindings().At(at(p)).IsBool(), "%s is written as no mapping", p)
+	}
+	deep := "/deep" + strings.Repeat("/items", MaxMends)
+	assert.False(t, bd.Bindings().At(at(deep)).IsBool(), "MaxMends mendings deep")
+	assert.True(t, bd.Bindings().At(at(deep+"/items")).IsBool(), "and none past them")
+
+	for name, decode := range map[string]func(context.Context, *yaml.Node, *schemaRef) error{
+		"failing":           func(context.Context, *yaml.Node, *schemaRef) error { return errors.New("planted") },
+		"reading a boolean": func(context.Context, *yaml.Node, *schemaRef) error { return nil },
+		"failing once it has read": func(ctx context.Context, n *yaml.Node, js *schemaRef) error {
+			if err := decodeSchema(ctx, n, js); err != nil {
+				return err
+			}
+			return errors.New("planted")
+		},
+	} {
+		bd := NewBuilder(nil)
+		decodedAt(t, bd, chainOf(2), at("/c"))
+		bd.decode = decode
+		bd.mend(t.Context())
+		assert.True(t, bd.Bindings().At(at("/c/items")).IsBool(), "a decoding %s leaves it", name)
+	}
+}
+
+// TestBuild_MendsWhatWasRecordedAndWhatItBuilds pins that Build mends what
+// was recorded before it, the source's own schemas, and what building a
+// landing records below it.
+func TestBuild_MendsWhatWasRecordedAndWhatItBuilds(t *testing.T) {
+	t.Parallel()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
+		"components:\n  schemas:\n    A: {$ref: '#/x-lib/S'}\nx-lib: {S: "+chainOf(2)+"}\n"), &root))
+	bd := NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
+	src := bind.Position{Pointer: "/components/schemas/B"}
+	decodedAt(t, bd, chainOf(2), src)
+	built := bd.Build(t.Context())
+
+	require.Len(t, built, 1)
+	assert.False(t, bd.Bindings().At(bind.Position{Pointer: "/x-lib/S/items"}).IsBool(), "a landing's")
+	assert.False(t, bd.Bindings().At(bind.Position{Pointer: src.Pointer + "/items"}).IsBool(), "the source's")
 }

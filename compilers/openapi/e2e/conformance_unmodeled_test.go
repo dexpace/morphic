@@ -941,7 +941,8 @@ func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // assertSchemaDrafts pins what the JSON Schema drafts before 2020-12 spell
 // otherwise, each read in the draft its schema names
 // (docs/compilers/openapi.md#dialect-keywords): a list of items as a tuple
-// whose rest is additionalItems (#tuples), draft 6's dependencies kept as
+// whose rest is additionalItems (#tuples), as an array's items too, which
+// the parser reads as false (#whole-schema-fallbacks), draft 6's dependencies kept as
 // validation-only (#validation-only), a keyword beside draft 7's $ref warned of
 // and 2019-09's applied silently (#later-version-construct), and draft 4's `id`
 // naming a resource whose fragment ids a $ref reads, bar one beside that $ref,
@@ -956,6 +957,11 @@ func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.Len(t, pair.Elems, 2)
 	assert.Equal(t, componentID("Count"), pair.Elems[1].Target, "an entry's $ref is bound")
 	assert.Nil(t, pair.Rest, "additionalItems: false admits nothing past them")
+	pairs, ok := doc.Types[componentID("Pairs")].(*ir.List)
+	require.True(t, ok)
+	nested, ok := doc.Types[pairs.Elem.Target].(*ir.Tuple)
+	require.True(t, ok, "a tuple as an array's items, which the parser reads as false")
+	assert.Len(t, nested.Elems, 2)
 	open := tuple("Open")
 	require.Len(t, open.Elems, 1)
 	require.NotNil(t, open.Rest, "additionalItems is the rest")

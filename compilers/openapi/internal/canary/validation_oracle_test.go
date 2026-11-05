@@ -101,7 +101,8 @@ var validationReasons = map[string]string{
 		"schema lowering does, and reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
 	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
 		"dialect it names, and refuses what a draft spells otherwise, a draft 4 exclusive bound, a boolean " +
-		"modifying the bound beside it, or a tuple written as a list of items; the specification has a root's " +
+		"modifying the bound beside it, or a tuple written as a list of items, which beneath another items it " +
+		"reports as an invalid target (docs/parser-library.md#failure-beneath-itself); the specification has a root's " +
 		"$schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 §Schema Object: 'if present " +
 		"MUST be used to determine which dialect should be used when processing the schema'), and the compiler " +
 		"reads each in it (docs/compilers/openapi.md#dialect-keywords)",

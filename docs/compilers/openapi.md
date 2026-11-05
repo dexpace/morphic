@@ -2558,7 +2558,13 @@ to name it by, and nothing can collide with it, since such a schema has nothing 
 boolean `true` schema is the top type, as `{}` is, and reports nothing. A `$ref` naming a boolean
 schema below a component takes what that position lowers to, whichever is declared first: the closed
 `Model` at its pointer, or an alias there of the top type. A position nothing else lowers, such as a
-closed tuple's `items: false`, is lowered for the `$ref` alone.
+closed tuple's `items: false`, is lowered for the `$ref` alone. The parser decodes as `false` a
+schema the document writes as a mapping where a keyword beneath it fails to decode under its own
+name, such as an `items` above a JSON Schema draft's list of `items`
+([`failure-beneath-itself`](../parser-library.md#failure-beneath-itself)). The load phase decodes
+each such schema again as written, and in turn each one that leaves `false` below it, up to
+`typed.MaxMends` of them one below another; one past them becomes the top type, reported as an
+`openapi/degraded-construct` error at it, since it is no `false` the document writes.
 
 That preservation is load-bearing, not decorative: a closed empty `Model` admits `{}`, and the
 source admits nothing, so the lowered type is one value wider than what was written. Without the
@@ -2579,7 +2585,9 @@ emitter that wants the exact reading has everything it needs to produce it.
 
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
-- Tests: `schema.TestLower_DepthCapExceeded`,
+- Tests: `schema.TestLower_DepthCapExceeded`, `schema.TestLower_ASchemaPastTheMendsIsTheTopType`,
+  `e2e.TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`,
   `e2e.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
   `e2e.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
@@ -2629,9 +2637,8 @@ of its own, since reading it so loses nothing.
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
   `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
-- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
-  an `items`, turns the outer position into the `false` schema (#1299).
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
 ## 7. Schemas: keywords beyond the shape
 
