@@ -39,8 +39,28 @@ check](../../refine/output-units.md#the-size-check) reports and its split by gro
 
 ## Merging and surface extraction
 
-The Go [merge adapter](../../write-integrate.md) (`emitters/golang/mergeadapter.go`) uses `go/ast`
-to parse existing files and append only new top-level symbols, never delete.
+The Go [merge adapter](../../write-integrate.md) (`emitters/golang/mergeadapter.go`) parses an
+existing file with `github.com/dave/dst`, a decorated syntax tree, and appends only new top-level
+symbols, never deleting one. `dst` keeps each comment on the node it describes, so a declaration
+moved from the new generation's file into the old one carries its doc comment and a
+`@morphic:keep` marker stays where its region is; `go/ast` keeps comments in a list of their own by
+byte offset, so a node moved between two files leaves them behind.
+
+A spike settled it, at Go 1.27.3 with `dst` v0.28.0. A generated file holding a keep region gained
+a type and a method from the next generation, three ways:
+
+- **`go/ast` nodes moved, printed by `go/printer`:** the moved declarations lost their doc
+  comments, which landed above `GetZone`, and one of them inside `GetZone`'s body.
+- **`go/ast` to find the declarations, their source text spliced in, `astutil.AddImport`:** correct,
+  the region untouched and the import added. It reaches top-level declarations alone, so adding a
+  field to a struct, which a merge at property level would need ([open
+  questions](../../open-questions.md), 5), would be a splice inside one with no tree to check it.
+- **`dst`:** correct, imports managed by its restorer, and a file using generics, a range-over-func
+  iterator and `min` round-trips byte for byte.
+
+`dst` is MIT-licensed, at v0 and maintained in bursts, its last release in 2026. So its version is
+pinned exactly, `emitters/golang` alone may import it ([package layout](../../packages.md)), and an
+upgrade reruns the spike's cases as tests of the adapter.
 
 Go's extractor ([surface verification](../../surface-verification.md)) reads the existing package's
 exported API, as `apidiff` does.

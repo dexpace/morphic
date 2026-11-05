@@ -139,3 +139,13 @@ is not behaviour held.
 - **Why.** Off-by-one mutants passed tests placed a level past the bound; ten bound sites survived
   on `main` because their tests used budgets far from the edge; `AtMost(-1)` clamps to zero, so
   planting through it changed nothing (#340, #1140).
+
+## Raise a limit's outcome through a seam, not a real limit
+`limit-outcome-through-a-seam`
+
+- **Rule.** A test of what follows a time limit raises the limit's outcome itself, through a seam
+  or a patched call, and leaves a real limit to a test asserting only that the limit fired. A real
+  limit raced against a child starting passes or fails by the machine's load.
+- **Why.** A test giving a stand-in one second to start, print and sleep passed alone and failed
+  seven of eight runs with copies of the suite running beside it (#1210).
+- **Probe.** Run the suite in six concurrent copies; each passes.

@@ -220,8 +220,9 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	assert.True(t, refused)
 	assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded,
 		Provenance: ir.Provenance{Source: 3},
-		Message: "the copies its $refs make weigh more than the 5 budgeted for them: each $ref to a " +
-			"declaration other than a schema or a link lowers its own copy of it"}, got)
+		Message: "the copies its $refs and path items make weigh more than the 5 budgeted for them: each $ref " +
+			"to a declaration other than a schema or a link lowers its own copy of it, and each " +
+			"additionalOperations entry its own copy of what its path item declares"}, got)
 }
 
 // loaded returns the context of src, loaded as a source, with its $refs'
@@ -326,4 +327,38 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(lowering.Ctx{}, "/paths/~1a/get/parameters/0"))
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c.InScope(resolve.Scope{Foreign: true}), "/paths/~1a/get/parameters/0"),
 		"what another document holds, read at the source's coordinates, has no position of its own")
+}
+
+// TestChargeExpansion_ChargesTheRunsExpansion pins the two charges a copy made
+// with no $ref adds to the budget: a declaration, weighed as the grammar reads
+// its position, here a path item's parameter weighing 25 as paramP's does, and
+// raw bytes beside it. Past the budget the run is refused, and a zero context
+// bounds nothing.
+func TestChargeExpansion_ChargesTheRunsExpansion(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{name: q, in: query, schema: {type: string}}]
+    get: {responses: {"200": {description: ok}}}
+`
+	c := loaded(t, src, budget.AtMost(25+3))
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
+
+	lowering.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
+	lowering.ChargeExpansion(c, 3)
+	_, refused := c.ExpansionRefusal()
+	assert.False(t, refused, "a copy weighing 25 and three raw bytes beside it reach the budget of 28")
+	assert.False(t, lowering.ExpansionCrossed(c), "a budget reached is not crossed")
+	lowering.ChargeExpansion(c, 1)
+	_, refused = c.ExpansionRefusal()
+	assert.True(t, refused, "one more crosses it")
+	assert.True(t, lowering.ExpansionCrossed(c))
+
+	zero := lowering.Ctx{}
+	lowering.ChargeExpansion(zero, 1<<40)
+	assert.False(t, lowering.ExpansionCrossed(zero), "a zero context's expansion bounds nothing")
 }

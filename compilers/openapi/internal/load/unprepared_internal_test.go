@@ -830,8 +830,7 @@ func TestUnprepared(t *testing.T) {
 // TestChain_EndsOnNothing pins when a resolution's chain is said to end on a
 // position holding no object (GitHub #1044): it reached the position its last
 // hop names and built nothing there. A chain that holds no record, was cut, or
-// stopped at a reference reached no position, whatever its records say, and
-// only the last record's node is read.
+// stopped at a reference reached no position, whatever it says of its end.
 func TestChain_EndsOnNothing(t *testing.T) {
 	t.Parallel()
 	built := &yaml.Node{Kind: yaml.MappingNode}
@@ -843,9 +842,10 @@ func TestChain_EndsOnNothing(t *testing.T) {
 		{"no records", chain{}, false},
 		{"a cut chain", chain{cut: true, records: []record{{}}}, false},
 		{"a chain that stopped at a reference", chain{stopped: "#/components/parameters/P", records: []record{{}}}, false},
-		{"a last record that built no node", chain{records: []record{{node: built}, {}}}, true},
+		{"a cut chain with an end", chain{cut: true, records: []record{{}}, end: built}, false},
+		{"an end that built no node", chain{records: []record{{}, {}}}, true},
 		{"a single record that built no node", chain{records: []record{{}}}, true},
-		{"a last record that built a node", chain{records: []record{{}, {node: built}}}, false},
+		{"an end that built a node", chain{records: []record{{}, {}}, end: built}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
