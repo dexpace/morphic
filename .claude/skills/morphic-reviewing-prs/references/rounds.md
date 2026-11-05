@@ -28,13 +28,28 @@ A conflict the review can resolve mechanically is resolved in that worktree and 
 review's own resolution, so every angle reads `main`'s new commits beside the branch; one whose
 resolution is a design choice is aborted and reported with what could not be checked. Either way
 the conflict is an `issue:`. Probe only in that worktree. A round's report names what it reviewed,
-each angle's matrix, then the findings ranked:
+the merged commit among it, each angle's matrix, then the findings ranked:
 
 ```text
-Round <n>: head <sha>, base <sha>, main <sha>
+Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
 <angle>: <cells run> run, <cells settled> settled (<reason each>), findings <refs>
+unreached <cells>; reopened <cells>, each with what its clearance lacked
 <rank> <angle> <file>:<line> <rule broken> <command> <output> <smallest fix>
 ```
+
+## Print a round's mechanical facts before its angles
+`facts-before-angles`
+
+- **Rule.** Each round runs `python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py <N>`
+  in its worktree, a stacked PR's base as `--base`, and settles each line it prints in its angle's
+  matrix: a `rule` by its comparison, a `cite` by reading its line, a `command` by its exit status,
+  a `number` by deriving it, an `issue` read whole, a `pr` by its trial merge, a `stale` one by
+  `references/rounds.md#later-rounds-read-what-moved`. A line left unsettled is unreached. A fact
+  derived by hand that a script could print joins it (`morphic-curating-skills`).
+- **Why.** #1522's later rounds re-derived these by hand within a budget of about 80 tool calls
+  each, and sampled the rest: one matched 37 of 50 closing issues' Directions to the head, and the
+  next found the body's list of PRs sharing files wrong (#1530).
+- **Probe.** The report settles each line the script printed.
 
 ## Build the review from a ref only your session writes
 `review-head-in-own-ref`
@@ -154,14 +169,17 @@ Round <n>: head <sha>, base <sha>, main <sha>
 ## Fan a review out only when asked, an angle to a reader
 `fan-out-an-angle-to-a-reader`
 
-- **Rule.** A review runs its angles in one reader by default, bar the second round's fresh one
-  (`references/rounds.md#fresh-reader-for-the-second-round`). When asked to fan out, give each
-  reader one angle and the code, with no conclusion of yours and, for Correctness, no PR body, so
-  that independent reads stay independent. What returns goes through
-  `references/rounds.md#disprove-each-finding` before it counts.
+- **Rule.** A review runs its angles in one reader by default, bar the fresh one of each round after
+  the first (`references/rounds.md#fresh-reader-for-the-second-round`). When asked to fan out, give
+  each reader one angle and the code, in a directory of its own
+  (`references/rounds.md#reader-owns-its-directory`), with no conclusion of yours and, for
+  Correctness, no PR body, so that independent reads stay independent. What returns goes through
+  `references/rounds.md#disprove-each-finding` and `references/rounds.md#audit-what-a-reader-cleared`
+  before it counts.
 - **Why.** A finding comes back in the same confident register whether or not it holds, as the
   review of #1162's twelve PRs counted false alarms in both its readers (#1162).
-- **Probe.** Each reader's brief names one angle and holds no finding of another's.
+- **Probe.** Each reader's brief names one angle and its directory, and holds no finding of
+  another's.
 
 ## Read the reviews already standing once the angles are done
 `read-standing-reviews`
@@ -224,28 +242,97 @@ Round <n>: head <sha>, base <sha>, main <sha>
 
 - **Rule.** The first round runs every angle over the whole change, fills every cell of each
   angle's matrix however many findings come first, and keeps its probes in a script outside the
-  tree. The second reruns the script while a fresh reader runs every angle again
-  (`references/rounds.md#fresh-reader-for-the-second-round`), and ends the review on no `issue:` or
-  `nit:`. A defect it finds in what the first reviewed is a miss: name the cell or rule that should
-  have held it, and sharpen that angle (`morphic-curating-skills`). One a fix added is a miss of
+  tree; the second reruns it while a fresh reader runs every angle again
+  (`references/rounds.md#fresh-reader-for-the-second-round`), and the review ends by
+  `references/rounds.md#review-ends-with-nothing-left`. A defect the second finds in what the
+  first reviewed is a miss: name the cell or rule that should have held it, and sharpen that angle
+  (`morphic-curating-skills`). One a fix added is a miss of
   `references/rounds.md#design-the-fix-first`; many send it back to Design.
 - **Why.** #1329's review took eight rounds, each finding what the first should have, as each
   sampled what it checked (#1402).
 - **Probe.** The report gives each round's matrices in full, and each miss its cell.
 
-## Give the second round a reader the first did not anchor
+## End a review only on a round that finds nothing and leaves nothing
+`review-ends-with-nothing-left`
+
+- **Rule.** A cell a round's budget leaves is named unreached, never reported clean. The review
+  ends on a round with no `issue:` or `nit:` and no cell unreached or reopened
+  (`references/rounds.md#audit-what-a-reader-cleared`); after any other, the next round runs from
+  the setup.
+- **Why.** A round of #1522 listed beside its findings the prescribed commands it had not run;
+  under a bar of no `issue:` or `nit:` alone, that list beside no findings would have ended the
+  review (#1522).
+- **Probe.** The last round's report names no cell unreached or reopened.
+
+## Read what moved, from the third round on
+`later-rounds-read-what-moved`
+
+- **Rule.** From the third round, the fresh reader runs every angle over what
+  `facts.py --since <merged>` lists as stale, `<merged>` being the commit the round before
+  reviewed, over each fix since, wording included, read by `references/rounds.md#deep-and-broad`,
+  over each cell left unreached or reopened, and over the PR body, not the whole change
+  (`references/rounds.md#missed-cell-widens-the-round`).
+- **Why.** #1522's later rounds each read the whole change, 41 files and then 42, at about 240,000
+  tokens, though of rounds 3 to 5's 13 `issue:` and `nit:` findings, 12 sat in what the round
+  before changed, the body, a clearance its rule refuses or a member no report lists as checked
+  (#1522, #1530).
+- **Probe.** The reader's brief lists the stale, unreached and reopened cells; the report gives each
+  a run or a reason.
+
+## Run the whole change again when a filled cell proves missed
+`missed-cell-widens-the-round`
+
+- **Rule.** A defect a round finds in a cell an earlier round filled and no audit reopened, nothing
+  having changed there since, sends the next round over the whole change, as the earlier reads
+  missed it. Short of one, a miss in a filled cell nothing changes stays until a reader meets it.
+- **Why.** The 13th of #1522's findings in rounds 3 to 5 was an ask in #1506's comments, which
+  round 2's report says it read in full, and only a round rereading the whole change met it
+  (#1522).
+- **Probe.** For each finding, the report says whether its cell was filled and unchanged.
+
+## Read each cell a reader settled against what its rule asks
+`audit-what-a-reader-cleared`
+
+- **Rule.** Before a delegated reader's round counts, read each cell its report settles against
+  the rule that cell answers to, and reopen one settled on less than it asks: a mutant judged
+  equivalent on this tree's inputs alone
+  (`.claude/skills/morphic-verifying-changes/references/mutation.md#equivalent-means-every-input`),
+  an issue or file read in part, a class sampled
+  (`references/claims-and-process.md#sweep-each-claim-class`). The next round reads it.
+- **Why.** On #1522, round 3 judged a mutant dropping `normpath` equivalent because no path on the
+  tree held a `.` segment, and round 4 cleared #1266's asks on lines cut at about 450 characters;
+  the round after each found a defect there (#1522).
+- **Probe.** Each round's report lists the cells it reopened, each with what its clearance lacked.
+
+## Give each later round a reader no earlier one anchored
 `fresh-reader-for-the-second-round`
 
-- **Rule.** The second round's angles are run by one fresh agent, given the merged tree, the PR and
-  this skill, never the first round's findings, matrices or reasons for its fixes. Its brief sets a
-  tool-call budget and asks for a running list of what it reproduced. Each finding
-  it returns is disproved in the main session (`references/rounds.md#disprove-each-finding`)
-  before it counts. Where no agent can run, the main session rereads the merged diff before its
-  own notes.
+- **Rule.** From the second round, one fresh agent runs the angles, given the PR, this skill and
+  its own directory holding the merged tree (`references/rounds.md#reader-owns-its-directory`),
+  never an earlier round's findings, matrices or fix reasons. Its brief sets a tool-call budget and
+  asks for a running list of what it reproduced. The main session disproves each returned finding
+  (`references/rounds.md#disprove-each-finding`) before it counts. Where no agent can run, the
+  main session rereads the merged diff before its own notes.
 - **Why.** Fixes #1329's rounds proposed each passed a prototype of the property it was for and
   failed a requirement a sibling document states, seen only a round later (#1402), and seven
   finders on #1016's review ran 55 minutes before one returned (#1016).
-- **Probe.** The reader's brief holds nothing from the first round, and names its budget.
+- **Probe.** The reader's brief holds nothing from an earlier round, and names its budget and
+  directory.
+
+## Give a delegated reader a directory of its own, and write nowhere else
+`reader-owns-its-directory`
+
+- **Rule.** A delegated reader's brief names a new directory only it writes, holding a detached
+  worktree of the merged tree the reviewer adds there, and forbids writing anywhere else: the
+  reviewer's files and harnesses, the main checkout, the repository's refs. Fingerprint each
+  harness the reviewer will rerun before the hand-off, and rebuild one whose fingerprint changes
+  before rerunning it.
+- **Why.** A reader vetting the Go blocks #1337's reviewer vetted rewrote the reviewer's harness
+  `go.mod`, so the reviewer's `go vet` failed, and would have checked the reader's tree had it
+  resolved (#1529). One of #1522's readers fetched six refs into the repository (#1522).
+- **Probe.** The reader's brief names the directory and the prohibition;
+  `find <harness> -type f -exec cksum {} + | sort | cksum` prints one line before the hand-off and
+  after.
 
 ## Post a finding so that acting on it is safe
 `posted-findings`
