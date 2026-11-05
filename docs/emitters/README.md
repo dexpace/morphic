@@ -97,7 +97,7 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 **Other artifacts, and how the work is held**
 
 - [Docs and mock-server emitters](docs-and-mock.md), [write / integrate](write-integrate.md),
-  [verifying a generation](verification.md), [surface verification](surface-verification.md).
+  [surface verification](surface-verification.md).
 - [Package layout](packages.md), [mandatory tests](testing/mandatory-tests.md), the [behavior
   server](testing/behavior-server.md), the [milestone plan](milestones.md) and the [open
   questions](open-questions.md).
@@ -119,11 +119,11 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the
 derived-fact index and the shared plan, and finally each requested emitter. The passes designed are
-`link · dedup · filter · version-slice · overlay · validate`, and only `validate` is built
-(architecture.md §2.2). An emitter never sees a source spec, a compiler, another emitter, or the
-engine (INV1). Its only structural input is an `ir.Document`; everything else it needs is either
-derived from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime
-policy, shaping hints, the target's own options).
+`link · dedup · filter · version-slice · overlay · names · validate`, and only `names` and
+`validate` are built (architecture.md §2.2). An emitter never sees a source spec, a compiler,
+another emitter, or the engine (INV1). Its only structural input is an `ir.Document`; everything
+else it needs is either derived from the IR in the plan/refine stages or supplied as a separate,
+non-IR input (runtime policy, shaping hints, the target's own options).
 
 ## The architecture, and why this synthesis
 
@@ -235,7 +235,7 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 |---|---|
 | 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target ([the contract](contract/emitter.md), [package layout](packages.md)) |
 | 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test ([refine](refine/pipeline.md), [operations](operations/returns.md)) |
-| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; a rename that keeps an entity's pointer is a lookup, and one that moves it the correlation key's; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes ([the plan](plan/overview.md), [naming](refine/naming.md), [output units](refine/output-units.md), [write / integrate](write-integrate.md)) |
+| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes ([the plan](plan/overview.md), [naming](refine/naming.md), [output units](refine/output-units.md), [write / integrate](write-integrate.md)) |
 | 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel ([naming](refine/naming.md), [emit](emit/printing.md)) |
 | 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality ([the contract](contract/emitter.md), [contract rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)) |
 | 6 Heuristics are policy | `plan.Policy`, each target's versioned options (its type table and naming tables among them), `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the acronyms, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` ([target options](contract/options.md), [type table](contract/type-table.md), [plan policy](plan/policy.md), [naming](refine/naming.md), [shaping hints](contract/shaping-hints.md), [surface verification](surface-verification.md)) |

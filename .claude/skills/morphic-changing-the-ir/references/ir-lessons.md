@@ -139,28 +139,62 @@ verifier and codecs must reach.
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
 - **Probe.** List in the PR body each consumer asked, and its answer.
 
-## Check a design rule against everything in its document it governs
+## Check a design rule against every input it reads
 `design-rule-over-its-document`
 
-- **Rule.** When a change to the IR or emitter design states a general rule, a placement
-  argument or a step order, list every field, input or step in the document it applies to and
-  check each; check a step order against what each step reads that a later step can still change.
-- **Why.** A rule giving derived facts no plan field stood beside a plan field copying one, a
-  placement argued for one per-target table and not its twin, and an import step ran before the
-  steps renaming what it imports (#1019).
-- **Probe.** `grep -n` the document for each field, input and step the rule names, and for their
-  neighbours.
+- **Rule.** When an IR or emitter design states a rule, placement argument or step order, list
+  its inputs from their declarations: each field of every IR type it reads, every `TypeKind` and
+  enumeration value those fields reach, each kind's `docs/ir` page, and each sibling section of
+  its document, cited, not restated
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
+  Say whether each changes the answer, compiling a minimal spec for one the golden spec lacks.
+  Check a step order against what each step reads that a later one changes.
+- **Why.** A placement covered one per-target table and not its twin, an import step preceded the
+  steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
+  kind documents and restated sections (#1402).
+- **Probe.** `go doc -all ./ir <Type>` and `grep -n '^#' <document>`; an input with no stated
+  effect is unchecked.
+
+## Prototype a specified mechanism against every requirement on its layer
+`prototype-against-every-requirement`
+
+- **Rule.** Prototype a mechanism a design document specifies on the target's own library, against
+  every requirement the emitter documents put on the layer it runs in, not only the property it is
+  for, and name each requirement's result in the document.
+- **Why.** Three decode mechanisms in turn passed a prototype of their cost and failed a sibling
+  document's requirement: builders could not reach a variant in another output unit, a second
+  `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
+  caller's own `Json` (#1329).
+- **Probe.** With `<layer>` each entry of `ls docs/emitters` the mechanism runs in,
+  `grep -rnwE 'must|never|only' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
+  lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
+  unmet.
+
+## Shape a declaration from its type's own definition
+`declaration-reads-its-definition`
+
+- **Rule.** A plan fact that shapes a declaration, such as a closed sum against a struct of
+  pointers, reads the type's own definition. Where it must read a distant fact (the directions the
+  type travels, the operations reaching it), the document names that fact and the break a change
+  of it causes the declaration's callers.
+- **Why.** A fix to #1329's member rule read which way a union travels, so a new operation
+  elsewhere would flip the union between a closed sum and a struct of pointers, breaking its
+  callers.
+- **Probe.** For each fact the rule reads, name the IR node it comes from; one outside the type's
+  own definition is named in the document with its break, or is a finding.
 
 ## Count what a design assumes about real input before choosing it
 `measure-the-premise`
 
 - **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
-  about real input it rests on, then count it on the golden spec and the corpus. A program
-  running the proposed rules shows only that they are total, since it assumes that fact; a worked
-  example, chosen because it fits, shows nothing.
+  about real input it rests on, then count it on the golden spec and the corpus, through `ir`'s
+  own derivations
+  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#program-from-the-document`).
+  A program running the proposed rules shows only that they are total, since it assumes that fact;
+  a worked example, chosen because it fits, shows nothing.
 - **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
-  failure. Most operations with several error bodies used one type for all, so status told failures
-  apart, which nobody counted until a reviewer's question led there (#1167).
+  failure, yet most operations with several error bodies used one type for all, status telling
+  failures apart, uncounted until a reviewer asked (#1167).
 - **Probe.** For each decision in the PR body, name its premise and the command that could
   have falsified it. A decision with neither is unproved.
 

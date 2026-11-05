@@ -35,11 +35,6 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
-    Samples map[TargetKey]map[ir.OpID]Sample // each SDK target's usage samples, for a docs target
-                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
-    Routes  map[string]RouteTable // every version snapshot's routes, keyed by version, for a
-                                  // target whose Capabilities.CrossVersion is set
-                                  // (../docs-and-mock.md#routes-and-links)
     Options TargetOptions         // the target's own typed options, decoded and validated before
                                   // Generate runs, its type table and naming tables among them
                                   // (options.md, type-table.md, ../refine/naming.md)
@@ -50,23 +45,7 @@ type EmitterOutput struct {
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (../write-integrate.md)
     Surface     *verify.Surface     // neutral API-surface projection of the generated output (../surface-verification.md)
-    Samples     map[ir.OpID]Sample  // an SDK target's usage sample per operation, for the docs
 }
-
-// Span is the lines one top-level declaration of a file holds, 1-based and inclusive.
-type Span struct {
-    From, To int
-    Origin   EntityID
-}
-
-// Sample is one operation's call as an SDK target spells it.
-type Sample struct {
-    Language string                 // the fence's language, such as "go" or "kotlin"
-    Code     string                 // the call, its values the plan's examples
-}
-
-// RouteTable is one snapshot's routes: each entity's page path and anchor.
-type RouteTable map[EntityID]string
 
 // EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
 // Every IR ID is a `type X string`, so one keyspace addresses them all.
@@ -81,11 +60,8 @@ type Artifact struct {
     Header       HeaderPlacement // where the generated-by provenance header goes (top/after-shebang/none)
     SkipIfExists bool            // scaffolding written once (config, .gitignore) — never overwritten
     Overwrite    bool            // regenerate but preserve ignore-regions (default is additive)
-    Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge, and
-                                 // whether the file is merged as blocks (../write-integrate.md)
+    Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge (../write-integrate.md)
     Origins      []EntityID      // IR IDs whose emission produced this file (drives ID-keyed prune)
-    Spans        []Span          // the lines each top-level declaration holds, by its Origin, so a
-                                 // toolchain's message maps to an entity (../verification.md)
 }
 ```
 
@@ -124,12 +100,10 @@ the document, which determines it.
 
 ## Contract rules the type system and tests enforce
 
-- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same `(Doc,
-  Plan, Policy, Hints, Scope, Prior, Options)`, under a context that stays live, ⇒ byte-identical
-  `Artifacts`, the prior manifest included since the names a generation shipped are kept
-  ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts` is a
-  function of `Doc` and adds nothing to the tuple. Maps are walked in sorted-key order, slices in
-  source order ([T-6](../testing/mandatory-tests.md)).
+- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
+  `(Doc, Plan, Policy, Hints, Scope, Options)`, under a context that stays live, ⇒ byte-identical
+  `Artifacts`; `Facts` is a function of `Doc` and adds nothing to the tuple. Maps are walked in
+  sorted-key order, slices in source order ([T-6](../testing/mandatory-tests.md)).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic ([T-7](../testing/mandatory-tests.md)). Codes live in a stable

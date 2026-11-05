@@ -156,9 +156,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/sole",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/url}",
@@ -166,7 +163,10 @@
                           "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },
@@ -574,10 +574,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "created",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "created"
+                    "isWebhook": true
                   }
                 ]
               },

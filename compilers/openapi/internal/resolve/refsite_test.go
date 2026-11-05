@@ -200,17 +200,18 @@ func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
 	sc := resolve.Scope{Declares: func(n string) bool { return n == "User" }}
 
-	id, ok, handled := sc.ComponentRef("/components/schemas/User")
-	assert.True(t, handled)
-	assert.True(t, ok)
+	id, state := sc.ComponentRef("/components/schemas/User")
+	assert.Equal(t, ids.NamedComponent, state)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/User"), id)
 
-	_, ok, handled = sc.ComponentRef("/components/schemas/Missing")
-	assert.True(t, handled, "an undeclared component pointer is still classified as a component")
-	assert.False(t, ok, "an undeclared component does not resolve")
+	_, state = sc.ComponentRef("/components/schemas/Missing")
+	assert.Equal(t, ids.UndeclaredComponent, state, "a name the document does not declare does not resolve")
 
-	_, _, handled = sc.ComponentRef("/components/schemas/Foo/properties/bar")
-	assert.False(t, handled, "a sub-schema pointer is not a top-level component pointer")
+	_, state = sc.ComponentRef("/components/schemas/")
+	assert.Equal(t, ids.UnnamedComponent, state, "the component keyed \"\" is its own state, never folded into another")
+
+	_, state = sc.ComponentRef("/components/schemas/Foo/properties/bar")
+	assert.Equal(t, ids.NotComponent, state, "a sub-schema pointer is not a top-level component pointer")
 }
 
 // TestResolveComponentRef_NonCanonicalEscape pins that the resolved ID is built
@@ -221,9 +222,8 @@ func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
 	sc := resolve.Scope{Declares: func(n string) bool { return n == "A~B" }}
 
-	id, ok, handled := sc.ComponentRef("/components/schemas/A~B")
-	assert.True(t, handled)
-	assert.True(t, ok)
+	id, state := sc.ComponentRef("/components/schemas/A~B")
+	assert.Equal(t, ids.NamedComponent, state)
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/A~0B"), id,
 		"the ID is canonically re-escaped to match the interned node")
 	assert.Equal(t, ids.Document{}.NamedType(ids.Ptr("components", "schemas", "A~B")), id,

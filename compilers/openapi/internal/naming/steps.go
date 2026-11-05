@@ -67,6 +67,10 @@ func stepOf(enclosing chain, rest []string) (hint chain, branch bool, step int) 
 		// A tuple's positional item, or the literal a member of an enum no
 		// enumeration holds is lowered to.
 		return enclosing.then(child), false, 2
+	case keyword == "allOf" && isDecimalIndex(child):
+		// An allOf branch is a conjunct of the schema holding it, so a node built
+		// there is that schema's, and named as it is.
+		return enclosing, true, 2
 	case compositionKeywords[keyword] && isDecimalIndex(child):
 		return chain{base: positionalBranch(child)}, true, 2
 	case keyword == "type" && isDecimalIndex(child):

@@ -165,7 +165,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/merged",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1merged/get/parameters/q/query",
@@ -177,6 +176,7 @@
                         "allowEmptyValue": true
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -296,10 +296,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/merged",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

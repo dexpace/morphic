@@ -23,7 +23,7 @@ type conjunct struct {
 // that remains is no model, such as an alias of `{}` (#1194), which leaves the
 // type to the winner.
 func (f *folding) composition() []conjunct {
-	judge := typeJudge{Resolve: f.g.Resolve}
+	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike}}
 	var conjuncts []conjunct
 	for i, d := range f.decls {
 		if f.heldByAnother(i) {

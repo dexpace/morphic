@@ -32,23 +32,23 @@ type Options struct {
 	// Locate places a finding in the source. Unset, findings carry no
 	// position.
 	Locate Locator
-	// Start is the kind of the object the root node is. Unset, the root is
-	// the OpenAPI Object.
-	Start Kind
-	// Budget bounds the work: how many objects, entries and items a check
-	// reads. Unset, it is unbounded, as the zero budget.Limit is.
-	Budget budget.Limit
 	// Seen, when set, is told each mapping read as an object of a kind and
 	// not as a Reference Object standing in its place. The node is the
 	// mapping itself, its aliases followed.
 	Seen func(kind Kind, node *yaml.Node)
+	// Root is the pointer the root is read at in the document Locate answers
+	// in, empty for that document's own root.
+	Root jsontext.Pointer
+	// Budget bounds the work: how many objects, entries and items a check
+	// reads. Unset, it is unbounded, as the zero budget.Limit is.
+	Budget budget.Limit
+	// Start is the kind of the object the root node is. Unset, the root is
+	// the OpenAPI Object.
+	Start Kind
 	// ReadAt, when set, has a finding Locate places elsewhere than the
 	// pointer it was read at, through an alias or a merge key, name that
 	// pointer, under Root.
 	ReadAt bool
-	// Root is the pointer the root is read at in the document Locate answers
-	// in, empty for that document's own root.
-	Root jsontext.Pointer
 }
 
 // Checker judges documents against the table.
@@ -56,6 +56,11 @@ type Checker struct{ spec Spec }
 
 // NewChecker returns a Checker over the table.
 func NewChecker() Checker { return Checker{spec: Table()} }
+
+// Spec returns the table c judges against, which the load phase reads a
+// document's Schema Object rows from (Spec.SchemaRules) without building it
+// again.
+func (c Checker) Spec() Spec { return c.spec }
 
 // Check judges the tree root, an object of the kind Options.Start names, as an
 // OpenAPI document declaring version, and returns what it finds. A version the
@@ -101,10 +106,10 @@ type walker struct {
 // site is an object to read: its kind, node, pointer, the key its parent
 // holds it under, and the kind of that parent, zero at the root.
 type site struct {
-	kind Kind
 	node *yaml.Node
 	ptr  jsontext.Pointer
 	held string
+	kind Kind
 	in   Kind
 }
 

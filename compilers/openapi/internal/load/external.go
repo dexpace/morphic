@@ -36,7 +36,7 @@ import (
 // lets a reference leave the source. It stands in for the resolver's file
 // system and HTTP client, reading every document through that reader, and
 // prepares each tree as Load does the source's: the same budgets and pre-parse
-// refusals, then releaseAnchors.
+// refusals, then readyForModel.
 //
 // The tree is stored where the resolver looks for a parsed document, so the
 // model builds from it, not from the resolver's own parse, which drops anchored
@@ -491,7 +491,7 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 	if err := e.admit(ctx, key, root); err != nil {
 		return nil, err
 	}
-	releaseAnchors(ctx, root)
+	readyForModel(ctx, root)
 	e.read.self.escapes.escape(ctx, root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)

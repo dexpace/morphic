@@ -20,7 +20,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [ir-version](./ir-version.md) | `IRVersion`: what moves it, names and `Unmodeled` keys included, what a consumer does on a mismatch, and how a bump lands |
 | [version-history](./version-history.md) | What each generation changed, and what a consumer of the one before it sees |
 | [identity](./identity.md) | IDs: the grammar, each class of ID, what holds across revisions, and what `irverify` holds them to |
-| [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases |
+| [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases, and the names one scope shares |
 | [provenance](./provenance.md) | `Provenance` and `Diagnostic`: where a node or a finding came from |
 | [consumers](./consumers.md) | What a consumer other than an emitter relies on: what it finds, identity across revisions, what to pin, size |
 
@@ -38,7 +38,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [properties](./properties.md) | `Property` and `Visibility` |
 | [constraints](./constraints.md) | `Constraints`, `Encoding`, `XMLHints` |
 | [values](./values.md) | `Value`, `BigVal` and the typed-data channel |
-| [derived-facts](./derived-facts.md) | What `ir/irfacts` derives: subtypes, exposed properties, usage, recursion, capability rows, correlation keys |
+| [derived-facts](./derived-facts.md) | What `ir/irfacts` derives: subtypes, exposed properties, usage, recursion, correlation keys |
 
 **The service layer**
 

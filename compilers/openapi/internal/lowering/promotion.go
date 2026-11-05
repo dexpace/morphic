@@ -8,7 +8,6 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -171,10 +170,11 @@ type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
 	keys []string
-	// referents remembers what each position lends (Referent). Copies share it
-	// on purpose: an answer reads only the document and the policy, which no
-	// lowering changes. Nothing guards it, as a compile lowers on one goroutine.
-	referents map[bind.Position]Referent
+	// referents remembers what each schema lends (Referent), by the key a caller
+	// names it with. Copies share it on purpose: an answer reads only the
+	// document and the policy, which no lowering changes. Nothing guards it, as a
+	// compile lowers on one goroutine.
+	referents map[any]Referent
 }
 
 // Referent is what a carrier of a $ref reads of the schema the $ref ends on.
@@ -212,7 +212,7 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 	}
 	out := &Promoter{
 		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
-		referents: map[bind.Position]Referent{},
+		referents: map[any]Referent{},
 	}
 	for target, sources := range targets {
 		out.targets[target] = slices.Clone(sources)
@@ -229,23 +229,23 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 // referent.
 func (p Promoter) Keys() iter.Seq[string] { return slices.Values(p.keys) }
 
-// Referent returns what the schema at position at lends a carrier of a $ref
-// ending on it. declared is that schema's `deprecated: true`, and entries reads
-// its mapped keys in Unmodeled's form, once for every copy of p: a schema has as
-// many carriers as a document names it, and a key's value can be as large as the
-// document.
+// Referent returns what a schema lends a carrier falling back to it. of names
+// the schema, comparable and the same for each carrier, declared is its
+// `deprecated: true`, and entries reads its mapped keys in Unmodeled's form, once
+// for every copy of p: a schema has as many carriers as a document names it, and
+// a key's value can be as large as the document.
 //
 // The readings' findings are dropped because the schema is a declaration, and
 // reports where it is written; a use repeating them would be one report per use.
-func (p Promoter) Referent(at bind.Position, declared bool, entries func() ir.Unmodeled) Referent {
+func (p Promoter) Referent(of any, declared bool, entries func() ir.Unmodeled) Referent {
 	if len(p.keys) == 0 {
 		return Referent{}
 	}
-	if known, seen := p.referents[at]; seen {
+	if known, seen := p.referents[of]; seen {
 		return known
 	}
 	read := p.readReferent(declared, entries())
-	p.referents[at] = read
+	p.referents[of] = read
 	return read
 }
 

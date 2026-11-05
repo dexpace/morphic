@@ -73,11 +73,9 @@ in opposite ways:
 So an ID is never, on its own, evidence that two revisions hold the same entity. What carries an
 entity across revisions is its [correlation key](./derived-facts.md#correlation-keys), built from
 what the document itself names the entity by and never from an array position. A consumer that
-keys state by ID across revisions, as an emitter's prior manifest does
-([what the manifest records](../emitters/write-integrate.md#what-the-manifest-records)), trusts a
-match only where the correlation key agrees too, and treats a match on the key alone as the same
-entity moved. A diff of two revisions, inside Morphic or outside it, rests on the key for the same
-reason.
+keys state by ID across revisions trusts a match only where the correlation key agrees too, and
+treats a match on the key alone as the same entity moved. A diff of two revisions, inside Morphic
+or outside it, rests on the key for the same reason.
 
 ## Primitives
 

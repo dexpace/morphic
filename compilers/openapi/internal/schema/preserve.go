@@ -39,13 +39,14 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 
 // undefinedKeywords returns the keywords s writes that the schema model names
 // but nothing reads, because the dialect s is read in does not define them:
-// `nullable` while the nullable-widening policy is off, in a schema read as
-// JSON Schema 2020-12, which is every 3.1 or 3.2 schema and the keywords
-// beside a 3.0 $ref. A 3.0 schema's own nullable is read by its declared
-// effect (docs/compilers/openapi.md#nullable), and the policy reads it
+// `nullable` while the nullable-widening policy is off, in a schema whose
+// dialect defines no such keyword, as 3.1's and 3.2's do not. Where it is
+// defined, as in a 3.0 schema, one beside its $ref included, it is read by its
+// declared effect (docs/compilers/openapi.md#nullable), and the policy reads it
 // everywhere.
 func undefinedKeywords(c lowering.Ctx, s *oas3.Schema) []string {
-	if c.NullableWidening.Honours() || (c.Is30() && s.Ref == nil) || annotation.RawPropertyNode(s, "nullable") == nil {
+	if c.NullableWidening.Honours() || c.SchemaRules().Defines("nullable") ||
+		annotation.RawPropertyNode(s, "nullable") == nil {
 		return nil
 	}
 	return []string{"nullable"}

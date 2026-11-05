@@ -12,18 +12,18 @@ showed it, and survives an attempt to disprove it
 
 ## Setup
 
-Review the tree as it will land, in a throwaway worktree:
+Review the tree as it will land, in a throwaway worktree
+(`references/review-probes.md#review-head-in-own-ref`):
 
 ```bash
 base=$(gh pr view <N> --json baseRefName --jq .baseRefName)
-git fetch origin main "$base" && git fetch origin "pull/<N>/head"
-git worktree add --detach <dir> FETCH_HEAD && cd <dir>
+git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>"
+git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
 git merge --no-edit "origin/$base" && git merge --no-edit origin/main
 ```
 
-Abort a conflicting merge (`git merge --abort`) and review what merged; the conflict is an
-`issue:`. Probe only in that worktree, with `morphic-verifying-changes` and the changed files'
-domain skill.
+Abort a conflicting merge and review what merged; the conflict is an `issue:`. Probe only in that
+worktree, with `morphic-verifying-changes` and the changed files' domain skill.
 
 ## Passes
 
@@ -32,7 +32,8 @@ Run all, fanning out if asked (`references/review-probes.md#fan-out-a-pass-to-a-
 1. **Gate.** `make gate`, unless CI passed on a head holding everything the setup merges: a head
    behind a moved `main` gets no exception. Never re-check by eye what it enforces.
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
-   diff old against new semantics at every bound, sweep every site of it
+   weigh its alternatives (`references/review-probes.md#weigh-against-alternatives`), diff old
+   against new semantics at every bound, sweep every site of it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`),
    re-plant the PR's mutants
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`), plant
@@ -56,10 +57,11 @@ Run all, fanning out if asked (`references/review-probes.md#fan-out-a-pass-to-a-
 
 ## Findings
 
-Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (no
-defect) or `question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not what may ship: every `issue:` and `nit:` is
-fixed or justified in writing before merge. Each names the rule it breaks, file and line, the run
-and its output, and the smallest fix removing the class, not the instance.
+Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (no defect) or
+`question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not
+what ships: every `issue:` and `nit:` is fixed or justified in writing before merge. Each names the
+rule it breaks, file and line, the run and its output, and the smallest fix removing the class, not
+the instance.
 
 - A defect the change introduces, exposes or makes reachable is in scope even when its root is
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.
