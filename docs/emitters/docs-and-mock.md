@@ -60,12 +60,13 @@ no read shape's table and a read-only one in no create shape's, and a model one 
 and another patches has a table for each, since a patch body's members are optional and a member
 visible only at creation is absent from it. A direction alone would merge those two. A model whose
 own members and those of the models it holds carry no visibility marker has one table for every
-shape, a patch's apart only where it or a model it holds requires a member, since a patch relaxes
-only what is required, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872
-models carry none on their own members or on any model they hold or inherit, so a table per shape
-would repeat itself for any of them two shapes but a patch reach. A type no shape reaches, one no
-operation sends or returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches
-what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
+shape, a patch's apart only where it or a model it holds requires a member or gives one a default,
+since a patch relaxes what is required and carries no default onto the wire, so its table shows
+none, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872 models carry none
+on their own members or on any model they hold or inherit, so a table per shape would repeat itself
+for any of them two shapes but a patch reach. A type no shape reaches, one no operation sends or
+returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches what it
+holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
@@ -80,11 +81,11 @@ of its own for each shape it shows, a table coinciding shapes share carrying one
 named through the page's ID-keyed resolution from its model and its shape, as identifiers are
 ([naming](refine/naming.md)), so it never takes a member's or another table's anchor, as a member
 named `create` beside a create table would; how a shape is named is #1405's to settle. A switcher
-links a shape's anchor on the page `Routes` gives, which lands on the page where another version
-shows that shape in no table of its own, and a link to the model names the shape it shows, so an
-operation's patch body links to the patch table, never to one marking required what the patch
-relaxes. An anonymous model another composes in place is no table of its own: its members are rows
-of the composing model's table, anchored there, so no member is anchored twice.
+links a model's page in another version, never one of its tables, since a table's anchor is resolved
+within its own page and a version's page may resolve it otherwise, and a link to the model names the
+shape it shows, so an operation's patch body links to the patch table, never to one marking required
+what the patch relaxes. An anonymous model another composes in place is no table of its own: its
+members are rows of the composing model's table, anchored there, so no member is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -209,10 +210,13 @@ a way to show one entity across API versions. Each is decided by data, never by 
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's
   [`Docs.Refs`](../ir/annotations.md#references-in-prose) resolve the same way, so a link follows
-  its target wherever its route moves, save a span inside raw HTML or inside a link, which renders
-  as its text, since a link there would split a tag or nest in another link. A page no entity owns,
-  the index of the versions or an `llms.txt`, is requested by its kind and its scope, a version's
-  label, a service's ID or an SDK target and language, which the same templates route.
+  its target wherever its route moves, save a span inside raw HTML, a link or a code span, which
+  renders as its text, since a link there would split a tag, nest in another link or show as code,
+  and a span naming a type no route reaches, a primitive or a type spelled where it is used, which
+  renders as its text too, as the IR asks ([references in
+  prose](../ir/annotations.md#references-in-prose)), and draws no `route-missing`. A page no entity
+  owns, the index of the versions or an `llms.txt`, is requested by its kind and its scope, a
+  version's label, a service's ID or an SDK target and language, which the same templates route.
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
@@ -332,19 +336,21 @@ member and operation:
   response-form example serves a create shape, a patch body's may leave out a required member, and
   no shape is left without one. `Build` refuses a union value several variants admit where the union
   is `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and `Shown`
-  shows such a value elsewhere as the first of them, in source order. `plan.Shown` does this, the
-  one projection every consumer reads an example through, and reports an example it cannot complete,
-  a required member's set being empty, so the consumer takes the set's next one, or reports as an
-  empty set does when none is left. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  shows such a value elsewhere as the first of them, in source order. A shape can make a value two
+  variants of a `Strict` union admit, by dropping the member that kept one of them out, so `Shown`
+  checks admission again in the shape it shows and is false there, as for a member it cannot fill.
+  `plan.Shown` does this, the one projection every consumer reads an example through, and reports an
+  example it cannot complete, a required member's set being empty, so the consumer takes the set's
+  next one, or reports as an empty set does when none is left. One they refuse is reported as a
+  warning `emitters/plan/example-refused` and left out, so every consumer falls to the next set
+  alike: an SDK's test sending it would be refused by the mock, as by the API. On the golden spec
+  (spec @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types:
+  in 292 no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and
+  in 3 it is longer than `maxLength`. One declaring none that adds no constraint to its type's takes
+  its type's set, so a property shows the value its type does, save an enum member, which takes its
+  own value. A position whose type is a decorator takes its own examples, else the nearest
+  decorator's along the chain, as `CollapseAliases` folds them, else, where it adds no constraint,
+  the set of the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather
@@ -446,14 +452,16 @@ depends on it. What it needs is almost all IR and plan facts:
 | A flag whose value is never echoed | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
-Command names, positional arguments, `@file` inputs and hidden commands are presentation, so they
-are [shaping hints](contract/shaping-hints.md) keyed by ID, `Rename` and the `Extra` members a CLI
-target defines. Flag constraints are derived at refine from the union's branches by `PropID`, never
-by a property's leaf name: a leaf name derives no conflict between `{origin: {host}}` and `{proxy:
-{host}}`, and lets two branches' `host` merge into one flag. Flag names collide as identifiers do
-and are told apart by the same ID-keyed resolution ([naming](refine/naming.md)), so `foo_bar` and a
-nested `foo.bar` do not both become `--foo-bar`. A body field nested at any depth, or with `.` in
-its name, is a flag like any other, save past a type's first recurrence along its path, where the
-field is one flag taking JSON or an `@file`, since a recursive body has no last field (17 of the
-golden spec's operations send one), and a union beside properties, or a top-level `anyOf` body,
-still yields flags, its branches' constraints among them.
+A CLI's help reads a description as CommonMark and writes it as plain text, its markup dropped and
+every control character, a terminal escape sequence among them, removed, since a description could
+otherwise drive the user's terminal. Command names, positional arguments, `@file` inputs and hidden
+commands are presentation, so they are [shaping hints](contract/shaping-hints.md) keyed by ID,
+`Rename` and the `Extra` members a CLI target defines. Flag constraints are derived at refine from
+the union's branches by `PropID`, never by a property's leaf name: a leaf name derives no conflict
+between `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge into one flag.
+Flag names collide as identifiers do and are told apart by the same ID-keyed resolution
+([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A
+body field nested at any depth, or with `.` in its name, is a flag like any other, save past a
+type's first recurrence along its path, where the field is one flag taking JSON or an `@file`, since
+a recursive body has no last field (17 of the golden spec's operations send one), and a union beside
+properties, or a top-level `anyOf` body, still yields flags, its branches' constraints among them.

@@ -60,8 +60,8 @@ type Manifest struct {
 // Generations is a cross-version target's manifest, in the place any target's lies: each run's
 // Manifest by the label of its snapshot, "" for an unsliced document (contract/emitter.md).
 type Generations struct {
-    Schema    int                 // as Manifest.Schema, the version of this format
-    Snapshots map[string]Manifest // the last label's holds the files spanning versions
+    Schema    int                 `json:"schema"`    // as Manifest.Schema, this format's version
+    Snapshots map[string]Manifest `json:"snapshots"` // the last label's holds the spanning files
 }
 
 type Inputs struct {
