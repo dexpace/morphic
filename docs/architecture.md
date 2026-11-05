@@ -425,12 +425,13 @@ Two further emitter-side stages are named here so their obligations shape the co
 though both are post-milestone scope:
 
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
-  deterministic file paths, a generation manifest (spec/emitter/config hashes, sorted file
-  list, and an entity → generated-symbol map **keyed by IR stable IDs**, which survive path
-  and name churn), file-header provenance that gates pruning (never delete a file lacking the
-  generated-by header), ignore-region markers for hand-written islands, and additive-only
-  merging. Additive-only writers also need a staleness check — (previous-revision entities −
-  current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
+  deterministic file paths, a generation manifest (digests of the IR and of what else the generation
+  read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
+  survive a rename of what they are not built from, a correlation key (#679) carrying one that keeps
+  the name the key is built from), file-header provenance that gates pruning (never delete a file
+  lacking the generated-by header), ignore-region markers for hand-written islands, and
+  additive-only merging. Additive-only writers also need a staleness check — (previous-revision
+  entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
 - **Surface verification** — per-language extractors project existing SDK source into a
   neutral API-surface model; the same projection of generated output is diffed against it.
   Change records are *neutral*; breaking/additive severity is an injectable per-language

@@ -20,10 +20,14 @@ type Plan struct {
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
-fragility, prior-art §1). A spec rename never orphans a plan entry: it is "same ID, new symbol",
-a lookup. Every inferred field carries `Inferred` provenance, propagated into diagnostics so it is
-auditable and disable-able (INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported
-once for every target rather than once by each.
+fragility, prior-art §1). A rename of anything an ID is not built from, such as an `operationId` or
+a `title`, never orphans a plan entry: it is "same ID, new symbol", a lookup. A rename of what an ID
+is built from, a path or a component name, gives the entity a new ID, and only its correlation key
+(#679) carries it across the revision, where the key's own source holds, as an `operationId` does
+when its path is renamed; a component renamed changes its key too ([open question
+5](../../ir/open-questions.md)). Every inferred field carries `Inferred` provenance,
+propagated into diagnostics so it is auditable and disable-able (INV6). The plan's own diagnostics
+are coded `emitters/plan/…`, reported once for every target rather than once by each.
 
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
@@ -48,7 +52,8 @@ as does a build that words a report anew. Two plans therefore share a `Version` 
 were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
 the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
 plan's policy alone: `naming.Policy` and the runtime policy shape no plan
-([plan or refine](plan-or-refine.md)), and what the manifest records of them is #713's.
+([plan or refine](plan-or-refine.md)), and the manifest records them in its configuration digest
+([what the manifest records](../write-integrate.md#what-the-manifest-records)).
 
 - **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
   says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its
