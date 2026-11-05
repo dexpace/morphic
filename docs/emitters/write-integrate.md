@@ -173,12 +173,12 @@ the document before any stage reads it, those of the inputs every emitter shares
 and an emitter's own once for that emitter. Each that matches nothing is a warning
 `emitters/unmatched-key`, not an error, since one configuration may serve several documents: it
 fails a run only at a threshold the caller sets to count warnings (architecture.md §4). It names the
-input, the ID and, where exactly one does, the entity whose correlation key equals the one the prior
-manifest records for that ID, as the likely new home. A stage reading such an ID passes over it,
-since it configures nothing, so each is reported once, by the one reader that can name where it
-went. A hint's `ParamKey`, which names a parameter by its wire identity rather than an ID, is
-reported so too, with no new home to name ([client settings](operations/client.md#client-settings)).
-A prior manifest's entry for a removed entity is not such an ID: the staleness check reports it.
+input, the ID and, where the prior manifest records a key for that ID and exactly one entity has it,
+that entity, as the likely new home. A stage reading such an ID passes over it, since it configures
+nothing, so each is reported once, by the one reader that can name where it went. A hint's
+`ParamKey`, which names a parameter by its wire identity rather than an ID, is reported so too, with
+no new home to name ([client settings](operations/client.md#client-settings)). A prior manifest's
+entry for a removed entity is not such an ID: the staleness check reports it.
 
 ## A document the user writes around
 

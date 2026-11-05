@@ -64,7 +64,11 @@ correlation key under an ID the document no longer has, where exactly one does a
 entity has that key: a key need not be unique, as a property's is its wire name (#679), and a guess
 between two entries could hand one entity another's name. A symbol derived from an entity takes the
 entry derived the same way from its entity's, since it records the entity's key, so matching it by
-key alone would find the entity's entry beside its own.
+key alone would find the entity's entry beside its own. An entity with no correlation key, or whose
+entry has none, has no prior entry, so rule 2 names it as on a first generation and nothing that
+follows an entity by its prior entry follows it: its ID alone is what #678 shows can name another
+entity, and two keyless entities would otherwise be taken for one. Write/integrate relies on the
+keys, so the pass computing them is one a caller cannot turn off (architecture.md §2.2).
 
 1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
    correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
