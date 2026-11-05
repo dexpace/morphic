@@ -64,7 +64,8 @@ RACE_SKIP := ^(TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly|TestLoad_DoesNextToN
 # The command both race targets run over their packages, and over the planted
 # race that scripts/race-reach.sh requires it to report. The two share it, so
 # they share the timeout and the plant. #1248 decides its timeout; on four busy
-# cores compilers/openapi/e2e takes most of it.
+# cores `race-pipeline` takes compilers/openapi/internal/load and
+# compilers/openapi/e2e to it or past it.
 RACE_TEST = $(GO) test -race -timeout 300s
 
 # A GOTOOLCHAIN already set in the environment wins, as an override should. It is
