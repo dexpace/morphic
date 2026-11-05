@@ -68,11 +68,13 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 
 - **Rule.** With no `origin`, fetch `main` by URL as the remote-tracking branch `origin/main`, the
   name the setup, the push checklist and its scripts read, and `pull/<N>/head` into a ref of your
-  own. Where the repository must stay unwritten, `git worktree add` is out: take
-  `.claude/skills/morphic-verifying-changes/references/mutation.md#plant-in-an-unpacked-copy`.
-- **Why.** Reviews of #1233, #1235 and #1238 each improvised these, and one wrote the worktree
-  metadata its round had ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name
-  (#1403).
+  own, and set `GH_REPO=<owner>/<repo>`, which `gh` and its placeholders read without a remote.
+  Where the repository must stay unwritten, review in a local clone, holding the branch's history
+  and writing only its directory: `git clone <repo> <dir>`, then
+  `git -C <dir> update-ref refs/remotes/origin/main <base>`.
+- **Why.** The reviews of #1233, #1235 and #1238 each improvised these, one writing metadata its
+  round ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name (#1403). With no
+  remote, `gh` found no repository; an unpacked copy, no history (#1537).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
 
 ## Check that no other checkout holds work on the PR's branch
@@ -188,11 +190,21 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 - **Rule.** After the angles, not before, as a list read first sets the agenda as a PR body does,
   read the PR's reviews and comments with the commit each was written on. Check each against the
   head: one fixed is not reported again, one open is carried into the report, and one its author
-  declined is answered, not repeated.
+  declined is answered, not repeated (`references/rounds.md#disprove-a-decline`).
 - **Why.** A review requested changes while later work went on as though the PR only awaited an
   approval, seen only when a status check happened to print it (#1169).
 - **Probe.** `gh api repos/dexpace/morphic/pulls/<N>/reviews --jq '.[] | [.user.login, .state, .commit_id] | @tsv'`,
   and the same path ending `comments`.
+
+## Disprove the fact a decline rests on, as a finding
+`disprove-a-decline`
+
+- **Rule.** A finding its author declined stays declined only once the fact the decline rests on is
+  named and attacked as `references/rounds.md#disprove-each-finding` attacks a finding: a comment
+  calling a case unreachable is a claim to probe, not a reason.
+- **Why.** A first review of what became #1515 declined a check because a comment called the case
+  "unreachable from a parsed document", and #1508's input reached it (#1538).
+- **Probe.** For each decline the report answers, the fact it rests on and the run that tested it.
 
 ## Design a fix before writing it
 `design-the-fix-first`

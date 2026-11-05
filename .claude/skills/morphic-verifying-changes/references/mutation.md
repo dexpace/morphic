@@ -6,15 +6,15 @@ yourself. These rules are the ways that reading still lies.
 ## Plant every temporary edit in a throwaway worktree
 `plant-in-a-throwaway-worktree`
 
-- **Rule.** Plant a mutant, instrumentation or a measurement switch in a detached worktree, never
-  in the tree you work in: `git add` new files, then
+- **Rule.** Plant a mutant, instrumentation or a measurement switch in a detached worktree, never in
+  the tree you work in: `git add` new files, then
   `git worktree add --detach <dir> $(git stash create)`, which holds uncommitted work without
-  touching the stash list. Put a file back with `git -C <dir> checkout -- <file>`, and remove the
-  worktree at the end. Run Python with `PYTHONDONTWRITEBYTECODE=1`.
-- **Why.** Restores in the working tree failed: a backup restored from the wrong copy (#591), one
-  backup shared by two files of one basename (#566), a full disk that left a mutant planted (#1141)
-  and emptied a file mid-restore (#1143), and bytecode outliving a same-size Python mutant restored
-  within its second (#1143).
+  touching the stash list. Restore with `git -C <dir> reset -q --hard && git -C <dir> clean -qfd`,
+  which undoes a `git mv` too, and remove the worktree at the end. Run Python with
+  `PYTHONDONTWRITEBYTECODE=1`.
+- **Why.** Restores in the working tree failed: a backup from the wrong copy (#591), one backup
+  shared by two same-named files (#566), a full disk (#1141, #1143), bytecode outliving a same-size
+  Python mutant (#1143), and a `git mv` plant surviving `checkout` (#1541).
 - **Probe.** `git status --short` in your own tree lists only your changes, and
   `git worktree list` no longer names the throwaway.
 
@@ -23,9 +23,12 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** `git worktree add` writes metadata into the repository. Where that is ruled out, unpack
   a copy with `git archive <head> | tar -x -C <dir>`, then `git init`, `git add -A` and a commit
-  there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare.
+  there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare. The copy holds
+  no history, so it serves a plant alone; a review reading the branch's commits takes the clone
+  `.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin` names.
 - **Why.** Reviews improvised this, and one wrote the metadata its round had ruled out (#1233,
-  #1235, #1238).
+  #1235, #1238). In a copy, `subjects.py` read only the copy's own commit, and the merge of `main`
+  refused unrelated histories (#1537).
 - **Probe.** Plant a line in the copy: `status` names one file.
 
 ## Check the tree holds one mutant before reading its verdict
@@ -51,6 +54,17 @@ yourself. These rules are the ways that reading still lies.
   until it compiles (`_ = x` for an unused variable).
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
+
+## Count a table row's kill only from the row run alone
+`a-kill-in-a-row-run-alone`
+
+- **Rule.** Where a table's rows share state, such as a directory or a fixture, run each row a
+  mutant fails on its own (`go test -run '<Test>/<row>'`) before counting it: a row failing only
+  after another left state behind is fallout, not a kill.
+- **Why.** A plant at `cmd/morphic/dashes.go:93` failed four rows of
+  `TestRun_SingleDashLongFlagsAreRefused`, and two of them passed when run alone, failing only on a
+  file the first row left behind (#1538, #1516 at 9aa24431).
+- **Probe.** For each row the report counts as a kill, its run alone under the plant.
 
 ## A mutant run owns its cache and stops before the disk fills
 `mutant-run-owns-its-cache`
@@ -172,6 +186,18 @@ yourself. These rules are the ways that reading still lies.
   `go test ./internal/archtest` settled three (#1233), yet a `t.Helper()` deleted in
   `pass/validate_payloads_test.go` passes `go test ./pass` and fails archtest. Two arms recorded
   equivalent by removal alone had results a row saw (#1233).
+
+## Show a plant fires before reading its survival
+`a-survivor-needs-a-plant-that-fires`
+
+- **Rule.** Before reading a survivor as untested or equivalent, show the plant changes what it
+  aims at: under the same condition, plant a failure any test reaching it must show, such as
+  `panic("reached")` or a `raise`, and watch a test fail of it. A plant that never fires is no
+  mutant, and its survival says nothing.
+- **Why.** A plant meant to break a parameter's content in `ownerOf` tested `kinds[i-1]`, where the
+  parameter sat at `kinds[i-2]`: it survived, and so did the same condition with a panic (#1538,
+  #1518 at beb3aa08).
+- **Probe.** Each survivor the report lists names the failing plant that fired at its condition.
 
 ## Equivalence is a claim about every input
 `equivalent-means-every-input`

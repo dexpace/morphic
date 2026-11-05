@@ -121,14 +121,15 @@ the rule here rather than reading it across.
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
   `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
-  unexported field or `Equal` method, which `cmp` alone calls. Any other value takes `cmp.Diff` with
-  a direction key (rule 6.15), and no test calls `reflect.DeepEqual` itself.
-- **Why.** Such a value lacks what the rule's reason names: the two agree on nil against empty, on
-  order and on a NaN in separate values, and `assert.Equal` labels both sides where a bare
-  `cmp.Diff` labels neither (#1206). A literal slice or map goes this way about twice as often as
-  the tree calls `cmp.Diff` (#1246).
-- **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
-  `git grep -nE '^func \([a-zA-Z]+ \*?[a-zA-Z]+\) Equal\(' -- '*.go' ':!*testdata*'` no method.
+  unexported field or `Equal` method, which `cmp` alone calls; any other takes `cmp.Diff` with a
+  direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
+- **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,
+  and `assert.Equal` labels both sides where a bare `cmp.Diff` labels neither (#1206). Literal
+  slices and maps take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed
+  117 calls on values with unexported fields (#1533, #1534).
+- **Probe.** `go doc -u <package> <type>` shows no unexported field or `Equal` method on each type
+  an added `assert.Equal` compares or its fields hold;
+  `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`

@@ -16,6 +16,16 @@ it.
 - **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer and watch
   it go red.
 
+## Sweep a mechanism that turns on a type with the types
+`sweep-a-typed-mechanism-by-type`
+
+- **Rule.** Where the mechanism turns on a type, such as a range over a map or a value holding an
+  unexported field, sweep it with `go/types`: a `golang.org/x/tools/go/packages` program, run from
+  the module root of a scratch clone and removed after. A grep finds a spelling, not a type.
+- **Why.** Of 997 range statements outside tests at 0d09a96d, 63 range over a map, and 3 of those
+  lines match `grep -iE 'map|byid|keys'`: `for index := range status` names no map (#1538).
+- **Probe.** The report gives the program's sites beside the grep's.
+
 ## Fix the state at the type that owns it, not where the defect surfaced
 `fix-at-the-invariants-owner`
 

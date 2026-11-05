@@ -154,6 +154,21 @@ class LintTest(unittest.TestCase):
         self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
+    def test_a_rule_cited_from_outside_the_skills_is_held(self):
+        cited = ".claude/skills/good-skill/references/r.md"
+        write(self.root, "CLAUDE.md", f"See `{cited}#do-the-thing`,\nand `{cited}#gone`, not "
+                                      "`references/r.md#gone`.\n")
+        missing = ".claude/skills/good-skill/references/no.md"
+        write(self.root, "docs/ir/notes.md", f"Per `{missing}#x`.\n")
+        write(self.root, "ir/b.go", f"package ir\n\n// Per {cited}#gone too.\n")
+        write(self.root, "ir/testdata/in.md", f"`{cited}#gone`\n")
+        write(self.root, "notes.txt", f"`{cited}#gone`\n")
+        self.assertEqual(sorted(self.lint()[1]), [
+            f"CLAUDE.md:2: {cited} holds no rule gone",
+            f"docs/ir/notes.md:1: {missing} does not exist",
+            f"ir/b.go:3: {cited} holds no rule gone",
+        ])
+
     def test_a_span_path_is_held_whatever_its_first_segment(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each span below names no repository path, by its form or by its first segment.
