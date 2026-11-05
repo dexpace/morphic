@@ -5,8 +5,10 @@ never `compiler`, never `engine`, never a sibling target):
 
 ```
 emitters/
-├── contract.go        # Emitter, EmitterInput/Output, Artifact, Capabilities, TargetKey, registry
-├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan, ModelShape
+├── contract.go        # Emitter, Router, EmitterInput/Output, Sample, RouteTable, Artifact, Capabilities,
+│                      #   TargetKey, registry
+├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan,
+│                      #   ModelShape, Example
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
 ├── policy/            # runtime SDK-policy vocabulary + Defaults(version) + Merge(DeepPartial) + Resolve(layers) (INV10)
 ├── embed/             # reads the policy and hints a document embeds as vendor extensions (contract/embedded-policy.md)

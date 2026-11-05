@@ -43,6 +43,8 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
+    Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
+                                  // a document stating none (../docs-and-mock.md#routes-and-links)
     Samples map[TargetKey]map[ir.OpID][]Sample // each SDK target's usage samples, for a docs
                                   // target (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
@@ -127,15 +129,16 @@ the document, which determines it.
 
 ## Contract rules the type system and tests enforce
 
-- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same `(Doc,
-  Plan, Policy, Hints, Scope, Prior, Samples, Routes, Options)`, under a context that stays live,
-  ⇒ byte-identical `Artifacts`, the prior manifest included since the names a generation shipped
-  are kept ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts`
-  is a function of `Doc` and adds nothing to the tuple. `Samples` and `Routes` are other runs'
-  output, so a docs target's artifacts change when an SDK target's options or another snapshot do,
-  and the manifest records them
-  ([write / integrate](../write-integrate.md#what-the-manifest-records)). Maps are walked in
-  sorted-key order, slices in source order ([T-6](../testing/mandatory-tests.md)).
+- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
+  `(Doc, Plan, Policy, Hints, Scope, Prior, Snapshot, Samples, Routes, Options)`, under a context
+  that stays live, ⇒ byte-identical `Artifacts`, the prior manifest included since the names a
+  generation shipped are kept
+  ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts` is a
+  function of `Doc` and adds nothing to the tuple. `Snapshot` sets two snapshots of one document
+  apart, and `Samples` and `Routes` are other runs' output, so a docs target's artifacts change when
+  an SDK target's options or another snapshot do; the manifest records all three ([write /
+  integrate](../write-integrate.md#what-the-manifest-records)). Maps are walked in sorted-key order,
+  slices in source order ([T-6](../testing/mandatory-tests.md)).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic ([T-7](../testing/mandatory-tests.md)). Codes live in a stable
@@ -144,5 +147,6 @@ the document, which determines it.
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
-  single version snapshot and never interprets `Availability`. The pass is designed, not built
-  (architecture.md §2.2); until it is, no pass slices a document.
+  single version snapshot and never interprets `Availability`. `Snapshot` names which one, and
+  `Routes` holds other snapshots' route tables, never their documents. The pass is designed, not
+  built (architecture.md §2.2); until it is, no pass slices a document.

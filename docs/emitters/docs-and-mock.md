@@ -118,16 +118,17 @@ a way to show one entity across API versions. Each is decided by data, never by 
   resolve the same way, so a link follows its target wherever its route moves.
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
-  page is identified by its ID, never by the version, so a version switcher links one entity
-  across versions. For a target whose `Capabilities.CrossVersion` is set, the engine asks the
-  target for every snapshot's route table through `Router` ([the
-  contract](contract/emitter.md)), before any snapshot's `Generate`, and hands each run the tables
-  of all of them in `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each
-  version. The engine cannot plan the routes itself, since the catalog and the templates are the
-  target's. A run plans its own routes by the same pure function, so its pages agree with its
-  snapshot's entry. A table holds each entity's page and anchor, which is what a switcher links. A
-  link to an entity a version lacks resolves to that version's page saying so. Slugs may differ
-  between versions; IDs do not.
+  page is identified by its ID, never by the version, so a version switcher links one entity across
+  versions. For a target whose `Capabilities.CrossVersion` is set, the engine asks the target for
+  every snapshot's route table through `Router` ([the contract](contract/emitter.md)), before any
+  snapshot's `Generate`, and hands each run the tables of all of them in `EmitterInput.Routes`,
+  keyed by the label `Document.Versions` gives each version. A run finds its own entry under
+  `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also the version its
+  switcher marks current: nothing in a snapshot's document says which version it is. The engine
+  cannot plan the routes itself, since the catalog and the templates are the target's. A run plans
+  its own routes by the same pure function, so its pages agree with its snapshot's entry. A table
+  holds each entity's page and anchor, which is what a switcher links. A link to an entity a version
+  lacks resolves to that version's page saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -152,21 +153,22 @@ disagree about a URL:
 ## Samples come from the SDK emitters
 
 How a call is spelled in one language — the client accessor, the method name, the arguments, a
-model's constructor — is that SDK emitter's refine output, and an emitter never sees another
-(INV1). A docs emitter that spelled calls itself would re-derive them and could disagree with the
-SDK it documents. So each SDK emitter returns its usage samples per operation in
-`EmitterOutput.Samples`, one for each language its callers write: a Multiplatform target's
-callers write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). The engine runs a target whose
-`Capabilities.ReadsSamples` is set after the run's other targets, and hands it every one's samples
-in `EmitterInput.Samples`. It runs an SDK target for its samples even when that target's
-generation writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since
-a docs run handed none would drop them. A docs generation is a new one whenever the samples it is
-handed change, as an SDK target's own options can change them. A sample a target cannot render is
-a coded diagnostic of that target's, never an empty code block on the page, and so is one for an
-operation whose required input holds no example. A sample's values are its operation's first
-example's `Input` (below): a scenario the operation declares in `Operation.Examples`, as a Smithy
-or TypeSpec document can, else one assembled from each input's set, a body's from the elected
-request content's and a parameter's from its own.
+model's constructor — is that SDK emitter's refine output, and an emitter never sees another (INV1).
+A docs emitter that spelled calls itself would re-derive them and could disagree with the SDK it
+documents. So each SDK emitter returns its usage samples per operation in `EmitterOutput.Samples`,
+one for each language its callers write: a Multiplatform target's callers write Kotlin and Swift
+([Swift](targets/kotlin/swift.md)). The engine runs a target whose `Capabilities.ReadsSamples` is
+set after the run's other targets, and hands it every one's samples in `EmitterInput.Samples`, each
+snapshot's docs run those of the SDK targets run on the same snapshot; a snapshot no SDK target is
+run on has no samples, which is no diagnostic. It runs an SDK target for its samples even when that
+target's generation writes nothing ([write /
+integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
+them. A docs generation is a new one whenever the samples it is handed change, as an SDK target's
+own options can change them. A sample a target cannot render is a coded diagnostic of that target's,
+never an empty code block on the page, and so is one for an operation whose required input holds no
+example. A sample's values are its operation's first example's `Input` (below): a scenario the
+operation declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else one assembled
+from each input's set, a body's from the elected request content's and a parameter's from its own.
 
 ## One set of examples
 

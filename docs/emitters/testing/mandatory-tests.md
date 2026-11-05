@@ -359,15 +359,16 @@ throughout these documents.
     a route is a coded diagnostic. Two slugs colliding in one template's scope are told apart by ID,
     and two entities resolving to one URL are an error naming both, also when the URL templates are
     changed; every link and `Docs.Refs` span resolves through the route plan; a version switcher
-    links one entity across snapshots, from the tables `Router` returns, and an entity a version
-    lacks to that version's page saying so. Agent documents and `llms.txt` share the pages' URLs,
-    escape spec text and pass no raw HTML, mark an operation safe or idempotent from
-    `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. A sample
-    comes from each SDK target, for each operation it emits, in each language its callers write,
-    Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that target's, and a
-    target whose generation writes nothing still returns its samples; a sample's values are its
-    operation's declared scenario's `Input` where it has one; and a docs generation whose samples or
-    routes changed, its own inputs unchanged, is a new generation ([docs and
+    links one entity across snapshots, from the tables `Router` returns, marks the run's `Snapshot`
+    current, and an entity a version lacks to that version's page saying so. Agent documents and
+    `llms.txt` share the pages' URLs, escape spec text and pass no raw HTML, mark an operation safe
+    or idempotent from `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint
+    is set. A sample comes from each SDK target, for each operation it emits, in each language its
+    callers write, Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that
+    target's, and a target whose generation writes nothing still returns its samples; a sample's
+    values are its operation's declared scenario's `Input` where it has one; a snapshot no SDK
+    target is run on draws no missing-sample diagnostic; and a docs generation whose samples, routes
+    or snapshot label changed, its own inputs unchanged, is a new generation ([docs and
     mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
     property or a parameter declaring none and adding no constraint takes its type's set, an
@@ -383,5 +384,6 @@ throughout these documents.
     bounds cut only optional members and the entries of a list or map past its minimum, so a
     required member nested deeper than `MaxDepth` and a `minItems` or `minProps` above `MaxItems`
     are met; one the synthesizer cannot make valid, a required cycle among them, or holding more
-    than `plan.MaxExampleValues` values is reported and left out; and a negative bound is
-    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+    than `plan.MaxExampleValues` values is reported and left out; with `Synthesize` off, no example
+    is `Inferred`; and a negative bound is `emitters/plan/policy-invalid` ([one set of
+    examples](../docs-and-mock.md#one-set-of-examples)).
