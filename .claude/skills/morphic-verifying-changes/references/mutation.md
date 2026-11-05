@@ -73,6 +73,18 @@ yourself. These rules are the ways that reading still lies.
 - **Probe.** Rerun the killing test alone on the mutant and on the clean tree: it fails on the
   first and passes on the second.
 
+## Run a planted Python file without its cached bytecode
+`python-plant-without-bytecode`
+
+- **Rule.** Run the tests of a planted Python file with `python3.14 -B`, from a copy holding no
+  `__pycache__`. CPython keeps a cached `.pyc` while the source's recorded size and modification
+  second match, so a plant the size of the last one, written within that second, is never read, and
+  the run reports the last plant's verdict.
+- **Why.** In a second-round review of #1522, a plant that `skills_lint.py`'s tests kill read as
+  surviving until it ran again with `-B` (#1522 at 29372a248).
+- **Probe.** In an empty directory, write `X = 1`, then `X = 2`, to module `m` within one second,
+  running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1.
+
 ## Plant where only the callers a check leaves out reach
 `plant-past-the-included-callers`
 

@@ -17,7 +17,9 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    on a run owning its cache
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#mutant-run-owns-its-cache`),
    each kill read against its plant
-   (`.claude/skills/morphic-verifying-changes/references/mutation.md#kill-reaches-the-plant`).
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#kill-reaches-the-plant`),
+   and a Python plant run without stale bytecode
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#python-plant-without-bytecode`).
 3. Hold each test the change adds or edits to what its name claims
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#assertion-targets-what-the-name-names`),
    to the stage it must reach
