@@ -116,16 +116,8 @@ var callShapeBaseline = map[string]map[string]int{
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"internal/census": 1,
 		"ir/irfacts":      2,
-		"ir/irtest":       2,
 		"ir/irverify":     2,
 		"pass":            13,
-	},
-	"ir/irtest": {
-		// AllocatingVisits runs the visitors it is handed: traversal callbacks. The
-		// analysis reads one []ir.Visitor as any other, so it counts here each
-		// visitor the module hands a variadic walk, though only tests call this.
-		"ir/irverify": 3,
-		"pass":        2,
 	},
 }
 
@@ -256,12 +248,13 @@ func sortCalls(calls map[string]map[string][]reversedCall) {
 // they declare and each package's initializer, seeded with the graph rapid type
 // analysis builds. ssautil.AllFunctions is no basis: it answers differently from
 // call to call on one program, and a wrapper it leaves out takes its calls with
-// it. No generic function is a root, as rapid type analysis cannot start from
-// one; its instances are reached from their callers.
+// it. Neither a generic function, which rapid type analysis cannot start from,
+// nor one of a package testSupport names, which may serve tests alone, is a
+// root: each is reached from its callers, if it has any.
 func callGraph(p program) *callgraph.Graph {
 	roots := make([]*ssa.Function, 0, len(p.funcs)+len(p.own))
 	for _, f := range p.funcs {
-		if f.fn.TypeParams().Len() == 0 {
+		if _, forTests := testSupport[f.pkg]; !forTests && f.fn.TypeParams().Len() == 0 {
 			roots = append(roots, f.fn)
 		}
 	}
@@ -531,6 +524,36 @@ func Plant() { lower.Hold(func() {}); lower.Run(); lower.Sweep(func(int) {}) }`}
 	calls, err := reversedCalls(p)
 	require.NoError(t, err)
 	assert.Empty(t, calls)
+}
+
+// TestCallShape_LeavesOutWhatOnlyTestsReach plants the shape that a test-support
+// package's variadic walk takes: no binary calls it, but the analysis reads one
+// []Visitor as any other, so it seems to call each visitor upper hands lower's
+// walk. Named as a package testSupport lists, it is no root and counts nothing;
+// named otherwise, it counts, so the plant reaches the analysis.
+func TestCallShape_LeavesOutWhatOnlyTestsReach(t *testing.T) {
+	t.Parallel()
+	const support = "ir/irtest"
+	require.Contains(t, testSupport, support, "the plant must be named as a test-support package")
+	tests := []struct {
+		name, path string
+		want       map[string]map[string]int
+	}{
+		{"a test-support package", support, map[string]map[string]int{"lower": {"upper": 1}}},
+		{"any other package", "measure", map[string]map[string]int{"lower": {"upper": 1}, "measure": {"upper": 1}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			pkgs := append(lowerAndUpper(`type Visitor interface{ Visit() }
+func Walk(vs ...Visitor) { for _, v := range vs { v.Visit() } }`, `type v struct{}
+func (v) Visit() {}
+func Plant() { lower.Walk(v{}) }`), plantedPackage{tc.path, `package measure
+import "lower"
+func Visits(vs ...lower.Visitor) { for _, v := range vs { v.Visit() } }`})
+			assert.Equal(t, tc.want, plantedCounts(t, pkgs))
+		})
+	}
 }
 
 // TestCallShape_LeavesOutWhatDoesNotRunBack plants each call the count leaves
