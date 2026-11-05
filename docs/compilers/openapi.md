@@ -491,8 +491,7 @@ every keyword there; `definitions` holds schemas as `$defs` does, and so does `d
 a value is one. A schema another holds roots a resource where it writes an identifier as the
 dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
-ignores. An `$id` names the URI its part before the `#` resolves to against the
-base above it, by
+ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
 and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -2856,8 +2855,8 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
   dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
   [`tuples`](#tuples), [`references`](#references)), so a keyword only the draft defines, such as
-  `dependencies` or draft 4's `id`, is held to none, and holds a `definitions` entry no `$ref`
-  reaches to none (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
+  `dependencies` or draft 4's `id`, is held to none, as is a `definitions` entry no `$ref` reaches
+  (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
   2020-12 reads it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never
   expanded as its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self`
   roots a resource of its own, as the document is known by its location alone (#863).
