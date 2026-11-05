@@ -176,6 +176,7 @@ class LintTest(unittest.TestCase):
                  "`grep 'a\\/b'`, `refs/remotes/origin/main`, "
                  "`git fetch <url> main:refs/remotes/origin/main`, "
                  "`git restore --worktree :/`, `git grep -n x -- :(top)gone/d.go`, "
+                 "`curl localhost:8080/v1/x`, "
                  "`gone/a.go:12`, `gone/b.go:12:5`, `gone/c.go:3-4`, `ir/a.go:1:2`, `ir/a.go:1-2`.\n")
         write(self.root, skill, GOOD_SKILL + spans)
         n = GOOD_SKILL.count("\n") + 1
@@ -185,15 +186,18 @@ class LintTest(unittest.TestCase):
 
     def test_a_rule_cited_by_its_key_alone_is_reported(self):
         skill = ".claude/skills/good-skill/SKILL.md"
-        write(self.root, skill, GOOD_SKILL + "Cite `#do-the-thing`, not `#N`, `#1234` or `#`.\n")
+        write(self.root, skill,
+              GOOD_SKILL + "Cite `#do-the-thing` or `#gate`, not `#N`, `#1234` or `#`.\n")
         n = GOOD_SKILL.count("\n") + 1
-        want = (f"{skill}:{n}: cites #do-the-thing by its key alone: "
-                "cite references/<file>.md#do-the-thing")
-        self.assertEqual(self.lint()[1], [want])
+        want = [f"{skill}:{n}: cites #{key} by its key alone: cite references/<file>.md#{key}"
+                for key in ("do-the-thing", "gate")]
+        self.assertEqual(self.lint()[1], want)
 
     def test_a_repository_script_is_found_beside_the_skills_own(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         script(self.root, "scripts/fuzz.sh", "true\n")
+        # The skill and the repository both hold scripts/tool.py, which is no finding.
+        script(self.root, "scripts/tool.py", "true\n")
         write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/fuzz.sh`, "
               "`scripts/tool.py` and `scripts/none.sh`.\n")
         n = GOOD_SKILL.count("\n") + 1
@@ -299,7 +303,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL
               + "Ignored: `docs/plan.md`, `go run ./cmd/morphic-local`, prose docs/plan.md, "
                 "[the plan](../../../docs/plan.md), `morphic-local`, "
-                "`references/local.md#local-rule`,\nand outside: [x](../../../../outside.md), "
+                "`references/local.md#local-rule`, `references/local.md`,\nand outside: [x](../../../../outside.md), "
                 "but `ir/./a.go` is in the tree.\n")
         n = GOOD_SKILL.count("\n") + 1
         lost = "is ignored by git, so no clone holds it"
@@ -307,6 +311,7 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: docs/plan.md {lost}",
                 f"{skill}:{n}: link target ../../../docs/plan.md {lost}",
                 f"{skill}:{n}: no skill or command named morphic-local",
+                f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n + 1}: link target ../../../../outside.md does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))

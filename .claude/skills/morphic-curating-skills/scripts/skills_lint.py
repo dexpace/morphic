@@ -476,19 +476,22 @@ class Linter:
 
     def missing(self, d: Path, p: str, shown: str = "") -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
-        skill for its own references/ and scripts/, then to the repository, which also holds a
-        scripts/ of its own, and to the repository otherwise. A path is held
-        up to a #entry, a line suffix or its first wildcard, and ./... names the module's packages. One
-        the tree lacks is None too when it names the Go toolchain's sources. The reason names
-        shown, the path as a span wrote it, where p has been read out of that spelling."""
+        skill for its own references/ and scripts/, then to the repository, which holds a scripts/
+        of its own, giving the skill's reason when neither holds it, and to the repository
+        otherwise. A path is held up to a #entry, a line suffix or its first wildcard, and ./...
+        names the module's packages. One the tree lacks is None too when it names the Go
+        toolchain's sources. The reason names shown, the path as a span wrote it, where p has been
+        read out of that spelling."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
             return None
         if rel.split("/", 1)[0] in ("references", "scripts"):
             own = os.path.normpath((d / rel).relative_to(self.root).as_posix())
-            if self.absent(shown or p, own) is None:
+            why = self.absent(shown or p, own)
+            if why is None or self.absent(shown or p, os.path.normpath(rel)) is None:
                 return None
+            return why
         rel = os.path.normpath(rel)
         why = self.absent(shown or p, rel)
         return None if why and self.in_toolchain(rel) else why
