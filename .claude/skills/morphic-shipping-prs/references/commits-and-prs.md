@@ -135,7 +135,19 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks eight of
   its issues held in comments or later edits; closing #1433 would have left a case it put out of
   scope stated nowhere (#1210, #1435).
-- **Probe.** The report gives each closing issue's `updatedAt` as last read, and none is newer.
+- **Probe.** The report gives each closing issue's `updatedAt` as last read, none newer, then
+  `references/commits-and-prs.md#closing-issue-met-at-its-site`.
+
+## Hold a closing issue's title and Direction to the head
+`closing-issue-met-at-its-site`
+
+- **Rule.** Before a report says a PR closes an issue, read its title against the site it names on
+  the head, where a defect it states must now be false, an imperative done and a question answered,
+  and match each step of its Direction to the line meeting it, or say in the body why none does.
+- **Why.** At 78c30a744, #1522 closed #1294, #1326, #1348, #1362, #1461 and #1495 while the rule
+  each named, in its title or its Direction, read as before, the fix sitting in a new rule the old
+  one never cited, and dropped #1347's step running the gate steps after a failure (#1522).
+- **Probe.** For each closing issue, quote the site its title names, as it reads at the head.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`
@@ -209,7 +221,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** Build an edited body from the live one, not a local draft, after fetching the branch
   to see who else works on it. Fetch it with
-  `gh pr view <N> --json body --template '{{.body}}'`, which adds no newline, and apply it with
+  `gh pr view <N> --json body --template '{{.body}}'`, which adds no newline, and apply it behind
+  `references/commits-and-prs.md#send-only-what-the-fetch-produced` with
   `gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@<file>`, not `--input`, which sends the
   file as the request. Anchor a scripted edit on the text as written, line breaks included, and
   stop when an anchor is absent.

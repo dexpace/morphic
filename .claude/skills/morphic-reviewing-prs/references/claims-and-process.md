@@ -18,6 +18,8 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 3. **Closed issues.** Read each issue the PR closes whole against the diff, its state, comments and
    out-of-scope items included
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole`),
+   its title and Direction against the head
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-met-at-its-site`),
    and each choice resting on an open issue against the open PRs settling it
    (`references/claims-and-process.md#open-issue-against-open-prs`).
 

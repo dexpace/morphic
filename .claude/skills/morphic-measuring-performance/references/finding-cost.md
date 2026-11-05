@@ -19,17 +19,18 @@ how to measure so the number means what the claim says.
 ## Quote instructions retired, never alone and never under your own load
 `instructions-not-wall-clock`
 
-- **Rule.** For a cost claim on a loaded machine, compare instructions retired, run base and head
-  alternately, and report each side's median with its spread; quote allocations beside them, but
+- **Rule.** For a cost claim on a loaded machine, compare instructions retired in the process doing
+  the work (`references/finding-cost.md#count-stops-at-the-timed-process`), base and head run
+  alternately, and report each side's median and spread, quoting a gap only as
+  `references/finding-cost.md#count-holds-across-rounds` allows. Quote allocations beside them,
   never in their place, since an allocation-free path can cost more. Run nothing else of your own
   while measuring.
 - **Why.** Replacing `FieldByName` with an allocation-free field scan made `Verify` slower (#1133);
-  runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
-- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
-  the head, run the two alternately (`references/finding-cost.md#count-on-one-thread`) under
-  `/usr/bin/time -l` on macOS or `perf stat -e instructions:u` on Linux, and compare each side's
-  median and range. A run that exits non-zero measured a failure. With neither tool, take
-  `references/finding-cost.md#cpu-time-without-a-counter`.
+  runs alternating with the author's test runs showed a gap quiet runs did not (#1140).
+- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` at the merge base and the head, and run
+  the two alternately (`references/finding-cost.md#count-on-one-thread`) under `/usr/bin/time -l`
+  on macOS or `perf stat -e instructions:u` on Linux. A run that exits non-zero measured a failure.
+  With neither tool, take `references/finding-cost.md#cpu-time-without-a-counter`.
 
 ## An instruction count stops at the timed process
 `count-stops-at-the-timed-process`
@@ -48,14 +49,15 @@ how to measure so the number means what the claim says.
 `count-on-one-thread`
 
 - **Rule.** Set `GOMAXPROCS=1 GOGC=off` for an instruction count over a compile: scheduling and
-  collection can move a total past the gap, whichever build they land on, and alternating does not
-  average that out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so:
-  its spread is then wide, about a fifth of the median on the golden spec, so a gap of a percent or
-  two is read on a smaller spec. Count each side's readings before quoting a median.
+  collection can move a total past the gap on either build, and alternating does not average that
+  out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so: its spread is
+  then about a fifth of the median on the golden spec, so a gap of a percent or two needs a smaller
+  spec. Count each side's readings before quoting a median.
 - **Why.** Two builds on one spec read +2.73%, then -2.08%; pinned, the same pair read +2.06% with
   each side's range under 1% (#1205, #1210).
 - **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>`, three alternating
-  runs a side: a range wider than the gap means the count is still noise.
+  runs a side: a range wider than the gap means the count is still noise. Its resident set is total
+  allocation (`references/finding-cost.md#resident-set-without-collector`).
 
 ## A count holds across rounds and beside a control
 `count-holds-across-rounds`

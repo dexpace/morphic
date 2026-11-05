@@ -36,9 +36,10 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `read-once-per-run`
 
 - **Rule.** A new check, lowering or pass that needs a fact about the whole document reads it from
-  a walk or index built once per run, adding a visitor to `ir.WalkValues` or a field to an index
-  the run builds, never a walk or scan of its own per check or query. A fact is computed once, at
-  the level owning it: a path item's, not once per operation it mounts.
+  a walk or index built once per run, adding a visitor to `ir.WalkValues`, pruned by
+  `references/design-rules.md#prune-a-visitor-to-its-carriers`, or a field to the run's index,
+  never a walk or scan of its own per check or query. A fact is computed once, at the level owning
+  it: a path item's, not once per operation it mounts.
 - **Why.** Each repeat was found and removed later: two parses and four walks per compile (#340),
   seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per
   pointer hop that made resolution quadratic (#379), and per-operation path item entries (#414).
@@ -138,8 +139,9 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
   a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
-  branch, as #931's table does. A new recursion under `compilers/openapi` also joins
-  `loweringRecursions` in `internal/archtest/recursion_test.go` with its bound
+  branch, as #931's table does, and take `references/design-rules.md#charge-each-part-to-its-cost`.
+  A new recursion under `compilers/openapi` also joins `loweringRecursions` in
+  `internal/archtest/recursion_test.go` with its bound
   (`.claude/skills/morphic-checking-style/references/departures.md#bounded-recursion-stands`);
   whether the pin covers other packages is #1525.
 
