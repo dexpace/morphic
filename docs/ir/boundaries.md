@@ -25,7 +25,7 @@ rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
-resource (`$id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the OpenAPI compiler
+resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the OpenAPI compiler
 lowers each is stated with its rules:
 [`content-vocabulary`](../compilers/openapi.md#content-vocabulary),
 [`dialect-keywords`](../compilers/openapi.md#dialect-keywords) and
