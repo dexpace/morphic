@@ -6,6 +6,7 @@ package load
 import (
 	"context"
 	"encoding/json/jsontext"
+	"fmt"
 	"io/fs"
 	"strings"
 	"testing"
@@ -206,6 +207,9 @@ func TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds(t *testing.T
 	assert.True(t, r.Takes("exclusiveMinimum", oas.Number), "a root keeps its own")
 	_, ok = doc.Dialects.Of(node("B", "b.yaml"))
 	assert.False(t, ok, "b.yaml's rows are the source's")
+	for n := range doc.Dialects.byNode {
+		assert.NotEqual(t, yaml.ScalarNode, n.Kind, "a scalar is noted: %q", n.Value)
+	}
 }
 
 // customServed answers every request with a document of schemas naming a
@@ -264,10 +268,29 @@ func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
 }
 
+// TestDialects_GovernNotesEachListOnce pins what keeps the walk linear in a
+// tree whose aliases place each list twice in the next, 2^20 placements of the
+// innermost: each list is noted, so it is walked once.
+func TestDialects_GovernNotesEachListOnce(t *testing.T) {
+	t.Parallel()
+	const depth = 20
+	var b strings.Builder
+	b.WriteString("l0: &l0 [{type: integer}]\n")
+	for i := 1; i <= depth; i++ {
+		fmt.Fprintf(&b, "l%d: &l%d [*l%d, *l%d]\n", i, i, i-1, i-1)
+	}
+	var tree yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(b.String()), &tree))
+	rows, _ := oas.Table().SchemaRules("3.1.0", "")
+	d := Dialects{byNode: map[*yaml.Node]oas.SchemaRules{}}
+	d.govern(tree.Content[0], rows)
+	assert.Len(t, d.byNode, depth+3, "the root mapping, each list and the one schema")
+}
+
 // TestDialects_ANodeTwoRootsHoldReadsTheFirsts pins that a node two roots
 // naming a dialect hold reads the rows of the first to govern it, which
-// readDialects asks innermost first, and that each node is read once, however
-// many aliases place it.
+// readDialects asks innermost first, and that each mapping is noted once,
+// however many aliases place it.
 func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	t.Parallel()
 	var tree yaml.Node
@@ -292,9 +315,9 @@ func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	if got != second {
 		t.Error("B holds another root's rows than its own")
 	}
-	assert.Len(t, d.byNode, 8, "A, its keys x and y, the shared node and its two scalars; B and its key z")
+	assert.Len(t, d.byNode, 3, "A, the shared node and B, and none of their scalars")
 	d.govern(nil, first)
-	assert.Len(t, d.byNode, 8, "no tree governs nothing")
+	assert.Len(t, d.byNode, 3, "no tree governs nothing")
 }
 
 // TestReadDialects_ANestedRootGovernsItsOwnTree pins that a resource an $id

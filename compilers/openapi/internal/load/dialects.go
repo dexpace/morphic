@@ -120,16 +120,18 @@ func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	return r, ok
 }
 
-// govern notes that every node of the tree under root, which aliases place
-// there included, reads rules, but those a root governed before it holds.
-// Roots are governed innermost first, so a nested root keeps its own. Each
-// node is read once, so the walk is bounded by the document's nodes.
+// govern notes that every mapping and list of the tree under root, which
+// aliases place there included, reads rules, but those a root governed before
+// it holds. Roots are governed innermost first, so a nested root keeps its own.
+// No scalar is noted, since the only schema one can be is a boolean, which
+// writes no keyword. Each mapping and list is walked once, so the walk reads
+// each entry the document writes once.
 func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
 		n := nodeview.Deref(stack[len(stack)-1])
 		stack = stack[:len(stack)-1]
-		if n == nil {
+		if n == nil || n.Kind == yaml.ScalarNode {
 			continue
 		}
 		if _, governed := d.byNode[n]; governed {
