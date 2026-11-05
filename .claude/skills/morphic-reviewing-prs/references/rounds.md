@@ -41,14 +41,15 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 `facts-before-angles`
 
 - **Rule.** Each round runs `python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py <N>`
-  in its worktree, a stacked PR's base as `--base`, and settles each line it prints in its angle's
-  matrix: a `rule` by its comparison, a `cite` by reading its line, a `command` by its exit status,
-  a `number` by deriving it, an `issue` read whole, a `pr` by its trial merge, a `stale` one by
-  `references/rounds.md#later-rounds-read-what-moved`. A line left unsettled is unreached. A fact
-  derived by hand that a script could print joins it (`morphic-curating-skills`).
-- **Why.** #1522's later rounds re-derived these by hand within a budget of about 80 tool calls
-  each, and sampled the rest: one matched 37 of 50 closing issues' Directions to the head, and the
-  next found the body's list of PRs sharing files wrong (#1522, #1530).
+  in its worktree, a stacked PR's base as `--base` and, from the third round, `--since`
+  (`references/rounds.md#later-rounds-read-what-moved`), and settles each line it prints in its
+  angle's matrix: a `rule` by its comparison, a `cite` by reading its line, a `command` by its exit
+  status, a `number` by deriving it, an `issue` read whole, a `pr` by its trial merge. A line left
+  unsettled is unreached. A fact derived by hand that a script could print joins it
+  (`morphic-curating-skills`).
+- **Why.** #1522's later rounds re-derived these by hand within a budget of about 80 tool calls, and
+  sampled the rest: one matched 37 of 50 closing issues' Directions, and the next found the body's
+  list of PRs sharing files wrong (#1522, #1530).
 - **Probe.** The report settles each line the script printed.
 
 ## Build the review from a ref only your session writes
@@ -301,23 +302,23 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   an issue or file read in part, a class sampled
   (`references/claims-and-process.md#sweep-each-claim-class`). The next round reads it.
 - **Why.** On #1522, round 3 judged a mutant dropping `normpath` equivalent because no path on the
-  tree held a `.` segment, and round 4 cleared #1266's asks on lines cut at about 450 characters;
-  the round after each found a defect there (#1522).
+  tree held a `.` or `..` segment, and round 4 cleared #1266's asks on lines cut at about 450
+  characters; the round after each found a defect there (#1522).
 - **Probe.** Each round's report lists the cells it reopened, each with what its clearance lacked.
 
 ## Give each later round an unanchored reader
 `fresh-reader-for-the-second-round`
 
-- **Rule.** From the second round, one fresh agent runs the angles, given the PR, this skill and
-  its own directory holding the merged tree (`references/rounds.md#reader-owns-its-directory`),
-  never an earlier round's findings, matrices or fix reasons, bar names of cells to read. Its
-  brief sets a tool-call budget and asks for a running list of what it reproduced. The main
-  session disproves each returned finding (`references/rounds.md#disprove-each-finding`) before
-  it counts. Where no agent can run, the main session rereads the merged diff before its own
-  notes.
+- **Rule.** From the second round, one fresh agent runs the angles, given the PR, this skill and its
+  own directory holding the merged tree (`references/rounds.md#reader-owns-its-directory`), nothing
+  from an earlier round but names of cells to read. Its brief sets a tool-call budget and asks for a
+  running list of what it reproduced. The main session disproves each returned finding and audits
+  each clearance (`references/rounds.md#disprove-each-finding`,
+  `references/rounds.md#audit-what-a-reader-cleared`) before it counts. Where no agent can run, the
+  main session rereads the merged diff before its own notes.
 - **Why.** Fixes #1329's rounds proposed each passed a prototype of its own property and failed a
-  sibling document's requirement, seen a round later (#1402); seven finders on #1016's review ran
-  55 minutes before one returned (#1016).
+  sibling document's requirement, seen a round later (#1402); seven finders on #1016 ran 55 minutes
+  before one returned (#1016).
 - **Probe.** The reader's brief holds nothing from an earlier round but cell names, and names a
   budget and directory.
 
@@ -325,13 +326,13 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 `reader-owns-its-directory`
 
 - **Rule.** A delegated reader's brief names a new directory only it writes, holding a detached
-  worktree of the merged tree the reviewer adds there, and forbids writing elsewhere: the
-  reviewer's files and harnesses, the main checkout and the repository's refs, not its objects.
-  Fingerprint each harness the reviewer will rerun before the hand-off, and rebuild one whose
-  fingerprint changes.
+  worktree of the merged tree, and forbids writing elsewhere: the reviewer's files and harnesses,
+  the main checkout and the repository's refs, bar the objects and worktrees it adds. Fingerprint
+  each harness the reviewer will rerun before the hand-off, and rebuild one whose fingerprint
+  changes.
 - **Why.** A reader vetting the Go blocks #1337's reviewer vetted rewrote the reviewer's harness
-  `go.mod`, so the reviewer's `go vet` failed, and would have checked the reader's tree had it
-  resolved (#1529). One of #1522's readers fetched six refs into the repository (#1522).
+  `go.mod`, so its `go vet` failed, and would have checked the reader's tree had it resolved
+  (#1529). A reader of #1522 fetched six refs into the repository (#1522).
 - **Probe.** The reader's brief names the directory and the prohibition;
   `find <harness> -type f -exec cksum {} + | sort | cksum` prints one line before the hand-off and
   after.

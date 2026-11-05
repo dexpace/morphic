@@ -10,8 +10,10 @@ Usage: python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py [--base 
 
 Run it in the review's worktree. The change is HEAD, uncommitted edits left out, against what it
 holds of REF (default origin/main) merged with what it holds of origin/main, so a stacked review
-counts no commit of main's as its own; where the two conflict, the files are named unread and
-HEAD's resolution of them counts. NUMBER is the PR; before it exists, FILE holds its body.
+counts no commit of main's as its own; a file the two conflict in is named unread and left out of
+every fact. With --since, the rule, cite, command and number lines describe what moved since that
+commit, and the issue lines only the issues updated after it. NUMBER is the PR; before it exists,
+FILE holds its body.
 - rule: each rule key added, removed, renamed, moved or reworded, compared word for word.
 - cite: each line citing such a key outside its own rule, or none.
 - command: each code span holding a space, and each line of a shell block, in the Rule and Probe
@@ -25,9 +27,9 @@ HEAD's resolution of them counts. NUMBER is the PR; before it exists, FILE holds
 - pr: each other open PR whose own change, read from its fork with origin/main, shares a file with
   this one, and whether it merges with HEAD, a file it also conflicts in against REF or origin/main
   marked with each. A head this repository lacks is fetched from origin without writing a ref.
-- stale: with --since, each file whose content differs from the tree at REF, each line citing a
-  rule reworded since, and the file each changed one pairs with by name, a test with what it
-  tests: test_<name>.py with <name>.py, <name>_test.go or <name>_internal_test.go with <name>.go.
+- stale: with --since, each file whose content differs from the tree at REF, and the file each
+  changed one pairs with by name, a test with what it tests: test_<name>.py with <name>.py,
+  <name>_test.go or <name>_internal_test.go with <name>.go.
 A rule moved or renamed with its words unchanged adds no command or number. These are facts, not
 findings: a reader judges each. Exit 0 when every fact was read, 2 when one could not be, the rest
 still printed.
@@ -234,20 +236,26 @@ def gh(*args: str) -> str:
                           timeout=TIMEOUT).stdout
 
 
-def change_base(report: Report, ref: str) -> str:
-    """Return the tree the change is read against: what HEAD holds of ref merged with what it
-    holds of origin/main. A stacked review's tree merges main beside the stack's base, and main's
-    commits are no change of the PR's own. Where the two conflict, the merge's tree keeps the
-    conflict, so the change also counts how HEAD resolved it, and those files are named unread."""
+def change_base(report: Report, ref: str) -> tuple[str, set[str]]:
+    """Return the tree the change is read against, what HEAD holds of ref merged with what it
+    holds of origin/main, and the files the two conflict in. A stacked review's tree merges main
+    beside the stack's base, and main's commits are no change of the PR's own; where the two
+    conflict, the change cannot be told from main's, so those files are named unread."""
     ours = git("merge-base", ref, "HEAD").strip()
     main = git("merge-base", BASE, "HEAD").strip()
     done = run_git("merge-tree", "--write-tree", "--name-only", "--no-messages", ours, main,
                    ok=(0, 1))
     tree, *conflicted = [line for line in done.stdout.splitlines() if line]
     if conflicted:
-        report.missed(f"the change apart from {BASE}'s commits in {', '.join(conflicted)}",
-                      ValueError(f"{ref} and {BASE} conflict there, so HEAD's resolution counts"))
-    return tree
+        report.missed(f"the change in {', '.join(conflicted)}",
+                      ValueError(f"{ref} and {BASE} conflict there, so it cannot be told apart"))
+    return tree, set(conflicted)
+
+
+def this_repository() -> str:
+    """Return the owner/name origin's URL ends in, or nothing when origin names no such URL."""
+    url = run_git("remote", "get-url", REMOTE, ok=(0, 1, 2, 128)).stdout.strip()
+    return m.group(1) if (m := REPOSITORY.search(url)) else ""
 
 
 def tree_rules(rev: str) -> dict[str, Rule]:
@@ -310,11 +318,13 @@ class Report:
         self.unread.append(f"{what} ({' '.join(str(detail).split())[:200]})")
 
 
-def rule_facts(report: Report, base: str) -> tuple[dict[str, Rule], dict[str, str]]:
-    """Report each rule the change touches and every line citing it; return HEAD's rules and
-    the changes."""
+def rule_facts(report: Report, base: str,
+               skip: set[str]) -> tuple[dict[str, Rule], dict[str, str]]:
+    """Report each rule that differs from base to HEAD, bar those in the files skip names, and
+    every line citing it; return HEAD's rules and the changes."""
     head = tree_rules("HEAD")
-    changes = compare(tree_rules(base), head)
+    changes = compare(*({k: r for k, r in rules.items() if r.path not in skip}
+                        for rules in (tree_rules(base), head)))
     for key, fact in changes.items():
         report.add("rule", f"{key}: {fact}")
     sites = citing(list(changes), head)
@@ -324,9 +334,11 @@ def rule_facts(report: Report, base: str) -> tuple[dict[str, Rule], dict[str, st
     return head, changes
 
 
-def text_facts(report: Report, base: str, head: dict[str, Rule], changes: dict[str, str]) -> None:
-    """Report the commands and the numbers the change writes into Markdown."""
-    adds = added(base)
+def text_facts(report: Report, base: str, head: dict[str, Rule], changes: dict[str, str],
+               skip: set[str]) -> None:
+    """Report the commands and the numbers HEAD adds to Markdown since base, bar the files skip
+    names."""
+    adds = {path: lines for path, lines in added(base).items() if path not in skip}
     edited = {k for k, fact in changes.items() if k in head and not unchanged(fact)}
     owner = {(r.path, i): k for k, r in head.items() for i in range(r.first - 1, r.last)}
     paths = sorted(adds.keys() | {head[k].path for k in edited})
@@ -344,24 +356,29 @@ def text_facts(report: Report, base: str, head: dict[str, Rule], changes: dict[s
             report.add("number", f"{path}:{i + 1}: {texts[path][i].strip()}")
 
 
-def read_body(args: argparse.Namespace) -> tuple[str, list[int]]:
-    """Return the PR's body and the issues GitHub lists it as closing."""
+def read_body(args: argparse.Namespace, repository: str) -> tuple[str, list[int]]:
+    """Return the PR's body and the issues GitHub lists it as closing in this repository, or in
+    any when its name is unknown."""
     if args.body:
         return Path(args.body).read_text(), []
     view = json.loads(gh("pr", "view", str(args.number), "--json",
                          "body,closingIssuesReferences"))
-    return view["body"], [issue["number"] for issue in view["closingIssuesReferences"]]
+    held = [(i["number"], f"{i['repository']['owner']['login']}/{i['repository']['name']}")
+            for i in view["closingIssuesReferences"]]
+    return view["body"], [n for n, name in held
+                          if not repository or name.lower() == repository.lower()]
 
 
-def issue_states(numbers_: list[int]) -> dict[int, dict | None]:
+def issue_states(numbers_: list[int], repository: str) -> dict[int, dict | None]:
     """Return each issue's state, update time and comment count, in one query, or None for a
     number no issue has. gh exits 1 on such a number while still printing what it found."""
     fields = " ".join(f"i{n}: issue(number: {n}) {{ state updatedAt comments {{ totalCount }} }}"
                       for n in numbers_)
     query = ("query($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) "
              f"{{ {fields} }} }}")
-    done = subprocess.run(["gh", "api", "graphql", "-f", f"query={query}", "-F", "owner={owner}",
-                           "-F", "repo={repo}"], capture_output=True, text=True, timeout=TIMEOUT)
+    owner, name = repository.split("/", 1) if repository else ("{owner}", "{repo}")
+    done = subprocess.run(["gh", "api", "graphql", "-f", f"query={query}", "-F", f"owner={owner}",
+                           "-F", f"repo={name}"], capture_output=True, text=True, timeout=TIMEOUT)
     reply = json.loads(done.stdout or "{}")
     failed = [e for e in reply.get("errors", []) if e.get("type") != "NOT_FOUND"]
     if failed or "data" not in reply:
@@ -370,31 +387,34 @@ def issue_states(numbers_: list[int]) -> dict[int, dict | None]:
     return {n: found[f"i{n}"] for n in numbers_}
 
 
-def issue_facts(report: Report, body: str, references: list[int], ref: str) -> None:
-    """Report each issue the PR closes, and whether it changed after the change's last commit, the
-    newest one neither ref nor origin/main holds, merges left out."""
-    url = run_git("remote", "get-url", REMOTE, ok=(0, 1, 2, 128)).stdout.strip()
-    repository = m.group(1) if (m := REPOSITORY.search(url)) else ""
+def issue_facts(report: Report, body: str, references: list[int], ref: str, repository: str,
+                after: datetime.datetime | None) -> None:
+    """Report each issue the PR closes, bar those last updated by after, and whether each changed
+    after the change's last commit, the newest one neither ref nor origin/main holds, merges left
+    out."""
     issues = closing(body, references, repository)
     if not issues:
         return
     last = git("log", "-1", "--no-merges", "--format=%cI", "HEAD", "--not", ref, BASE).strip()
     since = datetime.datetime.fromisoformat(last) if last else None
-    for n, state in issue_states(issues).items():
+    for n, state in issue_states(issues, repository).items():
         if state is None:
             report.add("issue", f"#{n}: no issue of that number")
             continue
         updated = state["updatedAt"]
+        if after and datetime.datetime.fromisoformat(updated) <= after:
+            continue
         late = since and datetime.datetime.fromisoformat(updated) > since
         report.add("issue", f"#{n}: {state['state']}, {state['comments']['totalCount']} "
                             f"comment(s), updated {updated}"
                             + (", after the change's last commit" if late else ""))
 
 
-def body_facts(report: Report, args: argparse.Namespace) -> None:
-    """Report the body's numbers and the issues it closes."""
+def body_facts(report: Report, args: argparse.Namespace, repository: str,
+               after: datetime.datetime | None) -> None:
+    """Report the body's numbers and the issues it closes, bar those last updated by after."""
     try:
-        body, references = read_body(args)
+        body, references = read_body(args, repository)
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
         report.missed("the body and the issues it closes", e)
         return
@@ -402,7 +422,7 @@ def body_facts(report: Report, args: argparse.Namespace) -> None:
     for i in numbers(lines, list(range(len(lines)))):
         report.add("number", f"body:{i + 1}: {lines[i].strip()}")
     try:
-        issue_facts(report, body, references, args.base)
+        issue_facts(report, body, references, args.base, repository, after)
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
         report.missed("the issues the PR closes", e)
 
@@ -489,16 +509,12 @@ def beside(path: str, listed: set[str]) -> list[str]:
     return sorted(f for f in (str(p.with_name(n)) for n in names) if f in listed)
 
 
-def stale_facts(report: Report, since: str, head: dict[str, Rule], changed: set[str]) -> None:
-    """Report what differs from the tree at since: each file, each line citing a rule reworded
-    since, and the file each changed one pairs with by name."""
+def stale_facts(report: Report, since: str, changed: set[str]) -> None:
+    """Report what differs from the tree at since: each file, and the file each changed one pairs
+    with by name."""
     files = git("diff", "--name-only", "--no-renames", since, "HEAD").splitlines()
     for path in files:
         report.add("stale", path + ("" if path in changed else " (outside the change)"))
-    moved = {k: f for k, f in compare(tree_rules(since), head).items() if not unchanged(f)}
-    for key, sites in citing(list(moved), head).items():
-        for site in sites:
-            report.add("stale", f"{site}: cites {key}, {moved[key]}")
     listed = set(git("ls-tree", "-r", "--name-only", "HEAD").splitlines())
     tests = {t: path for path in files for t in beside(path, listed) if t not in files}
     for test, path in sorted(tests.items()):
@@ -525,17 +541,23 @@ def main(argv: list[str] | None = None) -> int:
         if args.since:
             git("rev-parse", "--verify", "--quiet", f"{args.since}^{{commit}}")
         report = Report()
-        base = change_base(report, args.base)
+        base, conflicted = change_base(report, args.base)
     except (OSError, subprocess.SubprocessError) as e:
         print(f"facts: cannot run: {getattr(e, 'stderr', '') or e}".strip(), file=sys.stderr)
         return 2
-    head, changes = rule_facts(report, base)
-    text_facts(report, base, head, changes)
-    body_facts(report, args)
+    reference, skip = (args.since, set()) if args.since else (base, conflicted)
+    head, changes = rule_facts(report, reference, skip)
+    text_facts(report, reference, head, changes, skip)
+    after = None
+    if args.since:
+        reviewed = git("log", "-1", "--format=%cI", args.since).strip()
+        after = datetime.datetime.fromisoformat(reviewed)
+    body_facts(report, args, this_repository(), after)
     changed = set(git("diff", "--name-only", "--no-renames", base, "HEAD").splitlines())
+    changed -= conflicted
     pr_facts(report, args, changed)
     if args.since:
-        stale_facts(report, args.since, head, changed)
+        stale_facts(report, args.since, changed)
     for line in report.lines:
         print(line)
     counts = {k: sum(line.startswith(f"{k}: ") for line in report.lines) for k in KINDS}
