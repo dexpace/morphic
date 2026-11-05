@@ -96,12 +96,12 @@ type Entry struct {
   than overwrite the edit, and keeps the file's prior entry in the new manifest, so the next
   generation reports it again. A file integrated as blocks is checked by its blocks alone
   ([below](#a-document-the-user-writes-around)).
-- **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest,
-  the engine writes nothing. `Emitter` is a version, not the hash of the executable the plan and IR
-  caches key on, since a team's machines share the manifest and must agree on what it holds, and it
-  holds the Go release beside Morphic's, since its `go/format` shapes Go's output ([emit
-  rules](emit/rules.md)). A version naming no one tree, `(devel)` or one marked `+dirty`, never
-  matches, so a change being developed is never skipped.
+- **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest, a
+  file written once aside, the engine writes nothing. `Emitter` is a version, not the hash of the
+  executable the plan and IR caches key on, since a team's machines share the manifest and must
+  agree on what it holds, and it holds the Go release beside Morphic's, since its `go/format` shapes
+  Go's output ([emit rules](emit/rules.md)). A version naming no one tree, `(devel)` or one marked
+  `+dirty`, never matches, so a change being developed is never skipped.
 - **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
@@ -111,11 +111,11 @@ type Entry struct {
   that shaped it, which #702 plans so that a regeneration can say which steps moved.
 - **Written once.** A file a target generates for the user to own, such as a test to fill in, is an
   artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written
-  while absent, never rewritten or pruned. It is matched to a later generation through its origins,
-  each followed to the entity whose prior entry
-  ([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped)) it is, so an entity
-  renamed while its key holds, as a `Rename` hint renames one, is not written a second time under
-  its new name.
+  while absent, never rewritten or pruned, and never checked for an edit, since editing it is what
+  it is for. It is matched to a later generation through its origins, each followed to the entity
+  whose prior entry ([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped))
+  it is, so an entity renamed while its key holds, as a `Rename` hint renames one, is not written a
+  second time under its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
   manifest from a newer Morphic is refused as an error and nothing is written, since its fields
@@ -188,6 +188,9 @@ marker. The engine's integrate step then rewrites only those blocks in the file 
 - a block found there is replaced by the new one of its ID, and everything outside the markers is
   kept byte for byte;
 - a block marked `<!-- morphic:block <id> frozen -->` is the user's, and kept as it is;
+- a block built from an entity's ID follows the entity as [a region
+  does](#regions-follow-their-entity): after a rename the entity's new block takes its old one's
+  place, and one frozen before it stands for the entity, no second block added beside it;
 - a block new to this generation goes after the nearest block before it in the generated order
   that the file holds, else before the nearest one after it, else at the end, so a section first in
   the generated order is not written last;
