@@ -312,11 +312,10 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 }
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
-// alongside the others: a document nested too deeply to build (scan.Nesting),
-// aliases the parser cannot expand (scan.Aliases,
-// docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
-// faults on (diag.TaggedMapping), and a refusal of its own when the document
-// is too large to index in full.
+// alongside the others: a shape the parser cannot afford to build
+// (shapeRefusals, docs/parser-library.md#alias-cycle among them), a mapping
+// carrying a tag the parser faults on (diag.TaggedMapping), and a refusal of
+// its own when the document is too large to index in full.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -334,13 +333,29 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 			sourceindex.MaxIndexedNodes)}
 	}
 
+	diags := shapeRefusals(ctx, locate, idx, opts)
+	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
+	}
+	return diags
+}
+
+// shapeRefusals reports what of the shape of the tree idx indexes the parser
+// cannot afford to build: its nesting (scan.Nesting), its aliases
+// (scan.Aliases) and, where neither is refused, the bytes of its nodes'
+// pointers (scan.PointerAmplification), which deep nesting and aliasing both
+// multiply, so one defect is not reported twice.
+func shapeRefusals(ctx context.Context, locate scan.Locator, idx sourceindex.Index, opts Options) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
 	diags = append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
-	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
-		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
+	if diag.HasError(diags) {
+		return diags
+	}
+	if d, long := scan.PointerAmplification(locate, idx); long {
+		diags = append(diags, d)
 	}
 	return diags
 }

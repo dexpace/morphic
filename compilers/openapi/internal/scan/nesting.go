@@ -23,8 +23,9 @@ import (
 // Real specs nest far less: the deepest of the 1,839 OpenAPI 3 documents the
 // real-world sweep read in October 2026 nests 21 levels. Anything the lowering
 // lowers in full fits beneath it (TestMaxNesting_AdmitsWhatTheLoweringLowersInFull).
-// It bounds levels, not their keys' bytes, which cost the parser per node too
-// (GitHub #931). It is a limit on a shape, not a budget.
+// It bounds levels, not their keys' bytes, which every node's pointer repeats
+// and PointerAmplification bounds (GitHub #931). It is a limit on a shape, not
+// a budget.
 const MaxNesting = 1024
 
 // Nesting refuses a document nested past MaxNesting before the parser builds
