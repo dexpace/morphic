@@ -67,8 +67,8 @@ func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) 
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.LaterVersionConstruct, pointer+ids.Ptr(key),
-			"keyword %q beside a $ref is ignored by the JSON Schema dialect this schema names and applied "+
-				"from 2019-09; it is applied as in 2020-12", key))
+			"keyword %q beside a $ref is ignored by this schema's dialect, as by the JSON Schema drafts "+
+				"before 2019-09; it is applied as in 2020-12", key))
 	}
 	return diags
 }
