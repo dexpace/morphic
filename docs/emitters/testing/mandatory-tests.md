@@ -341,45 +341,47 @@ throughout these documents.
     frozen before its entity's path variable is renamed gains no twin, and its table of contents
     lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
     refused with nothing written ([write / integrate](../write-integrate.md)).
-41. **T-41 · Docs** — the docs emitter renders every response, error case, default response and
-    content an operation declares, the primary response and the elected content first; a table for
+41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
+    `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
+    places it, and every content, the primary response and the elected content first; a table for
     each projection a type's `TypePlan.Shapes` gives it, marking the members it requires, a
     write-only property in no read shape's, a model created by one operation and patched by another
     given a table for each, a model whose members and those of the models it holds carry no
     visibility marker one table for every shape, a patch's apart only where it or a model it holds
     requires a member or gives one a default, a patch table showing no default, and a type no shape
-    reaches one unprojected table; each `TypePlan.Undeclared` name a row with no anchor, required
-    save in a patch table, each member anchored once, where the model declaring it is rendered and
-    in the first of its tables that holds it, each table anchored too, once for each shape it shows,
-    through the page's ID-keyed resolution so a member named `create` beside a create table keeps
-    its own anchor, two tables on one page never sharing one and the collision check reading anchors
-    within a page, and a patch body linking to its patch table, a member no table of its declaring
-    model holds anchored in the first table of a model whose flattening holds it, an inherited one
-    linked there and an anonymous model composed in place no table of its own; each example through
-    the shape it is shown in, a write-only member in no response's; a placeholder for every value
-    `Secret` or `Sensitive` marks, on pages, in agent documents and in samples, a sample's written
-    by its SDK target; and raw HTML in a description rendered through the allowlist on pages and in
-    agent documents alike, a `<p>` and a `<code>` as themselves, a `<br/>` as a line break, the
-    description's inline raw HTML and HTML blocks read by an HTML tokenizer against its own stack,
-    never in raw-text mode, so `<p>Use the <title> field</p>` and `<p>a <title/> <b>b</b></p>` keep
-    their paragraph, a self-closing `<p/>` read as its start tag, every listed tag written from its
-    name, a description's `<table>`, nested or not, rendered as text, and each page, parsed as a
-    browser parses it, keeping its own elements, cells and rows around every description of a fixed
-    hostile corpus, text decoded and written escaped, a `<p>`-led description among them, an element
-    left open closed at its end and an end tag it never opened, such as `</td>`, rendered as text,
-    `<key>` keeping its place, `<ul><li>a<li>b</ul>` closing the first item implicitly, an end tag
-    matching an element below the top closing it and those above it, a listed tag's unlisted
-    attribute such as `target` dropped, a GitHub-style table kept as preformatted text, a refused
-    `a` its text and a refused `img` its `alt`, else its tag as text, as the golden spec's `<img
-    src="cid:logo">` is, an `&#106;avascript:` destination refused once decoded and an image's
-    `mailto:` source refused, and a `<td>` or `<li>` with no parent on the description's stack
-    rendered as text so a description in a cell adds no cell to the page's table,
-    `Example.Description` and `Link.Description` read as CommonMark like `Docs.Description`, and an
-    attribute outside the list, a comment and a placeholder such as `<key>` as text, a summary
-    escaped as text; a link from spec text written only under `http`, `https` or `mailto` or, in a
-    description, as a relative path resolved against the configured base, a relative URL in a field
-    of its own rendered as text with the warning, and a `javascript:` destination, a fragment alone
-    and a relative path with no base each rendered as the link's text with the warning
+    reaches one unprojected table anchored by its model alone; each `TypePlan.Undeclared` name a row
+    with no anchor, required save in a patch table, each member anchored once, where the model
+    declaring it is rendered and in the first of its tables that holds it, each table anchored too,
+    once for each shape it shows, through the page's ID-keyed resolution so a member named `create`
+    beside a create table keeps its own anchor, two tables on one page never sharing one and the
+    collision check reading anchors within a page, and a patch body linking to its patch table, a
+    member no table of its declaring model holds anchored in the first table of a model whose
+    flattening holds it, an inherited one linked there and an anonymous model composed in place no
+    table of its own; each example through the shape it is shown in, a write-only member in no
+    response's; a placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent
+    documents and in samples, a sample's written by its SDK target; and raw HTML in a description
+    rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
+    themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
+    an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
+    field</p>` and `<p>a <title/> <b>b</b></p>` keep their paragraph, a self-closing `<p/>` read as
+    its start tag, every listed tag written from its name, a description's `<table>`, nested or not,
+    rendered as text, and each page, parsed as a browser parses it, keeping its own elements, cells
+    and rows around every description of a fixed hostile corpus, text decoded and written escaped, a
+    `<p>`-led description among them, an element left open closed at its end and an end tag it never
+    opened, such as `</td>`, rendered as text, `<key>` keeping its place, `<ul><li>a<li>b</ul>`
+    closing the first item implicitly, an end tag matching an element below the top closing it and
+    those above it, `<ul><li><p>a<li>b</ul>` two items, a listed tag's unlisted attribute such as
+    `target` dropped, a GitHub-style table kept as preformatted text, a refused `a` its text and a
+    refused `img` its `alt`, else its tag as text, as the golden spec's `<img src="cid:logo">` is,
+    an `&#106;avascript:` destination refused once decoded and an image's `mailto:` source refused,
+    and a `<td>` or `<li>` with no parent on the description's stack rendered as text so a
+    description in a cell adds no cell to the page's table, `Example.Description` and
+    `Link.Description` read as CommonMark like `Docs.Description`, and an attribute outside the
+    list, a comment and a placeholder such as `<key>` as text, a summary escaped as text; a link
+    from spec text written only under `http`, `https` or `mailto` or, in a description, as a
+    relative path resolved against the configured base, a relative URL in a field of its own
+    rendered as text with the warning, and a `javascript:` destination, a fragment alone and a
+    relative path with no base each rendered as the link's text with the warning
     `emitters/docs/link-unwritten`, in a description's links and images, `ExternalDocs` and every
     other URL the document gives alike, and a `TermsOfService` that is text rendered as text. Every
     channel, message, auth scheme, an `unresolved` one included, and declared type but a primitive
@@ -416,31 +418,32 @@ throughout these documents.
     `Manifest` as the `""` entry and one losing it reads the entry holding the spanning files; a run
     whose context is done after `Router` returns fails; and the registry refuses a target setting
     `CrossVersion` without implementing `Router`. A CLI's help keeps a placeholder, a comment and a
-    link's URL as text and drops every control character. Agent documents and `llms.txt`, at site,
-    service, version and target scope, share the pages' URLs, escape spec text, write each
-    description back out within its item, an unclosed fence closed there and a reference definition
-    reaching no other, mark an operation safe or idempotent from `OpPlan.Effects`, and warn of
-    destruction only where the `Destructive` hint is set. The docs target decodes the `Extra`
-    members it defines strictly, reporting a wrong shape as `emitters/docs/extra-invalid` and
-    coercing nothing, and shows a code sample the document declares as authored beside the SDK
-    targets' samples, a language that is no single word left off its fence. A code fence in an agent
-    document is longer than any backtick run it holds. A sample comes from each SDK target, for each
-    operation its callers call, in each language its callers write, Kotlin and Swift from a
-    Multiplatform one, a missing one `emitters/<target>/sample-unrendered`, a target run under a
-    `Scope` still returning one for every operation, and a target whose generation writes nothing
-    still returns its samples; a sample's values are the `Input` of its operation's first success
-    scenario, declared or else assembled, one ending in no `Error`, a bodiless one among them; a run
-    made for samples alone reports what any run of its target reports; an operation the API starts,
-    a webhook, a callback or a message the client receives, has no sample and no diagnostic; a docs
-    target run alone shows the samples of the targets its options name, which the engine runs for it
-    with the configuration and prior manifest each would run with, writing none of their artifacts
-    the run does not name and running one the run does name once on each snapshot, one with no
-    configuration refused; an operation with no success scenario has no sample, drawing no
-    diagnostic where `Assemble` off chose that and `sample-unrendered` where a required input held
-    no example; a named target the registry lacks, without `WritesSamples` or that reads samples,
-    and a `ReadsSamples` target whose options do not implement `SampleReader`, are
-    `engine/sample-target-invalid`; and a docs generation whose samples, routes or snapshot label
-    changed, its own inputs unchanged, is a new generation ([docs and mocks](../docs-and-mock.md)).
+    link's URL as text, keeps line feeds and tabs and drops every other control character. A nested
+    group's route joins its groups' slugs. Agent documents and `llms.txt`, at site, service, version
+    and target scope, share the pages' URLs, escape spec text, write each description back out
+    within its item, an unclosed fence closed there and a reference definition reaching no other,
+    mark an operation safe or idempotent from `OpPlan.Effects`, and warn of destruction only where
+    the `Destructive` hint is set. The docs target decodes the `Extra` members it defines strictly,
+    reporting a wrong shape as `emitters/docs/extra-invalid` and coercing nothing, and shows a code
+    sample the document declares as authored beside the SDK targets' samples, a language that is no
+    single word left off its fence. A code fence in an agent document is longer than any backtick
+    run it holds. A sample comes from each SDK target, for each operation its callers call, in each
+    language its callers write, Kotlin and Swift from a Multiplatform one, a missing one
+    `emitters/<target>/sample-unrendered`, a target run under a `Scope` still returning one for
+    every operation, and a target whose generation writes nothing still returns its samples; a
+    sample's values are the `Input` of its operation's first success scenario, declared or else
+    assembled, one ending in no `Error`, a bodiless one among them; a run made for samples alone
+    reports what any run of its target reports; an operation the API starts, a webhook, a callback
+    or a message the client receives, has no sample and no diagnostic; a docs target run alone shows
+    the samples of the targets its options name, which the engine runs for it with the configuration
+    and prior manifest each would run with, writing none of their artifacts the run does not name
+    and running one the run does name once on each snapshot, one with no configuration refused; an
+    operation with no success scenario has no sample, drawing no diagnostic where `Assemble` off
+    chose that and `sample-unrendered` where a required input held no example; a named target the
+    registry lacks, without `WritesSamples` or that reads samples, and a `ReadsSamples` target whose
+    options do not implement `SampleReader`, are `engine/sample-target-invalid`; and a docs
+    generation whose samples, routes or snapshot label changed, its own inputs unchanged, is a new
+    generation ([docs and mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored,
     one holding only an `ExternalURL` shown as a link and held by no set, and one its type and
     constraints refuse, visibility set aside, is `emitters/plan/example-refused` and left out
@@ -464,7 +467,9 @@ throughout these documents.
     reports each refused example once, is its own declared examples, else its type's, a message's
     those of its payload's contents paired with its headers' set, that pairing `Inferred` and off
     with `Assemble`, which the docs, the samples and the mock read a body's examples from. Where
-    none applies, the value synthesized is valid against its constraints, marked `Inferred`,
+    none applies, the value synthesized is valid against its constraints and its type's
+    validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never
+    both, a value failing them left out and reported and a declared one refused, marked `Inferred`,
     identical across regenerations and in both declaration orders, seeded from its ID where no
     correlation key identifies it, a choice on a recurrence or past `MaxDepth` taking the first
     variant or member from which a value ends, so a required recursive union ends, and the same in

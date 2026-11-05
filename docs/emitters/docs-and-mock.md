@@ -48,13 +48,15 @@ the IR.
 ## What the docs render
 
 The primary response and content are an SDK's ergonomic choice: a method returns one. A reader of
-the docs needs every answer the API gives, so the docs emitter renders every `Response`, every
-`ErrorCase`, the `Default` that answers the statuses they do not name, and every `Content` each
-declares, the primary response first and the elected content first within each, and those choices
-order the page and decide nothing else. A type is rendered once for each projection its
-`TypePlan.Shapes` gives it ([ModelShape](plan/types.md#modelshape--visibility-projection)), each
-table holding the members visible in that shape and marking those it requires, and shapes whose
-projections coincide share one table, as they share one declaration
+the docs needs every answer the API gives, so the docs emitter renders every answer the plan lists,
+`Return`, `Others` and `Errors`, the last holding the service's `CommonErrors` too
+([responses](plan/responses.md)), the `Default` once, with the statuses it answers, wherever the
+plan places it, and every `Content` each declares, the primary response first and the elected
+content first within each, and those choices order the page and decide nothing else. A type is
+rendered once for each projection its `TypePlan.Shapes` gives it
+([ModelShape](plan/types.md#modelshape--visibility-projection)), each table holding the members
+visible in that shape and marking those it requires, and shapes whose projections coincide share one
+table, as they share one declaration
 ([models](refine/models.md#visibility-projections--n-wire-shapes)). So a write-only property is in
 no read shape's table and a read-only one in no create shape's, and a model one operation creates
 and another patches has a table for each, since a patch body's members are optional and a member
@@ -65,8 +67,9 @@ since a patch relaxes what is required and carries no default onto the wire, so 
 none, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872 models carry none
 on their own members or on any model they hold or inherit, so a table per shape would repeat itself
 for any of them two shapes but a patch reach. A type no shape reaches, one no operation sends or
-returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches what it
-holds](plan/types.md#a-shape-reaches-what-it-holds)).
+returns, is rendered once, unprojected, its table anchored by its model's anchor alone and shown
+through no shape, which `Shown` takes as a nil `ModelShape`, as an SDK declares it ([a shape reaches
+what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
@@ -124,29 +127,30 @@ the description. A text token is decoded and written escaped. A listed start tag
 one, which HTML opens as a start tag, opens an element, `br`, `hr` and `img` opening none, written
 from its name with its listed attributes decoded, checked and escaped and every other attribute
 dropped, never from its raw bytes, so `<a href="https://…" target="_blank">` renders as a link; a
-listed end tag closes the element it matches, and any above it on the stack, as HTML closes them,
-and renders as text where none matches; and a `p`, `li`, `dt` or `dd` on top closes when a sibling
-opens or its parent closes. Every other token, a tag, an end tag or a comment, is written escaped
-from its raw bytes, so a stray `</td>` renders as text rather than closing the page's own table, a
-placeholder such as `<key>` keeps its place, and what is still open closes where the description
-ends. A refused `a` is its text, both its tags dropped, and a refused `img` its `alt`, else its tag
-as text. An `li`, `dt` or `dd` opens only with its list on top of the description's stack, and
-otherwise renders as text, so a description cannot add an item to the page's own list. No table tag
-is listed, since a browser closes a page's table around a description's own in ways no stack of the
-description's can follow, so a description in a schema table's cell cannot add a cell or a row to
-it; a description's table renders as text. The contract is that outcome, which T-41 checks by
-parsing each page as a browser does: the page's own elements stand as written around every
-description, however hostile, and every token the description holds stays visible or renders as a
-listed element. An HTML parser's tree-building fragment mode is no substitute: it drops a stray end
-tag and turns `<key>` into an element holding the rest of the text. Any other tag or comment renders
-as text, a custom element such as `<note>` among them. A GitHub-style table, which CommonMark does
-not read and 12 golden-spec descriptions write, is kept as preformatted text, so its rows stay
-apart. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
-CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a line
-break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source, and 33
-placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays visible where
-a browser handed it would parse it as an element and drop it. A summary, a name or any other spec
-string that is not CommonMark is escaped as text.
+listed end tag closes the element it matches, and any above it on the stack, and renders as text
+where none matches; and a `p`, `li`, `dt` or `dd` on top closes when a sibling opens or its parent
+closes, a `p` on top closing before an `li`, `dt` or `dd` is checked against its list. Every other
+token, a tag, an end tag or a comment, is written escaped from its raw bytes, so a stray `</td>`
+renders as text rather than closing the page's own table, a placeholder such as `<key>` keeps its
+place, and what is still open closes where the description ends. A refused `a` is its text, both its
+tags dropped, and a refused `img` its `alt`, else its tag as text. An `li`, `dt` or `dd` opens only
+with its list on top of the description's stack, and otherwise renders as text, so a description
+cannot add an item to the page's own list. No table tag is listed, since a browser closes a page's
+table around a description's own in ways no stack of the description's can follow, so a description
+in a schema table's cell cannot add a cell or a row to it; a description's table renders as text.
+The contract is that outcome, which T-41 checks by parsing each page as a browser does: the page's
+own elements stand as written around every description, however hostile, and every token the
+description holds stays visible or renders as a listed element. An HTML parser's tree-building
+fragment mode is no substitute: it drops a stray end tag and turns `<key>` into an element holding
+the rest of the text. Any other tag or comment renders as text, a custom element such as `<note>`
+among them. A GitHub-style table, which CommonMark does not read and 12 golden-spec descriptions
+write, is kept as preformatted text, so its rows stay apart. On the golden spec (spec @57b5196b,
+morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's grammar, outside code, and 4
+comments: 11 tags a `<br/>`, which renders as a line break, one an `<img>`, which renders as text
+since the rule below refuses its `cid:` source, and 33 placeholders such as `<key>` and `<uuid>`,
+which no list names, so a placeholder stays visible where a browser handed it would parse it as an
+element and drop it. A summary, a name or any other spec string that is not CommonMark is escaped as
+text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
@@ -189,10 +193,11 @@ a way to show one entity across API versions. Each is decided by data, never by 
   model, union or enum that more than one reference names directly would leave one more rendered in
   several places: the enum a component parameter's anonymous list holds, which five operations
   share. A route plan then derives every URL from the catalog alone, through templates in the docs
-  emitter's options, one per kind of page (`"/{service}/{group}/{operation}"`). A slug is
-  presentation (INV3), rendered from names by the naming policy, and two that collide in one
-  template's scope are told apart by the ID-keyed resolution identifiers take
-  ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
+  emitter's options, one per kind of page (`"/{service}/{group}/{operation}"`), a nested group's
+  `{group}` being its groups' slugs from the service down, joined by `/`, and one template's scope a
+  group's direct children. A slug is presentation (INV3), rendered from names by the naming policy,
+  and two that collide in one template's scope are told apart by the ID-keyed resolution identifiers
+  take ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
   canonical words, which the SDKs resolve as well. Two slugs collide whatever their letter case, as
   artifact paths do ([emit rules](emit/rules.md)), since a file system that ignores case keeps one
   page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
@@ -393,29 +398,33 @@ member and operation:
   golden spec (spec @57b5196b, morphic @ab953d45), 435 request, response and error contents declare
   651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
-  against the entity's type and constraints, marked `Inferred` and labelled generated. A model
-  synthesized holds, for each member, an `Undeclared` name among them, the first value of that
-  member's own set, and a list or map, for its k-th item or entry, the k-th, its set's values taken
-  in turn and, once they run out, synthesized values seeded by index, so items differ where
-  `uniqueItems` or a map's keys require it, a map's keys being distinct values of its key type; a
-  `uniqueItems` list holds no more items than distinct values exist, and one left below its minimum
-  is unsynthesizable. Each such value is a declared one whole, or a synthesized one cut to the depth
-  the bound leaves, so a property's value is the same alone and inside its model wherever the bound
-  leaves it whole, and an optional recursive member ends. The bounds cut only what validity leaves
-  optional ([plan policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and
-  the entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
-  alone once it lies deeper than `MaxDepth` or on a recurrence of its own type along the value, so a
-  recursion through no model, as the golden spec's `cws_JSONValue` map and list recur, ends too, so
-  a required list of its own model ends: the golden spec's `cloudforce-one_TreeNode` requires
-  `children`, a list of `TreeNode`, which holds none past that depth. A required member is filled as
-  deep as its schema requires, one whose reference is `Nullable` ending a cycle with `null`, and a
-  `minItems` above `MaxItems` is met: on the golden spec 245 models reach a model four or more deep
-  through their own required, non-null members alone, and one list requires four items, which the
-  default bounds would otherwise leave without an example. A value the synthesizer cannot make
-  valid, as a `pattern` it cannot satisfy or a required cycle no value ends, or one holding more
-  values than `plan.MaxExampleValues`, a fixed limit the plan package states, 10,000, which bounds
-  what a hostile schema can make one example cost, is reported as a warning
-  `emitters/plan/example-unsynthesized` and left out, never emitted invalid.
+  against the entity's type and constraints, and against the validation-only constructs `Unmodeled`
+  keeps for it (`not`, `oneOf`, `anyOf` and their kin), evaluated as the JSON Schema they are, since
+  the API holds a value to them: a synthesized value failing one is left out and reported, and a
+  declared one failing one is refused, as the golden spec's 34 types carrying one require, marked
+  `Inferred` and labelled generated. A model synthesized holds, for each member, an `Undeclared`
+  name among them, the first value of that member's own set, and a list or map, for its k-th item or
+  entry, the k-th, its set's values taken in turn and, once they run out, synthesized values seeded
+  by index, so items differ where `uniqueItems` or a map's keys require it, a map's keys being
+  distinct values of its key type; a `uniqueItems` list holds no more items than distinct values
+  exist, and one left below its minimum is unsynthesizable. Each such value is a declared one whole,
+  or a synthesized one cut to the depth the bound leaves, so a property's value is the same alone
+  and inside its model wherever the bound leaves it whole, and an optional recursive member ends.
+  The bounds cut only what validity leaves optional ([plan policy](plan/policy.md)): an optional
+  member more than `MaxDepth` models deep, and the entries of a list or map past the larger of
+  `MaxItems` and its minimum, or past its minimum alone once it lies deeper than `MaxDepth` or on a
+  recurrence of its own type along the value, so a recursion through no model, as the golden spec's
+  `cws_JSONValue` map and list recur, ends too, so a required list of its own model ends: the golden
+  spec's `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past
+  that depth. A required member is filled as deep as its schema requires, one whose reference is
+  `Nullable` ending a cycle with `null`, and a `minItems` above `MaxItems` is met: on the golden
+  spec 250 models reach a model four or more deep through their own or inherited required, non-null
+  members, and one list requires four items, which the default bounds would otherwise leave without
+  an example. A value the synthesizer cannot make valid, as a `pattern` it cannot satisfy or a
+  required cycle no value ends, or one holding more values than `plan.MaxExampleValues`, a fixed
+  limit the plan package states, 10,000, which bounds what a hostile schema can make one example
+  cost, is reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted
+  invalid.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
   ID where no key identifies it, save on a recurrence of its type along the value or deeper than
@@ -472,16 +481,16 @@ depends on it. What it needs is almost all IR and plan facts:
 A CLI's help reads a description as the pages do, through the same tokenizer and link rule, and
 writes it as plain text: a listed element as its text, every other token, a placeholder such as
 `<key>` or a comment such as `<!--sse-->` among them, as written, a link as its text followed by its
-URL, and every control character, a terminal escape sequence among them, removed, since a
-description could otherwise drive the user's terminal. Command names, positional arguments, `@file`
-inputs and hidden commands are presentation, so they are [shaping hints](contract/shaping-hints.md)
-keyed by ID, `Rename` and the `Extra` members a CLI target defines. Flag constraints are derived at
-refine from the union's branches by `PropID`, never by a property's leaf name: a leaf name derives
-no conflict between `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge
-into one flag. Flag names collide as identifiers do and are told apart by the same ID-keyed
-resolution ([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become
-`--foo-bar`. A body field nested at any depth, or with `.` in its name, is a flag like any other,
-save past a type's first recurrence along its path, where the field is one flag taking JSON or an
-`@file`, since a recursive body has no last field (17 of the golden spec's operations send one), and
-a union beside properties, or a top-level `anyOf` body, still yields flags, its branches'
-constraints among them.
+URL, and every control character but a line feed and a tab, a terminal escape sequence among them,
+removed, so its lines and a code block's stay as written, since a description could otherwise drive
+the user's terminal. Command names, positional arguments, `@file` inputs and hidden commands are
+presentation, so they are [shaping hints](contract/shaping-hints.md) keyed by ID, `Rename` and the
+`Extra` members a CLI target defines. Flag constraints are derived at refine from the union's
+branches by `PropID`, never by a property's leaf name: a leaf name derives no conflict between
+`{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge into one flag. Flag
+names collide as identifiers do and are told apart by the same ID-keyed resolution
+([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A
+body field nested at any depth, or with `.` in its name, is a flag like any other, save past a
+type's first recurrence along its path, where the field is one flag taking JSON or an `@file`, since
+a recursive body has no last field (17 of the golden spec's operations send one), and a union beside
+properties, or a top-level `anyOf` body, still yields flags, its branches' constraints among them.

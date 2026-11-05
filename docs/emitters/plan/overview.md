@@ -46,13 +46,13 @@ func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
 func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
 func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 
-// Shown is ex, a value of t, as the shape in shows it: the members in does not hold dropped, and
-// each one in requires that ex lacks taken from that member's set, which marks the result Inferred.
-// A union value several variants admit keeps each member one of them holds, Build having refused
-// it for a Strict union; it is false for a Strict union several variants admit in shape in, and
-// where a required member's set is empty, so the caller takes the next. A key a catch-all admits
-// is kept.
-func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in ModelShape) (Example, bool)
+// Shown is ex, a value of t, as the shape in shows it, nil being unprojected: the members in does
+// not hold dropped, a key a catch-all admits kept, and each member in requires that ex lacks taken
+// from that member's set, which marks the result Inferred. A union value several variants admit
+// keeps each member one of them holds, Build having refused it for a Strict union. It is false for
+// a Strict union several variants admit in shape in and where a required member's set is empty,
+// so the caller takes the next.
+func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in *ModelShape) (Example, bool)
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
