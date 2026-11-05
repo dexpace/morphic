@@ -60,7 +60,8 @@ type Artifact struct {
     Header       HeaderPlacement // where the generated-by provenance header goes (top/after-shebang/none)
     SkipIfExists bool            // scaffolding written once (config, .gitignore) — never overwritten
     Overwrite    bool            // regenerate but preserve ignore-regions (default is additive)
-    Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge (../write-integrate.md)
+    Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge, and
+                                 // whether the file is merged as blocks (../write-integrate.md)
     Origins      []EntityID      // IR IDs whose emission produced this file (drives ID-keyed prune)
 }
 ```
@@ -100,10 +101,12 @@ the document, which determines it.
 
 ## Contract rules the type system and tests enforce
 
-- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
-  `(Doc, Plan, Policy, Hints, Scope, Options)`, under a context that stays live, ⇒ byte-identical
-  `Artifacts`; `Facts` is a function of `Doc` and adds nothing to the tuple. Maps are walked in
-  sorted-key order, slices in source order ([T-6](../testing/mandatory-tests.md)).
+- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same `(Doc,
+  Plan, Policy, Hints, Scope, Prior, Options)`, under a context that stays live, ⇒ byte-identical
+  `Artifacts`, the prior manifest included since the names a generation shipped are kept
+  ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts` is a
+  function of `Doc` and adds nothing to the tuple. Maps are walked in sorted-key order, slices in
+  source order ([T-6](../testing/mandatory-tests.md)).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic ([T-7](../testing/mandatory-tests.md)). Codes live in a stable
