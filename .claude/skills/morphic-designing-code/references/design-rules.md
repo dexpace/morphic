@@ -36,9 +36,10 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `read-once-per-run`
 
 - **Rule.** A new check, lowering or pass that needs a fact about the whole document reads it from
-  a walk or index built once per run, adding a visitor to `ir.WalkValues` or a field to an index
-  the run builds, never a walk or scan of its own per check or query. A fact is computed once, at
-  the level owning it: a path item's, not once per operation it mounts.
+  a walk or index built once per run, adding a visitor to `ir.WalkValues`, pruned by
+  `references/design-rules.md#prune-a-visitor-to-its-carriers`, or a field to the run's index,
+  never a walk or scan of its own per check or query. A fact is computed once, at the level owning
+  it: a path item's, not once per operation it mounts.
 - **Why.** Each repeat was found and removed later: two parses and four walks per compile (#340),
   seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per
   pointer hop that made resolution quadratic (#379), and per-operation path item entries (#414).
@@ -46,6 +47,19 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#counting-seam-for-optimizations`)
   and the work at n, 2n and 4n
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`).
+
+## Prune a visitor to the path to its carriers
+`prune-a-visitor-to-its-carriers`
+
+- **Rule.** A visitor reading a type with few carriers returns false off the path to them, as
+  `checkStreamingModes` in `ir/irverify/kinds.go` does, rather than being shown every value, as
+  `checkInferred` is because every `Provenance` holds its field. The pruning changes no finding, so
+  it takes a test failing on a carrier off the path and a counting seam showing the values visited.
+- **Why.** `checkStability`, written in `checkInferred`'s shape for a type only operations and
+  their groups carry, made `irverify.Verify` over the golden spec about 4% slower than the pruned
+  walk (#1229), and two more checks had the same shape (#1267).
+- **Probe.** A document holding more beside the carriers shows the visitor the same number of
+  values.
 
 ## Give a value with a form a type of its own
 `type-the-form`
@@ -90,6 +104,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** Each new function does more than call another, each new interface has two
   implementations or a test seam, and `go test ./internal/archtest` passes.
 
+## A function crosses into another package only for a reason
+`function-crosses-for-a-reason`
+
+- **Rule.** A function one package hands another, as a field or a parameter, stays a function only
+  for I/O, a policy the callee needs inside its logic but must not know, a live or lazily built
+  query over changing state, a seam tests substitute, or a traversal or immediate callback. Any
+  other becomes the data the caller holds, a named type with methods in the lowest package needing
+  them. One that stays is a named type's method value, so its construction names its
+  implementation.
+- **Why.** `merge.Merger` relays six function fields its tests stub, one of them `Resolve`, a map
+  read in production and in its stub alike, where a map serves both (#1477, #1486).
+- **Probe.** `callShapeBaseline` in `internal/archtest` counts calls into packages a package does
+  not import; each new one is argued here.
+
 ## Count on `barrier.Catch` only for what it reaches
 `catch-reaches-one-goroutine`
 
@@ -111,4 +139,49 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
   a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
-  branch, as #931's table does.
+  branch, as #931's table does, and take `references/design-rules.md#charge-each-part-to-its-cost`.
+  A new recursion under `compilers/openapi` also joins `loweringRecursions` in
+  `internal/archtest/recursion_test.go` with its bound
+  (`.claude/skills/morphic-checking-style/references/departures.md#bounded-recursion-stands`);
+  whether the pin covers other packages is #1525.
+
+## Hold each part of a charge to the cost it stands for
+`charge-each-part-to-its-cost`
+
+- **Rule.** For each part of what a bound's charge weighs, grow that part alone, on `main` and on
+  the branch. A charge growing while the cost stays flat refuses a valid document for nothing, and
+  a cost growing while the charge stays flat is a copy left unbounded. Read a survey of cost per
+  unit of charge at both ends: the low end is a charge standing for almost no cost.
+- **Why.** A `$ref` budget's first revision charged at every use a response's inline schema, which
+  lowers once, refusing 400 `$ref`s `main` compiles, and charged nothing for an alias's own fields,
+  which copy at every use, through four rounds reading the survey's high end (#1430).
+- **Probe.** Grow each part alone with the rest of the document fixed: charge and cost move
+  together.
+
+## Share one implementation only among sites that mean the same
+`share-only-what-means-the-same`
+
+- **Rule.** Before sites share one implementation, run them over one table of edge cases and show
+  they agree: the library reading each mirrors, what each reports, its bound, its failure. Share
+  what agrees, in the lowest package its users may import; keep apart what differs by design, saying
+  why in a comment
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree`).
+  Sharing pays with two users in the tree and a form no harder to read than each copy; a planned
+  user decides where code lives, not whether it is built.
+- **Why.** Three scalar hoisters differed in three inputs, so #147's missing constraints were fixed
+  in each (#834). Of five reference-cycle checks, one chain walk was owned once and two YAML guards
+  stayed apart, as sharing would change what they report (#789).
+- **Probe.** Diff every site's results over the shared table.
+
+## Keep code that needs no morphic concept apart from the domain
+`domain-free-code-lives-apart`
+
+- **Rule.** Code needing no morphic concept, such as a bounded count, a panic barrier, a graph walk
+  or a URL or pointer grammar, names no IR or format type and lives in a package named for what it
+  does, never `utils`, `helpers` or `common`. It stays under its first user's `internal/` until a
+  second tree needs it, then moves down a layer under its own `internal/archtest` entry. Generic
+  means free of a domain it does not need, not parameterized for users it lacks.
+- **Why.** The compiler's bounds were a dozen hand-written counters until one type counted them all
+  (#785, #1140), and five panic barriers rendered what they caught each its own way until
+  `barrier.Catch` alone did (#1130).
+- **Probe.** List the domain types each new declaration names; one naming none is a candidate.
