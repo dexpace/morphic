@@ -171,4 +171,4 @@ the document, which determines it.
   for its samples, which writes nothing, until its design says how (#1531); one named there for its
   artifacts is an error `engine/target-unversioned` before any run. The pass is designed, not built
   (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
-  `""`, the one label `Routes` keys.
+  `""`, the one label a cross-version run's `Routes` keys.

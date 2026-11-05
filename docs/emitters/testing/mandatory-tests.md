@@ -350,18 +350,21 @@ throughout these documents.
     requires a member, and a type no shape reaches one unprojected table; each `TypePlan.Undeclared`
     name a row with no anchor, required save in a patch table, each member anchored once, where the
     model declaring it is rendered and in the first of its tables that holds it, each table anchored
-    too, by its model's anchor and its shape's `Filter` lifecycles and `patch`, two tables on one
-    page never sharing one and the collision check reading anchors within a page, and a patch body
-    linking to its patch table, a member no table of its declaring model holds anchored in the first
-    table of a model whose flattening holds it, an inherited one linked there and an anonymous model
-    composed in place no table of its own; each example through the shape it is shown in, a
-    write-only member in no response's; a placeholder for every value `Secret` or `Sensitive` marks,
-    on pages, in agent documents and in samples, a sample's written by its SDK target; and raw HTML
-    in a description rendered through the allowlist on pages and in agent documents alike, a `<p>`
-    and a `<code>` as themselves, a `<br/>` as a line break, the description's inline raw HTML and
-    HTML blocks read by an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use
-    the <title> field</p>` keeps its paragraph, a self-closing `<p/>` or `<table/>` read as its
-    start tag and every listed tag written from its name, text decoded and written escaped, a
+    too, once for each shape it shows, through the page's ID-keyed resolution so a member named
+    `create` beside a create table keeps its own anchor, two tables on one page never sharing one
+    and the collision check reading anchors within a page, and a patch body linking to its patch
+    table, a member no table of its declaring model holds anchored in the first table of a model
+    whose flattening holds it, an inherited one linked there and an anonymous model composed in
+    place no table of its own; each example through the shape it is shown in, a write-only member in
+    no response's; a placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent
+    documents and in samples, a sample's written by its SDK target; and raw HTML in a description
+    rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
+    themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
+    an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
+    field</p>` and `<p>a <title/> <b>b</b></p>` keep their paragraph, a self-closing `<p/>` read as
+    its start tag, every listed tag written from its name, a description's `<table>`, nested or not,
+    rendered as text, and each page, parsed as a browser parses it, keeping its own elements, cells
+    and rows around every description of a fixed hostile corpus, text decoded and written escaped, a
     `<p>`-led description among them, an element left open closed at its end and an end tag it never
     opened, such as `</td>`, rendered as text, `<key>` keeping its place, `<ul><li>a<li>b</ul>`
     closing the first item implicitly, a refused `a` its text and a refused `img` its `alt`, an
@@ -388,27 +391,27 @@ throughout these documents.
     also when they differ only by letter case, and two entities resolving to one URL, agent
     documents among them, are the error `emitters/docs/route-collision` naming both, also when the
     URL templates are changed; every link, one to a page no entity owns among them, and every
-    `Docs.Refs` span resolves through the route plan; a version switcher, listing only the labels
-    `Routes` keys, links one entity across snapshots, from the tables `Router` returns, marks the
-    run's `Snapshot` current, and an entity a version lacks to that version's page saying so; two
-    snapshots' pages of one entity lie under their labels' directories, neither run overwriting or
-    pruning the other's, all of them one generation whose manifest holds each run's under its label,
-    a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and a
-    label that is no single path segment, or two differing only by case,
-    `engine/snapshot-label-invalid`, `.` and `..` among them, a label with `#` or `?`
-    percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
-    document `engine/target-unversioned` while run for samples alone on each snapshot, and the last
-    label's run taking a prior's `""` entry when the document gains versions; only the run of the
-    last label `Routes` keys writes the site-scope `llms.txt`, at the output root, one routed under
-    a label's directory refused as a collision, neither pruned nor taken for an edit when another
-    label becomes last, the generation's manifest a `Generations`, and the `""` snapshot's run
-    writes one index for its site and version; and the registry refuses a target setting
-    `CrossVersion` without implementing `Router`. Agent documents and `llms.txt` share the pages'
-    URLs, escape spec text, write each description back out within its item, an unclosed fence
-    closed there and a reference definition reaching no other, mark an operation safe or idempotent
-    from `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. The
-    docs target decodes the `Extra` members it defines strictly, reporting a wrong shape as
-    `emitters/docs/extra-invalid` and coercing nothing, and shows a code sample the document
+    `Docs.Refs` span resolves through the route plan, a span inside raw HTML or a link rendering as
+    its text; a version switcher, listing only the labels `Routes` keys, links one entity across
+    snapshots, from the tables `Router` returns, marks the run's `Snapshot` current, and an entity a
+    version lacks to that version's page saying so; two snapshots' pages of one entity lie under
+    their labels' directories, neither run overwriting or pruning the other's, all of them one
+    generation whose manifest holds each run's under its label, a dropped label's and a renamed
+    slug's files pruned, the `""` snapshot written at the root and a label that is no single path
+    segment, or two differing only by case, `engine/snapshot-label-invalid`, `.` and `..` among
+    them, a label with `#` or `?` percent-encoded in links, a target without `CrossVersion` named
+    for its artifacts on a sliced document `engine/target-unversioned` while run for samples alone
+    on each snapshot, and the last label's run taking a prior's `""` entry when the document gains
+    versions; only the run of the last label `Routes` keys writes the site-scope `llms.txt`, at the
+    output root, one routed under a label's directory refused as a collision, neither pruned nor
+    taken for an edit when another label becomes last, the generation's manifest a `Generations`,
+    and the `""` snapshot's run writes one index for its site and version; and the registry refuses
+    a target setting `CrossVersion` without implementing `Router`. Agent documents and `llms.txt`
+    share the pages' URLs, escape spec text, write each description back out within its item, an
+    unclosed fence closed there and a reference definition reaching no other, mark an operation safe
+    or idempotent from `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint
+    is set. The docs target decodes the `Extra` members it defines strictly, reporting a wrong shape
+    as `emitters/docs/extra-invalid` and coercing nothing, and shows a code sample the document
     declares as authored beside the SDK targets' samples, a language that is no single word left off
     its fence. A code fence in an agent document is longer than any backtick run it holds. A sample
     comes from each SDK target, for each operation its callers call, in each language its callers
@@ -433,22 +436,23 @@ throughout these documents.
     `emitters/plan/example-refused` and left out everywhere, an open enum admitting a value it does
     not list; shown through a shape, through `plan.Shown` alone, an example drops the members the
     shape does not hold and fills each it requires and lacks from that member's set, marked
-    `Inferred`, so a response-form example serves a create shape and a patch body's may leave out a
-    required member, one it cannot complete giving way to the set's next, a union value several
-    variants admit refused by `Build` where the union is `Strict` and elsewhere shown by `Shown` as
-    the first, an `Undeclared` name filled from its catch-all's set and a filled example labelled
-    generated; a property or a parameter declaring none and adding no constraint takes its type's
-    set, an enum member its own value, an operation declaring no success scenario, where every
-    required input's set holds a value, one assembled from its required parameters' sets, its
-    optional parameters' declared ones, its body's, required or not, and its return content's, after
-    those it declares, always `Inferred`, its `Input` keyed by `ParamID` with the body under `body`,
-    and none with `Assemble` off, a position whose type is a decorator its own examples, else the
-    nearest decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a variant's
-    or a message's set, read through its one plan function alone, which reports nothing since
-    `Build` reports each refused example once, is its own declared examples, else its type's, a
-    message's those of its payload's contents paired with its headers' set, which the docs, the
-    samples and the mock read a body's examples from. Where none applies, the value synthesized is
-    valid against its constraints, marked `Inferred`, identical across regenerations and in both
+    `Inferred`, and fills nothing with `Assemble` off, so a response-form example serves a create
+    shape and a patch body's may leave out a required member, one it cannot complete giving way to
+    the set's next, a union value several variants admit refused by `Build` where the union is
+    `Strict` and elsewhere shown by `Shown` as the first, an `Undeclared` name filled from its
+    catch-all's set and a filled example labelled generated; a property or a parameter declaring
+    none and adding no constraint takes its type's set, an enum member its own value, an operation
+    declaring no success scenario, where every required input's set holds a value, one assembled
+    from its required parameters' sets, its optional parameters' declared ones, its body's, required
+    or not, and its return content's, after those it declares, always `Inferred`, its `Input` keyed
+    by `ParamID` with the body under `body`, and none with `Assemble` off, a position whose type is
+    a decorator its own examples, else the nearest decorator's, else, adding no constraint, its
+    `Alias`'s set, and a content's, a variant's or a message's set, read through its one plan
+    function alone, which reports nothing since `Build` reports each refused example once, is its
+    own declared examples, else its type's, a message's those of its payload's contents paired with
+    its headers' set, that pairing `Inferred` and off with `Assemble`, which the docs, the samples
+    and the mock read a body's examples from. Where none applies, the value synthesized is valid
+    against its constraints, marked `Inferred`, identical across regenerations and in both
     declaration orders, seeded from its ID where no correlation key identifies it, a choice on a
     recurrence or past `MaxDepth` taking the first variant or member from which a value ends, so a
     required recursive union ends, and the same in the docs, the samples, an SDK's tests and the

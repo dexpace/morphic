@@ -31,7 +31,8 @@ type Policy struct {
 type ExamplePolicy struct {
     Synthesize bool                    // off leaves an entity with none declared without one
     Assemble   bool                    // off leaves an operation declaring no success scenario
-                                       // without one built from its inputs' sets
+                                       // without one built from its inputs' sets, a message's
+                                       // payload unpaired and an example Shown unfilled
     MaxDepth   int                     // how many models deep a value fills optional members,
                                        // its own the first; required ones go as deep as needed
     MaxItems   int                     // how many entries a list or map holds, raised to its
