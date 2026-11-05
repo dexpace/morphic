@@ -96,12 +96,23 @@
   average above the cores the run has, is load until a rerun says otherwise. Rerun each failed
   package alone with the gate's flags, pinned with `GOMAXPROCS=<n>` beside `taskset -c` where it
   exists, then the steps the failure skipped, and report each run; a failure that holds there
-  is real. Where reruns keep failing, run gates one at a time with one private `GOCACHE`. Reruns
-  never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
+  is real. Where reruns keep failing, take `references/toolchain.md#queue-gates-one-at-a-time`.
+  Reruns never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
   `go run ./cmd/morphic-covergate <file>` still give the coverage verdict.
-- **Why.** Gates failed on load while #1271 to #1274 were built, and seven branches gated one at a
-  time all exited 0 (#1248).
+- **Why.** Gates failed on load while #1271 to #1274 were built, and a race run's profile gave the
+  coverage verdict of a tree whose gate failed only on timeouts (#1248, #1347).
 - **Probe.** `uptime` beside the failed package rerun alone.
+
+## Run gates one at a time from a queue, not after a check
+`queue-gates-one-at-a-time`
+
+- **Rule.** Where gates under load keep failing, run them one at a time from one queue, such as a
+  loop over the branches in one shell, from one checkout path with one private `GOCACHE`. Never
+  start one after checking `pgrep -f 'make gate'`: it matches any process whose command line holds
+  those words, and a check before a start races another start.
+- **Why.** Seven branches' gates failed repeatedly on timeouts side by side, and all seven exited 0
+  run one at a time from one clean checkout sharing one private `GOCACHE` (#1248, #1347).
+- **Probe.** `sh -c 'sleep 3; : make gate' & pgrep -lf 'make gate'` lists a shell running no gate.
 
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`
