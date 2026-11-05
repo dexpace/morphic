@@ -76,8 +76,9 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 - **Why.** One program's `AllFunctions` gave 45,411 to 45,638 functions on successive calls, and a
   call graph rooted at every declared function credited a test-only helper with seven calls no
   binary makes (#1504).
-- **Probe.** Run the analysis four times on one program and once on each of several builds, and
-  compare the input set's size and a digest of the result.
+- **Probe.** Run it four times on one program and once on several builds, and compare the input
+  set's size and a digest of the result; then diff the result against one rooted at production's
+  entries alone.
 
 ## Validate a source-reading checker against history
 `history-sweep`
@@ -102,11 +103,14 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 ## A probe of a lint rule lists every finding
 `lint-probe-lists-every-finding`
 
-- **Rule.** Run a lint rule's probe with `--max-same-issues=0`: by default golangci-lint reports at
-  most three findings of one text and says nothing of the rest, so planted lines it catches read as
-  missed. `make lint` keeps the default, so fixing the three it shows can turn up more; whether it
-  should list every finding is #1526.
+- **Rule.** Run a lint rule's probe with `--max-same-issues=0 --max-issues-per-linter=0`: by
+  default golangci-lint reports at most three findings of one text and fifty of one linter, and
+  says nothing of the rest, so planted lines it catches read as missed. `make lint` keeps both
+  defaults, so fixing what it shows can turn up more; whether it should list every finding is
+  #1526.
 - **Why.** Five planted `exec.Command` lines drew three `forbidigo` findings by default and five
-  with the flag (#1473).
-- **Probe.** `golangci-lint run --enable-only <linter> --max-same-issues=0 <packages>` over five
-  planted lines reports five.
+  with the first flag (#1473); sixty planted `os.Remove` calls drew fifty `errcheck` findings with
+  it alone and sixty with both (#1522 at 3b4d18424).
+- **Probe.** Over sixty planted lines,
+  `golangci-lint run --enable-only <linter> --max-same-issues=0 --max-issues-per-linter=0 <packages>`
+  reports sixty.
