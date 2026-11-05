@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // globalWrites refuses writing a package-level variable, outside init, under
@@ -42,10 +43,10 @@ func (l layout) runGlobalWrites(pass *analysis.Pass) (any, error) {
 	}
 	for _, f := range productionFiles(pass) {
 		for _, d := range f.Decls {
-			scope := globalScope{pass: pass, aliases: map[*types.Var]*types.Var{}}
-			scope.findAliases(d)
+			c := globalCheck{pass: pass, aliases: map[*types.Var]*types.Var{}}
+			c.findAliases(d)
 			for _, root := range afterInit(d) {
-				scope.check(root)
+				c.check(root)
 			}
 		}
 	}
@@ -104,40 +105,40 @@ func calleeOf(fun ast.Expr) ast.Expr {
 	}
 }
 
-// globalScope holds one top-level declaration's findings: aliases maps each
+// globalCheck finds the writes in one top-level declaration: aliases maps each
 // local that holds part of a package-level variable to the variable.
-type globalScope struct {
+type globalCheck struct {
 	pass    *analysis.Pass
 	aliases map[*types.Var]*types.Var
 }
 
 // check reports each write under root.
-func (s globalScope) check(root ast.Node) {
+func (c globalCheck) check(root ast.Node) {
 	for n := range ast.Preorder(root) {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
 			// := cannot reach a package-level variable: its targets are new
 			// locals, or locals of the same scope.
 			if n.Tok != token.DEFINE {
-				s.assign(n)
+				c.assign(n)
 			}
 		case *ast.IncDecStmt:
 			verb := "increments"
 			if n.Tok == token.DEC {
 				verb = "decrements"
 			}
-			s.target(n.X, verb)
+			c.target(n.X, verb)
 		case *ast.RangeStmt:
 			if n.Tok == token.ASSIGN {
-				s.target(n.Key, "assigns")
-				s.target(n.Value, "assigns")
+				c.target(n.Key, "assigns")
+				c.target(n.Value, "assigns")
 			}
 		case *ast.UnaryExpr:
-			s.addressOf(n)
+			c.addressOf(n)
 		case *ast.CallExpr:
-			s.builtin(n)
+			c.builtin(n)
 		case *ast.SelectorExpr:
-			s.pointerMethod(n)
+			c.writingMethod(n)
 		default:
 			// Nothing else writes, or the write is out of reach: a channel send or
 			// close is synchronized, and a value returned, or passed to a call or a
@@ -146,13 +147,13 @@ func (s globalScope) check(root ast.Node) {
 	}
 }
 
-func (s globalScope) assign(n *ast.AssignStmt) {
+func (c globalCheck) assign(n *ast.AssignStmt) {
 	verb := "assigns"
 	if n.Tok != token.ASSIGN {
 		verb = "compound-assigns"
 	}
 	for _, lhs := range n.Lhs {
-		s.target(lhs, verb)
+		c.target(lhs, verb)
 	}
 }
 
@@ -161,39 +162,39 @@ func (s globalScope) assign(n *ast.AssignStmt) {
 // whatever the verb. Assigning to a bare alias rebinds the local and writes
 // nothing the variable holds, unlike taking its address or calling a method on
 // it that can write, which hand out a value that is the variable's.
-func (s globalScope) target(e ast.Expr, verb string) {
-	r, ok := s.rooted(e)
+func (c globalCheck) target(e ast.Expr, verb string) {
+	r, ok := c.rooted(e)
 	if !ok || r.rebinding() {
 		return
 	}
 	if !r.bare {
 		verb = "writes an element or field of"
 	}
-	s.report(e.Pos(), verb, r)
+	c.report(e.Pos(), verb, r)
 }
 
 // addressOf reports &x where x is rooted at a package-level variable. The
 // pointer reaches whatever the variable holds, a bare alias included, and what
 // is written through it afterwards, by a call, reflect or unsafe, is out of
 // sight.
-func (s globalScope) addressOf(n *ast.UnaryExpr) {
+func (c globalCheck) addressOf(n *ast.UnaryExpr) {
 	if n.Op != token.AND {
 		return
 	}
-	if r, ok := s.rooted(n.X); ok {
-		s.report(n.Pos(), "takes the address of", r)
+	if r, ok := c.rooted(n.X); ok {
+		c.report(n.Pos(), "takes the address of", r)
 	}
 }
 
-// pointerMethod reports a method call or method value on an operand rooted at a
+// writingMethod reports a method call or method value on an operand rooted at a
 // package-level variable, when the method's receiver is a pointer, map or
 // slice, through which it can write what the variable holds. The one listed
 // receiver, *encoding/base64.Encoding, is read-only and stays legal, and an
 // unlisted one draws until it is listed. A method on a struct or array value or
 // an interface is out of reach, though it can write through a map, slice or
 // pointer the value holds.
-func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
-	sel, ok := s.pass.TypesInfo.Selections[n]
+func (c globalCheck) writingMethod(n *ast.SelectorExpr) {
+	sel, ok := c.pass.TypesInfo.Selections[n]
 	if !ok {
 		return // a qualified identifier, which is no selection
 	}
@@ -205,8 +206,8 @@ func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 	if !aliasable(recv) || types.TypeString(recv, nil) == "*encoding/base64.Encoding" {
 		return
 	}
-	if r, ok := s.rooted(n.X); ok {
-		s.report(n.Sel.Pos(), "calls a method that can write", r)
+	if r, ok := c.rooted(n.X); ok {
+		c.report(n.Sel.Pos(), "uses a method that can write", r)
 	}
 }
 
@@ -216,12 +217,8 @@ func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 // read-only extension is slices.Concat. The same writes made by a function the
 // operand is passed to, as slices.Sort does, are out of reach, since the rule
 // reads no callee's body and a list of writers would be kept by hand.
-func (s globalScope) builtin(call *ast.CallExpr) {
-	id, ok := ast.Unparen(call.Fun).(*ast.Ident)
-	if !ok {
-		return
-	}
-	b, ok := s.pass.TypesInfo.Uses[id].(*types.Builtin)
+func (c globalCheck) builtin(call *ast.CallExpr) {
+	b, ok := typeutil.Callee(c.pass.TypesInfo, call).(*types.Builtin)
 	if !ok {
 		return
 	}
@@ -229,8 +226,8 @@ func (s globalScope) builtin(call *ast.CallExpr) {
 		return
 	}
 	// The first argument is the one written, and each takes at least one.
-	if r, ok := s.rooted(call.Args[0]); ok {
-		s.report(call.Pos(), "writes through "+b.Name()+" to", r)
+	if r, ok := c.rooted(call.Args[0]); ok {
+		c.report(call.Pos(), "writes through "+b.Name()+" to", r)
 	}
 }
 
@@ -253,16 +250,16 @@ func (r reach) rebinding() bool { return r.alias != nil && r.bare }
 // or a type assertion yields, and a variable held in a struct, array or
 // interface, are not roots, so a function's result is out of reach, as is an
 // alias across functions.
-func (s globalScope) rooted(e ast.Expr) (reach, bool) {
+func (c globalCheck) rooted(e ast.Expr) (reach, bool) {
 	bare := true
 	for {
 		e = ast.Unparen(e)
 		switch x := e.(type) {
 		case *ast.Ident:
-			return s.reachOf(x, bare)
+			return c.reachOf(x, bare)
 		case *ast.SelectorExpr:
-			if s.qualifier(x.X) {
-				return s.reachOf(x.Sel, bare) // pkg.Name is the variable itself
+			if c.qualifier(x.X) {
+				return c.reachOf(x.Sel, bare) // pkg.Name is the variable itself
 			}
 		default:
 			// Any other form is stripped below, or is rooted nowhere.
@@ -276,12 +273,12 @@ func (s globalScope) rooted(e ast.Expr) (reach, bool) {
 }
 
 // qualifier reports whether e is the name of an imported package.
-func (s globalScope) qualifier(e ast.Expr) bool {
+func (c globalCheck) qualifier(e ast.Expr) bool {
 	id, ok := e.(*ast.Ident)
 	if !ok {
 		return false
 	}
-	_, isPkg := s.pass.TypesInfo.Uses[id].(*types.PkgName)
+	_, isPkg := c.pass.TypesInfo.Uses[id].(*types.PkgName)
 	return isPkg
 }
 
@@ -306,30 +303,30 @@ func operandOf(e ast.Expr) (ast.Expr, bool) {
 
 // reachOf returns where the variable id names is rooted, when it is a
 // package-level variable or a local alias of one.
-func (s globalScope) reachOf(id *ast.Ident, bare bool) (reach, bool) {
-	v, ok := s.pass.TypesInfo.Uses[id].(*types.Var)
+func (c globalCheck) reachOf(id *ast.Ident, bare bool) (reach, bool) {
+	v, ok := c.pass.TypesInfo.Uses[id].(*types.Var)
 	if !ok {
 		return reach{}, false
 	}
 	if v.Pkg() != nil && v.Pkg().Scope().Lookup(v.Name()) == v {
 		return reach{global: v, bare: bare}, true
 	}
-	global, aliased := s.aliases[v]
+	global, aliased := c.aliases[v]
 	return reach{global: global, alias: v, bare: bare}, aliased
 }
 
 // report names the variable, qualified by its package when it is another's, and
 // the alias the write goes through.
-func (s globalScope) report(pos token.Pos, verb string, r reach) {
+func (c globalCheck) report(pos token.Pos, verb string, r reach) {
 	name := r.global.Name()
-	if r.global.Pkg() != s.pass.Pkg {
+	if r.global.Pkg() != c.pass.Pkg {
 		name = r.global.Pkg().Name() + "." + name
 	}
 	subject := "the package-level variable " + name
 	if r.alias != nil {
 		subject += " through its alias " + r.alias.Name()
 	}
-	s.pass.Reportf(pos, "%s %s; keep the state in a local or an argument", verb, subject)
+	c.pass.Reportf(pos, "%s %s; keep the state in a local or an argument", verb, subject)
 }
 
 // binding is a local and the one expression it receives.
@@ -344,16 +341,16 @@ type binding struct {
 // ever holds the value holds it throughout, and the remedy is a separate local.
 // Each pass that grows the set adds a local, so one more than the bindings
 // settles it.
-func (s globalScope) findAliases(root ast.Node) {
-	bindings := s.bindingsIn(root)
+func (c globalCheck) findAliases(root ast.Node) {
+	bindings := c.bindingsIn(root)
 	for range len(bindings) + 1 {
 		grew := false
 		for _, b := range bindings {
-			if _, done := s.aliases[b.local]; done {
+			if _, done := c.aliases[b.local]; done {
 				continue
 			}
-			if r, ok := s.rooted(b.src); ok {
-				s.aliases[b.local] = r.global
+			if r, ok := c.rooted(b.src); ok {
+				c.aliases[b.local] = r.global
 				grew = true
 			}
 		}
@@ -365,15 +362,15 @@ func (s globalScope) findAliases(root ast.Node) {
 
 // bindingsIn returns every local under root that can alias what it receives:
 // one a binding gives a value of a type that shares what it points to.
-func (s globalScope) bindingsIn(root ast.Node) []binding {
+func (c globalCheck) bindingsIn(root ast.Node) []binding {
 	var out []binding
 	for n := range ast.Preorder(root) {
-		for _, b := range s.bindingsOf(n) {
+		for _, b := range c.bindingsOf(n) {
 			id, ok := ast.Unparen(b.target).(*ast.Ident)
 			if !ok {
 				continue
 			}
-			if v, isVar := s.pass.TypesInfo.ObjectOf(id).(*types.Var); isVar && aliasable(v.Type()) {
+			if v, isVar := c.pass.TypesInfo.ObjectOf(id).(*types.Var); isVar && aliasable(v.Type()) {
 				out = append(out, binding{v, b.src})
 			}
 		}
@@ -386,7 +383,7 @@ type given struct{ target, src ast.Expr }
 
 // bindingsOf returns what the statement or spec n binds: by := or =, a var, or
 // a range clause, each target with the value it receives.
-func (s globalScope) bindingsOf(n ast.Node) []given {
+func (c globalCheck) bindingsOf(n ast.Node) []given {
 	switch n := n.(type) {
 	case *ast.AssignStmt:
 		return pair(n.Lhs, n.Rhs)
@@ -397,7 +394,7 @@ func (s globalScope) bindingsOf(n ast.Node) []given {
 		}
 		return pair(names, n.Values)
 	case *ast.RangeStmt:
-		if !ranged(s.pass.TypesInfo.TypeOf(n.X)) {
+		if !ranged(c.pass.TypesInfo.TypeOf(n.X)) {
 			return nil
 		}
 		return []given{{n.Key, n.X}, {n.Value, n.X}}

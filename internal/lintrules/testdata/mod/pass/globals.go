@@ -96,7 +96,7 @@ var (
 	storedInit               func()
 	storedAlias              func()
 	storedGen                func()
-	storedDecl               = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	storedDecl               = ledger.Add // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	readDecl                 = ledger.Get
 	calledDecl               = store.Size()
 	grid                     *[2][]int
@@ -110,7 +110,7 @@ var (
 	stepper                  step
 )
 
-var viaCall = ledger.Self().n // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+var viaCall = ledger.Self().n // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
 
 // chained writes from a literal behind the method it calls.
 var chained = func() tally {
@@ -142,16 +142,16 @@ func init() {
 	}
 	m["b"] = 1
 	q := cursor
-	storedAlias = q.Add     // want "globalwrites: calls a method that can write the package-level variable cursor through its alias q; keep the state in a local or an argument"
-	storedInit = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	storedAlias = q.Add     // want "globalwrites: uses a method that can write the package-level variable cursor through its alias q; keep the state in a local or an argument"
+	storedInit = ledger.Add // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	ledger.Add()
 	(ledger.Add)()
 	ledger.Gen[int]()
 	ledger.Two[int, string]()
 	(ledger.Gen[int])()
-	storedGen = ledger.Gen[int]           // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
-	go ledger.Add()                       // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
-	go func(f func()) { f() }(ledger.Add) // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	storedGen = ledger.Gen[int]           // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	go ledger.Add()                       // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	go func(f func()) { f() }(ledger.Add) // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	defer ledger.Add()
 	func() { counter-- }() // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
 	hook = func() {
@@ -210,22 +210,22 @@ func Addresses() {
 
 // Methods calls methods that can write, and not those that cannot.
 func Methods() {
-	ledger.Add()      // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
-	add := ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
-	boxed.Add()       // want "globalwrites: calls a method that can write the package-level variable boxed; keep the state in a local or an argument"
-	shelf.Add()       // want "globalwrites: calls a method that can write the package-level variable shelf; keep the state in a local or an argument"
-	shelf.tally.Add() // want "globalwrites: calls a method that can write the package-level variable shelf; keep the state in a local or an argument"
-	tallies[0].Add()  // want "globalwrites: calls a method that can write the package-level variable tallies; keep the state in a local or an argument"
+	ledger.Add()      // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	add := ledger.Add // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	boxed.Add()       // want "globalwrites: uses a method that can write the package-level variable boxed; keep the state in a local or an argument"
+	shelf.Add()       // want "globalwrites: uses a method that can write the package-level variable shelf; keep the state in a local or an argument"
+	shelf.tally.Add() // want "globalwrites: uses a method that can write the package-level variable shelf; keep the state in a local or an argument"
+	tallies[0].Add()  // want "globalwrites: uses a method that can write the package-level variable tallies; keep the state in a local or an argument"
 	_ = add
-	ledger.Peek()  // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
-	boxedPtr.Add() // want "globalwrites: calls a method that can write the package-level variable boxedPtr; keep the state in a local or an argument"
-	cursor.Add()   // want "globalwrites: calls a method that can write the package-level variable cursor; keep the state in a local or an argument"
-	store.Set("a") // want "globalwrites: calls a method that can write the package-level variable store; keep the state in a local or an argument"
-	col.Set()      // want "globalwrites: calls a method that can write the package-level variable col; keep the state in a local or an argument"
+	ledger.Peek()  // want "globalwrites: uses a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	boxedPtr.Add() // want "globalwrites: uses a method that can write the package-level variable boxedPtr; keep the state in a local or an argument"
+	cursor.Add()   // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	store.Set("a") // want "globalwrites: uses a method that can write the package-level variable store; keep the state in a local or an argument"
+	col.Set()      // want "globalwrites: uses a method that can write the package-level variable col; keep the state in a local or an argument"
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
-	_ = matcher.MatchString("x") // want "globalwrites: calls a method that can write the package-level variable matcher; keep the state in a local or an argument"
+	_ = matcher.MatchString("x") // want "globalwrites: uses a method that can write the package-level variable matcher; keep the state in a local or an argument"
 	_ = base64.StdEncoding.EncodeToString(nil)
 }
 
@@ -270,7 +270,7 @@ func Aliases(k string) {
 	}
 	m = nil
 	l := slab
-	l.Push(1) // want "globalwrites: calls a method that can write the package-level variable slab through its alias l; keep the state in a local or an argument"
+	l.Push(1) // want "globalwrites: uses a method that can write the package-level variable slab through its alias l; keep the state in a local or an argument"
 	for p := range byPtr {
 		p.n = 1 // want "globalwrites: writes an element or field of the package-level variable byPtr through its alias p; keep the state in a local or an argument"
 	}
@@ -377,7 +377,7 @@ func ShadowedBuiltin(clear func([]int)) {
 // Named calls a pointer method of a type named like a listed receiver, which
 // draws as the listed one is another package's.
 func Named() {
-	encoded.Set() // want "globalwrites: calls a method that can write the package-level variable encoded; keep the state in a local or an argument"
+	encoded.Set() // want "globalwrites: uses a method that can write the package-level variable encoded; keep the state in a local or an argument"
 }
 
 // ShadowedImport writes through a local named like an import.
