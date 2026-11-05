@@ -2839,12 +2839,12 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
-  dialect, bar the shapes it leaves to the load phase ([`constraints`](#constraints),
-  [`tuples`](#tuples)), and holds a `definitions` entry no `$ref` reaches to none (#1466); a keyword
-  2020-12 added, such as `prefixItems`, is read as 2020-12 reads it in a draft's schema too (#820);
-  2019-09's `$recursiveRef` is kept verbatim, never expanded as its `$dynamicRef` is (#1475); and an
-  identifier naming its document by the 3.2 `$self` roots a resource of its own, as the document is
-  known by its location alone (#863).
+  dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
+  [`tuples`](#tuples), [`references`](#references)), and holds a `definitions` entry no `$ref`
+  reaches to none (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as 2020-12 reads
+  it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never expanded as
+  its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self` roots a
+  resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
