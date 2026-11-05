@@ -19,6 +19,7 @@ import facts
 
 REF = ".claude/skills/s/references/r.md"
 B = "Run `go vet ./...` 2 times."
+D = "Do d, after `references/r.md#a`."
 MOVED_TO = ".claude/skills/s/references/q.md"
 SKILL = ".claude/skills/s/SKILL.md"
 
@@ -50,7 +51,8 @@ class RulesTest(unittest.TestCase):
         cited = rule("c", "See `references/r.md#a`.")
         base = {**facts.rules_in("r.md", a + "\n" + rule("b", "Do b.") + "\n"
                                 + rule("d", "Do d.", title="D")),
-                **facts.rules_in("p.md", cited + "\n" + rule("e", "Do e.") + "\n" + rule("g", "G."))}
+                **facts.rules_in("p.md", cited + "\n" + rule("e", "Do e.") + "\n"
+                                 + rule("g", "G."))}
         head = {**facts.rules_in("r.md", rule("a", "Do\na.") + "\n" + rule("b", "Do b now.")),
                 **facts.rules_in("q.md", rule("c", "See `references/q.md#a`.") + "\n"
                                  + rule("e", "Do e.") + "\n" + rule("f", "Do d.", title="D") + "\n"
@@ -73,6 +75,11 @@ class RulesTest(unittest.TestCase):
         self.assertTrue(facts.unchanged(fact))
         self.assertFalse(facts.unchanged("reworded at r.md:1"))
 
+    def test_a_path_that_cites_no_rule_is_a_rewording(self):
+        base = facts.rules_in("r.md", rule("a", "Read `references/p.md`."))
+        head = facts.rules_in("r.md", rule("a", "Read `references/q.md`."))
+        self.assertEqual(facts.compare(base, head), {"a": "reworded at r.md:1"})
+
     def test_a_rule_whose_words_change_is_never_called_renamed(self):
         base = facts.rules_in("r.md", rule("d", "Do d."))
         head = facts.rules_in("r.md", rule("f", "Do f."))
@@ -91,8 +98,8 @@ class RulesTest(unittest.TestCase):
 class TextTest(unittest.TestCase):
     def test_a_fence_closes_on_a_bare_run_as_long(self):
         lines = ["````bash", "```", "```` x", "go test", "````", "after", "~~~text", "a", "~~~",
-                 "``` a`b", "prose"]
-        self.assertEqual(facts.fenced(lines), {1: True, 2: True, 3: True, 7: False})
+                 "``` a`b", "prose", "   ```bash", "  make x", "  ```"]
+        self.assertEqual(facts.fenced(lines), {1: True, 2: True, 3: True, 7: False, 12: True})
 
     def test_commands_are_spans_with_a_space_and_shell_lines(self):
         lines = ["Run `git status` and `HEAD`.", "```bash", "make gate", "```",
@@ -125,8 +132,15 @@ class TextTest(unittest.TestCase):
         self.assertEqual(facts.numbers(lines, [0, 2]), [0])
 
     def test_every_closing_keyword_closes(self):
-        body = "Closes #1\nfixes: #2 and Resolved #3; close #4.\nSee #5. reclosed #6\nCloses #1"
-        self.assertEqual(facts.closing(body, [9]), [1, 2, 3, 4, 9])
+        body = ("Closes #1\nfixes: #2 and Resolved #3; close #4.\nSee #5. reclosed #6\nCloses #1\n"
+                "Closes dexpace/morphic#7, fixes other/repo#8, Closes Dexpace/Morphic#9")
+        self.assertEqual(facts.closing(body, [10], "dexpace/morphic"), [1, 2, 3, 4, 7, 9, 10])
+
+    def test_a_remote_names_its_repository(self):
+        for url in ("https://github.com/dexpace/morphic.git", "git@github.com:dexpace/morphic.git",
+                    "https://github.com/dexpace/morphic", "ssh://git@github.com/dexpace/morphic/"):
+            with self.subTest(url):
+                self.assertEqual(facts.REPOSITORY.search(url).group(1), "dexpace/morphic")
 
     def test_a_file_and_its_test_pair_by_name(self):
         listed = {"s/x.py", "s/test_x.py", "s/y.py", "p/a.go", "p/a_test.go",
@@ -194,11 +208,12 @@ class ScriptTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "-b", "main", str(self.repo)], check=True)
         self.git("remote", "add", "origin", str(self.origin))
         self.write(REF, rule("a", "Run `git log -1`.") + "\n" + rule("b", B) + "\n"
-                   + rule("c", "Do c.") + "\n" + rule("d", "Do d.", title="D"))
+                   + rule("c", "Do c.") + "\n" + rule("d", D, title="D"))
         self.write(SKILL, "# S\n\nSee `references/r.md#a` and `references/r.md#b`.\n")
         self.write("scripts/x.py", "X = 1\nA = 1\nB = 1\nC = 1\nZ = 0\n")
         self.write("scripts/test_x.py", "import x\n")
         self.write("other.txt", "one\n")
+        self.write("docs/old.md", "Has 7 parts.\n")
         self.commit("chore: start")
         self.git("push", "-q", "origin", "main")
         self.git("fetch", "-q", "origin")
@@ -222,7 +237,7 @@ class ScriptTest(unittest.TestCase):
         """Commit a change that rewords, moves, renames, removes and adds rules."""
         self.git("switch", "-q", "-c", "topic")
         self.write(REF, rule("a", "Run `git log -2`, not `references/r.md#a`.") + "\n"
-                   + rule("e", "Do d.", title="D"))
+                   + rule("e", D, title="D"))
         self.write(MOVED_TO, rule("b", B) + "\n" + rule("f", "New.", "`git status --short`."))
         self.write(SKILL, "# S\n\nSee `references/r.md#a` and `references/q.md#b`.\n\n"
                           "Its 3 rules, and `make gate`, not `references/r.md#a-b`.\n")
@@ -280,6 +295,7 @@ class ScriptTest(unittest.TestCase):
             f"cite: b: {SKILL}:3",
             "cite: f: none",
             f"cite: a: {SKILL}:3",
+            f"cite: a: {REF}:10",
             "cite: e: none",
             "cite: c: none",
             f"command: {SKILL}:5: make gate",
@@ -292,7 +308,7 @@ class ScriptTest(unittest.TestCase):
             "issue: #12: CLOSED, 0 comment(s), updated 2999-01-01T00:00:00Z, after the change's "
             "last commit",
             f"pr: #7: shares {SKILL}; conflicts in {SKILL}",
-            "facts: 5 rule, 5 cite, 3 command, 3 number, 2 issue, 1 pr, 0 stale",
+            "facts: 5 rule, 6 cite, 3 command, 3 number, 2 issue, 1 pr, 0 stale",
         ]
         self.assertEqual(lines, want)
         self.assertEqual(self.git("for-each-ref"), refs, "a run writes no ref")
@@ -372,18 +388,169 @@ class ScriptTest(unittest.TestCase):
                  "list": [{"number": 5, "headRefOid": head}, {"number": 12, "headRefOid": twelve}]})
         code, lines = self.run_facts("--base", "origin/stack", "5")
         self.assertEqual(code, 0, lines)
-        self.assertIn("pr: #12: shares other.txt, scripts/x.py; conflicts in other.txt (also against "
+        self.assertIn("pr: #12: shares scripts/x.py; conflicts in other.txt (also against "
                       "origin/main)", lines)
+
+    def test_a_stack_behind_main_counts_none_of_mains_changes(self):
+        self.write("scripts/test_x.py", "import x\n# stack\n")
+        self.commit("test: start a stack")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/stack")
+        self.git("reset", "-q", "--hard", self.base)
+        added = rule("m", "Run `go test ./m` 3 times.")
+        self.write(REF, (self.repo / REF).read_text() + "\n" + added)
+        self.write("docs/main.md", "Main took 8 steps.\n")
+        self.commit("feat: main adds a rule")
+        self.git("push", "-q", "origin", "main")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "--detach", "origin/stack")
+        self.git("merge", "-q", "--no-edit", "origin/main")
+        self.write(SKILL, (self.repo / SKILL).read_text() + "\nIts 5 rules.\n")
+        head = self.commit("docs: count the rules")
+        self.gh({"view": {"body": "", "closingIssuesReferences": []},
+                 "list": [{"number": 5, "headRefOid": head}]})
+        code, lines = self.run_facts("--base", "origin/stack", "5")
+        self.assertEqual(code, 0, lines)
+        self.assertEqual(lines, [
+            f"number: {SKILL}:5: Its 5 rules.",
+            "facts: 0 rule, 0 cite, 0 command, 1 number, 0 issue, 0 pr, 0 stale",
+        ])
+
+    def test_a_stack_base_that_conflicts_with_main_is_not_read_apart(self):
+        self.write("other.txt", "stack\n")
+        self.commit("fix: start a stack")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/stack")
+        self.git("reset", "-q", "--hard", self.base)
+        self.write("other.txt", "main\n")
+        self.write("docs/main.md", "Main took 8 steps.\n")
+        self.commit("fix: main moves")
+        self.git("push", "-q", "origin", "main")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "--detach", "origin/stack")
+        subprocess.run(["git", "merge", "-q", "origin/main"], cwd=self.repo, capture_output=True)
+        self.write("other.txt", "resolved\n")
+        self.git("add", "other.txt")
+        self.git("commit", "-q", "--no-edit")
+        self.topic()
+        self.gh({"view": {"body": "", "closingIssuesReferences": []}, "list": []})
+        code, lines = self.run_facts("--base", "origin/stack", "5")
+        self.assertEqual(code, 2)
+        self.assertIn(f"rule: a: reworded at {REF}:1", lines)
+        self.assertFalse([line for line in lines if "docs/main.md" in line], lines)
+        self.assertIn("the change apart from origin/main's commits in other.txt (origin/stack and "
+                      "origin/main conflict there", lines[-1])
+
+    def test_a_moved_markdown_file_adds_no_lines(self):
+        self.git("config", "diff.renames", "false")
+        self.topic()
+        self.git("mv", "docs/old.md", "docs/moved.md")
+        self.commit("docs: move a page")
+        self.gh({"view": {"body": "", "closingIssuesReferences": []}, "list": []})
+        code, lines = self.run_facts("5")
+        self.assertEqual(code, 0, lines)
+        self.assertFalse([line for line in lines if "docs/moved.md" in line], lines)
+
+    def test_a_pr_editing_a_file_the_change_moves_shares_it(self):
+        fourteen = self.other_pr(14, "other.txt", "fourteen\n")
+        self.topic()
+        self.git("mv", "other.txt", "moved.txt")
+        head = self.commit("chore: move a file")
+        self.gh({"view": {"body": "", "closingIssuesReferences": []},
+                 "list": [{"number": 5, "headRefOid": head},
+                          {"number": 14, "headRefOid": fourteen}]})
+        code, lines = self.run_facts("5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("pr: #14: shares other.txt; merges clean", lines)
+
+    def test_an_issue_is_late_only_after_the_changes_own_last_commit(self):
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2021-01-01T00:00:00+00:00"}):
+            self.topic()
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2023-01-01T00:00:00+00:00"}):
+            self.git("switch", "-q", "main")
+            self.write("other.txt", "main\n")
+            self.commit("fix: main moves")
+            self.git("push", "-q", "origin", "main")
+            self.git("fetch", "-q", "origin")
+            self.git("switch", "-q", "topic")
+            self.git("merge", "-q", "--no-edit", "origin/main")
+        updated = {"11": "2021-01-01T00:00:00Z", "12": "2022-01-01T00:00:00Z"}
+        self.gh({"view": {"body": "Closes #11\nCloses #12", "closingIssuesReferences": []},
+                 "list": [], "issues": {n: {"state": "OPEN", "updatedAt": u,
+                                            "comments": {"totalCount": 0}}
+                                        for n, u in updated.items()}})
+        code, lines = self.run_facts("5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("issue: #11: OPEN, 0 comment(s), updated 2021-01-01T00:00:00Z", lines)
+        self.assertIn("issue: #12: OPEN, 0 comment(s), updated 2022-01-01T00:00:00Z, after the "
+                      "change's last commit", lines)
+
+    def test_a_stacked_changes_last_commit_is_its_own(self):
+        self.write("scripts/test_x.py", "import x\n# stack\n")
+        self.commit("test: start a stack")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/stack")
+        self.git("reset", "-q", "--hard", self.base)
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "--detach", "origin/stack")
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2021-01-01T00:00:00+00:00"}):
+            self.topic()
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2023-01-01T00:00:00+00:00"}):
+            self.git("switch", "-q", "main")
+            self.write("other.txt", "main\n")
+            self.commit("fix: main moves")
+            self.git("push", "-q", "origin", "main")
+            self.git("fetch", "-q", "origin")
+            self.git("switch", "-q", "topic")
+            self.git("merge", "-q", "--no-edit", "origin/main")
+        self.gh({"view": {"body": "Closes #12", "closingIssuesReferences": []}, "list": [],
+                 "issues": {"12": {"state": "OPEN", "updatedAt": "2022-01-01T00:00:00Z",
+                                   "comments": {"totalCount": 0}}}})
+        code, lines = self.run_facts("--base", "origin/stack", "5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("issue: #12: OPEN, 0 comment(s), updated 2022-01-01T00:00:00Z, after the "
+                      "change's last commit", lines)
+
+    def test_a_conflict_each_base_shares_names_both(self):
+        self.other_pr(13, "scripts/x.py", "X = 2\nA = 1\nB = 1\nC = 1\nZ = 0\n")
+        clone = self.dir / "pr13"
+        self.write("other.txt", "thirteen\n", clone)
+        thirteen = self.commit("fix: pr 13 again", clone)
+        self.git("push", "-q", "origin", "HEAD:refs/pull/13/head", cwd=clone)
+        self.write("other.txt", "main\n")
+        self.commit("fix: main moves")
+        self.git("push", "-q", "origin", "main")
+        self.write("scripts/test_x.py", "import x\n# stack\n")
+        self.commit("test: start a stack")
+        self.git("push", "-q", "origin", "HEAD:refs/heads/stack")
+        self.git("fetch", "-q", "origin")
+        self.git("switch", "-q", "--detach", "origin/stack")
+        self.topic()
+        self.write("scripts/x.py", "X = 1\nA = 1\nB = 1\nC = 1\nZ = 9\n")
+        head = self.commit("feat: change Z")
+        self.gh({"view": {"body": "", "closingIssuesReferences": []},
+                 "list": [{"number": 5, "headRefOid": head},
+                          {"number": 13, "headRefOid": thirteen}]})
+        code, lines = self.run_facts("--base", "origin/stack", "5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("pr: #13: shares scripts/x.py; conflicts in other.txt (also against "
+                      "origin/stack and origin/main)", lines)
+
+    def test_a_head_already_held_is_not_fetched(self):
+        head = self.topic()
+        self.gh({"view": {"body": "", "closingIssuesReferences": []},
+                 "list": [{"number": 5, "headRefOid": head},
+                          {"number": 20, "headRefOid": self.base}]})
+        code, lines = self.run_facts("5")
+        self.assertEqual(code, 0, lines)
 
     def test_since_lists_what_moved_after_a_round(self):
         reviewed = self.topic()
-        self.write(REF, rule("a", "Run `git log -3`.") + "\n" + rule("e", "Do d.", title="D")
+        self.write(REF, rule("a", "Run `git log -3`.") + "\n" + rule("e", D, title="D")
                    + "\n" + rule("b", B))
         self.write(MOVED_TO, rule("f", "New.", "`git status --short`."))
         self.write(SKILL, "# S\n\nSee `references/r.md#a` and `references/r.md#b`.\n\nIts 3.\n")
         self.write("scripts/x.py", "X = 3\n")
         self.write("p/a.go", "package p\n")
         self.write("p/a_test.go", "package p\n")
+        self.git("mv", "docs/d.md", "docs/e.md")
         head = self.commit("fix: reword a again")
         self.full_gh(head)
         code, lines = self.run_facts("--since", reviewed, "5")
@@ -393,10 +560,13 @@ class ScriptTest(unittest.TestCase):
             f"stale: {SKILL}",
             f"stale: {MOVED_TO}",
             f"stale: {REF}",
+            "stale: docs/d.md (outside the change)",
+            "stale: docs/e.md",
             "stale: p/a.go",
             "stale: p/a_test.go",
             "stale: scripts/x.py",
             f"stale: {SKILL}:3: cites a, reworded at {REF}:1",
+            f"stale: {REF}:10: cites a, reworded at {REF}:1",
             "stale: scripts/test_x.py: beside scripts/x.py",
         ])
 
@@ -438,7 +608,8 @@ class ScriptTest(unittest.TestCase):
 
     def test_a_number_that_is_no_issue_is_said(self):
         head = self.topic()
-        self.gh({"view": {"body": "Closes #13", "closingIssuesReferences": []},
+        body = f"Closes {self.dir.name}/origin#13"
+        self.gh({"view": {"body": body, "closingIssuesReferences": []},
                  "list": [{"number": 5, "headRefOid": head}], "issues": {}})
         code, lines = self.run_facts("5")
         self.assertEqual(code, 0, lines)

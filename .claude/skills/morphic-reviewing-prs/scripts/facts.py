@@ -8,20 +8,23 @@ spends its budget on judging them.
 Usage: python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py [--base REF] [--since REF]
        [--body FILE] NUMBER
 
-Run it in the review's worktree. The change is HEAD, uncommitted edits left out, against its merge
-base with REF (default origin/main). NUMBER is the PR; before it exists, FILE holds its body.
+Run it in the review's worktree. The change is HEAD, uncommitted edits left out, against what it
+holds of REF (default origin/main) merged with what it holds of origin/main, so a stacked review
+counts no commit of main's as its own; where the two conflict, the files are named unread and
+HEAD's resolution of them counts. NUMBER is the PR; before it exists, FILE holds its body.
 - rule: each rule key added, removed, renamed, moved or reworded, compared word for word.
 - cite: each line citing such a key outside its own rule, or none.
 - command: each code span holding a space, and each line of a shell block, in the Rule and Probe
-  of each rule added or reworded, and on the lines the change adds to Markdown under .claude,
-  CLAUDE.md and CONTRIBUTING.md.
+  of each rule added or reworded, and on the lines the change adds outside any rule to Markdown
+  under .claude, CLAUDE.md and CONTRIBUTING.md.
 - number: each prose line of the body, and each one the change adds to Markdown, holding a number
   outside a list item's marker, a code span, an issue, a revision, a link's target or a URL.
-- issue: each issue the PR closes, by its references or a closing keyword in the body, with its
-  state, comments and last update.
+- issue: each issue the PR closes, by its references or a closing keyword in the body before #N
+  or this repository's owner/name#N, with its state, comments and last update, marked when that
+  update follows the change's own last commit.
 - pr: each other open PR whose own change, read from its fork with origin/main, shares a file with
   this one, and whether it merges with HEAD, a file it also conflicts in against REF or origin/main
-  marked so. A head this repository lacks is fetched from origin without writing a ref.
+  marked with each. A head this repository lacks is fetched from origin without writing a ref.
 - stale: with --since, each file whose content differs from the tree at REF, each line citing a
   rule reworded since, and the file each changed one pairs with by name, a test with what it
   tests: test_<name>.py with <name>.py, <name>_test.go or <name>_internal_test.go with <name>.go.
@@ -65,7 +68,10 @@ NOT_A_COUNT = re.compile(
     r"^\s*\d+[.)]\s|`[^`]*`|#\d+|\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\]\([^)]*\)|https?://\S+")
 DIGIT = re.compile(r"\d")
 # GitHub's closing keywords, which close the issue they precede wherever a body writes one.
-CLOSING = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +#(\d+)", re.I)
+CLOSING = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +([\w.-]+/[\w.-]+)?#(\d+)",
+                     re.I)
+# The owner/name a remote's URL ends in, as a GitHub HTTPS or SSH URL writes it.
+REPOSITORY = re.compile(r"[:/]([^/:]+/[^/]+?)(?:\.git)?/?$")
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
 KINDS = ("rule", "cite", "command", "number", "issue", "pr", "stale")
 
@@ -200,9 +206,12 @@ def numbers(lines: list[str], picked: list[int]) -> list[int]:
     return [i for i in picked if i not in blocks and counted(lines[i])]
 
 
-def closing(body: str, references: list[int]) -> list[int]:
-    """Return each issue a PR closes: those GitHub lists and those a keyword in its body names."""
-    return sorted(set(references) | {int(n) for n in CLOSING.findall(body)})
+def closing(body: str, references: list[int], repository: str) -> list[int]:
+    """Return each issue a PR closes: those GitHub lists and those a keyword in its body names,
+    by #N or by this repository's owner/name#N."""
+    named = {int(n) for owner, n in CLOSING.findall(body)
+             if not owner or owner.lower() == repository.lower()}
+    return sorted(set(references) | named)
 
 
 def run_git(*args: str, ok: tuple[int, ...] = (0,),
@@ -223,6 +232,22 @@ def git(*args: str, ok: tuple[int, ...] = (0,), stdin: str | None = None) -> str
 def gh(*args: str) -> str:
     return subprocess.run(["gh", *args], capture_output=True, text=True, check=True,
                           timeout=TIMEOUT).stdout
+
+
+def change_base(report: Report, ref: str) -> str:
+    """Return the tree the change is read against: what HEAD holds of ref merged with what it
+    holds of origin/main. A stacked review's tree merges main beside the stack's base, and main's
+    commits are no change of the PR's own. Where the two conflict, the merge's tree keeps the
+    conflict, so the change also counts how HEAD resolved it, and those files are named unread."""
+    ours = git("merge-base", ref, "HEAD").strip()
+    main = git("merge-base", BASE, "HEAD").strip()
+    done = run_git("merge-tree", "--write-tree", "--name-only", "--no-messages", ours, main,
+                   ok=(0, 1))
+    tree, *conflicted = [line for line in done.stdout.splitlines() if line]
+    if conflicted:
+        report.missed(f"the change apart from {BASE}'s commits in {', '.join(conflicted)}",
+                      ValueError(f"{ref} and {BASE} conflict there, so HEAD's resolution counts"))
+    return tree
 
 
 def tree_rules(rev: str) -> dict[str, Rule]:
@@ -345,12 +370,15 @@ def issue_states(numbers_: list[int]) -> dict[int, dict | None]:
     return {n: found[f"i{n}"] for n in numbers_}
 
 
-def issue_facts(report: Report, body: str, references: list[int], base: str) -> None:
-    """Report each issue the PR closes, and whether it changed after the change's last commit."""
-    issues = closing(body, references)
+def issue_facts(report: Report, body: str, references: list[int], ref: str) -> None:
+    """Report each issue the PR closes, and whether it changed after the change's last commit, the
+    newest one neither ref nor origin/main holds, merges left out."""
+    url = run_git("remote", "get-url", REMOTE, ok=(0, 1, 2, 128)).stdout.strip()
+    repository = m.group(1) if (m := REPOSITORY.search(url)) else ""
+    issues = closing(body, references, repository)
     if not issues:
         return
-    last = git("log", "-1", "--no-merges", "--format=%cI", f"{base}..HEAD").strip()
+    last = git("log", "-1", "--no-merges", "--format=%cI", "HEAD", "--not", ref, BASE).strip()
     since = datetime.datetime.fromisoformat(last) if last else None
     for n, state in issue_states(issues).items():
         if state is None:
@@ -363,7 +391,7 @@ def issue_facts(report: Report, body: str, references: list[int], base: str) -> 
                             + (", after the change's last commit" if late else ""))
 
 
-def body_facts(report: Report, args: argparse.Namespace, base: str) -> None:
+def body_facts(report: Report, args: argparse.Namespace) -> None:
     """Report the body's numbers and the issues it closes."""
     try:
         body, references = read_body(args)
@@ -374,7 +402,7 @@ def body_facts(report: Report, args: argparse.Namespace, base: str) -> None:
     for i in numbers(lines, list(range(len(lines)))):
         report.add("number", f"body:{i + 1}: {lines[i].strip()}")
     try:
-        issue_facts(report, body, references, base)
+        issue_facts(report, body, references, args.base)
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as e:
         report.missed("the issues the PR closes", e)
 
@@ -412,13 +440,14 @@ def conflicts(ours: str, theirs: str) -> list[str]:
 
 def merges(sha: str, bases: list[str]) -> str:
     """Return whether sha merges with HEAD, and the files it conflicts in, marking each it also
-    conflicts in against one of bases, which no change of HEAD's own caused."""
+    conflicts in against any of bases, which no change of HEAD's own caused, with each such base."""
     found = conflicts("HEAD", sha)
     if not found:
         return "merges clean"
-    against = {f: b for b in reversed(bases) for f in conflicts(b, sha)}
+    against = {b: set(conflicts(b, sha)) for b in bases}
+    named = {f: [b for b in bases if f in against[b]] for f in found}
     return "conflicts in " + ", ".join(
-        f"{f} (also against {against[f]})" if f in against else f for f in found)
+        f"{f} (also against {' and '.join(named[f])})" if named[f] else f for f in found)
 
 
 def pr_facts(report: Report, args: argparse.Namespace, changed: set[str]) -> None:
@@ -452,8 +481,8 @@ def beside(path: str, listed: set[str]) -> list[str]:
         names = [p.name.removeprefix("test_") if p.name.startswith("test_") else f"test_{p.name}"]
     elif p.suffix == ".go":
         stem = p.stem
-        tested = next((stem.removesuffix(s) for s in ("_internal_test", "_test") if stem.endswith(s)),
-                      None)
+        tested = next((stem.removesuffix(end) for end in ("_internal_test", "_test")
+                       if stem.endswith(end)), None)
         names = [f"{tested}.go"] if tested else [f"{stem}_test.go", f"{stem}_internal_test.go"]
     else:
         return []
@@ -476,7 +505,6 @@ def stale_facts(report: Report, since: str, head: dict[str, Rule], changed: set[
         report.add("stale", f"{test}: beside {path}")
 
 
-
 def parse(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--base", default=BASE, metavar="REF",
@@ -494,16 +522,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parse(sys.argv[1:] if argv is None else argv)
     try:
         os.chdir(git("rev-parse", "--show-toplevel").strip())
-        base = git("merge-base", args.base, "HEAD").strip()
         if args.since:
             git("rev-parse", "--verify", "--quiet", f"{args.since}^{{commit}}")
+        report = Report()
+        base = change_base(report, args.base)
     except (OSError, subprocess.SubprocessError) as e:
         print(f"facts: cannot run: {getattr(e, 'stderr', '') or e}".strip(), file=sys.stderr)
         return 2
-    report = Report()
     head, changes = rule_facts(report, base)
     text_facts(report, base, head, changes)
-    body_facts(report, args, base)
+    body_facts(report, args)
     changed = set(git("diff", "--name-only", "--no-renames", base, "HEAD").splitlines())
     pr_facts(report, args, changed)
     if args.since:

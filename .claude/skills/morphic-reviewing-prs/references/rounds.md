@@ -48,7 +48,7 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   derived by hand that a script could print joins it (`morphic-curating-skills`).
 - **Why.** #1522's later rounds re-derived these by hand within a budget of about 80 tool calls
   each, and sampled the rest: one matched 37 of 50 closing issues' Directions to the head, and the
-  next found the body's list of PRs sharing files wrong (#1530).
+  next found the body's list of PRs sharing files wrong (#1522, #1530).
 - **Probe.** The report settles each line the script printed.
 
 ## Build the review from a ref only your session writes
@@ -174,8 +174,8 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   each reader one angle and the code, in a directory of its own
   (`references/rounds.md#reader-owns-its-directory`), with no conclusion of yours and, for
   Correctness, no PR body, so that independent reads stay independent. What returns goes through
-  `references/rounds.md#disprove-each-finding` and `references/rounds.md#audit-what-a-reader-cleared`
-  before it counts.
+  `references/rounds.md#disprove-each-finding` and
+  `references/rounds.md#audit-what-a-reader-cleared` before it counts.
 - **Why.** A finding comes back in the same confident register whether or not it holds, as the
   review of #1162's twelve PRs counted false alarms in both its readers (#1162).
 - **Probe.** Each reader's brief names one angle and its directory, and holds no finding of
@@ -268,9 +268,10 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 `later-rounds-read-what-moved`
 
 - **Rule.** From the third round, the fresh reader runs every angle over what
-  `facts.py --since <merged>` lists as stale, `<merged>` being the commit the round before
-  reviewed, over each fix since, wording included, read by `references/rounds.md#deep-and-broad`,
-  over each cell left unreached or reopened, and over the PR body, not the whole change
+  `python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py --since <merged> <N>` lists as
+  stale, `<merged>` being the commit the round before reviewed, over each fix since, wording
+  included, read by `references/rounds.md#deep-and-broad`, over each cell left unreached or
+  reopened, named in its brief without findings, and over the PR body, not the whole change
   (`references/rounds.md#missed-cell-widens-the-round`).
 - **Why.** #1522's later rounds each read the whole change, 41 files and then 42, at about 240,000
   tokens, though of rounds 3 to 5's 13 `issue:` and `nit:` findings, 12 sat in what the round
@@ -304,29 +305,30 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   the round after each found a defect there (#1522).
 - **Probe.** Each round's report lists the cells it reopened, each with what its clearance lacked.
 
-## Give each later round a reader no earlier one anchored
+## Give each later round an unanchored reader
 `fresh-reader-for-the-second-round`
 
 - **Rule.** From the second round, one fresh agent runs the angles, given the PR, this skill and
   its own directory holding the merged tree (`references/rounds.md#reader-owns-its-directory`),
-  never an earlier round's findings, matrices or fix reasons. Its brief sets a tool-call budget and
-  asks for a running list of what it reproduced. The main session disproves each returned finding
-  (`references/rounds.md#disprove-each-finding`) before it counts. Where no agent can run, the
-  main session rereads the merged diff before its own notes.
-- **Why.** Fixes #1329's rounds proposed each passed a prototype of the property it was for and
-  failed a requirement a sibling document states, seen only a round later (#1402), and seven
-  finders on #1016's review ran 55 minutes before one returned (#1016).
-- **Probe.** The reader's brief holds nothing from an earlier round, and names its budget and
-  directory.
+  never an earlier round's findings, matrices or fix reasons, bar names of cells to read. Its
+  brief sets a tool-call budget and asks for a running list of what it reproduced. The main
+  session disproves each returned finding (`references/rounds.md#disprove-each-finding`) before
+  it counts. Where no agent can run, the main session rereads the merged diff before its own
+  notes.
+- **Why.** Fixes #1329's rounds proposed each passed a prototype of its own property and failed a
+  sibling document's requirement, seen a round later (#1402); seven finders on #1016's review ran
+  55 minutes before one returned (#1016).
+- **Probe.** The reader's brief holds nothing from an earlier round but cell names, and names a
+  budget and directory.
 
 ## Give a delegated reader a directory of its own, and write nowhere else
 `reader-owns-its-directory`
 
 - **Rule.** A delegated reader's brief names a new directory only it writes, holding a detached
-  worktree of the merged tree the reviewer adds there, and forbids writing anywhere else: the
-  reviewer's files and harnesses, the main checkout, the repository's refs. Fingerprint each
-  harness the reviewer will rerun before the hand-off, and rebuild one whose fingerprint changes
-  before rerunning it.
+  worktree of the merged tree the reviewer adds there, and forbids writing elsewhere: the
+  reviewer's files and harnesses, the main checkout and the repository's refs, not its objects.
+  Fingerprint each harness the reviewer will rerun before the hand-off, and rebuild one whose
+  fingerprint changes.
 - **Why.** A reader vetting the Go blocks #1337's reviewer vetted rewrote the reviewer's harness
   `go.mod`, so the reviewer's `go vet` failed, and would have checked the reader's tree had it
   resolved (#1529). One of #1522's readers fetched six refs into the repository (#1522).
