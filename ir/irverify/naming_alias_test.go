@@ -49,10 +49,10 @@ func TestVerify_NoAliasesIsClean(t *testing.T) {
 }
 
 // TestVerify_BlankAliasIsAViolation covers the whole of what "names nothing"
-// means. An entry made only of runes Unicode calls invisible is as blank as "",
-// and testing emptiness alone — or trimming only what unicode.IsSpace reports —
-// would let most of these through the one rule that exists to catch an entry
-// matching nothing.
+// means. An entry made only of runes the rule takes as invisible is as blank as
+// "", and testing emptiness alone — or trimming only what unicode.IsSpace
+// reports — would let most of these through the one rule that exists to catch
+// an entry matching nothing.
 func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 	t.Parallel()
 	blanks := map[string]string{
