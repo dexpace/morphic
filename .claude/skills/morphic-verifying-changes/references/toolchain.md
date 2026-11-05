@@ -112,8 +112,8 @@
   package alone with the gate's flags, pinned with `GOMAXPROCS=<n>` beside `taskset -c` where it
   exists, then the steps the failure skipped, and report each run; a failure that holds there
   is real. Where reruns keep failing, take `references/toolchain.md#queue-gates-one-at-a-time`.
-  Reruns never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
-  `go run ./cmd/morphic-covergate <file>` still give the coverage verdict.
+  Reruns never make the gate green; a `go test ./... -covermode=set -coverprofile=<file>` run and
+  `go run ./cmd/morphic-covergate <file>` give the coverage verdict.
 - **Why.** Gates failed on load while #1271 to #1274 were built, and a race run's profile gave the
   coverage verdict of a tree whose gate failed only on timeouts (#1248, #1347).
 - **Probe.** `uptime` beside the failed package rerun alone.
