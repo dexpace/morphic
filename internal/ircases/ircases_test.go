@@ -24,6 +24,7 @@ func TestNearMisses_AreOneEditFromTheWords(t *testing.T) {
 		{"empty", "", []string{"_", "_", "a", "\xff"}},
 		{"one word", "xy", []string{"xy_", "_xy", "xya", "xy\xff", "XY", "x", "ay"}},
 		{"two words", "x_y", []string{"x_y_", "_x_y", "x_ya", "x_y\xff", "X_Y", "x_", "a_y", "xy", "x__y", "x-y"}},
+		{"three words", "x_y_z", []string{"x_y_z_", "_x_y_z", "x_y_za", "x_y_z\xff", "X_Y_Z", "x_y_", "a_y_z", "xy_z", "x__y_z", "x-y_z"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
