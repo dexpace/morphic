@@ -198,7 +198,7 @@ class LintTest(unittest.TestCase):
         script(self.root, "scripts/fuzz.sh", "true\n")
         # The skill and the repository both hold scripts/tool.py, which is no finding.
         script(self.root, "scripts/tool.py", "true\n")
-        write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/fuzz.sh`, "
+        write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/./fuzz.sh`, "
               "`scripts/tool.py` and `scripts/none.sh`.\n")
         n = GOOD_SKILL.count("\n") + 1
         self.assertEqual(self.lint()[1], [f"{skill}:{n}: scripts/none.sh does not exist"])

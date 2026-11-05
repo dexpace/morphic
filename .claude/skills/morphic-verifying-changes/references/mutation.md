@@ -77,12 +77,12 @@ yourself. These rules are the ways that reading still lies.
 `python-plant-without-bytecode`
 
 - **Rule.** Run the tests of a planted Python file with `python3.14 -B`, from a copy holding no
-  `__pycache__`. CPython keeps a cached `.pyc` while the source's recorded size and modification
-  second match, so a plant the size of the last one, written within that second, is never read, and
-  the run reports the last plant's verdict.
-- **Why.** In a second-round review of #1522, a plant that `skills_lint.py`'s tests kill read as
-  surviving until it ran again with `-B`, which writes no `.pyc` for the next plant to reuse (#1522
-  at 29372a248).
+  `__pycache__`, beside the unplanted copy's run (`references/mutation.md#mutation-controls`).
+  CPython keeps a cached `.pyc` while the source's recorded size and modification second match, so
+  a plant the size of the last one, written within that second, is never read, and the run reports
+  the last plant's verdict.
+- **Why.** In a review of #1522, a plant that `skills_lint.py`'s tests kill read as surviving
+  until it ran again with `-B`, which writes no `.pyc` for the next plant (#1522 at 29372a248).
 - **Probe.** In an empty directory, write `X = 1`, then `X = 2`, to module `m` within one second,
   running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1, and so does
   `-B` while the first run's `__pycache__` remains.
