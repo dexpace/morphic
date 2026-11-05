@@ -79,6 +79,8 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		// Other_Default_Ignorable, directly below the excluded U+FFF9.
 		"reserved before annotation": "\ufff8",
 		"invisible mix":              "\u200b\t\ufeff\u3164",
+		// White_Space, though it renders a line.
+		"ogham space mark": "\u1680",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
