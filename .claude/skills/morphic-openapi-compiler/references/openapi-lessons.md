@@ -107,6 +107,20 @@ canary. A behaviour found that the page lacks is added there.
 - **Why.** The published schemas admit an empty server URL and an empty path parameter name that the
   text refuses (#884).
 
+## Measure a dialect's reading on standalone schemas of that dialect
+`dialect-reading-on-real-schemas`
+
+- **Rule.** Count the committed corpus for the construct first (`$schema`, a draft's keyword), then
+  measure a change to how a JSON Schema dialect reads on standalone schemas of it: public files of
+  the draft and the JSON Schema Test Suite's groups for it, each reached from a 3.1 wrapper,
+  `components: {schemas: {S: {$ref: '<file>'}}}`, compiled with `--opt allow-external-refs=true` on
+  `main` and the branch, reading the type each `$ref` lands on as well as the diagnostics.
+- **Why.** 560 public files of the drafts #1467 reads showed warnings, fetches and `$schema`
+  spellings no committed spec held, and the suite's draft 7 `$ref` group showed a sibling `$id`
+  moving a base none of the files did (#1467).
+- **Probe.** `git grep -lE '\$schema' -- 'testdata/*.yaml' 'testdata/*.json' ':!*.golden.json'` lists
+  the committed specs writing one.
+
 ## A two-run difference shows where versions disagree, not why
 `two-run-diff`
 

@@ -12,7 +12,9 @@ IR and the passes.
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#test-co-declared-keywords-together`).
 2. Place the construct at every position, and spell it every way the format allows
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#same-construct-at-every-position`,
-   `.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#every-spelling-of-one-concept`).
+   `.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#every-spelling-of-one-concept`);
+   measure a dialect's reading on schemas of that dialect
+   (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#dialect-reading-on-real-schemas`).
 3. Hold each `Unmodeled` entry to its reason and the typed home it lacks
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#unmodeled-reason-and-typed-home`),
    each inference to its `Inferred` mark and a policy that disables it, each name to its neutral
