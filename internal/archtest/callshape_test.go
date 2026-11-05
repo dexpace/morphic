@@ -202,7 +202,7 @@ func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
 		if !reversed || from == callRunner || protocolCall(e.Site) || rangeBody(callee) {
 			return nil
 		}
-		k := key{e.Site.Pos(), callee}
+		k := key{callPos(e.Site), callee}
 		if !k.site.IsValid() {
 			return fmt.Errorf("%s calls %s at no position in the source, so the call cannot be counted once",
 				e.Caller.Func, e.Callee.Func)
@@ -219,6 +219,23 @@ func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
 	})
 	sortCalls(out)
 	return out, err
+}
+
+// callPos returns where site is in the source. The call a range-over-func loop
+// makes of its iterator has no position of its own, so it is placed where the
+// body it hands the iterator is: at the loop.
+func callPos(site ssa.CallInstruction) token.Pos {
+	if pos := site.Pos(); pos.IsValid() {
+		return pos
+	}
+	if args := site.Common().Args; len(args) == 1 {
+		if body, isClosure := args[0].(*ssa.MakeClosure); isClosure {
+			if fn, isFunc := body.Fn.(*ssa.Function); isFunc && rangeBody(fn) {
+				return fn.Pos()
+			}
+		}
+	}
+	return token.NoPos
 }
 
 // sortCalls sorts each pair's calls by where they are, then by what they reach,
@@ -442,6 +459,10 @@ func Run() { held["f"]() }`, `func Plant() { lower.Hold(func() {}); lower.Run() 
 		{"a function a package initializer hands down", `var held func()
 func Hold(f func()) bool { held = f; return true }
 func Run() { held() }`, `var _ = lower.Hold(func() {})`},
+		{"an iterator a range-over-func loop runs: its call has no position of its own",
+			`func Sum(seq func(func(int) bool)) (n int) { for x := range seq { n += x }; return n }`,
+			`func each(yield func(int) bool) { _ = yield(1) }
+func Plant() int { return lower.Sum(each) }`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
