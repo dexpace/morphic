@@ -38,7 +38,8 @@ Each row names the rule and code that shows it holding, the thing to copy.
 
 Leave these to their checks. `.golangci.yml` caps a function at 70 lines and a cognitive complexity
 of 20, and its `modernize` linter proposes the standard library's forms. `internal/archtest` holds
-the layering, caps a type under `compilers/` at 20 methods, and refuses a function only tests call.
+the layering, caps a type under `compilers/` at 20 methods, refuses a function only tests call, and
+holds the calls a package makes into one it does not import to `callShapeBaseline`.
 A claim about cost goes through `morphic-measuring-performance`.
 
 ## References

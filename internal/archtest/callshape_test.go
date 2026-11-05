@@ -24,14 +24,14 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// callShapeBaseline is how many calls each production package, keyed by its
-// path below the module, makes into each other one it does not import, directly
-// or through others. Only a function or an interface handed to the caller can
-// make such a call, and no import rule sees it. TestCallShape_HeldToTheBaseline
-// fails when a count rises, and when one falls until it is lowered here, so the
-// table only shrinks (GitHub #1478). A seam added by design, as a second
-// compiler would be, adds its count the way an allowlist entry is added. Each
-// entry says what its calls are.
+// callShapeBaseline counts the calls each production package, by its path
+// below the module, makes into each other one it does not import, directly or
+// through others: calls only a function, an interface or a type argument handed
+// to the caller can make, which no import rule sees.
+// TestCallShape_HeldToTheBaseline fails when a count rises, and when one falls
+// until it is lowered here (GitHub #1478). A call of a kind an entry keeps, such
+// as a pass's walk callback, raises its count the way an allowlist entry is
+// added. Each entry says what its calls are.
 var callShapeBaseline = map[string]map[string]int{
 	"compilers": {
 		// The registry calls the methods of each compiler it holds: a designed seam.
@@ -55,9 +55,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":   1,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's six functions, which #1488 keeps: I/O (Open), policy bind
-		// may not import (Locate, Refuse), a live query (Written), and lookups
-		// through load's key normalization (Through, Beside).
+		// bind.Config's six functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Refuse), a live query
+		// (Written), and lookups through load's key normalization (Through, Beside).
 		"compilers/openapi/internal/load": 6,
 	},
 	"compilers/openapi/internal/load": {
@@ -87,15 +87,15 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate and Seen, which #1488 keeps: the checker places its
-		// own findings to drop the repeat an alias makes, and Seen observes the
-		// walk.
+		// oas.Options' Locate and Seen, which #1488 keeps under #1477's rule: the
+		// checker places its own findings to drop the repeat an alias makes, a
+		// policy, and Seen observes the walk, a traversal callback.
 		"compilers/openapi/internal/load": 9,
 	},
 	"compilers/openapi/internal/resolve": {
-		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps: a lazily
-		// built index, and queries of load's index of the fields written beside a
-		// path item $ref.
+		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's
+		// rule: a lazily built index (Holds), and queries of load's index of the
+		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
 		// Scope.Declares, filled with lowering.Ctx.DeclaresSchema until #1481 hands
 		// it the names as a value.
@@ -135,7 +135,8 @@ var callShapeRatchet = ratchet{
 	counts: callShapeBaseline,
 	what:   "calls into",
 	rise: "each reaches a package the caller's does not import, which no import rule sees; hand the " +
-		"caller a value instead, or, for a seam by design, raise the count with its reason (GitHub #1488)",
+		"caller a value instead, or, for a call of a kind the table keeps, raise the count, giving a new " +
+		"pair an entry that says what its calls are (GitHub #1488)",
 }
 
 // TestCallShape_HeldToTheBaseline holds the calls each production package makes
@@ -395,7 +396,8 @@ func Plant() { lower.New(func() { settled++ }).Settle() }`)))
 }
 
 // TestCallShape_CountsWhatIsHandedDownAndCalled plants ways upper can hand lower
-// a function or an interface that lower then calls, each of which counts once.
+// a function, an interface or a type argument whose method lower then calls,
+// each of which counts once.
 func TestCallShape_CountsWhatIsHandedDownAndCalled(t *testing.T) {
 	t.Parallel()
 	tests := []struct{ name, lower, upper string }{
@@ -418,6 +420,14 @@ func Hold(f func() string) { held = f }
 func Run() string { return held() }`, `type T struct{}
 func (T) String() string { return "" }
 func Plant() { lower.Hold(T{}.String); _ = lower.Run() }`},
+		{"a method of a type argument", `type Visitor interface{ Visit() }
+func Walk[V Visitor](v V) { v.Visit() }`, `type v struct{}
+func (*v) Visit() {}
+func Plant() { lower.Walk(&v{}) }`},
+		{"a String method of a type argument: it is called on its type, through no interface", `type Stringer interface{ String() string }
+func Show[S Stringer](s S) string { return s.String() }`, `type v struct{}
+func (v) String() string { return "" }
+func Plant() string { return lower.Show(v{}) }`},
 		{"a deferred call", `func Run(f func()) { defer f() }`, `func Plant() { lower.Run(func() {}) }`},
 		{"a goroutine", `func Run(f func()) { go f() }`, `func Plant() { lower.Run(func() {}) }`},
 		{"a function sent over a channel", `var queue = make(chan func(), 1)

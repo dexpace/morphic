@@ -142,11 +142,15 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
    `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
    over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
-   doc comment over 100 words, and no lint suppression in the source.
+   doc comment over 100 words, and no lint suppression in the source. A call into a package the
+   caller does not import, through a function, an interface or a type argument handed to it,
+   counts in `callShapeBaseline` (`internal/archtest/callshape_test.go`): hand the caller a value
+   instead, or, for a call of a kind the table keeps, such as an immediate callback, raise its
+   pair's count.
    *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
    `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
-   `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing fails for code in the wrong file of its
-   package.
+   `TestSuppressions_NoDirectiveStandsInTheSource`, `TestCallShape_HeldToTheBaseline`. Nothing fails
+   for code in the wrong file of its package.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
@@ -217,7 +221,10 @@ needless; a verified run catches one.
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
    nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
-   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function or
+   visitor the pass hands `ir`'s walks is a call from `ir` into `pass`, which `callShapeBaseline` in
+   `internal/archtest/callshape_test.go` counts as a traversal callback: raise each count
+   `TestCallShape_HeldToTheBaseline` reports over its baseline.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.

@@ -717,8 +717,9 @@ something a caller asks for with `none`, never a default.
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
-  come, and how many calls each package makes into one it does not import, through a function or
-  an interface handed to it, held to a baseline that only shrinks but for a seam added by design.
+  come, and how many calls each package makes into one it does not import, through a function, an
+  interface or a type argument handed to it, held to a baseline that rises only for a call of a kind
+  it keeps, such as a traversal callback.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
