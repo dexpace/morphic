@@ -148,14 +148,18 @@ func moduleProgram(t *testing.T) program {
 }
 
 // moduleBuild builds the program moduleProgram returns, once.
-var moduleBuild = sync.OnceValues(func() (program, error) {
+var moduleBuild = sync.OnceValues(buildModule)
+
+// buildModule loads every package of the module and what it imports, builds
+// their SSA form a package at a time, and gathers what the checks read of it.
+func buildModule() (program, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps |
 			packages.NeedModule | packages.NeedTypesSizes,
 	}
 	roots, err := packages.Load(cfg, module+"/...")
 	if err != nil {
-		return program{}, err
+		return program{}, fmt.Errorf("load %s/...: %w", module, err)
 	}
 	if n := packages.PrintErrors(roots); n > 0 {
 		return program{}, fmt.Errorf("the module does not load: %d errors", n)
@@ -172,7 +176,13 @@ var moduleBuild = sync.OnceValues(func() (program, error) {
 		return program{}, err
 	}
 	prog.Build()
+	return programOf(prog, roots, built)
+}
 
+// programOf returns what the checks read of prog: the packages of roots, by
+// their path below the module, the functions they declare, and each binary's
+// entries.
+func programOf(prog *ssa.Program, roots []*packages.Package, built map[*packages.Package]builtPackage) (program, error) {
 	p := program{ssa: prog, own: make(map[*ssa.Package]string, len(roots))}
 	rootPkgs := make([]*ssa.Package, 0, len(roots))
 	for _, root := range roots {
@@ -190,7 +200,7 @@ var moduleBuild = sync.OnceValues(func() (program, error) {
 		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
 	}
 	return p, nil
-})
+}
 
 // builtPackage is one package as buildPackage leaves it: its syntax, what the
 // type checker recorded of it, and its SSA form, still to be built.
@@ -207,13 +217,13 @@ type builtPackage struct {
 // checkers sharing an import can race (#855).
 func buildPackage(prog *ssa.Program, pkg *packages.Package, built map[*packages.Package]builtPackage) (builtPackage, error) {
 	if pkg.PkgPath == "unsafe" {
-		return builtPackage{ssa: prog.CreatePackage(types.Unsafe, nil, nil, true)}, nil
+		return builtPackage{ssa: prog.CreatePackage(types.Unsafe, nil, nil, true /* importable */)}, nil
 	}
 	files := make([]*ast.File, 0, len(pkg.CompiledGoFiles))
 	for _, name := range pkg.CompiledGoFiles {
 		f, err := parser.ParseFile(prog.Fset, name, nil, parser.SkipObjectResolution)
 		if err != nil {
-			return builtPackage{}, err
+			return builtPackage{}, fmt.Errorf("parse %s: %w", pkg.PkgPath, err)
 		}
 		files = append(files, f)
 	}
@@ -232,7 +242,7 @@ func buildPackage(prog *ssa.Program, pkg *packages.Package, built map[*packages.
 	if err != nil {
 		return builtPackage{}, fmt.Errorf("type-check %s: %w", pkg.PkgPath, err)
 	}
-	return builtPackage{files: files, info: info, ssa: prog.CreatePackage(checked, files, info, true)}, nil
+	return builtPackage{files: files, info: info, ssa: prog.CreatePackage(checked, files, info, true /* importable */)}, nil
 }
 
 // newInfo returns a types.Info recording all that SSA construction reads.

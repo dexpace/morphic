@@ -27,11 +27,11 @@ import (
 // callShapeBaseline is how many calls each production package, keyed by its
 // path below the module, makes into each other one it does not import, directly
 // or through others. Only a function or an interface handed to the caller can
-// make such a call, and no import rule sees it. TestCallShape_HeldToTheBaseline fails when a
-// count rises, and when one falls until it is lowered here, so the table only
-// shrinks (GitHub #1478). A seam added by design, as a second compiler would be,
-// adds its count the way an allowlist entry is added. Each entry says what its
-// calls are.
+// make such a call, and no import rule sees it. TestCallShape_HeldToTheBaseline
+// fails when a count rises, and when one falls until it is lowered here, so the
+// table only shrinks (GitHub #1478). A seam added by design, as a second
+// compiler would be, adds its count the way an allowlist entry is added. Each
+// entry says what its calls are.
 var callShapeBaseline = map[string]map[string]int{
 	"compilers": {
 		// The registry calls the methods of each compiler it holds: a designed seam.
@@ -188,14 +188,14 @@ func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
 	seen := map[key]bool{}
 	out := map[string]map[string][]reversedCall{}
 	err := callgraph.GraphVisitEdges(graph, func(e *callgraph.Edge) error {
-		caller, callee := declared(e.Caller.Func), declared(e.Callee.Func)
+		caller, callee := declaredFunc(e.Caller.Func), declaredFunc(e.Callee.Func)
 		if e.Site == nil || caller.Pkg == nil || callee.Pkg == nil {
 			return fmt.Errorf("the call graph holds a call from %s to %s that no source makes", e.Caller.Func, e.Callee.Func)
 		}
 		from, ownCaller := p.own[caller.Pkg]
 		to, ownCallee := p.own[callee.Pkg]
-		if !ownCaller || !ownCallee || caller.Pkg == callee.Pkg || imports[caller.Pkg][callee.Pkg.Pkg] ||
-			from == callRunner || protocolCall(e.Site) || rangeBody(callee) {
+		reversed := ownCaller && ownCallee && caller.Pkg != callee.Pkg && !imports[caller.Pkg][callee.Pkg.Pkg]
+		if !reversed || from == callRunner || protocolCall(e.Site) || rangeBody(callee) {
 			return nil
 		}
 		k := key{e.Site.Pos(), callee}
@@ -213,15 +213,21 @@ func reversedCalls(p program) (map[string]map[string][]reversedCall, error) {
 		out[from][to] = append(out[from][to], reversedCall{p.ssa.Fset.Position(k.site), callee.RelString(callee.Pkg.Pkg)})
 		return nil
 	})
-	for _, byCallee := range out {
-		for _, calls := range byCallee {
-			slices.SortFunc(calls, func(a, b reversedCall) int {
+	sortCalls(out)
+	return out, err
+}
+
+// sortCalls sorts each pair's calls by where they are, then by what they reach,
+// as the call graph's map yields its edges in no order.
+func sortCalls(calls map[string]map[string][]reversedCall) {
+	for _, byCallee := range calls {
+		for _, at := range byCallee {
+			slices.SortFunc(at, func(a, b reversedCall) int {
 				return cmp.Or(cmp.Compare(a.at.Filename, b.at.Filename), cmp.Compare(a.at.Offset, b.at.Offset),
 					cmp.Compare(a.callee, b.callee))
 			})
 		}
 	}
-	return out, err
 }
 
 // callGraph returns the call graph of what p's packages can run: variable type
@@ -243,7 +249,7 @@ func callGraph(p program) *callgraph.Graph {
 	}) {
 		roots = append(roots, pkg.Func("init"))
 	}
-	reached := rta.Analyze(roots, true)
+	reached := rta.Analyze(roots, true /* buildCallGraph */)
 	funcs := make(map[*ssa.Function]bool, len(reached.Reachable))
 	for fn := range reached.Reachable {
 		funcs[fn] = true
@@ -277,20 +283,20 @@ func importsOf(own map[*ssa.Package]string) map[*ssa.Package]map[*types.Package]
 	return out
 }
 
-// declared returns the function the source declares for fn: the generic
+// declaredFunc returns the function the source declares for fn: the generic
 // function of an instance, an anonymous one inside an instance included, and fn
 // itself otherwise. Its Pkg is the package declaring it, which an anonymous
 // function shares with the one enclosing it and a synthetic wrapper lacks.
-func declared(fn *ssa.Function) *ssa.Function {
+func declaredFunc(fn *ssa.Function) *ssa.Function {
 	if origin := fn.Origin(); origin != nil {
 		return origin
 	}
 	return fn
 }
 
-// protocolCall reports whether site calls, through an interface, a method of
-// one of the standard library's protocols, which a type anywhere may implement:
-// Error, String, Format, GoString and Unwrap.
+// protocolCall reports whether site calls, through any interface, a method
+// named as one of the standard library's protocols names it, which a type
+// anywhere may implement: Error, String, Format, GoString and Unwrap.
 func protocolCall(site ssa.CallInstruction) bool {
 	call := site.Common()
 	if !call.IsInvoke() {
@@ -339,7 +345,7 @@ func plantedPackages(t *testing.T, srcs ...plantedPackage) program {
 		checked, err := conf.Check(src.path, fset, files, info)
 		require.NoError(t, err, "the plant must type-check, or it proves nothing")
 		built[src.path] = checked
-		p.own[prog.CreatePackage(checked, files, info, true)] = src.path
+		p.own[prog.CreatePackage(checked, files, info, true /* importable */)] = src.path
 		funcs, err := declaredFuncs(prog, src.path, files, info)
 		require.NoError(t, err)
 		p.funcs = append(p.funcs, funcs...)
@@ -348,8 +354,22 @@ func plantedPackages(t *testing.T, srcs ...plantedPackage) program {
 	return p
 }
 
-// callCounts returns how many calls calls holds for each pair of packages.
-func callCounts(calls map[string]map[string][]reversedCall) map[string]map[string]int {
+// lowerAndUpper returns the two packages most plants are written as, lower and
+// upper, which imports it, each source given without its package clause or
+// upper's import.
+func lowerAndUpper(lower, upper string) []plantedPackage {
+	return []plantedPackage{
+		{"lower", "package lower\n" + lower},
+		{"upper", "package upper\nimport \"lower\"\n" + upper},
+	}
+}
+
+// plantedCounts returns how many calls reversedCalls finds for each pair of
+// pkgs, planted.
+func plantedCounts(t *testing.T, pkgs []plantedPackage) map[string]map[string]int {
+	t.Helper()
+	calls, err := reversedCalls(plantedPackages(t, pkgs...))
+	require.NoError(t, err)
 	out := make(map[string]map[string]int, len(calls))
 	for caller, byCallee := range calls {
 		out[caller] = make(map[string]int, len(byCallee))
@@ -366,151 +386,124 @@ func callCounts(calls map[string]map[string][]reversedCall) map[string]map[strin
 // and upper's own call into lower does not.
 func TestCallShape_CountsAPlantedRelay(t *testing.T) {
 	t.Parallel()
-	calls, err := reversedCalls(plantedPackages(t,
-		plantedPackage{"lower", `package lower
-type Index struct{ later func() }
+	assert.Equal(t, map[string]map[string]int{"lower": {"upper": 1}}, plantedCounts(t, lowerAndUpper(
+		`type Index struct{ later func() }
 func New(later func()) *Index { return &Index{later: later} }
-func (x *Index) Settle() { x.later() }`},
-		plantedPackage{"upper", `package upper
-import "lower"
-var settled int
-func Plant() { lower.New(func() { settled++ }).Settle() }`},
-	))
-	require.NoError(t, err)
-	assert.Equal(t, map[string]map[string]int{"lower": {"upper": 1}}, callCounts(calls))
+func (x *Index) Settle() { x.later() }`,
+		`var settled int
+func Plant() { lower.New(func() { settled++ }).Settle() }`)))
 }
 
-// TestCallShape_CountsEachWayACallRunsBack plants, in a package lower and one
-// importing it, upper, each way a call runs back against the import direction,
-// and the calls between them the count leaves out.
-func TestCallShape_CountsEachWayACallRunsBack(t *testing.T) {
+// TestCallShape_CountsWhatIsHandedDownAndCalled plants ways upper can hand lower
+// a function or an interface that lower then calls, each of which counts once.
+func TestCallShape_CountsWhatIsHandedDownAndCalled(t *testing.T) {
 	t.Parallel()
-	none := map[string]map[string]int{}
-	once := map[string]map[string]int{"lower": {"upper": 1}}
-	tests := []struct {
-		name         string
-		lower, upper string
-		want         map[string]map[string]int
-	}{
-		{"a method value stored and called later", `package lower
-var held func() int
+	tests := []struct{ name, lower, upper string }{
+		{"a method value stored and called later", `var held func() int
 func Hold(f func() int) { held = f }
-func Run() int { return held() }`, `package upper
-import "lower"
-type T struct{}
+func Run() int { return held() }`, `type T struct{}
 func (T) n() int { return 1 }
-func Plant() { lower.Hold(T{}.n); _ = lower.Run() }`, once},
-		{"an interface handed down and called", `package lower
-type Visitor interface{ Visit() }
-func Walk(v Visitor) { v.Visit() }`, `package upper
-import "lower"
-type v struct{}
+func Plant() { lower.Hold(T{}.n); _ = lower.Run() }`},
+		{"an interface", `type Visitor interface{ Visit() }
+func Walk(v Visitor) { v.Visit() }`, `type v struct{}
 func (v) Visit() {}
-func Plant() { lower.Walk(v{}) }`, once},
-		{"a method promoted from an embedded type, through its wrapper", `package lower
-type Visitor interface{ Visit() }
-func Walk(v Visitor) { v.Visit() }`, `package upper
-import "lower"
-type inner struct{}
+func Plant() { lower.Walk(v{}) }`},
+		{"a method promoted from an embedded type, through its wrapper", `type Visitor interface{ Visit() }
+func Walk(v Visitor) { v.Visit() }`, `type inner struct{}
 func (inner) Visit() {}
 type outer struct{ inner }
-func Plant() { lower.Walk(&outer{}) }`, once},
-		{"one site reaching two functions counts each", `package lower
-func Run(f func()) { f() }`, `package upper
-import "lower"
-func a() {}
-func b() {}
-func Plant() { lower.Run(a); lower.Run(b) }`, map[string]map[string]int{"lower": {"upper": 2}}},
-		{"a site of a generic function counts once for a function many instances reach", `package lower
-func Apply[T any](v T, f func()) { f() }`, `package upper
-import "lower"
-func done() {}
-func Plant() { lower.Apply(1, done); lower.Apply("", done) }`, once},
-		{"a generic function reached through two instances counts once", `package lower
-func Run(f func()) { f() }`, `package upper
-import "lower"
-func each[T any]() {}
-func Plant() { lower.Run(each[int]); lower.Run(each[string]) }`, once},
-		{"a site in a closure of a generic function", `package lower
-func Apply[T any](f func()) { func() { f() }() }`, `package upper
-import "lower"
-func done() {}
-func Plant() { lower.Apply[int](done) }`, once},
-		{"a function a package initializer hands down", `package lower
-var held func()
-func Hold(f func()) bool { held = f; return true }
-func Run() { held() }`, `package upper
-import "lower"
-var _ = lower.Hold(func() {})`, once},
-		{"a String method value is counted: only an interface call of one is a protocol call", `package lower
-var held func() string
+func Plant() { lower.Walk(&outer{}) }`},
+		{"a String method value: only an interface call of one is a protocol call", `var held func() string
 func Hold(f func() string) { held = f }
-func Run() string { return held() }`, `package upper
-import "lower"
-type T struct{}
+func Run() string { return held() }`, `type T struct{}
 func (T) String() string { return "" }
-func Plant() { lower.Hold(T{}.String); _ = lower.Run() }`, once},
-		{"a protocol method called through an interface is not counted", `package lower
-func Describe(err error) string { return err.Error() }`, `package upper
-import "lower"
-type failure struct{}
-func (failure) Error() string { return "" }
-func Plant() string { return lower.Describe(failure{}) }`, none},
-		{"the body of a range-over-func loop is not counted", `package lower
-func Each(yield func(int) bool) { _ = yield(1) }`, `package upper
-import "lower"
-var sum int
-func Plant() { for n := range lower.Each { sum += n } }`, none},
-		{"a call within a package or down the import direction is not counted", `package lower
-func Leaf() {}`, `package upper
-import "lower"
-func local() {}
-func Plant() { g := local; g(); f := lower.Leaf; f() }`, none},
+func Plant() { lower.Hold(T{}.String); _ = lower.Run() }`},
+		{"a deferred call", `func Run(f func()) { defer f() }`, `func Plant() { lower.Run(func() {}) }`},
+		{"a goroutine", `func Run(f func()) { go f() }`, `func Plant() { lower.Run(func() {}) }`},
+		{"a function sent over a channel", `var queue = make(chan func(), 1)
+func Send(f func()) { queue <- f }
+func Run() { (<-queue)() }`, `func Plant() { lower.Send(func() {}); lower.Run() }`},
+		{"a function held in a map", `var held = map[string]func(){}
+func Hold(f func()) { held["f"] = f }
+func Run() { held["f"]() }`, `func Plant() { lower.Hold(func() {}); lower.Run() }`},
+		{"a function a package initializer hands down", `var held func()
+func Hold(f func()) bool { held = f; return true }
+func Run() { held() }`, `var _ = lower.Hold(func() {})`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			calls, err := reversedCalls(plantedPackages(t,
-				plantedPackage{"lower", tc.lower}, plantedPackage{"upper", tc.upper}))
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, callCounts(calls))
+			got := plantedCounts(t, lowerAndUpper(tc.lower, tc.upper))
+			assert.Equal(t, map[string]map[string]int{"lower": {"upper": 1}}, got)
 		})
 	}
 }
 
-// TestCallShape_LeavesOutImportsThroughOthersAndTheRunner plants the calls the
-// count leaves out that lower and upper cannot show: one into a package the
-// caller imports through another, and one the runner makes.
-func TestCallShape_LeavesOutImportsThroughOthersAndTheRunner(t *testing.T) {
+// TestCallShape_CountsEachSiteAndFunctionOnce plants one site reaching several
+// functions, and sites and functions that instances of a generic function
+// share: a call is a site and a function it reaches, whatever the instances.
+func TestCallShape_CountsEachSiteAndFunctionOnce(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, lower, upper string
+		want               int
+	}{
+		{"one site reaching two functions counts each", `func Run(f func()) { f() }`, `func a() {}
+func b() {}
+func Plant() { lower.Run(a); lower.Run(b) }`, 2},
+		{"a site in a generic function counts once for the function its instances reach",
+			`func Apply[T any](v T, f func()) { f() }`, `func done() {}
+func Plant() { lower.Apply(1, done); lower.Apply("", done) }`, 1},
+		{"a generic function reached through two instances counts once", `func Run(f func()) { f() }`,
+			`func each[T any]() {}
+func Plant() { lower.Run(each[int]); lower.Run(each[string]) }`, 1},
+		{"a site in a closure of a generic function counts", `func Apply[T any](f func()) { func() { f() }() }`,
+			`func done() {}
+func Plant() { lower.Apply[int](done) }`, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := plantedCounts(t, lowerAndUpper(tc.lower, tc.upper))
+			assert.Equal(t, map[string]map[string]int{"lower": {"upper": tc.want}}, got)
+		})
+	}
+}
+
+// TestCallShape_LeavesOutWhatDoesNotRunBack plants each call the count leaves
+// out, where the call graph holds it: a protocol call, a range-over-func body,
+// calls within a package and down the import direction, a call into a package
+// the caller imports through another, and a call the runner makes.
+func TestCallShape_LeavesOutWhatDoesNotRunBack(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
 		pkgs []plantedPackage
 	}{
+		{"a protocol method called through an interface", lowerAndUpper(
+			`func Describe(err error) string { return err.Error() }`, `type failure struct{}
+func (failure) Error() string { return "" }
+func Plant() string { return lower.Describe(failure{}) }`)},
+		{"the body of a range-over-func loop", lowerAndUpper(`func Each(yield func(int) bool) { _ = yield(1) }`,
+			`var sum int
+func Plant() { for n := range lower.Each { sum += n } }`)},
+		{"a call within a package or down the import direction", lowerAndUpper(`func Leaf() {}`,
+			`func local() {}
+func Plant() { g := local; g(); f := lower.Leaf; f() }`)},
 		{"a call into a package imported through another", []plantedPackage{
-			{"base", `package base
-func Leaf() {}`},
-			{"mid", `package mid
-import "base"
-var Handle = base.Leaf`},
-			{"top", `package top
-import "mid"
-func Plant() { mid.Handle() }`},
+			{"base", "package base\nfunc Leaf() {}"},
+			{"mid", "package mid\nimport \"base\"\nvar Handle = base.Leaf"},
+			{"top", "package top\nimport \"mid\"\nfunc Plant() { mid.Handle() }"},
 		}},
 		{"a call the runner makes", []plantedPackage{
-			{callRunner, `package barrier
-func Catch(f func()) { f() }`},
-			{"top", `package top
-import "barrier"
-func Plant() { barrier.Catch(func() {}) }`},
+			{callRunner, "package barrier\nfunc Catch(f func()) { f() }"},
+			{"top", "package top\nimport \"barrier\"\nfunc Plant() { barrier.Catch(func() {}) }"},
 		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			calls, err := reversedCalls(plantedPackages(t, tc.pkgs...))
-			require.NoError(t, err)
-			assert.Empty(t, callCounts(calls))
+			assert.Empty(t, plantedCounts(t, tc.pkgs))
 		})
 	}
 }

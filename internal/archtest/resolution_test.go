@@ -862,6 +862,27 @@ func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 	}))
 }
 
+// TestRelPosition_NamesAFileUnderRootFromIt holds the rendering to both sides
+// of root: a file under it is named from it, in slashes, and one outside it by
+// its own path.
+func TestRelPosition_NamesAFileUnderRootFromIt(t *testing.T) {
+	t.Parallel()
+	root := filepath.FromSlash("/repo")
+	elsewhere := filepath.FromSlash("/elsewhere/x.go")
+	tests := []struct {
+		name, file, want string
+	}{
+		{"a file under root", filepath.Join(root, "x", "x.go"), "x/x.go:3"},
+		{"a file outside root", elsewhere, elsewhere + ":3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, relPosition(token.Position{Filename: tc.file, Line: 3}, root))
+		})
+	}
+}
+
 // loadOverlaid type-checks the package at dir, a directory of the repository,
 // with src added to it as the file named file, and returns it.
 func loadOverlaid(t *testing.T, dir, file, src string) *decls.Package {
