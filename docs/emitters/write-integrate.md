@@ -8,8 +8,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
   biggest win of stable-ID keying: a rename of anything an ID is not built from is "same ID, new
-  symbol" — a lookup, not oagen's structural rename-inference machinery — and a rename of what it is
-  built from, a path or a component name, is carried by the correlation key each entry records. A
+  symbol" — a lookup, not oagen's structural rename-inference machinery — and one of what it is
+  built from is carried by the correlation key each entry records where the key's own source holds,
+  as an `operationId` does when its path is renamed. A component renamed changes its key too (#679),
+  so only the structural tier of [open question 5](../ir/open-questions.md) could carry it. A
   symbol derived from an entity keys under it, as `User.ID#create` does
   ([`User`](targets/go/models.md#user-in-go)), a union's wrappers, fallback and inclusive fields
   among them, so no two symbols share a key. Write/integrate and surface verification

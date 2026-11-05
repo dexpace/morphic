@@ -18,7 +18,8 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
    additive merge (`dst` for Go), regions that follow their entity, README blocks, staleness;
-   neutral surface diff with injectable per-language severity.
+   neutral surface diff with injectable per-language severity. It needs the correlation key (#679),
+   which shipped names, regions, files written once and unmatched keys all match on.
 6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first
    targets' statically typed languages: a new target is a new target AST + printer + refine pipeline
    reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan

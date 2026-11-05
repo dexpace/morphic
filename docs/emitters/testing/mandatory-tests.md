@@ -22,8 +22,8 @@ throughout these documents.
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
 8. **T-8 · Manifest ID-keying** — the entity→symbol map survives a rename of what an ID is not
-   built from, such as an `operationId`, and, through the correlation key, a path or component
-   rename.
+   built from, such as an `operationId`, and, through the correlation key, a path renamed under an
+   unchanged `operationId`.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its

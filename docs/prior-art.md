@@ -31,8 +31,9 @@ and the differ/compat/verify subsystems added since the original survey).
   structural API description.
 - **Policy addressed by wire identity, not derived names** — consumer operation hints are keyed
   `"METHOD /path"`, never by generated method name, because derived names churn. Independent
-  convergence on stable source identity; Morphic's IDs make the same key durable across path
-  renames too. The hint vocabulary itself (rename, remount, split-union-body into typed wrapper
+  convergence on stable source identity; Morphic's IDs make the same key durable across a rename
+  of anything they are not built from, and a path rename is the correlation key's to carry (#679).
+  The hint vocabulary itself (rename, remount, split-union-body into typed wrapper
   methods, constant defaults, client-config-derived fields, URL-builder ops) is a concrete
   inventory of what a client-shaping emitter policy input must express.
 - **Group metadata over an untouched wire list** — mutually-exclusive parameter groups
