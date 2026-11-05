@@ -94,7 +94,7 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 // It re-runs the pre-parse refusals afterwards, because an overlay action can
 // graft what they refuse, such as nesting past the bound. They locate through
 // the attribution the application produced, so a refusal on a grafted node
-// names the overlay, not a position the node lacks.
+// names the overlay, not a position the node lacks (patchedRefusals).
 func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic,
 ) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
@@ -109,7 +109,30 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(ctx, root)), root, opts)...)
+	place := locator(srcIndex, origin, scan.Pointers(ctx, root))
+	return origin, append(diags, patchedRefusals(ctx, place, root, opts)...)
+}
+
+// patchedRefusals is refusals of root, the tree the overlay patched, one at a
+// node placed as place places it. One of the whole tree, such as its pointers'
+// bytes, is placed at the overlay, whose actions caused it, since the source
+// passed the same refusals before the overlay applied (loading.preParse), and
+// says it reads the tree the overlay leaves, as the overlay's own document
+// draws the same refusal (overlayRefusals).
+func patchedRefusals(ctx context.Context, place scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
+	whole := ir.Provenance{Source: opts.OverlaySrcIndex}
+	found := refusals(ctx, func(n *yaml.Node) ir.Provenance {
+		if n == nil {
+			return whole
+		}
+		return place(n)
+	}, root, opts)
+	for i := range found {
+		if found[i].Provenance == whole {
+			found[i].Message += ", once the overlay applies"
+		}
+	}
+	return found
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same
@@ -145,9 +168,5 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, locate, idx); deep {
-		diags = append(diags, d)
-	}
-	return append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
+	return shapeRefusals(ctx, locate, idx, opts)
 }

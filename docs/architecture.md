@@ -560,7 +560,7 @@ morphic/
 │   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
-│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting, pointer bytes)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check

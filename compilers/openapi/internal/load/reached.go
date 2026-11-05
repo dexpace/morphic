@@ -42,6 +42,8 @@ type reached struct {
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// names as the source writes them (GitHub #911).
 	esc *escapes
+	// ends holds the end of every reference a check has read (see chainEnds).
+	ends chainEnds
 	// tree places a finding about a node of the source (see reachedLocator),
 	// and others one about another document's (see locatorFor).
 	tree   sourceTree
@@ -88,7 +90,7 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	table := b.bindings.Table()
 	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
 	for _, a := range away {
-		if t, ok := targetOf(a.site.pointer, a.r, checks.esc); ok {
+		if t, ok := targetOf(a.site.pointer, a.r, checks.esc, checks.ends); ok {
 			t.siteDoc, t.place = a.site.doc, a.place
 			targets = append(targets, t)
 		}
@@ -139,7 +141,7 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		}
 	}
 	site, err := eachReference(items, "validation", func(site jsontext.Pointer, r resolvable) error {
-		if t, ok := targetOf(site, r, checks.esc); ok {
+		if t, ok := targetOf(site, r, checks.esc, checks.ends); ok {
 			add(t)
 		}
 		return nil
@@ -184,15 +186,15 @@ func kindOf(r resolvable) (oas.Kind, bool) {
 }
 
 // targetOf returns the object the reference at site reaches, or false when its
-// chain ends on no object (reachedNode) or the reference expects a kind the
+// chain ends on no object (chainEnds) or the reference expects a kind the
 // table lacks. A chain that ends in the source is a target too, whatever its
 // $refs spell: it can reach raw YAML, such as an x-* key's value, or a node read
 // as another kind, neither of which the source's check read as that kind. What
 // it did read, dropSeen drops.
-func targetOf(site jsontext.Pointer, r resolvable, esc *escapes) (reachedTarget, bool) {
+func targetOf(site jsontext.Pointer, r resolvable, esc *escapes, ends chainEnds) (reachedTarget, bool) {
 	c := resolutionChain(r)
 	t := esc.trailOf(c)
-	node, ok := reachedNode(r)
+	node, ok := ends.of(r, c)
 	kind, known := kindOf(r)
 	if !ok || !known {
 		return reachedTarget{}, false
@@ -223,6 +225,7 @@ func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment
 	}
 	return &reached{
 		checker:  judged.checker,
+		ends:     newChainEnds(),
 		tree:     tree,
 		version:  doc.OpenAPI,
 		limit:    limit,
@@ -340,11 +343,73 @@ func (v *reached) spansOf(doc string) *budget.Budget {
 	return spans
 }
 
+// chainEnds finds the node the object each reference names was built from, as
+// reachedNode reads it, but along the records a resolution keeps
+// (resolutionChain), remembering the end of every reference a chain the
+// records cut passes on to. Asking a reference walks the whole chain behind it
+// (docs/parser-library.md#reference-chain-walk), so asking each reference of a
+// long chain cost the cube of its length (GitHub #925). links bounds the cut
+// chains one answer follows, past which the reference is asked after all, and
+// chain reads a reference's records, resolutionChain but where a test counts.
+type chainEnds struct {
+	ends  map[any]*yaml.Node
+	chain func(model any) chain
+	links int
+}
+
+// maxEndLinks is chainEnds' bound on the cut chains one answer follows: of
+// maxResolutionHops each, two million hops, past any chain a document within
+// the default node budget can write.
+const maxEndLinks = 1 << 16
+
+// newChainEnds returns a chainEnds that has followed nothing.
+func newChainEnds() chainEnds {
+	return chainEnds{ends: map[any]*yaml.Node{}, chain: resolutionChain, links: maxEndLinks}
+}
+
+// of returns the node r's chain ends on, c being r's records, and false where
+// reachedNode finds none: an unresolved reference names none, and a chain that
+// loops, or stops at a reference it could not resolve, ends on no object. A
+// chain the records end is answered from them, and only the references a cut
+// chain passes on to are remembered.
+func (e chainEnds) of(r resolvable, c chain) (*yaml.Node, bool) {
+	if !c.cut {
+		end := nodeview.Deref(c.end)
+		return end, end != nil
+	}
+	passed := []any{r}
+	onWay := map[any]bool{r: true}
+	var end *yaml.Node
+	for at := c.records[len(c.records)-1].object; ; {
+		if known, seen := e.ends[at]; seen {
+			end = known
+			break
+		}
+		if onWay[at] {
+			break // a loop ends on no object
+		}
+		if len(passed) == e.links {
+			return reachedNode(r)
+		}
+		passed = append(passed, at)
+		next := e.chain(at)
+		if !next.cut {
+			end = nodeview.Deref(next.end)
+			break
+		}
+		onWay[at] = true
+		at = next.records[len(next.records)-1].object
+	}
+	for _, p := range passed {
+		e.ends[p] = end
+	}
+	return end, end != nil
+}
+
 // reachedNode returns the node the object a reference names was built from, or
-// false for one with none to check: an unresolved reference names none, and a
-// chain that loops, or stops at a reference it could not resolve, ends on no
-// object. The reference reads the node itself: asked of a missing object, a
-// model's own GetRootNode faults.
+// false for one with none to check, asking the reference, which walks its whole
+// chain (docs/parser-library.md#reference-chain-walk). Asked of a missing
+// object, a model's own GetRootNode faults.
 func reachedNode(r resolvable) (*yaml.Node, bool) {
 	holder, ok := r.(interface{ GetRootNode() *yaml.Node })
 	if !ok {

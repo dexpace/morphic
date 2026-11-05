@@ -109,6 +109,6 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   product free: bound the product, or the steps or bytes spent, through
   `compilers/openapi/internal/budget` in the OpenAPI compiler.
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
-  the parser peak at 8.2 GB (#931).
+  a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
   branch, as #931's table does.
