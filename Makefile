@@ -56,15 +56,16 @@ RACE_PACKAGES := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scr
 # reason the race recipe refuses an empty list.
 RACE_PIPELINE_ROOTS := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scripts/race-pipeline-roots.txt)
 
-# The two tests both race targets leave out, anchored so that only they match.
-# A renamed test makes the pattern match nothing, which slows the race run and
+# The two tests `make race` leaves out, anchored so that only they match. A
+# renamed test makes the pattern match nothing, which slows the race run and
 # does not weaken it.
 RACE_SKIP := ^(TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly|TestLoad_DoesNextToNothingOnceItRefusesACancel)$$
 
 # The command both race targets run over their packages, and over the planted
 # race that scripts/race-reach.sh requires it to report. The two share it, so
-# they share the skip, the timeout and the plant.
-RACE_TEST = $(GO) test -race -timeout 300s -skip '$(RACE_SKIP)'
+# they share the timeout and the plant. #1248 decides its timeout; on four busy
+# cores compilers/openapi/e2e takes most of it.
+RACE_TEST = $(GO) test -race -timeout 300s
 
 # A GOTOOLCHAIN already set in the environment wins, as an override should. It is
 # reported rather than refused, exactly as a local golangci-lint of the wrong
@@ -178,19 +179,20 @@ coverage:
 # atomic coverage missing a planted race that -race alone caught, so coverage
 # and the detector do not share a run.
 #
-# The two tests skipped (RACE_SKIP) test cancellation one step at a time, which
-# is sequential, so the detector learns nothing from them and they are slow
-# under it. They still run at full size in `coverage`.
+# The two tests skipped (RACE_SKIP) cancel a load at every check, which is most
+# of what `load` costs under the detector. Four cancel returns only they reach,
+# so `make race` leaves them to `race-pipeline`, like any other race only a
+# pipeline test reaches. They also run at full size in `coverage`.
 #
 # scripts/race-reach.sh then runs the same command over the race planted in
 # internal/archtest/testdata/racereach and requires it to be reported, which
 # shows the command still runs the detector. The script sees only the command it
 # is passed, so it holds each recipe's test of its packages only while that
-# test runs $(RACE_TEST); `make race-pipeline` passes it the same command.
+# test starts with $(RACE_TEST); `make race-pipeline` passes it the same command.
 race:
 	@test -n "$(strip $(RACE_PACKAGES))" || { \
 		echo "make race: scripts/race-packages.txt lists no package" >&2; exit 1; }
-	$(RACE_TEST) $(RACE_PACKAGES)
+	$(RACE_TEST) -skip '$(RACE_SKIP)' $(RACE_PACKAGES)
 	./scripts/race-reach.sh $(RACE_TEST)
 
 # The same run over every package under the roots too: their tests run the
