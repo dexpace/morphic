@@ -221,8 +221,9 @@ needless; a verified run catches one.
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
    nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
-   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function or
-   visitor the pass hands `ir`'s walks is a call from `ir` into `pass`, which `callShapeBaseline` in
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function
+   the pass hands `ir`'s walks, and each method a walk calls on a visitor it is handed, `Visit` and,
+   for a `CycleVisitor`, `Cycle`, is a call from `ir` into `pass`, which `callShapeBaseline` in
    `internal/archtest/callshape_test.go` counts as a traversal callback: raise each count
    `TestCallShape_HeldToTheBaseline` reports over its baseline.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
