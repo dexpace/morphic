@@ -341,3 +341,149 @@ throughout these documents.
     frozen before its entity's path variable is renamed gains no twin, and its table of contents
     lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
     refused with nothing written ([write / integrate](../write-integrate.md)).
+41. **T-41 · Docs** — the docs emitter renders every answer the plan lists, `Return`, `Others` and
+    `Errors` with the service's `CommonErrors` among them, the `Default` once wherever the plan
+    places it, and every content, the primary response and the elected content first; a table for
+    each projection a type's `TypePlan.Shapes` gives it, marking the members it requires, a
+    write-only property in no read shape's, a model created by one operation and patched by another
+    given a table for each, a model whose members and those of the models it holds carry no
+    visibility marker one table for every shape, a patch's apart only where it or a model it holds
+    requires a member or gives one a default, a patch table showing no default, and a type no shape
+    reaches one unprojected table anchored by its model alone; each `TypePlan.Undeclared` name a row
+    with no anchor, required save in a patch table, each member anchored once, where the model
+    declaring it is rendered and in the first of its tables that holds it, each table anchored too,
+    once for each shape it shows, through the page's ID-keyed resolution so a member named `create`
+    beside a create table keeps its own anchor, two tables on one page never sharing one and the
+    collision check reading anchors within a page, and a patch body linking to its patch table, a
+    member no table of its declaring model holds anchored in the first table of a model whose
+    flattening holds it, an inherited one linked there and an anonymous model composed in place no
+    table of its own; each example through the shape it is shown in, a write-only member in no
+    response's; a placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent
+    documents and in samples, a sample's written by its SDK target; and raw HTML in a description
+    rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
+    themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
+    an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
+    field</p>` and `<p>a <title/> <b>b</b></p>` keep their paragraph, a self-closing `<p/>` read as
+    its start tag, every listed tag written from its name, a description's `<table>`, nested or not,
+    rendered as text, and each page, parsed as a browser parses it, keeping its own elements, cells
+    and rows around every description of a fixed hostile corpus, text decoded and written escaped, a
+    `<p>`-led description among them, an element left open closed at its end and an end tag it never
+    opened, such as `</td>`, rendered as text, `<key>` keeping its place, `<ul><li>a<li>b</ul>`
+    closing the first item implicitly, an end tag matching an element below the top closing it and
+    those above it, `<ul><li><p>a<li>b</ul>` two items, a listed tag's unlisted attribute such as
+    `target` dropped, a GitHub-style table kept as preformatted text, a refused `a` its text and a
+    refused `img` its `alt`, else its tag as text, as the golden spec's `<img src="cid:logo">` is,
+    an `&#106;avascript:` destination refused once decoded and an image's `mailto:` source refused,
+    and a `<td>` or `<li>` with no parent on the description's stack rendered as text so a
+    description in a cell adds no cell to the page's table, `Example.Description` and
+    `Link.Description` read as CommonMark like `Docs.Description`, and an attribute outside the
+    list, a comment and a placeholder such as `<key>` as text, a summary escaped as text; a link
+    from spec text written only under `http`, `https` or `mailto` or, in a description, as a
+    relative path resolved against the configured base, a relative URL in a field of its own
+    rendered as text with the warning, and a `javascript:` destination, a fragment alone and a
+    relative path with no base each rendered as the link's text with the warning
+    `emitters/docs/link-unwritten`, in a description's links and images, `ExternalDocs` and every
+    other URL the document gives alike, and a `TermsOfService` that is text rendered as text. Every
+    channel, message, auth scheme, an `unresolved` one included, and declared type but a primitive
+    has a page, and so does an anonymous model, union or enum more than one reference reaches
+    through anonymous containers, so no table is rendered in two places and a type spelled where it
+    is used takes no anchor; a decorator has no page, table or anchor of its own, renders and links
+    as its `Alias` and folds its annotations onto the position, so a 3.0 decorator and the 3.1
+    `$ref` render alike; a recursive type is linked by its ID and never inlined, and an entity left
+    without a route is the error `emitters/docs/route-missing`, every service and group routed, a
+    property no model declares, a header's or a resource's, a row of its holder with no anchor and
+    no diagnostic, and so is a write-only member of a model only responses reach, which no table
+    holds. Two slugs colliding in one template's scope are told apart by ID, also when they differ
+    only by letter case, and two entities resolving to one URL, agent documents among them, are the
+    error `emitters/docs/route-collision` naming both, also when the URL templates are changed;
+    every link, one to a page no entity owns among them, and every `Docs.Refs` span resolves through
+    the route plan, a span inside raw HTML, a link, an `a` the description opened or a code span,
+    and one naming a type no route reaches, rendering as its text with no `route-missing`; a version
+    switcher, listing only the labels `Routes` keys in `Document.Versions` order, links one entity
+    across snapshots, a model's page and never one of its tables, the page holding an anonymous
+    model's table where a version gives it no page, from the tables `Router` returns, marks the
+    run's `Snapshot` current, and an entity a version lacks to that version's page saying so; two
+    snapshots' pages of one entity lie under their labels' directories, neither run overwriting or
+    pruning the other's, all of them one generation whose manifest holds each run's under its label,
+    a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and a
+    label that is no single path segment, or two differing only by case,
+    `engine/snapshot-label-invalid`, `.` and `..` among them, a label with `#` or `?`
+    percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
+    document `engine/target-unversioned` while run for samples alone on each snapshot, and the last
+    label's run taking a prior's `""` entry when the document gains versions; only the run of the
+    last label `Routes` keys writes the site-scope `llms.txt`, at the output root, one routed under
+    a label's directory refused as a collision, neither pruned nor taken for an edit when another
+    label becomes last, the generation's manifest a `Generations`, and the `""` snapshot's run
+    writes one index for its site and version; a target gaining `CrossVersion` reads its prior
+    `Manifest` as the `""` entry and one losing it reads the entry holding the spanning files; a run
+    whose context is done after `Router` returns fails; and the registry refuses a target setting
+    `CrossVersion` without implementing `Router`. A CLI's help keeps a placeholder, a comment and a
+    link's URL as text, keeps line feeds and tabs and drops every other control character. A nested
+    group's route joins its groups' slugs. Agent documents and `llms.txt`, at site, service, version
+    and target scope, share the pages' URLs, escape spec text, write each description back out
+    within its item, an unclosed fence closed there and a reference definition reaching no other,
+    mark an operation safe or idempotent from `OpPlan.Effects`, and warn of destruction only where
+    the `Destructive` hint is set. The docs target decodes the `Extra` members it defines strictly,
+    reporting a wrong shape as `emitters/docs/extra-invalid` and coercing nothing, and shows a code
+    sample the document declares as authored beside the SDK targets' samples, a language that is no
+    single word left off its fence. A code fence in an agent document is longer than any backtick
+    run it holds. A sample comes from each SDK target, for each operation its callers call, in each
+    language its callers write, Kotlin and Swift from a Multiplatform one, a missing one
+    `emitters/<target>/sample-unrendered`, a target run under a `Scope` still returning one for
+    every operation, and a target whose generation writes nothing still returns its samples; a
+    sample's values are the `Input` of its operation's first success scenario, declared or else
+    assembled, one ending in no `Error`, a bodiless one among them; a run made for samples alone
+    reports what any run of its target reports; an operation the API starts, a webhook, a callback
+    or a message the client receives, has no sample and no diagnostic; a docs target run alone shows
+    the samples of the targets its options name, which the engine runs for it with the configuration
+    and prior manifest each would run with, writing none of their artifacts the run does not name
+    and running one the run does name once on each snapshot, one with no configuration refused; an
+    operation with no success scenario has no sample, drawing no diagnostic where `Assemble` off
+    chose that and `sample-unrendered` where a required input held no example; a named target the
+    registry lacks, without `WritesSamples` or that reads samples, and a `ReadsSamples` target whose
+    options do not implement `SampleReader`, are `engine/sample-target-invalid`; and a docs
+    generation whose samples, routes or snapshot label changed, its own inputs unchanged, is a new
+    generation ([docs and mocks](../docs-and-mock.md)).
+42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored,
+    one holding only an `ExternalURL` shown as a link and held by no set, and one its type and
+    constraints refuse, visibility set aside, is `emitters/plan/example-refused` and left out
+    everywhere, an open enum admitting a value it does not list; shown through a shape, through
+    `plan.Shown` alone, an example drops the members the shape does not hold and fills each it
+    requires and lacks from that member's set, marked `Inferred`, and fills nothing with `Assemble`
+    off, so a response-form example serves a create shape and a patch body's may leave out a
+    required member, one it cannot complete, or a `Strict` union's value two variants admit once
+    shown in the shape, giving way to the set's next, a union value several variants admit refused
+    by `Build` where the union is `Strict` and elsewhere shown by `Shown` through all of them, a key
+    the catch-all admits kept, an `Undeclared` name filled from its catch-all's set and a filled
+    example labelled generated; a property or a parameter declaring none and adding no constraint
+    takes its type's set, an enum member its own value, an operation declaring no success scenario,
+    where every required input's set holds a value, one assembled, each value shown through the
+    shape its operation sends it in, from its required parameters' sets, its optional parameters'
+    declared ones, its body's, required or not, and its return content's, after those it declares,
+    always `Inferred`, its `Input` keyed by `ParamID` with the body under `body`, and none with
+    `Assemble` off, a position whose type is a decorator its own examples, else the nearest
+    decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a variant's or a
+    message's set, read through its one plan function alone, which reports nothing since `Build`
+    reports each refused example once, is its own declared examples, else its type's, a message's
+    those of its payload's contents paired with its headers' set, that pairing `Inferred` and off
+    with `Assemble`, which the docs, the samples and the mock read a body's examples from. Where
+    none applies, the value synthesized is valid against its constraints and its type's
+    validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never
+    both, a value failing them left out and reported and a declared one refused, marked `Inferred`,
+    identical across regenerations and in both declaration orders, seeded from its ID where no
+    correlation key identifies it, a choice on a recurrence or past `MaxDepth` taking the first
+    variant or member from which a value ends, so a required recursive union ends, and the same in
+    the docs, the samples, an SDK's tests and the mock. A synthesized model holds each member's own
+    first value and a list its set's values in turn, distinct where `uniqueItems` or a map's keys
+    require it, a `uniqueItems` list left below its minimum unsynthesizable, a declared one whole
+    and a synthesized one cut to the depth the bound leaves, so an optional recursive member ends
+    and a required `Nullable` one ends with `null`; the bounds cut only optional members and the
+    entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
+    deeper than `MaxDepth` or on a recurrence of its type, so a model requiring a list of itself and
+    a recursion through no model, as `cws_JSONValue`'s, end, so a required member nested deeper than
+    `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot
+    make valid, a required cycle among them, or holding more than `plan.MaxExampleValues` values is
+    `emitters/plan/example-unsynthesized` and left out; with `Synthesize` and `Assemble` off, no
+    entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
+    none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
+    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
