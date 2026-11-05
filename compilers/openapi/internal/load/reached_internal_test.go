@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -253,6 +254,20 @@ func TestBuiltTargets(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
 	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
 	assert.Empty(t, got[1].siteDoc)
+}
+
+// TestWrittenIn_ReadsTheNodeAtAPosition pins what writtenIn reads at a
+// position of a bound document: the node written there, an alias followed,
+// and nil where the pointer names nothing.
+func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
+	t.Parallel()
+	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-a: &a 5\nx-b: *a\n")
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
+	view := nodeview.New()
+	five := writtenIn(view, table, bind.Position{Pointer: "/x-b"})
+	require.NotNil(t, five)
+	assert.Equal(t, "5", five.Value, "the alias's anchor")
+	assert.Nil(t, writtenIn(view, table, bind.Position{Pointer: "/x-c/d"}), "nothing is written there")
 }
 
 // buildRaw decodes src, YAML, as the bindings build a schema for a landing.

@@ -96,6 +96,10 @@ func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 	assert.Empty(t, ownedOf(t, "    S: {items: {type: string}, type: array}\n"), "one items schema is the check's own")
 	_, bad := ownedFinding(oas.Owned{Field: "type", Value: openapitest.StrNode("string")}, own)
 	assert.False(t, bad, "a field the phase judges nothing of")
+	for _, rules := range []oas.SchemaRules{own, d7} {
+		_, bad = ownedFinding(oas.Owned{Field: "items", Value: openapitest.StrNode("x")}, rules)
+		assert.False(t, bad, "an items the check hands over as no list is no list to judge")
+	}
 }
 
 // TestOwnedFindings_ReportAnAliasedValueOnce pins that a value an alias places
