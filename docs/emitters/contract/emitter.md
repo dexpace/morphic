@@ -23,6 +23,14 @@ type Emitter interface {
     Generate(context.Context, EmitterInput) EmitterOutput // the whole emitter, as one pure function
 }
 
+// Router is implemented by a target whose Capabilities.CrossVersion is set. The engine calls it
+// on every version snapshot before any Generate and hands each run all the tables in
+// EmitterInput.Routes (../docs-and-mock.md#routes-and-links). It is pure, as Generate is, and
+// reports nothing: each run plans its own routes by the same function and reports what it finds.
+type Router interface {
+    Routes(context.Context, EmitterInput) RouteTable
+}
+
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
@@ -35,10 +43,11 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
-    Samples map[TargetKey]map[ir.OpID]Sample // each SDK target's usage samples, for a docs target
-                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
-    Routes  map[string]RouteTable // every version snapshot's routes, keyed by version, for a
-                                  // target whose Capabilities.CrossVersion is set
+    Samples map[TargetKey]map[ir.OpID][]Sample // each SDK target's usage samples, for a docs
+                                  // target (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
+                                  // Document.Versions gives it, "" for a document stating
+                                  // none, for a target whose Capabilities.CrossVersion is set
                                   // (../docs-and-mock.md#routes-and-links)
     Options TargetOptions         // the target's own typed options, decoded and validated before
                                   // Generate runs, its type table and naming tables among them
@@ -50,16 +59,18 @@ type EmitterOutput struct {
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (../write-integrate.md)
     Surface     *verify.Surface     // neutral API-surface projection of the generated output (../surface-verification.md)
-    Samples     map[ir.OpID]Sample  // an SDK target's usage sample per operation, for the docs
+    Samples     map[ir.OpID][]Sample // an SDK target's usage samples per operation, one for each
+                                     // language its callers write, for the docs
 }
 
 // Sample is one operation's call as an SDK target spells it.
 type Sample struct {
-    Language string                 // the fence's language, such as "go" or "kotlin"
+    Language string                 // the fence's language, such as "go", "kotlin" or "swift"
     Code     string                 // the call, its values the plan's examples
 }
 
-// RouteTable is one snapshot's routes: each entity's page path and anchor.
+// RouteTable is one snapshot's routes: each entity's page path and anchor, as a link to it is
+// written.
 type RouteTable map[EntityID]string
 
 // EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
@@ -117,11 +128,14 @@ the document, which determines it.
 ## Contract rules the type system and tests enforce
 
 - **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same `(Doc,
-  Plan, Policy, Hints, Scope, Prior, Options)`, under a context that stays live, ⇒ byte-identical
-  `Artifacts`, the prior manifest included since the names a generation shipped are kept
-  ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts` is a
-  function of `Doc` and adds nothing to the tuple. Maps are walked in sorted-key order, slices in
-  source order ([T-6](../testing/mandatory-tests.md)).
+  Plan, Policy, Hints, Scope, Prior, Samples, Routes, Options)`, under a context that stays live,
+  ⇒ byte-identical `Artifacts`, the prior manifest included since the names a generation shipped
+  are kept ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts`
+  is a function of `Doc` and adds nothing to the tuple. `Samples` and `Routes` are other runs'
+  output, so a docs target's artifacts change when an SDK target's options or another snapshot do,
+  and the manifest records them
+  ([write / integrate](../write-integrate.md#what-the-manifest-records)). Maps are walked in
+  sorted-key order, slices in source order ([T-6](../testing/mandatory-tests.md)).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic ([T-7](../testing/mandatory-tests.md)). Codes live in a stable

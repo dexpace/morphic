@@ -65,6 +65,8 @@ type Inputs struct {
                                  // its build information
     Config  string               // SHA-256 of the decoded options, resolved policy and resolved
                                  // hints, each as its canonical JSON
+    Peers   string               // SHA-256 of the samples and routes other runs handed this one
+                                 // (contract/emitter.md), as canonical JSON; "" = none
 }
 
 type File struct {

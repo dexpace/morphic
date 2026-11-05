@@ -74,17 +74,21 @@ a way to show one entity across API versions. Each is decided by data, never by 
   runs on the URLs the templates produce, over every kind of route in one table, so no template can
   reintroduce a collision the catalog did not have.
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
-  with the projection it wants (a page, an anchor, the agent document of one target), and the
-  route plan answers it. A spec's [`Docs.Refs`](../ir/annotations.md#references-in-prose) resolve
-  the same way, so a link follows its target wherever its route moves.
+  with the projection it wants (a page, an anchor, the agent document of one target and language),
+  and the route plan answers it. A spec's [`Docs.Refs`](../ir/annotations.md#references-in-prose)
+  resolve the same way, so a link follows its target wherever its route moves.
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity
-  across versions. The engine computes each snapshot's route table, a pure function of the snapshot
-  and the options, and hands every snapshot's docs run the tables of all of them in
-  `EmitterInput.Routes`, for a target whose `Capabilities.CrossVersion` is set. A link to an entity
-  a version lacks resolves to that version's page saying so. Slugs may differ between versions; IDs
-  do not.
+  across versions. For a target whose `Capabilities.CrossVersion` is set, the engine asks the
+  target for every snapshot's route table through `Router` ([the
+  contract](contract/emitter.md)), before any snapshot's `Generate`, and hands each run the tables
+  of all of them in `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each
+  version. The engine cannot plan the routes itself, since the catalog and the templates are the
+  target's. A run plans its own routes by the same pure function, so its pages agree with its
+  snapshot's entry. A table holds each entity's page and anchor, which is what a switcher links. A
+  link to an entity a version lacks resolves to that version's page saying so. Slugs may differ
+  between versions; IDs do not.
 
 ## Documents for agents
 
@@ -93,8 +97,8 @@ the same `Doc + Plan` and through the same route plan, so an agent document and 
 disagree about a URL:
 
 - **One document per operation**, holding its method and path, parameters and schemas as nested
-  lists, examples, code samples and links, as one aggregate document and one per SDK target, so an
-  agent reads only the language it writes.
+  lists, examples, code samples and links, as one aggregate document and one per SDK target and
+  sample language, so an agent reads only the language it writes.
 - **`llms.txt` indexes** at site, service, version and target scope, each a Markdown index linking
   the agent documents of its scope rather than the pages.
 - **Facts, not guesses.** An operation is marked safe, or safe to retry, from `OpPlan.Effects`
@@ -109,11 +113,17 @@ disagree about a URL:
 How a call is spelled in one language — the client accessor, the method name, the arguments, a
 model's constructor — is that SDK emitter's refine output, and an emitter never sees another
 (INV1). A docs emitter that spelled calls itself would re-derive them and could disagree with the
-SDK it documents. So each SDK emitter returns a usage sample per operation in
-`EmitterOutput.Samples`, and the engine, which runs the SDK targets first, hands the docs emitter
-every target's samples in `EmitterInput.Samples`. A sample a target cannot render is a coded
-diagnostic of that target's, never an empty code block on the page. Each sample's values are the
-plan's examples (below).
+SDK it documents. So each SDK emitter returns its usage samples per operation in
+`EmitterOutput.Samples`, one for each language its callers write: a Multiplatform target's
+callers write Kotlin and Swift ([Swift](targets/kotlin/swift.md)). The engine runs a target whose
+`Capabilities.ReadsSamples` is set after the run's other targets, and hands it every one's samples
+in `EmitterInput.Samples`. It runs an SDK target for its samples even when that target's
+generation writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since
+a docs run handed none would drop them. A docs generation is a new one whenever the samples it is
+handed change, as an SDK target's own options can change them. A sample a target cannot render is
+a coded diagnostic of that target's, never an empty code block on the page, and so is one for an
+operation whose required input holds no example. Each sample's values are the first of each set
+the plan's examples hold (below).
 
 ## One set of examples
 

@@ -346,9 +346,12 @@ throughout these documents.
     property in no response table; every operation, page-worthy type and property has a route or
     anchor, and two entities resolving to one URL is an error naming both, also when the URL
     templates are changed; every link and `Docs.Refs` span resolves through the route plan; a
-    version switcher links one entity across snapshots and an entity a version lacks to that
-    version's page saying so; agent documents and `llms.txt` share the pages' URLs, escape spec
-    text and pass no raw HTML; and a sample comes from each SDK target, a missing one a diagnostic
+    version switcher links one entity across snapshots, from the tables `Router` returns, and an
+    entity a version lacks to that version's page saying so; agent documents and `llms.txt` share
+    the pages' URLs, escape spec text and pass no raw HTML; a sample comes from each SDK target in
+    each language its callers write, Kotlin and Swift from a Multiplatform one, a missing one a
+    diagnostic, and a target whose generation writes nothing still returns its samples; and a docs
+    generation whose samples or routes changed, its own inputs unchanged, is a new generation
     ([docs and mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
     content, a variant, a message, a property or a parameter declaring none and adding no

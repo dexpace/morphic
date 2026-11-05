@@ -32,22 +32,29 @@ wants one built from it anyway says so with the `none` threshold.
 
 `Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
 it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
-advisory metadata, not a second decision channel; it never changes what `Generate` emits.
+advisory metadata, not a second decision channel; it never changes what `Generate` emits from the
+input it is handed.
 
 ```go
 type Capabilities struct {
     LowersKinds     []ir.TypeKind   // the kinds this emitter has an emit path for
     WriteIntegrate  bool            // supports additive merge into a live repo (../write-integrate.md)
     SurfaceVerify   bool            // produces a verify.Surface (../surface-verification.md)
-    CrossVersion    bool            // reads every version snapshot's routes (../docs-and-mock.md)
+    CrossVersion    bool            // implements Router and reads every version snapshot's routes
+                                    // (../docs-and-mock.md#routes-and-links)
+    ReadsSamples    bool            // reads the samples of the run's other targets, so runs after
+                                    // them (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does
 }
 ```
 
-`Lifecycle` is the one field the engine acts on, and only to tell the user, never to change an
-artifact. The states are a target's life in order. A `hidden` target is under construction: it is
+`CrossVersion` and `ReadsSamples` say what a run hands the target, other snapshots' routes and
+other targets' samples, and when the engine runs it; the registry refuses a target that sets
+`CrossVersion` without implementing `Router` ([the contract](emitter.md)). `Lifecycle` is the one
+field the engine acts on otherwise, and only to tell the user, never to change an artifact. The
+states are a target's life in order. A `hidden` target is under construction: it is
 left out of every listing — help, completion, the targets a misspelt name is answered with — and
 runs only when named, with the `experimental` warning. An `experimental` target runs with a warning
 diagnostic saying its output may change in any release. A `sunset` target runs with a warning that
