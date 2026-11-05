@@ -270,6 +270,10 @@ func callGraph(p program) *callgraph.Graph {
 	for fn := range reached.Reachable {
 		funcs[fn] = true
 	}
+	// VTA keeps one node for each struct field and for the elements of each
+	// slice, map or channel type, so a call of what one holds is credited with
+	// all that any reached function stores in one: a count can hold a call no
+	// run makes (TestCallShape_CreditsEachCallWithAllItsTypeHolds).
 	graph := vta.CallGraph(funcs, reached.CallGraph)
 	graph.DeleteSyntheticNodes()
 	return graph
@@ -553,6 +557,38 @@ func TestCallShape_MissesAFunctionHandedOnToTheRunner(t *testing.T) {
 				{"lower", "package lower\nimport \"barrier\"\nfunc Run(f func()) { " + tc.run + " }"},
 				{"upper", "package upper\nimport \"lower\"\nfunc Plant() { lower.Run(func() {}) }"},
 			}))
+		})
+	}
+}
+
+// TestCallShape_CreditsEachCallWithAllItsTypeHolds pins where the count reaches
+// too far: a and b each hand a function, through a struct field, a slice, a map
+// or a channel, to a function of lower's that only it calls, yet each of
+// lower's two sites is credited with both functions. Handed as a parameter,
+// each function is credited to the one site it reaches.
+func TestCallShape_CreditsEachCallWithAllItsTypeHolds(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, held, call, hand string
+		want                   int
+	}{
+		{"a struct field", "c struct{ F func() }", "c.F()", "struct{ F func() }{F: func() {}}", 2},
+		{"a slice", "fs []func()", "fs[0]()", "[]func(){func() {}}", 2},
+		{"a map", "m map[string]func()", `m["x"]()`, `map[string]func(){"x": func() {}}`, 2},
+		{"a channel", "c chan func()", "(<-c)()",
+			"func() chan func() { c := make(chan func(), 1); c <- func() {}; return c }()", 2},
+		{"a parameter", "f func()", "f()", "func() {}", 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lower := fmt.Sprintf("package lower\nfunc RunA(%[1]s) { %[2]s }\nfunc RunB(%[1]s) { %[2]s }", tc.held, tc.call)
+			got := plantedCounts(t, []plantedPackage{
+				{"lower", lower},
+				{"a", "package a\nimport \"lower\"\nfunc Plant() { lower.RunA(" + tc.hand + ") }"},
+				{"b", "package b\nimport \"lower\"\nfunc Plant() { lower.RunB(" + tc.hand + ") }"},
+			})
+			assert.Equal(t, map[string]map[string]int{"lower": {"a": tc.want, "b": tc.want}}, got)
 		})
 	}
 }
