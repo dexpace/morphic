@@ -106,9 +106,9 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 // account what looks empty. It leaves alone, too, the format characters Unicode
 // takes out of Default_Ignorable_Code_Point because they render: a prepended
 // concatenation mark, an interlinear annotation character and an Egyptian
-// hieroglyph format control. The rows just outside those ranges, a character
-// from the object replacement to a private use one, keep each bound from
-// widening into a class beside it.
+// hieroglyph format control. The rows beside those ranges and the private use one
+// hold a term from widening over them: U+13440 from Mn, U+E000 from C, U+FFFC
+// from So, U+1342F from Lo.
 func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
 	visible := map[string]string{
@@ -136,12 +136,13 @@ func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 	}
 }
 
-// TestIsInvisible_RangesHoldForThisUnicode fails when a Go release moves
+// TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release moves
 // unicode.Version, since isInvisible holds two ranges no table of package unicode
 // carries. Recheck them against DerivedCoreProperties.txt, then move the version here.
-func TestIsInvisible_RangesHoldForThisUnicode(t *testing.T) {
+func TestIsInvisible_RangesWereCheckedAgainstThisUnicode(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "17.0.0", unicode.Version)
+	assert.Equal(t, "17.0.0", unicode.Version,
+		"recheck isInvisible's ranges against DerivedCoreProperties.txt, then move this version")
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,

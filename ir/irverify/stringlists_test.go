@@ -102,7 +102,7 @@ func TestVerify_HeldListFixturesMatchTheRules(t *testing.T) {
 
 // TestVerify_BlankListEntryIsAViolation holds each path and set list to its
 // blank rule. An entry made only of runes Unicode calls invisible is as blank as
-// "", and each is reported at the entry, so the visible one beside them is not.
+// "", and each is reported at the entry, so the visible ones beside them are not.
 func TestVerify_BlankListEntryIsAViolation(t *testing.T) {
 	t.Parallel()
 	require.Empty(t, verifyDeclared(heldListDoc()), "the fixture must draw nothing of its own")

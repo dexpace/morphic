@@ -329,8 +329,10 @@ func isBlankName(s string) bool {
 func isInvisible(r rune) bool {
 	// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
 	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
-	// TestIsInvisible_RangesHoldForThisUnicode fails when a Go release moves
-	// unicode.Version, so that move rechecks both.
+	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
+	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
+	// TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release
+	// moves unicode.Version, so that move rechecks both.
 	const (
 		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
 		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
