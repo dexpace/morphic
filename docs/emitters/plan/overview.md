@@ -13,10 +13,46 @@ package plan
 func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagnostic)
 
 type Plan struct {
-    Ops     map[ir.OpID]OpPlan          // one entry per operation
-    Types   map[ir.TypeID]TypePlan      // one entry per registry type
-    Version string                      // hashes the document and policy it was built from (below)
+    Ops       map[ir.OpID]OpPlan        // one entry per operation
+    Types     map[ir.TypeID]TypePlan    // one entry per registry type
+    Examples  map[string][]Example      // by the ID of each type, property, parameter, enum
+                                        // member and operation: its declared examples, else
+                                        // its type's where it adds no constraint, else one
+                                        // synthesized, an operation's assembled; read by the
+                                        // docs, the samples, SDK tests and the mock
+                                        // (../docs-and-mock.md#one-set-of-examples)
+    Policy    Policy                    // the policy Build ran under, whose Examples Shown and
+                                        // MessageExamples read
+    Version   string                    // hashes the document and policy it was built from (below)
 }
+
+type Example struct {
+    Example  ir.Example                 // the example, as the IR spells one
+    Inferred ir.Inferred                // the steps that made it under Policy.Examples:
+                                        // synthesized, assembled or filled by Shown; "" =
+                                        // declared as it stands
+}
+
+// MaxExampleValues bounds the values one synthesized example holds; a larger one is reported
+// and left out.
+const MaxExampleValues = 10_000
+
+// The sets of the positions Examples has no key for: a content's and a variant's declared
+// examples that Build's check admits, else their type's set, and a message's, else those of its
+// payload's contents paired with its headers' set. Build reports what it refuses, so these report
+// nothing
+// (../docs-and-mock.md#one-set-of-examples).
+func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
+func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
+func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
+
+// Shown is ex, a value of t, as the shape in shows it, nil being unprojected: the members in does
+// not hold dropped, a key a catch-all admits kept, and each member in requires that ex lacks taken
+// from that member's set, which marks the result Inferred. A union value several variants admit
+// keeps each member one of them holds, Build having refused it for a Strict union. It is false for
+// a Strict union several variants admit in shape in and where a required member's set is empty,
+// so the caller takes the next.
+func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in *ModelShape) (Example, bool)
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
