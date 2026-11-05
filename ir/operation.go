@@ -208,6 +208,10 @@ type PartEncoding struct {
 	Explode *bool `json:"explode,omitzero"`
 	// Style is the form-style serialization for non-file parts.
 	Style string `json:"style,omitempty"`
+	// Inferred lists the heuristics that read Filename in, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares the part a file. It is set only where Filename is.
+	Inferred Inferred `json:"inferred,omitempty"`
 	// ContentTypes are the media type(s) of this part.
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
@@ -238,6 +242,10 @@ type FileInfo struct {
 	FilenameLocation string `json:"filenameLocation,omitempty"`
 	// FilenameWireName is the wire name when FilenameLocation is path/header.
 	FilenameWireName string `json:"filenameWireName,omitempty"`
+	// Inferred lists the heuristics that read the body as a file, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares it one.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // Response is one declared output of an Operation (docs/ir/responses.md). All

@@ -138,7 +138,7 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		w := newAdmission(c)
-		return passage{ref: ref, lost: true, admits: w.written(s), narrows: true}, true
+		return passage{ref: ref, lost: true, admits: w.written(s, w.nullable), narrows: true}, true
 	}
 	return passage{ref: ref}, true
 }

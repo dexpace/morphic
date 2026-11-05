@@ -521,22 +521,39 @@ func dispatchedTo(fn *types.Func, candidates []resolutionMember) []resolutionMem
 	return out
 }
 
-// baselineFindings compares uses, by package and member, with baseline and
-// returns one message per difference, sorted: a rise names each use, a fall
-// asks for the baseline to be lowered.
-func baselineFindings(baseline map[string]map[string]int, uses map[string]map[string][]token.Position, root string) []string {
+// ratchet is a table of counts that only shrinks, keyed by package and then by
+// what each counts in it, with how a difference from it reads: the variable
+// holding the table, what a count counts, and why a rise fails.
+type ratchet struct {
+	name   string
+	counts map[string]map[string]int
+	what   string
+	rise   string
+}
+
+// resolutionRatchet is how a difference from resolutionBaseline reads.
+var resolutionRatchet = ratchet{
+	name:   "resolutionBaseline",
+	counts: resolutionBaseline,
+	what:   "uses of",
+	rise:   "each deepens the compiler's dependence on the library's reference resolution (GitHub #558)",
+}
+
+// baselineFindings compares sites, by package and key, with r's counts and
+// returns one message per difference, sorted: a rise names each site, a fall
+// asks for the table to be lowered.
+func baselineFindings(r ratchet, sites map[string]map[string][]string) []string {
 	var out []string
-	for _, pkg := range sortedUnion(uses, baseline) {
-		for _, m := range sortedUnion(uses[pkg], baseline[pkg]) {
-			got, want := len(uses[pkg][m]), baseline[pkg][m]
+	for _, pkg := range sortedUnion(sites, r.counts) {
+		for _, key := range sortedUnion(sites[pkg], r.counts[pkg]) {
+			got, want := len(sites[pkg][key]), r.counts[pkg][key]
 			switch {
 			case got > want:
-				out = append(out, fmt.Sprintf("%s: %d uses of %s, over its baseline of %d; each deepens the "+
-					"compiler's dependence on the library's reference resolution (GitHub #558): %s",
-					pkg, got, m, want, positions(uses[pkg][m], root)))
+				out = append(out, fmt.Sprintf("%s: %d %s %s, over its baseline of %d; %s: %s",
+					pkg, got, r.what, key, want, r.rise, strings.Join(sites[pkg][key], ", ")))
 			case got < want:
-				out = append(out, fmt.Sprintf("%s: %d uses of %s, under its baseline of %d; lower "+
-					"resolutionBaseline to match", pkg, got, m, want))
+				out = append(out, fmt.Sprintf("%s: %d %s %s, under its baseline of %d; lower %s to match",
+					pkg, got, r.what, key, want, r.name))
 			}
 		}
 	}
@@ -555,18 +572,14 @@ func sortedUnion[A, B any](a map[string]A, b map[string]B) []string {
 	return keys
 }
 
-// positions renders where each use is, as "file:line", the file relative to
-// root when it is under it.
-func positions(at []token.Position, root string) string {
-	parts := make([]string, len(at))
-	for i, pos := range at {
-		file := pos.Filename
-		if rel, err := filepath.Rel(root, file); err == nil && filepath.IsLocal(rel) {
-			file = filepath.ToSlash(rel)
-		}
-		parts[i] = fmt.Sprintf("%s:%d", file, pos.Line)
+// relPosition renders pos as "file:line", the file relative to root when it is
+// under it.
+func relPosition(pos token.Position, root string) string {
+	file := pos.Filename
+	if rel, err := filepath.Rel(root, file); err == nil && filepath.IsLocal(rel) {
+		file = filepath.ToSlash(rel)
 	}
-	return strings.Join(parts, ", ")
+	return fmt.Sprintf("%s:%d", file, pos.Line)
 }
 
 // productionLoad type-checks every production package of the module once per
@@ -611,17 +624,23 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 	pkgs, err := productionLoad()
 	require.NoError(t, err)
 
-	uses := map[string]map[string][]token.Position{}
+	root := irtest.RepoRoot(t)
+	sites := map[string]map[string][]string{}
 	swept := false
 	for _, p := range pkgs {
 		rel := strings.TrimPrefix(p.Types.Path(), module+"/")
 		swept = swept || rel == "compilers/openapi/internal/load"
-		if u := resolutionUses(p, members); len(u) > 0 {
-			uses[rel] = u
+		for member, at := range resolutionUses(p, members) {
+			if sites[rel] == nil {
+				sites[rel] = map[string][]string{}
+			}
+			for _, pos := range at {
+				sites[rel][member] = append(sites[rel][member], relPosition(pos, root))
+			}
 		}
 	}
 	require.True(t, swept, "the sweep missed the package that drives the resolver, so a clean result proves nothing")
-	for _, finding := range baselineFindings(resolutionBaseline, uses, irtest.RepoRoot(t)) {
+	for _, finding := range baselineFindings(resolutionRatchet, sites) {
 		t.Error(finding)
 	}
 }
@@ -836,33 +855,49 @@ func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 
 // TestBaselineFindings_EveryDifferenceFails holds the comparison to its two
 // directions: a rise, in a package the baseline lists or one it does not, names
-// each use, and a fall, to zero included, asks for the baseline to be lowered.
+// each site, and a fall, to zero included, asks for the baseline to be lowered.
 func TestBaselineFindings_EveryDifferenceFails(t *testing.T) {
 	t.Parallel()
-	root := filepath.FromSlash("/repo")
-	at := func(lines ...int) []token.Position {
-		out := make([]token.Position, len(lines))
-		for i, l := range lines {
-			out[i] = token.Position{Filename: filepath.Join(root, "x", "x.go"), Line: l}
-		}
-		return out
+	r := ratchet{
+		name:   "table",
+		counts: map[string]map[string]int{"held": {"lib.A": 2, "lib.B": 1}, "gone": {"lib.A": 1}},
+		what:   "uses of",
+		rise:   "why",
 	}
-	baseline := map[string]map[string]int{"held": {"lib.A": 2, "lib.B": 1}, "gone": {"lib.A": 1}}
 
-	assert.Empty(t, baselineFindings(baseline, map[string]map[string][]token.Position{
-		"held": {"lib.A": at(1, 2), "lib.B": at(3)}, "gone": {"lib.A": at(4)},
-	}, root), "uses that match the baseline")
+	assert.Empty(t, baselineFindings(r, map[string]map[string][]string{
+		"held": {"lib.A": {"x.go:1", "x.go:2"}, "lib.B": {"x.go:3"}}, "gone": {"lib.A": {"x.go:4"}},
+	}), "sites that match the baseline")
 
 	assert.Equal(t, []string{
-		"gone: 0 uses of lib.A, under its baseline of 1; lower resolutionBaseline to match",
-		"held: 3 uses of lib.A, over its baseline of 2; each deepens the compiler's dependence on the " +
-			"library's reference resolution (GitHub #558): x/x.go:1, x/x.go:2, x/x.go:5",
-		"held: 0 uses of lib.B, under its baseline of 1; lower resolutionBaseline to match",
-		"new: 1 uses of lib.C, over its baseline of 0; each deepens the compiler's dependence on the " +
-			"library's reference resolution (GitHub #558): x/x.go:7",
-	}, baselineFindings(baseline, map[string]map[string][]token.Position{
-		"held": {"lib.A": at(1, 2, 5)}, "new": {"lib.C": at(7)},
-	}, root))
+		"gone: 0 uses of lib.A, under its baseline of 1; lower table to match",
+		"held: 3 uses of lib.A, over its baseline of 2; why: x.go:1, x.go:2, x.go:5",
+		"held: 0 uses of lib.B, under its baseline of 1; lower table to match",
+		"new: 1 uses of lib.C, over its baseline of 0; why: x.go:7",
+	}, baselineFindings(r, map[string]map[string][]string{
+		"held": {"lib.A": {"x.go:1", "x.go:2", "x.go:5"}}, "new": {"lib.C": {"x.go:7"}},
+	}))
+}
+
+// TestRelPosition_NamesAFileUnderRootFromIt holds the rendering to both sides
+// of root: a file under it is named from it, in slashes, and one outside it by
+// its own path.
+func TestRelPosition_NamesAFileUnderRootFromIt(t *testing.T) {
+	t.Parallel()
+	root := filepath.FromSlash("/repo")
+	elsewhere := filepath.FromSlash("/elsewhere/x.go")
+	tests := []struct {
+		name, file, want string
+	}{
+		{"a file under root", filepath.Join(root, "x", "x.go"), "x/x.go:3"},
+		{"a file outside root", elsewhere, elsewhere + ":3"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, relPosition(token.Position{Filename: tc.file, Line: 3}, root))
+		})
+	}
 }
 
 // loadOverlaid type-checks the package at dir, a directory of the repository,

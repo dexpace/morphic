@@ -139,7 +139,7 @@ func refinableBranches(comp allOfComposition) bool {
 // conjuncts of their own.
 func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: w.written(s), says: saysKind(s)})
+	out = append(out, conjunct{read: w.written(s, w.nullable), says: saysKind(s)})
 	for i := range comp.branches {
 		e := &comp.branches[i]
 		bs := e.schema.GetSchema()
@@ -148,7 +148,7 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 		case isRefBranch(e.schema):
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
-			out = append(out, conjunct{branch: e, read: w.written(bs), says: saysKind(bs)})
+			out = append(out, conjunct{branch: e, read: w.written(bs, w.nullable), says: saysKind(bs)})
 		}
 	}
 	return out

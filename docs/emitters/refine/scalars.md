@@ -22,8 +22,9 @@
   and a projection of it ([visibility](models.md#visibility-projections--n-wire-shapes)) is its
   root's. The target knows which of its built-in types have methods, and takes a type only a user's
   row names ([type table](../contract/type-table.md)) to have some. An enum is outside this line: it
-  declares its own codec ([enums](enums.md)), which reads and writes its value type through that
-  type's row, so it is a defined type whatever its value type maps to.
+  declares its own codec, which writes each member's wire form and compares a value with the members
+  as JSON does ([enums](enums.md#a-member-on-the-wire)), so it is a defined type whatever its value
+  type maps to.
 - **External** ([containers](../../ir/containers.md)): `External{Identity, Package, MinVersion}`
   becomes the type its type-table row names for `Identity`
   ([type table](../contract/type-table.md)), imported with the row's `Imports` and required at its

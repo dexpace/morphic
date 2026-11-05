@@ -31,9 +31,11 @@ GO ?= go
 # Moving this means moving GOLANGCI_LINT_VERSION with it, to a release whose
 # staticcheck knows the new stdlib; moving golang.org/x/tools in go.mod to a
 # release that reads the new toolchain's export data, which internal/archtest
-# and internal/decls type-check packages through; and rewriting the two rows of
-# rawDivergences that pin an encoding/json escape (#431). Bump the four
-# together or the gate fails on something other than the change under test.
+# and internal/decls type-check packages through; rewriting the two rows of
+# rawDivergences that pin an encoding/json escape (#431); and setting any count
+# of internal/archtest's callShapeBaseline that the new SSA build moves, saying
+# why (#1478). Bump them together or the gate fails on something other than the
+# change under test.
 GO_VERSION := $(shell sed -n 's/^go //p' go.mod)
 ifeq ($(GO_VERSION),)
 $(error no go directive found in go.mod; the toolchain pin has nothing to read)
