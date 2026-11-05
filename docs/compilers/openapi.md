@@ -309,7 +309,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
   is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
-  admits it (#1466).
+  admits it, and a schema only the draft places, such as a tuple's entry, is held to none where no
+  `$ref` reaches it (#1466).
 
 ### `minor-required-fields`
 
@@ -2840,11 +2841,13 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
   dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
-  [`tuples`](#tuples), [`references`](#references)), and holds a `definitions` entry no `$ref`
-  reaches to none (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as 2020-12 reads
-  it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never expanded as
-  its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self` roots a
-  resource of its own, as the document is known by its location alone (#863).
+  [`tuples`](#tuples), [`references`](#references)), and holds a `definitions` entry, a tuple's
+  entry or its `additionalItems` to none where no `$ref` reaches it, so a tuple's entry or rest
+  written as a number, a string or a list, such as `additionalItems: 5`, lowers as `false` does, and
+  a `null` as one left out (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
+  2020-12 reads it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never
+  expanded as its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self`
+  roots a resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
