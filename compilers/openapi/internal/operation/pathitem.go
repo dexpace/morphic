@@ -178,8 +178,9 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 	for i, lo := range ops {
 		l, po := layers[lo.layer], lo.op
 		// An additionalOperations entry past the mount's first is charged what it
-		// copies (recopied), as the fixed methods, which bound their own copies,
-		// are not; and none lowers once the budget is crossed.
+		// copies (chargeItemCopy), as the fixed methods, which bound their own
+		// copies, are not; and none lowers once the budget is crossed, whatever
+		// copy crossed it.
 		charged := i > 0 && po.additional
 		if charged && lowering.ExpansionCrossed(l.in) {
 			break // the document is refused, so no copy past the budget lowers
@@ -196,10 +197,10 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		}
 		diags = append(diags, keepOn(&op, kept)...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
-		// mergeParameters puts the operation's own parameters first, so what
-		// follows them is what it takes of its item's.
-		if charged && !recopied(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):]) {
-			break // past the budget the document is refused, so nothing more need copy
+		if charged {
+			// mergeParameters puts the operation's own parameters first, so what
+			// follows them is what it takes of its item's.
+			chargeItemCopy(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):])
 		}
 	}
 	return mounted, diags

@@ -329,12 +329,12 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 		"what another document holds, read at the source's coordinates, has no position of its own")
 }
 
-// TestRecopied_ChargesTheRunsExpansion pins the two charges a copy made with
-// no $ref adds to the budget: a declaration, weighed as the grammar reads its
-// position, here a path item's parameter weighing 25 as paramP's does, and raw
-// bytes beside it. Past the budget the run is refused, and a zero context
+// TestChargeExpansion_ChargesTheRunsExpansion pins the two charges a copy made
+// with no $ref adds to the budget: a declaration, weighed as the grammar reads
+// its position, here a path item's parameter weighing 25 as paramP's does, and
+// raw bytes beside it. Past the budget the run is refused, and a zero context
 // bounds nothing.
-func TestRecopied_ChargesTheRunsExpansion(t *testing.T) {
+func TestChargeExpansion_ChargesTheRunsExpansion(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -348,17 +348,17 @@ paths:
 	require.True(t, ok)
 	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
 
-	assert.True(t, lowering.RecopiedAt(c, "/paths/~1a/parameters/0", param), "a copy weighing 25 is within 28")
-	assert.True(t, lowering.Recopied(c, 3), "and three raw bytes beside it reach the budget")
+	lowering.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
+	lowering.ChargeExpansion(c, 3)
 	_, refused := c.ExpansionRefusal()
-	assert.False(t, refused)
+	assert.False(t, refused, "a copy weighing 25 and three raw bytes beside it reach the budget of 28")
 	assert.False(t, lowering.ExpansionCrossed(c), "a budget reached is not crossed")
-	assert.False(t, lowering.Recopied(c, 1), "one more crosses it")
+	lowering.ChargeExpansion(c, 1)
 	_, refused = c.ExpansionRefusal()
-	assert.True(t, refused)
+	assert.True(t, refused, "one more crosses it")
 	assert.True(t, lowering.ExpansionCrossed(c))
-	assert.False(t, lowering.RecopiedAt(c, "/paths/~1a/parameters/0", param), "once crossed, nothing is admitted")
 
-	assert.True(t, lowering.Recopied(lowering.Ctx{}, 1<<40), "a zero context's expansion bounds nothing")
-	assert.False(t, lowering.ExpansionCrossed(lowering.Ctx{}))
+	zero := lowering.Ctx{}
+	lowering.ChargeExpansion(zero, 1<<40)
+	assert.False(t, lowering.ExpansionCrossed(zero), "a zero context's expansion bounds nothing")
 }

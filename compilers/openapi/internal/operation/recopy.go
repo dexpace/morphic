@@ -11,19 +11,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// recopied charges the run's expansion budget what an additionalOperations
-// entry past its mount's first copies of what the mount's item declares itself:
-// kept, the bytes of the entries kept onto it; servers, those of the servers it
-// takes; and the item's inline parameters among taken, those the merge left it.
-// Declared charges an item's $ref'd parameters at every operation. 3.2's
-// additionalOperations admits any number of operations, so these grow as
-// operations times what the item declares (GitHub #1428), as no fixed
-// method's do. It reports whether the copies so far are within the budget,
-// read in c, the mount's context.
-func recopied(c lowering.Ctx, kept, servers int, taken []sourcedParam) bool {
-	if !lowering.Recopied(c, kept+servers) {
-		return false
-	}
+// chargeItemCopy charges the run's expansion budget, in c, the mount's
+// context, what an additionalOperations entry past its mount's first copies of
+// what the mount's item declares itself: kept, the bytes of the entries kept
+// onto it; servers, those of the servers it takes; and the item's inline
+// parameters among taken, those the merge left it. Declared charges an item's
+// $ref'd parameters at every operation. 3.2's additionalOperations admits any
+// number of operations, so these grow as operations times what the item
+// declares (GitHub #1428), as no fixed method's do.
+func chargeItemCopy(c lowering.Ctx, kept, servers int, taken []sourcedParam) {
+	lowering.ChargeExpansion(c, kept+servers)
 	for _, sp := range taken {
 		if sp.ref.IsReference() {
 			continue
@@ -32,11 +29,10 @@ func recopied(c lowering.Ctx, kept, servers int, taken []sourcedParam) bool {
 		if sp.in != nil {
 			pc = *sp.in
 		}
-		if p := sp.ref.GetObject(); p != nil && !lowering.RecopiedAt(pc, sp.pointer, p.GetRootNode()) {
-			return false
+		if p := sp.ref.GetObject(); p != nil {
+			lowering.ChargeExpansionAt(pc, sp.pointer, p.GetRootNode())
 		}
 	}
-	return true
 }
 
 // keptWeight returns what a copy of kept weighs: for each entry, the keyword

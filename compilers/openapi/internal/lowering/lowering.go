@@ -143,10 +143,10 @@ type Ctx struct {
 
 	// expansion charges each $ref Declared resolves what the declarations its
 	// chain names weigh, and each additionalOperations entry what it copies of
-	// its path item (Recopied). Copies share it on purpose: the budget is the
-	// run's, so once it is crossed no copy lowers a $ref or such an entry, which
-	// is the answer it changes, and the run is refused (ExpansionRefusal). Nil
-	// in a zero context, which bounds nothing.
+	// its path item (ChargeExpansion). Copies share it on purpose: the budget is
+	// the run's, so once it is crossed no copy lowers a $ref or such an entry,
+	// which is the answer it changes, and the run is refused
+	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
 	expansion *expansion
 }
 
@@ -386,7 +386,8 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// what that weighs. One past the budget resolves to nothing, as an unresolved
 	// $ref does, so no caller lowers another copy and none costs anything. An
 	// inline entry is not charged here: a path item's own inline parameters are
-	// charged where its additionalOperations entries take them (RecopiedAt).
+	// charged where its additionalOperations entries take them
+	// (ChargeExpansionAt).
 	if obj != nil && ref.GetReference() != "" &&
 		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
 		return nil, c, usePtr

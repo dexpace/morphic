@@ -22,7 +22,7 @@ import (
 // aside, lowers again at every $ref naming it (GitHub #1240), so each such $ref
 // is charged what the declarations its chain names weigh, and the sum bounds
 // the product of references and size that the source budgets leave free, as
-// it bounds what a path item's additionalOperations copy (Recopied). A
+// it bounds what a path item's additionalOperations copy (ChargeExpansion). A
 // declaration is weighed once for each reading and remembered: one weighed past
 // what was left is remembered past it, which nothing reads again, since the
 // budget is then crossed.
@@ -71,27 +71,30 @@ func (e *expansion) admit(at bind.Reading, roots ...*yaml.Node) bool {
 	return true
 }
 
-// spend charges raw, what a copy holds as raw values, and reports whether the
-// copies so far are within the budget. A nil expansion admits every copy.
-func (e *expansion) spend(raw int) bool {
-	return e == nil || e.spent.Spend(raw)
+// spend charges raw, what a copy holds as raw values. A nil expansion charges
+// nothing.
+func (e *expansion) spend(raw int) {
+	if e != nil {
+		e.spent.Spend(raw)
+	}
 }
 
-// RecopiedAt charges the expansion one more copy of the declaration at node,
-// written at at in c's document, that a lowering makes with no $ref naming it:
-// an inline parameter of a path item, at each additionalOperations entry past
-// the item's first operation (GitHub #1428). It weighs the copy as Declared
-// weighs a $ref's, and reports whether the copies so far are within the budget.
-func RecopiedAt(c Ctx, at jsontext.Pointer, node *yaml.Node) bool {
-	return c.expansion.admit(readingOf(c, at), node)
+// ChargeExpansionAt charges the expansion one more copy of the declaration at
+// node, written at at in c's document, that a lowering makes with no $ref
+// naming it: an inline parameter of a path item, at each additionalOperations
+// entry past the item's first operation (GitHub #1428). It weighs the copy as
+// Declared weighs a $ref's. Whether the copies have crossed the budget is
+// ExpansionCrossed's to say.
+func ChargeExpansionAt(c Ctx, at jsontext.Pointer, node *yaml.Node) {
+	c.expansion.admit(readingOf(c, at), node)
 }
 
-// Recopied charges the expansion raw more bytes that a lowering copies as raw
-// values with no $ref naming them: what a path item keeps onto each
+// ChargeExpansion charges the expansion raw more bytes that a lowering copies
+// as raw values with no $ref naming them: what a path item keeps onto each
 // additionalOperations entry past its first operation, and the servers it
-// names on them. It reports whether the copies so far are within the budget.
-func Recopied(c Ctx, raw int) bool {
-	return c.expansion.spend(raw)
+// names on them.
+func ChargeExpansion(c Ctx, raw int) {
+	c.expansion.spend(raw)
 }
 
 // ExpansionCrossed reports whether the copies made so far weigh past the
