@@ -169,6 +169,32 @@ class LintTest(unittest.TestCase):
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
+    def test_a_pattern_or_a_ref_in_a_span_names_no_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each holds a "/" in a form no repository path takes: a pattern, a ref or a refspec.
+        spans = ("`grep -E 'testify|go-cmp|golang.org/x/tools'`, `sed 's/^a/b/'`, "
+                 "`grep 'a\\/b'`, `refs/remotes/origin/main`, "
+                 "`git fetch <url> main:refs/remotes/origin/main`, "
+                 "`git restore --worktree :/`, `gone/a.go:12`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go:12 does not exist"])
+
+    def test_a_rule_cited_by_its_key_alone_is_reported(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, GOOD_SKILL + "Cite `#do-the-thing`, not `#N`, `#1234` or `#`.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [
+            f"{skill}:{n}: cites #do-the-thing by its key alone: cite references/<file>.md#do-the-thing"])
+
+    def test_a_repository_script_is_found_beside_the_skills_own(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        script(self.root, "scripts/fuzz.sh", "true\n")
+        write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/fuzz.sh`, "
+              "`scripts/tool.py` and `scripts/none.sh`.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: scripts/none.sh does not exist"])
+
     def test_a_path_the_tree_lacks_may_name_the_go_toolchains_sources(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         src = Path(self.dir.name) / "goroot" / "src"
