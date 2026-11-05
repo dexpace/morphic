@@ -327,13 +327,16 @@ func TestRaceListViolations_PipelineRootsCountOnlyWhatMakeRaceReaches(t *testing
 	// Not reported: outside the roots, a test's no-argument call to another method.
 	writeDocFile(t, filepath.Join(root, "helperonly", "p_test.go"),
 		"package p\n\nimport \"testing\"\n\nfunc TestRuns(t *testing.T) {\n\tt.Helper()\n}\n")
+	// Reported: a subtree entry under a root widens `make race` to packages it leaves to
+	// `make race-pipeline`, though the directory it covers does show a signal.
+	writeGoStmt(t, filepath.Join(root, "pipe", "wide", "w_test.go"), "wide")
 	// Reported: an entry with no "/..." does not cover the directory below it.
 	writeGoStmt(t, filepath.Join(root, "plain", "w_test.go"), "plain")
 	writeGoStmt(t, filepath.Join(root, "plain", "child", "w_test.go"), "child")
 
 	got, err := raceListViolations(root, raceRule{
 		roots:        []string{"pipe", "gone"},
-		entries:      []string{"pipe/both", "pipe/listedpar", "plain"},
+		entries:      []string{"pipe/both", "pipe/listedpar", "pipe/wide/...", "plain"},
 		exempt:       map[string]string{"pipe/skipped": "r"},
 		pipelineOnly: map[string]string{"pipe/syncd": "r", "pipe/both": "r", "pipe/calm": "r", "outside": "r"},
 	})
@@ -341,6 +344,7 @@ func TestRaceListViolations_PipelineRootsCountOnlyWhatMakeRaceReaches(t *testing
 	want := []string{
 		`./gone/...: is a pipeline root covering no Go package`,
 		`./pipe/listedpar: covers no package that needs the race run`,
+		"./pipe/wide/...: is a subtree under a pipeline root, which `make race` names package by package",
 		`outside: is in racePipelineOnly but lies under no pipeline root, so it belongs in raceExempt`,
 		`pipe/both: is on the race list and in racePipelineOnly, which are exclusive`,
 		`pipe/calm: is in racePipelineOnly but shows no sync import or goroutine`,
@@ -574,7 +578,8 @@ func raceNeeds(root string, roots []string) (raceTree, error) {
 // raceListViolations returns, sorted, one message for each way rule disagrees
 // with the directories under root that need `make race` (raceNeeds): one that
 // is on no list, in no raceExempt and in no racePipelineOnly; an entry that
-// covers no such directory; a root covering no Go package; and each problem
+// covers no such directory; a subtree entry under a root; a root covering no
+// Go package; and each problem
 // exemptionProblem and deferralProblem name. Paths are relative to root.
 func raceListViolations(root string, rule raceRule) ([]string, error) {
 	tree, err := raceNeeds(root, rule.roots)
@@ -595,6 +600,11 @@ func raceListViolations(root string, rule raceRule) ([]string, error) {
 	for _, e := range rule.entries {
 		if !slices.ContainsFunc(slices.Collect(maps.Keys(tree.needs)), func(dir string) bool { return raceCovers(e, dir) }) {
 			out = append(out, "./"+e+": covers no package that needs the race run")
+		}
+		if dir, subtree := strings.CutSuffix(e, raceSubtree); subtree {
+			if _, under := pipelineRootOf(rule.roots, dir); under {
+				out = append(out, "./"+e+": is a subtree under a pipeline root, which `make race` names package by package")
+			}
 		}
 	}
 	for _, r := range rule.roots {
