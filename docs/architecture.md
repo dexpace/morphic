@@ -638,8 +638,9 @@ The import rules bound what a package names, not where control goes: a package c
 one it does not import, through a function, an interface or a type argument handed to it.
 `internal/archtest` counts those calls for each pair of packages and holds them to
 `callShapeBaseline`, where each pair says what its calls are: a designed seam such as the registry
-calling a compiler, a traversal or immediate callback, or one that #1488 removes. A new such call
-is a change to that table, made on purpose, rather than one no check sees.
+calling a compiler, a traversal or immediate callback, a function #1488 keeps, such as I/O or a
+policy, or one that #1488 removes. A new such call is a change to that table, made on purpose,
+rather than one no check sees.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI

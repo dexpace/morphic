@@ -43,8 +43,10 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
-		// whole and in order (#898): a designed seam. Types.Intern also calls the
-		// build schema hands it before it returns: an immediate callback.
+		// whole and in order (#898), and Types.Promise's queue builds a node a
+		// reference names that no lowering built: designed seams. Types.Intern
+		// also calls the build schema hands it before it returns: an immediate
+		// callback.
 		"compilers/openapi/internal/operation": 2,
 		"compilers/openapi/internal/schema":    4,
 	},
@@ -275,6 +277,9 @@ func callGraph(p program) *callgraph.Graph {
 
 // callRunner is the package whose calls are not counted: barrier runs the code
 // its caller hands it, so each call it makes into another package runs back up.
+// So a function the caller was handed and passes on to barrier as it is goes
+// unseen, as a call back through a library does
+// (TestCallShape_MissesAFunctionHandedOnToTheRunner).
 const callRunner = "barrier"
 
 // importsOf returns, for each package of own, the packages it imports, directly
@@ -524,6 +529,32 @@ func Plant() { lower.Hold(func() {}); lower.Run(); lower.Sweep(func(int) {}) }`}
 	calls, err := reversedCalls(p)
 	require.NoError(t, err)
 	assert.Empty(t, calls)
+}
+
+// TestCallShape_MissesAFunctionHandedOnToTheRunner pins what leaving the
+// runner's calls out costs: lower hands barrier the function upper handed it,
+// so the call into upper is barrier's, and goes unseen. Called inside a closure
+// of lower's own, it is lower's call, and counts.
+func TestCallShape_MissesAFunctionHandedOnToTheRunner(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, run string
+		want      map[string]map[string]int
+	}{
+		{"handed on as it is", "barrier.Catch(f)", map[string]map[string]int{}},
+		{"called in a closure of lower's", "barrier.Catch(func() { f() })",
+			map[string]map[string]int{"lower": {"upper": 1}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, plantedCounts(t, []plantedPackage{
+				{callRunner, "package barrier\nfunc Catch(f func()) { f() }"},
+				{"lower", "package lower\nimport \"barrier\"\nfunc Run(f func()) { " + tc.run + " }"},
+				{"upper", "package upper\nimport \"lower\"\nfunc Plant() { lower.Run(func() {}) }"},
+			}))
+		})
+	}
 }
 
 // TestCallShape_LeavesOutWhatOnlyTestsReach plants the shape that a test-support
