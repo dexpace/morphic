@@ -23,8 +23,9 @@ func TestIsAnchorName(t *testing.T) {
 
 // TestIsPlainName pins the plain names the JSON Schema drafts before 2020-12
 // declare an anchor by: a letter, then letters, digits, '-', '_', ':' and '.',
-// so a colon is one and a leading '_' is not, and anchorNamed reads by it
-// where the dialect's rule says so.
+// so a colon is one and a leading '_' is not. anchorNamed reads by it an
+// identifier naming a fragment alone, and an `$anchor` where the rule says so,
+// and by 2020-12's grammar any other, `$dynamicAnchor` among them.
 func TestIsPlainName(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]bool{
@@ -32,7 +33,10 @@ func TestIsPlainName(t *testing.T) {
 		"a/b": false, "é": false,
 	} {
 		assert.Equal(t, want, isPlainName(name), "%q", name)
-		assert.Equal(t, want, anchorNamed(DialectRule{PlainNames: true}, name), "%q", name)
-		assert.Equal(t, isAnchorName(name), anchorNamed(DialectRule{}, name), "%q", name)
+		draft := DialectRule{Keyword: "id", Fragments: true}
+		assert.Equal(t, want, anchorNamed(draft, "id", name), "%q", name)
+		assert.Equal(t, isAnchorName(name), anchorNamed(draft, "$anchor", name), "%q", name)
+		assert.Equal(t, want, anchorNamed(DialectRule{PlainNames: true}, "$anchor", name), "%q", name)
+		assert.Equal(t, isAnchorName(name), anchorNamed(DialectRule{PlainNames: true}, "$dynamicAnchor", name), "%q", name)
 	}
 }

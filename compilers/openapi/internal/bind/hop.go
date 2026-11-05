@@ -266,10 +266,14 @@ func DynamicFragment(ref string) (name, why string, ok bool) {
 	return name, "", true
 }
 
-// anchorNamed reports whether s is a name an anchor can declare in a schema
-// read as rule says: by the drafts' plain-name grammar or by 2020-12's.
-func anchorNamed(rule DialectRule, s string) bool {
-	if rule.PlainNames {
+// anchorNamed reports whether s is a name keyword can declare as an anchor in
+// a schema read as rule says: by the drafts' plain-name grammar for an
+// identifier naming a fragment alone, and for `$anchor` where the dialect
+// gives it that grammar (DialectRule.PlainNames), as 2019-09 does; by
+// 2020-12's for any other, as for `$dynamicAnchor`, which 2020-12 added, and
+// for an `$anchor` in a draft defining none, read as 2020-12 reads it.
+func anchorNamed(rule DialectRule, keyword, s string) bool {
+	if keyword == rule.Keyword || keyword == "$anchor" && rule.PlainNames {
 		return isPlainName(s)
 	}
 	return isAnchorName(s)

@@ -211,7 +211,9 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 // its schema's dialect: the drafts before 2020-12 admit a colon and no leading
 // '_', 2020-12 the reverse, so 2019-09's `$anchor: a:b` and draft 7's
 // `$id: '#a:b'` each declare a name a $ref resolves to, where 2020-12's
-// `$anchor: a:b` and 2019-09's `$anchor: _x` are refused.
+// `$anchor: a:b` and 2019-09's `$anchor: _x` are refused. A keyword 2020-12
+// added that the draft defines none of, draft 7's `$anchor` and 2019-09's
+// `$dynamicAnchor`, takes 2020-12's grammar, as it is read as 2020-12 reads it.
 func TestOlderDrafts_AnAnchorTakesItsDraftsGrammar(t *testing.T) {
 	t.Parallel()
 	schema := func(name, draft, defs, decl, anchor string) string {
@@ -229,13 +231,17 @@ func TestOlderDrafts_AnAnchorTakesItsDraftsGrammar(t *testing.T) {
 	_, diags := parseFull(t, openapitest.ComponentSpec(schema("A", draft2019, "$defs", "$anchor", "a:b")+
 		schema("S", draft07, "definitions", "$id", "e:f")+
 		schema("N", "", "$defs", "$anchor", "c:d")+
-		schema("U", draft2019, "$defs", "$anchor", "_x")))
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$defs/L/$anchor", "/components/schemas/U/$defs/L/$anchor"},
-		openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
+		schema("U", draft2019, "$defs", "$anchor", "_x")+
+		schema("V", draft07, "$defs", "$anchor", "_y")+
+		schema("W", draft2019, "$defs", "$dynamicAnchor", "_z")+
+		schema("X", draft07, "$defs", "$anchor", "g:h")))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$defs/L/$anchor", "/components/schemas/U/$defs/L/$anchor",
+		"/components/schemas/X/$defs/L/$anchor"}, openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
 	refs := unresolvedRefs(diags)
 	unresolved := make([]jsontext.Pointer, 0, len(refs))
 	for _, d := range refs {
 		unresolved = append(unresolved, d.Provenance.Pointer)
 	}
-	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/N/properties/a", "/components/schemas/U/properties/a"}, unresolved)
+	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/N/properties/a", "/components/schemas/U/properties/a",
+		"/components/schemas/X/properties/a"}, unresolved)
 }

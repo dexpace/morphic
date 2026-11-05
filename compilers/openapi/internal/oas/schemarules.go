@@ -23,7 +23,11 @@ type SchemaRules struct{ rows *schemaRows }
 // name, and the RuleRequiredWhen rules holding there. It is built once and
 // never written.
 type schemaRows struct {
-	fields   map[string]Field
+	fields map[string]Field
+	// own is the minor's own keywords a dialect reading others replaces, by
+	// name, which judge the format of one the dialect defines none of
+	// (formatField).
+	own      map[string]Field
 	required []Rule
 	minor    Minor
 	// ignoresRefFields reports that the dialect, not the minor, ignores the
@@ -54,8 +58,15 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	}
 	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor, ignoresRefFields: d.ignoresRefFields}
 	for _, f := range obj.Fields {
-		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
+		switch {
+		case !f.Defined.Holds(minor):
+		case keywords == nil || !f.Keyword:
 			rows.fields[f.Name] = f
+		default:
+			if rows.own == nil {
+				rows.own = map[string]Field{}
+			}
+			rows.own[f.Name] = f
 		}
 	}
 	for _, f := range keywords {
@@ -117,12 +128,25 @@ func (r SchemaRules) Formatted(name string, f Format) bool {
 // format the rows give the field, and false where it is, or the rows give the
 // field none.
 func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
-	f, ok := r.field(o.Field)
+	f, ok := r.formatField(o.Field)
 	if !ok || f.Format == FormatNone || validFormat(f.Format, o.Value.Value) {
 		return ir.Diagnostic{}, false
 	}
 	return o.Finding(diag.Validation+"/"+classFormat, "Schema Object field %q must be %s in this schema's dialect",
 		o.Field, describeFormat(f.Format)), true
+}
+
+// formatField returns the row giving the field name its format: the dialect's,
+// or the minor's own for a keyword the dialect defines none of, as a keyword
+// 2020-12 added reads in a draft's schema (GitHub #820), an `$anchor` in draft
+// 7 among them. An `$id` the dialect spells otherwise, as draft 4 does `id`, is
+// read for nothing, so nothing gives it one.
+func (r SchemaRules) formatField(name string) (Field, bool) {
+	if f, ok := r.field(name); ok || r.rows == nil || name == "$id" {
+		return f, ok
+	}
+	f, ok := r.rows.own[name]
+	return f, ok
 }
 
 // NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a

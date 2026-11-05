@@ -70,10 +70,10 @@ type Config struct {
 // With Fragments an identifier naming a fragment alone declares that plain
 // name, with Definitions a schema's `definitions` holds schemas, and with
 // Dependencies a schema in its `dependencies` is one, as the drafts before
-// 2019-09 have them, with PlainNames an anchor takes the drafts' plain-name
-// grammar (isPlainName), and with Tuples an `items` written as a list is a
-// tuple, as those before 2020-12 have it. With NamesNone the value names no
-// dialect, so a `$schema` writing it chooses none.
+// 2019-09 have them, with PlainNames `$anchor` takes the plain-name grammar
+// (isPlainName), as 2019-09's does, and with Tuples an `items` list is a
+// tuple, as before 2020-12. With NamesNone the value names no dialect, so a
+// `$schema` writing it chooses none.
 type DialectRule struct {
 	Keyword      string
 	Fragments    bool

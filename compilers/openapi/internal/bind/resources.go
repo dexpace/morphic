@@ -150,7 +150,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 		if keyword == rule.Keyword {
 			name, ok = fragmentOnly(name, ok && rule.Fragments)
 		}
-		if !ok || !anchorNamed(rule, name) {
+		if !ok || !anchorNamed(rule, keyword, name) {
 			continue
 		}
 		k := anchorKey{root: res.root, name: name}

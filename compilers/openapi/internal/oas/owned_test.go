@@ -91,10 +91,12 @@ func TestSchemaRules_FormatFindingJudgesAnIDInItsDialect(t *testing.T) {
 
 // TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect pins the grammar of
 // an anchor's name, which the check leaves to its caller: 2020-12's, a letter
-// or '_', then letters, digits, '-', '_' and '.', and 2019-09's, a letter, then
-// letters, digits, '-', '_', ':' and '.'. 2019-09 has no $dynamicAnchor to judge.
+// or '_', then letters, digits, '-', '_' and '.', and 2019-09's `$anchor`'s, a
+// letter, then letters, digits, '-', '_', ':' and '.'. A dialect defining no
+// such keyword, 2019-09 no `$dynamicAnchor` and draft 7 no `$anchor`, judges
+// one by 2020-12's, as it reads one. Draft 4's `$id`, read for nothing, is
+// judged by none.
 func TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect(t *testing.T) {
-	const draft2019 = "https://json-schema.org/draft/2019-09/schema"
 	for _, tc := range []struct {
 		field, name, dialect string
 		refused              bool
@@ -105,7 +107,11 @@ func TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect(t *testing.T) {
 		{"$anchor", "a:b", draft2019, false},
 		{"$anchor", "_x", draft2019, true},
 		{"$dynamicAnchor", "a:b", "", true},
-		{"$dynamicAnchor", "a:b", draft2019, false},
+		{"$dynamicAnchor", "a:b", draft2019, true},
+		{"$dynamicAnchor", "_x", draft2019, false},
+		{"$anchor", "_x", draft07, false},
+		{"$anchor", "1a", draft07, true},
+		{"$id", "#a", draft04, false},
 	} {
 		var n yaml.Node
 		require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
