@@ -16,12 +16,13 @@ throughout these documents.
    positional models serialize by index; `WireID==0` ≠ absent.
 5. **T-5 · No-float64** — numeric defaults/constraints/enum values round-trip through `BigVal` with
    no float parsing, including any constraint-merge path.
-6. **T-6 · Determinism / golden IR→artifact** — identical IR ⇒ identical bytes; a scoped run equals
-   the corresponding slice of a full run.
+6. **T-6 · Determinism / golden IR→artifact** — identical inputs, the prior manifest among them ⇒
+   identical bytes; a scoped run equals the corresponding slice of a full run.
 7. **T-7 · Diagnostic-not-silence** — every un-lowerable construct emits a coded diagnostic, never a
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
-8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
+8. **T-8 · Manifest ID-keying** — the entity→symbol map survives a rename of what an ID is not
+   built from, such as an `operationId`, and, through the correlation key, a renamed path variable.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
@@ -236,11 +237,11 @@ throughout these documents.
     draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
     `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
     envelope that matches it, or as with none, drawing `emitters/plan/envelope-flag-mismatch` once
-    and only then; one no body matches, and an `Except` or `Bases` entry naming nothing, draw
-    `emitters/plan/envelope-unused`. Each field a match sets is marked `Inferred` as `envelope:` and
-    the envelope's `Name`; the docs emitter shows the member at `Value` of a response's example as
-    what the method returns, and the mock sends the envelope whole; and the surface differ reports a
-    body that gains the last name `Members` lists as a break
+    and only then; one no body matches draws `emitters/plan/envelope-unused`, and an `Except` or
+    `Bases` entry naming nothing `emitters/unmatched-key`. Each field a match sets is marked
+    `Inferred` as `envelope:` and the envelope's `Name`; the docs emitter shows the member at
+    `Value` of a response's example as what the method returns, and the mock sends the envelope
+    whole; and the surface differ reports a body that gains the last name `Members` lists as a break
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
     [return shapes](../operations/returns.md)).
 33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on a path item,
@@ -306,3 +307,37 @@ throughout these documents.
     leaves the enum's form as it would be without it, and every member is written as a value JSON
     compares equal to the wire form of the first member holding its value ([a member on the
     wire](../refine/enums.md#a-member-on-the-wire)).
+39. **T-39 · Shipped names** — on every target, a generation whose operation collides with nothing,
+    then a revision adding one that collides with it and whose ID sorts before it, so that ID order
+    alone would hand the newcomer the name, regenerated against the first generation's manifest,
+    keeps the first symbol unchanged and gives the newcomer a suffix; the first generation is
+    byte-identical in both declaration orders; a renamed `operationId` renames its symbol, and a
+    renamed path variable keeps it, a suffix included, and so do the symbols derived from it; an ID
+    that now names another entity, its correlation key differing, is not pinned; an entity with no
+    key is never pinned, and a removed and an added one are not matched; a prior manifest of another
+    `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
+    suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
+    suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
+    is passed over; and on Multiplatform a type added in another unit, its ID sorting first, leaves
+    an incumbent's Objective-C name as it shipped
+    ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
+40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
+    spec reformatted, one drawing a warning among them, is the same generation; a generated file
+    edited outside its regions is reported and neither overwritten nor pruned, by the next
+    generation too, an entity a rename moves out of it written in its new place and its regions left
+    in the kept file, written once, while one edited only inside a region, or checked out with other
+    line endings, is not an edit; a region follows its entity into the file a rename moves it to,
+    one the declaration enclosed still inside it, and one whose entity is gone is reported and its
+    file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
+    entity a correlation key carried across a renamed path variable; a file written once is never
+    written again, even after its user deletes it, nor reported when its user edits it, and one
+    marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
+    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
+    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
+    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
+    for byte, an edit outside its blocks draws nothing and one inside an unfrozen block is replaced
+    and draws a warning, a block new to the generation lands beside its neighbours in the generated
+    order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
+    frozen before its entity's path variable is renamed gains no twin, and its table of contents
+    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
+    refused with nothing written ([write / integrate](../write-integrate.md)).

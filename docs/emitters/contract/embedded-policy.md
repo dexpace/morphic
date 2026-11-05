@@ -82,7 +82,8 @@ A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and
 of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,
 which the IR keeps for an emitter's policy layer to read, such as a call timeout or a client-shaping
 decorator ([boundaries](../../ir/boundaries.md#deliberate-exclusions)). No promotion moves either,
-which is the stability #429 asks the IR to state for them. A key under any other reason, such as
+which is the stability the IR states for them ([what a key
+promises](../../ir/unmodeled.md#what-a-key-promises)). A key under any other reason, such as
 `no_ir_home`, names a gap the IR may close or a construct that configures nothing, so where a
 document holds a key the mapping names under one, the key reads nothing and is reported as an error
 `emitters/embed/key-refused`, as is a `Target` naming no tree or a path no field has.

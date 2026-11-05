@@ -181,9 +181,11 @@ admitting no value `Succeeds` lists, keeps from matching is passed over, since r
 every call, so the next envelope may match it, and an envelope never reads a body worse than no
 envelope does. Such a body that no envelope then matches is read as with none and draws a warning
 `emitters/plan/envelope-flag-mismatch`, once, so a configuration whose later entry reads it draws
-none. An `Except` or `Bases` entry naming nothing in the document, and an envelope no body matches,
-are reported as a warning `emitters/plan/envelope-unused`, since one policy may serve several
-documents.
+none. An envelope no body matches is reported as a warning `emitters/plan/envelope-unused`, since
+one policy may serve several documents. An `Except` or `Bases` entry naming nothing in the document
+is passed over by `Build`, since the engine reported it before `Build` ran, as a warning
+`emitters/unmatched-key` for the same reason ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)).
 
 `Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
 JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A
