@@ -5,10 +5,10 @@ package archtest_test
 
 import (
 	"fmt"
-	"go/parser"
+	"go/ast"
 	"go/token"
-	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -147,57 +147,24 @@ func TestFuzzPackages_RootIsNeverSkipped(t *testing.T) {
 // exists for tests or tooling and is refused, internal/decls among them for the
 // golang.org/x/tools it links.
 func fuzzPackageViolations(root string) (violations, found []string, err error) {
-	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	err = walkGoFiles(root, func(rel string, _ *token.FileSet, f *ast.File) {
+		dir := path.Dir(rel)
+		if path.Base(dir) != "fuzz" || !strings.HasSuffix(rel, "_test.go") {
+			return
 		}
-		if !d.IsDir() {
-			return nil
+		if !slices.Contains(found, dir) {
+			found = append(found, dir)
 		}
-		if p != root && ignoredByGoTool(d.Name()) {
-			return filepath.SkipDir
-		}
-		if d.Name() != "fuzz" {
-			return nil
-		}
-		files, gerr := filepath.Glob(filepath.Join(p, "*_test.go"))
-		if gerr != nil || len(files) == 0 {
-			return gerr
-		}
-		rel, rerr := filepath.Rel(root, p)
-		if rerr != nil {
-			return rerr
-		}
-		found = append(found, filepath.ToSlash(rel))
-		for _, file := range files {
-			bad, ferr := fuzzFileViolations(file)
-			if ferr != nil {
-				return ferr
+		for _, imp := range f.Imports {
+			ip := strings.Trim(imp.Path.Value, `"`)
+			if !fuzzMayImport(ip) {
+				violations = append(violations, fmt.Sprintf(
+					"%s imports %q: a fuzz package links no test tooling, only the standard library, "+
+						"the pipeline's packages and %v", rel, ip, fuzzSharedTables))
 			}
-			violations = append(violations, bad...)
 		}
-		return nil
 	})
 	return violations, found, err
-}
-
-// fuzzFileViolations returns a message for each import of one fuzz test file
-// that a fuzz package may not link.
-func fuzzFileViolations(file string) ([]string, error) {
-	f, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
-	if err != nil {
-		return nil, err
-	}
-	var violations []string
-	for _, imp := range f.Imports {
-		ip := strings.Trim(imp.Path.Value, `"`)
-		if !fuzzMayImport(ip) {
-			violations = append(violations, fmt.Sprintf(
-				"%s imports %q: a fuzz package links no test tooling, only the standard library, "+
-					"the pipeline's packages and %v", file, ip, fuzzSharedTables))
-		}
-	}
-	return violations, nil
 }
 
 // fuzzMayImport reports whether a fuzz package may import ip.
