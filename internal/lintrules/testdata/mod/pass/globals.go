@@ -17,6 +17,10 @@ func (t *tally) Add()         { t.n++ }
 func (t tally) Get() int      { return t.n }
 func (t *tally) Self() *tally { return t }
 
+// Gen and Two are generic methods, which a call instantiates in its Fun.
+func (t *tally) Gen[X any]()    { t.n++ }
+func (t *tally) Two[X, Y any]() { t.n++ }
+
 func (t *tally) init() { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 
 // ptrAlias spells *tally, and a method declared on it takes the pointer.
@@ -91,6 +95,7 @@ var (
 	capturedHook             func()
 	storedInit               func()
 	storedAlias              func()
+	storedGen                func()
 	storedDecl               = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	readDecl                 = ledger.Get
 	calledDecl               = store.Size()
@@ -141,6 +146,10 @@ func init() {
 	storedInit = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	ledger.Add()
 	(ledger.Add)()
+	ledger.Gen[int]()
+	ledger.Two[int, string]()
+	(ledger.Gen[int])()
+	storedGen = ledger.Gen[int]           // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	go ledger.Add()                       // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	go func(f func()) { f() }(ledger.Add) // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	defer ledger.Add()

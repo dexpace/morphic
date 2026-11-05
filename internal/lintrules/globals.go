@@ -75,7 +75,7 @@ func afterInit(d ast.Decl) []ast.Node {
 			roots = append(roots, n.Call)
 			return false
 		case *ast.CallExpr:
-			called[ast.Unparen(n.Fun)] = true
+			called[calleeOf(n.Fun)] = true
 		case *ast.SelectorExpr:
 			if called[n] {
 				return true
@@ -88,6 +88,20 @@ func afterInit(d ast.Decl) []ast.Node {
 		return true
 	})
 	return roots
+}
+
+// calleeOf returns the expression a call runs, with parentheses and a generic's
+// type arguments stripped from it.
+func calleeOf(fun ast.Expr) ast.Expr {
+	fun = ast.Unparen(fun)
+	switch x := fun.(type) {
+	case *ast.IndexExpr:
+		return x.X
+	case *ast.IndexListExpr:
+		return x.X
+	default:
+		return fun
+	}
 }
 
 // globalScope holds one top-level declaration's findings: aliases maps each
