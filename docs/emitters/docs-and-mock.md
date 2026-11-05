@@ -68,8 +68,10 @@ holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, and anchors a member only where the model
 declaring it is rendered; another table holding it, a subtype's for an inherited member, links
-there. An anonymous model another composes in place is no table of its own: its members are rows
-of the composing model's table, anchored there, so no member is anchored twice.
+there. A model rendered as several tables anchors each member in the first of them, in
+`TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
+for each `PropID`. An anonymous model another composes in place is no table of its own: its members
+are rows of the composing model's table, anchored there, so no member is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it,
@@ -95,23 +97,29 @@ grammar, outside code: 11 a `<br/>`, one an `<img>`, and 33 placeholders such as
 `<uuid>`, which a browser handed them would parse as elements, so the placeholder would vanish from
 the page.
 
-A link in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
+A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
 way: a `javascript:` destination runs when it is followed. So a page or an agent document writes a
 destination only where it is absolute under `http`, `https` or `mailto`, or a relative path, which
 points into the site the author wrote for and is resolved against the base the docs options give
 that site. A fragment alone names a place on one of that site's pages, which no base names. Any
 other destination, and a relative path with no base set, renders as its link's text, with a warning
-naming it. On the golden spec, at those revisions, 14 links in descriptions are relative, such as
-`#requests` and `/api/resources/filters/`, and would otherwise break on a generated site.
+naming it. `Document.TermsOfService` holds a URL or text, so a value that parses as no absolute URL
+is rendered as text, never resolved. On the golden spec, at those revisions, the links in `Docs`
+descriptions are 988 under `https`, 7 under `http`, and 14 relative, 8 of them a fragment alone,
+such as `#requests`, and 6 a path, such as `/api/resources/filters/`, which would otherwise break on
+a generated site.
 
 ## Routes and links
 
 Every docs target needs URLs, links between pages, an answer for two entities wanting one URL, and
 a way to show one entity across API versions. Each is decided by data, never by a renderer:
 
-- **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations, and
-  the types with a page of their own — holding no URL. A type the document declares, neither
+- **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations,
+  channels, messages, auth schemes, and the types with a page of their own — holding no URL. A
+  channel, a message and an auth scheme each have a page, since several operations or channels name
+  one, routed by ID as every entity is; a message's and a channel's IDs carry no kind prefix yet to
+  keep them apart from other classes in one table (#1527). A type the document declares, neither
   `Anonymous` nor a primitive, has a page whatever its kind, and so does an anonymous model, union
   or enum that more than one reference reaches, counting through the anonymous lists, maps, tuples
   and scalars that hold it and the decorators over it. Any other type but a decorator (above) is
@@ -119,9 +127,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   rendered on, and any other anonymous type as the type it spells. So no type is rendered in two
   places. On the golden spec (spec @57b5196b, morphic @ab953d45), 28 anonymous models are bodies 2
   to 38 operations share, and a page only for a model, union or enum that more than one reference
-  names directly would leave 184 more rendered in several places, such as the items of a declared
-  list several models hold. A route plan then derives every URL from the catalog alone, through
-  templates in the docs emitter's options, one per kind of page
+  names directly would leave one more rendered in several places: the enum a component parameter's
+  anonymous list holds, which five operations share. A route plan then derives every URL from the
+  catalog alone, through templates in the docs emitter's options, one per kind of page
   (`"/{service}/{group}/{operation}"`). A slug is presentation (INV3), rendered from names by the
   naming policy, and two that collide in one template's scope are told apart by the ID-keyed
   resolution identifiers take ([naming](refine/naming.md)): three pairs of the golden spec's
@@ -130,10 +138,11 @@ a way to show one entity across API versions. Each is decided by data, never by 
   system that ignores case keeps one page of the two: two of the golden spec's operations are
   `deleteWebhook` and `DeleteWebhook`, which slugs spelt as the source spells them would part by
   case alone.
-- **A total route plan.** Every `OpID` and every type with a page gets a route, every type rendered
-  on another's page an anchor there, and every `PropID` an anchor where the model declaring it is
-  rendered (above), a decorator answering with its `Alias`'s. Anything left without one is a coded
-  diagnostic, and a recursive type is linked by its ID, never inlined to a depth and cut.
+- **A total route plan.** Every `OpID`, `ChannelID`, `MessageID` and `AuthID` and every type with a
+  page gets a route, every type rendered on another's page an anchor there, and every `PropID` an
+  anchor where the model declaring it is rendered (above), a decorator answering with its `Alias`'s.
+  Anything left without one is a coded diagnostic, and a recursive type is linked by its ID, never
+  inlined to a depth and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
   an error diagnostic naming both, never a page that overwrites another and never a page dropped.
   The check runs on the URLs the templates produce, over every kind of route in one table, so no
@@ -145,27 +154,31 @@ a way to show one entity across API versions. Each is decided by data, never by 
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
-  versions. Each snapshot's run is a generation of its own, with a manifest of its own ([write /
-  integrate](write-integrate.md)), and writes under a directory its label's slug names, which the
-  route plan puts before every route and no template sets: one entity's pages in two versions then
-  have two paths, and no snapshot's run overwrites or prunes another's. Two labels whose slugs
-  collide are refused as two routes on one URL are, and a document stating no version has one
-  snapshot, labelled `""`, written at the output root. For a target whose
-  `Capabilities.CrossVersion` is set, the engine asks the target for every snapshot's route table
-  through `Router` ([the contract](contract/emitter.md)), before any snapshot's `Generate`, handing
-  it the input it will hand that `Generate` but for `Samples` and `Routes`, which the route plan
-  never reads, and hands each run the tables of all of them in `EmitterInput.Routes`, keyed by the
-  label `Document.Versions` gives each version. A run finds its own entry under
-  `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also the version its
-  switcher marks current: nothing in a snapshot's document says which version it is. The engine
-  cannot plan the routes itself, since the catalog and the templates are the target's. A run plans
-  its own routes by the same pure function, so its pages agree with its snapshot's entry. A table
-  holds each entity's page and anchor from the output root, its snapshot's directory included,
-  which is what a switcher links. What spans versions, the site-scope `llms.txt` linking each
-  version's and an index of the versions, is written once, by the run of the last label
-  `Document.Versions` lists, since every run holds the labels and tables it is built from. A link to
-  an entity a version lacks resolves to that version's page saying so. Slugs may differ between
-  versions; IDs do not.
+  versions. Each snapshot's run is a generation of its own and writes under a directory its label's
+  slug names, which the route plan puts before every route and no template sets: one entity's pages
+  in two versions then have two paths, and no snapshot's run overwrites or prunes another's. Its
+  manifest lies in that directory, where the engine reads the run's `Prior` from ([write /
+  integrate](write-integrate.md)). Two labels whose slugs collide are refused as two routes on one
+  URL are, and a document stating no version has one snapshot, labelled `""`, written at the output
+  root. For a target whose `Capabilities.CrossVersion` is set, the engine asks the target for every
+  snapshot's route table through `Router` ([the contract](contract/emitter.md)), before any
+  snapshot's `Generate`, handing it the input it will hand that `Generate` but for `Samples` and
+  `Routes`, which no page's or anchor's route reads, and hands each run the tables of all of them in
+  `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
+  document's route, one for each target and language a run's samples name, is that run's own and in
+  no table. A run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it
+  was handed, which is also the version its switcher marks current: nothing in a snapshot's document
+  says which version it is. The engine cannot plan the routes itself, since the catalog and the
+  templates are the target's. A run plans its own routes by the same pure function, so its pages
+  agree with its snapshot's entry. A table holds each entity's page and anchor from the output root,
+  its snapshot's directory included, which is what a switcher links. What spans versions, the
+  site-scope `llms.txt` linking each version's and an index of the versions, is written once, by the
+  run of the last label `Document.Versions` lists, since every run holds the labels and tables it is
+  built from, and is recorded in a manifest of its own at the output root, the target's rather than
+  any snapshot's, so those files keep one owner when another label becomes last. A directory whose
+  label `Document.Versions` no longer lists is pruned by its own manifest, as a file no generation
+  writes any longer is. A link to an entity a version lacks resolves to that version's page saying
+  so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -195,21 +208,24 @@ model's constructor — is that SDK emitter's refine output, and an emitter neve
 A docs emitter that spelled calls itself would re-derive them and could disagree with the SDK it
 documents. So each SDK emitter returns its usage samples per operation in `EmitterOutput.Samples`,
 one for each language its callers write: a Multiplatform target's callers write Kotlin and Swift
-([Swift](targets/kotlin/swift.md)). The engine runs a target whose `Capabilities.ReadsSamples` is
-set after every target of the run that does not set it, so two that set it wait on neither, and
-hands it their samples in `EmitterInput.Samples`, each snapshot's docs run those of the SDK targets
-run on the same snapshot; a snapshot no SDK target is run on has no samples, which is no diagnostic.
-It runs an SDK target for its samples even when that target's generation writes nothing ([write /
-integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
-them. A docs generation is a new one whenever the samples it is handed change, as an SDK target's
-own options can change them. A sample a target cannot render is a coded diagnostic of that target's,
-never an empty code block on the page, and so is one for an operation whose required input holds no
-example. A sample shows a call that succeeds, so its values are the `Input` of its operation's first
-scenario ending in an `Output`, never one ending in an `Error`, whose input is chosen to fail
-(below): one the operation declares in `Operation.Examples`, as a Smithy or TypeSpec document can,
-else one assembled from each input's set, a body's from the elected request content's and a
-parameter's from its own. A value `Secret` or `Sensitive` marks is written as the target's
-placeholder for it (above).
+([Swift](targets/kotlin/swift.md)). A target whose `Capabilities.ReadsSamples` is set names in its
+options the targets whose samples it shows, and the engine runs each of them on every snapshot
+before it, whether or not the run names them, with the options that target would run with, and hands
+it their samples in `EmitterInput.Samples`. So what a docs run shows depends on its options and
+never on which other targets share the run: a docs target whose options name `go`, run alone, shows
+the samples a run of both would. A named target the registry lacks, or one that reads samples
+itself, is an error in the options. The engine runs a named target for its samples even when its
+generation writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since
+a docs run handed none would drop them, and runs it once when the run names it too. A docs
+generation is a new one whenever the samples it is handed change, as an SDK target's own options can
+change them. A sample a target cannot render is a coded diagnostic of that target's, never an empty
+code block on the page, and so is one for an operation whose required input holds no example. A
+sample shows a call that succeeds, so its values are the `Input` of its operation's first success
+scenario (below): one ending in no `Error`, since an `Error` scenario's input is chosen to fail, and
+perhaps in no `Output`, as an operation answering with no body does. That is one the operation
+declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan
+assembles. A value `Secret` or `Sensitive` marks is written as the target's placeholder for it
+(above).
 
 ## One set of examples
 
@@ -219,20 +235,30 @@ tests never sent, and every regeneration could change them. So the plan holds on
 `Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
 member and operation:
 
-- **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs. One
-  declaring none that adds no constraint to its type's takes its type's set, so a property shows
-  the value its type does, and an operation declaring no scenario ending in an `Output` takes one
-  assembled from its inputs' sets and its return content's, after any it declares, marked
-  `Inferred` where a value it takes is. A position whose type is a decorator reads it as
-  `CollapseAliases` does: its own examples, else the nearest decorator's along the chain, else the
-  set of the type its `Alias` names.
+- **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, each
+  checked against its position's type and constraints. One they refuse is reported as a warning and
+  left out, so every consumer falls to the next set alike: an SDK's test sending it would be refused
+  by the mock, as by the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a declared
+  string example fails its own type in at least 294 types: in 291 no member of the enum spells it,
+  such as `json` against `JSON` and `CSV`, and in 3 it is longer than `maxLength`. One declaring
+  none that adds no constraint to its type's takes its type's set, so a property shows the value its
+  type does. A position whose type is a decorator takes its own examples, else the nearest
+  decorator's along the chain, as `CollapseAliases` folds them, else, where it adds no constraint,
+  the set of the type its `Alias` names.
+- **Assembled for an operation.** An operation declaring no success scenario, one ending in no
+  `Error`, takes one after those it declares, built from the sets of its required inputs and of the
+  optional ones whose set is declared rather than synthesized, a body's from the elected request
+  content's, and from its return content's where it returns one: a call shows no optional filter the
+  document gives no value for. The document never paired those values, so the scenario is `Inferred`
+  and labelled generated whatever values it takes, and `plan.Policy.Examples.Assemble` turns it off.
+  On the golden spec no operation declares a scenario.
 - **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
   prefix yet to keep it apart from the other classes in one map
   ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is its declared examples,
-  read from the IR, else its type's, a message's those of its payload's contents, and the docs, the
-  samples and the mock read a body's examples from its content's set. Contents are where a document
-  most often declares a body's examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435
-  request, response and error contents declare 651 examples.
+  read from the IR and checked as above, else its type's, a message's those of its payload's
+  contents, and the docs, the samples and the mock read a body's examples from its content's set.
+  Contents are where a document most often declares a body's examples: on the golden spec (spec
+  @57b5196b, morphic @ab953d45), 435 request, response and error contents declare 651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
   list synthesized holds, for each member or item, the first value of that member's own set: a
@@ -240,9 +266,9 @@ member and operation:
   value is the same alone and inside its model wherever the bound leaves it whole, and an optional
   recursive member ends. The bounds cut only what validity leaves optional ([plan
   policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of
-  a list or map past `MaxItems` beyond its minimum. A required member is filled as deep as its
-  schema requires, and a `minItems` above `MaxItems` is met: on the golden spec at least 250 models
-  require members nested four or more models deep, and one list four items, which the default
+  a list or map past the larger of `MaxItems` and its minimum. A required member is filled as deep
+  as its schema requires, and a `minItems` above `MaxItems` is met: on the golden spec at least 250
+  models require members nested four or more models deep, and one list four items, which the default
   bounds would otherwise leave without an example. A value the synthesizer cannot make valid, as a
   `pattern` it cannot satisfy or a required cycle no value ends, or one holding more values than
   `plan.MaxExampleValues`, a fixed limit the plan package states, is reported and left out, never

@@ -24,12 +24,14 @@ type Policy struct {
                                        // (../refine/unions.md)
     ProtocolEffects bool               // default on: an operation stating no effects takes
                                        // what its binding's protocol defines (below)
-    Examples        ExamplePolicy      // default on, depth 3, 2 items: what may be synthesized
-                                       // where no example is declared (../docs-and-mock.md)
+    Examples        ExamplePolicy      // default both on, depth 3, 2 items: what may be made where
+                                       // no example is declared (../docs-and-mock.md)
 }
 
 type ExamplePolicy struct {
     Synthesize bool                    // off leaves an entity with none declared without one
+    Assemble   bool                    // off leaves an operation declaring no success scenario
+                                       // without one built from its inputs' sets
     MaxDepth   int                     // how many models deep a value fills optional members,
                                        // its own the first; required ones go as deep as needed
     MaxItems   int                     // how many entries a list or map holds, raised to its

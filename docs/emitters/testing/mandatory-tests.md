@@ -347,16 +347,18 @@ throughout these documents.
     write-only property in no read shape's, a model created by one operation and patched by another
     given a table for each, a model whose members and those of the models it holds carry no
     visibility marker one table for every shape but a patch, and a type no shape reaches one
-    unprojected table; each member anchored once, where the model declaring it is rendered, an
-    inherited one linked there and an anonymous model composed in place no table of its own; each
-    example through the shape it is shown in, a write-only member in no response's; a placeholder
-    for every value `Secret` or `Sensitive` marks, on pages, in agent documents and in samples, a
-    sample's written by its SDK target; and raw HTML in a description rendered as text on pages and
-    in agent documents alike, a bare `<br>` as a line break and a placeholder such as `<key>` kept
-    visible; a link from spec text written only under `http`, `https` or `mailto` or as a relative
-    path resolved against the configured base, and a `javascript:` destination, a fragment alone and
-    a relative path with no base each rendered as the link's text with a warning, in a description
-    and in `ExternalDocs` alike. Every declared type but a primitive has a page, and so does an
+    unprojected table; each member anchored once, where the model declaring it is rendered and in
+    the first of its tables that holds it, an inherited one linked there and an anonymous model
+    composed in place no table of its own; each example through the shape it is shown in, a
+    write-only member in no response's; a placeholder for every value `Secret` or `Sensitive` marks,
+    on pages, in agent documents and in samples, a sample's written by its SDK target; and raw HTML
+    in a description rendered as text on pages and in agent documents alike, a bare `<br>` as a line
+    break and a placeholder such as `<key>` kept visible; a link from spec text written only under
+    `http`, `https` or `mailto` or as a relative path resolved against the configured base, and a
+    `javascript:` destination, a fragment alone and a relative path with no base each rendered as
+    the link's text with a warning, in a description's links and images, `ExternalDocs` and every
+    other URL the document gives alike, and a `TermsOfService` that is text rendered as text. Every
+    channel, message, auth scheme and declared type but a primitive has a page, and so does an
     anonymous model, union or enum more than one reference reaches through anonymous containers, so
     no type is rendered in two places; a decorator has no page, table or anchor of its own, renders
     and links as its `Alias` and folds its annotations onto the position, so a 3.0 decorator and the
@@ -367,34 +369,40 @@ throughout these documents.
     span resolves through the route plan; a version switcher links one entity across snapshots, from
     the tables `Router` returns, marks the run's `Snapshot` current, and an entity a version lacks
     to that version's page saying so; two snapshots' pages of one entity lie under their labels'
-    directories, neither run overwriting or pruning the other's, two labels whose slugs collide are
-    refused, and only the last label's run writes the site-scope `llms.txt`. Agent documents and
-    `llms.txt` share the pages' URLs, escape spec text, mark an operation safe or idempotent from
-    `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. A sample
-    comes from each SDK target, for each operation it emits, in each language its callers write,
-    Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that target's, and a
-    target whose generation writes nothing still returns its samples; a sample's values are the
-    `Input` of its operation's first declared scenario ending in an `Output`, where it has one,
-    never an `Error` scenario's; two targets setting `ReadsSamples` each get the samples of every
-    target that does not; a snapshot no SDK target is run on draws no missing-sample diagnostic; and
-    a docs generation whose samples, routes or snapshot label changed, its own inputs unchanged, is
-    a new generation ([docs and mocks](../docs-and-mock.md)).
-42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
+    directories, neither run overwriting or pruning the other's, each with its manifest in its
+    directory, the `""` snapshot written at the root and two labels whose slugs collide refused;
+    only the last label's run writes the site-scope `llms.txt`, recorded in the target's manifest at
+    the root, which keeps those files when another label becomes last, and a label no longer listed
+    has its directory pruned; and the registry refuses a target setting `CrossVersion` without
+    implementing `Router`. Agent documents and `llms.txt` share the pages' URLs, escape spec text,
+    mark an operation safe or idempotent from `OpPlan.Effects`, and warn of destruction only where
+    the `Destructive` hint is set. A sample comes from each SDK target, for each operation it emits,
+    in each language its callers write, Kotlin and Swift from a Multiplatform one, a missing one a
+    diagnostic of that target's, and a target whose generation writes nothing still returns its
+    samples; a sample's values are the `Input` of its operation's first declared success scenario,
+    one ending in no `Error`, a bodiless one among them; a docs target run alone shows the samples
+    of the targets its options name, which the engine runs for it, and a named target the registry
+    lacks or that reads samples is an error in the options; and a docs generation whose samples,
+    routes or snapshot label changed, its own inputs unchanged, is a new generation ([docs and
+    mocks](../docs-and-mock.md)).
+42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored,
+    and one its position's type or constraints refuse is reported and left out everywhere; a
     property or a parameter declaring none and adding no constraint takes its type's set, an
-    operation declaring no scenario ending in an `Output` one assembled from its inputs' and its
-    return content's, after those it declares and `Inferred` where a value it takes is, a position
-    whose type is a decorator its own examples, else the nearest decorator's, else its `Alias`'s
-    set, and a content's, a variant's or a message's set is its own declared examples, else its
-    type's, which the docs, the samples and the mock read a body's examples from. Where none
-    applies, the value synthesized is valid against its constraints, marked `Inferred`, identical
-    across regenerations and in both declaration orders, seeded from its ID where no correlation key
-    identifies it, and the same in the docs, the samples, an SDK's tests and the mock. A synthesized
-    model holds each member's own first value, a declared one whole and a synthesized one cut to the
-    depth the bound leaves, so an optional recursive member ends; the bounds cut only optional
-    members and the entries of a list or map past its minimum, so a required member nested deeper
-    than `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer
-    cannot make valid, a required cycle among them, or holding more than `plan.MaxExampleValues`
-    values is reported and left out; with `Synthesize` off, no example is `Inferred` and a response
+    operation declaring no success scenario one assembled from its required inputs' sets, its
+    optional inputs' declared ones and its return content's, after those it declares, always
+    `Inferred` and none with `Assemble` off, a position whose type is a decorator its own examples,
+    else the nearest decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a
+    variant's or a message's set is its own declared examples, else its type's, which the docs, the
+    samples and the mock read a body's examples from. Where none applies, the value synthesized is
+    valid against its constraints, marked `Inferred`, identical across regenerations and in both
+    declaration orders, seeded from its ID where no correlation key identifies it, and the same in
+    the docs, the samples, an SDK's tests and the mock. A synthesized model holds each member's own
+    first value, a declared one whole and a synthesized one cut to the depth the bound leaves, so an
+    optional recursive member ends; the bounds cut only optional members and the entries of a list
+    or map past its minimum, so a required member nested deeper than `MaxDepth` and a `minItems` or
+    `minProps` above `MaxItems` are met; one the synthesizer cannot make valid, a required cycle
+    among them, or holding more than `plan.MaxExampleValues` values is reported and left out; with
+    `Synthesize` and `Assemble` off, no example is `Inferred`, and with `Synthesize` off a response
     content left with none is a diagnostic of the mock's, never a body it invents; and a negative
     bound is `emitters/plan/policy-invalid` ([one set of
     examples](../docs-and-mock.md#one-set-of-examples)).

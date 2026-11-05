@@ -46,8 +46,9 @@ type EmitterInput struct {
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
     Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
                                   // a document stating none (../docs-and-mock.md#routes-and-links)
-    Samples map[TargetKey]map[ir.OpID][]Sample // each SDK target's usage samples, for a docs
-                                  // target (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    Samples map[TargetKey]map[ir.OpID][]Sample // the usage samples of each target a docs
+                                  // target's options name
+                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
                                   // Document.Versions gives it, "" for a document stating
                                   // none, for a target whose Capabilities.CrossVersion is set

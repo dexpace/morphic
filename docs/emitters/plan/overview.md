@@ -18,16 +18,16 @@ type Plan struct {
     Examples map[string][]Example       // by the ID of each type, property, parameter, enum
                                         // member and operation: its declared examples, else
                                         // its type's where it adds no constraint, else one
-                                        // synthesized; read by the docs, the samples, SDK
-                                        // tests and the mock
+                                        // synthesized, an operation's assembled; read by the
+                                        // docs, the samples, SDK tests and the mock
                                         // (../docs-and-mock.md#one-set-of-examples)
     Version  string                     // hashes the document and policy it was built from (below)
 }
 
 type Example struct {
     Value    ir.Example                 // the example, as the IR spells one
-    Inferred bool                       // holds a value synthesized under Policy.Examples;
-                                        // false = every value it holds is declared
+    Inferred bool                       // made under Policy.Examples, synthesized or assembled;
+                                        // false = declared as it stands
 }
 ```
 
