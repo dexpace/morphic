@@ -32,8 +32,10 @@ type Content struct {
     Type      TypeRef
     Item      *TypeRef            // element shape of a sequential stream declared per media type
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
-    ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding);
-                                  // singular like Item, because it governs every item alike.
+    ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding),
+                                  // or one saying only that each item is a file where a multipart
+                                  // stream of files writes none; singular like Item, because it
+                                  // governs every item alike.
                                   // Positional per-item encoding (3.2 prefixEncoding) has no form
                                   // here and stays in Unmodeled — see docs/ir/unmodeled.md
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
@@ -55,8 +57,13 @@ type Content struct {
 type PartEncoding struct {
     ContentTypes []string          // media type(s) of this part
     Headers      []Header          // per-part headers
-    Multi        bool              // part repeats (array member → repeated parts)
+    Multi        bool              // part repeats, or may: an array member, or a union with a
+                                   // list among its variants → repeated parts
     Filename     bool              // part carries a filename (file part)
+    Inferred     Inferred          // "" = the source declares the part a file; else the heuristics
+                                   // that read Filename in (OpenAPI's binary media types), so a
+                                   // consumer taking only what was declared can set it aside. Set
+                                   // only where Filename is (ir/part-encoding-inferred-not-filename)
     Style        string            // form-style serialization for non-file parts
     Explode      *bool
     AllowReserved bool             // reserved characters pass unescaped in the part's value, as
@@ -74,5 +81,10 @@ type FileInfo struct {
     ContentTypeDefault string     // default when the file value carries none
     FilenameLocation string       // "content-disposition" (default) | "path" | "header"
     FilenameWireName string       // wire name when FilenameLocation is path/header
+    Inferred Inferred             // "" = the source declares the body a file; else the heuristics
+                                  // that read it as one, as an OpenAPI body whose schema says no
+                                  // more than "a string" is read on a binary media type. Type then
+                                  // stays what the schema says, so a consumer setting the guess
+                                  // aside reads the body as declared
 }
 ```

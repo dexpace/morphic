@@ -122,12 +122,34 @@ const (
 )
 
 // Cite is the sentence of a specification text a row comes from. Sentence is
-// a verbatim fragment of the text of Minor, under the heading Section.
+// a verbatim fragment of that text under the heading Section: OpenAPI's at
+// Minor, or, where Text names it, another specification's, such as a JSON
+// Schema draft whose dialect a Schema Object can declare.
 type Cite struct {
-	Minor    Minor
 	Section  string
 	Sentence string
+	Minor    Minor
+	Text     Text
 }
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts JSON Schema draft 4's
+// keywords come from, the dialect a Schema Object can be read in beside its
+// minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, its core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, its
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text its $ref comes from.
+	TextJSONReference03
+)
 
 // Term is one condition on the object a rule judges: the sibling field Field
 // holds one of In. The field "$key" is the key the parent holds the object
@@ -150,6 +172,26 @@ type Alt struct {
 	Shape Shape
 	Span  Span
 }
+
+// Default is a value the field Field takes where its object leaves it
+// unwritten, at the minors Span holds, for a value of the case Case names.
+type Default struct {
+	Field string
+	Value string
+	Cites []Cite
+	Span  Span
+	Case  DefaultCase
+}
+
+// DefaultCase is the case a Default holds in: what the value the object
+// applies to is, as the specification's table of defaults keys it.
+type DefaultCase int
+
+// The cases a Default holds in.
+const (
+	// DefaultUntyped is a value whose schema writes no type.
+	DefaultUntyped DefaultCase = 1 + iota
+)
 
 // Field is one field of an object.
 type Field struct {
@@ -268,13 +310,15 @@ type Rule struct {
 	Format Format
 }
 
-// Object is one OpenAPI object: its fields, its pattern fields and its rules.
+// Object is one OpenAPI object: its fields, its pattern fields, its rules and
+// the defaults of its fields.
 type Object struct {
 	// Name is the specification's title for the object: "Info Object".
 	Name      string
 	Fields    []Field
 	Patterned []Pattern
 	Rules     []Rule
+	Defaults  []Default
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
 	Referenceable Span
@@ -293,7 +337,9 @@ type Object struct {
 	Extensible bool
 }
 
-// Spec is the table: every object of the specification.
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
 type Spec struct {
 	objects []Object
 	index   map[Kind]int

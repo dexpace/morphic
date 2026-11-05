@@ -86,11 +86,11 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	require.Contains(t, first.written(s).values, "s:a")
+	require.Contains(t, first.written(s, first.nullable).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
 	second := newAdmission(l.Ctx)
-	read := second.written(s)
+	read := second.written(s, second.nullable)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
 }
@@ -126,6 +126,26 @@ func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
 
 	s.AllOf = nil
 	assert.Equal(t, first, nullableVoices(l.Ctx, s), "the second ask reads what the first read")
+}
+
+// TestValueNulls_ReadsASchemaOnce pins that what a schema's const, enum and union
+// say of null is read once a run, since every $ref to the schema asks and the enum
+// and union scan each member: they go after the first read, which no lowering
+// does, so only a remembered answer stays.
+func TestValueNulls_ReadsASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    V: {const: null, enum: [a, null]}
+    U: {oneOf: [{type: string}, {type: 'null'}]}
+`))
+	v, u := declared(t, l, "V"), declared(t, l, "U")
+	values := valueVerdicts{constant: nullAdmitted, enum: nullAdmitted}
+	union := valueVerdicts{union: nullAdmitted}
+	require.Equal(t, values, valueNulls(l.Ctx, v))
+	require.Equal(t, union, valueNulls(l.Ctx, u))
+
+	v.Const, v.Enum, u.OneOf = nil, nil, nil
+	assert.Equal(t, values, valueNulls(l.Ctx, v), "the second ask reads what the first read")
+	assert.Equal(t, union, valueNulls(l.Ctx, u), "the second ask reads what the first read")
 }
 
 // TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition
@@ -285,18 +305,22 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E")).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E"), w.nullable).values)
 }
 
-// TestAdmission_ANullableBesideARefAdmitsNoNull pins a 3.0 $ref's siblings: the
-// dialect ignores them, so a `nullable` there widens nothing a reading holds.
-func TestAdmission_ANullableBesideARefAdmitsNoNull(t *testing.T) {
+// TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
+// applied as 3.1 applies them and read as their document's dialect defines
+// them, so a 3.0 `nullable` there adds null to the type beside it, and a 3.1
+// one, which that dialect does not define, adds nothing.
+func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
 	t.Parallel()
-	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.0.3", `    S: {type: string}
+	for version, want := range map[string]kindSet{"3.0.3": kindString | kindNull, "3.1.0": kindString} {
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, `    S: {type: string}
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
-	w := newAdmission(l.Ctx)
-	assert.Equal(t, kindString, w.written(declared(t, l, "T")).kinds)
+		w := newAdmission(l.Ctx)
+		assert.Equal(t, want, w.written(declared(t, l, "T"), w.nullable).kinds, version)
+	}
 }
 
 // TestAdmission_ASchemaIsWithinItself pins the comparison every election makes of
@@ -306,7 +330,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmission(l.Ctx)
-	read := w.written(declared(t, l, "E"))
+	read := w.written(declared(t, l, "E"), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
@@ -319,12 +343,12 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	first.written(s)
+	first.written(s, first.nullable)
 	require.False(t, first.incomplete())
 
 	short := newAdmission(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
-	assert.Empty(t, short.written(s).values, "a set past the budget is not read at all")
+	assert.Empty(t, short.written(s, short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
 }
 
@@ -337,7 +361,7 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
 		w := newAdmission(l.Ctx)
-		w.written(s)
+		w.written(s, w.nullable)
 		assert.True(t, w.incomplete())
 	}
 }

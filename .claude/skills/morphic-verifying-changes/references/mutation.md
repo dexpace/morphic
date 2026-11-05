@@ -52,6 +52,65 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
 
+## A mutant run owns its cache and stops before the disk fills
+`mutant-run-owns-its-cache`
+
+- **Rule.** Point each mutant worker at a `GOCACHE` of its own, cleaned past a size, pass
+  `-vet=off` to its `go test`, and check free disk before each verdict inside the planting loop,
+  stopping under a floor. A mutant in a package others import rebuilds everything above it, and a
+  full or shared cache turns verdicts into `[build failed]`.
+- **Why.** 57 mutants grew a cache to 30 GB, leaving 250 MiB free (#1229), and 16 of 20 mutants
+  read as build failures while other work cleared the shared cache (#1333).
+- **Probe.** `df -h` and `du -sh "$GOCACHE"` before and after a batch.
+
+## A kill counts only from a test that reaches the plant
+`kill-reaches-the-plant`
+
+- **Rule.** A mutant reported killed by a test that cannot reach the planted line is no verdict
+  until it reproduces, on a machine with free disk, by a test that does.
+- **Why.** A mutant in `readStability` was reported killed by a test reading no stability while the
+  disk sat near full; rerun with the disk free, a stability test killed it (#1229).
+- **Probe.** Rerun the killing test alone on the mutant and on the clean tree: it fails on the
+  first and passes on the second.
+
+## Run a planted Python file without its cached bytecode
+`python-plant-without-bytecode`
+
+- **Rule.** Run the tests of a planted Python file with `python3.14 -B`, from a copy holding no
+  `__pycache__`, beside the unplanted copy's run (`references/mutation.md#mutation-controls`).
+  CPython keeps a cached `.pyc` while the source's recorded size and modification second match, so
+  a plant the size of the last one, written within that second, is never read, and the run reports
+  the last plant's verdict.
+- **Why.** In a review of #1522, a plant that `skills_lint.py`'s tests kill read as surviving
+  until it ran again with `-B`, which writes no `.pyc` for the next plant (#1522 at 29372a248).
+- **Probe.** In an empty directory, write `X = 1`, then `X = 2`, to module `m` within one second,
+  running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1, and so does
+  `-B` while the first run's `__pycache__` remains.
+
+## Plant where only the callers a check leaves out reach
+`plant-past-the-included-callers`
+
+- **Rule.** To test what a check leaves out, such as a list claimed to hold every package whose
+  code runs concurrently, plant on a branch only the excluded callers take: the included set's run
+  stays green while the excluded set's reports the plant. A plant at a function's entry measures
+  its busiest caller, and is the control, not the evidence.
+- **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
+  listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
+  drew none from the listed packages and 14 from those two (#1380).
+- **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
+
+## A plant a run's schedule decides needs a measured kill rate
+`kill-rate-for-a-scheduled-detector`
+
+- **Rule.** The race detector reports a race only when no synchronization in that run orders the two
+  accesses, so one run is no verdict, and reports the same race once per process, so each run is its
+  own `go test -count=1`. Run it at least 10 times and report the rate. A plant caught in fewer than
+  every run moves to a path more tests take, or its rate is the result.
+- **Why.** A race planted in `pass`' `checkPropIDRefs` was reported in 3 of 14 runs, one on a path
+  many `pass` tests take in 5 of 5, so a single run read either way could be wrong (#1438).
+- **Probe.** `for i in $(seq 10); do go test -race -count=1 ./<pkg> 2>&1 | grep -c 'WARNING: DATA RACE'; done`,
+  counting the runs above 0.
+
 ## Rebuild a plant set nobody kept, rather than carrying its result over
 `rebuild-lost-plants`
 

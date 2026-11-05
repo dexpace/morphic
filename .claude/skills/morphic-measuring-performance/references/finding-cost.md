@@ -19,29 +19,69 @@ how to measure so the number means what the claim says.
 ## Quote instructions retired, never alone and never under your own load
 `instructions-not-wall-clock`
 
-- **Rule.** For a cost claim on a loaded machine, compare instructions retired, run base and head
-  alternately, and report each side's median with its spread; quote allocations beside them, but
+- **Rule.** For a cost claim on a loaded machine, compare instructions retired in the process doing
+  the work (`references/finding-cost.md#count-stops-at-the-timed-process`), base and head run
+  alternately, and report each side's median and spread, quoting a gap only as
+  `references/finding-cost.md#count-holds-across-rounds` allows. Quote allocations beside them,
   never in their place, since an allocation-free path can cost more. Run nothing else of your own
   while measuring.
 - **Why.** Replacing `FieldByName` with an allocation-free field scan made `Verify` slower (#1133);
-  runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
-- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
-  the head, run the two alternately (`references/finding-cost.md#count-on-one-thread`) under
-  `/usr/bin/time -l` on macOS or `perf stat -e instructions:u` on Linux, and compare each side's
-  median and range. A run that exits non-zero measured a failure. With neither tool, take
-  `references/finding-cost.md#cpu-time-without-a-counter`.
+  runs alternating with the author's test runs showed a gap quiet runs did not (#1140).
+- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` at the merge base and the head, and run
+  the two alternately (`references/finding-cost.md#count-on-one-thread`) under `/usr/bin/time -l`
+  on macOS or `perf stat -e instructions:u` on Linux. A run that exits non-zero measured a failure.
+  With neither tool, take `references/finding-cost.md#cpu-time-without-a-counter`.
+
+## A `/usr/bin/time` instruction count stops at the timed process
+`count-stops-at-the-timed-process`
+
+- **Rule.** `/usr/bin/time -l` counts the timed process alone, so a command doing its work in
+  children, such as `go vet`, `go test`, golangci-lint or a script, reads as nearly free, exactly
+  and repeatably. Time the binary doing the work, as `go test -c` builds one, read each action's
+  `CmdUser` and `CmdSys` from `-debug-actiongraph=<file>`, or read `user + sys` of one command,
+  never of a shell wrapping several.
+- **Why.** A lint change cut CPU by 43% while the instruction count saw nothing, and a script
+  spending 225 CPU-seconds in its children counted its shell's 72 million instructions (#1294).
+- **Probe.** `/usr/bin/time -l <script>`: a count far below what its `user + sys` implies is the
+  shell's own.
 
 ## Count instructions on one thread with the collector off
 `count-on-one-thread`
 
 - **Rule.** Set `GOMAXPROCS=1 GOGC=off` for an instruction count over a compile: scheduling and
-  collection can move a total past the gap, whichever build they land on, and alternating does not
-  average that out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so.
-  Count each side's readings before quoting a median.
+  collection can move a total past the gap on either build, and alternating does not average that
+  out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so: its spread is
+  then about a fifth of the median on the golden spec, so a gap of a percent or two needs a smaller
+  spec. Count each side's readings before quoting a median.
 - **Why.** Two builds on one spec read +2.73%, then -2.08%; pinned, the same pair read +2.06% with
   each side's range under 1% (#1205, #1210).
 - **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>`, three alternating
-  runs a side: a range wider than the gap means the count is still noise.
+  runs a side: a range wider than the gap means the count is still noise. Its resident set is total
+  allocation (`references/finding-cost.md#resident-set-without-collector`).
+
+## A count holds across rounds and beside a control
+`count-holds-across-rounds`
+
+- **Rule.** Alternate a control beside the two builds, a second build of the base or the head with
+  an unreached change, which must read equal to its twin, and run a second round. Quote a gap only
+  where both rounds agree on its sign and size and it exceeds the control's own difference; else
+  attribute it with a CPU profile of repeated in-process compiles, reading the changed functions'
+  own lines, and say the whole-run count was not resolvable at that load.
+- **Why.** A variant compiling the input identically moved 1.4% between two rounds, more than the
+  0.4% to 1.6% gaps being read (#1333), and the golden spec's range was about 20% of its median
+  with the collector on (#1304).
+- **Probe.** The control's twins differ by less than the gap, in both rounds.
+
+## A resident set read with the collector off is total allocation
+`resident-set-without-collector`
+
+- **Rule.** With `GOGC=off` nothing is freed, so the maximum resident set `/usr/bin/time -l` prints
+  beside an instruction count is every byte the run allocated. Quote it as total allocation or not
+  at all, and read a peak in a separate run with the collector on, or as `go test -benchmem` bytes
+  where allocation is meant.
+- **Why.** A 2,000-hop parameter chain read 7.9 GB with the collector off and 51 MB with the
+  defaults, and a review took a collector-off figure for a memory regression (#1470).
+- **Probe.** The same run with and without `GOGC=off`.
 
 ## Without an instruction counter, compare CPU time and say so
 `cpu-time-without-a-counter`
@@ -100,6 +140,19 @@ how to measure so the number means what the claim says.
 - **Probe.** List each arm with the input that reached it, and take each arm's instructions on both
   builds (`references/finding-cost.md#instructions-not-wall-clock`).
 
+## Find where a small cost difference comes from by counting statements
+`attribute-by-statement-counts`
+
+- **Rule.** Where a profile of a few percent measures the machine, build both sides with
+  `-cover -covermode=count -coverpkg=<the module's packages>`, run one input through each, and sum
+  each block's statements times its executions per function. The counts name candidate sites; an
+  instruction count on one thread with the collector off confirms each, since a statement is no
+  instruction, and code outside `-coverpkg`, allocation and collection go uncounted.
+- **Why.** Two profiles put an unchanged `load.Load` at 3.61 s and 4.86 s, while statement counts,
+  0.01% apart over two runs of one build, named the readers whose calls grew; on another shape
+  their +14% was +3.2% in instructions (#1269).
+- **Probe.** Two runs of one build differ far less than the two builds.
+
 ## Time generated shapes, deep and wide, on main and the branch
 `deep-generated-shapes`
 
@@ -114,6 +167,18 @@ how to measure so the number means what the claim says.
   #1240).
 - **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
+
+## Drive a loop that reruns a phase through many turns
+`drive-a-settling-loop`
+
+- **Rule.** When a change reruns a phase until it settles, name what makes it turn again, build an
+  input forcing n turns, such as a chain of documents each named by an absolute URI, and count its
+  work at n and 2n. Rerun the phase's budget sweep on an input taking more than one turn, reading
+  which turn each limit cuts and what the result holds there.
+- **Why.** A binder rerun until it settled cost the square of a document chain's length, and a
+  budget cut in a later pass replaced a whole table with an empty one, both past two reviews
+  (#1227).
+- **Probe.** The work at 2n is about twice the work at n.
 
 ## Do not take main's fast failure as the baseline for a fix
 `failing-fast-is-no-baseline`

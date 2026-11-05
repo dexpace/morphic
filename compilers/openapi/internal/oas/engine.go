@@ -57,6 +57,11 @@ type Checker struct{ spec Spec }
 // NewChecker returns a Checker over the table.
 func NewChecker() Checker { return Checker{spec: Table()} }
 
+// Spec returns the table c judges against, which the load phase reads a
+// document's Schema Object rows from (Spec.SchemaRules) without building it
+// again.
+func (c Checker) Spec() Spec { return c.spec }
+
 // Check judges the tree root, an object of the kind Options.Start names, as an
 // OpenAPI document declaring version, and returns what it finds. A version the
 // table does not cover is held to nothing. Findings come in a fixed order: one

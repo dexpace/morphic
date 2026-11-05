@@ -109,6 +109,52 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
                          (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
 
+    def test_a_stacked_base_is_left_out_when_named(self):
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("the base's own subject")
+        self.git("switch", "-q", "-c", "stacked")
+        self.commit("test: add a case")
+        named = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((named.returncode, named.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+        unnamed = self.run_script("1311", TITLE)
+        self.assertEqual((unnamed.returncode, unnamed.stdout.splitlines()[0]),
+                         (1, "commit: not type(scope): subject: the base's own subject"))
+
+    def test_a_former_base_is_left_out_beside_main(self):
+        self.git("switch", "-q", "-c", "former", "main")
+        self.commit("the former base's own subject")
+        self.git("switch", "-q", "-c", "moved")
+        self.commit("test: add a case")
+        for first, second in (("origin/main", "former"), ("former", "origin/main")):
+            with self.subTest(first=first):
+                r = self.run_script("--base", first, "--base", second, "1311", TITLE)
+                self.assertEqual((r.returncode, r.stdout),
+                                 (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
+    def test_mains_own_commits_are_never_the_branchs(self):
+        # The branch starts on a main that moved on after its base did, then merges the base.
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("test: the base's work")
+        self.git("switch", "-q", "main")
+        self.commit("main's own subject, after the base")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("switch", "-q", "-c", "stacked")
+        self.git("merge", "-q", "--no-edit", "base")
+        self.commit("test: add a case")
+        r = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
+    def test_an_unknown_or_empty_base_exits_two(self):
+        self.commit("test: add a case")
+        # git refuses these bases too, so only the message tells the script's own check apart.
+        for base, says in (("no-such-ref", "subjects: fatal:"), (" ", "a base names no branch"),
+                           ("", "a base names no branch"), ("origin/", "a base names no branch")):
+            with self.subTest(repr(base)):
+                r = self.run_script("--base", base, "1311", TITLE)
+                self.assertEqual((r.returncode, says in r.stderr), (2, True), r.stderr)
+
     def test_clean_branch_exits_zero(self):
         self.commit(SIXTY_SIX)
         self.commit("test: add a case")
