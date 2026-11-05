@@ -5,8 +5,8 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
 
 - **Docs emitter (`emitters/docs`).** Reuses the shared plan verbatim (pagination, return shape,
   error taxonomy — what docs must describe; [what the docs render](#what-the-docs-render) says
-  which responses) and most of the refine
-  step library, but lowers into a `docast` (pages, operation blocks, schema tables, examples) and
+  which responses) and most of the refine step library, but lowers into a `docast` (pages,
+  operation blocks, schema tables, examples) and
   runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice
   (SDK-style identifiers or spec-faithful source names, set in its options). The spans
   [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to intra-doc links via the
@@ -38,7 +38,6 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   prefix, so vendor metadata sharing the same map never reaches it, and reports each finding at
   `UnmodeledEntry.Provenance` — the keyword's own position, not the enclosing schema's. The
   contract already carries all of that; no IR change is needed (INV9).
-
 - **CLI emitter (future).** A command-line client is the third surface APIs ship beside SDKs and
   docs, and almost all of it is IR and plan facts ([a command-line target](#a-command-line-target)).
 
@@ -51,10 +50,12 @@ The primary response and content are an SDK's ergonomic choice: a method returns
 the docs needs every answer the API gives, so the docs emitter renders every `Response`, every
 `ErrorCase` and every `Content` the operation declares, the primary response first and the elected
 content first within each, and those choices order the page and decide nothing else. A type is
-rendered once per direction it travels, through its `ModelShape` per lifecycle
-([TypePlan](plan/types.md#modelshape--visibility-projection)): a request shape lists what a caller
-sends and a response shape what it receives, each member's requiredness read in that direction, so
-a write-only property never appears in a response's table, nor a read-only one in a request's.
+rendered once for each shape its `TypePlan.Shapes` lists
+([ModelShape](plan/types.md#modelshape--visibility-projection)), each table holding the members
+visible in that shape and marking those it requires. So a write-only property is in no read
+shape's table and a read-only one in no create shape's, and a model one operation creates and
+another patches has a table for each, since a patch body's members are optional and a member
+visible only at creation is absent from it. A direction alone would merge those two.
 
 ## Routes and links
 
@@ -62,13 +63,19 @@ Every docs target needs URLs, links between pages, an answer for two entities wa
 a way to show one entity across API versions. Each is decided by data, never by a renderer:
 
 - **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations,
-  and the types that warrant a page — holding no URL. A route plan then derives every URL from the
-  catalog alone, through templates in the docs emitter's options, one per kind of page
-  (`"/{service}/{group}/{operation}"`). A slug is presentation (INV3), rendered from names by the
-  naming policy and marked `Inferred` where a default derived it.
-- **A total route plan.** Every `OpID` and every type with a page gets a route, and every `PropID`
-  an anchor on its type's page. Anything left without one is a coded diagnostic, and a recursive
-  type is linked by its ID, never inlined to a depth and cut.
+  and the types with a page of their own — holding no URL. A model, union or enum has a page when
+  it is declared, not `Anonymous`, or when more than one reference names it. Any other type is
+  rendered where it is referenced: an anonymous model as a table on the page its one holder is
+  rendered on, and a list, map, tuple or scalar as the type it holds. On the golden spec (spec
+  @57b5196b, morphic @ab953d45), 28 anonymous models have more than one holder, a response or
+  request body several operations share, so a holder's page alone would give their properties two
+  homes. A route plan then derives every URL from the catalog alone, through templates in the docs
+  emitter's options, one per kind of page (`"/{service}/{group}/{operation}"`). A slug is
+  presentation (INV3), rendered from names by the naming policy.
+- **A total route plan.** Every `OpID` and every type with a page gets a route, every type rendered
+  on another's page an anchor there, and every `PropID` an anchor on the page its model is rendered
+  on. Anything left without one is a coded diagnostic, and a recursive type is linked by its ID,
+  never inlined to a depth and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL are an error
   diagnostic naming both, never a page that overwrites another and never a page dropped. The check
   runs on the URLs the templates produce, over every kind of route in one table, so no template can
@@ -102,9 +109,10 @@ disagree about a URL:
 - **`llms.txt` indexes** at site, service, version and target scope, each a Markdown index linking
   the agent documents of its scope rather than the pages.
 - **Facts, not guesses.** An operation is marked safe, or safe to retry, from `OpPlan.Effects`
-  ([OpPlan](plan/operations.md)). A warning that it destroys something comes only from a declared
-  fact, a hint or a promoted extension, since a method cannot say it: `DELETE` and `PUT` are
-  idempotent and may destroy.
+  ([OpPlan](plan/operations.md)). A warning that it destroys something comes only from its
+  `Destructive` hint ([shaping hints](contract/shaping-hints.md)), which a document's own extension
+  can set through the [embedded reader](contract/embedded-policy.md). No IR fact states it, and a
+  method cannot: `DELETE` and `PUT` are idempotent and may destroy.
 - **Spec text is escaped.** A heading or a list item built from a summary or a description is
   escaped for Markdown, and raw HTML in a description is rendered as text, never passed through.
 
@@ -165,14 +173,17 @@ a value that changes because one of them did is one that had to.
 
 Documents carry presentation as vendor extensions: a logo, a tag's display name, groups of tags,
 code samples on an operation, a marker on an internal operation or property. They stay verbatim in
-`Unmodeled`, and the docs emitter reads those its options name, as the [embedded
-reader](contract/embedded-policy.md) reads policy: a key to a presentation field, the value decoded
-strictly and a wrong shape reported, the entry left in place, and an empty default mapping, since
-each key is one tool's spelling. A code sample a document declares is shown as authored beside the
-samples the SDK emitters return. An internal marker is the filter pass's to read (architecture.md
-§2.2), never the docs emitter's: hiding an operation in the docs alone would document an SDK
-different from the one generated. A search index over the pages, keyed by ID, is an optional
-artifact of the same emitter.
+`Unmodeled`, and the docs emitter, like every emitter, never reads one itself. The [embedded
+reader](contract/embedded-policy.md) reads those a configuration maps into members of a hint's
+`Extra` ([shaping hints](contract/shaping-hints.md)), by its rules for where a key applies, for
+two keys setting one member and for layers. Its default mapping is empty, since each key is one
+tool's spelling. The docs emitter decodes the `Extra` members it defines strictly, reporting a
+wrong shape and coercing nothing. A key held for a tag, as a display name is, configures nothing
+until the IR carries a tag where it lowers (#1221). A code sample a document declares is shown as
+authored beside the samples the SDK emitters return. An internal marker is the filter pass's to
+read (architecture.md §2.2), never the docs emitter's: hiding an operation in the docs alone would
+document an SDK different from the one generated. A search index over the pages, keyed by ID, is
+an optional artifact of the same emitter.
 
 ## A command-line target
 
@@ -183,7 +194,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | CLI behavior | Read from |
 |---|---|
 | `--dry-run` on a call that changes something; no confirmation on a safe one | `OpPlan.Effects` |
-| A confirmation before a destructive call | a declared fact only: a hint or a promoted extension |
+| A confirmation before a destructive call | the `Destructive` hint, which no method implies |
 | Streamed output for a list | `OpPlan.Page` |
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
 | Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID` |
