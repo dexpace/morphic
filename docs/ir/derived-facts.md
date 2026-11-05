@@ -95,22 +95,34 @@ cycle through composition alone, which the IR permits, is reported too.
 
 `Correlation(id)` answers what an entity of any class is called across revisions of its document,
 and `Correlated(key)` answers the reverse: a key built from what the document names the entity by,
-never from an array position or a file's location, so it survives the edits that move an ID
+never from a file's location or an array position, save a tuple element's, which is its identity
+on the wire, so it survives the edits that move an ID
 ([across revisions](./identity.md#across-revisions)). An entity keeps its key through a reordered
 array, a schema moved within its file or to another file, and an `allOf` branch inserted before
-the one declaring a property; an operation keeps its own through a renamed path variable, and
-through a renamed path where it names itself. A rename of the name the key is built from moves the
-key too, and nothing derived from a document alone follows it; that is the structural tier [open
+the one declaring a property; an operation keeps its own through a renamed path variable and a
+renamed `operationId`. A rename of the name the key is built from moves the key too, and nothing
+derived from a document alone follows it; that is the structural tier [open
 question 5](./open-questions.md) leaves open.
 
 An entity named for itself takes a key of its own:
 
 | Entity | Key |
 |---|---|
-| operation | `op:` and its declared name (`Naming.Source`, an OpenAPI `operationId`); one the source leaves unnamed takes its method and route instead, each path variable written `{}`, a webhook's event name standing for the route |
-| named type | its namespace, then `type:` and its declared name; a primitive, its kind |
+| operation, other than a callback | its method and route, each path variable written `{}`, a webhook's event name standing for the route; one no HTTP binding places, or that shares its route with another operation, its declared name (`Naming.Source`, an OpenAPI `operationId`) |
+| named type | its declared namespace (`TypeCommon.Namespace`), then `type:` and its declared name; a primitive, its kind |
 | service, auth scheme | its declared name |
 | group | its ID, which a rule mints from a name and never from a position ([groups](./identity.md#operation-groups)) |
+
+An operation is keyed by its route rather than its `operationId` because the route is what a client
+calls and OpenAPI holds unique, while a later revision can hand an `operationId` to another
+endpoint. Between the golden spec's revisions c92b9b0f and 319dc756, three months apart and
+compiled by morphic @4ac3031d, nine `operationId`s moved to a new endpoint while the old one kept
+its route and its ID under a new name, so a key built from them matched each old endpoint to
+another; nineteen operations, those nine among them, kept their route and ID under a renamed
+`operationId`, so such a key never matched them to themselves; and one route moved under an
+unchanged `operationId`, the one case it carried that the route misses. In the three months before,
+from ef715956, 48 operations gained their first `operationId` on an unchanged route, which moves
+such a key too.
 
 Every other entity is keyed by a position that names it, its holder's key extended by one segment:
 
@@ -119,10 +131,10 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | parameter | its operation, where the parameter travels and its wire name, a header's in lower case; one no binding places, its name |
 | property | the model declaring it, and its wire name. The anonymous models a model composes in place are part of it: their properties are keyed as its own, each wire name keying the declaration the model's [flattening](./models.md#the-flattening) takes and none it overrides |
 | field argument | its property, and its name |
-| header | the response, error, default or stream item declaring it, and its name in lower case |
+| header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case |
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
 | server | the service or operation naming it, and its URL template |
-| callback operation with no name of its own | the operation declaring it, the method and the runtime expression keying it |
+| callback operation | the operation declaring it, the method and the runtime expression keying it |
 | anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type, and what its encoding decodes to; a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
 
 An entity several positions name takes the least of their keys, so its key is the same whatever
@@ -133,4 +145,12 @@ nothing through it, because a wrong match is the failure the key exists to preve
 no key is matched by nothing, so a consumer reads it as removed in one revision and added in the
 other. The key is derived and never stored, as every fact here is: it needs only what the document
 already holds, and a stored copy would add to every node a document that is already several times
-its source ([consumers](./consumers.md#size)). Not built yet (#679).
+its source ([consumers](./consumers.md#size)).
+
+A key is opaque, compared only for equality, and only with one the same derivation produced. A
+consumer comparing two revisions derives both sides' keys in one build. One that stores keys
+records `irfacts.CorrelationVersion` beside them, the version of the derivation, which moves with
+any change to how a key is derived; across a change of it a stored key matches nothing, so a
+changed derivation costs matches rather than handing one entity another's state. `IRVersion` is
+not that version: it refuses a document, and a change to the derivation changes none. Not built yet
+(#679).

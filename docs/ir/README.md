@@ -22,7 +22,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [identity](./identity.md) | IDs: the grammar, each class of ID, what holds across revisions, and what `irverify` holds them to |
 | [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases, and the names one scope shares |
 | [provenance](./provenance.md) | `Provenance` and `Diagnostic`: where a node or a finding came from |
-| [consumers](./consumers.md) | What a consumer other than an emitter relies on: what it finds, identity across revisions, what to pin, size |
+| [consumers](./consumers.md) | What a consumer other than an emitter relies on: what it finds, identity across revisions, what to pin, which `Unmodeled` keys hold still, size |
 
 **Types**
 
