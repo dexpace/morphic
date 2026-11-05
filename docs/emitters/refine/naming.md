@@ -40,12 +40,14 @@ built from the wire channel, so wire correctness never depends on the rendered i
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
 which is keyed by IR ID, and against the names the prior generation shipped, so adding one endpoint
 never renames an existing method (the oagen collision-cascade counterexample; INV3;
-[collisions](#collisions-and-the-names-a-generation-shipped)). Anonymous hoisted types get an
-emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change
-how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
-members are keyed by `EnumMember.ID`, which is derived from the value a member holds, so two members
-whose names render alike are two entries to disambiguate, and reordering members of distinct values
-renames none.
+[collisions](#collisions-and-the-names-a-generation-shipped)). Those any target may meet, neutral
+names one scope shares, the `names` pass reports to the document's author
+([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
+hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames
+(`Service.Renames`) change how a shape is presented in a service without changing its `TypeID` or
+its own `Naming`. Enum members are keyed by `EnumMember.ID`, which is derived from the value a
+member holds, so two members whose names render alike are two entries to disambiguate, and
+reordering members of distinct values renames none.
 
 ## Collisions, and the names a generation shipped
 

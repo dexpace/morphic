@@ -16,7 +16,7 @@ import (
 // than the conflict half: constraints that do not disagree combine.
 func TestMerger_MergeConstraintsKeepsBothSidesBounds(t *testing.T) {
 	t.Parallel()
-	got := mergeConstraints(
+	got := Constraints(
 		&ir.Constraints{MaxLength: new(int64(10))},
 		&ir.Constraints{MinLength: new(int64(2))},
 	)

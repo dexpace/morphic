@@ -23,6 +23,7 @@ Each row names the rule and code that shows it holding, the thing to copy.
 | any function | ask what would make it wrong, and refuse that at entry (`CLAUDE.md`, "Assert aggressively") | `Classify` in `compilers/openapi/internal/value/scalar.go` |
 | work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
 | a lowering, check, pass or helper | `references/design-rules.md#functional-core` | `Read` in `compilers/openapi/internal/annotation/annotation.go` |
+| state every walk of a run must share | `references/design-rules.md#shared-run-state` | `typePositions` in `compilers/openapi/internal/lowering/lowering.go` |
 | a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run` | `checkInferred` in `ir/irverify/inferred.go` |
 | a value with a format, or a state meaning none | `references/design-rules.md#type-the-form` | `Limit` in `compilers/openapi/internal/budget/limit.go` |
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` | `Compiler` in `compilers/compilers.go` |

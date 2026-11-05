@@ -77,9 +77,9 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   recognizes its own format from the bytes and owns its options. OpenAPI 3.x is the first; the
   formats planned after it are in [Status](#status).
 - **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `validate` checks referential
-  integrity and the well-formedness rules the IR states, and runs by default. Deduplication,
-  filtering, version slicing and IR overlays are designed in [Architecture](docs/architecture.md)
-  but not built.
+  integrity and the well-formedness rules the IR states, and `names` reports names any target may
+  render alike; both run by default. Deduplication, filtering, version slicing and IR overlays are
+  designed in [Architecture](docs/architecture.md) but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
   target. SDK runtime policy (retries, timeouts, telemetry, the error taxonomy) is a separate
   emitter input, not part of the IR.
@@ -223,11 +223,14 @@ OpenAPI compiler accepts:
 | `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
 | `streaming-media` | media types and `+suffix`es, separated by commas | The media types read as a stream of frames where a document declares no `itemSchema`, in place of the default list: `application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and `+json-seq`. An entry starting with `+` matches every media type with that structured suffix. |
 | `streaming-inference` | `true` (default), `false` | Read a media type as a stream of frames, as `streaming-media` lists. `false` turns that reading off, whatever the list holds, leaving only what an `itemSchema` declares. |
+| `binary-media` | media types, `type/*` wildcards and `+suffix`es, separated by commas | The media types under which a body or multipart part whose schema says no more than that it is a string is a file, in place of the default list: `application/gzip`, `application/pdf`, `application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`, `image/*` and `video/*`. A `type/*` entry matches no media type with a structured suffix, so `image/*` leaves out `image/svg+xml`. Each file it reads is marked as inferred. `application/octet-stream` needs no entry: a body or part it carries is a file whatever the list holds. |
+| `binary-inference` | `true` (default), `false` | Read a body or part as a file by its media type, as `binary-media` lists. `false` turns that reading off, leaving only the files a schema or `application/octet-stream` declares. |
 | `max-source-bytes` | an integer | The byte budget for one document: the spec, the overlay, and each document a `$ref` reads. None is read more than a byte past it. |
 | `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
 | `max-enum-members` | an integer | The budget on the members of one enum. |
 | `max-alias-surplus` | an integer | The budget on the nodes YAML aliases may add to a document. |
 | `max-external-documents` | an integer | The budget on how many documents external references read in one compile. |
+| `max-reference-expansion` | an integer | The budget on what `$ref`s copy: each `$ref` to a declaration other than a schema or a link lowers its own copy of it, and of each component alias on the way, weighed as a node for each YAML node, a YAML alias as a copy of what it names, a byte for each byte of scalar text, and a node for a schema it holds, which lowers once. |
 
 Each `max-*` option sets the `openapi.Limits` budget it names, whose default is documented there:
 `0` takes the default, and a negative value turns the budget off.

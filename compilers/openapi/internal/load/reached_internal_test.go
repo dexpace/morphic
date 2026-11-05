@@ -314,7 +314,7 @@ func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
 	}
 
 	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil,
-		newReached(doc, Options{}, sourceTree{}, judgment{}))
+		newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()}))
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.Validation, diags[0].Code)
@@ -379,11 +379,11 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	stopped := newReached(doc, Options{}, sourceTree{}, judgment{})
+	stopped := newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()})
 	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
 	assert.Empty(t, stopped.spans, "no target was charged")
 
-	live := newReached(doc, Options{}, sourceTree{}, judgment{})
+	live := newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()})
 	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
 	assert.NotEmpty(t, live.spans)
 }

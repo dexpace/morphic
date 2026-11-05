@@ -29,7 +29,7 @@ type markerCarrier struct {
 }
 
 // markerCarriers reach each kind of carrier, ir.Provenance, ir.TypeRef and a
-// bare marker on a node with no Provenance, under Types, Services, Auth and
+// bare marker on a value with no Provenance, under Types, Services, Auth and
 // Diagnostics, so a check scoped to one carrier or one part of the document
 // misses a row.
 func markerCarriers() []markerCarrier {
@@ -37,6 +37,16 @@ func markerCarriers() []markerCarrier {
 		return closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
 			ID: "p/x/M/f", Name: named("f"), Type: ref,
 		}}})
+	}
+	content := func(c ir.Content) *ir.Document {
+		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "t/x/M"}
+		doc := property(ir.TypeRef{Target: "t/x/Leaf"})
+		doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+			ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+				ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+			}},
+		}}}}
+		return doc
 	}
 	return []markerCarrier{
 		{"a model's provenance", func(list ir.Inferred) *ir.Document {
@@ -74,6 +84,14 @@ func markerCarriers() []markerCarrier {
 			}}
 			return doc
 		}, "doc.Auth[auth/x/a].Flows[0].Inferred"},
+		{"a file body's own marker", func(list ir.Inferred) *ir.Document {
+			return content(ir.Content{File: &ir.FileInfo{Inferred: list}})
+		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].File.Inferred"},
+		{"a file part's own marker", func(list ir.Inferred) *ir.Document {
+			return content(ir.Content{Encoding: map[ir.PropID]ir.PartEncoding{
+				"p/x/M/f": {Filename: true, Inferred: list},
+			}})
+		}, "doc.Services[0].Groups[0].Operations[0].Request.Contents[0].Encoding[p/x/M/f].Inferred"},
 		{"a diagnostic's provenance", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
 			doc.Diagnostics = []ir.Diagnostic{{
@@ -167,4 +185,52 @@ func TestVerify_OnlyAnInferredMarkerIsHeldToTheListForm(t *testing.T) {
 	model.Tags = []string{",a"}
 	doc := stamped(closedDoc(model))
 	assert.Empty(t, verifyDeclared(doc))
+}
+
+// TestVerify_APartMarkerQualifiesItsFilename holds a PartEncoding's Inferred to
+// the bit it qualifies, as a reference's is held to Nullable: a file part carries
+// the marker cleanly, and a part carrying no filename is reported at the
+// marker, in a body's part map and as a sequential body's item encoding alike.
+func TestVerify_APartMarkerQualifiesItsFilename(t *testing.T) {
+	t.Parallel()
+	const op = "doc.Services[0].Groups[0].Operations[0].Request.Contents[0]"
+	doc := func(c ir.Content) *ir.Document {
+		c.MediaType, c.Type = "multipart/form-data", ir.TypeRef{Target: "t/x/M"}
+		d := closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
+			ID: "p/x/M/f", Name: named("f"), Type: ir.TypeRef{Target: "t/x/Leaf"},
+		}}})
+		d.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+			ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+				ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{c}},
+			}},
+		}}}}
+		return stamped(d)
+	}
+	for _, tc := range []struct {
+		name    string
+		content ir.Content
+		path    string
+	}{
+		{"a part in a body's map", ir.Content{Encoding: map[ir.PropID]ir.PartEncoding{
+			"p/x/M/f": {Multi: true, Inferred: "guess"},
+		}}, op + ".Encoding[p/x/M/f].Inferred"},
+		{"a sequential body's item", ir.Content{ItemEncoding: &ir.PartEncoding{
+			ContentTypes: []string{"image/png"}, Inferred: "guess",
+		}}, op + ".ItemEncoding.Inferred"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, []irverify.Violation{{
+				Code:    "ir/part-encoding-inferred-not-filename",
+				Message: `part encoding is marked inferred by "guess" but carries no filename`,
+				Path:    tc.path,
+			}}, verifyDeclared(doc(tc.content)))
+		})
+	}
+	t.Run("a file part", func(t *testing.T) {
+		t.Parallel()
+		assert.Empty(t, verifyDeclared(doc(ir.Content{ItemEncoding: &ir.PartEncoding{
+			Filename: true, Inferred: "guess",
+		}})))
+	})
 }

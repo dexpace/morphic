@@ -32,6 +32,9 @@ import (
 // them through PreserveRefSiteKeywords (GitHub #114).
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
+	// A rule about the declaration holds the keywords beside its $ref as it holds
+	// a body's (schemaBody), with what the $ref lands on.
+	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
@@ -67,8 +70,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		unhomed, shape := referenceOutcomeKeywords(c, s, pointer)
-		return recordUnhomedAt(c, p, s, unhomed, shape, pointer)
+		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
+		// reference just as a $ref site does.
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, p, s, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -172,8 +176,8 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer,
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
 	if c.IDs() == (ids.Document{}) {
-		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-			return id, resolved
+		if id, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+			return id, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {
@@ -205,7 +209,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

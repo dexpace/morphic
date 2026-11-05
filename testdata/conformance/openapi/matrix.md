@@ -39,7 +39,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `codeclared-keywords`
+  `allof-refinement`, `codeclared-keywords`
 
 ### `negation`
 
@@ -129,7 +129,8 @@ witnessing it.
 
 ### `multipart-encoding`
 
-- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`
+- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
+  `file-items-32`
 
 ### `per-status-errors`
 

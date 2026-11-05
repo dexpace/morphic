@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -86,3 +87,57 @@ paths:
                 - contentType: application/xml
               itemEncoding: {contentType: text/plain}
 `
+
+// TestItemFile_ReadsTheItemAsAPartDeclarationIs holds a sequential body's item
+// encoding to the reading a multipart part's declaration takes: an item of raw
+// bytes, or one writing no type, is a file, one leaving its media type to say is
+// a marked file where its encoding names only binary types, and an item no
+// schema describes, an array item, or an item of a body that is not multipart is
+// none. A multipart body of files with no itemEncoding gets one saying so.
+func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
+	t.Parallel()
+	const marker = "binary-media-type"
+	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
+	for _, tc := range []struct {
+		name, media string
+		opts        openapi.Options
+		want        *ir.PartEncoding
+	}{
+		{"raw bytes", "multipart/mixed: {itemSchema: {type: string, format: binary}, itemEncoding: {contentType: image/png}}",
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true}},
+		{"raw bytes with no itemEncoding", "multipart/mixed: {itemSchema: {type: string, format: binary}}",
+			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+		{"an item writing no type", "multipart/mixed: {itemSchema: {}}",
+			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+		{"a true item", "multipart/mixed: {itemSchema: true}", openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+		{"a string of a binary type", "multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true,
+				Inferred: marker}},
+		{"a string of a binary type with the policy off",
+			"multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
+			disabled, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
+		{"a string", "multipart/mixed: {itemSchema: {type: string}}", openapi.Options{}, nil},
+		{"an object", "multipart/mixed: {itemSchema: {type: object}, itemEncoding: {contentType: application/json}}",
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true}},
+		{"an item no schema describes", "multipart/mixed: {itemEncoding: {contentType: image/png}}",
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
+		{"an array item", "multipart/mixed: {itemSchema: {type: array, items: {type: string, format: binary}}}",
+			openapi.Options{}, nil},
+		{"raw bytes on a body that is not multipart", "application/jsonl: {itemSchema: {type: string, format: binary}}",
+			openapi.Options{}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, openapitest.PathsSpecVer("3.2.0", `  /items:
+    get:
+      operationId: items
+      responses:
+        "200":
+          description: ok
+          content:
+            `+tc.media+`
+`), tc.opts)
+			assert.Equal(t, tc.want, openapitest.FindOp(t, doc, "items").Responses[0].Payload.Contents[0].ItemEncoding)
+		})
+	}
+}

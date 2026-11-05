@@ -366,7 +366,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/keys",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1keys/post/parameters/onSchema/query",
@@ -435,6 +434,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

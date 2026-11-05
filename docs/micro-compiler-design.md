@@ -275,14 +275,8 @@ and §4 offered an `AnchorsNamed` accessor for it. Neither happened, for two
 reasons that only appear once you build it. Deriving the index emits a
 diagnostic — it warns when a bound stopped the walk short — so deriving it at
 entry reports on every document whose tree exceeds those bounds, including the
-overwhelming majority that never write `$dynamicRef`. And the walk is not free:
-
-```bash
-# what deriving it at entry would cost a document that never asks
-go test ./compilers/openapi/internal/anchors -run XXX -bench BenchmarkBuild -benchtime=2000x
-```
-
-It measured about 3.7µs and 75 allocations against a compile's 270µs and 2,767 —
+overwhelming majority that never write `$dynamicRef`. And the walk is not free: it
+measured about 3.7µs and 75 allocations against a compile's 270µs and 2,767 —
 roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
 nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
 
@@ -290,6 +284,11 @@ nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
 with every copy, as it does the answers `TypePosition` reads (`Ctx.DynamicAnchorSites`,
 GitHub #982). It is still built on the first `$dynamicRef` and not before; what
 changed is that no lowering carries it as a parameter.
+
+*Later still:* the walk and its bounds are gone. It was a second reading of what
+`internal/bind` reads anyway, with its own idea of where a schema is, so `bind` reads
+each document's `$dynamicAnchor`s beside its other identifiers, and
+`Ctx.DynamicAnchorSites` only asks the table (GitHub #401, #454, #1031).
 
 That makes it the one counterexample to §4's claim that interning is
 "irreducibly shared and stateful; nothing else is". It is a weaker exception than

@@ -31,7 +31,7 @@ exist, so 1.26 leaves support when 1.28 ships; from then on every supported rele
 A Go [unit](../../refine/output-units.md) is a package, and a group's is `<root>/<group>`. Go's
 default [limit](../../refine/output-units.md#the-size-check) is 10,000 declarations. A synthetic
 package of that many models, each with its codec and a `Validate`, peaked at about 1.6 GB of memory
-to build with Go 1.27.2 on darwin/arm64, and one of 30,000 at about 4.6 GB.
+to build with Go 1.27.3 on darwin/arm64, and one of 30,000 at about 4.6 GB.
 
 Go has no cap on a method or a class, as the JVM has, but one package of tens of thousands of types
 builds slowly and in gigabytes of memory, which the [size
