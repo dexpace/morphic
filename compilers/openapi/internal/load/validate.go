@@ -46,6 +46,21 @@ func declaredVersion(root *yaml.Node) string {
 	return ""
 }
 
+// declaredDialect returns the jsonSchemaDialect the OpenAPI document root
+// declares, or "" for one declaring none, or no version, as a document no
+// OpenAPI Object roots does not.
+func declaredDialect(root *yaml.Node) string {
+	if declaredVersion(root) == "" {
+		return ""
+	}
+	for _, p := range nodeview.Pairs(nodeview.DocumentRoot(root)) {
+		if v := nodeview.Deref(p.Val); p.Key == "jsonSchemaDialect" && v != nil && v.Kind == yaml.ScalarNode && v.Tag != "!!null" {
+			return v.Value
+		}
+	}
+	return ""
+}
+
 // judgeSource holds the source to the table of the version it declares. root
 // is the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at the node it is about, naming where it was read

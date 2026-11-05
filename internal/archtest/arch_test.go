@@ -274,7 +274,8 @@ var rules = map[string][]string{
 	// states: the dialect question is asked of the table, never of the version.
 	// It reaches naming for what each position is called, and budget for the
 	// limits it holds. It reaches nodeview and yaml to weigh the declaration a
-	// $ref names, which a reference's lowering copies.
+	// $ref names, which a reference's lowering copies, and yaml for the node a
+	// schema's rows are found by.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",

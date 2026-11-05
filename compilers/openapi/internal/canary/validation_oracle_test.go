@@ -99,6 +99,11 @@ var validationReasons = map[string]string{
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
 		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
+	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
+		"dialect it names, and refuses a draft 4 exclusive bound, a boolean modifying the bound beside it; the " +
+		"specification has a root's $schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 " +
+		"§Schema Object: 'if present MUST be used to determine which dialect should be used when processing the " +
+		"schema'), and the schema lowering reads the bound in it (docs/compilers/openapi.md#dialect-keywords)",
 	"plain-date": "the library reads a date written with no tag at a string field as a timestamp, the type the " +
 		"YAML parser gives it, and refuses it as the wrong type; YAML 1.2, which OpenAPI recommends, has no timestamp " +
 		"and reads a plain date as a string, and OpenAPI limits its tags to the JSON schema ruleset's (3.1.2 §Format: " +
