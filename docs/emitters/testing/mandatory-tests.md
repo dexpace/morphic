@@ -353,8 +353,10 @@ throughout these documents.
     placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent documents and in
     samples. Every declared type but a primitive has a page, and so does an anonymous model, union
     or enum more than one reference reaches through anonymous containers, so no type is rendered in
-    two places; a recursive type is linked by its ID and never inlined, and an entity left without a
-    route is a coded diagnostic. Two slugs colliding in one template's scope are told apart by ID,
+    two places; a decorator has no page, table or anchor of its own, renders and links as its
+    `Alias` and folds its annotations onto the position, so a 3.0 decorator and the 3.1 `$ref`
+    render alike; a recursive type is linked by its ID and never inlined, and an entity left without
+    a route is a coded diagnostic. Two slugs colliding in one template's scope are told apart by ID,
     and two entities resolving to one URL are an error naming both, also when the URL templates are
     changed; every link and `Docs.Refs` span resolves through the route plan; a version switcher
     links one entity across snapshots, from the tables `Router` returns, and an entity a version
@@ -369,16 +371,17 @@ throughout these documents.
     mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
     property or a parameter declaring none and adding no constraint takes its type's set, an
-    operation declaring no scenario one assembled from its inputs' and its return content's, and a
-    content's, a variant's or a message's set is its own declared examples, else its type's, which
-    the docs, the samples and the mock read a body's examples from. Where none applies, the value
-    synthesized is valid against its constraints, marked `Inferred`, identical across regenerations
-    and in both declaration orders, seeded from its ID where no correlation key identifies it, and
-    the same in the docs, the samples, an SDK's tests and the mock. A synthesized model holds each
-    member's own first value, a declared one whole and a synthesized one cut to the depth the bound
-    leaves, so an optional recursive member ends; the bounds cut only optional members and the
-    entries of a list or map past its minimum, so a required member nested deeper than `MaxDepth`
-    and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot make valid,
-    a required cycle among them, or holding more than `plan.MaxExampleValues` values is reported and
-    left out; and a negative bound is `emitters/plan/policy-invalid` ([one set of
-    examples](../docs-and-mock.md#one-set-of-examples)).
+    operation declaring no scenario one assembled from its inputs' and its return content's, a
+    position whose type is a decorator its own examples, else the nearest decorator's, else its
+    `Alias`'s set, and a content's, a variant's or a message's set is its own declared examples,
+    else its type's, which the docs, the samples and the mock read a body's examples from. Where
+    none applies, the value synthesized is valid against its constraints, marked `Inferred`,
+    identical across regenerations and in both declaration orders, seeded from its ID where no
+    correlation key identifies it, and the same in the docs, the samples, an SDK's tests and the
+    mock. A synthesized model holds each member's own first value, a declared one whole and a
+    synthesized one cut to the depth the bound leaves, so an optional recursive member ends; the
+    bounds cut only optional members and the entries of a list or map past its minimum, so a
+    required member nested deeper than `MaxDepth` and a `minItems` or `minProps` above `MaxItems`
+    are met; one the synthesizer cannot make valid, a required cycle among them, or holding more
+    than `plan.MaxExampleValues` values is reported and left out; and a negative bound is
+    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).

@@ -4,23 +4,22 @@ Both are `Emitter` implementations consuming the **same `Doc + Plan`** — the p
 plan once: docs and mocks agree with the SDK by construction, not by re-derivation.
 
 - **Docs emitter (`emitters/docs`).** Reuses the shared plan verbatim (pagination, return shape,
-  error taxonomy — what docs must describe; [what the docs render](#what-the-docs-render) says
-  which responses) and most of the refine step library, but lowers into a `docast` (pages,
-  operation blocks, schema tables, examples) and
-  runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice
-  (SDK-style identifiers or spec-faithful source names, set in its options). The spans
-  [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to intra-doc links via the
-  *same* IR-ID lookup the Go emitter uses for doc comments, so a link follows what its target
-  renders as. Examples use the schema arm (`Value/Headers`) vs the operation arm
-  (`Input/Output/Error`) correctly. A union or enum `TypePlan.Open` marks is documented as one that
-  may hold a variant or value the document does not list, one inclusive in a shape as one whose
+  error taxonomy — what docs must describe; [what the docs render](#what-the-docs-render) says which
+  responses) and most of the refine step library, but lowers into a `docast` (pages, operation
+  blocks, schema tables, examples) and runs a **reduced pipeline**: no `EscapeReservedWords`, and
+  casing is a presentation choice (SDK-style identifiers or spec-faithful source names, set in its
+  options). The spans [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to
+  intra-doc links via the *same* IR-ID lookup the Go emitter uses for doc comments, so a link
+  follows what its target renders as. Examples use the schema arm (`Value/Headers`) vs the operation
+  arm (`Input/Output/Error`) correctly. A union or enum `TypePlan.Open` marks is documented as one
+  that may hold a variant or value the document does not list, one inclusive in a shape as one whose
   value may be several variants at once, and every `PlannedError` and `PlannedResponse` as the body
   and headers it declares. An enveloped response is documented as the `Type` a method returns and
   the `Envelope.Body` the wire carries, and an example of it as both: the member at `Value` of the
   response's example for the first, and that example whole for the second. An operation is
   documented as safe or idempotent where its `Effects` say so. Its README is returned as blocks a
-  user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)).
-  No runtime `Policy` is consulted — proving the IR/policy split pays off.
+  user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)). No
+  runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and each response content's [example set](#one-set-of-examples) for canned responses,
   synthesizing none of its own, sending the whole `Envelope.Body` where a response is enveloped,
@@ -70,6 +69,14 @@ declaring it is rendered; another table holding it, a subtype's for an inherited
 there. An anonymous model another composes in place is no table of its own: its members are rows
 of the composing model's table, anchored there, so no member is anchored twice.
 
+A reference is read through `TypePlan.Alias`, as every consumer reads one
+([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it,
+a `DocRef` naming it among them, renders and links as one to its `Alias`, and its annotations fold
+onto the position holding it as `CollapseAliases` folds them, the docs reading from the IR those no
+position holds. So a 3.0 `allOf` over a sole `$ref` and the 3.1 `$ref` beside the same annotations
+render alike, as T-16 requires of every artifact. By `ir.Decorated`, 1,610 of the golden spec's
+types are decorators, 645 of them models, and 758 carry the examples of the position they decorate.
+
 An example is shown through the shape it is shown in, so a response's example holds no write-only
 member and a request's no read-only one. A value `Property.Secret`, `Parameter.Secret` or
 `TypeCommon.Sensitive` marks is redacted in docs ([properties](../ir/properties.md)), so pages,
@@ -81,26 +88,26 @@ synthesized; an SDK's tests and the mock still send it.
 Every docs target needs URLs, links between pages, an answer for two entities wanting one URL, and
 a way to show one entity across API versions. Each is decided by data, never by a renderer:
 
-- **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations,
-  and the types with a page of their own — holding no URL. A type the document declares, neither
+- **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations, and
+  the types with a page of their own — holding no URL. A type the document declares, neither
   `Anonymous` nor a primitive, has a page whatever its kind, and so does an anonymous model, union
-  or enum that more than one reference reaches, counting through the anonymous lists, maps,
-  tuples and scalars that hold it.
-  Any other type is rendered where it is referenced: an anonymous model as a table on the page its
-  one holder is rendered on, and any other anonymous type as the type it spells. So no type is
-  rendered in two places. On the golden spec (spec @57b5196b, morphic @ab953d45), 28 anonymous
-  models are bodies 2 to 38 operations share, and a page only for a model, union or enum that more
-  than one reference names directly would leave 184 more rendered in several places, such as the
-  items of a declared list several models hold. A route plan then derives every URL from the
-  catalog alone, through templates in the docs emitter's options, one per kind of page
+  or enum that more than one reference reaches, counting through the anonymous lists, maps, tuples
+  and scalars that hold it and the decorators over it. Any other type but a decorator (above) is
+  rendered where it is referenced: an anonymous model as a table on the page its one holder is
+  rendered on, and any other anonymous type as the type it spells. So no type is rendered in two
+  places. On the golden spec (spec @57b5196b, morphic @ab953d45), 28 anonymous models are bodies 2
+  to 38 operations share, and a page only for a model, union or enum that more than one reference
+  names directly would leave 184 more rendered in several places, such as the items of a declared
+  list several models hold. A route plan then derives every URL from the catalog alone, through
+  templates in the docs emitter's options, one per kind of page
   (`"/{service}/{group}/{operation}"`). A slug is presentation (INV3), rendered from names by the
   naming policy, and two that collide in one template's scope are told apart by the ID-keyed
   resolution identifiers take ([naming](refine/naming.md)): three pairs of the golden spec's
   declared types share their canonical words, which the SDKs resolve as well.
 - **A total route plan.** Every `OpID` and every type with a page gets a route, every type rendered
   on another's page an anchor there, and every `PropID` an anchor where the model declaring it is
-  rendered (above). Anything left without one is a coded diagnostic, and a recursive type is linked
-  by its ID, never inlined to a depth and cut.
+  rendered (above), a decorator answering with its `Alias`'s. Anything left without one is a coded
+  diagnostic, and a recursive type is linked by its ID, never inlined to a depth and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL are an error
   diagnostic naming both, never a page that overwrites another and never a page dropped. The check
   runs on the URLs the templates produce, over every kind of route in one table, so no template can
@@ -128,9 +135,10 @@ Beside its pages, the docs emitter writes the same content as plain Markdown for
 the same `Doc + Plan` and through the same route plan, so an agent document and a page never
 disagree about a URL:
 
-- **One document per operation**, holding its method and path, parameters and schemas as nested
-  lists, examples, code samples and links, as one aggregate document and one per SDK target and
-  sample language, so an agent reads only the language it writes.
+- **One document per operation**, holding how it is called, an HTTP method and path or what another
+  binding names, parameters and schemas as nested lists, examples, code samples and links, as one
+  aggregate document and one per SDK target and sample language, so an agent reads only the language
+  it writes.
 - **`llms.txt` indexes** at site, service, version and target scope, each a Markdown index linking
   the agent documents of its scope rather than the pages.
 - **Facts, not guesses.** An operation is marked safe, or safe to retry, from `OpPlan.Effects`
@@ -171,13 +179,15 @@ member and operation:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs. One
   declaring none that adds no constraint to its type's takes its type's set, so a property shows
   the value its type does, and an operation declaring no scenario takes one assembled from its
-  inputs' sets and its return content's.
+  inputs' sets and its return content's. A position whose type is a decorator reads it as
+  `CollapseAliases` does: its own examples, else the nearest decorator's along the chain, else the
+  set of the type its `Alias` names.
 - **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
   prefix yet to keep it apart from the other classes in one map
   ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is its declared examples,
-  read from the IR, else its type's, a message's its payload content's, and the docs, the samples
-  and the mock read a body's examples from its content's set. Contents are where a document most
-  often declares a body's examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435
+  read from the IR, else its type's, a message's those of its payload's contents, and the docs, the
+  samples and the mock read a body's examples from its content's set. Contents are where a document
+  most often declares a body's examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435
   request, response and error contents declare 651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
