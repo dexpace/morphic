@@ -26,9 +26,9 @@ import (
 // as maxNullConjuncts caps the same walk, and maxAdmissionMembers what a value set
 // costs each position naming it. A reading past either says nothing, and the
 // position stays the composition it would be with no reading at all, which loses
-// nothing. Each position reads afresh, so a chain of allOfs each naming the next
-// pays up to maxAdmissionReads at every link: a reading is not remembered, as its
-// answer turns on the budget left.
+// nothing. Each position reads afresh, as a reading's answer turns on the budget
+// left, so a chain of allOfs each naming the next pays up to maxAdmissionReads at
+// every link.
 const (
 	maxAdmissionReads   = 256
 	maxAdmissionMembers = 4096
@@ -272,21 +272,24 @@ func memberOf(v values.Value) (string, kindSet, bool) {
 // values a schema admits and mirrors no lowering's dispatch. A reading cut short
 // is told by incomplete, and says nothing.
 type admission struct {
-	c       lowering.Ctx
-	is30    bool
-	reads   budget.Budget
-	members budget.Budget
+	c lowering.Ctx
+	// nullable reports whether the dialect c reads its schemas in defines the
+	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
+	// elsewhere is read in its own document's (definesNullableAt).
+	nullable bool
+	reads    budget.Budget
+	members  budget.Budget
 	// walked hears how many members each value set comparison of the election
 	// looks up, for a test to hold it to the sets it compares; a compile leaves
 	// it nil.
 	walked func(int)
 }
 
-// newAdmission returns a read with the whole budget, in the dialect c's document
-// declares. It returns a value so the read lives on its caller's stack.
+// newAdmission returns a read with the whole budget, in the dialect c reads its
+// schemas in. It returns a value so the read lives on its caller's stack.
 func newAdmission(c lowering.Ctx) admission {
-	return admission{c: c, is30: c.Is30(), reads: budget.New(budget.AtMost(maxAdmissionReads)),
-		members: budget.New(budget.AtMost(maxAdmissionMembers))}
+	return admission{c: c, nullable: c.SchemaRules().Defines("nullable"),
+		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
 }
 
 // incomplete reports whether the read met what it cannot answer for: a cycle
@@ -294,8 +297,9 @@ func newAdmission(c lowering.Ctx) admission {
 // value it cannot convert.
 func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
-// whole reads js, a schema of any form written anywhere: what its keywords say,
-// conjoined with its allOf, its unions and what its $ref lands on.
+// whole reads js, a schema of any form written anywhere, in the dialect of the
+// document holding it: what its keywords say, conjoined with its allOf, its
+// unions and what its $ref lands on.
 func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if !w.reads.Spend(1) || !annotation.Written(js) {
 		return admitted{kinds: kindAny}
@@ -310,7 +314,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if declaresDynamicRef(s) {
 		w.reads.Exhaust()
 	}
-	out := w.written(s)
+	out := w.written(s, definesNullableAt(w.c, js))
 	for _, b := range s.GetAllOf() {
 		out = out.and(w.whole(b))
 	}
@@ -331,6 +335,117 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	return out.and(w.whole(next))
 }
 
+// declarationSet is a set of schemas declaring together, with every schema they
+// compose, as the walk gathering them reached it, and the place of their
+// `items`, nil where none writes one. The place of a property is gathered from
+// the schemas the first time a claim asks for it, since a claim names few of
+// those a body declares.
+type declarationSet struct {
+	schemas    []*oas3.Schema
+	composed   []*oas3.JSONSchema[oas3.Referenceable]
+	properties map[string]*place
+	items      *place
+}
+
+// place is one property or element a set of schemas declares: each declaration
+// of it, and what they admit together and declare of what they nest, each read
+// the first time it is asked for and kept, so every claim restating the place
+// shares one reading.
+type place struct {
+	decls []*oas3.JSONSchema[oas3.Referenceable]
+	held  *admitted
+	inner *declarationSet
+}
+
+// newDeclarationSet returns an empty set, the one form property can be asked
+// of.
+func newDeclarationSet() declarationSet {
+	return declarationSet{properties: map[string]*place{}}
+}
+
+// add records s and its `items`. A nil s, a boolean schema's, declares
+// nothing, and the getters read it as empty.
+func (d *declarationSet) add(s *oas3.Schema) {
+	d.schemas = append(d.schemas, s)
+	if items := s.GetItems(); annotation.Written(items) {
+		if d.items == nil {
+			d.items = &place{}
+		}
+		d.items.decls = append(d.items.decls, items)
+	}
+}
+
+// property returns the place of the property name, nil where no schema of d
+// declares it, gathered once.
+func (d *declarationSet) property(name string) *place {
+	if at, ok := d.properties[name]; ok {
+		return at
+	}
+	var at *place
+	for _, s := range d.schemas {
+		if p, ok := s.GetProperties().Get(name); ok {
+			if at == nil {
+				at = &place{}
+			}
+			at.decls = append(at.decls, p)
+		}
+	}
+	d.properties[name] = at
+	return at
+}
+
+// declarations returns what s declares: itself, each allOf conjunct and what
+// a $ref lands on, read as whole reads them and within the same budget.
+func (w *admission) declarations(s *oas3.Schema) declarationSet {
+	out := newDeclarationSet()
+	out.add(s)
+	w.declare(&out, slices.Clone(s.GetAllOf()))
+	return out
+}
+
+// heldAt returns what p's declarations admit together, read once.
+func (w *admission) heldAt(p *place) admitted {
+	if p.held == nil {
+		held := w.whole(p.decls[0])
+		for _, d := range p.decls[1:] {
+			held = held.and(w.whole(d))
+		}
+		p.held = &held
+	}
+	return *p.held
+}
+
+// innerAt returns what p's declarations declare together, as declarations
+// reads one, read once.
+func (w *admission) innerAt(p *place) declarationSet {
+	if p.inner == nil {
+		inner := newDeclarationSet()
+		w.declare(&inner, slices.Clone(p.decls))
+		p.inner = &inner
+	}
+	return *p.inner
+}
+
+// declare adds to out what each schema on stack declares, its allOf conjuncts
+// and what its $ref lands on. A union's branches are left out, since an
+// instance need match only one. A declaration the walk does not reach, past the
+// budget or a $ref landing nowhere, is one fewer to restate, which errs towards
+// shape. The walk keeps its own stack, so it adds no recursion cycle, and the
+// order of each list is no answer.
+func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.Referenceable]) {
+	for len(stack) > 0 && w.reads.Spend(1) {
+		js := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		out.composed = append(out.composed, js)
+		cs := js.GetSchema()
+		out.add(cs)
+		stack = append(stack, cs.GetAllOf()...)
+		if next := w.c.Bindings().Declared(js); next != nil {
+			stack = append(stack, next)
+		}
+	}
+}
+
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
 func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admitted {
 	out := w.whole(branches[0])
@@ -340,12 +455,24 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 	return out
 }
 
-// written reads the keywords s itself writes that say what a value is: `type`,
-// which OpenAPI 3.0's `nullable` adds null to, `format`, `enum`, `const` and
-// `items`. A `properties` with no type beside it claims an object, as
-// lowerUntyped reads one.
-func (w *admission) written(s *oas3.Schema) admitted {
-	out := admitted{kinds: writtenKinds(s, w.is30)}
+// definesNullableAt reports whether the dialect of the document holding js
+// defines nullable: where c's bindings place js, that document's, and c's own
+// for a schema they do not place.
+func definesNullableAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	at, ok := c.Bindings().Site(js)
+	if !ok {
+		return c.SchemaRules().Defines("nullable")
+	}
+	return definesNullableIn(c, at.Doc)
+}
+
+// written reads the keywords s itself writes that say what a value is, in a
+// dialect defining nullable where nullable says: `type`, which a `nullable`
+// adds null to there, `format`, `enum`, `const` and `items`. A `properties`
+// with no type beside it claims an object, as lowerUntyped reads one. A schema
+// in c's document is read in w.nullable's dialect.
+func (w *admission) written(s *oas3.Schema, nullable bool) admitted {
+	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
 		out.items = items
@@ -365,9 +492,11 @@ func (w *admission) written(s *oas3.Schema) admitted {
 	return out
 }
 
-// writtenKinds reads a schema's `type`, or a type implied by what it declares. A
-// null `type` writes none (writesType).
-func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
+// writtenKinds reads a schema's `type`, or a type implied by what it declares,
+// with the null a `nullable: true` adds to it, beside a $ref as anywhere, where
+// the dialect defines the keyword, as nullable says. A null `type` writes none
+// (writesType).
+func writtenKinds(s *oas3.Schema, nullable bool) kindSet {
 	types := s.GetType()
 	if !writesType(s) {
 		if props := s.GetProperties(); props != nil && props.Len() > 0 {
@@ -379,7 +508,7 @@ func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	for _, t := range types {
 		out |= kindOfType(t)
 	}
-	if is30 && s.Ref == nil && s.Nullable != nil && *s.Nullable {
+	if nullable && s.Nullable != nil && *s.Nullable {
 		out |= kindNull
 	}
 	return out
@@ -469,16 +598,26 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 	})
 }
 
-// sameText reports whether a and b, both written in one document, write the same
-// JSON. A $ref in another document's copy would resolve elsewhere.
+// sameText reports whether a and b, both written in one document, write the
+// same JSON, read against one base where it writes a relative $ref: under an
+// $id naming another URI, the same spelling resolves elsewhere. A copy in
+// another document is read apart: its $refs resolve against that document, and
+// its dialect may differ (docs/compilers/openapi.md#openapi-versions).
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	at, ok := w.c.Bindings().Site(a)
-	bt, okB := w.c.Bindings().Site(b)
-	if !ok || !okB || at.Doc != bt.Doc {
+	at, placed := w.c.Bindings().Site(a)
+	bt, placedB := w.c.Bindings().Site(b)
+	text := w.text(a)
+	if !placed || !placedB || at.Doc != bt.Doc || text == nil || !bytes.Equal(text, w.text(b)) {
 		return false
 	}
-	text := w.text(a)
-	return text != nil && bytes.Equal(text, w.text(b))
+	// The texts are remembered, so comparing them first leaves a base, which
+	// walks the document, to the rare pair written alike.
+	if !annotation.WritesReference(text) {
+		return true
+	}
+	base, known := w.c.Bindings().Table().Base(at)
+	other, knownB := w.c.Bindings().Table().Base(bt)
+	return known && knownB && base == other
 }
 
 // textOf keys what text rendered of one schema.
@@ -503,13 +642,13 @@ func (w *admission) text(js *oas3.JSONSchema[oas3.Referenceable]) ir.RawValue {
 func (w *admission) holds(held admitted, s *oas3.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.is30)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
 	case "format":
-		return held.formsWithin(w.written(s))
+		return held.formsWithin(w.written(s, w.nullable))
 	case "enum", "const":
-		return held.valuesWithin(w.written(s))
+		return held.valuesWithin(w.written(s, w.nullable))
 	case "items":
-		return w.itemsWithin(held, w.written(s))
+		return w.itemsWithin(held, w.written(s, w.nullable))
 	default:
 		return false
 	}

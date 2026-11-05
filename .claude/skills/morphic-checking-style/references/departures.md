@@ -96,8 +96,9 @@ the rule here rather than reading it across.
 `done-is-make-gate`
 
 - **Rule.** The go-styleguide skill ends on `gofmt`, `golangci-lint`, `go vet` and `go test`. Here a
-  Go change is done at `make gate`, which adds the pinned linter version, the planted findings, the
-  repository's analyzers, fuzzing and exactly 100% coverage.
+  Go change is done at `make gate`, run locally or by CI on the final head, which adds the pinned
+  linter version, the planted findings, the repository's analyzers, fuzzing and exactly 100%
+  coverage.
 - **Why.** One uncovered statement fails CI while `go test` passes, which forced follow-up commits
   and falsified a PR body (#22, #373).
 - **Probe.** `grep -n '^gate:' Makefile`.
@@ -154,14 +155,16 @@ the rule here rather than reading it across.
 ## Assert interface compliance for an exported pair alone
 `interface-assertions-stay-narrow`
 
-- **Rule.** Rule 5.26 asks to assert compliance at compile time. Here an exported type implementing
-  an exported interface its package declares or imports from this module carries a `var _` beside
-  its imports, and an unexported one does not, since the call that passes it fails the build,
-  which #1266 disputes. A standard library interface such as `error` takes none.
+- **Rule.** Rule 5.26 asks for compile-time compliance assertions. Here an exported type
+  implementing an exported interface its package declares or imports from this module carries a
+  `var _` beside its imports. An unexported one does not where a call's parameter is the
+  interface, since the call fails the build; an optional interface takes
+  `references/departures.md#optional-interface-converted`. A standard library one such as `error`
+  takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
-  the rule covers with no assertion. It reports only a missing assertion, so an unexported type's
-  or a standard library interface's shows in what
+  lacking its assertion. It reports only a missing assertion, so an unexported type's or a standard
+  library interface's shows in what
   `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists, bar a conversion inside a `var (...)` group.
 
@@ -179,6 +182,21 @@ the rule here rather than reading it across.
   68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left, on
   darwin/arm64 (#1301, #1315; the platform is checked on #1381).
 - **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
+
+## Convert a type where it is passed to an optional interface
+`optional-interface-converted`
+
+- **Rule.** An optional interface, found by a run-time assertion such as the one `ir.WalkValues`
+  makes for `ir.CycleVisitor`, is held by no build, so
+  `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: a type meant
+  to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, or
+  carries a `var _`, unless a test reads what the interface adds. Whether the walk should find them
+  otherwise is #1523.
+- **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
+  and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
+  #1313).
+- **Probe.** `git grep -nE '\.\(([[:alnum:]_]+\.)?[A-Z][A-Za-z]*(Visitor|er)\)' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  lists the run-time assertions to an interface of that shape.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`

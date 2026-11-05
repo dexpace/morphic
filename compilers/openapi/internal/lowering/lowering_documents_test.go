@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -47,7 +48,7 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc), doc
 }
 
@@ -101,11 +102,94 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.False(t, ok, "a context given no load holds no documents")
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	same, ok := lowering.InDocument(unread, id)
 	assert.False(t, ok, "a document the compile did not list")
 	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
+}
+
+// TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
+// context reads a schema with: that of the document its scope reads, through
+// InDocument and InScope alike, and back to the source's. SchemaRulesIn answers
+// for a document of the bindings' table, and a context that did not list the
+// document, or has no load phase, answers with the source's.
+func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
+	t.Parallel()
+	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
+	id := extDoc(t, c)
+	assert.False(t, c.SchemaRules().Defines("nullable"), "the 3.1 source")
+
+	there, ok := lowering.InDocument(c, id)
+	require.True(t, ok)
+	assert.True(t, there.SchemaRules().Defines("nullable"), "ext.yaml declares 3.0.3")
+	assert.True(t, there.InScope(there.RefScope()).SchemaRules().Defines("nullable"),
+		"ext.yaml's content read at the source's coordinates")
+	back, ok := lowering.InDocument(there, bind.Source)
+	require.True(t, ok)
+	assert.False(t, back.SchemaRules().Defines("nullable"))
+
+	assert.True(t, lowering.SchemaRulesIn(c, id).Defines("nullable"))
+	assert.False(t, lowering.SchemaRulesIn(c, bind.Source).Defines("nullable"))
+	assert.False(t, lowering.SchemaRulesIn(lowering.Ctx{}, id).Defines("nullable"), "no load phase")
+
+	none := *doc
+	none.Others = load.Others{}
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
+	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
+	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
+}
+
+// TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
+// schema is read with by its node: those of the dialect the root holding it
+// names, here a document of schemas naming draft 4 at its root, and else the
+// context's. A context with no load phase knows no root.
+func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
+	a, ok := c.Doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	x := c.Bindings().End(a)
+	require.NotNil(t, x)
+	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
+	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+		"the source's own schema reads its document's")
+	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	assert.True(t, lowering.SchemaRulesOf(bare, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
+		"no load phase")
+}
+
+// TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
+// the schema readers ask of every schema they read across the bindings: the
+// source's rows come without a lookup, where one by its name would parse it as
+// a URL on each miss. It runs alone, since the allocation counts are the
+// process's.
+func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
+	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
+	var defines bool
+	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
+	assert.Zero(t, allocs)
+	assert.False(t, defines, "the 3.1 source defines no nullable")
+}
+
+// TestWithLoaded_ReadsTheSourcesRowsFromTheLoad pins where a context over a
+// loaded document gets the source's rows: the load phase's own
+// (load.Document.Rows), held by identity, so building the context builds no
+// rule table, which alone allocates more than the whole context does. It runs
+// alone, since the allocation counts are the process's.
+func TestWithLoaded_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
+	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
+		t.Error("the context read rows of its own, not the load phase's")
+	}
+	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
+	built := testing.AllocsPerRun(10, func() {
+		_ = lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+			lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	})
+	assert.Less(t, built, table, "building the context built a rule table")
 }
 
 // TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each

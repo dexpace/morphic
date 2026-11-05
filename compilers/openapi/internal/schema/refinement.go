@@ -139,7 +139,7 @@ func refinableBranches(comp allOfComposition) bool {
 // conjuncts of their own.
 func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct {
 	out := make([]conjunct, 0, 1+len(comp.branches))
-	out = append(out, conjunct{read: w.written(s), says: saysKind(s)})
+	out = append(out, conjunct{read: w.written(s, w.nullable), says: saysKind(s)})
 	for i := range comp.branches {
 		e := &comp.branches[i]
 		bs := e.schema.GetSchema()
@@ -148,7 +148,7 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 		case isRefBranch(e.schema):
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
-			out = append(out, conjunct{branch: e, read: w.written(bs), says: saysKind(bs)})
+			out = append(out, conjunct{branch: e, read: w.written(bs, w.nullable), says: saysKind(bs)})
 		}
 	}
 	return out
@@ -282,12 +282,12 @@ type outcomeKeeps struct {
 }
 
 // keptBranch is one allOf branch a refinement keeps whole, the keywords nothing
-// consumed, none for a $ref the position lost, and whether the conjuncts' disagreeing
-// is why.
+// consumed, none for a $ref the position lost, and why what it writes did not
+// fold where that is the reason (unfoldedWhy).
 type keptBranch struct {
-	entry   allOfBranch
-	residue []string
-	split   bool
+	entry    allOfBranch
+	residue  []string
+	unfolded string
 }
 
 // holdsAny reports whether k keeps anything.
@@ -307,7 +307,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 		k.keywords = refinedUnhomed(c, r, s)
 	}
 	bounds := boundsFold(c, ts, target, pointer)
-	voices := voicesAmong(c, s)
+	voices := voicingOf(c, s)
 	w := newAdmission(c)
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered: a $ref on its alias, an
@@ -321,10 +321,11 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 			k.branches = append(k.branches, keptBranch{entry: e})
 		case bs != nil:
 			residue := unmergedBranchKeys(bs, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices[i] && folds(c, bs, key, bounds)) || w.holds(r.held, bs, key)
+				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, bounds)) || w.holds(r.held, bs, key)
 			})
 			if len(residue) > 0 {
-				k.branches = append(k.branches, keptBranch{entry: e, residue: residue, split: !voices[i] && disagreed(bs, residue)})
+				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
+					unfolded: unfoldedWhy(voices.speaks[i], voices.rebased[i], bs, residue)})
 			}
 		}
 	}
@@ -380,8 +381,8 @@ func keptWhy(b keptBranch) string {
 	case len(b.residue) == 0:
 		return "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is " +
 			"kept verbatim under Unmodeled; what its target says of the position still reaches it"
-	case b.split:
-		return disagreedWhy(b.residue)
+	case b.unfolded != "":
+		return b.unfolded
 	default:
 		return "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch " +
 			"adds; the branch (" + strings.Join(b.residue, ", ") + ") is kept verbatim under Unmodeled"

@@ -155,11 +155,15 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    behind `diag.Catch`, whose text the diagnostic quotes, as `load`'s barriers do: no package but
    `barrier` may call `recover` outside its tests. The root guidance's caps apply: no function
    over 70 lines or a cognitive complexity of 20, no type under `compilers/` over 20 methods, no
-   doc comment over 100 words, and no lint suppression in the source.
+   doc comment over 100 words, and no lint suppression in the source. A call into a package the
+   caller does not import, through a function, an interface or a type argument handed to it,
+   counts in `callShapeBaseline` (`internal/archtest/callshape_test.go`): hand the caller a value
+   instead, or, for a call of a kind the table keeps, such as an immediate callback, raise its
+   pair's count.
    *Fails if missed:* `make lint`, a hand-written `recover` among its findings,
    `TestMethodsPerType_StayUnderTheCap`, `TestDocComments_StayUnderTheCap`,
-   `TestSuppressions_NoDirectiveStandsInTheSource`. Nothing fails for code in the wrong file of its
-   package.
+   `TestSuppressions_NoDirectiveStandsInTheSource`, `TestCallShape_HeldToTheBaseline`. Nothing fails
+   for code in the wrong file of its package.
 4. **Add a conformance case and a unit test.** Write a minimal spec at
    `testdata/conformance/openapi/<name>.yaml` that exercises the rule, add an entry to
    `conformanceCases()` in `compilers/openapi/e2e/conformance_test.go` naming its assertion, list it
@@ -230,7 +234,11 @@ needless; a verified run catches one.
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
    nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
-   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node. Each function
+   the pass hands `ir`'s walks, and each method a walk calls on a visitor it is handed, `Visit` and,
+   for a `CycleVisitor`, `Cycle`, is a call from `ir` into `pass`, which `callShapeBaseline` in
+   `internal/archtest/callshape_test.go` counts as a traversal callback: raise each count
+   `TestCallShape_HeldToTheBaseline` reports over its baseline.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
@@ -310,15 +318,18 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    run compiles through, for a source table that does not describe the inputs. The refusals cannot
    be dropped apart from what settling reports, since `Finish` returns the two as one list.
 4. **Register it** in `engine.Compilers` (`engine/engine.go`), the one place built-in compilers are
-   listed, and add the package to the `engine` entry of the `rules` map. A registered compiler is
-   also held to its column of [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's
-   column header with its registered name in code, and write
-   `testdata/conformance/<format>/matrix.md`, one entry for each row the column marks expressible,
-   as `testdata/conformance/openapi/matrix.md` does.
+   listed, and add the package to the `engine` entry of the `rules` map. The registry, which does
+   not import the compiler, then calls its methods: add those calls to `callShapeBaseline` in
+   `internal/archtest/callshape_test.go`, beside `compilers/openapi`'s, as the designed seam they
+   are. A registered compiler is also held to its column of
+   [`ir-spec-matrix.md`](docs/ir-spec-matrix.md): end the format's column header with its
+   registered name in code, and write `testdata/conformance/<format>/matrix.md`, one entry for each
+   row the column marks expressible, as `testdata/conformance/openapi/matrix.md` does.
    *Fails if missed:* `TestConformance_EveryRegisteredFormatIsHeldToItsColumn` for the column and
-   the document, and `TestImportGraph_LayeringHolds/engine` for the allowlist. Nothing fails here
-   if the compiler is never registered, though step 5's `TestHarness_InRepoCorpus` does once its
-   fixtures are under `testdata/`, so add an engine test that compiles a document of the format.
+   the document, `TestImportGraph_LayeringHolds/engine` for the allowlist, and
+   `TestCallShape_HeldToTheBaseline` for the registry's calls. Nothing fails here if the compiler
+   is never registered, though step 5's `TestHarness_InRepoCorpus` does once its fixtures are
+   under `testdata/`, so add an engine test that compiles a document of the format.
 5. **Test it** with golden snapshots through `ir/irtest` and `irverify` over its output. Put its
    corpus under the repository's `testdata/` (the conformance corpus is
    `testdata/conformance/<format>/`): the harness sweeps every spec there through whichever
@@ -359,10 +370,15 @@ golangci-lint release: the `Makefile` comment above `GO_VERSION` says what moves
    module that needs a newer Go: the pins the `Makefile` lists above `GO_VERSION` move on the same
    branch. Nothing is sure to fail if this step is missed; an old pin fails the gate only when it
    cannot read the new toolchain.
-3. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
+3. **Set a call-shape count the update moves.** A release of `golang.org/x/tools`, or of Go, can
+   change the wrappers and analyses `internal/archtest` builds its call graph from, and so a count
+   of `callShapeBaseline` with no change to the module's code. Read the calls the failure lists for
+   each pair it names, set the count on the same branch, and say why in the commit.
+   *Fails if missed:* `TestCallShape_HeldToTheBaseline`.
+4. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
    `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.
    Nothing checks this.
-4. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
+5. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
    repository squashes a one-commit pull request under that commit's subject rather than the pull
    request's title, so retitling the pull request changes nothing. A subject naming one module
    often passes the 72-character cap once the number is appended; shorten it in the merge dialog,

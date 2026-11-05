@@ -156,3 +156,76 @@ func TestKinds_StopsAtTheTokenCap(t *testing.T) {
 	assert.Len(t, within, bind.MaxPointerTokens+1, "every token is read")
 	assert.Len(t, past, bind.MaxPointerTokens+1, "the one past the cap is not")
 }
+
+// TestReadingAt_ReadsWhatKindsReadsLast pins a Reading against Kinds: the
+// position Kinds ends at is a schema exactly where ReadingAt reads one, and
+// can stand for a reference object exactly where ReadingAt reads that, in the
+// source and in a document only a reference reads.
+func TestReadingAt_ReadsWhatKindsReadsLast(t *testing.T) {
+	t.Parallel()
+	cfg := withDocuments(map[string]string{"/params.yaml": "Size: {name: size, in: query}\n"})
+	cfg.Self, cfg.Locate = resolving.Self, resolving.Locate
+	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
+		placed := name == "/spec.yaml" && p == "/components/parameters/P"
+		return bind.ReferenceEnd{Name: "/params.yaml", Pointer: "/Size"}, placed
+	}
+	table := bound(t, head+"components: {parameters: {P: {$ref: 'params.yaml#/Size'}}}\n", cfg)
+	params, ok := table.Find("/params.yaml")
+	require.True(t, ok)
+	tests := []struct {
+		pos               bind.Position
+		schema, referable bool
+	}{
+		{at(""), false, false},
+		{at("/components/parameters/P"), false, true},
+		{at("/components/parameters/P/schema"), true, false},
+		{at("/paths/~1a/get/responses/200/headers/X"), false, true},
+		{at("/paths/~1a/get/callbacks/c/{$url}"), false, true},
+		{at("/components/securitySchemes/S"), false, true},
+		{at("/components/examples/E/value"), false, false},
+		{at("/x-ext/schema"), false, false},
+		{bind.Position{Doc: params, Pointer: "/Size"}, false, true},
+		{bind.Position{Doc: params, Pointer: "/Size/schema"}, true, false},
+	}
+	for _, tc := range tests {
+		t.Run(string(tc.pos.Pointer), func(t *testing.T) {
+			t.Parallel()
+			r := table.ReadingAt(tc.pos)
+			kinds := table.Kinds(tc.pos)
+			assert.Equal(t, kinds[len(kinds)-1] == bind.KindSchema, r.Schema(), "as Kinds reads it")
+			assert.Equal(t, tc.schema, r.Schema())
+			assert.Equal(t, tc.referable, r.Referable())
+		})
+	}
+}
+
+// TestReading_BelowStepsTheGrammar pins Below: from a parameter, its schema
+// is a schema, and so is a media type's beneath its content, while beneath an
+// example's value or an extension a schema key is raw YAML.
+func TestReading_BelowStepsTheGrammar(t *testing.T) {
+	t.Parallel()
+	param := bound(t, head, self).ReadingAt(at("/components/parameters/P"))
+	require.True(t, param.Referable())
+	assert.True(t, param.Below("schema").Schema())
+	assert.True(t, param.Below("content").Below("application/json").Below("schema").Schema())
+	assert.False(t, param.Below("examples").Below("e").Below("value").Below("schema").Schema())
+	assert.False(t, param.Below("x-shape").Below("schema").Schema())
+	assert.True(t, param.Below("examples").Below("e").Referable(), "an example can be a $ref")
+}
+
+// TestReadingAt_ReadsRawWhereItPlacesNothing pins the zero Reading, which
+// reads raw YAML: what a nil table gives, and a pointer past the tokens Kinds
+// reads, where the position it ends at, a schema here, is not the one asked
+// for.
+func TestReadingAt_ReadsRawWhereItPlacesNothing(t *testing.T) {
+	t.Parallel()
+	var none *bind.Table
+	assert.Equal(t, bind.Reading{}, none.ReadingAt(at("/components/parameters/P")))
+	assert.False(t, bind.Reading{}.Below("schema").Schema())
+	assert.False(t, bind.Reading{}.Referable())
+
+	table := bound(t, head, self)
+	within := jsontext.Pointer("/components/schemas/A" + strings.Repeat("/not", bind.MaxPointerTokens-3))
+	require.True(t, table.ReadingAt(at(within)).Schema(), "every token is read")
+	assert.Equal(t, bind.Reading{}, table.ReadingAt(at(within+"/not")), "the one past the cap is not")
+}

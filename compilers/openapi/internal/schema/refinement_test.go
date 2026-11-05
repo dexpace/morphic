@@ -1327,6 +1327,36 @@ components:
 	assert.Empty(t, propertyOf(t, doc, "Holder", "same").Unmodeled)
 }
 
+// TestRefinement_RawTextIsComparedAgainstOneBase pins restated items within one
+// document: under an $id naming another URI, `item.json` names another schema,
+// so g's second branch says what h's spells out and is kept as h's is. Text
+// writing no $ref reads alike under any base, so k's restates its target's, and
+// so does text writing only an absolute $ref, m's.
+func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/item.json', type: integer}
+    B: {$id: 'https://ex.test/b/item.json', type: string}
+    Names: {$id: 'https://ex.test/a/names.json', type: array, items: {$ref: 'item.json'}}
+    Holder:
+      $id: 'https://ex.test/b/holder.json'
+      type: object
+      properties:
+        g: {allOf: [{$ref: 'https://ex.test/a/names.json'}, {type: array, items: {$ref: 'item.json'}}]}
+        h: {allOf: [{$ref: 'https://ex.test/a/names.json'}, {type: array, items: {$ref: 'https://ex.test/b/item.json'}}]}
+        k: {allOf: [{$ref: 'https://ex.test/a/words.json'}, {type: array, items: {type: string, minLength: 1}}]}
+        m: {allOf: [{$ref: 'https://ex.test/a/absolute.json'}, {type: array, items: {$ref: 'https://ex.test/a/item.json'}}]}
+    Words: {$id: 'https://ex.test/a/words.json', type: array, items: {type: string, minLength: 1}}
+    Absolute: {$id: 'https://ex.test/a/absolute.json', type: array, items: {$ref: 'https://ex.test/a/item.json'}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"g", "h"} {
+		assert.Contains(t, propertyOf(t, doc, "Holder", name).Unmodeled, "openapi:allOf/1", name)
+	}
+	for _, name := range []string{"k", "m"} {
+		assert.Empty(t, propertyOf(t, doc, "Holder", name).Unmodeled, name)
+	}
+}
+
 // TestRefinement_ADynamicRefIsNotRead pins that a $dynamicRef, on a branch or in
 // what a $ref lands on, ends the reading: what it names is settled elsewhere.
 func TestRefinement_ADynamicRefIsNotRead(t *testing.T) {
@@ -1593,4 +1623,25 @@ func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
 	assert.Nil(t, alias.Constraints, "no pattern stands for the two")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/1")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/2")
+}
+
+// TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing pins a refinement's
+// inline branch under an $id naming another URI: its `not` names A there, so it
+// is kept whole, with the reason, rather than folded onto the use.
+func TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/n.json', type: string}
+    Str: {type: string}
+    Holder:
+      type: object
+      properties:
+        f: {allOf: [{$ref: '#/components/schemas/Str'}, {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	f := propertyOf(t, doc, "Holder", "f")
+	assert.Contains(t, f.Unmodeled, "openapi:allOf/1")
+	assert.NotContains(t, f.Unmodeled, "openapi:not")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Holder/properties/f/allOf/1"),
+		"reads its $refs against another base")
 }

@@ -170,6 +170,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/value",
@@ -268,11 +269,13 @@ var rules = map[string][]string{
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
-	// one. It reaches load for the version grammar — the dialect question is asked
-	// of the document, and the grammar that answers it is the loader's — and for
-	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called, and budget for the limits it
-	// holds.
+	// one. It reaches load for the schema bindings the load phase built, which its
+	// scope reads, and for the rows a document's schemas are read with, which oas
+	// states: the dialect question is asked of the table, never of the version.
+	// It reaches naming for what each position is called, and budget for the
+	// limits it holds. It reaches nodeview and yaml to weigh the declaration a
+	// $ref names, which a reference's lowering copies, and yaml for the node a
+	// schema's rows are found by.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -281,9 +284,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi"},
+		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
 	// the compiler's run lowers the schemes, and the service and operation walks
@@ -322,12 +327,12 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/values",
-		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+		"github.com/speakeasy-api/openapi/values", "go.yaml.in/yaml/v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
@@ -479,9 +484,12 @@ var rules = map[string][]string{
 	"internal/lintrules/testdata/outside": {module + "/ir"},
 	// What the rules .golangci.yml configures refuse, planted for
 	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
-	// scripts/vet-rules.sh.
-	"internal/lintrules/testdata/planted": {module + "/ir"},
-	"internal/lintrules/testdata/reach":   {module + "/ir"},
+	// scripts/vet-rules.sh. It reaches the parser library's document, whose
+	// version a rule confines, and its own look-alikes of the OpenAPI
+	// compiler's packages, laid out as the rule's paths name them.
+	"internal/lintrules/testdata/planted": {module + "/ir",
+		module + "/internal/lintrules/testdata/planted" + subtreeSuffix, "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/reach": {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

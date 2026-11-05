@@ -173,6 +173,29 @@ components:
 - Code:
   - `load.resolvable` hands the resolver every reference object, cycles included.
 
+### `reference-chain-walk`
+
+A reference object's object and root node are its chain's end, though its resolution record names
+the next hop. Asked of a reference, `GetObject` and `GetRootNode` walk every hop from it, checking
+each against the hops walked before with a linear scan and keeping them in a slice past the first
+eight. So one answer costs the square of the chain's length in time, and asking each reference of
+a chain costs the cube, though every answer is the same end.
+
+```yaml
+components:
+  parameters:
+    P0: {$ref: '#/components/parameters/P1'}
+    P1: {$ref: '#/components/parameters/P2'}
+    P2: {name: q, in: query}
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/reference-chain-walk`
+- Code:
+  - `load.chain.end` is read once a chain, off the object its last hop reached.
+  - `load.chainEnds` answers the reached-object check from the records a resolution keeps,
+    remembering ends across chains past their hop bound.
+
 ### `trailing-empty-token`
 
 Through raw YAML, a pointer whose last token is empty names the node the walk has reached, not a
@@ -620,8 +643,9 @@ components:
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
-  - `schema.restatesBody` and `schema.restatesProperty` read raw nodes, which hold these keywords,
-    rather than the model.
+  - `schema.bodyReading.keysRestate` judges every key a union branch writes, and every key of a
+    schema the branch writes for a property or an element, reading the raw node, which holds these
+    keywords, rather than the model.
 
 ### `null-schema-is-false`
 

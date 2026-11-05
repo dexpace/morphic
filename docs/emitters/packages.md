@@ -8,7 +8,8 @@ emitters/
 ├── contract.go        # Emitter, EmitterInput/Output, Artifact, Capabilities, TargetKey, registry
 ├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan, ModelShape
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
-├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) (INV10)
+├── policy/            # runtime SDK-policy vocabulary + Defaults(version) + Merge(DeepPartial) + Resolve(layers) (INV10)
+├── embed/             # reads the policy and hints a document embeds as vendor extensions (contract/embedded-policy.md)
 ├── naming/            # SHARED naming engine: acronym/compound tables, the character-name table,
 │                      #   reserved-word set type, ID-keyed collision resolver. Casing FUNCTIONS are
 │                      #   per-target (naming.Policy impl)
@@ -24,7 +25,7 @@ emitters/
 │   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (refine/pipeline.md)
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
 │   ├── naming/        #   Go reserved words + default acronym table (naming.Policy impl)
-│   └── mergeadapter.go#   go/ast additive-merge adapter (registers into manifest driver)
+│   └── mergeadapter.go#   dst additive-merge adapter (registers into manifest driver)
 ├── kotlin/            # ◀ FIRST TARGETS (TargetKeys "kotlin-jvm" and "kotlin-multiplatform")
 │   ├── emitter.go     #   NewJVM() and NewMultiplatform(): one pipeline, two Platform profiles
 │   ├── platform.go    #   Platform: the built-in type table, identifier rules, transport
@@ -50,7 +51,9 @@ its own, as a compiler's packages do, and none may be exempt, which only tooling
 is. The entries the first packages add assert: `emitters/golang` and `emitters/kotlin` may each
 import `emitters`, `emitters/plan`, `emitters/policy`, `emitters/naming`, `emitters/typemap`,
 `emitters/refine`, `emitters/manifest`, `emitters/verify`, `ir` and `ir/irfacts`; neither may import
-`compilers/*`, `engine`, or the other.
+`compilers/*`, `engine`, or the other. `emitters/golang` may also import `github.com/dave/dst`, for
+its merge adapter, and no other package may
+([merging](targets/go/overview.md#merging-and-surface-extraction)).
 **Switch-completeness tests** live beside `goast` and `ktast` (over each one's `NodeKind`) and
 beside every refiner (over every `ir.TypeKind`): adding an IR kind fails the test of every dispatch
 that must handle it (the `assertNever` obligation).

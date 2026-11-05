@@ -16,13 +16,25 @@ throughout these documents.
    positional models serialize by index; `WireID==0` ≠ absent.
 5. **T-5 · No-float64** — numeric defaults/constraints/enum values round-trip through `BigVal` with
    no float parsing, including any constraint-merge path.
-6. **T-6 · Determinism / golden IR→artifact** — identical IR ⇒ identical bytes; a scoped run equals
-   the corresponding slice of a full run.
+6. **T-6 · Determinism / golden IR→artifact** — identical inputs, the prior manifest among them ⇒
+   identical bytes; a scoped run equals the corresponding slice of a full run.
 7. **T-7 · Diagnostic-not-silence** — every un-lowerable construct emits a coded diagnostic, never a
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
-8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
-9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults.
+8. **T-8 · Manifest ID-keying** — the entity→symbol map survives a rename of what an ID is not
+   built from, such as an `operationId`, and, through the correlation key, a renamed path variable.
+9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
+   at a document-wide setting and at an operation's, in every layer. A project's document-wide
+   setting beats a per-operation one the document embeds, an operation's own setting beats its
+   layer's document-wide one, an operation ID no operation has is reported, an embedded value a
+   higher layer replaces, or a status a higher layer's retry list takes from an embedded one, draws
+   an info naming both, a value a configuration writes outside a field's vocabulary or range, a
+   `MaxAttempts` of 0 and a status both of one layer's retry lists name at one scope among them, is
+   an error, an operation's giving way to its layer's document-wide value, and a status both
+   resolved retry lists name stays only in the one a higher layer set, while one a layer moves into
+   a list a higher layer replaces stays in the other
+   ([layers](../contract/runtime-policy.md#layers-and-operations),
+   [retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -58,14 +70,23 @@ throughout these documents.
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
     render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
-    in another unit compiles; and every partition error and warning of [output
-    units](../refine/output-units.md) has a fixture that draws it.
-19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
-    members and the variants of a closed and of an inclusive union after every name each scope of
-    [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
-    that begin with a digit, and its groups after the standard-library packages its files import,
+    in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
+    compile, the types those operations reach in the shared unit; and every partition error and
+    warning of [output units](../refine/output-units.md) has a fixture that draws it.
+19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
+    its properties, parameters, path parameters, enum members and the variants of a closed and of an
+    inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
+    reserves, after characters alone and after names that begin with a digit, and its groups after
+    the standard-library packages its files import, after every units name and after each name a
+    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
     generates code that compiles on every target, with every template's declared names held to what
-    it binds.
+    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
+    `wrapper` at the build's root leave every module's sources, no path the build writes, an
+    artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
+    framework links, its header giving each declaration the Swift name the naming policy chose, none
+    of them a type Swift's standard library or Foundation declares or a module's name, so a Swift
+    file that imports the framework and Foundation compiles its uses of both and qualifies a name by
+    either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -216,10 +237,107 @@ throughout these documents.
     draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
     `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
     envelope that matches it, or as with none, drawing `emitters/plan/envelope-flag-mismatch` once
-    and only then; one no body matches, and an `Except` or `Bases` entry naming nothing, draw
-    `emitters/plan/envelope-unused`. Each field a match sets is marked `Inferred` as `envelope:` and
-    the envelope's `Name`; the docs emitter shows the member at `Value` of a response's example as
-    what the method returns, and the mock sends the envelope whole; and the surface differ reports a
-    body that gains the last name `Members` lists as a break
+    and only then; one no body matches draws `emitters/plan/envelope-unused`, and an `Except` or
+    `Bases` entry naming nothing `emitters/unmatched-key`. Each field a match sets is marked
+    `Inferred` as `envelope:` and the envelope's `Name`; the docs emitter shows the member at
+    `Value` of a response's example as what the method returns, and the mock sends the envelope
+    whole; and the surface differ reports a body that gains the last name `Members` lists as a break
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
     [return shapes](../operations/returns.md)).
+33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on a path item,
+    on an operation and on a parameter configures the document, each of that path item's operations,
+    that operation and that parameter's hint, a `hint` key at an OpenAPI document's root configures
+    its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
+    an operation's own key beats its path item's for one field, and for a status their retry lists
+    both name, and two other keys setting one field set it from neither; a key on a node it cannot
+    configure, a tag's key the document holds, a value of the wrong shape or outside its field's
+    vocabulary or range, a group named by words rather than its ID, a conflict and a key the
+    document holds under a reason the reader refuses are each reported under their codes, the entry
+    staying in `Unmodeled` and an operation's key whose value is invalid, or which the reader
+    refuses, leaving its path item's to set the field; and the default mapping, which is empty,
+    reads nothing ([embedded policy](../contract/embedded-policy.md)).
+34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
+    client setting, which every operation declaring it in that wire form sends unless the call gives
+    its own; a call with neither is refused unsent; an operation declaring it at another wire form
+    keeps it as an input and is reported once; a header setting fills a header two operations spell
+    in different letter case; a hint naming a parameter no operation declares is reported, as is one
+    at a location a setting cannot fill, such as `body`; a `host` label setting fills the host; no
+    parameter becomes a setting unless a hint names it, and the plan reports every candidate in one
+    info, the most used first ([client settings](../operations/client.md#client-settings)).
+35. **T-35 · Effects** — a declared `Idempotency` of each kind beats the binding, a `GET` with none
+    is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, a `QUERY` safe and
+    idempotent, a method `additionalOperations` declares as the method registry records it and one
+    the registry does not list neither, a GraphQL `query` safe and idempotent and a `mutation`
+    neither, each derived one marked `Inferred`; turning `ProtocolEffects` off leaves every
+    undeclared operation neither; and on every target a request that got no response is sent again
+    for an idempotent operation and never for a `POST`, under the default `Retry.WhenUncertain`
+    ([effects](../plan/policy.md#an-operations-effects-come-from-its-binding)).
+36. **T-36 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
+    decodes a value it does not list and re-encodes it as it came, its constants naming only the
+    listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
+    strict decoding, one declaring a `FallbackMember` reads an unlisted value as that member, and an
+    open `Flags` enum keeps a bit no member names in its flags form; an enum declared open is `Open`
+    wherever it is used, with no `Inferred` mark. A `oneOf` of two string variants only their
+    `pattern`s tell apart decodes each value into the variant whose pattern it meets, in either
+    declaration order; a value both admit and meet decodes into the first, and under
+    `StrictExclusive` is a coded error, as is one both admit and neither meets ([plan
+    policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    [unions](../refine/unions.md#variant-identity-and-recognition)).
+37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
+    each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
+    a `POST`; a 500, a 502, a 504 and a request that got no response are sent again for a `PUT` and
+    never for a `POST`; a request whose body was a stream is not sent again after a 503; a
+    `Retry-After` is waited for up to `Backoff.Max`, and one past it returns the response. A 307
+    sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 302
+    the operation declares, a 301 to a `POST`, a 307 whose body was a stream, a redirect from
+    `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
+    to another origin carries none of the client's credentials ([runtime
+    policy](../contract/runtime-policy.md#the-canonical-vocabulary)).
+38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
+    `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
+    them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
+    decodes it back to the constant of the first member holding its value, a number spelled with
+    trailing zeros included and a `string` enum repeating a value among them, and two members
+    holding one value under two `WireName`s write the first's and read either as it, while two
+    `uuid` members differing only in case decode to two, and a member sent in a query parameter and
+    read from a response header travels as its wire form's text. Where the target's constants cannot
+    hold the type, the member's value is reachable as the row's type, and a `datetime_offset` member
+    the row's codec refuses, such as a leap second, fails only where its value is read. An `integer`
+    member past the default row's range draws `emitters/<target>/unrepresentable-enum-member` and
+    leaves the enum's form as it would be without it, and every member is written as a value JSON
+    compares equal to the wire form of the first member holding its value ([a member on the
+    wire](../refine/enums.md#a-member-on-the-wire)).
+39. **T-39 · Shipped names** — on every target, a generation whose operation collides with nothing,
+    then a revision adding one that collides with it and whose ID sorts before it, so that ID order
+    alone would hand the newcomer the name, regenerated against the first generation's manifest,
+    keeps the first symbol unchanged and gives the newcomer a suffix; the first generation is
+    byte-identical in both declaration orders; a renamed `operationId` renames its symbol, and a
+    renamed path variable keeps it, a suffix included, and so do the symbols derived from it; an ID
+    that now names another entity, its correlation key differing, is not pinned; an entity with no
+    key is never pinned, and a removed and an added one are not matched; a prior manifest of another
+    `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
+    suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
+    suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
+    is passed over; and on Multiplatform a type added in another unit, its ID sorting first, leaves
+    an incumbent's Objective-C name as it shipped
+    ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
+40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
+    spec reformatted, one drawing a warning among them, is the same generation; a generated file
+    edited outside its regions is reported and neither overwritten nor pruned, by the next
+    generation too, an entity a rename moves out of it written in its new place and its regions left
+    in the kept file, written once, while one edited only inside a region, or checked out with other
+    line endings, is not an edit; a region follows its entity into the file a rename moves it to,
+    one the declaration enclosed still inside it, and one whose entity is gone is reported and its
+    file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
+    entity a correlation key carried across a renamed path variable; a file written once is never
+    written again, even after its user deletes it, nor reported when its user edits it, and one
+    marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
+    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
+    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
+    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
+    for byte, an edit outside its blocks draws nothing and one inside an unfrozen block is replaced
+    and draws a warning, a block new to the generation lands beside its neighbours in the generated
+    order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
+    frozen before its entity's path variable is renamed gains no twin, and its table of contents
+    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
+    refused with nothing written ([write / integrate](../write-integrate.md)).

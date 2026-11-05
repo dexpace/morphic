@@ -313,10 +313,11 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
+	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources), b.ids
+	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached})
+		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached, Dialects: dialects[DocID(id)]})
 		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
 	reach := b.attribute(t)
@@ -378,16 +379,19 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 // Document is a document a table read: its name and its root node. Unreached
 // reports that only a pass that did not stand asked for it, so that nothing the
 // table holds is in it: a reference read it as a location before a later
-// document declared that URI.
+// document declared that URI. Dialects is each schema resource root in it
+// that names its dialect, in pointer order.
 type Document struct {
 	Name      string
 	Root      *yaml.Node
+	Dialects  []DialectRoot
 	Unreached bool
 }
 
 // Table is every schema reference a source holds, where each lands and where
 // its chain ends, the loops among them, and what the reading cost. It is built
-// once and never written after.
+// once, and no answer it gives changes after: only its base lookups write, to
+// remember the walks they make (bases), so one is not safe for concurrent use.
 type Table struct {
 	entries   map[Position]Entry
 	roots     map[Position]state
@@ -400,8 +404,11 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
-	res       resources
-	ids       *identifiers
+	// bases remembers each walk Base and InOwnResource make, filled as they
+	// ask. It changes no answer, each being what a walk from the root gives,
+	// and nothing guards it, as only the lowering asks, on one goroutine.
+	bases *bases
+	ids   *identifiers
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -480,9 +487,21 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 	if t == nil {
 		return false, true
 	}
-	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */)
+	res, known := t.bases.holding(p)
 	return res.id, known
+}
+
+// Base returns the URI a reference written in the schema at p resolves
+// against, its own $id counted: its document's, or the resource's an $id at or
+// above it names. Two schemas with one base read every reference they write
+// alike. It is false where a schema on the way may hide an $id past the merge
+// bound, and a nil table knows none.
+func (t *Table) Base(p Position) (string, bool) {
+	if t == nil {
+		return "", false
+	}
+	res, known := t.bases.holding(p)
+	return res.uri, known
 }
 
 // Steps reports the work the table cost.

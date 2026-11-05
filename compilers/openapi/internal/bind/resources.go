@@ -13,6 +13,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -82,6 +83,10 @@ type identifiers struct {
 	// than the view expands, so an identifier past the bound may be missing.
 	truncated map[DocID]bool
 	read      map[DocID]bool
+	// dialects is each schema resource root that writes a `$schema`, by where
+	// it is: a schema no other holds (heldBySchema), or one whose $id roots a
+	// resource of its own.
+	dialects map[Position]DialectRoot
 }
 
 // anchorKey is a plain name and the root of the resource declaring it.
@@ -103,7 +108,8 @@ func newIdentifiers(source resource) *identifiers {
 		declared: map[string][]Position{}, uris: map[string][]Position{}, counted: map[DocID]bool{Source: true},
 		byDoc: map[DocID][]string{},
 		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
-		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{}}
+		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{},
+		dialects: map[Position]DialectRoot{}}
 }
 
 // document adds r, doc's own resource, and returns its index.
@@ -115,8 +121,9 @@ func (ix *identifiers) document(doc DocID, r resource) int32 {
 }
 
 // declare notes what the schema n, read at at in the resource indexed in,
-// declares, and returns the index of the resource its content is in: its own
-// where it writes an $id naming another URI (resources.enter).
+// declares, the dialect its `$schema` names among it where n roots a resource,
+// and returns the index of the resource its content is in: its own where it
+// writes an $id naming another URI (resources.enter).
 func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node) int32 {
 	held := ix.resources[in]
 	res, rooted, known := r.enter(held, n)
@@ -132,6 +139,10 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 		in = ix.own[at.Doc]
 	}
 	view := r.docs.list[at.Doc].view
+	uri, written := scalarOf(view.ChildByToken(nodeview.Deref(n), "$schema"))
+	if written && (rooted || !heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens()))) {
+		ix.dialects[at] = DialectRoot{At: at, URI: uri, Node: nodeview.Deref(n)}
+	}
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {
 		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
 		if !ok || !isAnchorName(name) {
@@ -292,7 +303,7 @@ func (r resources) enter(in resource, n *yaml.Node) (res resource, rooted, known
 	case r.names(in.root.Doc, uri):
 		return r.document(in.root.Doc), false, true
 	default:
-		detached := in.detached || absolute(part) || strings.HasPrefix(part, "/")
+		detached := in.detached || fragment.Absolute(part) || strings.HasPrefix(part, "/")
 		return resource{uri: uri, id: true, detached: detached}, true, true
 	}
 }
@@ -323,13 +334,6 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 	}
 	uri, ok = r.resolveURI(part, base)
 	return uri, part, ok
-}
-
-// absolute reports whether uri is an absolute URI, which no base moves: one
-// with a scheme of more than one letter, as a drive's is a path's.
-func absolute(uri string) bool {
-	u, err := url.Parse(uri)
-	return err == nil && len(u.Scheme) > 1
 }
 
 // resolveURI is the URI ref names, written where the base is base: resolved by

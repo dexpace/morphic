@@ -41,11 +41,13 @@ type Iface   struct{}                       // any
 ## Why a domain AST → text → `go/format`, not `go/ast` directly
 
 `go/ast` is awkward to *synthesize* (it wants a `token.FileSet` and real positions and cannot carry
-generator intent like a field's `Origin` IR ID or a `Docs.Refs` span). The domain AST is
-smaller, holds provenance and wire metadata on its nodes, and prints to text that `go/format` then
-makes canonical. `go/ast` is used in exactly one place — re-parsing *existing* files for additive
-merge ([write / integrate](../../write-integrate.md)) — where its parser is the right tool. The two
-Go trees are kept aligned by ID-keying: "a symbol I generated" ↔ "a symbol I parsed" is a lookup.
+generator intent like a field's `Origin` IR ID or a `Docs.Refs` span). The domain AST is smaller,
+holds provenance and wire metadata on its nodes, and prints to text that `go/format` then makes
+canonical. A syntax tree of Go is used in exactly one place — re-parsing *existing* files for
+additive merge ([write / integrate](../../write-integrate.md)) — and that one is `dst`'s, which
+keeps comments on their nodes where `go/ast` cannot
+([merging](overview.md#merging-and-surface-extraction)). The two Go trees are kept aligned by
+ID-keying: "a symbol I generated" ↔ "a symbol I parsed" is a lookup.
 
 ## Runtime templates
 
@@ -53,4 +55,10 @@ The Go templates lean on the standard library wherever Go 1.27 does the work ([t
 floor](overview.md#the-language-floor)). In particular the transport template does not drain an
 unread response body by hand so that its connection can be reused: `net/http` does that itself on
 `Close`, up to a bound it sets, and past the bound closes the connection rather than read an
-arbitrarily large body. The template lint reads what a rendering binds as `go/parser` reads it.
+arbitrarily large body. Redirects are the exception: `net/http`'s client turns a 301, 302 or 303 to
+any method but `GET` and `HEAD` into a `GET`, and strips only `Authorization`, `Www-Authenticate`
+and the cookie and proxy authentication headers, and only for a host outside the first one's domain,
+so an API key in a header of its own crosses origins. The transport template sets `CheckRedirect` to
+return `http.ErrUseLastResponse` and follows each redirect as [runtime
+policy](../../contract/runtime-policy.md#the-canonical-vocabulary) says. The template lint reads
+what a rendering binds as `go/parser` reads it.

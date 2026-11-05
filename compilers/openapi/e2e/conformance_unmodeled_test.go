@@ -310,6 +310,15 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
 		"a branch excluding object contradicts the composed model and is a warning")
+
+	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
+	require.True(t, ok)
+	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
+		"a branch read against another base folds nothing")
+	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
+		"the outer branch, read against the position's base, folds its not")
+	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
@@ -880,6 +889,53 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.NotContains(t, string(id), "example.com",
 			"$id is kept, and read only to resolve references: no type is keyed by the identity it declares")
 	}
+}
+
+// assertSchemaDialects pins the dialect each schema is read in
+// (docs/compilers/openapi.md#dialect-keywords): the document's
+// jsonSchemaDialect, draft 4, where a schema names none, so a boolean bound
+// modifies the bound beside it; a root's own `$schema` over it, its subschemas
+// read alike, with or without the empty fragment; a resource an $id embeds
+// naming its own; and a dialect the table has no rows for read as 3.1's own,
+// with a warning at the `$schema` naming it.
+func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	scalar := func(name string) *ir.Constraints {
+		s, ok := doc.Types[componentID(name)].(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, s.Constraints, name)
+		return s.Constraints
+	}
+	positive := scalar("Positive")
+	assert.Nil(t, positive.Min, "the boolean moved the bound beside it")
+	assert.Equal(t, ir.BigVal("0"), *positive.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *scalar("Bounded").ExclusiveMax)
+	assert.Equal(t, ir.BigVal("1"), *scalar("Custom").ExclusiveMin)
+
+	legacy, ok := doc.Types[componentID("Legacy")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, legacy.Properties, 1)
+	count := legacy.Properties[0].Constraints
+	require.NotNil(t, count)
+	assert.Nil(t, count.Max)
+	assert.Equal(t, ir.BigVal("100"), *count.ExclusiveMax)
+
+	embedding, ok := doc.Types[componentID("Embedding")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, embedding.Properties, 1)
+	inner := embedding.Properties[0].Constraints
+	require.NotNil(t, inner)
+	assert.Equal(t, ir.BigVal("3"), *inner.ExclusiveMin, "2020-12's bound, inside a document defaulting to draft 4")
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unread-dialect", "/components/schemas/Custom/$schema"))
+	var unread int
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
+		if d.Code == "openapi/unread-dialect" {
+			unread++
+		}
+	}
+	assert.Equal(t, 1, unread, "draft 4 and 2020-12 are read")
 }
 
 // assertSchemaIdentifiers pins a $ref naming a schema by an identifier, as JSON
