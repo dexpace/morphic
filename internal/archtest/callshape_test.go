@@ -73,7 +73,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// call the function they are handed before they return: immediate
 		// callbacks.
 		"compilers/openapi/internal/operation": 1,
-		"compilers/openapi/internal/schema":    15,
+		"compilers/openapi/internal/schema":    17,
 	},
 	"compilers/openapi/internal/merge": {
 		// The allOf merge relay, which #1486 lowers to the fold's calls back into
@@ -106,7 +106,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/scan": {
 		// Placement through scan.Locator and its pointers, which #1487 replaces
 		// with one provenance tree.
-		"compilers/openapi/internal/load": 11,
+		"compilers/openapi/internal/load": 13,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
