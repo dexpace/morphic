@@ -327,12 +327,12 @@ func isBlankName(s string) bool {
 // ranges unicode lacks a table for, the interlinear annotation characters and
 // the Egyptian hieroglyph format controls, which are Cf and render.
 func isInvisible(r rune) bool {
+	interlinear := r >= interlinearFirst && r <= interlinearLast
+	egyptianFormat := r >= egyptianFormatFirst && r <= egyptianFormatLast
 	switch {
 	case unicode.IsSpace(r), unicode.IsControl(r):
 		return true
-	case r >= interlinearFirst && r <= interlinearLast,
-		r >= egyptianFormatFirst && r <= egyptianFormatLast,
-		unicode.Is(unicode.Prepended_Concatenation_Mark, r):
+	case interlinear, egyptianFormat, unicode.Is(unicode.Prepended_Concatenation_Mark, r):
 		return false
 	}
 	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
