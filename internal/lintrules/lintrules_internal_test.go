@@ -113,10 +113,11 @@ func wantedFindings(t *testing.T, dir string) []string {
 
 // drawnFindings loads each package the patterns name, with its tests, and runs
 // the analyzers over it, returning each finding once in wantedFindings' form,
-// sorted. Each package is loaded alone: go/types can race when one load checks
-// several packages sharing an import (golang/go#81122). A plant has external
-// tests only, whose package imports the one it tests, so the two are checked
-// in turn, not at once.
+// sorted. A finding one run draws twice fails; a package's test variants may
+// repeat one, and the set folds them. Each package is loaded alone: go/types
+// can race when one load checks several packages sharing an import
+// (golang/go#81122). A plant has external tests only, whose package imports the
+// one it tests, so the two are checked in turn, not at once.
 func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...string) []string {
 	t.Helper()
 	dir, err := filepath.Abs(plantDir)
@@ -140,11 +141,16 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 		require.NoError(t, err)
 		for _, act := range graph.Roots {
 			require.NoError(t, act.Err, "%s on %s", act.Analyzer.Name, act.Package.PkgPath)
+			drawn := map[string]bool{}
 			for _, d := range act.Diagnostics {
 				pos := act.Package.Fset.Position(d.Pos)
 				file, err := filepath.Rel(dir, pos.Filename)
 				require.NoError(t, err)
-				seen[fmt.Sprintf("%s:%d: %s: %s", filepath.ToSlash(file), pos.Line, act.Analyzer.Name, d.Message)] = true
+				finding := fmt.Sprintf("%s:%d: %s: %s", filepath.ToSlash(file), pos.Line, act.Analyzer.Name, d.Message)
+				at := fmt.Sprintf("%d: %s", pos.Column, finding)
+				require.False(t, drawn[at], "drawn twice on one package: %s", at)
+				drawn[at] = true
+				seen[finding] = true
 			}
 		}
 	}

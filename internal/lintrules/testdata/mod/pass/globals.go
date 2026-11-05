@@ -16,7 +16,8 @@ type tally struct{ n int }
 func (t *tally) Add()         { t.n++ }
 func (t tally) Get() int      { return t.n }
 func (t *tally) Self() *tally { return t }
-func (t *tally) init()        { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
+
+func (t *tally) init() { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 
 // ptrAlias spells *tally, and a method declared on it takes the pointer.
 type ptrAlias = *tally
@@ -111,6 +112,9 @@ var chained = func() tally {
 	counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
 	return tally{}
 }().Get()
+
+// chainedField writes from a literal behind the field it selects.
+var chainedField = func() tally { counter++; return tally{} }().n // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
 
 // hook and hooks write from function literals in their initializers, which can
 // run after initialization, as init's own statements, bar a go statement, do not.
