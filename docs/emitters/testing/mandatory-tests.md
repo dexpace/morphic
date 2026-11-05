@@ -331,8 +331,9 @@ throughout these documents.
     across a path rename; a file written once is never written again; a hint's key, a runtime-policy
     key, an envelope's `Except` entry and a `Remount` group naming nothing in the document each draw
     `emitters/unmatched-key` once, naming the entity of the same correlation key, and no other
-    diagnostic; a README's text outside its blocks and its frozen blocks survive byte for byte, a
-    block new to the generation lands beside its neighbours in the generated order, the first of
-    them included, a block whose ID holds `-->` keeps its markers whole, and its table of contents
-    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
-    refused with nothing written ([write / integrate](../write-integrate.md)).
+    diagnostic; a README's text outside its blocks and its frozen blocks survive byte for byte, an
+    edit outside its blocks draws nothing and one inside an unfrozen block is replaced and draws a
+    warning, a block new to the generation lands beside its neighbours in the generated order, the
+    first of them included, a block whose ID holds `-->` keeps its markers whole, and its table of
+    contents lists the user's headings; and a manifest of an older `Schema` is migrated, one of a
+    newer refused with nothing written ([write / integrate](../write-integrate.md)).

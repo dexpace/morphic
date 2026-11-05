@@ -94,17 +94,18 @@ type Entry struct {
   header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
   regions. The writer leaves it as it is, reports it as a warning, since nothing is lost, rather
   than overwrite the edit, and keeps the file's prior entry in the new manifest, so the next
-  generation reports it again.
+  generation reports it again. A file integrated as blocks is checked by its blocks alone
+  ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest,
   the engine writes nothing. `Emitter` is a version, not the hash of the executable the plan and IR
   caches key on, since a team's machines share the manifest and must agree on what it holds, and it
   holds the Go release beside Morphic's, since its `go/format` shapes Go's output ([emit
   rules](emit/rules.md)). A version naming no one tree, `(devel)` or one marked `+dirty`, never
   matches, so a change being developed is never skipped.
-- **A scoped run.** A run under a `Scope` writes what the scope selects and keeps the prior
-  manifest's entry of every entity, file and region it leaves out, so its manifest is the whole
-  SDK's: the next run's names, staleness check and no-op test read what was shipped, not what one
-  run wrote.
+- **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
+  outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
+  and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
+  check and no-op test read what was shipped, not what one run wrote.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.
@@ -166,7 +167,7 @@ the document before any stage reads it, those of the inputs every emitter shares
 and an emitter's own once for that emitter. Each that matches nothing is a warning
 `emitters/unmatched-key`, not an error, since one configuration may serve several documents: it
 fails a run only at a threshold the caller sets to count warnings (architecture.md §4). It names the
-input, the ID and, where one exists, the entity whose correlation key equals the one the prior
+input, the ID and, where exactly one does, the entity whose correlation key equals the one the prior
 manifest records for that ID, as the likely new home. A stage reading such an ID passes over it,
 since it configures nothing, so each is reported once, by the one reader that can name where it
 went. A hint's `ParamKey`, which names a parameter by its wire identity rather than an ID, is
@@ -193,6 +194,12 @@ marker. The engine's integrate step then rewrites only those blocks in the file 
 - a block the generation no longer has is removed, unless frozen, and reported as an info;
 - the table of contents is a block of its own, rebuilt last from the headings of the merged file,
   so it lists the user's sections too.
+
+A file integrated as blocks is the user's around them, so it carries no generated header and is
+never pruned, and its `Digest` covers its unfrozen blocks alone, an edit elsewhere being no edit. An
+edit inside an unfrozen block is replaced as the block is, since freezing is how a user keeps one,
+and where those blocks no longer match the digest the file is reported as a warning, so the edit is
+not lost unseen.
 
 A file that exists with no markers yet, such as a README written before the SDK was generated,
 takes the generated blocks after its own text, and where no file exists the whole artifact is
