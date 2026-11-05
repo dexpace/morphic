@@ -54,7 +54,7 @@ and what is reported.
 - **Why.** An all-or-nothing guard falls back to the reported defect on the near miss while the
   surrounding code handles the keyword partly, as a cycle guard skipped for any source that merely
   wrote `$id` did (#763), and a draft 7 predicate probed with annotations and assertions alone
-  missed that an `$id` beside a `$ref` moves its base (#1467).
+  missed that an `$id` beside a `$ref` moves its base (#1507).
 
 ## Check the failure form of every record a change re-attributes
 `reattributed-failure-form`

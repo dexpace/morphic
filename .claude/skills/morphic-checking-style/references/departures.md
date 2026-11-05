@@ -179,7 +179,7 @@ the rule here rather than reading it across.
 - **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
   and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
   #1313).
-- **Probe.** `git grep -nE '\.\((\w+\.)?[A-Z][A-Za-z]*(Visitor|er)\)' -- '*.go' ':!*_test.go' ':!*testdata*'`
+- **Probe.** `git grep -nE '\.\(([[:alnum:]_]+\.)?[A-Z][A-Za-z]*(Visitor|er)\)' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists the run-time assertions to an interface of that shape.
 
 ## Hold a new line to a rule the tree still breaks

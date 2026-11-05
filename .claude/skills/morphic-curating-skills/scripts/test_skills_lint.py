@@ -175,10 +175,11 @@ class LintTest(unittest.TestCase):
         spans = ("`grep -E 'testify|go-cmp|golang.org/x/tools'`, `sed 's/^a/b/'`, "
                  "`grep 'a\\/b'`, `refs/remotes/origin/main`, "
                  "`git fetch <url> main:refs/remotes/origin/main`, "
-                 "`git restore --worktree :/`, `gone/a.go:12`.\n")
+                 "`git restore --worktree :/`, `gone/a.go:12`, `gone/b.go:12:5`, `ir/a.go:1:2`.\n")
         write(self.root, skill, GOOD_SKILL + spans)
         n = GOOD_SKILL.count("\n") + 1
-        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go:12 does not exist"])
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go:12 does not exist",
+                                          f"{skill}:{n}: gone/b.go:12:5 does not exist"])
 
     def test_a_rule_cited_by_its_key_alone_is_reported(self):
         skill = ".claude/skills/good-skill/SKILL.md"

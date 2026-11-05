@@ -7,7 +7,8 @@ say what a round attacks.
 Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
 `references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
 branch (`references/rounds.md#branch-held-elsewhere`); and where the PR's stacked base has landed,
-take `.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
+take
+`.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
 Before the PR exists, as before a branch's first push, the base is the branch it will target, the
 worktree is added at the branch's head, and `<N>` is the number the push checklist in
 `morphic-shipping-prs` derives.

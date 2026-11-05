@@ -32,7 +32,7 @@ branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`).
 pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/u[s]ers/|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep|(^|[^a-z0-9])[hm][0-9]{1,2}([^0-9a-z]|$)'
 git status --short --untracked-files=all
 for b in main <base>; do git merge-tree --write-tree "origin/$b" HEAD >/dev/null || echo "conflicts with $b"; done
-git log --first-parent --no-merges --format=%B HEAD --not "origin/<base>" | grep -niE "$pat"
+git log --format=%B HEAD --not "origin/<base>" origin/main | grep -niE "$pat"
 git diff "origin/<base>"...HEAD -- ':!go.sum' | grep '^+' | grep -niE "$pat"
 ```
 
@@ -49,7 +49,7 @@ t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
 h=$(gh pr view N --json headRefName --jq .headRefName 2>/dev/null) || h=$(git branch --show-current)
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
   python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py --base "origin/<base>" N "$t" &&
-  git push origin "HEAD:refs/heads/$h"
+  [ -n "$h" ] && git push origin "HEAD:refs/heads/$h"
 ```
 
 After the push, read CI by `references/commits-and-prs.md#conflicting-pr-has-no-run`.

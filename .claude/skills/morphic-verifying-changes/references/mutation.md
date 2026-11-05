@@ -82,7 +82,7 @@ yourself. These rules are the ways that reading still lies.
   its busiest caller, and is the control, not the evidence.
 - **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
   listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
-  drew none from the listed packages and 14 from those two (#1311).
+  drew none from the listed packages and 14 from those two (#1380).
 - **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
 
 ## A plant a run's schedule decides needs a measured kill rate

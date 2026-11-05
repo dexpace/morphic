@@ -102,6 +102,7 @@
 - **Why.** About a dozen gates failed on load while #1271 to #1274 were built, and seven branches
   gated one at a time all exited 0 (#1248).
 - **Probe.** `uptime` beside the failed package rerun alone.
+
 ## A stale local linter fails on export data, not on the change
 `stale-linter-reads-as-a-failure`
 

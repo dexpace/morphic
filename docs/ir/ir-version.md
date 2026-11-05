@@ -104,8 +104,8 @@ The bump itself rewrites no other golden, though the change behind it moves ever
 holding what it changed. `TestIRVersion_PinsTheNames` prints the row's `names` once the row exists.
 Adding a position to `hint_positions.yaml` moves that hash as a renamed one does, so it lands with
 whichever change bumps next. A row on `main` is never edited: two branches that claim one version
-append their rows in the same place, so whichever merges second meets the other's in a conflict and
-takes the next version. A change to how `jsonshape` spells a shape moves `jsonshape.Format` and
+append their rows in the same place, which can conflict or merge clean into two rows of one version,
+so whichever merges second checks for a repeated version and takes the next. A change to how `jsonshape` spells a shape moves `jsonshape.Format` and
 appends a row describing the current generation anew, with no bump.
 
 **Goldens store no stamp.** `irtest.WriteGolden` and `irtest.CompareGolden` refuse a document not

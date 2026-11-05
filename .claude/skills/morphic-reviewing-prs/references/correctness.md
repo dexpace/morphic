@@ -107,5 +107,5 @@ both builds' results.
   (`.claude/skills/morphic-verifying-changes/references/toolchain.md#cache-probe-holds-the-environment`).
 - **Why.** Simulated runs of #1272's work found a test reading through `git` replay a stale pass
   once files were dated, the listing closing that gap with no test, and a CI step deleting nothing
-  in its job (#1272, #1373).
+  in its job (#1272, #1374).
 - **Probe.** The report gives each claim with the runs simulating it and their `(cached)` lines.

@@ -8,8 +8,10 @@ how each kind of cost claim is measured; a cost read off the code is a `question
    dimension it grows with and its worst shape; its limit is Robustness's.
 2. Count its work at n, 2n and 4n on that shape, on both builds
    (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`,
-   `.claude/skills/morphic-measuring-performance/references/finding-cost.md#deep-generated-shapes`), in the process doing the work
-   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#count-stops-at-the-timed-process`) and across two rounds beside a control
+   `.claude/skills/morphic-measuring-performance/references/finding-cost.md#deep-generated-shapes`),
+   in the process doing the work
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#count-stops-at-the-timed-process`)
+   and across two rounds beside a control
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#count-holds-across-rounds`).
 3. Price the path every input takes (`references/performance.md#price-common-path`), and drive a
    loop the change reruns until it settles through many turns
@@ -17,10 +19,12 @@ how each kind of cost claim is measured; a cost read off the code is a `question
 4. Read allocations and escapes on hot paths
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#escapes-on-hot-paths`),
    and whether a reused collection keeps its peak
-   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#clear-never-shrinks`), never taking a resident set read with the collector
-   off for a peak (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#resident-set-without-collector`).
-5. Hold each cost the change states to the measure its kind takes, and find where a small
-   difference comes from (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#attribute-by-statement-counts`).
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#clear-never-shrinks`),
+   never taking a resident set read with the collector off for a peak
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#resident-set-without-collector`).
+5. Hold each cost the change states to the measure its kind takes, and find where a small difference
+   comes from
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#attribute-by-statement-counts`).
 
 A finding gives the gap measured on both builds and the correct alternative closing it. The matrix
 is each new piece of work with its growth, bound and measured cost.

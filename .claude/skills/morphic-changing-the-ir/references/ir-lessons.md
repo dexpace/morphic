@@ -13,11 +13,12 @@ verifier and codecs must reach.
   version-history entry can merge silently, so check for a repeated version after each merge
   moving one.
 - **Why.** #1065 and #1066 both set 0.18.0 and the constant merged with no conflict; #734 and #735
-  conflicted only in the history; and two branches setting 0.30.0 conflicted in the constant while
-  their rows and entries merged clean, doubled (#1378).
+  conflicted only in the history; and two setting 0.30.0 conflicted in the constant, their rows and
+  entries merging clean, doubled (#1378).
 - **Probe.** After the merge, `grep -o 'version: "[0-9.]*"' ir/irversion_test.go | sort | uniq -d`
-  prints only 0.3.0 and 0.4.0, which `main` repeats by design, and the same over the
-  `docs/ir/version-history.md` headings prints nothing.
+  prints only 0.3.0 and 0.4.0, repeated by design, and
+  `grep -oE '^- \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*' docs/ir/version-history.md | sort | uniq -d` prints
+  nothing.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`

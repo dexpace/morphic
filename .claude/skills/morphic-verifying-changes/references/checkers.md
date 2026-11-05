@@ -96,7 +96,7 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
   `internal/lintrules/testdata/reach`. A target that runs and passes looks the same whether or not
   its tool is on and meets the defect.
 - **Why.** `make race` ran `-race` over a listed set of packages with no plant, so dropping `-race`
-  or merging coverage back into it left the gate green until a planted race was added (#1311).
+  or merging coverage back into it left the gate green until a planted race was added (#1346).
 - **Probe.** Remove the flag, or empty the target's input: the gate goes red.
 
 ## A probe of a lint rule lists every finding
@@ -104,7 +104,8 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 
 - **Rule.** Run a lint rule's probe with `--max-same-issues=0`: by default golangci-lint reports at
   most three findings of one text and says nothing of the rest, so planted lines it catches read as
-  missed. `make lint` keeps the default, so fixing the three it shows can turn up more.
+  missed. `make lint` keeps the default, so fixing the three it shows can turn up more; whether it
+  should list every finding is #1526.
 - **Why.** Five planted `exec.Command` lines drew three `forbidigo` findings by default and five
   with the flag (#1473).
 - **Probe.** `golangci-lint run --enable-only <linter> --max-same-issues=0 <packages>` over five

@@ -6,7 +6,8 @@ severities, the CLI's flags, output and exit codes, and the exported Go API. Eac
 or not at all. It loads `morphic-changing-the-ir` and `morphic-shipping-prs`.
 
 1. A change to the IR's shape or meaning bumps `IRVersion` by `docs/ir/ir-version.md`, with its
-   entry in `docs/ir/version-history.md`, and claims a version no open PR holds
+   entry in `docs/ir/version-history.md`, to the version after its base's, the PR merging second
+   moving to the next
    (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#version-collisions`). So
    does a change to a name an emitter renders, which `TestIRVersion_PinsTheNames` holds.
 2. A field holding a new value, or a new field, is read by each of its consumers

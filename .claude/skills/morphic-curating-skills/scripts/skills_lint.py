@@ -95,12 +95,12 @@ FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
 SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
-LINE_SUFFIX = re.compile(r":[0-9]+$")
+LINE_SUFFIX = re.compile(r":[0-9]+(?::[0-9]+)?$")
 # A code span holding a "/" names a repository path unless its form marks it as something else:
 # a JSON pointer or device (/), a flag (-), a pathspec's magic (:(), a pattern (+, [, |, ^ or \),
-# a placeholder (<spec>, {owner}), or a colon other than a :line suffix, as a URL, a refspec
-# (main:refs/x) and the pathspec :/ hold, which no path here does.
-NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|:(?![0-9]+$)|[\[<>{}|^\\]")
+# a placeholder (<spec>, {owner}), or a colon other than a :line or :line:column suffix, as a URL,
+# a refspec (main:refs/x) and the pathspec :/ hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|:(?![0-9]+(?::[0-9]+)?$)|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.

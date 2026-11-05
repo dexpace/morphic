@@ -46,16 +46,18 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 ## When a stacked base has landed, merge its final head first
 `merge-a-landed-bases-final-head`
 
-- **Rule.** Once a stacked PR's base squash-merges, GitHub retargets the PR to `main` and deletes
-  the base branch, and merging `main` conflicts wherever the branch holds the base's text from an
-  older merge. Merge the base PR's final head first, fetched with
-  `git fetch origin +pull/<base PR>/head:<own ref>`, then `origin/main` as usual, then read each
-  concept the branch adds by `references/merging-main.md#main-landed-the-concept`. With no base head
-  to fetch, take `references/merging-main.md#replay-own-diff-onto-main`.
-- **Why.** Merging `main` after #1331 squash-landed conflicted in 17 files, and its final head in
-  the 4 real overlaps (#1332); #1459, #1467 and #1336 met the same.
-- **Probe.** `git merge-tree --write-tree --name-only <head> <squash>` beside the same against the
-  base's final head.
+- **Rule.** Once a stacked PR's base squash-merges and the PR retargets to `main`, merging `main`
+  conflicts wherever the branch holds the base's text from an older merge. Merge the base PR's final
+  head first (`git fetch origin +pull/<base PR>/head:<own ref>`), then `origin/main`; where that
+  still conflicts at the base's text, take the branch's side outside the files
+  `git diff --name-only <squash> origin/main` lists and `main`'s inside them, so
+  `git diff HEAD^1 HEAD` holds only that diff. With no base head, take
+  `references/merging-main.md#replay-own-diff-onto-main`. Then read each concept it adds by
+  `references/merging-main.md#main-landed-the-concept`.
+- **Why.** Merging `main` after #1331 squash-landed conflicted in 17 files, its final head in the 4
+  real overlaps (#1332); on another stack, `main` past the squash drew 24 more (#1427).
+- **Probe.** `git merge-tree --write-tree --name-only <head> <squash>` beside it against the base's
+  final head.
 
 ## Replay a branch's own diff onto main to leave a stack
 `replay-own-diff-onto-main`
@@ -187,6 +189,7 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Why.** Two PRs each under a skill's body cap merged with no conflict at 512 words against 500,
   which would have failed the second to land on nothing in its own change (#1219).
 - **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` confirms.
+
 ## Count a cap two open PRs share at each one's head
 `cap-two-prs-share`
 

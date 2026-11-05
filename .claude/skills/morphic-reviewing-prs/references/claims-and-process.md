@@ -10,8 +10,10 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
-   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a cap they share at each head
-   (`.claude/skills/morphic-shipping-prs/references/merging-main.md#cap-two-prs-share`). An edited body is sent only from its fetch
+   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a
+   cap they share at each head
+   (`.claude/skills/morphic-shipping-prs/references/merging-main.md#cap-two-prs-share`). An edited
+   body is sent only from its fetch
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#send-only-what-the-fetch-produced`).
 3. **Closed issues.** Read each issue the PR closes whole against the diff, its state, comments and
    out-of-scope items included
@@ -70,7 +72,7 @@ The matrix is each claim class with the members checked, and each closed issue w
   root, each placeholder filled with a real package, test or PR, and quote its exit status. One
   that cannot run here, such as a macOS tool on Linux, is named as not run, with the reason.
 - **Why.** A rewritten Probe joined `-covermode=set` and `-race` in one `go test`, which refuses
-  the pair, and passed review on reading (#1311).
+  the pair, and passed review on reading (#1364).
 - **Probe.** The report lists each prescribed command with its exit status.
 
 ## Search the tracker for each construct a rule settles

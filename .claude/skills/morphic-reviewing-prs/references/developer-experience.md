@@ -15,8 +15,8 @@ comments and messages let a reader find, follow and extend it without asking. It
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies`),
    and each normative document and `CONTRIBUTING.md` recipe it touches changes with it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#update-normative-docs-in-same-change`).
-   Moved code and divided documents take `references/developer-experience.md#moved-comments`,
-   and a restructured one `references/developer-experience.md#restructure-accounts-for-every-sentence`.
+   Moved code and divided documents take `references/developer-experience.md#moved-comments`, and a
+   restructured one `references/developer-experience.md#restructure-accounts-for-every-sentence`.
 5. **Messages.** Each new diagnostic or error names what is wrong, where, and what the writer can
    do.
 

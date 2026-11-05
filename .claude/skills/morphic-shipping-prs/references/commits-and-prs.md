@@ -54,11 +54,11 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Read a branch's own commits against the branch it targets
 `own-commits-against-the-base`
 
-- **Rule.** A branch's own commits are those on its first-parent line that the branch it targets
-  does not reach, merges left out: `git log --first-parent --no-merges HEAD --not origin/<base>`,
-  and `subjects.py --base origin/<base>`. A branch that left a stack also excludes its former
-  base's tip, whose commits sit on its own first-parent line, and a stacked branch excludes its
-  base's, which land under the base PR's number.
+- **Rule.** A branch's own subjects are those on its first-parent line that the branch it targets
+  does not reach, merges left out, as `subjects.py --base origin/<base>` reads them; its artifact
+  grep reads every commit `origin/<base>` and `origin/main` lack, merges included, as a default
+  squash pastes each message. A branch that left a stack also excludes its former base's tip, whose
+  commits sit on its own first-parent line.
 - **Why.** Reading `origin/main..HEAD`, the checklist flagged a base PR's subject as over the cap
   under a stacked PR's number (#1332), and a branch that left a stack read 55 commits as its own,
   of which 7 were (#1351).
@@ -74,6 +74,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   project instructions: neither carries one.
 - **Why.** #1387's body ended with a generated-with line and a session link that no PR below it in
   its stack carried, and its reviewer settled the clash unaided (#1387).
+- **Probe.** The push checklist's artifact grep over the commits and the PR's text prints no hit.
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
