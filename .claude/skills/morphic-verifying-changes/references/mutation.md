@@ -52,6 +52,39 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
 
+## A mutant run owns its cache and stops before the disk fills
+`mutant-run-owns-its-cache`
+
+- **Rule.** Point each mutant worker at a `GOCACHE` of its own, cleaned past a size, pass
+  `-vet=off` to its `go test`, and check free disk before each verdict inside the planting loop,
+  stopping under a floor. A mutant in a package others import rebuilds everything above it, and a
+  full or shared cache turns verdicts into `[build failed]`.
+- **Why.** 57 mutants grew a cache to 30 GB, leaving 250 MiB free (#1229), and 16 of 20 mutants
+  read as build failures while other work cleared the shared cache (#1333).
+- **Probe.** `df -h` and `du -sh "$GOCACHE"` before and after a batch.
+
+## A kill counts only from a test that reaches the plant
+`kill-reaches-the-plant`
+
+- **Rule.** A mutant reported killed by a test that cannot reach the planted line is no verdict
+  until it reproduces, on a machine with free disk, by a test that does.
+- **Why.** A mutant in `readStability` was reported killed by a test reading no stability while the
+  disk sat near full; rerun with the disk free, a stability test killed it (#1229).
+- **Probe.** Rerun the killing test alone on the mutant and on the clean tree: it fails on the
+  first and passes on the second.
+
+## Plant where only the callers a check leaves out reach
+`plant-past-the-included-callers`
+
+- **Rule.** To test what a check leaves out, such as a list claimed to hold every package whose
+  code runs concurrently, plant on a branch only the excluded callers take: the included set's run
+  stays green while the excluded set's reports the plant. A plant at a function's entry measures
+  its busiest caller, and is the control, not the evidence.
+- **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
+  listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
+  drew none from the listed packages and 14 from those two (#1311).
+- **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
+
 ## A plant a run's schedule decides needs a measured kill rate
 `kill-rate-for-a-scheduled-detector`
 

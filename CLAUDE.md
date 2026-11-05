@@ -422,7 +422,8 @@ departs from it, with what holds each difference.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass the gate:
+Before claiming any Go work done, run and pass the gate, locally or through CI's run on the final
+head:
 
 ```bash
 make gate

@@ -65,6 +65,20 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 - **Probe.** Feed the loader a pattern matching nothing, a build-tagged file, a test-only package
   and a malformed line mid-table, and assert each errors rather than returning less.
 
+## A count over a whole-program analysis takes a fixed input set
+`analysis-input-is-fixed`
+
+- **Rule.** A check counting over a whole-program analysis takes an input set the program
+  determines, such as RTA's reachable set from fixed roots, never one a library derives from map
+  order, as `ssautil.AllFunctions` does. Root a check over production code where production
+  starts: each binary's `main` and the API kept for a caller to come, never a function only tests
+  call.
+- **Why.** One program's `AllFunctions` gave 45,411 to 45,638 functions on successive calls, and a
+  call graph rooted at every declared function credited a test-only helper with seven calls no
+  binary makes (#1504).
+- **Probe.** Run the analysis four times on one program and once on each of several builds, and
+  compare the input set's size and a digest of the result.
+
 ## Validate a source-reading checker against history
 `history-sweep`
 
@@ -73,3 +87,25 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
   detached worktree at that commit. It must change exactly where history did.
 - **Why.** The IR shape describer changed at every version bump and at no refactor, and found one
   unbumped shape change (#985).
+
+## A new gate target draws a finding planted for it
+`gate-target-draws-a-plant`
+
+- **Rule.** A new gate target, CI step or flag turning a check on carries a planted finding it
+  must report, and the gate fails when it does not, as `make vet` requires the finding planted in
+  `internal/lintrules/testdata/reach`. A target that runs and passes looks the same whether or not
+  its tool is on and meets the defect.
+- **Why.** `make race` ran `-race` over a listed set of packages with no plant, so dropping `-race`
+  or merging coverage back into it left the gate green until a planted race was added (#1311).
+- **Probe.** Remove the flag, or empty the target's input: the gate goes red.
+
+## A probe of a lint rule lists every finding
+`lint-probe-lists-every-finding`
+
+- **Rule.** Run a lint rule's probe with `--max-same-issues=0`: by default golangci-lint reports at
+  most three findings of one text and says nothing of the rest, so planted lines it catches read as
+  missed. `make lint` keeps the default, so fixing the three it shows can turn up more.
+- **Why.** Five planted `exec.Command` lines drew three `forbidigo` findings by default and five
+  with the flag (#1473).
+- **Probe.** `golangci-lint run --enable-only <linter> --max-same-issues=0 <packages>` over five
+  planted lines reports five.
