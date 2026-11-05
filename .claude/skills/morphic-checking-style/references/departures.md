@@ -177,10 +177,10 @@ the rule here rather than reading it across.
   and takes shared rows from `internal/ircases` or `internal/testspec`, which import the standard
   library alone. Every other test keeps those rules (`CONTRIBUTING.md`, "Where a test goes").
   `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` holds the packages to this.
-- **Why.** `go test -fuzz` instruments everything a binary links, on every execution: leaving a
-  binary that links `internal/decls` cut the CPU each of `ir`'s targets spends per execution by
-  68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left, on
-  darwin/arm64 (#1301, #1315; the platform is checked on #1381).
+- **Why.** `go test -fuzz` instruments everything a binary links, on every execution, so a target
+  beside tests that link `internal/decls` spends most of its CPU on counters, and rows from
+  `ir/irtest` would add go-cmp's. #1315 gives both measured, with its command; #1381 names the
+  platform.
 - **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
 
 ## Convert a type where it is passed to an optional interface
