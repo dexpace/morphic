@@ -221,10 +221,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
 	acc.AppendAll(metaDiags)
-	// Past the budget no $ref lowered, so what the lowering found depends on
-	// which $ref came first: the refusal is reported alone, the same in any
-	// order. It is asked once every lowering has returned, so none charges
-	// after it.
+	// Past the budget no $ref lowered, nor an additionalOperations entry, so
+	// what the lowering found depends on which copy came first: the refusal is
+	// reported alone, the same in any order. It is asked once every lowering has
+	// returned, so none charges after it.
 	if refusal, past := c.ExpansionRefusal(); past {
 		return nil, []ir.Diagnostic{refusal}, nil
 	}
@@ -277,8 +277,8 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 // lowering context, and is the loadOptions of the phase below: it is the one
 // place the loader's result type meets the lowering, so lowering.New can take
 // the facts it needs rather than the loader's struct. It reads the budgets the
-// lowering holds, on enums and on what $refs copy, as loadOptions reads the
-// others.
+// lowering holds, on enums and on what $refs and path items copy, as
+// loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	limits := lowering.Limits{
 		MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),

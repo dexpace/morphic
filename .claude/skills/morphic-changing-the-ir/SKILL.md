@@ -36,8 +36,8 @@ cannot be turned off.
   `testdata/golden/openapi/hint_positions.yaml` does not write, is the bump no test sees: make it,
   with the row's `meaning`. `git diff origin/main... -- testdata | grep -E '^-\s*"(canonical|hint)"'`
   lists the names a branch moved.
-- **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
-  that claim one (`references/ir-lessons.md#version-collisions`).
+- **Other PRs.** After each merge that moves a version, check that no version repeats
+  (`references/ir-lessons.md#version-collisions`).
 - **Mentions.** A position only mentioning a type needs more than classifying
   (`references/ir-lessons.md#mention-is-no-use`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
