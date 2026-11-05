@@ -132,6 +132,20 @@ class ScriptTest(unittest.TestCase):
                 self.assertEqual((r.returncode, r.stdout),
                                  (0, "subjects: clean (the title and 1 commit subject(s))\n"))
 
+    def test_mains_own_commits_are_never_the_branchs(self):
+        # The branch starts on a main that moved on after its base did, then merges the base.
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("test: the base's work")
+        self.git("switch", "-q", "main")
+        self.commit("main's own subject, after the base")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("switch", "-q", "-c", "stacked")
+        self.git("merge", "-q", "--no-edit", "base")
+        self.commit("test: add a case")
+        r = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
     def test_an_unknown_or_empty_base_exits_two(self):
         self.commit("test: add a case")
         # git refuses an empty base too, so only the message tells the script's own check apart.

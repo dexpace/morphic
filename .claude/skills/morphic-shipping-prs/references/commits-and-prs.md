@@ -54,16 +54,17 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Read a branch's own commits against the branch it targets
 `own-commits-against-the-base`
 
-- **Rule.** A branch's own subjects are those on its first-parent line that the branch it targets
-  does not reach, merges left out, as `subjects.py --base origin/<base>` reads them; its artifact
-  grep reads every commit `origin/<base>` and `origin/main` lack, merges included, as a default
-  squash pastes each message. For its subjects, a branch that left a stack also excludes its former
-  base's tip, whose commits sit on its own first-parent line; its artifact grep keeps them.
-- **Why.** Reading `origin/main..HEAD`, the checklist flagged a base PR's subject as over the cap
+- **Rule.** A branch's own subjects are those on its first-parent line that neither `origin/main`
+  nor the branch it targets reaches, merges left out, as `subjects.py --base origin/<base>` reads
+  them; its artifact grep reads every commit those two lack, merges included, as a default squash
+  pastes them. A branch that left a stack also passes its former base's tip as a `--base`; the
+  artifact grep does not.
+- **Why.** Reading `origin/main..HEAD`, the checklist flagged a base PR's subject over the cap
   under a stacked PR's number (#1332), and a branch that left a stack read 55 commits as its own,
-  of which 7 were (#1351).
-- **Probe.** `git rev-list --count --first-parent HEAD --not origin/<base> <former base tip>`
-  counts only the branch's own commits.
+  of which 7 were (#1351), and one started on a moved `main` read `main`'s commits as its own
+  (#1522 at b4795b61a).
+- **Probe.** `git rev-list --count --first-parent --no-merges HEAD --not origin/main origin/<base>`
+  matches the count `subjects.py` prints.
 
 ## The repository's rule overrides a harness's attribution reminder
 `harness-attribution-yields`
