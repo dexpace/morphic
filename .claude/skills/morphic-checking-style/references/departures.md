@@ -157,14 +157,14 @@ the rule here rather than reading it across.
 
 - **Rule.** Rule 5.26 asks for compile-time compliance assertions. Here an exported type
   implementing an exported interface its package declares or imports from this module carries a
-  `var _` beside its imports, and an unexported one does not where a call's parameter is the
-  interface, since the call fails the build
-  (`references/departures.md#optional-interface-converted`). A standard library one such as `error`
+  `var _` beside its imports. An unexported one does not where a call's parameter is the
+  interface, since the call fails the build; an optional interface takes
+  `references/departures.md#optional-interface-converted`. A standard library one such as `error`
   takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
-  the rule covers with no assertion. It reports only a missing assertion, so an unexported type's
-  or a standard library interface's shows in what
+  lacking its assertion. It reports only a missing assertion, so an unexported type's or a standard
+  library interface's shows in what
   `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists, bar a conversion inside a `var (...)` group.
 

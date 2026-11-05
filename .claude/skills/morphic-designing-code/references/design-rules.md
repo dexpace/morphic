@@ -177,11 +177,10 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `domain-free-code-lives-apart`
 
 - **Rule.** Code needing no morphic concept, such as a bounded count, a panic barrier, a graph walk
-  or a URL or pointer grammar, names no IR or format type and lives in a
-  package named for what it does, never `utils`, `helpers` or `common`. It stays under its first
-  user's `internal/` until a second tree needs it, then moves down a layer under its own
-  `internal/archtest` entry. Generic means free of a domain it does not need, not parameterized for
-  users it lacks.
+  or a URL or pointer grammar, names no IR or format type and lives in a package named for what it
+  does, never `utils`, `helpers` or `common`. It stays under its first user's `internal/` until a
+  second tree needs it, then moves down a layer under its own `internal/archtest` entry. Generic
+  means free of a domain it does not need, not parameterized for users it lacks.
 - **Why.** The compiler's bounds were a dozen hand-written counters until one type counted them all
   (#785, #1140), and five panic barriers rendered what they caught each its own way until
   `barrier.Catch` alone did (#1130).

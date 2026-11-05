@@ -108,8 +108,8 @@
 
 - **Rule.** A `typecheck` finding that cannot load export data, with a version "greater than
   maximum supported", is a local golangci-lint built for an older Go than the module's, not a
-  defect in the change: install the version the `Makefile` pins and rerun. `make check-lint-version` only warns
-  of the mismatch, and whether it should fail is #1524.
+  defect in the change: install the version the `Makefile` pins and rerun.
+  `make check-lint-version` only warns of the mismatch, and whether it should fail is #1524.
 - **Why.** A local `make gate` on #1278's merged tree stopped at lint on `could not import math`,
   under golangci-lint 2.13.2 where CI pins 2.14.0 (#1286).
 - **Probe.** `make check-lint-version` prints the local and pinned versions.
