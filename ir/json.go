@@ -45,7 +45,7 @@ func (d *Document) MarshalJSONTo(enc *jsontext.Encoder) error {
 // where the alternatives are a silent U+FFFD and an ambiguous document. The rest
 // pin v2's defaults, so no caller option can stringify a number, drop a zero
 // struct, respell or reorder a raw value, substitute a marshaler, or write null
-// where the IR spells absence by omission.
+// for a nil list or map held as a map's value, which is [] or {}.
 func canonicalOptions() json.Options {
 	return json.JoinOptions(
 		json.Deterministic(true),
