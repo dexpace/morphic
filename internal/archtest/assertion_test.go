@@ -204,7 +204,7 @@ func missingAssertions(p *decls.Package, root string) ([]string, int) {
 			// asserting an embedding interface asserts this one too.
 			if !slices.ContainsFunc(asserted[tn], func(a *types.Interface) bool { return types.Implements(a, iface.methods) }) {
 				violations = append(violations, fmt.Sprintf("%s: %s implements %s with no compile-time assertion in its package",
-					positions([]token.Position{p.Fset.Position(tn.Pos())}, root), qualified(tn), qualified(iface.decl)))
+					relPosition(p.Fset.Position(tn.Pos()), root), qualified(tn), qualified(iface.decl)))
 			}
 		}
 	}

@@ -66,8 +66,8 @@ func TestTable_EveryKindHasOneObject(t *testing.T) {
 	assert.False(t, ok, "the zero kind names no object")
 }
 
-// TestTable_EveryRowCitesTheSpecification pins that each field, pattern and
-// rule names a sentence of a text it can have come from.
+// TestTable_EveryRowCitesTheSpecification pins that each field, default,
+// pattern and rule names a sentence of a text it can have come from.
 func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 	valid := func(where string, cites []oas.Cite) {
 		require.NotEmpty(t, cites, where)
@@ -82,6 +82,11 @@ func TestTable_EveryRowCitesTheSpecification(t *testing.T) {
 			valid(o.Name+"."+f.Name, f.Cites)
 			assert.True(t, slices.ContainsFunc(f.Cites, func(c oas.Cite) bool { return f.Defined.Holds(c.Minor) }),
 				"%s.%s: no citation comes from a minor that defines the field", o.Name, f.Name)
+		}
+		for _, d := range o.Defaults {
+			valid(o.Name+"."+d.Field+" default", d.Cites)
+			assert.True(t, slices.ContainsFunc(d.Cites, func(c oas.Cite) bool { return d.Span.Holds(c.Minor) }),
+				"%s.%s: no citation of a default comes from a minor it holds at", o.Name, d.Field)
 		}
 		for _, p := range o.Patterned {
 			valid(o.Name+"."+p.Name, p.Cites)
@@ -119,12 +124,37 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 				assert.True(t, validSpan(a.Span), where)
 			}
 		}
+		defaultsAreWellFormed(t, o)
 		for _, p := range o.Patterned {
 			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
 		}
 		for i, r := range o.Rules {
 			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))
 			assert.NotZero(t, r.Span, o.Name+" rule "+itoa(i)+" never applies")
+		}
+	}
+}
+
+// defaultsAreWellFormed holds each default of o to a field o defines at every
+// minor the default holds at, and the defaults of one field and case to
+// disjoint minors, so at each minor a case has one value.
+func defaultsAreWellFormed(t *testing.T, o oas.Object) {
+	t.Helper()
+	defined := func(name string, m oas.Minor) bool {
+		return slices.ContainsFunc(o.Fields, func(f oas.Field) bool { return f.Name == name && f.Defined.Holds(m) })
+	}
+	for i, d := range o.Defaults {
+		where := o.Name + "." + d.Field + " default"
+		assert.True(t, validSpan(d.Span) && d.Span != (oas.Span{}), where)
+		assert.NotZero(t, d.Case, where+" names no case")
+		for _, m := range minors() {
+			if d.Span.Holds(m) {
+				assert.True(t, defined(d.Field, m), "%s holds at %s, where the object defines no such field", where, m)
+			}
+			for _, e := range o.Defaults[i+1:] {
+				assert.False(t, e.Field == d.Field && e.Case == d.Case && e.Span.Holds(m) && d.Span.Holds(m),
+					"%s has two values of one case at %s", where, m)
+			}
 		}
 	}
 }

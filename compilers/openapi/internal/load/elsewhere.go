@@ -111,10 +111,10 @@ func (w *elsewhere) reach(site refSite, c chain, opts references.ResolveOptions,
 		return
 	}
 	last := c.records[len(c.records)-1]
-	if last.inSource() || last.node == nil {
+	if last.inSource() || c.end == nil {
 		return
 	}
-	key := endKey{node: last.node, kind: reflect.TypeOf(last.object)}
+	key := endKey{node: c.end, kind: reflect.TypeOf(last.object)}
 	if kept, ok := w.canonical[key]; ok && !site.inSource() && last.replace(kept) {
 		return
 	}

@@ -53,8 +53,9 @@ Each is a rule in the references below, with its evidence and probe.
   (`references/lossless-and-diagnostics.md#one-defect-one-finding`).
 - A version's specification text decides validity, not its published JSON Schemas
   (`references/openapi-lessons.md#spec-text`).
-- A new bound's outcome, refusal or warning, comes from the rule entry for its kind
-  (`references/openapi-lessons.md#bound-outcome-from-the-rules`).
+- A new bound's outcome comes from the rule entry for its kind
+  (`references/openapi-lessons.md#bound-outcome-from-the-rules`), or from what its cut changes
+  (`references/openapi-lessons.md#bound-of-another-kind`).
 - A refusal made after a `$ref` has read a document keeps each finding in its source table
   (`references/openapi-lessons.md#refusal-findings-in-its-table`).
 - A new entry in `ids.Namespaces` rewrites every golden document

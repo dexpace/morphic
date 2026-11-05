@@ -94,7 +94,7 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes()
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
+	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	report(schema.LowerComponentSchemas(t.Context(), c, types))
 

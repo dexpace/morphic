@@ -985,8 +985,9 @@ components:
 // TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart pins that a
 // refinement's branch written as its target in another document writes it is
 // no restatement, though it writes no $ref: what another document says is read
-// in that document, whose dialect may differ (GitHub #839). In the source, the
-// same branch restates its target and is consumed.
+// in that document, whose dialect may differ
+// (docs/compilers/openapi.md#openapi-versions). In the source, the same branch
+// restates its target and is consumed.
 func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

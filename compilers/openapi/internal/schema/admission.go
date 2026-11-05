@@ -272,21 +272,24 @@ func memberOf(v values.Value) (string, kindSet, bool) {
 // values a schema admits and mirrors no lowering's dispatch. A reading cut short
 // is told by incomplete, and says nothing.
 type admission struct {
-	c       lowering.Ctx
-	is30    bool
-	reads   budget.Budget
-	members budget.Budget
+	c lowering.Ctx
+	// nullable reports whether the dialect c reads its schemas in defines the
+	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
+	// elsewhere is read in its own document's (definesNullableAt).
+	nullable bool
+	reads    budget.Budget
+	members  budget.Budget
 	// walked hears how many members each value set comparison of the election
 	// looks up, for a test to hold it to the sets it compares; a compile leaves
 	// it nil.
 	walked func(int)
 }
 
-// newAdmission returns a read with the whole budget, in the dialect c's document
-// declares. It returns a value so the read lives on its caller's stack.
+// newAdmission returns a read with the whole budget, in the dialect c reads its
+// schemas in. It returns a value so the read lives on its caller's stack.
 func newAdmission(c lowering.Ctx) admission {
-	return admission{c: c, is30: c.Is30(), reads: budget.New(budget.AtMost(maxAdmissionReads)),
-		members: budget.New(budget.AtMost(maxAdmissionMembers))}
+	return admission{c: c, nullable: c.SchemaRules().Defines("nullable"),
+		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
 }
 
 // incomplete reports whether the read met what it cannot answer for: a cycle
@@ -294,8 +297,9 @@ func newAdmission(c lowering.Ctx) admission {
 // value it cannot convert.
 func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
-// whole reads js, a schema of any form written anywhere: what its keywords say,
-// conjoined with its allOf, its unions and what its $ref lands on.
+// whole reads js, a schema of any form written anywhere, in the dialect of the
+// document holding it: what its keywords say, conjoined with its allOf, its
+// unions and what its $ref lands on.
 func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if !w.reads.Spend(1) || !annotation.Written(js) {
 		return admitted{kinds: kindAny}
@@ -310,7 +314,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if declaresDynamicRef(s) {
 		w.reads.Exhaust()
 	}
-	out := w.written(s)
+	out := w.written(s, definesNullableAt(w.c, js))
 	for _, b := range s.GetAllOf() {
 		out = out.and(w.whole(b))
 	}
@@ -451,12 +455,24 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 	return out
 }
 
-// written reads the keywords s itself writes that say what a value is: `type`,
-// which OpenAPI 3.0's `nullable` adds null to, `format`, `enum`, `const` and
-// `items`. A `properties` with no type beside it claims an object, as
-// lowerUntyped reads one.
-func (w *admission) written(s *oas3.Schema) admitted {
-	out := admitted{kinds: writtenKinds(s, w.is30)}
+// definesNullableAt reports whether the dialect of the document holding js
+// defines nullable: where c's bindings place js, that document's, and c's own
+// for a schema they do not place.
+func definesNullableAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	at, ok := c.Bindings().Site(js)
+	if !ok {
+		return c.SchemaRules().Defines("nullable")
+	}
+	return definesNullableIn(c, at.Doc)
+}
+
+// written reads the keywords s itself writes that say what a value is, in a
+// dialect defining nullable where nullable says: `type`, which a `nullable`
+// adds null to there, `format`, `enum`, `const` and `items`. A `properties`
+// with no type beside it claims an object, as lowerUntyped reads one. A schema
+// in c's document is read in w.nullable's dialect.
+func (w *admission) written(s *oas3.Schema, nullable bool) admitted {
+	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
 		out.items = items
@@ -476,9 +492,11 @@ func (w *admission) written(s *oas3.Schema) admitted {
 	return out
 }
 
-// writtenKinds reads a schema's `type`, or a type implied by what it declares. A
-// null `type` writes none (writesType).
-func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
+// writtenKinds reads a schema's `type`, or a type implied by what it declares,
+// with the null a `nullable: true` adds to it, beside a $ref as anywhere, where
+// the dialect defines the keyword, as nullable says. A null `type` writes none
+// (writesType).
+func writtenKinds(s *oas3.Schema, nullable bool) kindSet {
 	types := s.GetType()
 	if !writesType(s) {
 		if props := s.GetProperties(); props != nil && props.Len() > 0 {
@@ -490,7 +508,7 @@ func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	for _, t := range types {
 		out |= kindOfType(t)
 	}
-	if is30 && s.Ref == nil && s.Nullable != nil && *s.Nullable {
+	if nullable && s.Nullable != nil && *s.Nullable {
 		out |= kindNull
 	}
 	return out
@@ -584,7 +602,7 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 // same JSON, read against one base where it writes a relative $ref: under an
 // $id naming another URI, the same spelling resolves elsewhere. A copy in
 // another document is read apart: its $refs resolve against that document, and
-// its dialect may differ (GitHub #839).
+// its dialect may differ (docs/compilers/openapi.md#openapi-versions).
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)
@@ -624,13 +642,13 @@ func (w *admission) text(js *oas3.JSONSchema[oas3.Referenceable]) ir.RawValue {
 func (w *admission) holds(held admitted, s *oas3.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.is30)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
 	case "format":
-		return held.formsWithin(w.written(s))
+		return held.formsWithin(w.written(s, w.nullable))
 	case "enum", "const":
-		return held.valuesWithin(w.written(s))
+		return held.valuesWithin(w.written(s, w.nullable))
 	case "items":
-		return w.itemsWithin(held, w.written(s))
+		return w.itemsWithin(held, w.written(s, w.nullable))
 	default:
 		return false
 	}

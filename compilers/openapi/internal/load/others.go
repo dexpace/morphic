@@ -20,16 +20,25 @@ import (
 )
 
 // Other is a document the compile read beside the source because a reference
-// named it: where Document.Sources records it, and how the IDs of what it
-// declares name it.
+// named it: where Document.Sources records it, how the IDs of what it declares
+// name it, and the minor it is read at, which is the one it declares, or the
+// source's where it declares none the table covers.
 type Other struct {
 	// Index is its position in Document.Sources.
 	Index int
 	// Label is its location as the source's directory reaches it, which
 	// qualifies the IDs of what it declares (ids.In).
 	Label string
-	// Info is its Document.Sources entry.
+	// Info is its Document.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
+	// Rows is what the table says at the minor in the dialect its
+	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
+	// none names its own (Dialects) are read with.
+	Rows Rows
+	// version is the minor's version as the document, or the source, writes
+	// it, which an object a reference reaches in it is held to (reached.check),
+	// and dialect its jsonSchemaDialect.
+	version, dialect string
 }
 
 // Others is every document a reference reached beside the source, in the order
@@ -108,9 +117,10 @@ func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool 
 // Document.Sources index first, but those under the keys unused holds. They are
 // ordered by label, not as they were read, so the order no declaration order
 // changes; two names one label reaches, a file spelled two ways, are one
-// document, as RFC 3986 reads a path. format is the source's, which a referenced
-// document is read as part of.
-func newOthers(ctx context.Context, read *externalReads, first int, format string, unused map[string]bool) Others {
+// document, as RFC 3986 reads a path. Each is read at the minor it declares,
+// one declaring none the table covers at the source's (dialects), and in the
+// dialect its jsonSchemaDialect names.
+func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
@@ -127,9 +137,11 @@ func newOthers(ctx context.Context, read *externalReads, first int, format strin
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
+		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
+		version, minor, rows := source.of(declared, dialect)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
-			Format: format, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
-		}})
+			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
+		}, Rows: rows, version: version, dialect: dialect})
 		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i
