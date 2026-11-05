@@ -44,8 +44,8 @@ type generation struct {
 // A bump appends a row for the new IRVersion, and a change to jsonshape.Format
 // appends one describing the current generation anew. A row on main is never
 // edited: two changes claiming one version each append a row in the same
-// place, so whichever merges second meets the other's in a conflict and takes
-// the next version.
+// place, which can conflict or merge clean into two rows of one version, so
+// whichever merges second checks for a repeated version and takes the next.
 var generations = []generation{
 	{version: "0.14.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9"},
 	{version: "0.15.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9",
