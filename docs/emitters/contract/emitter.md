@@ -23,6 +23,23 @@ type Emitter interface {
     Generate(context.Context, EmitterInput) EmitterOutput // the whole emitter, as one pure function
 }
 
+// Router is implemented by a target whose Capabilities.CrossVersion is set. The engine calls it
+// on every version snapshot before any Generate, with the input that snapshot's Generate takes but
+// for Samples and Routes, and hands each run all the tables in EmitterInput.Routes
+// (../docs-and-mock.md#routes-and-links). It is pure, as Generate is, and reports nothing: each
+// run plans its own routes by the same function and reports what it finds. The engine asks the
+// context after it returns, as after Generate, and a done one fails the run.
+type Router interface {
+    Routes(context.Context, EmitterInput) RouteTable
+}
+
+// SampleReader is implemented by the options of a target whose Capabilities.ReadsSamples is set:
+// the targets whose samples it shows, which the engine runs before it
+// (../docs-and-mock.md#samples-come-from-the-sdk-emitters).
+type SampleReader interface {
+    SampleTargets() []TargetKey
+}
+
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
@@ -35,6 +52,16 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
+    Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
+                                  // one no pass sliced by version, a document stating none among
+                                  // them (../docs-and-mock.md#routes-and-links)
+    Samples map[TargetKey]map[ir.OpID][]Sample // the usage samples of each target a docs
+                                  // target's options name
+                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
+                                  // Document.Versions gives it, "" for one no pass sliced,
+                                  // for a target whose Capabilities.CrossVersion is set
+                                  // (../docs-and-mock.md#routes-and-links)
     Options TargetOptions         // the target's own typed options, decoded and validated before
                                   // Generate runs, its type table and naming tables among them
                                   // (options.md, type-table.md, ../refine/naming.md)
@@ -45,7 +72,19 @@ type EmitterOutput struct {
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (../write-integrate.md)
     Surface     *verify.Surface     // neutral API-surface projection of the generated output (../surface-verification.md)
+    Samples     map[ir.OpID][]Sample // an SDK target's usage samples per operation, one for each
+                                     // language its callers write, for the docs
 }
+
+// Sample is one operation's call as an SDK target spells it.
+type Sample struct {
+    Language string                 // the fence's language, such as "go", "kotlin" or "swift"
+    Code     string                 // the call, its values the plan's examples
+}
+
+// RouteTable is one snapshot's routes: each entity's page path from the output root, the
+// snapshot's directory included, and its anchor, as a link to it is written.
+type RouteTable map[EntityID]string
 
 // EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
 // Every IR ID is a `type X string`, so one keyspace addresses them all.
@@ -101,12 +140,16 @@ the document, which determines it.
 
 ## Contract rules the type system and tests enforce
 
-- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same `(Doc,
-  Plan, Policy, Hints, Scope, Prior, Options)`, under a context that stays live, ⇒ byte-identical
-  `Artifacts`, the prior manifest included since the names a generation shipped are kept
+- **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
+  `(Doc, Plan, Policy, Hints, Scope, Prior, Snapshot, Samples, Routes, Options)`, under a context
+  that stays live, ⇒ byte-identical `Artifacts`, the prior manifest included since the names a
+  generation shipped are kept
   ([naming](../refine/naming.md#collisions-and-the-names-a-generation-shipped)); `Facts` is a
-  function of `Doc` and adds nothing to the tuple. Maps are walked in sorted-key order, slices in
-  source order ([T-6](../testing/mandatory-tests.md)).
+  function of `Doc` and adds nothing to the tuple. `Snapshot` sets two snapshots of one document
+  apart, and `Samples` and `Routes` are other runs' output, so a docs target's artifacts change when
+  an SDK target's options or another snapshot do; the manifest records all three ([write /
+  integrate](../write-integrate.md#what-the-manifest-records)). Maps are walked in sorted-key order,
+  slices in source order ([T-6](../testing/mandatory-tests.md)).
 - **Diagnostics are the only input-failure channel.** A construct the emitter cannot lower emits
   `ir.Diagnostic{Severity, Code:"emitters/<target>/…", Message, Provenance}` — never a silent
   fallback, never a panic ([T-7](../testing/mandatory-tests.md)). Codes live in a stable
@@ -115,5 +158,17 @@ the document, which determines it.
   are computed over the whole document so a scoped run is byte-identical to the corresponding slice
   of a full run. Scope is never a filtered `Document`.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
-  single version snapshot and never interprets `Availability`. The pass is designed, not built
-  (architecture.md §2.2); until it is, no pass slices a document.
+  single version snapshot and never interprets `Availability`. `Snapshot` names which one, and
+  `Routes` holds every snapshot's route table, its own among them, never another's document. A
+  target whose `Capabilities.CrossVersion` is set is run once on each snapshot. Each run writes its
+  artifacts under the directory its label names, the label itself as one path segment, and the `""`
+  snapshot's at the output root, the one exception being the pages its last label writes for what
+  spans versions ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a
+  path, and the runs make one generation ([write /
+  integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
+  is `.` or `..`, or differs from another only by letter case is an error
+  `engine/snapshot-label-invalid` before any run. Any other target is run on a sliced document only
+  for its samples, which writes nothing, until its design says how (#1531); one named there for its
+  artifacts is an error `engine/target-unversioned` before any run. The pass is designed, not built
+  (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
+  `""`, the one label a cross-version run's `Routes` keys.
