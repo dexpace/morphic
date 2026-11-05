@@ -136,6 +136,8 @@ class TextTest(unittest.TestCase):
                 "Closes dexpace/morphic#7, fixes other/repo#8, Closes Dexpace/Morphic#9")
         self.assertEqual(facts.closing(body, [10], "dexpace/morphic"), [1, 2, 3, 4, 7, 9, 10])
         self.assertEqual(facts.closing("Closes my.org/re.po#11", [], "my.org/re.po"), [11])
+        self.assertEqual(facts.closing("Closes dexpace/java-sdk#12, Closes other/morphic#13", [],
+                                       "dexpace/morphic"), [])
 
     def test_a_remote_names_its_repository(self):
         for url in ("https://github.com/dexpace/morphic.git", "git@github.com:dexpace/morphic.git",
@@ -172,6 +174,10 @@ if args[:2] == ["pr", "view"] and "view" in data:
     print(json.dumps(data["view"]))
 elif args[:2] == ["pr", "list"] and "list" in data:
     print(json.dumps(data["list"]))
+elif args[:2] == ["api", "graphql"] and "userContentEdits" in " ".join(args):
+    pr = data.get("pr", {"createdAt": "2000-01-01T00:00:00Z",
+                         "userContentEdits": {"totalCount": 0, "nodes": []}})
+    print(json.dumps({"data": {"repository": {"pullRequest": pr}}}))
 elif args[:2] == ["api", "graphql"] and "issues" in data:
     query = next(a for a in args if a.startswith("query="))
     asked = re.findall(r"i([0-9]+): issue", query)
@@ -275,7 +281,9 @@ class ScriptTest(unittest.TestCase):
         self.gh({
             "view": {"body": "Moves 2 rules.\n\nfixes #12\n",
                      "closingIssuesReferences": [self.reference(11, self.dir.name.upper()),
-                                                 self.reference(8, "other", "repo")]},
+                                                 self.reference(8, "other", "repo"),
+                                                 self.reference(9, self.dir.name, "other"),
+                                                 self.reference(10, "someone", "origin")]},
             "list": [{"number": 5, "headRefOid": head}]
                     + [{"number": n, "headRefOid": sha} for n, sha in others],
             "issues": {"11": {"state": "OPEN", "updatedAt": "2000-01-01T00:00:00Z",
@@ -422,8 +430,10 @@ class ScriptTest(unittest.TestCase):
             "facts: 0 rule, 0 cite, 0 command, 1 number, 0 issue, 0 pr, 0 stale",
         ])
 
-    def test_a_stack_base_that_conflicts_with_main_is_not_read_apart(self):
-        conflicted = ".claude/skills/s/references/t.md"
+    def conflicting_stack(self, conflicted: str) -> tuple[str, str]:
+        """Commit a stack whose base and main conflict in conflicted and other.txt, the review's
+        resolution, and the change on it; return the change's head and #15's, which edits
+        other.txt alone."""
         self.write(conflicted, rule("z", "Do z."))
         start = self.commit("chore: add a reference")
         self.git("push", "-q", "origin", "main")
@@ -445,7 +455,11 @@ class ScriptTest(unittest.TestCase):
         self.write("other.txt", "resolved\n")
         self.git("add", "-A")
         self.git("commit", "-q", "--no-edit")
-        head = self.topic()
+        return self.topic(), fifteen
+
+    def test_a_stack_base_that_conflicts_with_main_is_not_read_apart(self):
+        conflicted = ".claude/skills/s/references/t.md"
+        head, fifteen = self.conflicting_stack(conflicted)
         self.gh({"view": {"body": "", "closingIssuesReferences": []},
                  "list": [{"number": 5, "headRefOid": head},
                           {"number": 15, "headRefOid": fifteen}]})
@@ -457,6 +471,22 @@ class ScriptTest(unittest.TestCase):
                           or "rule: z" in line or "#15" in line], lines)
         self.assertIn(f"the change in {conflicted}, other.txt (origin/stack and origin/main "
                       "conflict there", lines[-1])
+
+    def test_a_conflicted_file_moved_since_a_round_is_marked_so(self):
+        conflicted = ".claude/skills/s/references/t.md"
+        reviewed, _ = self.conflicting_stack(conflicted)
+        self.write(conflicted, rule("z", "Do z, resolved again."))
+        self.write("scripts/x.py", "X = 3\n")
+        self.commit("fix: resolve z again")
+        self.gh({"view": {"body": "", "closingIssuesReferences": []}, "list": []})
+        code, lines = self.run_facts("--base", "origin/stack", "--since", reviewed, "5")
+        self.assertEqual(code, 2)
+        self.assertIn(f"rule: z: reworded at {conflicted}:1", lines)
+        self.assertEqual([line for line in lines if line.startswith("stale: ")], [
+            f"stale: {conflicted} (where the base and main conflict)",
+            "stale: scripts/x.py",
+            "stale: scripts/test_x.py: beside scripts/x.py",
+        ])
 
     def test_a_moved_markdown_file_adds_no_lines(self):
         self.git("config", "diff.renames", "false")
@@ -583,6 +613,7 @@ class ScriptTest(unittest.TestCase):
             f"command: {REF}:4: git log -3",
             f"number: {SKILL}:5: Its 3.",
             "number: body:1: Moves 2 rules.",
+            "issue: #11: OPEN, 2 comment(s), updated 2000-01-01T00:00:00Z",
             "issue: #12: CLOSED, 0 comment(s), updated 2999-01-01T00:00:00Z, after the change's "
             "last commit",
             f"stale: {SKILL}",
@@ -594,7 +625,7 @@ class ScriptTest(unittest.TestCase):
             "stale: p/a_test.go",
             "stale: scripts/x.py",
             "stale: scripts/test_x.py: beside scripts/x.py",
-            "facts: 2 rule, 3 cite, 1 command, 2 number, 1 issue, 0 pr, 9 stale",
+            "facts: 2 rule, 3 cite, 1 command, 2 number, 2 issue, 0 pr, 9 stale",
         ])
 
     def test_an_issue_updated_by_the_reviewed_commit_is_not_read_again(self):
@@ -611,6 +642,83 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual(code, 0, lines)
         self.assertEqual([line for line in lines if line.startswith("issue: ")],
                          ["issue: #12: OPEN, 0 comment(s), updated 2021-01-01T00:00:01Z"])
+
+    def since_with_edits(self, edits: list[tuple[str, str]], created: str, body: str,
+                         total: int = 0) -> list[str]:
+        """Return the issue lines a run since a commit of 2021 prints, the PR created at created and
+        its body's edits, each a time and the body it left, as GitHub keeps them, total of them in
+        all when more than one page holds."""
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2021-01-01T00:00:00+00:00"}):
+            reviewed = self.topic()
+        self.write("scripts/x.py", "X = 3\n")
+        head = self.commit("fix: change X")
+        old = {"state": "OPEN", "updatedAt": "2020-01-01T00:00:00Z", "comments": {"totalCount": 0}}
+        nodes = [{"editedAt": at, "diff": text} for at, text in edits]
+        self.gh({"view": {"body": body, "closingIssuesReferences": []},
+                 "list": [{"number": 5, "headRefOid": head}],
+                 "issues": {"11": old, "12": old, "13": old},
+                 "pr": {"createdAt": created,
+                        "userContentEdits": {"totalCount": total or len(nodes),
+                                             "nodes": nodes}}})
+        code, lines = self.run_facts("--since", reviewed, "5")
+        self.assertIn(code, (0, 2), lines)
+        return [line for line in lines if line.startswith(("issue: ", "facts: not read"))]
+
+    def test_an_issue_the_body_closed_at_the_round_is_not_read_again(self):
+        now = "Closes #12\nCloses #11\nCloses #13"
+        found = self.since_with_edits([("2020-03-01T00:00:00Z", "Closes #12"),
+                                       ("2020-09-01T00:00:00Z", "Closes #12\nCloses #11"),
+                                       ("2022-01-01T00:00:00Z", now)],
+                                      "2020-03-01T00:00:00Z", now)
+        self.assertEqual(found, ["issue: #13: OPEN, 0 comment(s), updated 2020-01-01T00:00:00Z"])
+
+    def test_an_edit_at_the_reviewed_commits_second_was_read(self):
+        found = self.since_with_edits([("2020-03-01T00:00:00Z", "Closes #12"),
+                                       ("2021-01-01T00:00:00Z", "Closes #12\nCloses #11")],
+                                      "2020-03-01T00:00:00Z", "Closes #12\nCloses #11")
+        self.assertEqual(found, [])
+
+    def test_a_body_file_since_a_round_reads_every_issue_anew(self):
+        with mock.patch.dict(os.environ, {"GIT_COMMITTER_DATE": "2021-01-01T00:00:00+00:00"}):
+            reviewed = self.topic()
+        self.write("scripts/x.py", "X = 3\n")
+        self.commit("fix: change X")
+        body = self.dir / "body.md"
+        body.write_text("Closes #12\n")
+        self.gh({"list": [], "issues": {"12": {"state": "OPEN", "updatedAt": "2020-01-01T00:00:00Z",
+                                                "comments": {"totalCount": 0}}}})
+        code, lines = self.run_facts("--body", str(body), "--since", reviewed, "5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("issue: #12: OPEN, 0 comment(s), updated 2020-01-01T00:00:00Z", lines)
+
+    def test_a_body_never_edited_reads_as_it_is(self):
+        found = self.since_with_edits([], "2020-06-01T00:00:00Z", "Closes #12\nCloses #11")
+        self.assertEqual(found, [])
+
+    def test_a_pr_opened_after_the_round_reads_every_issue_anew(self):
+        found = self.since_with_edits([], "2022-01-01T00:00:00Z", "Closes #12\nCloses #11")
+        self.assertEqual(found, ["issue: #11: OPEN, 0 comment(s), updated 2020-01-01T00:00:00Z",
+                                 "issue: #12: OPEN, 0 comment(s), updated 2020-01-01T00:00:00Z"])
+
+    def test_a_history_past_one_page_reads_every_issue_anew(self):
+        found = self.since_with_edits([("2020-06-01T00:00:00Z", "Closes #12")],
+                                      "2020-06-01T00:00:00Z", "Closes #12", total=101)
+        self.assertEqual(found, [
+            "issue: #12: OPEN, 0 comment(s), updated 2020-01-01T00:00:00Z",
+            "facts: not read: the body as the reviewed commit's round read it (101 edits, more "
+            "than one page holds)",
+        ])
+
+    def test_with_no_origin_remote_every_reference_github_lists_counts(self):
+        head = self.topic()
+        self.git("config", "--remove-section", "remote.origin")
+        self.gh({"view": {"body": "", "closingIssuesReferences": [self.reference(13, "x", "y")]},
+                 "list": [{"number": 5, "headRefOid": head}],
+                 "issues": {"13": {"state": "OPEN", "updatedAt": "2000-01-01T00:00:00Z",
+                                   "comments": {"totalCount": 0}}}})
+        code, lines = self.run_facts("5")
+        self.assertEqual(code, 0, lines)
+        self.assertIn("issue: #13: OPEN, 0 comment(s), updated 2000-01-01T00:00:00Z", lines)
 
     def test_a_repository_with_no_origin_remote_reads_its_issues(self):
         self.topic()
@@ -687,7 +795,9 @@ class ScriptTest(unittest.TestCase):
         self.assertIn("issue: #12: OPEN, 1 comment(s), updated 2000-01-01T00:00:00Z", lines)
         log = (self.dir / "gh.json.log").read_text()
         self.assertNotIn("pr view", log)
-        self.assertIn(f"-F owner={self.dir.name} -F repo=origin", log)
+        self.assertIn(f"-f owner={self.dir.name} -f repo=origin", log)
+        self.assertIn(f"pr list --state open --limit 200 --json number,headRefOid -R "
+                      f"{self.dir.name}/origin", log)
 
     def test_what_gh_cannot_read_is_named_and_the_rest_printed(self):
         self.topic()
