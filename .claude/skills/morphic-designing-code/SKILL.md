@@ -21,7 +21,7 @@ Each row names the rule and code that shows it holding, the thing to copy.
 | Adding | Rule | Good example |
 |---|---|---|
 | any function | ask what would make it wrong, and refuse that at entry (`CLAUDE.md`, "Assert aggressively") | `Classify` in `compilers/openapi/internal/value/scalar.go` |
-| work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
+| work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/performance.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
 | a lowering, check, pass or helper | `references/design-rules.md#functional-core` | `Read` in `compilers/openapi/internal/annotation/annotation.go` |
 | state every walk of a run must share | `references/design-rules.md#shared-run-state` | `typePositions` in `compilers/openapi/internal/lowering/lowering.go` |
 | a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run` | `checkInferred` in `ir/irverify/inferred.go` |
@@ -33,6 +33,8 @@ Each row names the rule and code that shows it holding, the thing to copy.
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` | `Deprecation` in `ir/docs.go` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` | `Inferred` in `ir/inferred.go` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` | `Pointer` in `compilers/openapi/internal/fragment/fragment.go` |
+| a helper or algorithm another site may hold | `references/design-rules.md#share-only-what-means-the-same` | `hoistScalar` in `compilers/openapi/internal/schema/scalar.go` |
+| code that needs no morphic concept | `references/design-rules.md#domain-free-code-lives-apart` | `Catch` in `barrier/barrier.go` |
 
 ## Already checked
 
@@ -46,4 +48,4 @@ A claim about cost goes through `morphic-measuring-performance`.
 
 - `references/design-rules.md`: functions over growing structs, one read per run, typed forms,
   placement by the second user, no forwarding layers, what `barrier.Catch` reaches, bounds on what
-  the work grows with.
+  the work grows with, shared implementations and domain-free code.

@@ -9,9 +9,10 @@ A result is evidence only when something outside it could have disagreed: a plan
 probe, a `main` control, the opposite order. `CLAUDE.md`'s "Verify by executing" is the rule; this
 skill is how.
 
-The bar is `CLAUDE.md`'s: done means nothing left to find. A defect `main` shares inside the
+The bar is `CLAUDE.md`'s: done means nothing left to find, shown by `morphic-reviewing-prs`'s
+first round. A defect `main` shares inside the
 change's mechanism is fixed or filed, never a reason to stop
-(`.claude/skills/morphic-reviewing-prs/references/review-probes.md#better-than-main`), and a fix
+(`.claude/skills/morphic-reviewing-prs/references/correctness.md#better-than-main`), and a fix
 goes to the type that owns the broken state
 (`references/sweep-every-site.md#fix-at-the-invariants-owner`).
 
@@ -33,11 +34,11 @@ goes to the type that owns the broken state
 
 - Before trusting "identical" or "none found", print what ran
   (`references/differentials.md#validate-the-instrument-first`).
-- Read every result line: a mutant that did not compile, a test that never ran and a panic in
-  another test all look like verdicts.
+- Read every result line: a mutant that did not compile, a test that never ran and another
+  test's panic look like verdicts.
 - Iterate with `go test` on the packages you touched, `go test ./...` before concluding and
   `make gate` before calling it done: `go test` passing is not the coverage gate
-  (`references/toolchain.md#coverage-per-package`). A review's gate pass may take CI's run for both.
+  (`references/toolchain.md#coverage-per-package`). A review takes CI's run for both.
 
 ## Script
 

@@ -112,3 +112,32 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
   branch, as #931's table does.
+
+## Share one implementation only among sites that mean the same
+`share-only-what-means-the-same`
+
+- **Rule.** Before sites share one implementation, run them over one table of edge cases and show
+  they agree: the library reading each mirrors, what each reports, its bound, its failure. Share
+  what agrees, in the lowest package its users may import; keep apart what differs by design, saying
+  why in a comment
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree`).
+  Sharing pays with two users in the tree and a form no harder to read than each copy; a planned
+  user decides where code lives, not whether it is built.
+- **Why.** Three scalar hoisters differed in three inputs, so #147's missing constraints were fixed
+  in each (#834). Of five reference-cycle checks, one chain walk was owned once and two YAML guards
+  stayed apart, as sharing would change what they report (#789).
+- **Probe.** Diff every site's results over the shared table.
+
+## Keep code that needs no morphic concept apart from the domain
+`domain-free-code-lives-apart`
+
+- **Rule.** Code needing no morphic concept, such as a bounded count, a panic barrier, a graph walk
+  or a URL or pointer grammar, names no IR or format type and lives in a
+  package named for what it does, never `utils`, `helpers` or `common`. It stays under its first
+  user's `internal/` until a second tree needs it, then moves down a layer under its own
+  `internal/archtest` entry. Generic means free of a domain it does not need, not parameterized for
+  users it lacks.
+- **Why.** The compiler's bounds were a dozen hand-written counters until one type counted them all
+  (#785, #1140), and five panic barriers rendered what they caught each its own way until
+  `barrier.Catch` alone did (#1130).
+- **Probe.** List the domain types each new declaration names; one naming none is a candidate.

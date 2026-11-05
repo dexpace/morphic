@@ -60,12 +60,10 @@ by `morphic-changing-the-ir`.
 
 ## Before the first push
 
-Give the branch the review's first round yourself, every claim class in full
-(`.claude/skills/morphic-reviewing-prs/references/review-probes.md#sweep-each-claim-class`). That
-sweep finds false sentences, not missing ones: also find
-the sentence stating each limitation the body states, where the rule places it
-(`references/commits-and-prs.md#limitation-stated-where-it-lives`). Once the PR is open, run
-`morphic-reviewing-prs` on it.
+Give the branch the review's first round yourself, every angle in full (`morphic-reviewing-prs`);
+the review once the PR opens is its second. Its claim sweep finds false sentences, not missing ones:
+also find the sentence stating each limitation the body states, where the rule places it
+(`references/commits-and-prs.md#limitation-stated-where-it-lives`).
 
 ## PR text
 

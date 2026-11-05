@@ -1,0 +1,74 @@
+# Claims and process
+
+The last angle: whether every sentence the change writes is true on the final tree, and whether the
+PR ships by the repository's rules. It loads `morphic-shipping-prs`.
+
+1. **Claims.** Check every member of each claim class
+   (`references/claims-and-process.md#sweep-each-claim-class`), counts by
+   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`.
+2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
+   and text; then hold title, commits, body, closing keywords and scope to
+   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
+   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`.
+3. **Closed issues.** Read each issue the PR closes whole against the diff: its state, its body as
+   edited, every comment and each `## Out of scope` item
+   (`gh issue view <n> --json state,stateReason,body,comments,updatedAt`), until #1262 gives the
+   rule.
+
+The matrix is each claim class with the members checked, and each closed issue with its asks.
+
+## Check every class of claim in full, in the first round
+`sweep-each-claim-class`
+
+- **Rule.** Before the first finding, list the change's claim classes and check every member: each
+  name against the tree, citation against the item it cites
+  (`references/claims-and-process.md#citation-per-case`), no claim resting on an open PR's head
+  (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement
+  against its `docs/parser-library.md` entry, quoted command run from the root, script run in each
+  context (a subdirectory, each platform branch), body sentence on the final tree, each construct a
+  rule settles (`references/claims-and-process.md#tracker-on-what-a-rule-settles`) and each edited
+  rule (`references/claims-and-process.md#edited-rule-against-its-neighbours`). A class sampled is
+  reported unreviewed, never clean.
+- **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
+  unsampled. Whys pinned claims to moving open PRs (#1409, #1425).
+- **Probe.** The report gives each class and the members checked; fewer than all is a round still
+  open.
+
+## Read a citation against every case the citing text sends to it
+`citation-per-case`
+
+- **Rule.** A rule that routes a set of cases to the entries it cites claims each case: check every
+  case its scope reaches against the entry it is sent to, not only that the entry exists and reads
+  as described. A widened or new scope is read case by case.
+- **Why.** A rule widened from load and binding to lowering kept citing two entries that hold no
+  lowering bound's kind; the citations resolved, so the claim sweep passed it (#1441).
+- **Probe.** For each case the scope reaches,
+  `awk -v pat='<the case>' '/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>` prints the
+  entry holding it, which must be the one the citing text sends it to.
+
+## Read an edited rule against those on its acts and constructs
+`edited-rule-against-its-neighbours`
+
+- **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
+  (commit, push, review) and constructs it names (a keyword, a field, a check), grep both for other
+  rules on each, and read each pair for an instruction one gives and the other forbids, keeping the
+  best of both where they do. A script finds a pair, not a conflict.
+- **Why.** Two rules a PR edited held against the tree, while one gated a push on reading a
+  checklist's output and the other on its exit status in one command (#1153, #1160). A search by
+  act missed a rule on the same construct (#1426).
+- **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
+  it; a rule with none is a round still open.
+
+## Search the tracker for each construct a rule settles
+`tracker-on-what-a-rule-settles`
+
+- **Rule.** For each construct a change's rule decides, run
+  `gh issue list --state all --limit 1000 --search "<construct>"`. Each open issue on it is closed
+  by the change, cited as left open, or answered with why the change departs from it. A limitation
+  the body states is searched on what it names
+  (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#limitation-searched-on-what-it-names`).
+- **Why.** A stream rule keyed on a content having no `Item` while #601 expects `Item` on each
+  content classified as a stream, and an element rule left #630 unnamed. The PR named neither until
+  a later revision, and no pass would have looked for them (#1167, #1170).
+- **Probe.** The report lists each construct, the issues its search returned, and what the change
+  does about each.

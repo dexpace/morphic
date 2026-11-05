@@ -189,7 +189,7 @@ verifier and codecs must reach.
 - **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
   about real input it rests on, then count it on the golden spec and the corpus, through `ir`'s
   own derivations
-  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#program-from-the-document`).
+  (`.claude/skills/morphic-reviewing-prs/references/design.md#program-from-the-document`).
   A program running the proposed rules shows only that they are total, since it assumes that fact;
   a worked example, chosen because it fits, shows nothing.
 - **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
