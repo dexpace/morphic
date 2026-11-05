@@ -30,8 +30,10 @@ type Policy struct {
 
 type ExamplePolicy struct {
     Synthesize bool                    // off leaves an entity with none declared without one
-    MaxDepth   int                     // how deep a synthesized value nests
-    MaxItems   int                     // how many items a synthesized list or map holds
+    MaxDepth   int                     // how many models deep a value fills optional members,
+                                       // its own the first; required ones go as deep as needed
+    MaxItems   int                     // how many items a list or map holds, raised to its
+                                       // minItems and lowered to its maxItems
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"
@@ -60,8 +62,8 @@ One that states no version is refused, and so is an absent one, as a target's ar
 defaults apply must not be guessed. The comments above name the current version's defaults. The
 zero `Policy` is not the default: it turns every switch off and lists nothing, so no rule picks a
 primary response and every operation returns `void`. A `Policy` built in Go meets no decoder, so
-`Build` reports a rule outside the vocabulary or listed twice as an error
-`emitters/plan/policy-invalid`, and plans as if it were left out.
+`Build` reports a rule outside the vocabulary or listed twice, and a negative example bound, as an
+error `emitters/plan/policy-invalid`, and plans as if the rule were left out and the bound 0.
 
 ## The default response is classed here
 

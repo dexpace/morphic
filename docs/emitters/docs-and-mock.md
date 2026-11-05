@@ -22,16 +22,16 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)).
   No runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
-  and the IR `Examples` to synthesize canned responses, sending the whole `Envelope.Body` where a
-  response is enveloped, `Others` to answer as each declared response does, the error taxonomy to
-  simulate declared failures, `TypePlan.Open` to say whether a variant or an enum value the document
-  does not list may be sent, `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the
-  `BindingView` to route requests, and the visibility projections to honor the same wire shapes an
-  SDK sends/receives. Refine lowers into a server-routing AST (routes from
-  `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
-  SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
-  target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
-  diffed against.
+  and the plan's [examples](#one-set-of-examples) for canned responses, synthesizing none of its
+  own, sending the whole `Envelope.Body` where a response is enveloped, `Others` to answer as each
+  declared response does, the error taxonomy to simulate declared failures, `TypePlan.Open` to say
+  whether a variant or an enum value the document does not list may be sent, `TypePlan.Strict` to
+  refuse a `oneOf` value as the SDK does, the `BindingView` to route requests, and the visibility
+  projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
+  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
+  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
+  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
+  ([mandatory tests](testing/mandatory-tests.md)) is diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
@@ -120,20 +120,36 @@ plan's examples (below).
 READMEs, samples, generated tests and mock responses all need example values, and each would
 synthesize its own where the document declares none, so the docs would show values the SDK's own
 tests never sent, and every regeneration could change them. So the plan holds one set,
-`Plan.Examples`, keyed by the ID of each type, property, parameter and operation:
+`Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
+member and operation:
 
-- **Declared first.** An entity's `Examples` are its set, labelled authored in the docs.
-- **Synthesized only where none is declared**, under `plan.Policy.Examples`: a value valid against
-  the entity's type and constraints, bounded in depth and in the items it lists, marked `Inferred`
-  and labelled generated. Each choice the synthesizer makes, such as which enum member or which
-  variant, is seeded from the entity's correlation key, so the value is the same on every
-  regeneration until the entity's schema or the synthesizer's step version changes. A value it
-  cannot make valid, as a `pattern` it cannot satisfy, is reported and left out, never emitted
-  invalid.
-- **Shared** by the docs emitter, the samples, each SDK's tests and the mock server.
+- **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs. One
+  declaring none that adds no constraint to its type's takes its type's set, so a property shows
+  the value its type does. A content, a variant and a message have no ID: each one's declared
+  examples are read from the IR, and one declaring none takes its type's set. They are where a
+  document most often declares a body's examples: on the golden spec (spec @57b5196b, morphic
+  @ab953d45), 435 request, response and error contents declare 651 examples.
+- **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
+  against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
+  list synthesized holds, for each member or item, the first value of that member's own set, so a
+  property's value is the same alone and inside its model. The bounds cut only what validity leaves
+  optional ([plan policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and
+  a list's items past `MaxItems` beyond its minimum. A required member is filled as deep as its
+  schema requires, and a `minItems` above `MaxItems` is met: on the golden spec at least 250 models
+  require members nested four or more models deep, and one list four items, which the default
+  bounds would otherwise leave without an example. A value the synthesizer cannot make valid, as a
+  `pattern` it cannot satisfy or a required cycle no value ends, or one past its fixed limit on the
+  values one example holds, is reported and left out, never emitted invalid.
+- **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
+  seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
+  ID where no key identifies it. So a value is the same in either declaration order, and on every
+  regeneration until the entity's schema, its key, the example policy,
+  `irfacts.CorrelationVersion` or the synthesizer's code changes.
+- **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
+  synthesizes its own.
 
 The manifest need not persist them: a seeded synthesizer reproduces each value from its inputs, and
-a value that changes because its schema did is one that had to.
+a value that changes because one of them did is one that had to.
 
 ## Documentation extensions
 

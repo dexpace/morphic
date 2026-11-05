@@ -350,9 +350,14 @@ throughout these documents.
     version's page saying so; agent documents and `llms.txt` share the pages' URLs, escape spec
     text and pass no raw HTML; and a sample comes from each SDK target, a missing one a diagnostic
     ([docs and mocks](../docs-and-mock.md)).
-42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored;
-    where none is declared, the value synthesized is valid against its constraints, within the
-    policy's depth and item bounds, marked `Inferred`, identical across regenerations and in both
-    declaration orders, and the same in the docs, the samples, an SDK's tests and the mock; one the
-    synthesizer cannot make valid is reported and left out
+42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
+    content, a variant, a message, a property or a parameter declaring none and adding no
+    constraint takes its type's set; where none applies, the value synthesized is valid against its
+    constraints, marked `Inferred`, identical across regenerations and in both declaration orders,
+    seeded from its ID where no correlation key identifies it, and the same in the docs, the
+    samples, an SDK's tests and the mock; a synthesized model holds each member's own first value;
+    the bounds cut only optional members and items past a list's minimum, so a required member
+    nested deeper than `MaxDepth` and a `minItems` above `MaxItems` are met; one the synthesizer
+    cannot make valid, a required cycle among them, or past its size limit is reported and left
+    out; and a negative bound is `emitters/plan/policy-invalid`
     ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
