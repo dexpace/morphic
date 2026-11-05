@@ -112,6 +112,7 @@ func TestFuzzPackages_OnlyFuzzDirectoriesTheGoToolReadsAreFound(t *testing.T) {
 	const imp = "github.com/stretchr/testify/assert"
 	writeImporter(t, filepath.Join(root, "ir", "fuzz", "x_test.go"), imp)
 	writeImporter(t, filepath.Join(root, "ir", "fuzzz", "x_test.go"), imp)
+	writeImporter(t, filepath.Join(root, "ir", "prefuzz", "x_test.go"), imp)
 	writeImporter(t, filepath.Join(root, "ir", "fuzz", "prod.go"), imp)
 	writeImporter(t, filepath.Join(root, "ir", "testdata", "fuzz", "x_test.go"), imp)
 	writeImporter(t, filepath.Join(root, "empty", "fuzz", "prod.go"), imp)
