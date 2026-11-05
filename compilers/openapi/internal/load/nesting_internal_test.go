@@ -110,6 +110,7 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 	// bound is MaxNesting-8 levels below that value.
 	want := "/components/schemas/A/properties/p/properties/q/x-deep" + strings.Repeat("/k", scan.MaxNesting-8)
 	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer)
+	assert.NotContains(t, d.Message, "once the overlay applies", "a refusal at a node the overlay grafted is placed at it")
 }
 
 // TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay pins where a

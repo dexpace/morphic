@@ -410,7 +410,7 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 		},
 		// yaml.v3 never hands this walk a node whose Value is not valid UTF-8 —
 		// a real parse only produces one from a well-formed source document —
-		// so both rows below are reachable only through a hand-built node, the
+		// so the rows below are reachable only through a hand-built node, the
 		// same way the alias shapes above are.
 		{
 			"scalar text that is not valid UTF-8",
@@ -421,7 +421,15 @@ func TestRawFromNode_RejectsMalformedNodes(t *testing.T) {
 			"mapping key that is not valid UTF-8",
 			mappingOf(&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "\xff"},
 				&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "v"}),
-			"invalid UTF-8",
+			`mapping key: string "\xff"`,
+		},
+		{
+			"members that fail, the first by key reported",
+			&yaml.Node{Kind: yaml.MappingNode, Tag: "!!map", Content: []*yaml.Node{
+				{Kind: yaml.ScalarNode, Tag: "!!str", Value: "b"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: "\xfe"},
+				{Kind: yaml.ScalarNode, Tag: "!!str", Value: "a"}, {Kind: yaml.ScalarNode, Tag: "!!str", Value: "\xff"},
+			}},
+			`string "\xff"`,
 		},
 	}
 	for _, tc := range tests {
