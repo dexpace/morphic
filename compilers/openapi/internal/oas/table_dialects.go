@@ -64,7 +64,7 @@ func draft04Keywords() []Field {
 	integer := "The value of this keyword MUST be an integer."
 	return []Field{
 		keyword("$schema", String, s, core(`6.1. Purpose`, `this URI MUST be both absolute and normalized.`)).formatted(AbsoluteURI),
-		keyword("id", String, s, core(`7.2.1. Valid values`, `The value for this keyword MUST be a string, and MUST be a valid URI.`)),
+		keyword("id", String, s, core(`7.2.1. Valid values`, `The value for this keyword MUST be a string, and MUST be a valid URI.`)).formatted(URI),
 		keyword("$ref", String, s, ref).formatted(URI),
 		keyword("multipleOf", PositiveNumber, s, v(`5.1.1.1. Valid values`, `The value of "multipleOf" MUST be a JSON number.`)),
 		keyword("maximum", Number, s, v(`5.1.2.1. Valid values`, `The value of "maximum" MUST be a JSON number.`)),

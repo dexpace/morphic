@@ -64,9 +64,9 @@ func TestCheck_HandsTheValuesItLeavesToOwned(t *testing.T) {
 }
 
 // TestSchemaRules_FormatFindingJudgesAnIDInItsDialect pins the format of an
-// `$id`, which the check leaves to its caller: 2020-12's names no fragment,
-// draft 7's may name one alone, declaring a plain name, and draft 4 has no
-// `$id` to judge.
+// `$id`, which the check leaves to its caller: 2020-12's and 2019-09's name no
+// fragment, draft 7's may name one alone, declaring a plain name, and draft 4
+// has no `$id` to judge.
 func TestSchemaRules_FormatFindingJudgesAnIDInItsDialect(t *testing.T) {
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
@@ -78,7 +78,7 @@ func TestSchemaRules_FormatFindingJudgesAnIDInItsDialect(t *testing.T) {
 	})
 	require.Len(t, owned, 1)
 	for dialect, refused := range map[string]bool{
-		"": true, draft2020: true, "http://json-schema.org/draft-07/schema#": false, draft04: false,
+		"": true, draft2020: true, draft2019: true, draft07: false, draft04: false,
 	} {
 		d, bad := rulesOf("3.1.0", dialect).FormatFinding(owned[0])
 		assert.Equal(t, refused, bad, dialect)
