@@ -35,12 +35,16 @@ type Example struct {
 const MaxExampleValues = 10_000
 
 // The sets of the positions Examples has no key for: a content's and a variant's declared
-// examples that Build's check admits in the shape the caller shows them through, else their
-// type's set, and a message's, else those of its payload's contents. Build reports what it
-// refuses, so these report nothing (../docs-and-mock.md#one-set-of-examples).
-func ContentExamples(p *Plan, doc *ir.Document, c ir.Content, in ModelShape) []Example
-func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant, in ModelShape) []Example
+// examples that Build's check admits, else their type's set, and a message's, else those of its
+// payload's contents. Build reports what it refuses, so these report nothing
+// (../docs-and-mock.md#one-set-of-examples).
+func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
+func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
 func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
+
+// Shown is ex, a value of t, as the shape in shows it: the members in does not hold dropped, and
+// each one in requires that ex lacks taken from that member's set, which marks the result Inferred.
+func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in ModelShape) Example
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen

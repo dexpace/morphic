@@ -9,7 +9,7 @@ emitters/
 │                      #   TargetKey, registry
 ├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan,
 │                      #   ModelShape, Example, ContentExamples, VariantExamples,
-│                      #   MessageExamples
+│                      #   MessageExamples, Shown
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
 ├── policy/            # runtime SDK-policy vocabulary + Defaults(version) + Merge(DeepPartial) + Resolve(layers) (INV10)
 ├── embed/             # reads the policy and hints a document embeds as vendor extensions (contract/embedded-policy.md)

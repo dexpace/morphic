@@ -84,26 +84,31 @@ types (spec @57b5196b, morphic @ab953d45) are decorators, 645 of them models, an
 examples of the position they decorate.
 
 An example is shown through the shape it is shown in, so a response's example holds no write-only
-member and a request's no read-only one. A value `Property.Secret`, `Parameter.Secret` or
+member and a request's no read-only one, and a member that shape requires and the example lacks is
+filled ([below](#one-set-of-examples)). A value `Property.Secret`, `Parameter.Secret` or
 `TypeCommon.Sensitive` marks is redacted in docs ([properties](../ir/properties.md)), so pages,
 agent documents and samples show a placeholder in its place, whether the value was declared or
 synthesized; an SDK's tests and the mock still send it. A sample's placeholder is the SDK target's
 to write, since the call is its code and the docs never edit it.
 
-A description is the spec author's text, CommonMark that may hold raw HTML (`Docs.Description`). A
-generated site that passed that HTML through would publish whatever markup or script the document
-holds, and one that rendered all of it as text would show a Smithy model's `<p>` and `<code>` on
-every page. So pages and agent documents ([below](#documents-for-agents)) render it through an
-allowlist: `p`, `br`, `b`, `strong`, `i`, `em`, `code`, `pre`, `ul`, `ol`, `li`, `blockquote`,
-`sub`, `sup`, `table`, `thead`, `tbody`, `tr`, `th` and `td` with no attribute, `a` with an `href`
-and `img` with a `src` and an `alt`, each URL held to the rule below, render as themselves, and an
-element left open closes where its description ends. Any other tag, attribute or comment renders as
-text. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
-CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a line
-break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source, and 33
-placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays visible where
-a browser handed it would parse it as an element and drop it. A summary, a name or any other spec
-string that is not CommonMark is escaped as text.
+A description is the spec author's text, CommonMark that may hold raw HTML: `Docs.Description`,
+`Example.Description` and `Link.Description` alike. A generated site that passed that HTML through
+would publish whatever markup or script the document holds, and one that rendered all of it as text
+would show a Smithy model's `<p>` and `<code>` on every page. So pages and agent documents
+([below](#documents-for-agents)) render it through an allowlist: `p`, `br`, `b`, `strong`, `i`,
+`em`, `code`, `pre`, `ul`, `ol`, `li`, `blockquote`, `sub`, `sup`, `table`, `thead`, `tbody`, `tr`,
+`th`, `td`, `dl`, `dt`, `dd`, `h1` to `h6` and `hr` with no attribute, `a` with an `href` and `img`
+with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, and
+the description is parsed as an HTML fragment in the place it is rendered and written back out, so
+an element it leaves open closes where it ends, and an end tag it never opened, such as a stray
+`</td>`, renders as text rather than closing the page's own table. Any other tag, attribute or
+comment renders as text, a custom element such as `<note>` among them. On the golden spec (spec
+@57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's grammar, outside
+code, and 4 comments: 11 tags a `<br/>`, which renders as a line break, one an `<img>`, which
+renders as text since the rule below refuses its `cid:` source, and 33 placeholders such as `<key>`
+and `<uuid>`, which no list names, so a placeholder stays visible where a browser handed it would
+parse it as an element and drop it. A summary, a name or any other spec string that is not
+CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
@@ -112,14 +117,15 @@ destination only where it is absolute under `http`, `https` or `mailto`, or a re
 description, which points into the site the author wrote for and is resolved against the base the
 docs options give that site, as OpenAPI resolves a description's links in the context they are
 rendered in. A fragment alone names a place on one of that site's pages, which no base names, and a
-relative URL in a field of its own, such as an `ExternalDocs` link's, resolves against the
-document's servers or location, which a docs target does not hold. Any other destination, and a
-relative path with no base set, renders as its link's text, with a warning
-`emitters/docs/link-unwritten` naming it. `Document.TermsOfService` holds a URL or text, so a value
-that parses as no absolute URL is rendered as text, never resolved. On the golden spec, at those
-revisions, the links in `Docs` descriptions are 988 under `https`, 7 under `http`, one an `https`
-autolink, and 14 relative, 8 of them a fragment alone, such as `#requests`, and 6 a path, such as
-`/api/resources/filters/`, which would otherwise break on a generated site.
+relative URL in a field of its own, such as an `ExternalDocs` link's, resolves against a server URL,
+which may be one of several or templated, or the document's own location, which may be a local file,
+so no one base serves it. Any other destination, and a relative path with no base set, renders as
+its link's text, with a warning `emitters/docs/link-unwritten` naming it. `Document.TermsOfService`
+holds a URL or text, so a value that parses as no absolute URL is rendered as text, never resolved.
+On the golden spec, at those revisions, the links in `Docs` descriptions are 988 under `https`, 7
+under `http`, one an `https` autolink, and 14 relative, 8 of them a fragment alone, such as
+`#requests`, and 6 a path, such as `/api/resources/filters/`, which would otherwise break on a
+generated site.
 
 ## Routes and links
 
@@ -162,9 +168,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
   an error `emitters/docs/route-collision` naming both, never a page that overwrites another and
-  never a page dropped. The check runs on the URLs the templates produce, over every kind of route
-  in one table, an agent document's among them, so no template can reintroduce a collision the
-  catalog did not have.
+  never a page dropped. The check runs on the URLs the templates produce, over every route a run
+  plans, its table's and its agent documents' together, so no template can reintroduce a collision
+  the catalog did not have.
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
   with the projection it wants (a page, an anchor, the agent document of one target and language),
   and the route plan answers it. A spec's [`Docs.Refs`](../ir/annotations.md#references-in-prose)
@@ -251,18 +257,20 @@ them, and, when the run names it too, runs it once with its artifacts, which on 
 only a cross-version target may be (#1531). A run made for samples alone reports what any run of
 that target reports, and the engine decides as for any run whether that is fatal: the docs show that
 SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
-for every operation whatever its `Scope`, which gates its artifacts alone, since its names are the
-whole document's: a scoped SDK run's docs keep every sample. A docs generation is a new one whenever
-the samples it is handed change, as an SDK target's own options can change them. A sample a target
-cannot render is a warning `emitters/<target>/sample-unrendered`, never an empty code block on the
-page, and so is one for an operation whose required input holds no example. A sample shows a call
-that succeeds, so its values are the `Input` of its operation's first success scenario (below): one
-ending in no `Error`, since an `Error` scenario's input is chosen to fail, and perhaps in no
-`Output`, as an operation answering with no body does. That is one the operation declares in
-`Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan assembles. An
-operation with neither has no sample: where `Assemble` off chose that, it draws no diagnostic, and
-where a required input holding no example kept one from being assembled, it draws the warning above.
-A value `Secret` or `Sensitive` marks is written as the target's placeholder for it (above).
+for every operation its callers call, whatever its `Scope`, and none, with no diagnostic, for one
+the API starts, a webhook, a callback or a message the client receives, since no call spells it,
+which gates its artifacts alone, since its names are the whole document's: a scoped SDK run's docs
+keep every sample. A docs generation is a new one whenever the samples it is handed change, as an
+SDK target's own options can change them. A sample a target cannot render is a warning
+`emitters/<target>/sample-unrendered`, never an empty code block on the page, and so is one for an
+operation whose required input holds no example. A sample shows a call that succeeds, so its values
+are the `Input` of its operation's first success scenario (below): one ending in no `Error`, since
+an `Error` scenario's input is chosen to fail, and perhaps in no `Output`, as an operation answering
+with no body does. That is one the operation declares in `Operation.Examples`, as a Smithy or
+TypeSpec document can, else the one the plan assembles. An operation with neither has no sample:
+where `Assemble` off chose that, it draws no diagnostic, and where a required input holding no
+example kept one from being assembled, it draws the warning above. A value `Secret` or `Sensitive`
+marks is written as the target's placeholder for it (above).
 
 ## One set of examples
 
@@ -273,21 +281,23 @@ tests never sent, and every regeneration could change them. So the plan holds on
 member and operation:
 
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, each
-  checked against the type and constraints its position shows it through, a content's against the
-  shape its operation sends or returns it in, so a patch body's example may leave out a required
-  member, and a type's against each shape `TypePlan.Shapes` gives it, admitted where one admits it
-  and shown only through those that do, or unprojected where no shape reaches it; a shape admitting
-  none of its type's set has no example there, which reports as an empty set does, an enum the
-  document leaves open (`Enum.Closed` false) admitting a value it does not list. One they refuse is
-  reported as a warning `emitters/plan/example-refused` and left out, so every consumer falls to the
-  next set alike: an SDK's test sending it would be refused by the mock, as by the API. On the
-  golden spec (spec @57b5196b, morphic @ab953d45), a declared example fails its own type in at least
-  295 types: in 292 no member of the enum, each closed, holds it, such as `json` against `JSON` and
-  `CSV`, and in 3 it is longer than `maxLength`. One declaring none that adds no constraint to its
-  type's takes its type's set, so a property shows the value its type does, save an enum member,
-  which takes its own value. A position whose type is a decorator takes its own examples, else the
-  nearest decorator's along the chain, as `CollapseAliases` folds them, else, where it adds no
-  constraint, the set of the type its `Alias` names.
+  checked against its type and constraints with visibility set aside, since the shape it is shown
+  through settles that: a value no shape could make valid, such as one its enum does not list, is
+  refused, an enum the document leaves open (`Enum.Closed` false) admitting a value it does not
+  list. Shown through a shape, an example drops the members that shape does not hold and takes, for
+  each member the shape requires and the example lacks, that member's own first value, which marks
+  what is shown `Inferred`. So a response-form example serves a create shape, a patch body's may
+  leave out a required member, and no shape is left without one. `plan.Shown` does this, the one
+  projection every consumer reads an example through. One they refuse is reported as a warning
+  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
+  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
+  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
+  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
+  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
+  type's set, so a property shows the value its type does, save an enum member, which takes its own
+  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
+  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
+  the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required inputs and of the optional ones whose set is declared rather than
