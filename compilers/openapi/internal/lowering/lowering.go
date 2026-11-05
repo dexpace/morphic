@@ -221,10 +221,10 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 }
 
 // ExpansionRefusal returns the error refusing the document when the copies its
-// $refs made weighed past [Limits.MaxReferenceExpansion], and false when they
-// did not. It is meant to be asked once every lowering has returned: a $ref
-// past the budget lowers nothing, so a crossing after the question goes
-// unreported.
+// $refs and path items made weighed past [Limits.MaxReferenceExpansion], and
+// false when they did not. It is meant to be asked once every lowering has
+// returned: a copy past the budget lowers nothing, so a crossing after the
+// question goes unreported.
 func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 	return c.expansion.refusal(c.SrcIndex)
 }
