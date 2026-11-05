@@ -95,12 +95,14 @@ FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
 SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
-LINE_SUFFIX = re.compile(r":[0-9]+(?::[0-9]+)?$")
+# What follows the colon of a suffix a path may carry: a line, a line and column, or a range.
+LINE = r"[0-9]+(?::[0-9]+|-[0-9]+)?$"
+LINE_SUFFIX = re.compile(":" + LINE)
 # A code span holding a "/" names a repository path unless its form marks it as something else:
-# a JSON pointer or device (/), a flag (-), a pathspec's magic (:(), a pattern (+, [, |, ^ or \),
-# a placeholder (<spec>, {owner}), or a colon other than a :line or :line:column suffix, as a URL,
-# a refspec (main:refs/x) and the pathspec :/ hold, which no path here does.
-NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|:(?![0-9]+(?::[0-9]+)?$)|[\[<>{}|^\\]")
+# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a placeholder (<spec>,
+# {owner}), or a colon before anything but a line suffix, as a URL, a refspec (main:refs/x) and a
+# pathspec's magic (:/, :(top)) hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|\+)|:(?!" + LINE + r")|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.
@@ -476,7 +478,7 @@ class Linter:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
         skill for its own references/ and scripts/, then to the repository, which also holds a
         scripts/ of its own, and to the repository otherwise. A path is held
-        up to a #entry, a :line or its first wildcard, and ./... names the module's packages. One
+        up to a #entry, a line suffix or its first wildcard, and ./... names the module's packages. One
         the tree lacks is None too when it names the Go toolchain's sources. The reason names
         shown, the path as a span wrote it, where p has been read out of that spelling."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]

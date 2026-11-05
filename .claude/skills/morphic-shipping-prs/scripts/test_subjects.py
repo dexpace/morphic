@@ -132,9 +132,12 @@ class ScriptTest(unittest.TestCase):
 
     def test_an_unknown_or_empty_base_exits_two(self):
         self.commit("test: add a case")
-        for base in ("no-such-ref", " "):
+        # git refuses an empty base too, so only the message tells the script's own check apart.
+        for base, says in (("no-such-ref", "subjects: fatal:"), (" ", "a base is empty"),
+                           ("", "a base is empty")):
             with self.subTest(repr(base)):
-                self.assertEqual(self.run_script("--base", base, "1311", TITLE).returncode, 2)
+                r = self.run_script("--base", base, "1311", TITLE)
+                self.assertEqual((r.returncode, says in r.stderr), (2, True), r.stderr)
 
     def test_clean_branch_exits_zero(self):
         self.commit(SIXTY_SIX)
