@@ -55,8 +55,9 @@ type raceRule struct {
 var raceExempt = map[string]string{
 	"cmd/morphic-census": "tooling outside the pipeline: its parallel tests call run on separate " +
 		"goroutines, each compiling specs through the engine into buffers of its own",
-	"cmd/morphic-covergate": "tooling outside the pipeline: its parallel tests call run and " +
-		"tallyOf over coverage profiles they write to their own temporary files",
+	"cmd/morphic-covergate": "tooling outside the pipeline: its parallel tests call run over " +
+		"coverage profiles they write to their own temporary files, or over arguments that name " +
+		"none, and tallyOf over profiles they build in memory",
 	"cmd/morphic-harness": "tooling outside the pipeline: its parallel tests call run on separate " +
 		"goroutines, each sweeping a directory of its own through harness.CheckPath",
 	"cmd/morphic-vet": "tooling outside the pipeline: its one parallel test starts the test " +
@@ -69,9 +70,10 @@ var raceExempt = map[string]string{
 		"conformance matrix and corpus as text and ask engine.New which formats it registers; " +
 		"they compile no spec",
 	"internal/decls": "tooling outside the pipeline: its parallel tests call Load, which " +
-		"type-checks packages through go/packages, each on a fixture of its own",
+		"type-checks packages through go/packages, each in a load of its own over fixtures they only read",
 	"internal/exectest": "test infrastructure outside the pipeline: its parallel tests build " +
-		"commands with Command and read their environments, and one runs /bin/sh",
+		"commands with Command, read their environments and refuse bad arguments, and one calls " +
+		"Run on a cancelled /bin/sh, which starts no child",
 	"internal/harness": "tooling outside the pipeline: #1271 left it off, and its parallel tests " +
 		"call harness.Check on parallel goroutines",
 	"internal/jsonshape": "tooling outside the pipeline: its parallel tests call Describe and " +
