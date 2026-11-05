@@ -102,6 +102,35 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 	return t, diags
 }
 
+// ListedTuple returns the entries the array js writes as a tuple in a list of
+// `items`, its $ref followed, where the dialect of where it is reads that list
+// so (listedTuple), and the `additionalItems` beside them, nil where none is
+// written: the schemas the load phase built there, as the parser's model holds
+// neither. It is false where js is no such tuple, or the bindings place it in
+// no document the compile read.
+func ListedTuple(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (
+	entries []*oas3.JSONSchema[oas3.Referenceable], rest *oas3.JSONSchema[oas3.Referenceable], ok bool,
+) {
+	b := c.Bindings()
+	if end := b.End(js); end != nil {
+		js = end
+	}
+	at, placed := b.Site(js)
+	there, read := lowering.InDocument(c, at.Doc)
+	if !placed || !read {
+		return nil, nil, false
+	}
+	n, tuple := listedTuple(there, js.GetSchema(), at.Pointer)
+	if !tuple {
+		return nil, nil, false
+	}
+	entries = make([]*oas3.JSONSchema[oas3.Referenceable], 0, n)
+	for i := range n {
+		entries = append(entries, heldAt(there, at.Pointer+ids.Ptr("items", strconv.Itoa(i))))
+	}
+	return entries, heldAt(there, at.Pointer+ids.Ptr("additionalItems")), true
+}
+
 // heldAt returns the schema the bindings hold at pointer of c's document, the
 // one the parser modelled or the load phase built there, and nil where they
 // hold none or c reads another document's content at the source's positions.

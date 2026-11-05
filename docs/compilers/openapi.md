@@ -3418,7 +3418,8 @@ they are read from every declaration of the part's name: `Multi` where any is an
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with
 `format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
 it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
-elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+elements, its `prefixItems` and the `items` after them, or a draft's list of `items` and the
+`additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an
 array branch of a union it writes, whose other branches are read as a body's union branches are: one
 declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
 names only `application/octet-stream` or media types the binary policy names
@@ -3428,16 +3429,16 @@ default content type OpenAPI makes `application/octet-stream`, a union being rea
 each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
 that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
-default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
-neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
-declares no encoding still gets entries for its array and file parts, and an entry declaring nothing
-leaves none. What an Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI gives it no
-effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at the
-field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart nor
-form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
-`itemEncoding` under one that is not multipart. A media type is read without its parameters and in
-any case.
+default disagrees, and an array writing no `items`, or a draft's tuple no `additionalItems`, says
+nothing of its elements past its prefix, so neither is a file. A part is entered only when its
+`PartEncoding` holds something, so a body that declares no encoding still gets entries for its array
+and file parts, and an entry declaring nothing leaves none. What an Encoding Object writes beyond
+those fields is [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where
+OpenAPI gives it no effect is reported as an `openapi/validation` warning, of the class
+`validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a media type
+that is neither multipart nor form, which lowers nowhere, or before 3.2 outside a request body, and
+a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is read
+without its parameters and in any case.
 
 - Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
@@ -3460,7 +3461,9 @@ any case.
   `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
   `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
   `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
-  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
+  `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
+  `schema.TestListedTuple_ReadsADraftsEntriesAndRest`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own
