@@ -554,7 +554,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/WrapNullableScalar": {
-      "kind": "model",
+      "kind": "scalar",
       "id": "t/openapi/components/schemas/WrapNullableScalar",
       "name": {
         "source": "WrapNullableScalar",
@@ -569,11 +569,8 @@
       },
       "base": {
         "target": "t/openapi/components/schemas/NullableScalar",
-        "nullable": false
-      },
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
+        "nullable": true
+      }
     },
     "t/prim/string": {
       "kind": "primitive",

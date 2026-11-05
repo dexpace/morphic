@@ -123,10 +123,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/blob",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -204,10 +204,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/documented",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

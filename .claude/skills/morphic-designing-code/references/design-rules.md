@@ -6,16 +6,31 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 ## Write a function of what it reads, not a method on a growing struct
 `functional-core`
 
-- **Rule.** A lowering, check, pass or helper is a function of its inputs (an immutable context,
-  the document, its options) that returns its value and its diagnostics (in `irverify`, its
-  violations). A run's accumulators are locals of the function that owns the run. A method belongs
-  on a type only when it reads or guards that type's own state, and a type nearing the method cap is
-  split by the state its methods read.
+- **Rule.** A lowering, check, pass or helper is a function of its inputs (a context, the document,
+  its options) returning its value and diagnostics (in `irverify`, its violations). A run's
+  accumulators are locals of the function owning it, bar
+  `references/design-rules.md#shared-run-state`. A method belongs on a type only when it reads or
+  guards that type's own state, and a type nearing the method cap is split by the state its methods
+  read.
 - **Why.** The OpenAPI lowerer reached 159 methods on 13 fields without one long function, and
   dissolving it into functions of an immutable context ended in #217. The cap that now holds it
   counts `compilers/` alone (#1159).
 - **Probe.** For a type outside `compilers/`, against `maxMethodsPerType`:
   `git grep -hE '^func \(([[:alnum:]_]+ )?\*?<Type>(\[[^]]*\])?\) ' -- ':(glob)<dir>/*.go' ':!*_test.go' | wc -l`.
+
+## Share a run-wide holder through one pointer, and say what it changes
+`shared-run-state`
+
+- **Rule.** A run's accumulators are locals of the function owning the run
+  (`references/design-rules.md#functional-core`), unless every walk must reach one, as a memo of
+  answers or a record read once the walks return. Such a holder sits behind one pointer in the
+  context, and its field says why copies share it and whether it can change what another lowering
+  reads. One that cannot is preferred; one that can, as a budget counted down across walks does,
+  says which answer, and the context's documentation stops calling it immutable.
+- **Why.** The rule named none of the holders `lowering.Ctx` already shared, and a context
+  documented as immutable gained one that changed an answer (#1436).
+- **Probe.** `awk '/^type (Ctx|loadResult|Promoter) struct/,/^}/' compilers/openapi/internal/lowering/*.go | grep -E '^[[:space:]]+[[:alnum:]_]+ '`
+  lists their fields, each holder among them read for both statements.
 
 ## Read a document once per run, through a shared walk or index
 `read-once-per-run`
@@ -94,6 +109,6 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   product free: bound the product, or the steps or bytes spent, through
   `compilers/openapi/internal/budget` in the OpenAPI compiler.
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
-  the parser peak at 8.2 GB (#931).
+  a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
   branch, as #931's table does.

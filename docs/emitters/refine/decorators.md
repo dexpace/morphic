@@ -1,9 +1,11 @@
 # Decorators collapse into their references
 
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
-wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. The compiler keeps
-that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carries the description
-([models](../../ir/models.md#composition-entries)). 3.1's spelling of the same use,
+wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. Where `Status` can
+be an object the compiler keeps that losslessly, as an anonymous `Model` whose `Base` is `Status` and
+which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
+the position is a use of `Status` as the 3.1 spelling is
+([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
 `{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
 property or parameter holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an

@@ -117,7 +117,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/items",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items/get/parameters//query",
@@ -128,6 +127,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

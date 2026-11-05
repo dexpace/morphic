@@ -30,7 +30,7 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, js, "/p")
+		cons, diags := ConstraintsOf(l.Ctx, &kept, js, nil, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
@@ -43,7 +43,7 @@ func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, "/p")
+	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, nil, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)
@@ -66,7 +66,7 @@ func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), "/p")
+	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), nil, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

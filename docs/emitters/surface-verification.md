@@ -8,9 +8,11 @@ that emit performs.
   (via a per-language extractor) project into one `verify.Surface`; each record carries its **IR
   stable ID** (threaded from `Origin`), so cross-language findings correlate without name-matching,
   and a rename that keeps the entity's pointer is an ID lookup rather than oagen's
-  Jaccard-similarity heuristics. One that moves the pointer, such as a path renamed, is found by the
-  correlation key (#679) the manifest records. `Generate` returns the generated side directly; only
-  the extractor parses source.
+  Jaccard-similarity heuristics. One that moves the pointer, such as a path renamed under its
+  `operationId`, is found by the correlation key (#679) the manifest records, where the key's own
+  source holds; a component renamed changes its key too, and is the structural tier's ([open
+  question 5](../ir/open-questions.md)). `Generate` returns the generated side directly; only the
+  extractor parses source.
 - **Injectable per-language severity.** The differ emits **neutral change records**; a
   per-target `verify.Severity` function decides breaking/additive (parameter names are public API in
   PHP, arity in Go, ~nothing in JS) — heuristics-as-policy (INV6).

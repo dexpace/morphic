@@ -74,7 +74,8 @@ var validationReasons = map[string]string{
 	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
 		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
 		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
-		"schema's keywords, so the table warns of each, as later-version-construct, and lowers it as 3.1 does",
+		"schema's keywords, so the table warns of each, as later-version-construct, and the lowering applies it " +
+		"as 3.1 does, reading it as 3.0 defines it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
 		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
 		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
@@ -98,6 +99,16 @@ var validationReasons = map[string]string{
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
 		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
+	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
+		"dialect it names, and refuses a draft 4 exclusive bound, a boolean modifying the bound beside it; the " +
+		"specification has a root's $schema, else the document's jsonSchemaDialect, choose the dialect (3.1.2 " +
+		"§Schema Object: 'if present MUST be used to determine which dialect should be used when processing the " +
+		"schema'), and the schema lowering reads the bound in it (docs/compilers/openapi.md#dialect-keywords)",
+	"plain-date": "the library reads a date written with no tag at a string field as a timestamp, the type the " +
+		"YAML parser gives it, and refuses it as the wrong type; YAML 1.2, which OpenAPI recommends, has no timestamp " +
+		"and reads a plain date as a string, and OpenAPI limits its tags to the JSON schema ruleset's (3.1.2 §Format: " +
+		"'Tags MUST be limited to those allowed by YAML's JSON schema ruleset'), of which only !!str holds one, so " +
+		"the table reads it as the string it spells (docs/compilers/openapi.md#yaml-decoding)",
 	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
 		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +

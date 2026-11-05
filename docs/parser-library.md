@@ -76,7 +76,7 @@ components:
     B: {$ref: '#/components/schemas/A'}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/schema-cycle-overflow`
 - Code:
   - `load.bindSchemas` binds every schema `$ref` in the compiler, never through the resolver.
@@ -97,7 +97,7 @@ runs.
 x: {$ref: 'd1.yaml#/x'}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/resolution-unbounded`
 - Code:
   - `load.externalReads.once` charges each document's first read to the document budget, and
@@ -121,7 +121,7 @@ components:
     H: {$defs: {A: {type: string}}, properties: {p: {$ref: '#/$defs/A'}}}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/defs-order`
 - Code:
   - `bind.definitions.definition` finds the definition from the reference's own position.
@@ -144,7 +144,7 @@ x-lib:
   b: {$ref: '#/x-lib/a'}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/mapping-unresolved`
 - Code:
   - `bind.finder.mappingsOf` notes each mapping value that can name a position, to be bound.
@@ -168,10 +168,33 @@ components:
     B: {$ref: '#/components/parameters/A'}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/reference-object-cycle`
 - Code:
   - `load.resolvable` hands the resolver every reference object, cycles included.
+
+### `reference-chain-walk`
+
+A reference object's object and root node are its chain's end, though its resolution record names
+the next hop. Asked of a reference, `GetObject` and `GetRootNode` walk every hop from it, checking
+each against the hops walked before with a linear scan and keeping them in a slice past the first
+eight. So one answer costs the square of the chain's length in time, and asking each reference of
+a chain costs the cube, though every answer is the same end.
+
+```yaml
+components:
+  parameters:
+    P0: {$ref: '#/components/parameters/P1'}
+    P1: {$ref: '#/components/parameters/P2'}
+    P2: {name: q, in: query}
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/reference-chain-walk`
+- Code:
+  - `load.chain.end` is read once a chain, off the object its last hop reached.
+  - `load.chainEnds` answers the reached-object check from the records a resolution keeps,
+    remembering ends across chains past their hop bound.
 
 ### `trailing-empty-token`
 
@@ -190,7 +213,7 @@ x-params:
   q: {name: q, in: query}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/trailing-empty-token`
 - Code:
   - `bind.docs.through` places a reference object's end at the first position on its pointer's read
@@ -227,7 +250,7 @@ components:
     M: {schema: {type: string}}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/media-type-references`
 - Code:
   - `resolve.ReferencedMediaType` names the reference the library names no alias for.
@@ -265,7 +288,7 @@ components:
     C: {$ref: '#/components/schemas/B'}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/root-defs`
 - Code:
   - `bind.definitions.definition` reads the pointer from the document's root first, raw YAML
@@ -290,7 +313,7 @@ components:
     A: &s {type: object, properties: {p: *s}}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/alias-cycle`
 - Code:
   - `scan.anchorCycle` refuses a recursive anchor before the document is decoded.
@@ -312,7 +335,7 @@ components:
     L2: &l2 {allOf: [*l1, *l1]}   # ... each level doubling the last
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/alias-expansion`
 - Code:
   - `scan.aliasAmplification` refuses a document whose aliases expand past a multiple of its own
@@ -334,7 +357,7 @@ components:
     A: {type: array, items: {type: array, items: {type: string}}}   # ... nested d levels deep
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/nesting-cost`
 - Code:
   - `scan.MaxNesting` bounds how deeply a document may nest.
@@ -357,7 +380,7 @@ components:
     S1: {}   # ... one goroutine each, and one for each key inside
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/goroutine-per-node`
 - Code:
   - `annotation.census` sorts the unknown keys it records.
@@ -377,7 +400,7 @@ components:
     A: !thing {description: d}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/tagged-mapping-panic`
 - Code:
   - `load.taggedMappingRefusal` refuses every such mapping, wherever it is, before the document is
@@ -400,7 +423,7 @@ components:
 B: {$ref}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/recoverable-panic`
 - Code:
   - `load.runRecovered` turns a panic in resolution, in a walk, or in building the fields beside a
@@ -422,10 +445,10 @@ paths:
     get: {responses: {'200': {description: ok}}}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/anchored-entry-dropped`
 - Code:
-  - `load.releaseAnchors` clears every anchor's name before the source is decoded.
+  - `load.readyForModel` clears every anchor's name before the source is decoded.
   - `load.resolveExternal` rebuilds the model when a document the resolver decoded itself holds an
     anchor.
 
@@ -442,7 +465,7 @@ paths:
     other: {responses: {'200': {description: ok}}}   # an operation named other
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/embedded-map-keys`
 - Code:
   - `annotation.UnknownKeysNamed` grades keys the caller found itself, for a path item.
@@ -465,7 +488,7 @@ security:
   - key: [read, 2021-01-01]  # the same
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/requirement-scopes`
 - Code:
   - `auth.Registry.requirement` reads an option's names and scopes from the core.
@@ -488,7 +511,7 @@ components:
     A: {type: integer}   # the model's A
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/duplicate-key`
 - Code:
   - `nodeview.flatten` reads a mapping's repeated key as the model does.
@@ -514,7 +537,7 @@ components:
       properties: {<<: 5, q: {type: string}}                            # q alone
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/merge-keys`
 - Code:
   - `nodeview.flatten` orders and settles a mapping's pairs as the decoder does.
@@ -534,7 +557,7 @@ components:
     : {description: x}   # read as the response keyed ""
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/non-scalar-key`
 - Code:
   - `nodeview.KeyOf` reads such a key as the empty string.
@@ -543,11 +566,12 @@ components:
 ### `scalar-resolution`
 
 The YAML parser tags a plain scalar by neither YAML version alone, and the compiler keeps the tag it
-gives ([`values`](compilers/openapi.md#values)). As in YAML 1.1, a leading `0` is octal, `0b` is
-binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal and `yes`,
-`on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads 644, and
-`on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2, and the
-compiler reports no scalar the two versions read apart.
+gives ([`values`](compilers/openapi.md#values)) but a plain date's and a plain `<<` value's, which
+it tags a string ([`undecoded-scalar`](#undecoded-scalar)). As in YAML 1.1, a leading `0` is octal,
+`0b` is binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal
+and `yes`, `on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads
+644, and `on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2,
+and the compiler reports no scalar the two versions read apart.
 
 ```yaml
 components:
@@ -558,10 +582,10 @@ components:
         b: {type: integer, default: 0o17}        # 15
         c: {type: integer, default: 1_000}       # 1000
         d: {type: boolean, default: on}          # "on"
-        e: {type: string, default: 2021-01-01}   # a timestamp, kept as written
+        e: {type: string, default: 2021-01-01}   # a timestamp, read as written
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/scalar-resolution`
 - Code:
   - `value.Classify` reads a scalar by the tag the parser gave it.
@@ -571,11 +595,18 @@ components:
 
 The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or
 boolean, as its text. A `!!timestamp`, which any plain date is
-([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
-field so written reads as empty, and a Reference Object's `$ref` as no reference, so the load phase
-meets none, and the model holds no `summary` or `description` beside it either. The validator, which
-the compiler does not call, reports a type mismatch at each; the compiler's table reads any scalar
-as a string and reports neither. The core keeps the node, and what is written beside it.
+([`scalar-resolution`](#scalar-resolution)), a `!!merge`, which a plain `<<` is wherever it stands,
+a `!!binary` and a local tag are none of these. A string field so written reads as empty, and a
+Reference Object's `$ref` as no reference, so the load phase meets none, and the model holds no
+`summary` or `description` beside it either. The validator, which the compiler does not call,
+reports a type mismatch at each; the compiler's table reads any scalar as a string and reports
+neither. The core keeps the node, and what is written beside it.
+
+YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, as it reads any
+scalar under the non-specific `!`, so the compiler tags each such date and `<<` a string in the
+source and each document it reads beside it before their models are built, but a `<<` key, which
+merges ([`merge-keys`](#merge-keys)). A scalar under any other tag keeps it, and still reads as
+above (#1368).
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty
@@ -584,9 +615,10 @@ components:
     s: {$ref: 2021-01-01}    # IsReference is false, and the core holds the node
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/undecoded-scalar`
 - Code:
+  - `load.mistagged` finds a plain date or `<<` value, which `load.readyForModel` tags a string.
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
   - `auth.docsBeside` reads what is written beside it from the core.
@@ -595,7 +627,8 @@ components:
 
 The schema model has no field for `$dynamicRef`, `$dynamicAnchor`, `$comment`, `$vocabulary` or
 `dependentRequired`. It records each, like any key it does not know, by name alone, and leaves the
-value in the schema's raw node.
+value in the schema's raw node. `Schema.IsEqual` compares the model alone, so a schema writing such
+a key compares equal to one that does not.
 
 ```yaml
 components:
@@ -603,13 +636,16 @@ components:
     A: {$dynamicAnchor: n, $comment: c}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/unmodeled-keywords`
 - Code:
-  - `anchors.Build` reads every `$dynamicAnchor` from the raw tree.
+  - `bind.identifiers` holds every `$dynamicAnchor`, read from the raw tree.
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
+  - `schema.bodyReading.keysRestate` judges every key a union branch writes, and every key of a
+    schema the branch writes for a property or an element, reading the raw node, which holds these
+    keywords, rather than the model.
 
 ### `null-schema-is-false`
 
@@ -625,7 +661,7 @@ components:
     C: null
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-schema-is-false`
 - Code:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
@@ -644,7 +680,7 @@ components:
     B: {type: [string, null]}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/null-type-is-empty`
 - Code:
   - `schema.writesType` and `schema.effectiveTypes` pass over the `""`, so no reader takes it for a
@@ -668,7 +704,7 @@ components:
     A: {type: object, properties: {p: {type: string}}}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/context-unread`
 - Code:
   - `load.walk` asks the context before each item of a walk of a model, and every walk the load
@@ -693,7 +729,7 @@ actions:
     update: {x-a: &a [*a]}
 ```
 
-- Verified at: v1.26.0
+- Verified at: v1.26.3
 - Pinned by: `TestLibraryBehaviour/overlay-alias-clone`
 - Code:
   - `scan.Aliases` refuses an overlay document whose aliases recurse or expand past its size.

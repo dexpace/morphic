@@ -127,9 +127,6 @@ const (
 	// DuplicateAnchor is a plain-name fragment two or more schemas of the
 	// resource it names declare, so it names none.
 	DuplicateAnchor
-	// AnchorUnread is a plain-name fragment naming a resource of another
-	// document, whose identifiers are not read (GitHub #1049).
-	AnchorUnread
 	// DuplicateID is a URI two or more schemas declare as their $id, so it
 	// names none; Hop.Detail is the URI.
 	DuplicateID
@@ -171,6 +168,10 @@ const (
 	// Unpassable is a pointer through a reference object, in whichever
 	// document, that resolves to nothing the compiler reads.
 	Unpassable
+	// Held is a reference to a document an absolute URI names, whose read waits
+	// until the pass's walks are done. The pass then reads it and answers it,
+	// unless the budget cuts it first.
+	Held
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
 	// bound: one the pointer names, an $id that may give the base it is read
@@ -182,10 +183,10 @@ const (
 // Hop is where the $ref written at a position lands: the next position of its
 // chain, or why there is none.
 type Hop struct {
+	// Target is the position the hop lands on.
+	Target Position
 	// Ref is the $ref as written.
-	Ref    string
-	Status Status
-	Reason Reason
+	Ref string
 	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
 	// and the URI named, for NoResourceTarget and DuplicateID.
 	Detail string
@@ -193,25 +194,28 @@ type Hop struct {
 	// BesideRef.
 	Use jsontext.Pointer
 	Key string
-	// Target is the position the hop lands on, and Role what it reads there.
-	Target Position
-	Role   Role
-	// Named reports whether the $ref names the source, and Spelled is then the
-	// pointer it spells from the source's root: where the lowering places what
-	// it names, though a reference object it passes may carry Target into
-	// another document.
-	Named   bool
+	// Spelled is, when Named, the pointer the $ref spells from the source's
+	// root: where the lowering places what it names, though a reference object
+	// it passes may carry Target into another document.
 	Spelled jsontext.Pointer
+	// Status is how the hop ended, and Reason why, when it is Unresolved.
+	Status Status
+	Reason Reason
+	// Role is what the hop reads at Target.
+	Role Role
+	// Named reports whether the $ref names the source.
+	Named bool
 }
 
 // Chain is where a reference's chain of $refs ends: following each hop until a
 // position holds no $ref.
 type Chain struct {
-	Status Status
 	// End is the position the chain ends on, when Resolved; Hops counts the
 	// $refs read to reach it.
 	End  Position
 	Hops int
+	// Status is how the chain ended.
+	Status Status
 	// Member reports, when Cyclic, whether the position itself lies on a loop
 	// rather than leading into one.
 	Member bool
@@ -234,9 +238,9 @@ type Loop struct {
 // Landing is a position some hop reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
 // source, or a node of another document, whose Name it is in. Site is the
-// least position whose chain reaches it, a $ref's or a mapping value's, in
-// whichever document; Reached is false when none does, as where the budget
-// cut the reading.
+// least position whose chain reaches it, a $ref's, a mapping value's or an
+// expanding $dynamicRef's, in whichever document; Reached is false when none
+// does, as where the budget cut the reading.
 type Landing struct {
 	At      Position
 	Name    string
@@ -255,7 +259,7 @@ type Mapping struct {
 // Why says why h, a hop that did not resolve, lands on no schema, in one
 // phrasing for every report of it.
 func (h Hop) Why() string {
-	if h.Status == OverBudget {
+	if h.Status == OverBudget || h.Reason == Held {
 		return "it was not read within the budget"
 	}
 	switch h.Reason {
@@ -272,8 +276,6 @@ func (h Hop) Why() string {
 	case DuplicateAnchor:
 		return "two or more schemas of the resource it names declare that name as their $anchor or " +
 			"$dynamicAnchor, so it names none of them"
-	case AnchorUnread:
-		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
 	case DuplicateID:
 		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:

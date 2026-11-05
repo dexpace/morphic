@@ -12,6 +12,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,8 +21,6 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
-
-	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // The callers apiRoots names, one reason per kind of caller.
@@ -33,8 +32,6 @@ const (
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); no transform ships yet"
 	relationAPI  = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
 	factAPI      = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
-	stringerAPI  = "fmt.Stringer, naming a Kind wherever one is printed; declared in a test file, it would " +
-		"make a test print what production does not"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -43,44 +40,44 @@ const (
 // of its own. A function only tests reach is deleted or moved into its tests;
 // an entry here says why one is not.
 var apiRoots = map[string]string{
-	"compilers/openapi.DefaultStreamingMediaTypes":      compilerAPI,
-	"compilers/openapi.DefaultExtensionPromotions":      compilerAPI,
-	"compilers/openapi/internal/annotation.Kind.String": stringerAPI,
-	"engine.Engine.RunSources":                          embedderAPI,
-	"ir.NewEditor":                                      transformAPI,
-	"ir.Editor.Type":                                    transformAPI,
-	"ir.Editor.UpdateType":                              transformAPI,
-	"ir.Editor.ReplaceType":                             transformAPI,
-	"ir.Editor.RemoveType":                              transformAPI,
-	"ir.Editor.Service":                                 transformAPI,
-	"ir.Editor.UpdateService":                           transformAPI,
-	"ir.Editor.RemoveService":                           transformAPI,
-	"ir.Editor.Group":                                   transformAPI,
-	"ir.Editor.UpdateGroup":                             transformAPI,
-	"ir.Editor.RemoveGroup":                             transformAPI,
-	"ir.Editor.Operation":                               transformAPI,
-	"ir.Editor.UpdateOperation":                         transformAPI,
-	"ir.Editor.RemoveOperation":                         transformAPI,
-	"ir.Editor.Server":                                  transformAPI,
-	"ir.Editor.UpdateServer":                            transformAPI,
-	"ir.Editor.RemoveServer":                            transformAPI,
-	"ir.Editor.Channel":                                 transformAPI,
-	"ir.Editor.UpdateChannel":                           transformAPI,
-	"ir.Editor.RemoveChannel":                           transformAPI,
-	"ir.Editor.Message":                                 transformAPI,
-	"ir.Editor.UpdateMessage":                           transformAPI,
-	"ir.Editor.RemoveMessage":                           transformAPI,
-	"ir.Editor.AuthScheme":                              transformAPI,
-	"ir.Editor.UpdateAuthScheme":                        transformAPI,
-	"ir.Editor.RemoveAuthScheme":                        transformAPI,
-	"ir.Editor.UpdateDocument":                          transformAPI,
-	"ir.Editor.Finish":                                  transformAPI,
-	"ir.Supertypes":                                     relationAPI,
-	"ir.ExposedProps":                                   relationAPI,
-	"ir/irfacts.Index.Subtypes":                         factAPI,
-	"ir/irfacts.Index.Usage":                            factAPI,
-	"ir/irfacts.Index.Recursive":                        factAPI,
-	"ir/irfacts.Index.Component":                        factAPI,
+	"compilers/openapi.DefaultStreamingMediaTypes": compilerAPI,
+	"compilers/openapi.DefaultBinaryMediaTypes":    compilerAPI,
+	"compilers/openapi.DefaultExtensionPromotions": compilerAPI,
+	"engine.Engine.RunSources":                     embedderAPI,
+	"ir.NewEditor":                                 transformAPI,
+	"ir.Editor.Type":                               transformAPI,
+	"ir.Editor.UpdateType":                         transformAPI,
+	"ir.Editor.ReplaceType":                        transformAPI,
+	"ir.Editor.RemoveType":                         transformAPI,
+	"ir.Editor.Service":                            transformAPI,
+	"ir.Editor.UpdateService":                      transformAPI,
+	"ir.Editor.RemoveService":                      transformAPI,
+	"ir.Editor.Group":                              transformAPI,
+	"ir.Editor.UpdateGroup":                        transformAPI,
+	"ir.Editor.RemoveGroup":                        transformAPI,
+	"ir.Editor.Operation":                          transformAPI,
+	"ir.Editor.UpdateOperation":                    transformAPI,
+	"ir.Editor.RemoveOperation":                    transformAPI,
+	"ir.Editor.Server":                             transformAPI,
+	"ir.Editor.UpdateServer":                       transformAPI,
+	"ir.Editor.RemoveServer":                       transformAPI,
+	"ir.Editor.Channel":                            transformAPI,
+	"ir.Editor.UpdateChannel":                      transformAPI,
+	"ir.Editor.RemoveChannel":                      transformAPI,
+	"ir.Editor.Message":                            transformAPI,
+	"ir.Editor.UpdateMessage":                      transformAPI,
+	"ir.Editor.RemoveMessage":                      transformAPI,
+	"ir.Editor.AuthScheme":                         transformAPI,
+	"ir.Editor.UpdateAuthScheme":                   transformAPI,
+	"ir.Editor.RemoveAuthScheme":                   transformAPI,
+	"ir.Editor.UpdateDocument":                     transformAPI,
+	"ir.Editor.Finish":                             transformAPI,
+	"ir.Supertypes":                                relationAPI,
+	"ir.ExposedProps":                              relationAPI,
+	"ir/irfacts.Index.Subtypes":                    factAPI,
+	"ir/irfacts.Index.Usage":                       factAPI,
+	"ir/irfacts.Index.Recursive":                   factAPI,
+	"ir/irfacts.Index.Component":                   factAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with
@@ -93,6 +90,7 @@ var testSupport = map[string]string{
 	"internal/ctxtest":                       "the context decorators the tests of cancellation share",
 	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
 		"and the uses of a name share; the census binary reads one load of it",
+	"internal/exectest": "the child command every test that starts a process builds",
 	"internal/harness": "the annotation-retention vocabulary each format's retention test shares, " +
 		"which leaves the rest of the package unread until the vocabulary moves out (#1123)",
 	"internal/jsonshape": "the IR's JSON shape, which IRVersion's pin test describes and the census counts",
@@ -118,10 +116,12 @@ func TestReachability_OnlyTestsReachNoFunction(t *testing.T) {
 	}
 }
 
-// program is what the reachability check reads: every function the module's
-// packages declare with a body, and the functions each binary starts from.
+// program is what the reachability and call-shape checks read: the SSA form of
+// the whole program, its own packages by their path below the module, every
+// function they declare with a body, and the functions each binary starts from.
 type program struct {
-	fset  *token.FileSet
+	ssa   *ssa.Program
+	own   map[*ssa.Package]string
 	funcs []sourceFunc
 	mains []*ssa.Function
 }
@@ -135,36 +135,71 @@ type sourceFunc struct {
 	fn   *ssa.Function
 }
 
-// moduleProgram builds the SSA form of every package of the module and of
-// what it imports, without tests, and returns what the check reads of it.
+// moduleProgram returns the SSA form of every package of the module and of
+// what it imports, without tests, built once per test binary for the checks
+// that read it whole. They may analyze it at once: the SSA package documents
+// Program.MethodValue, through which an analysis builds a wrapper on demand,
+// as safe for concurrent use.
 func moduleProgram(t *testing.T) program {
 	t.Helper()
+	p, err := moduleBuild()
+	require.NoError(t, err)
+	return p
+}
+
+// moduleBuild builds the program moduleProgram returns, once.
+var moduleBuild = sync.OnceValues(buildModule)
+
+// buildModule loads every package of the module and what it imports, builds
+// their SSA form a package at a time, and gathers what the checks read of it.
+func buildModule() (program, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps |
 			packages.NeedModule | packages.NeedTypesSizes,
-		Dir: irtest.RepoRoot(t),
 	}
-	roots, err := packages.Load(cfg, "./...")
-	require.NoError(t, err)
-	require.Zero(t, packages.PrintErrors(roots), "the module does not load")
+	roots, err := packages.Load(cfg, module+"/...")
+	if err != nil {
+		return program{}, fmt.Errorf("load %s/...: %w", module, err)
+	}
+	if n := packages.PrintErrors(roots); n > 0 {
+		return program{}, fmt.Errorf("the module does not load: %d errors", n)
+	}
 
 	prog := ssa.NewProgram(token.NewFileSet(), ssa.InstantiateGenerics)
 	built := map[*packages.Package]builtPackage{}
-	packages.Visit(roots, nil, func(pkg *packages.Package) { built[pkg] = buildPackage(t, prog, pkg, built) })
+	packages.Visit(roots, nil, func(pkg *packages.Package) {
+		if err == nil {
+			built[pkg], err = buildPackage(prog, pkg, built)
+		}
+	})
+	if err != nil {
+		return program{}, err
+	}
 	prog.Build()
+	return programOf(prog, roots, built)
+}
 
-	p := program{fset: prog.Fset}
+// programOf returns what the checks read of prog: the packages of roots, by
+// their path below the module, the functions they declare, and each binary's
+// entries.
+func programOf(prog *ssa.Program, roots []*packages.Package, built map[*packages.Package]builtPackage) (program, error) {
+	p := program{ssa: prog, own: make(map[*ssa.Package]string, len(roots))}
 	rootPkgs := make([]*ssa.Package, 0, len(roots))
 	for _, root := range roots {
 		b := built[root]
 		rootPkgs = append(rootPkgs, b.ssa)
 		rel := strings.TrimPrefix(root.PkgPath, module+"/")
-		p.funcs = append(p.funcs, declaredFuncs(t, prog, rel, b.files, b.info)...)
+		p.own[b.ssa] = rel
+		funcs, err := declaredFuncs(prog, rel, b.files, b.info)
+		if err != nil {
+			return program{}, err
+		}
+		p.funcs = append(p.funcs, funcs...)
 	}
 	for _, m := range ssautil.MainPackages(rootPkgs) {
 		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
 	}
-	return p
+	return p, nil
 }
 
 // builtPackage is one package as buildPackage leaves it: its syntax, what the
@@ -180,29 +215,19 @@ type builtPackage struct {
 // the go command does, and adds it to prog. Packages are checked one at a time,
 // not by go/packages: it checks independent packages at once, and two go/types
 // checkers sharing an import can race (#855).
-func buildPackage(t *testing.T, prog *ssa.Program, pkg *packages.Package,
-	built map[*packages.Package]builtPackage,
-) builtPackage {
-	t.Helper()
+func buildPackage(prog *ssa.Program, pkg *packages.Package, built map[*packages.Package]builtPackage) (builtPackage, error) {
 	if pkg.PkgPath == "unsafe" {
-		return builtPackage{ssa: prog.CreatePackage(types.Unsafe, nil, nil, true)}
+		return builtPackage{ssa: prog.CreatePackage(types.Unsafe, nil, nil, true /* importable */)}, nil
 	}
 	files := make([]*ast.File, 0, len(pkg.CompiledGoFiles))
 	for _, name := range pkg.CompiledGoFiles {
 		f, err := parser.ParseFile(prog.Fset, name, nil, parser.SkipObjectResolution)
-		require.NoError(t, err)
+		if err != nil {
+			return builtPackage{}, fmt.Errorf("parse %s: %w", pkg.PkgPath, err)
+		}
 		files = append(files, f)
 	}
-	info := &types.Info{
-		Types:        map[ast.Expr]types.TypeAndValue{},
-		Defs:         map[*ast.Ident]types.Object{},
-		Uses:         map[*ast.Ident]types.Object{},
-		Implicits:    map[ast.Node]types.Object{},
-		Instances:    map[*ast.Ident]types.Instance{},
-		Scopes:       map[ast.Node]*types.Scope{},
-		Selections:   map[*ast.SelectorExpr]*types.Selection{},
-		FileVersions: map[*ast.File]string{},
-	}
+	info := newInfo()
 	conf := types.Config{Sizes: pkg.TypesSizes, Importer: importerFunc(func(path string) (*types.Package, error) {
 		imported, ok := built[pkg.Imports[path]]
 		if !ok {
@@ -214,8 +239,24 @@ func buildPackage(t *testing.T, prog *ssa.Program, pkg *packages.Package,
 		conf.GoVersion = "go" + pkg.Module.GoVersion
 	}
 	checked, err := conf.Check(pkg.PkgPath, prog.Fset, files, info)
-	require.NoError(t, err, "type-check %s", pkg.PkgPath)
-	return builtPackage{files: files, info: info, ssa: prog.CreatePackage(checked, files, info, true)}
+	if err != nil {
+		return builtPackage{}, fmt.Errorf("type-check %s: %w", pkg.PkgPath, err)
+	}
+	return builtPackage{files: files, info: info, ssa: prog.CreatePackage(checked, files, info, true /* importable */)}, nil
+}
+
+// newInfo returns a types.Info recording all that SSA construction reads.
+func newInfo() *types.Info {
+	return &types.Info{
+		Types:        map[ast.Expr]types.TypeAndValue{},
+		Defs:         map[*ast.Ident]types.Object{},
+		Uses:         map[*ast.Ident]types.Object{},
+		Implicits:    map[ast.Node]types.Object{},
+		Instances:    map[*ast.Ident]types.Instance{},
+		Scopes:       map[ast.Node]*types.Scope{},
+		Selections:   map[*ast.SelectorExpr]*types.Selection{},
+		FileVersions: map[*ast.File]string{},
+	}
 }
 
 // importerFunc is a types.Importer written as a function.
@@ -227,20 +268,23 @@ func (f importerFunc) Import(path string) (*types.Package, error) { return f(pat
 // declaredFuncs returns the functions files declare with a body, named under
 // rel. A sealed sum's marker method is left out: it is never called, and its
 // interface, which a type assertion reads, is what it is for.
-func declaredFuncs(t *testing.T, prog *ssa.Program, rel string, files []*ast.File, info *types.Info) []sourceFunc {
-	t.Helper()
+func declaredFuncs(prog *ssa.Program, rel string, files []*ast.File, info *types.Info) ([]sourceFunc, error) {
 	var out []sourceFunc
 	for _, fd := range funcDecls(files) {
 		obj, isFunc := info.Defs[fd.Name].(*types.Func)
-		require.True(t, isFunc, "%s.%s is not a function to the type checker", rel, fd.Name.Name)
+		if !isFunc {
+			return nil, fmt.Errorf("%s.%s is not a function to the type checker", rel, fd.Name.Name)
+		}
 		if marker(fd, obj) {
 			continue
 		}
 		fn := prog.FuncValue(obj)
-		require.NotNil(t, fn, "%s.%s has no SSA form", rel, fd.Name.Name)
+		if fn == nil {
+			return nil, fmt.Errorf("%s.%s has no SSA form", rel, fd.Name.Name)
+		}
 		out = append(out, sourceFunc{pkg: rel, name: rel + "." + nodeName(obj), fn: fn})
 	}
-	return out
+	return out, nil
 }
 
 // marker reports whether fd, declaring fn, is a marker method: unexported,
@@ -285,10 +329,10 @@ func unreached(p program, roots, spared map[string]string) []string {
 		}
 		starts = append(starts, fn)
 	}
-	fromMains, fromAll := reachedFrom(p.fset, p.mains), reachedFrom(p.fset, starts)
+	fromMains, fromAll := reachedFrom(p.ssa.Fset, p.mains), reachedFrom(p.ssa.Fset, starts)
 	sparing := map[string]bool{}
 	for _, f := range p.funcs {
-		at := p.fset.Position(f.fn.Pos())
+		at := p.ssa.Fset.Position(f.fn.Pos())
 		_, isRoot := roots[f.name]
 		_, isSpared := spared[f.pkg]
 		switch {
@@ -350,7 +394,9 @@ func plantedProgram(t *testing.T, src string) program {
 	pkg, info, err := ssautil.BuildPackage(&types.Config{}, fset, types.NewPackage("planted", "main"), files,
 		ssa.InstantiateGenerics)
 	require.NoError(t, err)
-	return program{fset: fset, funcs: declaredFuncs(t, pkg.Prog, "planted", files, info),
+	funcs, err := declaredFuncs(pkg.Prog, "planted", files, info)
+	require.NoError(t, err)
+	return program{ssa: pkg.Prog, own: map[*ssa.Package]string{pkg: "planted"}, funcs: funcs,
 		mains: []*ssa.Function{pkg.Func("init"), pkg.Func("main")}}
 }
 
