@@ -92,11 +92,13 @@ type Entry struct {
   newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
   checkout that converts line endings are not mistaken for an edit. A file carrying the generated
   header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
-  regions. The writer leaves it as it is, reports it as a warning, since nothing is lost, rather
-  than overwrite the edit, and keeps the file's prior entry in the new manifest, so the next
-  generation reports it again. A file marked `@morphic:ignore-file` is its user's whole, as a file
-  written once is, so it is never written, pruned or checked for an edit, and a file integrated as
-  blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
+  regions. The writer leaves it as it is, neither overwriting nor pruning it, reports it as a
+  warning, since nothing is lost, and keeps its prior entry in the new manifest, so the next
+  generation reports it again. An entity a rename moves out of it is written in its new place as any
+  other, since its callers name it there, and its regions stay in the kept file, which still holds
+  them, rather than being written twice. A file marked `@morphic:ignore-file` is its user's whole,
+  as a file written once is, so it is never written, pruned or checked for an edit, and a file
+  integrated as blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest, a
   file written once or marked `@morphic:ignore-file` aside, the engine writes nothing. `Emitter` is
   a version, not the hash of the executable the plan and IR caches key on, since a team's machines
@@ -137,7 +139,8 @@ shipped](refine/naming.md#collisions-and-the-names-a-generation-shipped)): when 
 entity to another file, the next generation writes the region where it stood against the entity's
 declaration there, at the end of the declaration's body when the declaration enclosed it, so a
 member a user added stays a member, and before or after the declaration otherwise. The old file,
-emptied of generated symbols, is pruned as any other.
+emptied of generated symbols, is pruned as any other, unless its user edited it outside its regions:
+then it is kept, and the regions stay in it ([above](#what-the-manifest-records)).
 
 ```go
 type Region struct {
