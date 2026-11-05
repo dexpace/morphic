@@ -7,7 +7,9 @@ allows. It loads `morphic-designing-code` and `morphic-measuring-performance`.
 
 1. Name the limit on each loop, recursion, queue, buffer and retry the change adds, and what the
    work grows with under it
-   (`.claude/skills/morphic-designing-code/references/design-rules.md#bound-the-product`). In the
+   (`.claude/skills/morphic-designing-code/references/design-rules.md#bound-the-product`), each part
+   of its charge held to the cost it stands for
+   (`.claude/skills/morphic-designing-code/references/design-rules.md#charge-each-part-to-its-cost`). In the
    OpenAPI compiler a count held to a limit counts through `compilers/openapi/internal/budget`
    (`CLAUDE.md`, "Bounded everything"), and its outcome comes from the rule for its kind
    (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#bound-outcome-from-the-rules`).

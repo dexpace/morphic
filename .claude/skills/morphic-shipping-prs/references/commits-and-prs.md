@@ -129,7 +129,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   `gh issue view <n> --json state,stateReason,body,comments,updatedAt` when the PR opens and again
   before a report says the PR closes it. A closed issue's closing comment is a recorded decision,
   and its reference leaves the body; a comment or a body edit is part of the ask; and each
-  `## Out of scope` item is carried to an open issue, stated where
+  `## Out of scope` item naming work still to do is carried to an open issue, stated where
   `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
 - **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks eight of
   its issues held in comments or later edits; closing #1433 would have left a case it put out of

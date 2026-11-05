@@ -10,7 +10,9 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
-   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`.
+   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a cap they share at each head
+   (`.claude/skills/morphic-shipping-prs/references/merging-main.md#cap-two-prs-share`). An edited body is sent only from its fetch
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#send-only-what-the-fetch-produced`).
 3. **Closed issues.** Read each issue the PR closes whole against the diff, its state, comments and
    out-of-scope items included
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole`),

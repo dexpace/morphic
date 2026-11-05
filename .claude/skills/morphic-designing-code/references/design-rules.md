@@ -140,7 +140,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
   branch, as #931's table does. A new recursion under `compilers/openapi` also joins
   `loweringRecursions` in `internal/archtest/recursion_test.go` with its bound
-  (`.claude/skills/morphic-checking-style/references/departures.md#bounded-recursion-stands`).
+  (`.claude/skills/morphic-checking-style/references/departures.md#bounded-recursion-stands`);
+  whether the pin covers other packages is #1525.
 
 ## Hold each part of a charge to the cost it stands for
 `charge-each-part-to-its-cost`

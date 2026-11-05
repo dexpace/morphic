@@ -11,21 +11,34 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    and at each bound
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#boundary-cases-at-the-boundary`).
 2. Plant defects past the PR's list (`references/testing.md#plant-beyond-the-listed-mutants`), by
-   `.claude/skills/morphic-verifying-changes/references/mutation.md`.
+   `.claude/skills/morphic-verifying-changes/references/mutation.md`: where only the callers a check leaves out reach
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#plant-past-the-included-callers`), on a run owning its cache
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#mutant-run-owns-its-cache`), each kill read against its plant
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#kill-reaches-the-plant`).
 3. Hold each test the change adds or edits to what its name claims
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#assertion-targets-what-the-name-names`),
    to the stage it must reach
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#fixture-still-reaches-its-stage`)
    and to failing when the code is wrong
-   (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#assertion-must-be-able-to-fail`).
+   (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#assertion-must-be-able-to-fail`), an absence read on its field
+   (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#absence-on-the-field`) and a time limit's outcome raised through a
+   seam (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#limit-outcome-through-a-seam`).
 4. For a check, lint or archtest rule or a gate target the change adds, plant what it must catch
-   and what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`; for one replacing
-   another, take `references/testing.md#replacement-gate`.
+   and what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`, among them
+   `.claude/skills/morphic-verifying-changes/references/checkers.md#gate-target-draws-a-plant`,
+   `.claude/skills/morphic-verifying-changes/references/checkers.md#lint-probe-lists-every-finding` and
+   `.claude/skills/morphic-verifying-changes/references/checkers.md#analysis-input-is-fixed`; for one replacing another, take
+   `references/testing.md#replacement-gate`.
 5. For a reader, parser or grammar the change rewrites, fuzz it against the one it replaces
    (`references/correctness.md#refactor-differential-fuzz`).
 6. Where the change adds one predicate at many sites, revert each site alone
    (`references/testing.md#redundant-guard`), and where a test stays green with either of two
    mechanisms removed, remove both (`references/testing.md#two-mechanisms-one-test`).
+7. Tell a failure that is the machine's, a full disk, a removed cache or load, from the change's
+   (`.claude/skills/morphic-verifying-changes/references/toolchain.md#full-disk-reads-as-a-failure`,
+   `.claude/skills/morphic-verifying-changes/references/toolchain.md#gate-failure-under-load`,
+   `.claude/skills/morphic-verifying-changes/references/toolchain.md#stale-linter-reads-as-a-failure`), and instrument a test's `go` children as
+   `.claude/skills/morphic-verifying-changes/references/toolchain.md#test-go-children-ignore-path` says.
 
 When the review fixes, each gap becomes a test seen to fail on its planted defect. The matrix is the
 function-by-class cells and the mutants planted, killed and judged equivalent, each with its reason.

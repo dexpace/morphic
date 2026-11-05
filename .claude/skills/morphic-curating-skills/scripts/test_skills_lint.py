@@ -184,8 +184,9 @@ class LintTest(unittest.TestCase):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, skill, GOOD_SKILL + "Cite `#do-the-thing`, not `#N`, `#1234` or `#`.\n")
         n = GOOD_SKILL.count("\n") + 1
-        self.assertEqual(self.lint()[1], [
-            f"{skill}:{n}: cites #do-the-thing by its key alone: cite references/<file>.md#do-the-thing"])
+        want = (f"{skill}:{n}: cites #do-the-thing by its key alone: "
+                "cite references/<file>.md#do-the-thing")
+        self.assertEqual(self.lint()[1], [want])
 
     def test_a_repository_script_is_found_beside_the_skills_own(self):
         skill = ".claude/skills/good-skill/SKILL.md"

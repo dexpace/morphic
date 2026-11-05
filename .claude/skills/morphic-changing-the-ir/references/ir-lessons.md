@@ -190,8 +190,9 @@ verifier and codecs must reach.
 
 - **Rule.** A plan fact that shapes a declaration, such as a closed sum against a struct of
   pointers, reads what adding a member, a variant or an operation leaves as it was, such as the
-  type's value type and row, never one member's value or the operations reaching it. Where it must read a fact such a change moves, the document names that fact and the
-  break it causes the declaration's callers.
+  type's value type and row, never one member's value or the operations reaching it. Where it
+  must read a fact such a change moves, the document names that fact and the break it causes the
+  declaration's callers.
 - **Why.** A fix to #1329's member rule read which way a union travels, so a new operation would
   flip its form; an enum lowered as text once a member passed `int64` would turn
   `type Code int64` into `type Code string` (#1334).

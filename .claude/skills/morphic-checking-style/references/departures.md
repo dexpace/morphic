@@ -155,11 +155,12 @@ the rule here rather than reading it across.
 ## Assert interface compliance for an exported pair alone
 `interface-assertions-stay-narrow`
 
-- **Rule.** Rule 5.26 asks for compile-time compliance assertions. Here an exported type implementing
-  an exported interface its package declares or imports from this module carries a `var _` beside
-  its imports, and an unexported one does not where a call's parameter is the interface, since
-  the call fails the build (`references/departures.md#optional-interface-converted`). A standard
-  library one such as `error` takes none.
+- **Rule.** Rule 5.26 asks for compile-time compliance assertions. Here an exported type
+  implementing an exported interface its package declares or imports from this module carries a
+  `var _` beside its imports, and an unexported one does not where a call's parameter is the
+  interface, since the call fails the build
+  (`references/departures.md#optional-interface-converted`). A standard library one such as `error`
+  takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
   the rule covers with no assertion. It reports only a missing assertion, so an unexported type's
@@ -174,7 +175,7 @@ the rule here rather than reading it across.
   makes for `ir.CycleVisitor`, is held by no build, so
   `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: a type meant
   to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, unless
-  a test reads what the interface adds.
+  a test reads what the interface adds. Whether the walk should find them otherwise is #1523.
 - **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
   and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
   #1313).
