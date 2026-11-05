@@ -356,14 +356,14 @@ func itemWith(item string, ops [3]string, components string) string {
 	return src + "components:\n" + components
 }
 
-// TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy pins what the
-// additionalOperations entries past a path item's first operation, here LINK
-// and UNLINK beside a get, are charged for what the item declares itself, each
-// copying it (GitHub #1428): its inline parameter, which weighs 25 as paramP
-// does, unless the entry writes its own; its kept summary and extension, the
-// keyword and its raw value with a byte between, 7+1+3 and 3+1+3; and its
-// server's ID, unless the entry names its own. A $ref'd parameter is charged at
-// every operation, the first among them.
+// TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy pins what a
+// path item's additionalOperations entries, here LINK and UNLINK beside a get,
+// are charged for what the item declares itself, each copying it (GitHub
+// #1428): its inline parameter, which weighs 25 as paramP does, unless the
+// entry writes its own; its kept summary and extension, the keyword and its raw
+// value with a byte between, 7+1+3 and 3+1+3; and its server's ID, unless the
+// entry names its own. A $ref'd parameter is charged at every operation, the
+// first among them.
 func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing.T) {
 	t.Parallel()
 	const kept = 7 + 1 + 3 + 3 + 1 + 3
@@ -421,37 +421,44 @@ func TestCompile_APathItemsFixedMethodsAreNotCharged(t *testing.T) {
 	}
 }
 
-// TestCompile_AnItemsFirstOperationIsNotCharged pins that a path item declaring
-// no fixed method copies what it declares into its first operation free, as
-// one declaring a get does, though additionalOperations declares that one too:
-// of LINK and UNLINK, UNLINK alone is charged, its parameter weighing 25 as
-// paramP does, the extension 3+1+3 and the server's ID.
-func TestCompile_AnItemsFirstOperationIsNotCharged(t *testing.T) {
+// TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder pins that every
+// additionalOperations entry is charged, the first among them, so an item is
+// charged the same in either order of its entries: LINK, writing its own
+// parameter and server, takes the extension, 3+1+3, and UNLINK takes it, the
+// parameter, weighing 25 as paramP does, and the server's ID. Leaving the
+// first entry free refused the item with LINK first and admitted it with
+// UNLINK first.
+func TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder(t *testing.T) {
 	t.Parallel()
-	const src = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
+	const item = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
 		"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
-		"    parameters: [{name: q, in: query, schema: {type: string}}]\n    additionalOperations:\n" +
-		"      LINK: {operationId: link, responses: {'200': {description: ok}}}\n" +
-		"      UNLINK: {operationId: unlink, responses: {'200': {description: ok}}}\n"
-	doc, diags := compileExpanding(t, src, -1)
-	require.NotNil(t, doc)
-	openapitest.RequireNoErrorDiags(t, diags)
-	require.NotEmpty(t, openapitest.FindOp(t, doc, "unlink").Servers)
-	want := 25 + 3 + 1 + 3 + len(openapitest.FindOp(t, doc, "unlink").Servers[0])
+		"    parameters: [{name: q, in: query, schema: {type: string}}]\n    additionalOperations:\n"
+	const link = "      LINK: {operationId: link, parameters: [{name: q, in: query, schema: {type: integer}}], " +
+		"servers: [{url: 'https://b.test'}], responses: {'200': {description: ok}}}\n"
+	const unlink = "      UNLINK: {operationId: unlink, responses: {'200': {description: ok}}}\n"
+	for name, src := range map[string]string{"LINK first": item + link + unlink, "UNLINK first": item + unlink + link} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileExpanding(t, src, -1)
+			require.NotNil(t, doc)
+			openapitest.RequireNoErrorDiags(t, diags)
+			require.NotEmpty(t, openapitest.FindOp(t, doc, "unlink").Servers)
+			want := 3 + 1 + 3 + 25 + 3 + 1 + 3 + len(openapitest.FindOp(t, doc, "unlink").Servers[0])
 
-	doc, diags = compileExpanding(t, src, want)
-	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
-	openapitest.RequireNoErrorDiags(t, diags)
-	doc, diags = compileExpanding(t, src, want-1)
-	assertRefused(t, doc, diags, want-1)
+			doc, diags = compileExpanding(t, src, want)
+			require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+			doc, diags = compileExpanding(t, src, want-1)
+			assertRefused(t, doc, diags, want-1)
+		})
+	}
 }
 
 // TestCompile_AnItemsParameterIsWeighedInItsOwnDocument pins that a parameter
 // written beside a path item $ref is weighed where it is written when an
 // operation of the item it names, in another document, takes it: as the
 // source's grammar reads it, its schema one node, 25 as paramP weighs. The $ref
-// is charged what the item weighs, and LINK, past the item's first operation,
-// the parameter.
+// is charged what the item weighs, and LINK the parameter.
 func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
 	t.Parallel()
 	const item = "I:\n  get: {operationId: g, responses: {'200': {description: ok}}}\n" +

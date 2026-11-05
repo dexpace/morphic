@@ -82,17 +82,16 @@ func (e *expansion) spend(raw int) {
 // ChargeExpansionAt charges the expansion one more copy of the declaration at
 // node, written at at in c's document, that a lowering makes with no $ref
 // naming it: an inline parameter of a path item, at each additionalOperations
-// entry past the item's first operation (GitHub #1428). It weighs the copy as
-// Declared weighs a $ref's. Whether the copies have crossed the budget is
-// ExpansionCrossed's to say.
+// entry that takes it (GitHub #1428). It weighs the copy as Declared weighs a
+// $ref's. Whether the copies have crossed the budget is ExpansionCrossed's to
+// say.
 func ChargeExpansionAt(c Ctx, at jsontext.Pointer, node *yaml.Node) {
 	c.expansion.admit(readingOf(c, at), node)
 }
 
 // ChargeExpansion charges the expansion raw more bytes that a lowering copies
-// as raw values with no $ref naming them: what a path item keeps onto each
-// additionalOperations entry past its first operation, and the servers it
-// names on them.
+// as raw values with no $ref naming them: what a path item keeps onto each of
+// its additionalOperations entries, and the servers it names on them.
 func ChargeExpansion(c Ctx, raw int) {
 	c.expansion.spend(raw)
 }

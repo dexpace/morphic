@@ -175,14 +175,12 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 	diags = append(diags, applyLayers(layers, owner, onOperations(&kept))...)
 	keptBytes, serverBytes := keptWeight(kept), serversWeight(named)
 	mounted := make([]mountedOp, 0, len(ops))
-	for i, lo := range ops {
+	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op
-		// An additionalOperations entry past the mount's first is charged what it
-		// copies (chargeItemCopy), as the fixed methods, which bound their own
-		// copies, are not; and none lowers once the budget is crossed, whatever
-		// copy crossed it.
-		charged := i > 0 && po.additional
-		if charged && lowering.ExpansionCrossed(l.in) {
+		// An additionalOperations entry is charged what it copies (chargeItemCopy),
+		// as the fixed methods, which bound their own copies, are not; and none
+		// lowers once the budget is crossed, whatever copy crossed it.
+		if po.additional && lowering.ExpansionCrossed(l.in) {
 			break // the document is refused, so no copy past the budget lowers
 		}
 		opCtx := route
@@ -197,7 +195,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		}
 		diags = append(diags, keepOn(&op, kept)...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
-		if charged {
+		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what
 			// follows them is what it takes of its item's.
 			chargeItemCopy(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):])
