@@ -549,7 +549,12 @@ func resolutionTrail(model any) trail {
 // the reference it stopped at, if it stopped at one, with the hop that holds
 // it. cut marks a chain followed only as far as maxResolutionHops.
 type chain struct {
-	records   []record
+	records []record
+	// end is the root node of the object the chain ends on, read once off the
+	// object its last hop reached, since asking a hop walks the rest of the
+	// chain (docs/parser-library.md#reference-chain-walk); nil where the chain
+	// is cut or stopped.
+	end       *yaml.Node
 	stopped   references.Reference
 	stoppedAt any
 	cut       bool
@@ -572,9 +577,6 @@ type record struct {
 	document     *any
 	documentPath *string
 	replace      func(obj any) bool
-	// node is the root node of the object the chain ends on from this hop:
-	// the hop's reference reports its chain's end, not its own target.
-	node *yaml.Node
 }
 
 // inSource reports whether r's hop resolved against the source, which the
@@ -594,7 +596,7 @@ func (c chain) endsOnNothing() bool {
 	if c.cut || c.stopped != "" || len(c.records) == 0 {
 		return false
 	}
-	return c.records[len(c.records)-1].node == nil
+	return c.end == nil
 }
 
 // trail reads what c's records say about where the resolution went.
@@ -662,12 +664,18 @@ func recordsOf[S any, R interface {
 		}
 		c.records = append(c.records, record{path: info.AbsoluteDocumentPath,
 			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object,
-			node: R(info.Object).GetRootNode(), walk: walkOf(info.Object),
-			document: &info.ResolvedDocument, documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
+			walk: walkOf(info.Object), document: &info.ResolvedDocument,
+			documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
 		hop = info.Object
 	}
 	if hop != nil {
 		c.stopped, c.stoppedAt = hop.GetReference(), hop // empty for the object a resolution ends on
+	}
+	// Read off the end alone, which answers at once
+	// (docs/parser-library.md#reference-chain-walk). A reference the chain
+	// stopped at answers nil, having reached nothing.
+	if len(c.records) > 0 {
+		c.end = hop.GetRootNode()
 	}
 	return c
 }

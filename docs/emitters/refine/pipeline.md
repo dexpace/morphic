@@ -34,6 +34,8 @@ type Ctx struct {
     Naming  naming.Policy        // the target's casing engine over its options' naming tables
                                  // (INV4; naming.md)
     Hints   map[emitter.EntityID]emitter.ShapeHint
+    Prior   *emitter.PriorState  // read-only prior generation, whose shipped names naming keeps
+                                 // (naming.md); nil on a first run
     Options emitter.TargetOptions // decoded options (../contract/options.md); a step asserts its own target's type
     Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
     Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity
