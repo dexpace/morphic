@@ -126,9 +126,11 @@ class ScriptTest(unittest.TestCase):
         self.commit("the former base's own subject")
         self.git("switch", "-q", "-c", "moved")
         self.commit("test: add a case")
-        r = self.run_script("--base", "origin/main", "--base", "former", "1311", TITLE)
-        self.assertEqual((r.returncode, r.stdout),
-                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+        for first, second in (("origin/main", "former"), ("former", "origin/main")):
+            with self.subTest(first=first):
+                r = self.run_script("--base", first, "--base", second, "1311", TITLE)
+                self.assertEqual((r.returncode, r.stdout),
+                                 (0, "subjects: clean (the title and 1 commit subject(s))\n"))
 
     def test_an_unknown_or_empty_base_exits_two(self):
         self.commit("test: add a case")

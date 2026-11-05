@@ -81,9 +81,11 @@ yourself. These rules are the ways that reading still lies.
   second match, so a plant the size of the last one, written within that second, is never read, and
   the run reports the last plant's verdict.
 - **Why.** In a second-round review of #1522, a plant that `skills_lint.py`'s tests kill read as
-  surviving until it ran again with `-B` (#1522 at 29372a248).
+  surviving until it ran again with `-B`, which writes no `.pyc` for the next plant to reuse (#1522
+  at 29372a248).
 - **Probe.** In an empty directory, write `X = 1`, then `X = 2`, to module `m` within one second,
-  running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1.
+  running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1, and so does
+  `-B` while the first run's `__pycache__` remains.
 
 ## Plant where only the callers a check leaves out reach
 `plant-past-the-included-callers`

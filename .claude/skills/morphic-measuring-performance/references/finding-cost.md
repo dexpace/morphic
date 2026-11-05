@@ -32,7 +32,7 @@ how to measure so the number means what the claim says.
   on macOS or `perf stat -e instructions:u` on Linux. A run that exits non-zero measured a failure.
   With neither tool, take `references/finding-cost.md#cpu-time-without-a-counter`.
 
-## An instruction count stops at the timed process
+## A `/usr/bin/time` instruction count stops at the timed process
 `count-stops-at-the-timed-process`
 
 - **Rule.** `/usr/bin/time -l` counts the timed process alone, so a command doing its work in
