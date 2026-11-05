@@ -169,6 +169,43 @@ class LintTest(unittest.TestCase):
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
+    def test_a_pattern_or_a_ref_in_a_span_names_no_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each holds a "/" in a form no repository path takes: a pattern, a ref or a refspec.
+        spans = ("`grep -E 'testify|go-cmp|golang.org/x/tools'`, `sed 's/^a/b/'`, "
+                 "`grep 'a\\/b'`, `refs/remotes/origin/main`, "
+                 "`git fetch <url> main:refs/remotes/origin/main`, "
+                 "`git restore --worktree :/`, `git grep -n x -- :(top)gone/d.go`, "
+                 "`curl localhost:8080/v1/x`, "
+                 "`gone/a.go:12`, `gone/b.go:12:5`, `gone/c.go:3-4`, `ir/a.go:1:2`, `ir/a.go:1-2`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go:12 does not exist",
+                                          f"{skill}:{n}: gone/b.go:12:5 does not exist",
+                                          f"{skill}:{n}: gone/c.go:3-4 does not exist"])
+
+    def test_a_rule_cited_by_its_key_alone_is_reported(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill,
+              GOOD_SKILL + "Cite `#do-the-thing` or `#gate`, not `#N`, `#1234` or `#`; prose cites "
+              "#in-prose and a command `see #in-a-command`, but not C#, issue #12, a/#path or "
+              "[a heading](../../../docs/plan.md#a-heading).\n")
+        write(self.root, "docs/plan.md", "# A heading\n")
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n}: cites #{key} by its key alone: cite references/<file>.md#{key}"
+                for key in ("do-the-thing", "gate", "in-prose", "in-a-command")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_repository_script_is_found_beside_the_skills_own(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        script(self.root, "scripts/fuzz.sh", "true\n")
+        # The skill and the repository both hold scripts/tool.py, which is no finding.
+        script(self.root, "scripts/tool.py", "true\n")
+        write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/./fuzz.sh`, "
+              "`scripts/tool.py`, `scripts/../scripts/test_tool.py` and `scripts/none.sh`.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: scripts/none.sh does not exist"])
+
     def test_a_path_the_tree_lacks_may_name_the_go_toolchains_sources(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         src = Path(self.dir.name) / "goroot" / "src"
@@ -269,7 +306,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL
               + "Ignored: `docs/plan.md`, `go run ./cmd/morphic-local`, prose docs/plan.md, "
                 "[the plan](../../../docs/plan.md), `morphic-local`, "
-                "`references/local.md#local-rule`,\nand outside: [x](../../../../outside.md), "
+                "`references/local.md#local-rule`, `references/local.md`,\nand outside: [x](../../../../outside.md), "
                 "but `ir/./a.go` is in the tree.\n")
         n = GOOD_SKILL.count("\n") + 1
         lost = "is ignored by git, so no clone holds it"
@@ -277,6 +314,7 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: docs/plan.md {lost}",
                 f"{skill}:{n}: link target ../../../docs/plan.md {lost}",
                 f"{skill}:{n}: no skill or command named morphic-local",
+                f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n + 1}: link target ../../../../outside.md does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))

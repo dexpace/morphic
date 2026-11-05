@@ -425,12 +425,13 @@ Two further emitter-side stages are named here so their obligations shape the co
 though both are post-milestone scope:
 
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
-  deterministic file paths, a generation manifest (spec/emitter/config hashes, sorted file
-  list, and an entity → generated-symbol map **keyed by IR stable IDs**, which survive path
-  and name churn), file-header provenance that gates pruning (never delete a file lacking the
-  generated-by header), ignore-region markers for hand-written islands, and additive-only
-  merging. Additive-only writers also need a staleness check — (previous-revision entities −
-  current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
+  deterministic file paths, a generation manifest (digests of the IR and of what else the generation
+  read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
+  survive a rename of what they are not built from, a correlation key (#679) carrying one that keeps
+  the name the key is built from), file-header provenance that gates pruning (never delete a file
+  lacking the generated-by header), ignore-region markers for hand-written islands, and
+  additive-only merging. Additive-only writers also need a staleness check — (previous-revision
+  entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
 - **Surface verification** — per-language extractors project existing SDK source into a
   neutral API-surface model; the same projection of generated output is diffed against it.
   Change records are *neutral*; breaking/additive severity is an injectable per-language
@@ -559,7 +560,7 @@ morphic/
 │   │       ├── nodeview/   #             the raw YAML as the parser reads it, and one bounded walk
 │   │       ├── value/      #             scalar and BigVal lowering
 │   │       ├── sourceindex/ #            what one walk of a decoded source tree answers
-│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting)
+│   │       ├── scan/       #             pre-parse refusals (alias cycles and fan-out, nesting, pointer bytes)
 │   │       ├── bind/       #             every schema $ref bound where it lands, loops found
 │   │       ├── annotation/ #             what a schema says about itself, not its shape
 │   │       ├── oas/        #             the OpenAPI Specification's rules by minor, and their check
@@ -584,7 +585,7 @@ morphic/
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
-├── internal/archtest/      #           Layering, the recursion pin, reachability and the caps (tooling).
+├── internal/archtest/      #           Layering, the recursion pin, reachability, call shape, caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
@@ -633,6 +634,14 @@ Dependency rules, enforced by an architecture test as in oagen:
   The rule is in place before the first emitter package: `emitters` is ruled now, and each package
   beneath it carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
+
+The import rules bound what a package names, not where control goes: a package can still call into
+one it does not import, through a function, an interface or a type argument handed to it.
+`internal/archtest` counts those calls for each pair of packages and holds them to
+`callShapeBaseline`, where each pair says what its calls are: a designed seam such as the registry
+calling a compiler, a traversal or immediate callback, a function #1488 keeps, such as I/O or a
+policy, or one that #1488 removes. A new such call is a change to that table, made on purpose,
+rather than one no check sees.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
@@ -715,9 +724,11 @@ something a caller asks for with `none`, never a default.
   pointer collisions the compiler has had were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  set that grows is noticed rather than measured), the method-per-type cap, that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
-  come.
+  come, and how many calls each package makes into one it does not import, through a function, an
+  interface or a type argument handed to it, held to a baseline that rises only for a call of a kind
+  it keeps, such as a traversal callback.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
