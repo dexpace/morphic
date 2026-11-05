@@ -314,9 +314,10 @@ func (b *binder) table(t *Table) *Table {
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
+	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached})
+		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached, Dialects: dialects[DocID(id)]})
 		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
 	reach := b.attribute(t)
@@ -378,10 +379,12 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 // Document is a document a table read: its name and its root node. Unreached
 // reports that only a pass that did not stand asked for it, so that nothing the
 // table holds is in it: a reference read it as a location before a later
-// document declared that URI.
+// document declared that URI. Dialects is each schema resource root in it
+// that names its dialect, in pointer order.
 type Document struct {
 	Name      string
 	Root      *yaml.Node
+	Dialects  []DialectRoot
 	Unreached bool
 }
 
