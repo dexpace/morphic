@@ -26,9 +26,9 @@ type HasCanonicalCase struct {
 }
 
 // Canonical returns the conformance suite for the one canonical-naming grammar.
-// Canonical is ABI: an emitter cannot tell which compiler produced a name, so
-// every compiler owes the same answer for the same spelling, and the three
-// copies this replaced gave different ones (#163).
+// A canonical name is ABI: an emitter cannot tell which compiler produced a name,
+// so every compiler owes the same answer for the same spelling, and the three
+// copies of the grammar gave different ones (#163).
 //
 // Each row names the rule it pins; the rows from formats other than OpenAPI are
 // the point. irverify rejects a canonical that is not a word sequence and
