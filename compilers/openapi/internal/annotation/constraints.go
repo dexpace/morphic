@@ -145,13 +145,13 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 }
 
 // applyExclusive reads exclusiveMinimum or exclusiveMaximum, as side picks, in
-// either dialect. The 3.0 boolean arm modifies the bound beside it (see
+// either form. The boolean arm (3.0, draft 4) modifies the bound beside it (see
 // applyExclusiveFlag). The 2020-12 arm (3.1, 3.2) carries the bound itself,
 // read from the raw node to avoid the float64 trap, and writes it to the side's
 // exclusive field beside any minimum/maximum rather than in place of it.
-// exclusiveBoolean is true for 3.0. A value in the wrong form for the dialect
-// is reported and dropped, since load suppresses the library's own
-// type-mismatch check.
+// exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
+// wrong form for the dialect is reported and dropped, since load suppresses
+// the library's own type-mismatch check.
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev := s.GetExclusiveMaximum()
 	if side == minBound {
@@ -222,17 +222,17 @@ func inclusiveBound(c *ir.Constraints, side boundSide) **ir.BigVal {
 }
 
 // exclusiveFormDiag reports an exclusiveMinimum/exclusiveMaximum whose value form
-// is wrong for the document's dialect: 3.0 spells it as a boolean modifier of
-// minimum/maximum, while the 2020-12 dialect (3.1, 3.2) spells it as a numeric
-// bound. The mismatched value carries no usable bound, so it is dropped with this
-// error rather than accepted as a degenerate constraint.
+// is wrong for the schema's dialect: 3.0's and draft 4's spell it as a boolean
+// modifier of minimum/maximum, while 2020-12's (3.1's and 3.2's own) spells it as
+// a numeric bound. The mismatched value carries no usable bound, so it is dropped
+// with this error rather than accepted as a degenerate constraint.
 func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
 	want := "a number"
 	if exclusiveBoolean {
 		want = "a boolean"
 	}
 	return diag.Newf(ir.SeverityError, diag.ExclusiveBoundForm, ir.Provenance{},
-		"%s must be %s in this OpenAPI dialect", prop, want)
+		"%s must be %s in this schema's dialect", prop, want)
 }
 
 // unmodifiableExclusiveDiag reports a 3.0 exclusive-bound modifier written
