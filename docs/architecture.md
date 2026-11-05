@@ -369,14 +369,20 @@ Designed, not yet built:
   (multi-service, spec-stitching).
 - **dedup** — structurally identical anonymous types are merged (by content hash), with ID
   aliases retained so provenance survives.
-- **filter** — include/exclude operations and types by pattern (Kiota-style path filtering),
-  followed by reachability trimming of orphaned types. Filtering serves *surface reduction*
-  (a smaller SDK). Regenerating only one service of an existing SDK is a different problem and
-  never uses a filtered document: global decisions (dedup, shared files, naming) must stay
-  byte-identical across scoped runs, so the emitter consumes the full document plus a scope
-  option and gates emission itself (a lesson oagen recorded after trying the filtered route).
+- **filter** — include/exclude operations and types by pattern (Kiota-style path filtering), and the
+  operations and properties holding a marker its settings name, such as an extension marking one
+  internal, reporting a required property it removes as a warning `pass/filter-required-removed`,
+  since an SDK lacking it may send a request the API refuses, and pruning what it removes from
+  examples (#723), followed by reachability trimming of orphaned types. A marker is read here and
+  not by one emitter, so the docs never describe an SDK other than the one generated
+  (`docs/emitters/docs-and-mock.md`). Filtering serves *surface reduction* (a smaller SDK).
+  Regenerating only one service of an existing SDK is a different problem and never uses a filtered
+  document: global decisions (dedup, shared files, naming) must stay byte-identical across scoped
+  runs, so the emitter consumes the full document plus a scope option and gates emission itself (a
+  lesson oagen recorded after trying the filtered route).
 - **version-slice** — project a document carrying availability metadata into a concrete
-  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
+  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed). Each
+  snapshot keeps `Document.Versions` whole, so every run reads the versions in one order.
 - **overlay** — user-supplied IR patches (rename hints, pagination declarations for specs that
   can't express them, doc overrides) applied as data, not code. IR overlays are language-neutral
   and each entry carries provenance (user-authored vs tool-inferred, mirroring the `Inferred`
@@ -400,9 +406,10 @@ Passes operate on the IR only; they know nothing about source formats or target 
 
 ### 2.3 Emitters (IR → artifacts)
 
-Emitters are plugins (SDK-per-language, docs, mock servers…). Out of scope for this session
-except for the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen
-converged on independently:
+Emitters are plugins: SDKs per language, docs, mock servers and, planned as an extension point, a
+command-line client (`docs/emitters/docs-and-mock.md`). Out of scope for this session except for
+the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen converged on
+independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once (is-paginated,
    error taxonomy, primary-content/response selection, return-shape classification (a success body
