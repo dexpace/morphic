@@ -192,6 +192,7 @@ one of them is left out too.
   `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
   `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
   `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
+  `openapi.TestCompile_AnItemsFirstOperationIsNotCharged`,
   `openapi.TestCompile_AnItemsParameterIsWeighedInItsOwnDocument`,
   `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`
 - Status: partly built: an external object reached after its contents is charged against the

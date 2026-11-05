@@ -421,6 +421,31 @@ func TestCompile_APathItemsFixedMethodsAreNotCharged(t *testing.T) {
 	}
 }
 
+// TestCompile_AnItemsFirstOperationIsNotCharged pins that a path item declaring
+// no fixed method copies what it declares into its first operation free, as
+// one declaring a get does, though additionalOperations declares that one too:
+// of LINK and UNLINK, UNLINK alone is charged, its parameter weighing 25 as
+// paramP does, the extension 3+1+3 and the server's ID.
+func TestCompile_AnItemsFirstOperationIsNotCharged(t *testing.T) {
+	t.Parallel()
+	const src = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
+		"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
+		"    parameters: [{name: q, in: query, schema: {type: string}}]\n    additionalOperations:\n" +
+		"      LINK: {operationId: link, responses: {'200': {description: ok}}}\n" +
+		"      UNLINK: {operationId: unlink, responses: {'200': {description: ok}}}\n"
+	doc, diags := compileExpanding(t, src, -1)
+	require.NotNil(t, doc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.NotEmpty(t, openapitest.FindOp(t, doc, "unlink").Servers)
+	want := 25 + 3 + 1 + 3 + len(openapitest.FindOp(t, doc, "unlink").Servers[0])
+
+	doc, diags = compileExpanding(t, src, want)
+	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+	openapitest.RequireNoErrorDiags(t, diags)
+	doc, diags = compileExpanding(t, src, want-1)
+	assertRefused(t, doc, diags, want-1)
+}
+
 // TestCompile_AnItemsParameterIsWeighedInItsOwnDocument pins that a parameter
 // written beside a path item $ref is weighed where it is written when an
 // operation of the item it names, in another document, takes it: as the

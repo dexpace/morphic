@@ -165,7 +165,7 @@ func leastBudget(t *testing.T, spec string) int {
 	t.Helper()
 	const most = 1 << 12
 	_, refused := lowerUnder(t, spec, budget.AtMost(most))
-	require.False(t, refused, "admitted within %d")
+	require.False(t, refused, "admitted within %d", most)
 	lo, hi := -1, most
 	for hi-lo > 1 {
 		mid := lo + (hi-lo)/2
