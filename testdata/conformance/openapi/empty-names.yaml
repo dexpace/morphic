@@ -82,6 +82,8 @@ components:
     # content; the key or the name is what its hint composes from.
     Frame: {$ref: '#/components/responses/Framed/headers//content/application~1jsonl/itemSchema'}
     Line: {$ref: '#/components/parameters/Unnamed/content/application~1jsonl/itemSchema'}
+    HeaderItem: {$ref: '#/components/responses/Listed/headers//schema/items'}
+    ParamItem: {$ref: '#/components/parameters/UnnamedList/schema/items'}
   responses:
     Framed:
       description: ok
@@ -90,7 +92,16 @@ components:
           content:
             application/jsonl:
               itemSchema: {type: object, properties: {f: {type: string}}}
+    Listed:
+      description: ok
+      headers:
+        "":
+          schema: {type: array, items: {type: object, properties: {h: {type: string}}}}
   parameters:
+    UnnamedList:
+      name: ""
+      in: query
+      schema: {type: array, items: {type: object, properties: {p: {type: string}}}}
     Unnamed:
       name: ""
       in: query

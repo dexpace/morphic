@@ -169,7 +169,8 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
 // pattern group, a tuple slot or rest, an enum branch, a composed union
-// variant, a contentSchema, a media type's itemSchema. A slice rather than a
+// variant, a contentSchema, a media type's itemSchema, and the items of a
+// schema held directly by a header or a parameter. A slice rather than a
 // map so a failure names them in a fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
@@ -186,6 +187,8 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
 	{"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema", "empty_item"},
 	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
+	{"t/anon/components/responses/Listed/headers//schema/items", "empty_item"},
+	{"t/anon/components/parameters/UnnamedList/schema/items", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
