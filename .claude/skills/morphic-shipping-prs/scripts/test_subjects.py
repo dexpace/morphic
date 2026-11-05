@@ -109,6 +109,33 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
                          (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
 
+    def test_a_stacked_base_is_left_out_when_named(self):
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("the base's own subject")
+        self.git("switch", "-q", "-c", "stacked")
+        self.commit("test: add a case")
+        named = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((named.returncode, named.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+        unnamed = self.run_script("1311", TITLE)
+        self.assertEqual((unnamed.returncode, unnamed.stdout.splitlines()[0]),
+                         (1, "commit: not type(scope): subject: the base's own subject"))
+
+    def test_a_former_base_is_left_out_beside_main(self):
+        self.git("switch", "-q", "-c", "former", "main")
+        self.commit("the former base's own subject")
+        self.git("switch", "-q", "-c", "moved")
+        self.commit("test: add a case")
+        r = self.run_script("--base", "origin/main", "--base", "former", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
+    def test_an_unknown_or_empty_base_exits_two(self):
+        self.commit("test: add a case")
+        for base in ("no-such-ref", " "):
+            with self.subTest(repr(base)):
+                self.assertEqual(self.run_script("--base", base, "1311", TITLE).returncode, 2)
+
     def test_clean_branch_exits_zero(self):
         self.commit(SIXTY_SIX)
         self.commit("test: add a case")

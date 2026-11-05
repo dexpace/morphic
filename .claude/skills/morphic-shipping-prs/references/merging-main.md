@@ -43,6 +43,34 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `gh pr view <N> --json baseRefName --jq .baseRefName`, then
   `git merge --no-commit --no-ff origin/<base>` and `go vet ./...` before touching `main`.
 
+## When a stacked base has landed, merge its final head first
+`merge-a-landed-bases-final-head`
+
+- **Rule.** Once a stacked PR's base squash-merges, GitHub retargets the PR to `main` and deletes
+  the base branch, and merging `main` conflicts wherever the branch holds the base's text from an
+  older merge. Merge the base PR's final head first, fetched with
+  `git fetch origin +pull/<base PR>/head:<own ref>`, then `origin/main` as usual, then read each
+  concept the branch adds by `references/merging-main.md#main-landed-the-concept`. With no base head
+  to fetch, take `references/merging-main.md#replay-own-diff-onto-main`.
+- **Why.** Merging `main` after #1331 squash-landed conflicted in 17 files, and its final head in
+  the 4 real overlaps (#1332); #1459, #1467 and #1336 met the same.
+- **Probe.** `git merge-tree --write-tree --name-only <head> <squash>` beside the same against the
+  base's final head.
+
+## Replay a branch's own diff onto main to leave a stack
+`replay-own-diff-onto-main`
+
+- **Rule.** To move a PR off a base it does not need, or merge one whose base head is gone, replay
+  its diff onto `main` unrewritten: `git merge --no-commit --no-ff origin/main`,
+  `git restore --source=origin/main --staged --worktree .` from the root, then
+  `git diff --binary <base tip> <old head> | git apply --3way`, taking `main`'s side on a line
+  `git blame` at the base tip shows only the base wrote. Check what the PR closes against what
+  only the base delivers, retarget it, and merge it into each PR stacked on it; its checklist
+  excludes the former base (`references/commits-and-prs.md#own-commits-against-the-base`).
+- **Why.** #1351 left the emitter stack it needed nothing from, and stopped closing #678,
+  whose second ask only #1336 met (#1351).
+- **Probe.** `git diff --stat origin/main HEAD` then lists only the PR's own files.
+
 ## Find out what a grown parameter carries before filling it in
 `grown-parameter-carries-something`
 
@@ -159,3 +187,14 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Why.** Two PRs each under a skill's body cap merged with no conflict at 512 words against 500,
   which would have failed the second to land on nothing in its own change (#1219).
 - **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` confirms.
+## Count a cap two open PRs share at each one's head
+`cap-two-prs-share`
+
+- **Rule.** When a change brings a capped type or file within what another open PR adds, count the
+  net, added less removed, at each open PR's head and on their trial merge, rather than trusting a
+  clean merge: methods per type under `internal/archtest`'s cap, a `SKILL.md` body, a function's
+  length. Of two that each pass alone, the one leaving headroom is preferred.
+- **Why.** Two PRs each brought `lowering.Ctx` to 20 methods against a cap of 20, merged clean
+  pairwise, and held 21 together (#1191, #1227).
+- **Probe.** `git grep -hE '^func \(c \*?Ctx\) ' <ref> -- 'compilers/openapi/internal/lowering/*.go' | wc -l`
+  at each head and on the trial merge.

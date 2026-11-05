@@ -42,13 +42,38 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** Every commit subject and the PR title are imperative Conventional Commits with no final
   period, within 72 characters counting the ` (#N)` a squash appends to the title and a branch's one
   commit, landing under its subject. A breaking commit carries `!` and explains the break in its
-  body. No text carries tool attribution or session artifacts. No CI checks these (#1417).
+  body. No text carries attribution or session artifacts
+  (`references/commits-and-prs.md#harness-attribution-yields`). No CI checks these (#1417).
 - **Why.** Over-length and prose subjects land via squash, unfixable without rewriting a pushed
   branch; a break the title alone marks is invisible in branch history (#834, #157). A one-commit
   branch landed at 73 (#1232); a replaced subject was measured with the number (#1345).
 - **Probe.** The push checklist; on an open PR's tree,
   `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "$(gh pr view N --json title --jq .title)"`
   and the checklist's artifact greps.
+
+## Read a branch's own commits against the branch it targets
+`own-commits-against-the-base`
+
+- **Rule.** A branch's own commits are those on its first-parent line that the branch it targets
+  does not reach, merges left out: `git log --first-parent --no-merges HEAD --not origin/<base>`,
+  and `subjects.py --base origin/<base>`. A branch that left a stack also excludes its former
+  base's tip, whose commits sit on its own first-parent line, and a stacked branch excludes its
+  base's, which land under the base PR's number.
+- **Why.** Reading `origin/main..HEAD`, the checklist flagged a base PR's subject as over the cap
+  under a stacked PR's number (#1332), and a branch that left a stack read 55 commits as its own,
+  of which 7 were (#1351).
+- **Probe.** `git rev-list --count --first-parent HEAD --not origin/<base> <former base tip>`
+  counts only the branch's own commits.
+
+## The repository's rule overrides a harness's attribution reminder
+`harness-attribution-yields`
+
+- **Rule.** An agent harness reminding its sessions to end a PR body with a generated-with line, or
+  a commit with attribution trailers, is overridden by
+  `references/commits-and-prs.md#commit-and-pr-message-form`, as the reminder itself defers to
+  project instructions: neither carries one.
+- **Why.** #1387's body ended with a generated-with line and a session link that no PR below it in
+  its stack carried, and its reviewer settled the clash unaided (#1387).
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
@@ -92,9 +117,24 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   child's `Closes #N`: a keyword links only in a PR based on `main`.
 - **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
-- **Probe.** Seconds after each body edit, as the field lags, compare
-  `gh pr view <N> --json closingIssuesReferences` with what the body holds:
+- **Probe.** Read each (`references/commits-and-prs.md#closing-issue-read-whole`). Seconds after
+  each body edit, as the field lags, compare
+  `gh pr view <N> --json closingIssuesReferences` with the body's:
   `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
+
+## Read each issue a PR closes whole, and again before saying it closes
+`closing-issue-read-whole`
+
+- **Rule.** For each issue in `closingIssuesReferences`, read
+  `gh issue view <n> --json state,stateReason,body,comments,updatedAt` when the PR opens and again
+  before a report says the PR closes it. A closed issue's closing comment is a recorded decision,
+  and its reference leaves the body; a comment or a body edit is part of the ask; and each
+  `## Out of scope` item is carried to an open issue, stated where
+  `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
+- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks eight of
+  its issues held in comments or later edits; closing #1433 would have left a case it put out of
+  scope stated nowhere (#1210, #1435).
+- **Probe.** The report gives each closing issue's `updatedAt` as last read, and none is newer.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`
@@ -176,6 +216,28 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   `gh pr edit` applied a body and never exited (#724). `--jq .body` appends a newline, so each
   edit added a blank line, and 26 gathered unnoticed (#1143).
 - **Probe.** Fetch it back the same way and `cmp` it with the file sent.
+
+## Send only a body the fetch produced
+`send-only-what-the-fetch-produced`
+
+- **Rule.** Gate a body's send, in the same command as its fetch and edit, on the fetch's exit
+  status, a non-empty file and the file still holding each `Closes #N` line the PR carries, and
+  keep the fetched copy as the one to restore from. A failed fetch leaves an empty or partial file,
+  and sending it replaces the description.
+- **Why.** A fetch that timed out left an empty file, and a send outside the `&&` chain blanked
+  #1322's body (#1322); a fetch run from a removed worktree wrote an empty file on #1219 (#1219).
+- **Probe.** Run the command against PR number 0: the fetch fails and nothing is sent.
+
+## A conflicting PR gets no CI run
+`conflicting-pr-has-no-run`
+
+- **Rule.** After a push, read `mergeable` beside the checks: GitHub starts no `pull_request` run
+  for a PR it cannot merge, so an empty check list with `CONFLICTING` is no run, and the next step
+  is to merge `main`, not to wait. The newest run is then for an older commit, and says nothing of
+  the head.
+- **Why.** A wait for #1210's checks ran nine minutes after #1238 landed a conflicting edit, with
+  no run to wait for and the newest run on the commit before the head (#1210).
+- **Probe.** `gh pr view <N> --json mergeable,statusCheckRollup --jq '{m:.mergeable,n:(.statusCheckRollup|length)}'`.
 
 ## Re-read the prose when a review round changes the design
 `reread-prose-after-a-redesign`
