@@ -134,7 +134,9 @@ type Entry struct {
   for an unsliced document, whose one label is `""`, and where a prior holds no entry for the last
   label, as when a document gains, loses or renames versions, that run takes the prior's entry
   holding the files spanning versions, its last label's or its `""` one, so the names the site last
-  shipped carry over.
+  shipped carry over. A prior is read as a `Generations` where it holds `snapshots`, a member no
+  `Manifest` has, else as a `Manifest`, which a target gaining `CrossVersion` reads as its `""`
+  entry and one losing it reads as the entry holding the spanning files.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.

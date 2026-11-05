@@ -67,17 +67,20 @@ would repeat itself for any of them two shapes but a patch reach. A type no shap
 operation sends or returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches
 what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
-A table lists every member its model's flattening holds, and anchors a member only where the model
-declaring it is rendered; another table holding it, a subtype's for an inherited member, links
-there. A model rendered as several tables anchors each member in the first of them, in
-`TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
-for each `PropID`. A member no table of its declaring model holds, as one of a base no shape reaches
-while a subtype's table holds it, is anchored in the first table, in catalog order, of a model whose
-flattening holds it. Each table has an anchor of its own, named for its shape alone, so a switcher
-reaches it in another version from the page `Routes` gives, and a link to the model names the shape
-it shows, so an operation's patch body links to the patch table, never to one marking required what
-the patch relaxes. An anonymous model another composes in place is no table of its own: its members
-are rows of the composing model's table, anchored there, so no member is anchored twice.
+A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
+them as a required row typed as the catch-all types it, with no anchor since it has no `PropID`, and
+anchors a member only where the model declaring it is rendered; another table holding it, a
+subtype's for an inherited member, links there. A model rendered as several tables anchors each
+member in the first of them, in `TypePlan.Shapes`' order, that holds it, and the others link there,
+since a route holds one anchor for each `PropID`. A member no table of its declaring model holds, as
+one of a base no shape reaches while a subtype's table holds it, is anchored in the first table, in
+the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an anchor of
+its own, its model's anchor joined to its shape's name, so two tables on one page never share one
+and a switcher reaches it in another version from the page `Routes` gives; the collision check reads
+the anchors within a page too, and a link to the model names the shape it shows, so an operation's
+patch body links to the patch table, never to one marking required what the patch relaxes. An
+anonymous model another composes in place is no table of its own: its members are rows of the
+composing model's table, anchored there, so no member is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -103,28 +106,35 @@ would show a Smithy model's `<p>` and `<code>` on every page. So pages and agent
 ([below](#documents-for-agents)) render it through an allowlist: `p`, `br`, `b`, `strong`, `i`,
 `em`, `code`, `pre`, `ul`, `ol`, `li`, `blockquote`, `sub`, `sup`, `table`, `thead`, `tbody`, `tr`,
 `th`, `td`, `dl`, `dt`, `dd`, `h1` to `h6` and `hr` with no attribute, `a` with an `href` and `img`
-with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, read
-token by token against a stack of its own: a listed start tag opens an element, `br`, `hr` and `img`
-opening none, a listed end tag closes the element on top when it matches, and every other token is
-written as text from its source bytes, so an end tag the description never opened, such as a stray
-`</td>`, renders as text rather than closing the page's own table, a placeholder such as `<key>`
-keeps its place, and what is still open closes where the description ends. A tag that opens only
-inside a parent, `tr`, `td`, `th`, `thead`, `tbody`, `li`, `dt` or `dd`, opens only with that parent
-on top of the description's stack, and otherwise renders as text, so a description in a schema
-table's cell cannot add a cell, a row or an item to the page's own table or list. An HTML parser's
-fragment mode is no substitute: it drops a stray end tag and turns `<key>` into an element holding
-the rest of the text. Any other tag, attribute or comment renders as text, a custom element such as
-`<note>` among them. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45
-raw HTML tags by CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which
-renders as a line break, one an `<img>`, which renders as text since the rule below refuses its
-`cid:` source, and 33 placeholders such as `<key>` and `<uuid>`, which no list names, so a
-placeholder stays visible where a browser handed it would parse it as an element and drop it. A
-summary, a name or any other spec string that is not CommonMark is escaped as text.
+with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, read,
+its inline raw HTML and its HTML blocks alike, by an HTML tokenizer, one that splits tags from text
+without building a tree, as `x/net/html`'s `Tokenizer` does, against a stack of its own. A text
+token is decoded and written escaped. A listed start tag opens an element, `br`, `hr` and `img`
+opening none, written with its listed attributes decoded, checked and escaped; a listed end tag
+closes the element on top when it matches; and a `p`, `li`, `dt`, `dd`, `tr`, `td` or `th` on top
+closes when a sibling opens or its parent closes, as HTML closes them. Every other token, a tag, an
+end tag or a comment, is written escaped from its raw bytes, so a stray `</td>` renders as text
+rather than closing the page's own table, a placeholder such as `<key>` keeps its place, and what is
+still open closes where the description ends. A refused `a` is its text, both its tags dropped, and
+a refused `img` its `alt`, else its tag as text. A tag that opens only inside a parent, `tr`, `td`,
+`th`, `thead`, `tbody`, `li`, `dt` or `dd`, opens only with that parent on top of the description's
+stack, and otherwise renders as text, so a description in a schema table's cell cannot add a cell, a
+row or an item to the page's own table or list. An HTML parser's tree-building fragment mode is no
+substitute: it drops a stray end tag and turns `<key>` into an element holding the rest of the text.
+Any other tag, attribute or comment renders as text, a custom element such as `<note>` among them.
+On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
+CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a line
+break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source, and 33
+placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays visible where
+a browser handed it would parse it as an element and drop it. A summary, a name or any other spec
+string that is not CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
-way: a `javascript:` destination runs when it is followed. So a page or an agent document writes a
-destination only where it is absolute under `http`, `https` or `mailto`, or a relative path in a
+way: a `javascript:` destination runs when it is followed. A destination is checked once its
+character references are decoded, by HTML's rules in an attribute and CommonMark's in a link, so
+`&#106;avascript:` is refused too, and written escaped again. So a page or an agent document writes
+a destination only where it is absolute under `http`, `https` or `mailto`, or a relative path in a
 description, which points into the site the author wrote for and is resolved against the base the
 docs options give that site, as OpenAPI resolves a description's links in the context they are
 rendered in. A fragment alone names a place on one of that site's pages, which no base names, and a
@@ -206,22 +216,23 @@ a way to show one entity across API versions. Each is decided by data, never by 
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
-  no table, though the collision check reads it. A switcher lists the labels `Routes` keys, in the
-  order `Document.Versions` gives them, never one no snapshot was made for. A run finds its own
-  entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also the
-  version its switcher marks current: nothing in a snapshot's document says which version it is. The
-  engine cannot plan the routes itself, since the catalog and the templates are the target's. A run
-  plans its own routes by the same pure function, so its pages agree with its snapshot's entry. A
-  table holds each entity's page and anchor from the output root, its snapshot's directory included,
-  which is what a switcher links. What spans versions, the site-scope `llms.txt` linking each
-  version's and an index of the versions, is written once, by the run of the last of the labels
-  `Routes` keys in `Document.Versions` order, which every snapshot keeps whole (architecture.md
-  §2.2), since every run holds the labels and tables it is built from; those pages sit at the output
-  root and belong to the one generation, so they keep their place when another label becomes last,
-  and the collision check reads them against every label's directory, so a template putting one
-  under a label's name is refused. The `""` snapshot's run writes the site scope, which is then its
-  version's too, as one index. A link to an entity a version lacks resolves to that version's page
-  saying so. Slugs may differ between versions; IDs do not.
+  no table, though the collision check reads it. A label is percent-encoded where a link writes it,
+  since a `#`, `?` or `%` in it would otherwise end or alter the URL. A switcher lists the labels
+  `Routes` keys, in the order `Document.Versions` gives them, never one no snapshot was made for. A
+  run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed,
+  which is also the version its switcher marks current: nothing in a snapshot's document says which
+  version it is. The engine cannot plan the routes itself, since the catalog and the templates are
+  the target's. A run plans its own routes by the same pure function, so its pages agree with its
+  snapshot's entry. A table holds each entity's page and anchor from the output root, its snapshot's
+  directory included, which is what a switcher links. What spans versions, the site-scope `llms.txt`
+  linking each version's and an index of the versions, is written once, by the run of the last of
+  the labels `Routes` keys in `Document.Versions` order, which every snapshot keeps whole
+  (architecture.md §2.2), since every run holds the labels and tables it is built from; those pages
+  sit at the output root and belong to the one generation, so they keep their place when another
+  label becomes last, and the collision check reads them against every label's directory, so a
+  template putting one under a label's name is refused. The `""` snapshot's run writes the site
+  scope, which is then its version's too, as one index. A link to an entity a version lacks resolves
+  to that version's page saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -300,22 +311,24 @@ member and operation:
   through settles that: a value no shape could make valid, such as one its enum does not list, is
   refused, an enum the document leaves open (`Enum.Closed` false) admitting a value it does not
   list. Shown through a shape, an example drops the members that shape does not hold and takes, for
-  each member the shape requires and the example lacks, that member's own first value, which marks
-  what is shown `Inferred`. So a response-form example serves a create shape, a patch body's may
-  leave out a required member, and no shape is left without one. A union value several variants
-  admit is shown as the first of them, in source order. `plan.Shown` does this, the one projection
-  every consumer reads an example through, and reports an example it cannot complete, a required
-  member's set being empty, so the consumer takes the set's next one, or reports as an empty set
-  does when none is left. One they refuse is reported as a warning `emitters/plan/example-refused`
-  and left out, so every consumer falls to the next set alike: an SDK's test sending it would be
-  refused by the mock, as by the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a
-  declared example fails its own type in at least 295 types: in 292 no member of the enum, each
-  closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it is longer than `maxLength`.
-  One declaring none that adds no constraint to its type's takes its type's set, so a property shows
-  the value its type does, save an enum member, which takes its own value. A position whose type is
-  a decorator takes its own examples, else the nearest decorator's along the chain, as
-  `CollapseAliases` folds them, else, where it adds no constraint, the set of the type its `Alias`
-  names.
+  each member the shape requires and the example lacks, that member's own first value, an
+  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and labels
+  it generated, its declared members kept as written. So a response-form example serves a create
+  shape, a patch body's may leave out a required member, and no shape is left without one. A union
+  value several variants admit is refused where the union is `TypePlan.Strict`, which decodes it as
+  no variant, and elsewhere shown as the first of them, in source order. `plan.Shown` does this, the
+  one projection every consumer reads an example through, and reports an example it cannot complete,
+  a required member's set being empty, so the consumer takes the set's next one, or reports as an
+  empty set does when none is left. One they refuse is reported as a warning
+  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
+  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
+  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
+  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
+  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
+  type's set, so a property shows the value its type does, save an enum member, which takes its own
+  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
+  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
+  the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather
@@ -343,19 +356,19 @@ member and operation:
   651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model
-  synthesized holds, for each member, the first value of that member's own set, and a list or map,
-  for its k-th item or entry, the k-th, its set's values taken in turn and, once they run out,
-  synthesized values seeded by index, so items differ where `uniqueItems` or a map's keys require
-  it, a map's keys being distinct values of its key type; a `uniqueItems` list holds no more items
-  than distinct values exist, and one left below its minimum is unsynthesizable. Each such value is
-  a declared one whole, or a synthesized one cut to the depth the bound leaves, so a property's
-  value is the same alone and inside its model wherever the bound leaves it whole, and an optional
-  recursive member ends. The bounds cut only what validity leaves optional ([plan
-  policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of
-  a list or map past the larger of `MaxItems` and its minimum, or past its minimum alone once it
-  lies deeper than `MaxDepth`, so a required list of its own model ends: the golden spec's
-  `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past that
-  depth. A required member is filled as deep as its schema requires, one whose reference is
+  synthesized holds, for each member, an `Undeclared` name among them, the first value of that
+  member's own set, and a list or map, for its k-th item or entry, the k-th, its set's values taken
+  in turn and, once they run out, synthesized values seeded by index, so items differ where
+  `uniqueItems` or a map's keys require it, a map's keys being distinct values of its key type; a
+  `uniqueItems` list holds no more items than distinct values exist, and one left below its minimum
+  is unsynthesizable. Each such value is a declared one whole, or a synthesized one cut to the depth
+  the bound leaves, so a property's value is the same alone and inside its model wherever the bound
+  leaves it whole, and an optional recursive member ends. The bounds cut only what validity leaves
+  optional ([plan policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and
+  the entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
+  alone once it lies deeper than `MaxDepth`, so a required list of its own model ends: the golden
+  spec's `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past
+  that depth. A required member is filled as deep as its schema requires, one whose reference is
   `Nullable` ending a cycle with `null`, and a `minItems` above `MaxItems` is met: on the golden
   spec 245 models reach a model four or more deep through their own required, non-null members
   alone, and one list requires four items, which the default bounds would otherwise leave without an
@@ -367,11 +380,11 @@ member and operation:
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
   ID where no key identifies it, save on a recurrence of its type along the value or deeper than
   `MaxDepth`, where it takes the first variant or member, in source order, from which a value ends.
-  So a required recursive union ends: two of the golden spec's unions, such as
-  `cloudforce-one_EmailRuleCondition`, reach themselves through a variant requiring a list of them.
-  So a value is the same in either declaration order, and on every regeneration until the entity's
-  schema, its key, or its ID where it seeds from one, the example policy,
-  `irfacts.CorrelationVersion` or the synthesizer's code changes.
+  So a required recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches
+  itself through a variant requiring a non-empty list of it. So a value is the same in either
+  declaration order, and on every regeneration until the entity's schema, its key, or its ID where
+  it seeds from one, the example policy, `irfacts.CorrelationVersion` or the synthesizer's code
+  changes.
 - **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
   synthesizes its own.
 
@@ -392,10 +405,12 @@ keys setting one member and for layers. Its default mapping is empty, since each
 spelling. The docs emitter decodes the `Extra` members it defines strictly, reporting a wrong shape
 as a warning `emitters/docs/extra-invalid` and coercing nothing. A key held for a tag, as a display
 name is, configures nothing until the IR carries a tag where it lowers (#1221). A code sample a
-document declares is shown as authored beside the samples the SDK emitters return. An internal
-marker is the filter pass's to read (architecture.md §2.2), never the docs emitter's: hiding an
-operation in the docs alone would document an SDK different from the one generated. A search index
-over the pages, keyed by ID, is an optional artifact of the same emitter.
+document declares is shown as authored beside the samples the SDK emitters return, its language kept
+as the fence's info string only where it is one word of letters, digits, `+`, `-`, `#` or `.`, so no
+value reopens the code as Markdown. An internal marker is the filter pass's to read (architecture.md
+§2.2), never the docs emitter's: hiding an operation in the docs alone would document an SDK
+different from the one generated. A search index over the pages, keyed by ID, is an optional
+artifact of the same emitter.
 
 ## A command-line target
 
@@ -409,7 +424,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | A confirmation before a destructive call | the `Destructive` hint, which no method implies |
 | Streamed output for a list | `OpPlan.Page` |
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
-| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID` |
+| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all |
 | Flags that exclude or require each other | the branches of a request body's `Union` |
 | A flag whose value is never echoed | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
