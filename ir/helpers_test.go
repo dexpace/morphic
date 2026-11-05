@@ -526,6 +526,9 @@ func flatLines(f ir.Flattening) []string {
 		if fp.Required {
 			line += " required"
 		}
+		if fp.Secret {
+			line += " secret"
+		}
 		out = append(out, line)
 	}
 	return out

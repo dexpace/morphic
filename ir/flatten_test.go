@@ -293,6 +293,83 @@ func TestFlattenedProperties_Required(t *testing.T) {
 	}
 }
 
+// typed is wired, of the type target.
+func typed(id ir.PropID, wire string, target ir.TypeID) ir.Property {
+	p := wired(id, wire)
+	p.Type = ir.TypeRef{Target: target}
+	return p
+}
+
+// redacted is wired, Secret.
+func redacted(id ir.PropID, wire string) ir.Property {
+	p := wired(id, wire)
+	p.Secret = true
+	return p
+}
+
+// sensitiveScalar is a scalar over base, Sensitive when sensitive says so.
+func sensitiveScalar(id, base ir.TypeID, sensitive bool) *ir.Scalar {
+	s := irtest.ScalarOf(id, base)
+	s.Sensitive = sensitive
+	return s
+}
+
+func TestFlattenedProperties_Secret(t *testing.T) {
+	t.Parallel()
+	var typedNil *ir.Model
+	cases := []struct {
+		name string
+		doc  *ir.Document
+		want []string
+	}{
+		{
+			name: "a redaction an overridden declaration asks for still holds",
+			doc: irtest.DocOf(
+				owning("m", based("b"), wired("m.id", "id")),
+				owning("b", nil, redacted("b.id", "id")),
+			),
+			want: []string{"m.id@m < b.id@b secret"},
+		},
+		{
+			name: "a declaration whose type is sensitive asks for redaction",
+			doc: irtest.DocOf(
+				owning("m", mixing("a", "b")),
+				owning("a", nil, typed("a.tok", "tok", "pw")),
+				owning("b", nil, typed("b.tok", "tok", "t/prim/string")),
+				sensitiveScalar("pw", "t/prim/string", true),
+			),
+			want: []string{"b.tok@b < a.tok@a secret"},
+		},
+		{
+			name: "sensitivity is shared by every type whose Base reaches it",
+			doc: irtest.DocOf(
+				owning("m", nil, typed("m.s", "s", "s1"), typed("m.sub", "sub", "sub")),
+				sensitiveScalar("s1", "s0", false), sensitiveScalar("s0", "t/prim/string", true),
+				owning("sub", based("sup")), irtest.ModelOf("sup", func(m *ir.Model) { m.Sensitive = true }),
+			),
+			want: []string{"m.s@m secret", "m.sub@m secret"},
+		},
+		{
+			name: "a type nothing sensitive reaches, or the registry lacks, asks for none",
+			doc: irtest.DocOf(
+				owning("m", nil, typed("m.c", "c", "c1"), typed("m.l", "l", "list"),
+					typed("m.gone", "gone", "missing"), typed("m.nil", "nil", "nil")),
+				sensitiveScalar("c1", "c2", false), sensitiveScalar("c2", "c1", false),
+				&ir.List{ID: "list", Elem: ir.TypeRef{Target: "pw"}},
+				sensitiveScalar("pw", "t/prim/string", true),
+			),
+			want: []string{"m.c@m", "m.l@m", "m.gone@m", "m.nil@m"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.doc.Types["nil"] = typedNil
+			assert.Equal(t, tc.want, flatLines(ir.FlattenedProperties(tc.doc.Types, "m")))
+		})
+	}
+}
+
 func TestFlattenedProperties_ReadsThroughAliasScalars(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
