@@ -45,13 +45,14 @@ type EmitterInput struct {
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
     Snapshot string               // the label Document.Versions gives the snapshot Doc is; "" for
-                                  // a document stating none (../docs-and-mock.md#routes-and-links)
+                                  // one no pass sliced by version, a document stating none among
+                                  // them (../docs-and-mock.md#routes-and-links)
     Samples map[TargetKey]map[ir.OpID][]Sample // the usage samples of each target a docs
                                   // target's options name
                                   // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Routes  map[string]RouteTable // every version snapshot's routes, keyed by the label
-                                  // Document.Versions gives it, "" for a document stating
-                                  // none, for a target whose Capabilities.CrossVersion is set
+                                  // Document.Versions gives it, "" for one no pass sliced,
+                                  // for a target whose Capabilities.CrossVersion is set
                                   // (../docs-and-mock.md#routes-and-links)
     Options TargetOptions         // the target's own typed options, decoded and validated before
                                   // Generate runs, its type table and naming tables among them

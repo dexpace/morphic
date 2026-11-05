@@ -29,6 +29,13 @@ type Example struct {
     Inferred bool                       // made under Policy.Examples, synthesized or assembled;
                                         // false = declared as it stands
 }
+
+// The sets of the positions Examples has no key for: a content's, a variant's and a message's
+// declared examples, checked as Build checks the others, else their type's set, a message's
+// those of its payload's contents (../docs-and-mock.md#one-set-of-examples).
+func ContentExamples(p *Plan, doc *ir.Document, c *ir.Content) []Example
+func VariantExamples(p *Plan, doc *ir.Document, v *ir.Variant) []Example
+func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen

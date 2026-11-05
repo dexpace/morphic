@@ -365,44 +365,50 @@ throughout these documents.
     3.1 `$ref` render alike; a recursive type is linked by its ID and never inlined, and an entity
     left without a route is a coded diagnostic. Two slugs colliding in one template's scope are told
     apart by ID, also when they differ only by letter case, and two entities resolving to one URL
-    are an error naming both, also when the URL templates are changed; every link and `Docs.Refs`
-    span resolves through the route plan; a version switcher links one entity across snapshots, from
-    the tables `Router` returns, marks the run's `Snapshot` current, and an entity a version lacks
-    to that version's page saying so; two snapshots' pages of one entity lie under their labels'
-    directories, neither run overwriting or pruning the other's, each with its manifest in its
-    directory, the `""` snapshot written at the root and two labels whose slugs collide refused;
-    only the last label's run writes the site-scope `llms.txt`, recorded in the target's manifest at
-    the root, which keeps those files when another label becomes last, and a label no longer listed
-    has its directory pruned; and the registry refuses a target setting `CrossVersion` without
-    implementing `Router`. Agent documents and `llms.txt` share the pages' URLs, escape spec text,
-    mark an operation safe or idempotent from `OpPlan.Effects`, and warn of destruction only where
-    the `Destructive` hint is set. A sample comes from each SDK target, for each operation it emits,
-    in each language its callers write, Kotlin and Swift from a Multiplatform one, a missing one a
-    diagnostic of that target's, and a target whose generation writes nothing still returns its
-    samples; a sample's values are the `Input` of its operation's first declared success scenario,
-    one ending in no `Error`, a bodiless one among them; a docs target run alone shows the samples
-    of the targets its options name, which the engine runs for it, and a named target the registry
-    lacks or that reads samples is an error in the options; and a docs generation whose samples,
-    routes or snapshot label changed, its own inputs unchanged, is a new generation ([docs and
-    mocks](../docs-and-mock.md)).
+    are an error naming both, also when the URL templates are changed; every link, one to a page no
+    entity owns among them, and every `Docs.Refs` span resolves through the route plan; a version
+    switcher links one entity across snapshots, from the tables `Router` returns, marks the run's
+    `Snapshot` current, and an entity a version lacks to that version's page saying so; two
+    snapshots' pages of one entity lie under their labels' directories, neither run overwriting or
+    pruning the other's, all of them one generation whose manifest holds each run's under its label,
+    a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and
+    two labels whose slugs collide refused; only the last label's run writes the site-scope
+    `llms.txt`, neither pruned nor taken for an edit when another label becomes last, and the `""`
+    snapshot's run writes one index for its site and version; and the registry refuses a target
+    setting `CrossVersion` without implementing `Router`. Agent documents and `llms.txt` share the
+    pages' URLs, escape spec text, mark an operation safe or idempotent from `OpPlan.Effects`, and
+    warn of destruction only where the `Destructive` hint is set. The docs target decodes the
+    `Extra` members it defines strictly, reporting a wrong shape and coercing nothing, and shows a
+    code sample the document declares as authored beside the SDK targets' samples. A sample comes
+    from each SDK target, for each operation it emits, in each language its callers write, Kotlin
+    and Swift from a Multiplatform one, a missing one a diagnostic of that target's, and a target
+    whose generation writes nothing still returns its samples; a sample's values are the `Input` of
+    its operation's first declared success scenario, one ending in no `Error`, a bodiless one among
+    them; a docs target run alone shows the samples of the targets its options name, which the
+    engine runs for it with the options, prior manifest and `Scope` each would run with, writing
+    none of their artifacts the run does not name and running one the run does name once, and a
+    named target the registry lacks or that reads samples is an error in the options; and a docs
+    generation whose samples, routes or snapshot label changed, its own inputs unchanged, is a new
+    generation ([docs and mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored,
-    and one its position's type or constraints refuse is reported and left out everywhere; a
-    property or a parameter declaring none and adding no constraint takes its type's set, an
-    operation declaring no success scenario one assembled from its required inputs' sets, its
-    optional inputs' declared ones and its return content's, after those it declares, always
-    `Inferred` and none with `Assemble` off, a position whose type is a decorator its own examples,
-    else the nearest decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a
-    variant's or a message's set is its own declared examples, else its type's, which the docs, the
-    samples and the mock read a body's examples from. Where none applies, the value synthesized is
-    valid against its constraints, marked `Inferred`, identical across regenerations and in both
-    declaration orders, seeded from its ID where no correlation key identifies it, and the same in
-    the docs, the samples, an SDK's tests and the mock. A synthesized model holds each member's own
-    first value, a declared one whole and a synthesized one cut to the depth the bound leaves, so an
-    optional recursive member ends; the bounds cut only optional members and the entries of a list
-    or map past its minimum, so a required member nested deeper than `MaxDepth` and a `minItems` or
-    `minProps` above `MaxItems` are met; one the synthesizer cannot make valid, a required cycle
-    among them, or holding more than `plan.MaxExampleValues` values is reported and left out; with
-    `Synthesize` and `Assemble` off, no example is `Inferred`, and with `Synthesize` off a response
-    content left with none is a diagnostic of the mock's, never a body it invents; and a negative
-    bound is `emitters/plan/policy-invalid` ([one set of
+    and one its position's type or constraints refuse is reported and left out everywhere, an open
+    enum admitting a value it does not list; a property or a parameter declaring none and adding no
+    constraint takes its type's set, an operation declaring no success scenario one assembled from
+    its required inputs' sets, its optional inputs' declared ones and its return content's, after
+    those it declares, always `Inferred`, its `Input` keyed by `ParamID` with the body under `body`,
+    and none with `Assemble` off, a position whose type is a decorator its own examples, else the
+    nearest decorator's, else, adding no constraint, its `Alias`'s set, and a content's, a variant's
+    or a message's set, read through its one plan function alone, is its own declared examples, else
+    its type's, which the docs, the samples and the mock read a body's examples from. Where none
+    applies, the value synthesized is valid against its constraints, marked `Inferred`, identical
+    across regenerations and in both declaration orders, seeded from its ID where no correlation key
+    identifies it, and the same in the docs, the samples, an SDK's tests and the mock. A synthesized
+    model holds each member's own first value, a declared one whole and a synthesized one cut to the
+    depth the bound leaves, so an optional recursive member ends; the bounds cut only optional
+    members and the entries of a list or map past its minimum, so a required member nested deeper
+    than `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer
+    cannot make valid, a required cycle among them, or holding more than `plan.MaxExampleValues`
+    values is reported and left out; with `Synthesize` and `Assemble` off, no example is `Inferred`,
+    and with `Synthesize` off a response content left with none is a diagnostic of the mock's, never
+    a body it invents; and a negative bound is `emitters/plan/policy-invalid` ([one set of
     examples](../docs-and-mock.md#one-set-of-examples)).
