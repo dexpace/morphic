@@ -584,7 +584,7 @@ morphic/
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
-├── internal/archtest/      #           Layering, the recursion pin, reachability and the caps (tooling).
+├── internal/archtest/      #           Layering, the recursion pin, reachability, call shape, caps (tooling).
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
@@ -633,6 +633,14 @@ Dependency rules, enforced by an architecture test as in oagen:
   The rule is in place before the first emitter package: `emitters` is ruled now, and each package
   beneath it carries an entry of its own, as a compiler's packages do.
 - `engine` imports everything below it; `cmd` imports `engine`.
+
+The import rules bound what a package names, not where control goes: a package can still call into
+one it does not import, through a function, an interface or a type argument handed to it.
+`internal/archtest` counts those calls for each pair of packages and holds them to
+`callShapeBaseline`, where each pair says what its calls are: a designed seam such as the registry
+calling a compiler, a traversal or immediate callback, a function #1488 keeps, such as I/O or a
+policy, or one that #1488 removes. A new such call is a change to that table, made on purpose,
+rather than one no check sees.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI
@@ -715,9 +723,11 @@ something a caller asks for with `none`, never a default.
   pointer collisions the compiler has had were invisible to a single-order suite.
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
-  set that grows is noticed rather than measured), the method-per-type cap, and that no function is
+  set that grows is noticed rather than measured), the method-per-type cap, that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
-  come.
+  come, and how many calls each package makes into one it does not import, through a function, an
+  interface or a type argument handed to it, held to a baseline that rises only for a call of a kind
+  it keeps, such as a traversal callback.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
