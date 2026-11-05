@@ -36,7 +36,7 @@ No release is tagged yet (#432), so the version a consumer can name is a commit,
 as a pseudo-version (`go get github.com/dexpace/morphic@<commit>`). What a stored document can be
 read by is the generation it is stamped with, not the commit that wrote it: `IRVersion` moves with
 every change to the document's shape, to the meaning of a member, to how a name is derived and to
-the `Unmodeled` keys a compiler writes ([IR version](./ir-version.md)), and a build reads only its
+the `Unmodeled` keys a compiler spells ([IR version](./ir-version.md)), and a build reads only its
 own generation. So a consumer storing documents records the stamp each was written at, keeps the
 source each was compiled from, and recompiles that source when it moves to a build of another
 generation, which refuses the old document rather than reading it. Morphic ships no migration

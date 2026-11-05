@@ -109,7 +109,7 @@ An entity named for itself takes a key of its own:
 | Entity | Key |
 |---|---|
 | operation, other than a callback | its method and route, each path variable written `{}`, a webhook's event name standing for the route; one no HTTP binding places, or that shares its route with another operation, its declared name (`Naming.Source`, an OpenAPI `operationId`) |
-| named type | its declared namespace (`TypeCommon.Namespace`), then `type:` and its declared name; a primitive, its kind |
+| named type | its declared namespace (`TypeCommon.Namespace`) and its declared name; a primitive, its kind |
 | service, auth scheme | its declared name |
 | group | its ID, which a rule mints from a name and never from a position ([groups](./identity.md#operation-groups)) |
 

@@ -68,11 +68,12 @@ own. An entity with no correlation key, or whose
 entry has none, has no prior entry, so rule 2 names it as on a first generation and nothing that
 follows an entity by its prior entry follows it: its ID alone is what #678 shows can name another
 entity, and two keyless entities would otherwise be taken for one. Taking two revisions' entities
-for one because their keys agree is inferred, not declared, so a run can turn it off (INV6). Every
-generation is then named as a first one, and the engine reports that once as a warning where a
-prior manifest is given, since names it shipped may change. A prior manifest whose `Keys` is not
-the running build's `irfacts.CorrelationVersion` is read the same way, its keys coming from another
-derivation and agreeing with none ([correlation keys](../../ir/derived-facts.md#correlation-keys)).
+for one because their keys agree is inferred, not declared, so the engine takes an option turning it
+off (INV6). Every generation is then named as a first one, and the engine reports that once as a
+warning where a prior manifest is given, since names it shipped may change. A prior manifest whose
+`Keys` is not the running build's `irfacts.CorrelationVersion` is read the same way, its keys
+coming from another derivation and agreeing with none ([correlation
+keys](../../ir/derived-facts.md#correlation-keys)).
 
 1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
    correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
