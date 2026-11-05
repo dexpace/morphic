@@ -391,7 +391,7 @@ type Document struct {
 // Table is every schema reference a source holds, where each lands and where
 // its chain ends, the loops among them, and what the reading cost. It is built
 // once, and no answer it gives changes after: only its base lookups write, to
-// remember the walks they make (bases).
+// remember the walks they make (bases), so one is not safe for concurrent use.
 type Table struct {
 	entries   map[Position]Entry
 	roots     map[Position]state
