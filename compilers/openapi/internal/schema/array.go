@@ -84,8 +84,7 @@ func itemsSchema(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 // (bind.Landing). An absent additionalItems leaves every element past them
 // unconstrained, as `true` does, and `false` admits none. An entry or rest
 // written as a number, a string or a list lowers as `false` does, and a `null`
-// as one left out; nothing reports either unless a $ref reaches it (GitHub
-// #1466).
+// as one left out, as 2020-12's are, which the load phase reports.
 func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	elems := make([]ir.TypeRef, 0, n)

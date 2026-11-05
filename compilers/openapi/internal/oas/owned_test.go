@@ -123,3 +123,53 @@ func TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect(t *testing.T) {
 		assert.Equal(t, tc.refused, bad, "%s %q in %q", tc.field, tc.name, tc.dialect)
 	}
 }
+
+// TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList pins the
+// `additionalItems` beside an `items` list, which a dialect reading the list
+// as a tuple reads as its rest: one no schema spells is an error at it, a null
+// a warning that it is read as left out, as a null field is, and a schema, a
+// boolean, an alias to one or none written draw nothing. A dialect reading no
+// tuple there judges none, and a value of another field is no list.
+func TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList(t *testing.T) {
+	for _, tc := range []struct {
+		rest    string
+		dialect string
+		want    ir.Severity
+	}{
+		{", additionalItems: 5", draft07, ir.SeverityError},
+		{", additionalItems: [{}]", draft04, ir.SeverityError},
+		{", additionalItems: 'x'", draft2019, ir.SeverityError},
+		{", additionalItems: null", draft06, ir.SeverityWarning},
+		{", additionalItems: {type: string}", draft07, ""},
+		{", additionalItems: false", draft07, ""},
+		{", additionalItems: *f", draft07, ""},
+		{"", draft07, ""},
+		{", additionalItems: 5", draft2020, ""},
+		{", additionalItems: 5", "", ""},
+	} {
+		var n yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\nx-f: &f false\n"+
+			"components:\n  schemas:\n    S: {items: [{}]"+tc.rest+"}\n"), &n))
+		var owned []oas.Owned
+		oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{
+			Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
+			Owned:  func(o oas.Owned) { owned = append(owned, o) },
+		})
+		require.Len(t, owned, 1, tc.rest)
+		d, bad := rulesOf("3.1.0", tc.dialect).TupleRestFinding(owned[0])
+		require.Equal(t, tc.want != "", bad, "%s in %q", tc.rest, tc.dialect)
+		if bad {
+			assert.Equal(t, tc.want, d.Severity, tc.rest)
+			assert.Equal(t, "openapi/validation/validation-type-mismatch", d.Code)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/S/additionalItems"), d.Provenance.Pointer)
+		}
+	}
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
+		"    S: {items: {}, additionalItems: 5, minimum: 1}\n"), &n))
+	var owned []oas.Owned
+	oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{Owned: func(o oas.Owned) { owned = append(owned, o) }})
+	require.Len(t, owned, 1)
+	_, bad := rulesOf("3.1.0", draft07).TupleRestFinding(owned[0])
+	assert.False(t, bad, "a minimum is no items list")
+}

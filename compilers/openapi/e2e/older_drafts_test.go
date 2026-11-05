@@ -70,6 +70,46 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 	}
 }
 
+// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
+// whose entries or rest no schema spells, which no $ref reaches, against its
+// twin written with 2020-12's prefixItems: an entry of 5 or null is an error at
+// it, a rest of 5 an error and of null a warning that it is read as left out,
+// each of its twin's code and severity, and the tuple lowers as its twin does.
+func TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs(t *testing.T) {
+	t.Parallel()
+	for _, rest := range []string{"5", "null"} {
+		t.Run(rest, func(t *testing.T) {
+			t.Parallel()
+			const at = "/components/schemas/T/"
+			read := func(src, list, restKey string) (map[string]ir.Severity, []bool) {
+				doc, diags := parseFull(t, openapitest.ComponentSpec("    T: {"+src+"}\n"))
+				said := map[string]ir.Severity{}
+				for _, d := range diags {
+					if d.Code == diag.Validation+"/validation-type-mismatch" {
+						p := strings.NewReplacer(at+list+"/", "entry ", at+restKey, "rest").Replace(string(d.Provenance.Pointer))
+						said[p] = d.Severity
+					}
+				}
+				tp, ok := doc.Types[componentID("T")].(*ir.Tuple)
+				require.True(t, ok, src)
+				var open []bool
+				for _, e := range tp.Elems {
+					open = append(open, e.Target == "t/prim/any")
+				}
+				return said, append(open, tp.Rest != nil && tp.Rest.Target == "t/prim/any")
+			}
+			draftSaid, draftOpen := read("$schema: "+draft07+", type: array, items: [5, null, {}], additionalItems: "+rest,
+				"items", "additionalItems")
+			twinSaid, twinOpen := read("$schema: "+draft2020+", type: array, prefixItems: [5, null, {}], items: "+rest,
+				"prefixItems", "items")
+			assert.Equal(t, twinSaid, draftSaid)
+			assert.Equal(t, twinOpen, draftOpen)
+			assert.Equal(t, ir.SeverityError, draftSaid["entry 0"], "a number is no schema")
+			assert.Contains(t, draftSaid, "rest")
+		})
+	}
+}
+
 // TestOlderDrafts_DependenciesAreValidationOnly pins `dependencies` in each
 // draft that defines it, 4, 6 and 7, kept as a validation-only keyword, and in
 // 2019-09 and 2020-12, which split it, as an unknown keyword.

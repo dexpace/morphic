@@ -34,8 +34,12 @@ func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	formatted := fld.FormatOwner != "" && ok && node.Kind == yaml.ScalarNode && node.Value != ""
 	owned := listed || shaped || formatted
 	if owned && w.owned != nil {
-		w.owned(Owned{Field: fld.Name, Value: node, Schema: w.rootAt + f.at.ptr, at: ptr, locate: w.locate,
-			rootAt: w.rootAt, readAt: w.readAt})
+		o := Owned{Field: fld.Name, Value: node, Schema: w.rootAt + f.at.ptr, at: ptr, locate: w.locate,
+			rootAt: w.rootAt, readAt: w.readAt}
+		if listed {
+			o.rest = f.byKey["additionalItems"]
+		}
+		w.owned(o)
 	}
 	if !ok {
 		if !owned {

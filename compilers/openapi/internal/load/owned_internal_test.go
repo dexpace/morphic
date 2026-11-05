@@ -39,9 +39,9 @@ func ownedOf(t *testing.T, schemas string) []oas.Owned {
 // TestOwnedFinding_JudgesEachValueInItsSchemasDialect pins the judgement of
 // each value the check leaves to the load phase, read with the rows of the
 // dialect its schema is read in: a bound no decimal spells, an exclusive bound
-// in the other form, a list of items where the rows read no tuple, and an
-// identifier or anchor of another format than the rows give it, each an error
-// at the keyword;
+// in the other form, a list of items where the rows read no tuple, the rest
+// beside one where they read one, written as no schema, and an identifier or
+// anchor of another format than the rows give it, each an error at the keyword;
 // a sound value, or a field the phase judges nothing of, none.
 func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 	t.Parallel()
@@ -65,6 +65,8 @@ func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 		{"a boolean bound in draft 4", "{minimum: 1, exclusiveMaximum: false}", d4, ""},
 		{"a number bound in draft 4", "{exclusiveMinimum: 5}", d4, diag.ExclusiveBoundForm},
 		{"a list of items in draft 4", "{items: [{type: string}]}", d4, ""},
+		{"a tuple's rest no schema spells", "{items: [{}], additionalItems: 5}", d7, diag.Validation + "/validation-type-mismatch"},
+		{"a tuple's schema rest", "{items: [{}], additionalItems: {type: string}}", d7, ""},
 		{"a list of items in 2020-12", "{items: [{type: string}]}", own, diag.InvalidItemsList},
 		{"a fragment id in 2020-12", "{$id: '#leaf'}", own, diag.Validation + "/validation-invalid-format"},
 		{"a fragment id in draft 7", "{$id: '#leaf'}", d7, ""},

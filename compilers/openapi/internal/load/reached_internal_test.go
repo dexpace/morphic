@@ -201,11 +201,21 @@ func TestTargetOf(t *testing.T) {
 // validated, and where: one a $ref's chain reaches, at the least such $ref and
 // named by its document, in the source or not, placed in the document writing
 // that $ref, and read where it lands. One no $ref reaches, one that failed to
-// build and a boolean schema are none.
+// build and a boolean schema are none, but a value the parser read as false
+// though it is no schema is one, read as written, unless nothing is written
+// where it is or it is the rest of the tuple its site writes, which its
+// `items` judges.
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
 	place := func(p bind.Position) ir.Provenance { return ir.Provenance{Source: int(p.Doc) + 10, Pointer: p.Pointer} }
+	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
+	written := map[bind.Position]*yaml.Node{
+		{Pointer: "/x-lib/E"}:                         {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
+		{Pointer: "/x-lib/G"}:                         five,
+		{Pointer: "/x-lib/T/additionalItems"}:         five,
+		{Doc: 1, Pointer: "/x-lib/T/additionalItems"}: five,
+	}
 	got := builtTargets([]typed.Built{
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
 			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built},
@@ -216,9 +226,21 @@ func TestBuiltTargets(t *testing.T) {
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) })
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/G"}, Site: bind.Position{Pointer: "/g"}, Reached: true},
+			Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/H"}, Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
+			Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"},
+			Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true}, Schema: buildRaw(t, "false")},
+	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
+		func(p bind.Position) *yaml.Node { return written[p] })
 
-	require.Len(t, got, 3)
+	require.Len(t, got, 5)
+	assert.Equal(t, reachedTarget{site: "/g", kind: oas.Schema, node: five, inSource: true,
+		home: refSite{doc: "doc0.yaml", pointer: "/x-lib/G"}}, got[3], "a number is no schema, which the check reports")
+	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/x-lib/T/additionalItems"}, got[4].home,
+		"another document's position is no rest of the tuple its site writes")
 	assert.Equal(t, reachedTarget{site: "/s", kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
 		inSource: true, home: refSite{doc: "doc0.yaml", pointer: "/x-lib/A"}}, got[0])
 	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)

@@ -309,8 +309,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
   is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
-  admits it, and a schema only the draft places, such as a tuple's entry, is held to none where no
-  `$ref` reaches it (#1466).
+  admits it, and a keyword only the draft defines, or a `definitions` entry no `$ref` reaches, is
+  held to none (#1466).
 
 ### `minor-required-fields`
 
@@ -2413,7 +2413,12 @@ JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a lis
 ([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
 each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
 beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. Each entry is named as
-a `prefixItems` entry is, and the rest as an `items` schema is. A position that lowers to no
+a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
+is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
+such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
+at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
+`prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
+[`null-schema`](#null-schema) reads it. A position that lowers to no
 `Tuple`, such as one with no `type: array`, keeps the list as
 [`shape-applicator`](#shape-applicator) keeps `items`, and `additionalItems` verbatim with an info
 `openapi/unknown-schema-keyword`. In any other dialect a list of items is no schema: the load phase
@@ -2422,10 +2427,12 @@ check reads, and the lowering reads `items` as absent.
 
 - Cases: `tuples-prefixitems`, `schema-drafts`
 - Codes: `openapi/validation-only-keyword`, `openapi/invalid-items-list`,
-  `openapi/unknown-schema-keyword`
+  `openapi/unknown-schema-keyword`, `openapi/validation`
 - Tests: `schema.TestLower_TupleRest`, `e2e.TestOlderDrafts_AListOfItemsIsATuple`,
+  `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
   `bind.TestTuples_AListOfItemsHoldsSchemas`,
-  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`, `load.TestBuiltTargets`,
+  `oas.TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList`
 - Status: partly built: `items: true` and an absent `items` lower alike, though only the first makes
   an `unevaluatedItems` beside them inert, and that one is still kept as live (#862).
 
@@ -2848,10 +2855,9 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
   dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
-  [`tuples`](#tuples), [`references`](#references)), and holds a `definitions` entry, a tuple's
-  entry or its `additionalItems` to none where no `$ref` reaches it, so a tuple's entry or rest
-  written as a number, a string or a list, such as `additionalItems: 5`, lowers as `false` does, and
-  a `null` as one left out (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
+  [`tuples`](#tuples), [`references`](#references)), so a keyword only the draft defines, such as
+  `dependencies` or draft 4's `id`, is held to none, and holds a `definitions` entry no `$ref`
+  reaches to none (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
   2020-12 reads it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never
   expanded as its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self`
   roots a resource of its own, as the document is known by its location alone (#863).

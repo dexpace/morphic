@@ -24,6 +24,9 @@ type Owned struct {
 	at     jsontext.Pointer
 	locate Locator
 	rootAt jsontext.Pointer
+	// rest is the `additionalItems` beside an `items` list, nil for none,
+	// which a dialect reading the list as a tuple reads as its rest.
+	rest   *yaml.Node
 	readAt bool
 }
 
@@ -31,8 +34,13 @@ type Owned struct {
 // value as the check places a finding of its own, naming where o was read
 // where an alias or a merge key places it elsewhere (Options.ReadAt).
 func (o Owned) Finding(code, format string, args ...any) ir.Diagnostic {
-	d := diag.Newf(ir.SeverityError, code, o.locate(o.at), format, args...)
-	if read := o.rootAt + o.at; o.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
+	return o.findingAt(ir.SeverityError, o.at, code, format, args...)
+}
+
+// findingAt is Finding at the position at below the root, of severity sev.
+func (o Owned) findingAt(sev ir.Severity, at jsontext.Pointer, code, format string, args ...any) ir.Diagnostic {
+	d := diag.Newf(sev, code, o.locate(at), format, args...)
+	if read := o.rootAt + at; o.readAt && d.Provenance.Pointer != "" && d.Provenance.Pointer != read {
 		d.Message += readAtClause + string(read)
 	}
 	return d

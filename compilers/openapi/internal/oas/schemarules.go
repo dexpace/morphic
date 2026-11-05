@@ -7,7 +7,10 @@ import (
 	"slices"
 	"strings"
 
+	yaml "go.yaml.in/yaml/v3"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -134,6 +137,25 @@ func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
 	}
 	return o.Finding(diag.Validation+"/"+classFormat, "Schema Object field %q must be %s in this schema's dialect",
 		o.Field, describeFormat(f.Format)), true
+}
+
+// TupleRestFinding returns the finding about the `additionalItems` beside o,
+// an `items` list the rows read as a tuple, whose rest it is: a warning where
+// it is null, read as the field left out as a null field is, and an error
+// where it is no schema, as a number is. It is false where o is no such list,
+// or its rest is absent or a schema, which the check judges where it lands.
+func (r SchemaRules) TupleRestFinding(o Owned) (ir.Diagnostic, bool) {
+	rest := nodeview.Deref(o.rest)
+	tuple := o.Field == "items" && o.Value.Kind == yaml.SequenceNode && r.Takes("items", List)
+	if !tuple || rest == nil || rest.Kind == yaml.MappingNode || rest.Kind == yaml.ScalarNode && rest.ShortTag() == "!!bool" {
+		return ir.Diagnostic{}, false
+	}
+	at, code := o.at.Parent().AppendToken("additionalItems"), diag.Validation+"/"+classType
+	const want = "Schema Object field \"additionalItems\" must be a schema in this schema's dialect"
+	if isNull(rest) {
+		return o.findingAt(ir.SeverityWarning, at, code, want+"; it is null, which is read as the field left out"), true
+	}
+	return o.findingAt(ir.SeverityError, at, code, want), true
 }
 
 // formatField returns the row giving the field name its format: the dialect's,

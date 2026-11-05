@@ -89,7 +89,9 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 	checks := newReached(doc, opts, self.tree, self.judged)
 	checks.esc, checks.others, checks.dialects = self.escapes, b.others, dialects
 	table := b.bindings.Table()
-	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
+	view := nodeview.New()
+	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name },
+		func(p bind.Position) *yaml.Node { return writtenIn(view, table, p) })
 	for _, a := range away {
 		if t, ok := targetOf(a.site.pointer, a.r, checks.esc); ok {
 			t.siteDoc, t.place = a.site.doc, a.place
@@ -102,16 +104,26 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // builtTargets returns the targets the schemas built for landings make, each
 // placed at the least position whose chain reaches it, in whichever document
 // (place), as name names it. One no position reaches, which only a budget
-// cutting the reading leaves, is no target.
+// cutting the reading leaves, is no target, and nor is a boolean schema, which
+// holds nothing to check. A tuple's entry the parser read as false though what
+// is written there, which written returns, is no schema, such as a number, is
+// one, so the check reports it as it does a prefixItems entry; its rest is
+// judged beside its `items` instead (oas.SchemaRules.TupleRestFinding).
 func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, name func(bind.DocID) string,
+	written func(bind.Position) *yaml.Node,
 ) []reachedTarget {
 	var out []reachedTarget
 	for _, b := range built {
-		if b.Schema == nil || !b.Landing.Reached || b.Schema.GetSchema() == nil {
+		if b.Schema == nil || !b.Landing.Reached {
 			continue
 		}
-		node := nodeview.Deref(b.Schema.GetSchema().GetRootNode())
 		at := b.Landing.At
+		var node *yaml.Node
+		if s := b.Schema.GetSchema(); s != nil {
+			node = nodeview.Deref(s.GetRootNode())
+		} else if node = written(at); node == nil || isBoolean(node) || isTupleRest(b.Landing) {
+			continue
+		}
 		t := reachedTarget{site: b.Landing.Site.Pointer, kind: oas.Schema, node: node,
 			doc: b.Landing.Name, inSource: at.Doc == bind.Source, home: refSite{doc: name(at.Doc), pointer: at.Pointer}}
 		if site := b.Landing.Site; site.Doc != bind.Source {
@@ -121,6 +133,28 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 		out = append(out, t)
 	}
 	return out
+}
+
+// writtenIn returns the node the documents of table write at p, read through
+// view, and nil where none is there.
+func writtenIn(view *nodeview.View, table *bind.Table, p bind.Position) *yaml.Node {
+	path, complete := view.DocumentPath(table.Document(p.Doc).Root, p.Pointer)
+	if !complete || len(path) == 0 {
+		return nil
+	}
+	return nodeview.Deref(path[len(path)-1])
+}
+
+// isTupleRest reports whether l is the `additionalItems` of the tuple its site
+// writes (bind.Landing), the one landing a schema holds as its own field.
+func isTupleRest(l bind.Landing) bool {
+	return l.At.Doc == l.Site.Doc && l.At.Pointer == l.Site.Pointer.AppendToken("additionalItems")
+}
+
+// isBoolean reports whether n is a boolean scalar, a schema JSON Schema reads
+// as true or false.
+func isBoolean(n *yaml.Node) bool {
+	return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!bool"
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
