@@ -356,10 +356,15 @@ golangci-lint release: the `Makefile` comment above `GO_VERSION` says what moves
    module that needs a newer Go: the pins the `Makefile` lists above `GO_VERSION` move on the same
    branch. Nothing is sure to fail if this step is missed; an old pin fails the gate only when it
    cannot read the new toolchain.
-3. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
+3. **Set a call-shape count the update moves.** A release of `golang.org/x/tools`, or of Go, can
+   change the wrappers and analyses `internal/archtest` builds its call graph from, and so a count
+   of `callShapeBaseline` with no change to the module's code. Read the calls the failure lists for
+   each pair it names, set the count on the same branch, and say why in the commit.
+   *Fails if missed:* `TestCallShape_HeldToTheBaseline`.
+4. **Keep what you push.** Pushing to a Dependabot branch stops Dependabot rebasing it, so bring
    `main` in by merging it, as on any branch. `@dependabot recreate` overwrites what was pushed.
    Nothing checks this.
-4. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
+5. **Set the squash subject when merging.** A Dependabot pull request has one commit, and this
    repository squashes a one-commit pull request under that commit's subject rather than the pull
    request's title, so retitling the pull request changes nothing. A subject naming one module
    often passes the 72-character cap once the number is appended; shorten it in the merge dialog,

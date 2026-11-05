@@ -143,7 +143,10 @@ var callShapeRatchet = ratchet{
 // into packages it does not import to callShapeBaseline. A run that analyzed
 // nothing finds no call, and fails each count the table holds. A count does not
 // say which calls make it up, so a call removed and another added in one pair
-// leave it as it was.
+// leave it as it was. Nor does it see a call back that runs through a library,
+// as through a function sync.OnceFunc wraps: only the edges between the
+// module's own functions are read, as a library's own interface calls reach
+// every type implementing them.
 func TestCallShape_HeldToTheBaseline(t *testing.T) {
 	t.Parallel()
 	p := moduleProgram(t)
@@ -478,6 +481,35 @@ func Plant() { lower.Apply[int](done) }`, 1},
 			assert.Equal(t, map[string]map[string]int{"lower": {"upper": tc.want}}, got)
 		})
 	}
+}
+
+// TestCallShape_MissesACallBackThroughALibrary pins what the count does not
+// see: upper hands lower a function that lower has a library wrap and calls
+// later, and another that lower hands a library to call, so each call back
+// into upper is made by the library.
+func TestCallShape_MissesACallBackThroughALibrary(t *testing.T) {
+	t.Parallel()
+	p := plantedPackages(t,
+		plantedPackage{"lib", `package lib
+func Once(f func()) func() { done := false; return func() { if !done { done = true; f() } } }
+func Each(xs []int, f func(int)) { for _, x := range xs { f(x) } }`},
+		plantedPackage{"lower", `package lower
+import "lib"
+var held func()
+func Hold(f func()) { held = lib.Once(f) }
+func Run() { held() }
+func Sweep(f func(int)) { lib.Each([]int{1}, f) }`},
+		plantedPackage{"upper", `package upper
+import "lower"
+func Plant() { lower.Hold(func() {}); lower.Run(); lower.Sweep(func(int) {}) }`})
+	for pkg, name := range p.own {
+		if name == "lib" {
+			delete(p.own, pkg) // a library, as the standard library is to the module
+		}
+	}
+	calls, err := reversedCalls(p)
+	require.NoError(t, err)
+	assert.Empty(t, calls)
 }
 
 // TestCallShape_LeavesOutWhatDoesNotRunBack plants each call the count leaves
