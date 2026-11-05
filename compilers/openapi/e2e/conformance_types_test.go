@@ -169,7 +169,8 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
 // pattern group, a tuple slot or rest, an enum branch, a composed union
-// variant. A slice rather than a map so a failure names them in a fixed order.
+// variant, a contentSchema, a media type's itemSchema. A slice rather than a
+// map so a failure names them in a fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -182,17 +183,16 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
+	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
+	{"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema", "empty_item"},
+	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
 // node's. Concatenating onto an empty hint once yielded a leading "_", which is
 // non-empty so irverify's presence check passes it, yet no grammar produces it.
 //
-// composedHints has no row for contentSchema, which an empty-named property
-// reaches (#743). The sequential media type's itemSchema cannot need one: both
-// callers of lowerPayload pass a non-empty hint, since ids.ComponentEntry
-// refuses a component keyed "" and the fallbacks are "response" and "request".
-// A composed variant of an inline branch is absent too:
+// A composed variant of an inline branch has no row:
 // docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
 // so only the $ref form the Host case uses reaches composedVariant.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {

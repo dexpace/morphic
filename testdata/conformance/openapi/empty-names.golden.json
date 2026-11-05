@@ -113,6 +113,98 @@
     }
   ],
   "types": {
+    "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema": {
+      "kind": "model",
+      "id": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Unnamed/content/application~1jsonl/itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g",
+          "name": {
+            "source": "g",
+            "canonical": "g"
+          },
+          "wireName": "g",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/parameters/Unnamed/content/application~1jsonl/itemSchema/properties/g"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/",
@@ -130,6 +222,77 @@
         "target": "t/prim/string",
         "nullable": false
       }
+    },
+    "t/anon/components/schemas/Blob/properties/": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Blob/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Blob/properties/"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "mediaType": "application/json",
+        "schema": {
+          "target": "t/anon/components/schemas/Blob/properties//contentSchema",
+          "nullable": false
+        }
+      }
+    },
+    "t/anon/components/schemas/Blob/properties//contentSchema": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Blob/properties//contentSchema",
+      "name": {
+        "hint": "empty_content"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Blob/properties//contentSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Blob/properties//contentSchema/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Blob/properties//contentSchema/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Host/properties/": {
       "kind": "union",
@@ -722,6 +885,70 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Blob": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Blob",
+      "name": {
+        "source": "Blob",
+        "canonical": "blob"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Blob"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Blob/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Blob/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Blob/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Frame": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Frame",
+      "name": {
+        "source": "Frame",
+        "canonical": "frame"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Frame"
+      },
+      "base": {
+        "target": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Host": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Host",
@@ -766,6 +993,25 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/Line": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Line",
+      "name": {
+        "source": "Line",
+        "canonical": "line"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Line"
+      },
+      "base": {
+        "target": "t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/List": {
       "kind": "model",
@@ -1143,6 +1389,57 @@
       }
     }
   },
+  "unmodeled": {
+    "openapi:components/parameters/Unnamed": {
+      "reason": "no_ir_home",
+      "value": {
+        "content": {
+          "application/jsonl": {
+            "itemSchema": {
+              "properties": {
+                "g": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        "in": "query",
+        "name": ""
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Unnamed"
+      }
+    },
+    "openapi:components/responses/Framed": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "ok",
+        "headers": {
+          "": {
+            "content": {
+              "application/jsonl": {
+                "itemSchema": {
+                  "properties": {
+                    "f": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed"
+      }
+    }
+  },
   "diagnostics": [
     {
       "severity": "warning",
@@ -1154,6 +1451,32 @@
         "position": {
           "line": 16,
           "column": 9
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
+        "position": {
+          "line": 92,
+          "column": 27
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
+        "position": {
+          "line": 99,
+          "column": 23
         }
       }
     },
@@ -1193,7 +1516,7 @@
     {
       "format": "openapi@3.1",
       "path": "empty-names.yaml",
-      "hash": "d1cbb6bdd05b6b63d1bdc71071ed57691779751697643363ccee50971820c7df"
+      "hash": "76805a6d73ba7721bdcb8d05aefe53425d6a572b63ce09ab80fd4536bd0c743c"
     }
   ]
 }

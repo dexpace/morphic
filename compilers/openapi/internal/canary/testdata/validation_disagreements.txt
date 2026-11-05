@@ -176,6 +176,9 @@ testdata/conformance/openapi/discriminator-default-mapping.yaml	19:25	validation
 testdata/conformance/openapi/dynamic-ref.yaml	33:7	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	12:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	compiler	component-names
+testdata/conformance/openapi/empty-names.yaml	92:27	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/empty-names.yaml	95:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	99:23	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/empty-request-content.yaml	14:18	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	27:22	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	5:10	validation-required-field	library	empty-is-missing
