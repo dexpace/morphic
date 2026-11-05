@@ -7,18 +7,40 @@ components:
       type: object
       properties:
         id: {type: string}
-    # The inline branch contributes its properties; the cardinality bound it also
-    # declares is not merged, so it survives beside the composed model.
+    # The inline branch contributes its properties, and its description and
+    # cardinality bound read as written beside the allOf. Nothing reads its
+    # catch-all, so that survives beside the composed model, in the whole branch.
     Narrowed:
       allOf:
         - {$ref: '#/components/schemas/Base'}
         - type: object
           properties:
             name: {type: string}
+          additionalProperties: false
+          description: A narrowed base.
           maxProperties: 3
+    # Untyped constrains objects and writes no type, so a string satisfies it.
+    Untyped:
+      properties:
+        id: {type: string}
     # This branch declares a type that cannot be an object, which the composed
-    # model asserts it is — the same residue, reported one severity higher.
+    # model asserts it is — the same residue, reported one severity higher. It
+    # composes Untyped: beside the Base the conjuncts would share no value, and
+    # allof-disjoint-conjuncts would report that once at the schema, leaving the
+    # branch an info.
     Contradicted:
       allOf:
-        - {$ref: '#/components/schemas/Base'}
+        - {$ref: '#/components/schemas/Untyped'}
         - {type: string, maxLength: 3}
+    # Under the $id beside its allOf, `item.json` names ItemB; under the
+    # nested wrapper's, ItemA. The nested branch's `not` would name ItemB once
+    # folded here, so it folds nothing and is kept whole, while the outer
+    # branch, read against the position's base, folds its own.
+    ItemA: {$id: 'https://ex.test/a/item.json', type: string}
+    ItemB: {$id: 'https://ex.test/b/item.json', type: integer}
+    Rebased:
+      $id: 'https://ex.test/b/rebased.json'
+      allOf:
+        - $id: 'https://ex.test/a/wrapper.json'
+          allOf: [{type: object, not: {$ref: 'item.json'}}]
+        - {type: object, not: {$ref: 'item.json'}}

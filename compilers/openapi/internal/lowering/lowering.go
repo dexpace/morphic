@@ -7,27 +7,28 @@ import (
 	"encoding/json/jsontext"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ctx is everything a lowering may read and none may change: the parsed
-// document, the caller's policies, the identity of the source, and the indexes
-// derived from them once at entry.
+// Ctx is everything a lowering may read: the parsed document, the caller's
+// policies, the identity of the source, and the indexes derived from them once
+// at entry.
 //
-// It is a value, so a function that takes one takes a copy, and every lowering
-// takes it as a parameter (#177): there is no shared holder to write through.
-// The maps stay unexported because a copy shares a map, so an exported one
-// would let a callee write through it.
+// It is a value: a function taking one takes a copy, and every lowering takes
+// it as a parameter (#177). Of what copies share, only expansion changes an
+// answer: past its budget, no $ref resolves. The maps stay unexported because
+// a copy shares a map, which an exported one would let a callee write through.
 //
 // Call sites bind it to c, never ctx, which the styleguide reserves for the
 // context.Context a Compile takes.
@@ -42,8 +43,8 @@ type Ctx struct {
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
 	// of the caller policies the context carries, beside the budgets, the
-	// streaming media list, the promotion mapping and NullableWidening; everything
-	// else here is a fact about the document.
+	// streaming and binary media lists, the promotion mapping and
+	// NullableWidening; everything else here is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -63,6 +64,11 @@ type Ctx struct {
 	// Unlike Grouping it is unexported, because it holds a map, which a struct
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
+
+	// binary is the binary media-type policy, normalized into the set
+	// MediaTypeBinary answers from, and nil when the caller disabled it. It is
+	// unexported for the reason streaming is.
+	binary map[string]bool
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
@@ -122,12 +128,6 @@ type Ctx struct {
 	// Nil in a zero context.
 	typePositions map[scopedPosition]bind.Position
 
-	// anchors is the source's $dynamicAnchor index, built on first use
-	// (DynamicAnchorSites). Copies share it on purpose, as typePositions: it
-	// reads only the document. Nil in a zero context, which builds it on
-	// every ask.
-	anchors *anchorMemo
-
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
@@ -140,6 +140,14 @@ type Ctx struct {
 	// private, so a lowering writes it only through Once. Nil in a zero context,
 	// which keeps nothing.
 	Kept *KeptOnce
+
+	// expansion charges each $ref Declared resolves what the declarations its
+	// chain names weigh, and each additionalOperations entry what it copies of
+	// its path item (ChargeExpansion). Copies share it on purpose: the budget is
+	// the run's, so once it is crossed no copy lowers a $ref or such an entry,
+	// which is the answer it changes, and the run is refused
+	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
+	expansion *expansion
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -153,14 +161,26 @@ type loadResult struct {
 	// as a $ref, modelled and resolved with the document (MediaTypeUse).
 	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
-	// bindings read, remembering each name (NameAt).
+	// bindings read, remembering each name (NameAt). Copies share it on
+	// purpose: a name reads only those documents, which no lowering changes,
+	// so what one copy remembers is what another would read.
 	names *naming.Namer
-	// others is every document a reference read beside the source.
-	others load.Others
+	// others is every document a reference read beside the source, rows what
+	// the table says at the source's minor in its dialect (load.Document.Rows),
+	// and dialects the rows each schema resource root naming its dialect
+	// governs: the load phase read them all off the one table it built, so no
+	// context builds another. Copies share them on purpose: nothing writes any
+	// after the load, so no lowering changes what another reads.
+	others   load.Others
+	rows     load.Rows
+	dialects load.Dialects
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
+	// readings remembers each answer Remembered read. It sits here for the
+	// reason loaded is a pointer, and copies share it as they do typePositions.
+	readings map[any]any
 }
 
 // scopedPosition is a position, the document it is in, and the scope it is
@@ -172,17 +192,14 @@ type scopedPosition struct {
 	at      bind.Position
 }
 
-// New derives the immutable context for one loaded source.
+// New derives the context for one loaded source.
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see
-// a component declared later. The streaming policy is normalized here so
-// readers cannot disagree about a media type, and the promotion policy is
-// copied so no lowering can write through the context into the caller's map.
-//
-// The $dynamicAnchor index is built on first use instead (GitHub #172): its
-// bounds diagnostic would warn about documents that never write $dynamicRef.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
+// a component declared later. The streaming and binary policies are normalized
+// here so readers cannot disagree about a media type, and the promotion policy
+// is copied so no lowering can write through the context into the caller's map.
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, binary BinaryMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
 		Source:           src,
@@ -191,15 +208,25 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
 		streaming:        streamingSet(streaming),
+		binary:           binarySet(binary),
 		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
 
 		typePositions: map[scopedPosition]bind.Position{},
-		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
 		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion:     newExpansion(limits.MaxReferenceExpansion),
 	}
+}
+
+// ExpansionRefusal returns the error refusing the document when the copies its
+// $refs and path items made weighed past [Limits.MaxReferenceExpansion], and
+// false when they did not. It is meant to be asked once every lowering has
+// returned: a copy past the budget lowers nothing, so a crossing after the
+// question goes unreported.
+func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
+	return c.expansion.refusal(c.SrcIndex)
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries,
@@ -248,10 +275,10 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
-		names: naming.New(doc.Bindings.Table()),
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
+		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-			Bindings: doc.Bindings}}
+			Bindings: doc.Bindings}, readings: map[any]any{}}
 	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
@@ -281,6 +308,25 @@ func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Posi
 	named := read()
 	c.typePositions[key] = named
 	return named
+}
+
+// Remembered returns read's answer for key, read once and remembered for every
+// copy of c. read must turn only on the documents and their bindings, which no
+// lowering changes, and key on all else it turns on; a package's own key type
+// keeps its readings from another's. A key holding another type of answer reads
+// again, and a context given no load phase reads every time.
+func Remembered[V any](c Ctx, key any, read func() V) V {
+	if c.loaded == nil {
+		return read()
+	}
+	if held, seen := c.loaded.readings[key]; seen {
+		if answer, ok := held.(V); ok {
+			return answer
+		}
+	}
+	answer := read()
+	c.loaded.readings[key] = answer
+	return answer
 }
 
 // Siblings returns the fields the load phase modelled beside the document's
@@ -328,12 +374,24 @@ func Within[T, S any, R interface {
 // Otherwise it is the context of the document the chain ends in (InDocument)
 // and the position the bindings' table places the end at (bind.Table.Through),
 // the source's included for a reference another document writes (GitHub
-// #751). A chain the table places no end for keeps the use site.
-func Declared[T, S any, R interface {
-	*S
-	resolve.Referenced[T, S]
+// #751), or the use site where it places none. Past
+// [Limits.MaxReferenceExpansion] a $ref resolves to nothing
+// ([Ctx.ExpansionRefusal]).
+func Declared[T, S any, R chainable[T, S], P interface {
+	*T
+	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	// The caller lowers a copy of what a $ref's chain names, so each is charged
+	// what that weighs. One past the budget resolves to nothing, as an unresolved
+	// $ref does, so no caller lowers another copy and none costs anything. An
+	// inline entry is not charged here: a path item's own inline parameters are
+	// charged where its additionalOperations entries take them
+	// (ChargeExpansionAt).
+	if obj != nil && ref.GetReference() != "" &&
+		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+		return nil, c, usePtr
+	}
 	in := Within[T, S](c, ref)
 	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
 		return obj, there, at
@@ -389,16 +447,66 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
-// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
-// as a boolean exclusiveMinimum, a required `items` or the effect `nullable`
-// has, asks this rather than parsing the version itself. An unrecognized
-// version, and a context with no document, answer false. It reads the entry
-// document's version, whichever document holds the schema, so a 3.1 file
-// reached by $ref from a 3.0 root is read as 3.0 (GitHub #839).
-func (c Ctx) Is30() bool {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0"
+// SchemaRules returns the Schema Object's rows of the document whose content c
+// reads (rowsOf). A reading only a minor decides, such as a required `items` or
+// the effect `nullable` has, asks these rather than the version; a keyword's
+// shape, which a schema's dialect decides, asks SchemaRulesOf. A version the
+// table does not cover, and a context with no document, answer with the zero
+// rows.
+func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
+
+// EncodingRules returns the Encoding Object's rows an encoding c lowers is read
+// with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
+// where its encoding leaves a field unwritten.
+func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
+
+// rowsOf returns what the table says at the minor of the document whose
+// content c reads, in the dialect its jsonSchemaDialect names, which its scope
+// names (load.Other.Rows), the source's for its own (sourceRows).
+//
+// The scope, not home, names that document: Declared can read one document's
+// content at another's positions.
+func rowsOf(c Ctx) load.Rows {
+	if c.foreign && c.loaded != nil {
+		if o, ok := c.loaded.others.Named(c.holder); ok {
+			return o.Rows
+		}
+	}
+	return sourceRows(c)
+}
+
+// sourceRows returns what the table says at the source's minor, in its
+// dialect: what the load phase read, or, in a context given no load phase,
+// what it says at the version and the jsonSchemaDialect c.Doc declares, which
+// builds the table on each call.
+func sourceRows(c Ctx) load.Rows {
+	if c.loaded == nil {
+		return load.RowsOf(c.Doc)
+	}
+	return c.loaded.rows
+}
+
+// SchemaRulesOf returns the rows the schema whose node is n is read with: those
+// of the dialect the innermost schema resource root holding it names, where one
+// does (load.Dialects), and c's otherwise (SchemaRules).
+func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
+	if c.loaded != nil {
+		if r, ok := c.loaded.dialects.Of(n); ok {
+			return r
+		}
+	}
+	return c.SchemaRules()
+}
+
+// SchemaRulesIn returns the rows the schemas document id of the bindings'
+// table declares are read with, for a reading that crosses a $ref without a
+// context of that document: the source's own for the source, and for one the
+// compile did not read beside it.
+func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
+	if _, o, ok := otherIn(c, id); ok {
+		return o.Rows.Schema
+	}
+	return sourceRows(c).Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
@@ -513,16 +621,25 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 	if id == bind.Source {
 		return c.InScope(c.RefScope().InSource()), true
 	}
-	if c.loaded == nil {
-		return c, false
-	}
-	name := c.Bindings().Table().Document(id).Name
-	o, ok := c.loaded.others.Named(name)
+	name, o, ok := otherIn(c, id)
 	if !ok {
 		return c, false
 	}
 	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
 	return c, true
+}
+
+// otherIn returns the name document id of the bindings' table is read by, and
+// the document the compile read beside the source under it, and false for the
+// source, for a context given no load phase, and for a document the compile
+// did not read beside the source.
+func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
+	if id == bind.Source || c.loaded == nil {
+		return "", load.Other{}, false
+	}
+	name := c.Bindings().Table().Document(id).Name
+	o, ok := c.loaded.others.Named(name)
+	return name, o, ok
 }
 
 // ProvenanceAt is where a Provenance is built, and the only place this compiler
@@ -543,37 +660,15 @@ func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
 }
 
-// anchorMemo holds the source's $dynamicAnchor index once it is built.
-type anchorMemo struct {
-	built bool
-	index anchors.Index
+// Position returns where pointer is in the bindings' table, and false where c
+// reads what another document holds at the source's coordinates (InScope), which
+// no position of the table places.
+func (c Ctx) Position(pointer jsontext.Pointer) (bind.Position, bool) {
+	return bind.Position{Doc: c.homeDoc, Pointer: pointer}, !c.foreign || c.home != 0
 }
 
-// DynamicAnchorSites returns the pointers of the source declaring the
-// $dynamicAnchor name (anchors.Build), and, the first time any copy of c asks,
-// a warning when the index walk stopped at a bound. It is built on first use
-// rather than at entry because that warning would report on documents that
-// never write $dynamicRef (GitHub #172). A context holding no document finds
-// none. Building the index reads no context.Context, which the schema lowering
-// asking for it does not hold, so a cancel waits for the walk
-// (docs/architecture.md §2.1).
-func (c Ctx) DynamicAnchorSites(name string) ([]jsontext.Pointer, []ir.Diagnostic) {
-	if c.Doc == nil {
-		return nil, nil
-	}
-	memo := c.anchors
-	if memo == nil {
-		memo = &anchorMemo{}
-	}
-	if memo.built {
-		return memo.index.Sites(name), nil
-	}
-	memo.index, memo.built = anchors.Build(c.Doc.GetRootNode()), true
-	if memo.index.Complete() {
-		return memo.index.Sites(name), nil
-	}
-	return memo.index.Sites(name), []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
-		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
-			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
-		anchors.MaxDepth, anchors.MaxNodes)}
+// DynamicAnchorSites returns the positions of c's document declaring the
+// $dynamicAnchor name, and whether that is every one (bind.Table.DynamicAnchors).
+func (c Ctx) DynamicAnchorSites(name string) ([]bind.Position, bool) {
+	return c.Bindings().Table().DynamicAnchors(c.homeDoc, name)
 }

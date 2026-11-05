@@ -42,11 +42,11 @@ const (
 // Scalar is one YAML scalar classified: its kind, its text as written, and
 // the value its kind reads that text as.
 type Scalar struct {
-	Kind  ScalarKind
 	Text  string
-	Bool  bool
 	Num   ir.BigVal
 	Bytes []byte
+	Kind  ScalarKind
+	Bool  bool
 }
 
 // Classify reads the scalar node n by its resolved tag, never by the schema

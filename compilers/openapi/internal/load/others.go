@@ -13,25 +13,35 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
 // Other is a document the compile read beside the source because a reference
-// named it: where Document.Sources records it, and how the IDs of what it
-// declares name it.
+// named it: where Document.Sources records it, how the IDs of what it declares
+// name it, and the minor it is read at, which is the one it declares, or the
+// source's where it declares none the table covers.
 type Other struct {
 	// Index is its position in Document.Sources.
 	Index int
 	// Label is its location as the source's directory reaches it, which
 	// qualifies the IDs of what it declares (ids.In).
 	Label string
-	// Info is its Document.Sources entry.
+	// Info is its Document.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
+	// Rows is what the table says at the minor in the dialect its
+	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
+	// none names its own (Dialects) are read with.
+	Rows Rows
+	// version is the minor's version as the document, or the source, writes
+	// it, which an object a reference reaches in it is held to (reached.check),
+	// and dialect its jsonSchemaDialect.
+	version, dialect string
 }
 
-// Others is every document the compile read beside the source, in the order
+// Others is every document a reference reached beside the source, in the order
 // Document.Sources lists them, the names a reference reads each by, and where
 // each one's trees write a node (see locator).
 type Others struct {
@@ -89,19 +99,35 @@ func (o Others) index(name string) (int, bool) {
 	return i, ok
 }
 
+// unreachedKeys is the key of each document table read that nothing it holds is
+// in (bind.Document.Unreached), but those the parser's resolver read, whose
+// keys resolved holds: a reference object's chain reaches them, which the table
+// need not see. Such a document lowers nothing and is no input of the result.
+func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool {
+	unused := map[string]bool{}
+	for id := range bind.DocID(table.Documents()) {
+		if d := table.Document(id); d.Unreached && !resolved[readKey(d.Name)] {
+			unused[readKey(d.Name)] = true
+		}
+	}
+	return unused
+}
+
 // newOthers lists the documents read prepares beside the source, the first at
-// Document.Sources index first. They are ordered by label, not as they were
-// read, so the order no declaration order changes; two names one label
-// reaches, a file spelled two ways, are one document, as RFC 3986 reads a
-// path. format is the source's, which a referenced document is read as part of.
-func newOthers(ctx context.Context, read *externalReads, first int, format string) Others {
+// Document.Sources index first, but those under the keys unused holds. They are
+// ordered by label, not as they were read, so the order no declaration order
+// changes; two names one label reaches, a file spelled two ways, are one
+// document, as RFC 3986 reads a path. Each is read at the minor it declares,
+// one declaring none the table covers at the source's (dialects), and in the
+// dialect its jsonSchemaDialect names.
+func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
 	for key := range read.data {
 		// The source is held under each spelling the resolver reaches it by,
 		// with no bytes of its own; it is Document.Sources' first entry.
-		if read.self.names(key) || read.trees[key] == read.self.root {
+		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
 			continue
 		}
 		label := labelOf(read.self.path, key, filepath.Abs)
@@ -111,9 +137,11 @@ func newOthers(ctx context.Context, read *externalReads, first int, format strin
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
+		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
+		version, minor, rows := source.of(declared, dialect)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
-			Format: format, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
-		}})
+			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
+		}, Rows: rows, version: version, dialect: dialect})
 		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i

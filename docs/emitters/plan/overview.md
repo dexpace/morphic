@@ -15,29 +15,15 @@ func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagn
 type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
-    Examples map[string][]Example       // by the ID of each type, property, parameter and
-                                        // operation: its declared examples, else one
-                                        // synthesized (../docs-and-mock.md#one-set-of-examples)
-    Version string                      // the plan's identity (below), which the plan cache
-                                        // and the generation manifest key on
-}
-
-const Revision = 1                      // bumped with every change to what Build returns
-
-type Example struct {
-    Value    ir.Example                 // the example, as the IR spells one
-    Authored bool                       // declared by the document; false = synthesized, Inferred
+    Version string                      // hashes the document and policy it was built from (below)
 }
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
-fragility, prior-art §1). A rename of anything an ID is not built from, such as an `operationId` or
-a `title`, never orphans a plan entry: it is "same ID, new symbol", a lookup. A rename of what an ID
-is built from, a path or a component name, gives the entity a new ID, and only its [correlation
-key](../../ir/derived-facts.md#correlation-keys) carries it across the revision. Every inferred
-field carries `Inferred` provenance, propagated into diagnostics so it is auditable and disable-able
-(INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported once for every target
-rather than once by each.
+fragility, prior-art §1). A spec rename never orphans a plan entry: it is "same ID, new symbol",
+a lookup. Every inferred field carries `Inferred` provenance, propagated into diagnostics so it is
+auditable and disable-able (INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported
+once for every target rather than once by each.
 
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
@@ -54,20 +40,24 @@ lowered beside others that are not.
 
 ## The plan's version
 
-`Version` is a SHA-256 hash of three things: the document's digest, `Revision`, and the policy's
-encoding as `encoding/json/v2` writes it under `json.Deterministic(true)`. The digest is SHA-256
-over the document's canonical JSON (`MarshalJSONTo`) with `sources` left out, which `Build` never
-reads, so a spec reformatted into the same IR keeps its plan's version. Two builds therefore share
-a `Version` exactly when they share a document, a policy and the code that built them, and the plan
-cache and the generation manifest ([write / integrate](../write-integrate.md)) can trust it.
+`Version` is a SHA-256 hash of two things: the document's digest and the policy's encoding under
+the options the document's own codec pins (INV7). The digest is SHA-256 over the document's
+canonical JSON (`MarshalJSONTo`) with `sources` and `diagnostics` left out, which `Build` never
+reads, so a spec reformatted, which moves only where its reports point, keeps its plan's version,
+as does a build that words a report anew. Two plans therefore share a `Version` exactly when they
+were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
+the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
+plan's policy alone: `naming.Policy` and the runtime policy shape no plan
+([plan or refine](plan-or-refine.md)), and what the manifest records of them is #713's.
 
 - **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
   says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its
   printed form is an address that changes every run, and leaving it out gives two policies that pick
   different responses one version.
-- **`Revision` stands for the code.** A change to `Build` that changes its output for any document
-  bumps it, and the plan's golden corpus holds the bump: a golden that changes at an unmoved
-  `Revision` fails, as a shape change does at an unmoved `IRVersion`
-  ([IR version](../../ir/ir-version.md)). Without it, a fix to the plan would leave every cached
-  plan current.
-
+- **The code is the build's.** `Version` names no code, so the plan cache keys on it and on the
+  build, as the IR cache does ([architecture](../../architecture.md#26-ir-cache)): `cache.BuildID`
+  hashes the executable. A revision bumped by hand would name neither a dirty tree nor a fix to
+  `Build` that no plan golden reaches, and either would then serve a stale plan. The plan holds no
+  build, as the document holds none, so a plan golden is the same from build to build, and is what
+  shows a new toolchain left those bytes alone, as an IR golden is for a document's: json/v2
+  promises them only within one build.

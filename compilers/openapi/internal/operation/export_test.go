@@ -5,3 +5,6 @@ package operation
 
 // MaxPartRefHops is maxPartRefHops, for the external tests.
 const MaxPartRefHops = maxPartRefHops
+
+// MaxFileRefHops is maxFileRefHops, for the external tests.
+const MaxFileRefHops = maxFileRefHops

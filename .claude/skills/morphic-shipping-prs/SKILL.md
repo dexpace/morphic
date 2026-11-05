@@ -30,22 +30,26 @@ branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`).
 
 ```bash
 pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/u[s]ers/|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep|(^|[^a-z0-9])[hm][0-9]{1,2}([^0-9a-z]|$)'
-{ git log --no-merges --format=%s origin/main..HEAD; printf '%s\n' "<title>"; } | sed 's/$/ (#N)/' |
-  awk 'length > 72 || !/^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: [^ ]/ || /\. \(#[0-9]+\)$/'
 git status --short --untracked-files=all
 for b in main <base>; do git merge-tree --write-tree "origin/$b" HEAD >/dev/null || echo "conflicts with $b"; done
 git log --format=%B origin/main..HEAD | grep -niE "$pat"
 git diff origin/main...HEAD -- ':!go.sum' | grep '^+' | grep -niE "$pat"
-python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 ```
 
-Push separately once every hit is fixed or justified
-(`references/commits-and-prs.md#gate-by-exit-status`). The subject check prints each commit
-subject and the title, as each lands, that passes 72 characters, breaks the form or ends in a
-period; `git status` is empty because the push carries HEAD; each artifact hit is a line to
-judge, and `go.sum`'s hashes stay out.
-Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
-lint exits 1 on a name a skill uses that this branch leaves naming nothing.
+`git status` is empty because the push carries HEAD; each artifact hit is a line to judge, and
+`go.sum`'s hashes stay out. Grep the PR's own text the same way
+(`gh pr view N --json title,body --jq '.title, .body'`).
+
+Once every hit is fixed or justified, push behind the two checks that exit 1 on a hit: the lint
+on any finding, such as a name this branch leaves naming nothing, and the subject check on the
+title or a commit subject breaking `references/commits-and-prs.md#commit-and-pr-message-form` as it
+lands. `<title>` serves until the PR opens.
+
+```bash
+t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
+python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
+  python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "$t" && git push origin HEAD
+```
 
 ## Merging main in
 

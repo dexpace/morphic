@@ -30,7 +30,7 @@ import (
 func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
@@ -92,8 +92,24 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 		},
+		Alike: s.alike,
 	})
 	return diags
+}
+
+// alike is merge.Merger.Alike. Each site is read at s.c's position for its
+// pointer, as the model's own document holds it; a site in another document,
+// such as a component a $ref there reached, one c does not place, or one whose
+// base the bindings cannot tell, is no match.
+func (s settledMerge) alike(a, b ir.Provenance) bool {
+	base := func(p ir.Provenance) (string, bool) {
+		at, placed := s.c.Position(p.Pointer)
+		uri, known := s.c.Bindings().Table().Base(at)
+		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+	}
+	ua, okA := base(a)
+	ub, okB := base(b)
+	return okA && okB && ua == ub
 }
 
 // mint registers node, the type of the field the declaration at pointer names.
@@ -131,7 +147,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		declared := p.Secret
-		diags = append(diags, PromoteUse(c, js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		var secretBy ir.Inferred
 		if p.Secret && !declared {
 			secretBy = lowering.ExtensionPromotionHeuristic
