@@ -340,7 +340,7 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources, len(b.ids.dialects) > 0), b.ids
+	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources, b.ids), b.ids
 	dialects := dialectsByDocument(b.ids.dialects)
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]

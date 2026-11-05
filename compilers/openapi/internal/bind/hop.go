@@ -30,7 +30,7 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = BadPointer
 		return h
 	}
-	in, known := b.resources.holding(site, path, schema, len(b.ids.dialects) > 0)
+	in, known := b.resources.holding(site, path, schema, b.ids.readsDialects(site.Doc))
 	if !known {
 		h.Reason = MergeBound
 		return h

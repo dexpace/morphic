@@ -208,7 +208,7 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 				table, _ := fixture(t)
 				for _, p := range order {
 					path, _ := table.bases.res.docs.path(p)
-					want, wantKnown := table.bases.res.holding(p, path, true, table.bases.named)
+					want, wantKnown := table.bases.res.holding(p, path, true, table.bases.ids.readsDialects(p.Doc))
 					got, known := table.bases.holding(p)
 					assert.Equal(t, want, got, p)
 					assert.Equal(t, wantKnown, known, p)

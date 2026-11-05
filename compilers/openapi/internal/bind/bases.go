@@ -13,13 +13,13 @@ import (
 // Table.InOwnResource) as resources.holding does, remembering the walk at each
 // position it passes. A position below one walked before starts there rather
 // than at its document's root, so asking at every level of a deep schema walks
-// its depth once rather than once a level. With named, a schema of the
-// documents names its dialect, so each schema is read in the one the schema
-// holding it enters (resources.enterIn).
+// its depth once rather than once a level. Where ids says a document is read
+// through its dialects (identifiers.readsDialects), each schema is read in the
+// one the schema holding it enters (resources.enterIn).
 type bases struct {
 	res   resources
 	walks map[Position]walked
-	named bool
+	ids   *identifiers
 }
 
 // walked is the walk to a position, stopped there on the way to one below: the
@@ -35,10 +35,10 @@ type walked struct {
 	held    bool
 }
 
-// newBases returns bases over r, having walked nothing; named says whether a
-// schema of r's documents names its dialect.
-func newBases(r resources, named bool) *bases {
-	return &bases{res: r, walks: map[Position]walked{}, named: named}
+// newBases returns bases over r, whose documents' dialect roots ids holds,
+// having walked nothing.
+func newBases(r resources, ids *identifiers) *bases {
+	return &bases{res: r, walks: map[Position]walked{}, ids: ids}
 }
 
 // holding is resources.holding of p read as a schema, along what its pointer
@@ -48,7 +48,7 @@ func newBases(r resources, named bool) *bases {
 func (b *bases) holding(p Position) (resource, bool) {
 	if !p.Pointer.IsValid() {
 		path, _ := b.res.docs.path(p)
-		return b.res.holding(p, path, true /* schema */, b.named)
+		return b.res.holding(p, path, true /* schema */, b.ids.readsDialects(p.Doc))
 	}
 	at := prefixes(p, nodeview.MaxPointerSegments)
 	reached, ok := b.walk(at)
@@ -161,7 +161,7 @@ func (b *bases) past(from walked, n *yaml.Node, s state, here Position) walked {
 // read in, as resources.holding enters each schema on its way.
 func (b *bases) entered(from walked, n *yaml.Node, here Position) entering {
 	e := entering{dialect: from.dialect}
-	if b.named {
+	if b.ids.readsDialects(here.Doc) {
 		held := heldBelow(from)
 		e = b.res.enterIn(from.in, here, n, from.dialect, func() bool { return held })
 	} else {

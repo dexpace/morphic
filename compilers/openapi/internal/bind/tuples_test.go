@@ -84,7 +84,37 @@ func ruleFor(cfg bind.Config, rule bind.DialectRule) bind.Config {
 	return cfg
 }
 
-// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
+// TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect pins a $ref the
+// chain of a source $ref meets in another document before any walk of it,
+// whose root names a draft that spells its identifier `$id` and ignores it
+// beside a $ref, as draft 7 does: its base is read in that dialect, so the
+// `$id` beside it names nothing and the $ref resolves against the document,
+// though the source names no dialect at all, and in draft 4 the root's `id`
+// gives it its base.
+func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
+	t.Parallel()
+	other := "{$schema: 'http://json-schema.org/draft-04/schema#',\n" +
+		"  definitions: {A: {type: string}, Sib: {$id: 'https://example.com/elsewhere/', $ref: '#/definitions/A'}}}\n"
+	d7 := bind.DialectRule{Keyword: "$id", Fragments: true, Definitions: true, Dependencies: true, PlainNames: true,
+		Tuples: true, IgnoresRefFields: true}
+	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/Sib'}\n",
+		ruleFor(withDocuments(map[string]string{"o.yaml": other}), d7))
+	doc := docNamed(t, table, "o.yaml")
+	e := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/definitions/A"}, e.Chain.End, "the chain ends where the draft reads it")
+
+	based := "{$schema: 'http://json-schema.org/draft-04/schema#', id: 'https://example.com/lib/',\n" +
+		"  definitions: {A: {id: 'a.json', type: integer}, Sib: {$ref: 'a.json'}}}\n"
+	table = bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/Sib'}\n",
+		draftRule(withDocuments(map[string]string{"o.yaml": based})))
+	e = entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, bind.Position{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, e.Chain.End,
+		"draft 4's id at the root gives the $ref its base")
+}
+
+// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
 // schema writing a `$schema`, an identifier and a $ref, held by one whose rule
 // ignores what is beside a $ref: it roots no resource, whichever keyword its
 // own `$schema`'s dialect spells the identifier by, so a $ref naming its

@@ -85,8 +85,10 @@ type identifiers struct {
 	read      map[DocID]bool
 	// dialects is each schema resource root that writes a `$schema`, by where
 	// it is: a schema no other holds (heldBySchema), or one whose identifier
-	// roots a resource of its own (enterIn).
+	// roots a resource of its own (enterIn), and named each document holding
+	// one.
 	dialects map[Position]DialectRoot
+	named    map[DocID]bool
 }
 
 // anchorKey is a plain name and the root of the resource declaring it.
@@ -109,7 +111,16 @@ func newIdentifiers(source resource) *identifiers {
 		byDoc: map[DocID][]string{},
 		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
 		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{},
-		dialects: map[Position]DialectRoot{}}
+		dialects: map[Position]DialectRoot{}, named: map[DocID]bool{}}
+}
+
+// readsDialects reports whether a base in document id is read through the
+// dialects its schemas name (resources.holding): where the document holds a
+// dialect root, or is not read yet, as a chain followed into a document
+// before any walk of it is, so it may hold any. One read holding none is read
+// in its own dialect alone, which needs no `$schema` read on the way.
+func (ix *identifiers) readsDialects(id DocID) bool {
+	return ix.named[id] || !ix.read[id]
 }
 
 // document adds r, doc's own resource, and returns its index.
@@ -143,6 +154,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 	view := r.docs.list[at.Doc].view
 	if e.names {
 		ix.dialects[at] = DialectRoot{At: at, URI: e.dialect, Node: nodeview.Deref(n)}
+		ix.named[at.Doc] = true
 	}
 	rule := dialectRule(r.docs, at.Doc, e.dialect)
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor", rule.Keyword} {
