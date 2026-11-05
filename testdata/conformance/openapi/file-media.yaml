@@ -1,0 +1,78 @@
+openapi: 3.1.0
+info: {title: FileMedia, version: "1.0.0"}
+paths:
+  /render:
+    post:
+      operationId: render
+      requestBody:
+        content:
+          # An empty schema says no more than an absent one: the media type
+          # alone makes this a file.
+          application/octet-stream: {schema: {}}
+      responses:
+        "200":
+          description: ok
+          content:
+            # A schemaless binary media type, and one whose schema says no
+            # more than "a string", are files the binary policy reads.
+            application/pdf: {}
+            image/png:
+              schema: {type: string, description: PNG binary.}
+            # XML text, though its type is image.
+            image/svg+xml: {}
+  /value:
+    put:
+      operationId: putValue
+      requestBody:
+        content:
+          # Every branch of the union admits raw bytes.
+          application/octet-stream:
+            schema:
+              description: A byte sequence.
+              anyOf:
+                - {type: string}
+                - {type: string, format: binary}
+      responses:
+        "204":
+          description: stored
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                # Each element of the array is a file part.
+                files:
+                  type: array
+                  items: {type: string, format: binary}
+                # From 3.1 a part writing no type defaults to
+                # application/octet-stream.
+                attachments:
+                  type: array
+                  items: {}
+                # A tuple whose every element is raw bytes, and admitting no
+                # more, is file parts too.
+                pair:
+                  type: array
+                  prefixItems:
+                    - {type: string, format: binary}
+                    - {type: string, format: binary}
+                  items: false
+                # One file or a list of them: file parts that may repeat.
+                fileOrFiles:
+                  oneOf:
+                    - {type: string, format: binary}
+                    - {type: array, items: {type: string, format: binary}}
+                # A part whose encoding names only binary media types.
+                profileImage: {}
+                # contentMediaType without contentEncoding leaves the part
+                # text/plain.
+                avatar: {type: string, contentMediaType: image/png}
+            encoding:
+              profileImage: {contentType: 'image/png, image/jpeg'}
+      responses:
+        "204":
+          description: uploaded
