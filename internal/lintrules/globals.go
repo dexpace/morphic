@@ -137,6 +137,7 @@ func (c globalCheck) check(root ast.Node) {
 			c.addressOf(n)
 		case *ast.CallExpr:
 			c.builtin(n)
+			c.methodExpression(n)
 		case *ast.SelectorExpr:
 			c.writingMethod(n)
 		default:
@@ -202,13 +203,40 @@ func (c globalCheck) writingMethod(n *ast.SelectorExpr) {
 	if !ok {
 		return // a field
 	}
-	recv := fn.Signature().Recv().Type()
-	if !aliasable(recv) || types.TypeString(recv, nil) == "*encoding/base64.Encoding" {
+	if !mayWrite(fn) {
 		return
 	}
 	if r, ok := c.rooted(n.X); ok {
 		c.report(n.Sel.Pos(), "uses a method that can write", r)
 	}
+}
+
+// methodExpression reports (*T).M(v), which is v.M() with the receiver spelled
+// as the first argument. A method expression not called is a function value,
+// out of reach as any other is.
+func (c globalCheck) methodExpression(call *ast.CallExpr) {
+	n, ok := calleeOf(call.Fun).(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	sel, ok := c.pass.TypesInfo.Selections[n]
+	if !ok || sel.Kind() != types.MethodExpr {
+		return
+	}
+	fn, ok := sel.Obj().(*types.Func)
+	if !ok || !mayWrite(fn) {
+		return
+	}
+	// The receiver is the first argument, which a call of it must give.
+	if r, ok := c.rooted(call.Args[0]); ok {
+		c.report(n.Sel.Pos(), "uses a method that can write", r)
+	}
+}
+
+// mayWrite reports whether a method's receiver can write what it holds.
+func mayWrite(fn *types.Func) bool {
+	recv := fn.Signature().Recv().Type()
+	return aliasable(recv) && types.TypeString(recv, nil) != "*encoding/base64.Encoding"
 }
 
 // builtin reports delete, clear, copy and append on an operand rooted at a
