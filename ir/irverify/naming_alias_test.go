@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
@@ -99,14 +100,16 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded "))
 }
 
-// TestVerify_BlankLookingGraphicAliasIsNotBlank holds the other side. U+2800
-// BRAILLE PATTERN BLANK renders as whitespace but is a graphic character
-// Unicode does not classify as invisible, so the rule leaves it alone rather
-// than deciding on its own account what looks empty. It leaves alone, too, the
-// format characters Unicode takes out of Default_Ignorable_Code_Point because
-// they render: a prepended concatenation mark, an interlinear annotation
-// character and an Egyptian hieroglyph format control.
-func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
+// TestVerify_VisibleAliasIsNotBlank holds the other side. U+2800
+// BRAILLE PATTERN BLANK renders as whitespace but Unicode does not classify it
+// as invisible, so the rule leaves it alone rather than deciding on its own
+// account what looks empty. It leaves alone, too, the format characters Unicode
+// takes out of Default_Ignorable_Code_Point because they render: a prepended
+// concatenation mark, an interlinear annotation character and an Egyptian
+// hieroglyph format control. The rows just outside those ranges, a character
+// from the object replacement to a private use one, keep each bound from
+// widening into a class beside it.
+func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
 	visible := map[string]string{
 		"braille blank":       "\u2800",
@@ -120,6 +123,10 @@ func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 		"annotation end":      "\ufffb",
 		"egyptian format":     "\U00013430",
 		"egyptian last":       "\U0001343f",
+		"object replacement":  "\ufffc",
+		"egyptian before":     "\U0001342f",
+		"egyptian mirror":     "\U00013440",
+		"private use":         "\ue000",
 	}
 	for name, alias := range visible {
 		t.Run(name, func(t *testing.T) {
@@ -127,6 +134,14 @@ func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 			assert.Empty(t, aliasViolations(t, alias))
 		})
 	}
+}
+
+// TestIsInvisible_RangesHoldForThisUnicode fails when a Go release moves
+// unicode.Version, since isInvisible holds two ranges no table of package unicode
+// carries. Recheck them against DerivedCoreProperties.txt, then move the version here.
+func TestIsInvisible_RangesHoldForThisUnicode(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "17.0.0", unicode.Version)
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,
