@@ -225,8 +225,11 @@ func Methods() {
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
-	(*tally).Add(cursor)     // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
-	registry.Set(store, "a") // want "globalwrites: uses a method that can write the package-level variable store; keep the state in a local or an argument"
+	(*tally).Add(cursor)              // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	(*tally).Gen[int](cursor)         // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	(*tally).Two[int, string](cursor) // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	((*tally).Add)(cursor)            // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	registry.Set(store, "a")          // want "globalwrites: uses a method that can write the package-level variable store; keep the state in a local or an argument"
 	_ = (*base64.Encoding).EncodeToString(base64.StdEncoding, nil)
 	_ = matcher.MatchString("x") // want "globalwrites: uses a method that can write the package-level variable matcher; keep the state in a local or an argument"
 	_ = base64.StdEncoding.EncodeToString(nil)
