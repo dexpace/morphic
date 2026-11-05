@@ -24,6 +24,12 @@ from: the [word grammar](./naming.md#the-word-grammar), the Unicode tables the g
 Go release can move, or how a compiler composes a hint from a position. Such a bump keeps the shape,
 so its row states the meaning that changed.
 
+**So does a change to a key a compiler spells.** A consumer reads an `Unmodeled` entry by its key,
+so renaming one the compiler chose, retiring it, moving it to another scope or reason, or changing
+the form of its value is a change of meaning at an unmoved shape, versioned as a renamed symbol is.
+A vendor extension's own name, a name the document gives and an array index in a key move only with
+the source ([what a key promises](./unmodeled.md#what-a-key-promises)).
+
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
 so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
 one, so PATCH carries no promise a consumer may read compatibility into. Moving off `0.` is a
