@@ -19,7 +19,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -44,7 +43,7 @@ func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		doc, diags, err := compileSpec(t.Context(), "fuzz.yaml", data)
-		if err != nil || doc == nil || diag.HasError(diags) {
+		if err != nil || doc == nil || ir.HasError(diags) {
 			return // malformed input or a spec-author problem is not a compiler defect
 		}
 		assertOracles(t, "fuzz.yaml", data, doc)
@@ -67,7 +66,7 @@ func FuzzLowerSchema(f *testing.F) {
 			return // fragment is not valid JSON; nothing to embed
 		}
 		doc, diags, err := compileSpec(t.Context(), "fuzz-schema.json", spec)
-		if err != nil || doc == nil || diag.HasError(diags) {
+		if err != nil || doc == nil || ir.HasError(diags) {
 			return
 		}
 		assertOracles(t, "fuzz-schema.json", spec, doc)

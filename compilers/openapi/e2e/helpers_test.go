@@ -27,8 +27,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// goldenPetstore is the larger real-ish spec seeded alongside the conformance
-// corpus, addressed relative to this package.
+// goldenPetstore is the larger real-ish spec the compile benchmark reads,
+// addressed relative to this package.
 const goldenPetstore = "../../../testdata/golden/openapi/petstore.yaml"
 
 // amplificationBombFixture is a document whose YAML aliases expand it to many
