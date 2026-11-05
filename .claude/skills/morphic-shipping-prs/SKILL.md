@@ -49,7 +49,7 @@ t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
 h=$(gh pr view N --json headRefName --jq .headRefName 2>/dev/null) || h=$(git branch --show-current)
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
   python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py --base "origin/<base>" N "$t" &&
-  [ -n "$h" ] && git push origin "HEAD:refs/heads/$h"
+  git push origin "HEAD:refs/heads/${h:?name the branch}"
 ```
 
 After the push, read CI by `references/commits-and-prs.md#conflicting-pr-has-no-run`.

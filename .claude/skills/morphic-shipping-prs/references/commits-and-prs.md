@@ -57,8 +57,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** A branch's own subjects are those on its first-parent line that the branch it targets
   does not reach, merges left out, as `subjects.py --base origin/<base>` reads them; its artifact
   grep reads every commit `origin/<base>` and `origin/main` lack, merges included, as a default
-  squash pastes each message. A branch that left a stack also excludes its former base's tip, whose
-  commits sit on its own first-parent line.
+  squash pastes each message. For its subjects, a branch that left a stack also excludes its former
+  base's tip, whose commits sit on its own first-parent line; its artifact grep keeps them.
 - **Why.** Reading `origin/main..HEAD`, the checklist flagged a base PR's subject as over the cap
   under a stacked PR's number (#1332), and a branch that left a stack read 55 commits as its own,
   of which 7 were (#1351).
@@ -234,13 +234,12 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Send only a body the fetch produced
 `send-only-what-the-fetch-produced`
 
-- **Rule.** Gate a body's send, in the same command as its fetch and edit, on the fetch's exit
-  status, a non-empty file and the file still holding each `Closes #N` line the PR carries, and
-  keep the fetched copy as the one to restore from. A failed fetch leaves an empty or partial file,
-  and sending it replaces the description.
+- **Rule.** Gate a body's send on its fetch, in one command, and keep the fetched copy to restore
+  from, as a failed fetch leaves an empty or partial file and sending it replaces the description:
+  `f=$(mktemp) && gh pr view <N> --json body --template '{{.body}}' > "$f" && test -s "$f" && [ "$(grep -c '^Closes #' "$f")" -eq <its Closes count> ] && cp "$f" "$f.orig" && <edit "$f"> && gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@"$f"`.
 - **Why.** A fetch that timed out left an empty file, and a send outside the `&&` chain blanked
   #1322's body (#1322); a fetch run from a removed worktree wrote an empty file on #1219 (#1219).
-- **Probe.** Run the command against PR number 0: the fetch fails and nothing is sent.
+- **Probe.** With `<N>` set to 0, the command stops at the fetch and sends nothing.
 
 ## A conflicting PR gets no CI run
 `conflicting-pr-has-no-run`

@@ -118,8 +118,8 @@ Round <n>: head <sha>, base <sha>, main <sha>
 
 - **Rule.** A finding rests on a rule and a fact, so attack both. Read the rule to its end for its
   scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or the guide; look for a decision on the
-  line in `.golangci.yml`'s exclusions, a comment or the tracker
-  (`references/rounds.md#oddity-needs-a-comment`); weigh the PR's stated intent, read
+  line where `references/rounds.md#oddity-needs-a-comment` says one excuses it; weigh the PR's
+  stated intent, read
   only now, after a blind first pass; and where a tool gave the count, sort its hits by what each
   one is before calling any a defect. Report what survives.
 - **Why.** The 298 functions `thelper` reported were filed as a breach of `t.Helper`, though
@@ -132,8 +132,9 @@ Round <n>: head <sha>, base <sha>, main <sha>
 `oddity-needs-a-comment`
 
 - **Rule.** A deliberate oddity, such as a policy or a choice resting on an open issue, is a finding
-  unless a comment at its line says so: a decision recorded only in the tracker, a PR body or a
-  commit excuses nothing, as the next reader reaches the code first.
+  unless a comment at its line says so, or, for a lint finding, its exclusion in `.golangci.yml`
+  with the reason beside it, as `CLAUDE.md` places one. A decision recorded only in the tracker, a
+  PR body or a commit excuses nothing, as the next reader reaches the code first.
 - **Why.** A limitation recorded only in a PR body, a commit or the tracker was invisible to
   whoever next edited the function (#239, #270).
 - **Probe.** For each oddity cleared, quote the comment at its line.
@@ -199,9 +200,8 @@ Round <n>: head <sha>, base <sha>, main <sha>
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
   A fix to a mechanism a design document specifies first takes
   `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
-  and its row of `references/design.md#design-review-matrix`. Push a round's fixes once,
-  behind the push checklist, as `git push origin HEAD:<branch>` from the detached setup, then rerun
-  the setup.
+  and its row of `references/design.md#design-review-matrix`. Push a round's fixes once, by the
+  push checklist from the detached setup, then rerun the setup.
 - **Why.** #1143's later rounds found defects its own fixes had added, such as a command failing
   from the root. #1233's author applied a posted redesign verbatim, and a later round found five
   nits in it (#1411).
