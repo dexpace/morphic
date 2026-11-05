@@ -26,8 +26,9 @@ type Plan struct {
 
 type Example struct {
     Example  ir.Example                 // the example, as the IR spells one
-    Inferred bool                       // made under Policy.Examples, synthesized, assembled or
-                                        // filled by Shown; false = declared as it stands
+    Inferred ir.Inferred                // the steps that made it under Policy.Examples:
+                                        // synthesized, assembled or filled by Shown; "" =
+                                        // declared as it stands
 }
 
 // MaxExampleValues bounds the values one synthesized example holds; a larger one is reported
@@ -36,7 +37,8 @@ const MaxExampleValues = 10_000
 
 // The sets of the positions Examples has no key for: a content's and a variant's declared
 // examples that Build's check admits, else their type's set, and a message's, else those of its
-// payload's contents. Build reports what it refuses, so these report nothing
+// payload's contents paired with its headers' set. Build reports what it refuses, so these report
+// nothing
 // (../docs-and-mock.md#one-set-of-examples).
 func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
 func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example

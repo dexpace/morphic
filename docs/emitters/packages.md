@@ -5,8 +5,8 @@ never `compiler`, never `engine`, never a sibling target):
 
 ```
 emitters/
-├── contract.go        # Emitter, Router, EmitterInput/Output, Sample, RouteTable, Artifact, Capabilities,
-│                      #   TargetKey, registry
+├── contract.go        # Emitter, Router, SampleReader, EmitterInput/Output, Sample, RouteTable, Artifact,
+│                      #   Capabilities, TargetKey, registry
 ├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan,
 │                      #   ModelShape, Example, ContentExamples, VariantExamples,
 │                      #   MessageExamples, Shown

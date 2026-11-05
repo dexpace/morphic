@@ -71,10 +71,13 @@ A table lists every member its model's flattening holds, and anchors a member on
 declaring it is rendered; another table holding it, a subtype's for an inherited member, links
 there. A model rendered as several tables anchors each member in the first of them, in
 `TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
-for each `PropID`. Each table has an anchor of its own, and a link to the model names the shape it
-shows, so an operation's patch body links to the patch table, never to one marking required what the
-patch relaxes. An anonymous model another composes in place is no table of its own: its members are
-rows of the composing model's table, anchored there, so no member is anchored twice.
+for each `PropID`. A member no table of its declaring model holds, as one of a base no shape reaches
+while a subtype's table holds it, is anchored in the first table, in catalog order, of a model whose
+flattening holds it. Each table has an anchor of its own, named for its shape alone, so a switcher
+reaches it in another version from the page `Routes` gives, and a link to the model names the shape
+it shows, so an operation's patch body links to the patch table, never to one marking required what
+the patch relaxes. An anonymous model another composes in place is no table of its own: its members
+are rows of the composing model's table, anchored there, so no member is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -105,15 +108,18 @@ token by token against a stack of its own: a listed start tag opens an element, 
 opening none, a listed end tag closes the element on top when it matches, and every other token is
 written as text from its source bytes, so an end tag the description never opened, such as a stray
 `</td>`, renders as text rather than closing the page's own table, a placeholder such as `<key>`
-keeps its place, and what is still open closes where the description ends. An HTML parser's fragment
-mode is no substitute: it drops a stray end tag and turns `<key>` into an element holding the rest
-of the text. Any other tag, attribute or comment renders as text, a custom element such as `<note>`
-among them. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML
-tags by CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a
-line break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source,
-and 33 placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays
-visible where a browser handed it would parse it as an element and drop it. A summary, a name or any
-other spec string that is not CommonMark is escaped as text.
+keeps its place, and what is still open closes where the description ends. A tag that opens only
+inside a parent, `tr`, `td`, `th`, `thead`, `tbody`, `li`, `dt` or `dd`, opens only with that parent
+on top of the description's stack, and otherwise renders as text, so a description in a schema
+table's cell cannot add a cell, a row or an item to the page's own table or list. An HTML parser's
+fragment mode is no substitute: it drops a stray end tag and turns `<key>` into an element holding
+the rest of the text. Any other tag, attribute or comment renders as text, a custom element such as
+`<note>` among them. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45
+raw HTML tags by CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which
+renders as a line break, one an `<img>`, which renders as text since the rule below refuses its
+`cid:` source, and 33 placeholders such as `<key>` and `<uuid>`, which no list names, so a
+placeholder stays visible where a browser handed it would parse it as an element and drop it. A
+summary, a name or any other spec string that is not CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
@@ -249,36 +255,37 @@ A docs emitter that spelled calls itself would re-derive them and could disagree
 documents. So each SDK emitter returns its usage samples per operation in `EmitterOutput.Samples`,
 one for each language its callers write: a Multiplatform target's callers write Kotlin and Swift
 ([Swift](targets/kotlin/swift.md)). A target whose `Capabilities.ReadsSamples` is set names in its
-options the targets whose samples it shows, and the engine runs each of them on every snapshot
-before it, whether or not the run names them, with the configuration and the prior manifest that
-target would run with, which the engine finds as it finds any target's ([target
-options](contract/options.md)), writing none of its artifacts unless the run names it too, and hands
-it their samples in `EmitterInput.Samples`. So what a docs run shows depends on its options and
-never on which other targets share the run: a docs target whose options name `go`, run alone, shows
-the samples a run of both would. A named target the registry lacks, one whose
-`Capabilities.WritesSamples` is unset, or one that reads samples itself, is an error
-`engine/sample-target-invalid`, which the engine reports since the docs target cannot see the
-registry, and one with no configuration is refused as an absent configuration always is. The engine
-runs a named target for its samples even when its generation writes nothing ([write /
-integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
-them, and, when the run names it too, runs it once with its artifacts, which on a sliced document
-only a cross-version target may be (#1531). A run made for samples alone reports what any run of
-that target reports, and the engine decides as for any run whether that is fatal: the docs show that
-SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
-for every operation its callers call, whatever its `Scope`, which gates its artifacts alone, since
-its names are the whole document's: a scoped SDK run's docs keep every sample. It returns none, with
-no diagnostic, for an operation the API starts, a webhook, a callback or a message the client
-receives, since no call spells it. A docs generation is a new one whenever the samples it is handed
-change, as an SDK target's own options can change them. A sample a target cannot render is a warning
-`emitters/<target>/sample-unrendered`, never an empty code block on the page, and so is one for an
-operation whose required input holds no example. A sample shows a call that succeeds, so its values
-are the `Input` of its operation's first success scenario (below): one ending in no `Error`, since
-an `Error` scenario's input is chosen to fail, and perhaps in no `Output`, as an operation answering
-with no body does. That is one the operation declares in `Operation.Examples`, as a Smithy or
-TypeSpec document can, else the one the plan assembles. An operation with neither has no sample:
-where `Assemble` off chose that, it draws no diagnostic, and where a required input holding no
-example kept one from being assembled, it draws the warning above. A value `Secret` or `Sensitive`
-marks is written as the target's placeholder for it (above).
+options the targets whose samples it shows, which the engine reads through `SampleReader` ([the
+contract](contract/emitter.md)), a decoded options value without it being
+`engine/sample-target-invalid`, and the engine runs each of them on every snapshot before it,
+whether or not the run names them, with the configuration and the prior manifest that target would
+run with, which the engine finds as it finds any target's ([target options](contract/options.md)),
+writing none of its artifacts unless the run names it too, and hands it their samples in
+`EmitterInput.Samples`. So what a docs run shows depends on its options and never on which other
+targets share the run: a docs target whose options name `go`, run alone, shows the samples a run of
+both would. A named target the registry lacks, one whose `Capabilities.WritesSamples` is unset, or
+one that reads samples itself, is an error `engine/sample-target-invalid`, which the engine reports
+since the docs target cannot see the registry, and one with no configuration is refused as an absent
+configuration always is. The engine runs a named target for its samples even when its generation
+writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since a docs run
+handed none would drop them, and, when the run names it too, runs it once with its artifacts, which
+on a sliced document only a cross-version target may be (#1531). A run made for samples alone
+reports what any run of that target reports, and the engine decides as for any run whether that is
+fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs showing it. A
+target returns a sample for every operation its callers call, whatever its `Scope`, which gates its
+artifacts alone, since its names are the whole document's: a scoped SDK run's docs keep every
+sample. It returns none, with no diagnostic, for an operation the API starts, a webhook, a callback
+or a message the client receives, since no call spells it. A docs generation is a new one whenever
+the samples it is handed change, as an SDK target's own options can change them. A sample a target
+cannot render is a warning `emitters/<target>/sample-unrendered`, never an empty code block on the
+page, and so is one for an operation whose required input holds no example. A sample shows a call
+that succeeds, so its values are the `Input` of its operation's first success scenario (below): one
+ending in no `Error`, since an `Error` scenario's input is chosen to fail, and perhaps in no
+`Output`, as an operation answering with no body does. That is one the operation declares in
+`Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan assembles. An
+operation with neither has no sample: where `Assemble` off chose that, it draws no diagnostic, and
+where a required input holding no example kept one from being assembled, it draws the warning above.
+A value `Secret` or `Sensitive` marks is written as the target's placeholder for it (above).
 
 ## One set of examples
 
@@ -295,40 +302,45 @@ member and operation:
   list. Shown through a shape, an example drops the members that shape does not hold and takes, for
   each member the shape requires and the example lacks, that member's own first value, which marks
   what is shown `Inferred`. So a response-form example serves a create shape, a patch body's may
-  leave out a required member, and no shape is left without one. `plan.Shown` does this, the one
-  projection every consumer reads an example through, and reports an example it cannot complete, a
-  required member's set being empty, so the consumer takes the set's next one, or reports as an
-  empty set does when none is left. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  leave out a required member, and no shape is left without one. A union value several variants
+  admit is shown as the first of them, in source order. `plan.Shown` does this, the one projection
+  every consumer reads an example through, and reports an example it cannot complete, a required
+  member's set being empty, so the consumer takes the set's next one, or reports as an empty set
+  does when none is left. One they refuse is reported as a warning `emitters/plan/example-refused`
+  and left out, so every consumer falls to the next set alike: an SDK's test sending it would be
+  refused by the mock, as by the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a
+  declared example fails its own type in at least 295 types: in 292 no member of the enum, each
+  closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it is longer than `maxLength`.
+  One declaring none that adds no constraint to its type's takes its type's set, so a property shows
+  the value its type does, save an enum member, which takes its own value. A position whose type is
+  a decorator takes its own examples, else the nearest decorator's along the chain, as
+  `CollapseAliases` folds them, else, where it adds no constraint, the set of the type its `Alias`
+  names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
-  from the sets of its required inputs and of the optional ones whose set is declared rather than
-  synthesized, a body's from the elected request content's, and from its return content's where it
-  returns one: a call shows no optional filter the document gives no value for. Its `Input` is an
-  object holding each parameter's value under its `ParamID` and the body's under `body`, which no
-  `ParamID` can be, since a parameter and a body member may share a name, as they do in 9 of the
-  golden spec's operations; a declared scenario's `Input` is read in the shape #1528 settles. The
-  document never paired those values, so the scenario is `Inferred` and labelled generated whatever
-  values it takes, and `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation
-  declares a scenario.
+  from the sets of its required parameters and of the optional ones whose set is declared rather
+  than synthesized, of its body, required or not, from the elected request content's, and of its
+  return content where it returns one: a call shows no optional filter the document gives no value
+  for, and always the body it sends, which 231 of the golden spec's operations, sending an optional
+  body with no example on it, would otherwise lack. Its `Input` is an object holding each
+  parameter's value under its `ParamID` and the body's under `body`, which no `ParamID` can be,
+  since a parameter and a body member may share a name, as they do in 9 of the golden spec's
+  operations; a declared scenario's `Input` is read in the shape #1528 settles. The document never
+  paired those values, so the scenario is `Inferred` and labelled generated whatever values it
+  takes, and `plan.Policy.Examples.Assemble` turns it off. On the golden spec no operation declares
+  a scenario.
 - **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
   prefix yet to keep it apart from the other classes in one map
   ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is what the plan's
   `ContentExamples`, `VariantExamples` or `MessageExamples` returns for it, the one function of its
   kind that the docs, the samples and the mock read it through: its declared examples, read from the
-  IR and checked as above, else its type's, a message's those of its payload's contents, a body's
-  examples being its content's set. `Build` reports each example of these positions it refuses,
-  once, so the functions report nothing and no consumer reports it again. Contents are where a
-  document most often declares a body's examples: on the golden spec (spec @57b5196b, morphic
-  @ab953d45), 435 request, response and error contents declare 651 examples.
+  IR and checked as above, else its type's, a message's those of its payload's contents, each paired
+  with the first value of its `Headers` type's set as `Example.Headers`, since a message's examples
+  are header and payload pairs, a body's examples being its content's set. `Build` reports each
+  example of these positions it refuses, once, so the functions report nothing and no consumer
+  reports it again. Contents are where a document most often declares a body's examples: on the
+  golden spec (spec @57b5196b, morphic @ab953d45), 435 request, response and error contents declare
+  651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model
   synthesized holds, for each member, the first value of that member's own set, and a list or map,
@@ -343,14 +355,14 @@ member and operation:
   a list or map past the larger of `MaxItems` and its minimum, or past its minimum alone once it
   lies deeper than `MaxDepth`, so a required list of its own model ends: the golden spec's
   `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past that
-  depth. A required member is filled as deep as its schema requires, and a `minItems` above
-  `MaxItems` is met: on the golden spec 245 models reach a model four or more deep through their own
-  required, non-null members alone, and one list requires four items, which the default bounds would
-  otherwise leave without an example. A value the synthesizer cannot make valid, as a `pattern` it
-  cannot satisfy or a required cycle no value ends, or one holding more values than
-  `plan.MaxExampleValues`, a fixed limit the plan package states, 10,000, which bounds what a
-  hostile schema can make one example cost, is reported as a warning
-  `emitters/plan/example-unsynthesized` and left out, never emitted invalid.
+  depth. A required member is filled as deep as its schema requires, one whose reference is
+  `Nullable` ending a cycle with `null`, and a `minItems` above `MaxItems` is met: on the golden
+  spec 245 models reach a model four or more deep through their own required, non-null members
+  alone, and one list requires four items, which the default bounds would otherwise leave without an
+  example. A value the synthesizer cannot make valid, as a `pattern` it cannot satisfy or a required
+  cycle no value ends, or one holding more values than `plan.MaxExampleValues`, a fixed limit the
+  plan package states, 10,000, which bounds what a hostile schema can make one example cost, is
+  reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted invalid.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
   ID where no key identifies it, save on a recurrence of its type along the value or deeper than
@@ -358,8 +370,8 @@ member and operation:
   So a required recursive union ends: two of the golden spec's unions, such as
   `cloudforce-one_EmailRuleCondition`, reach themselves through a variant requiring a list of them.
   So a value is the same in either declaration order, and on every regeneration until the entity's
-  schema, its key, the example policy, `irfacts.CorrelationVersion` or the synthesizer's code
-  changes.
+  schema, its key, or its ID where it seeds from one, the example policy,
+  `irfacts.CorrelationVersion` or the synthesizer's code changes.
 - **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
   synthesizes its own.
 

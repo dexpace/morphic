@@ -33,6 +33,13 @@ type Router interface {
     Routes(context.Context, EmitterInput) RouteTable
 }
 
+// SampleReader is implemented by the options of a target whose Capabilities.ReadsSamples is set:
+// the targets whose samples it shows, which the engine runs before it
+// (../docs-and-mock.md#samples-come-from-the-sdk-emitters).
+type SampleReader interface {
+    SampleTargets() []TargetKey
+}
+
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
