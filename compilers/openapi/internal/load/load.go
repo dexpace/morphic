@@ -165,17 +165,21 @@ type Document struct {
 	Siblings   Siblings
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
-	// order Document.Sources lists them after the source and its overlay.
-	Others Others
-	// Rows is what the table says at the minor the source declares, which its
-	// schemas and Encoding Objects are read with, from the table the load
-	// judged it against: a document of Others read at that minor shares them.
+	// order Document.Sources lists them after the source and its overlay, and
+	// Dialects the rows each schema resource root naming its dialect governs.
+	Others   Others
+	Dialects Dialects
+	// Rows is what the table says at the minor the source declares, in the
+	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
+	// schemas where none names its own (Dialects) are read with, from the table
+	// the load judged it against: a document of Others read at that minor in
+	// that dialect shares them.
 	Rows Rows
 }
 
-// Rows is what the rule table says at the minor a document is read at: how
-// its schemas read (oas.SchemaRules), and what its Encoding Objects leave
-// unwritten (oas.EncodingRules).
+// Rows is what the rule table says at the minor a document is read at, in a
+// dialect: how its schemas read (oas.SchemaRules), and what its Encoding
+// Objects leave unwritten (oas.EncodingRules).
 type Rows struct {
 	Schema   oas.SchemaRules
 	Encoding oas.EncodingRules
@@ -393,18 +397,23 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// RowsOf returns what the table says at the minor doc declares (rowsAt), and
-// the zero rows for a nil doc or one declaring a version the table does not
-// cover. It builds the table, so it serves a lowering given no load phase,
-// which has no Document.Rows to read: it is where that lowering's questions
-// meet the version, so no lowering reads the version itself.
+// RowsOf returns what the table says at the minor doc declares, in the dialect
+// its jsonSchemaDialect names (rowsAt), and the zero rows for a nil doc or one
+// declaring a version the table does not cover. It builds the table, so it
+// serves a lowering given no load phase, which has no Document.Rows to read: it
+// is where that lowering's questions meet the version, so no lowering reads the
+// version itself.
 func RowsOf(doc *soa.OpenAPI) Rows {
-	return rowsAt(oas.Table(), doc.GetOpenAPI())
+	rows, _ := rowsAt(oas.Table(), doc.GetOpenAPI(), doc.GetJSONSchemaDialect())
+	return rows
 }
 
-// rowsAt returns what spec says at the minor version names.
-func rowsAt(spec oas.Spec, version string) Rows {
-	return Rows{Schema: spec.SchemaRules(version), Encoding: spec.EncodingRules(version)}
+// rowsAt returns what spec says at the minor version names, in dialect, and
+// whether dialect is one spec has no Schema Object rows for
+// (oas.Spec.SchemaRules).
+func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
+	schema, unread := spec.SchemaRules(version, dialect)
+	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
 }
 
 // supportedMinor returns the normalized major.minor prefix of an OpenAPI version
