@@ -61,16 +61,18 @@ incumbent, so the prior manifest ([write /
 integrate](../write-integrate.md#what-the-manifest-records)) is an input to the rule. An entity's
 prior entry is the one under its ID or, where its ID is new, the one entity entry recording its
 correlation key under an ID the document no longer has, where exactly one does and no other new
-entity has that key: a key need not be unique, as a property's is its wire name (#679), and a guess
-between two entries could hand one entity another's name. A symbol derived from an entity takes the
-entry derived the same way from its entity's, since it records the entity's key, so matching it by
-key alone would find the entity's entry beside its own. An entity with no correlation key, or whose
+entity has that key, since a guess between two entries could hand one entity another's name. A
+symbol derived from an entity takes the entry derived the same way from its entity's, since it
+records the entity's key, so matching it by key alone would find the entity's entry beside its
+own. An entity with no correlation key, or whose
 entry has none, has no prior entry, so rule 2 names it as on a first generation and nothing that
 follows an entity by its prior entry follows it: its ID alone is what #678 shows can name another
 entity, and two keyless entities would otherwise be taken for one. Taking two revisions' entities
-for one because their keys agree is inferred, not declared, so it can be turned off with the pass
-computing the keys (INV6). Every generation is then named as a first one, and the engine reports
-that once as a warning where a prior manifest is given, since names it shipped may change.
+for one because their keys agree is inferred, not declared, so a run can turn it off (INV6). Every
+generation is then named as a first one, and the engine reports that once as a warning where a
+prior manifest is given, since names it shipped may change. A prior manifest whose `Keys` is not
+the running build's `irfacts.CorrelationVersion` is read the same way, its keys coming from another
+derivation and agreeing with none ([correlation keys](../../ir/derived-facts.md#correlation-keys)).
 
 1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
    correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
@@ -95,8 +97,9 @@ revision (#678): the correlation key must agree too. On a first generation, or o
 prior manifest, rule 2 decides alone; ID order is independent of declaration order, so the two-order
 oracle holds it. What the promise rests on is stated with it: a name stays only while its entity's
 correlation key survives the revision, under its ID or in place of it. An ID derived from a pointer
-changes when the pointer does (#419), and the key carries it across where the key's own source
-holds, as an `operationId` does when its path is renamed (#679).
+changes when the pointer does ([across revisions](../../ir/identity.md#across-revisions)), and the
+key carries it across where the key's own source holds, as an operation's route does when a path
+variable is renamed ([correlation keys](../../ir/derived-facts.md#correlation-keys)).
 
 The prior manifest is an input like any other, so a generation is still a pure function of its
 inputs ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).

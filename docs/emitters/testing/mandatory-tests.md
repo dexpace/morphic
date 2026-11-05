@@ -22,8 +22,7 @@ throughout these documents.
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
 8. **T-8 · Manifest ID-keying** — the entity→symbol map survives a rename of what an ID is not
-   built from, such as an `operationId`, and, through the correlation key, a path renamed under an
-   unchanged `operationId`.
+   built from, such as an `operationId`, and, through the correlation key, a renamed path variable.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
@@ -313,14 +312,15 @@ throughout these documents.
     alone would hand the newcomer the name, regenerated against the first generation's manifest,
     keeps the first symbol unchanged and gives the newcomer a suffix; the first generation is
     byte-identical in both declaration orders; a renamed `operationId` renames its symbol, and a
-    path renamed under an unchanged one keeps it, a suffix included, and so do the symbols derived
-    from it; an ID that now names another entity, its correlation key differing, is not pinned; an
-    entity with no key is never pinned, and a removed and an added one are not matched; an operation
-    moved into a group whose client shipped its name takes a suffix there, in the root unit as under
-    a split by group, the incumbent's symbol unchanged; a suffix that would make a name the scope
-    reserves, as two groups rendering `com` would on Kotlin, is passed over; and on Multiplatform a
-    type added in another unit, its ID sorting first, leaves an incumbent's Objective-C name as it
-    shipped ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
+    renamed path variable keeps it, a suffix included, and so do the symbols derived from it; an ID
+    that now names another entity, its correlation key differing, is not pinned; an entity with no
+    key is never pinned, and a removed and an added one are not matched; a prior manifest of another
+    `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
+    suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
+    suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
+    is passed over; and on Multiplatform a type added in another unit, its ID sorting first, leaves
+    an incumbent's Objective-C name as it shipped
+    ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
     spec reformatted, one drawing a warning among them, is the same generation; a generated file
     edited outside its regions is reported and neither overwritten nor pruned, by the next
@@ -329,15 +329,15 @@ throughout these documents.
     line endings, is not an edit; a region follows its entity into the file a rename moves it to,
     one the declaration enclosed still inside it, and one whose entity is gone is reported and its
     file kept; a scoped run's manifest keeps every entry it left out; the staleness check lists no
-    entity a correlation key carried across a path rename; a file written once is never written
-    again, even after its user deletes it, nor reported when its user edits it, and one marked
-    `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a runtime-policy key,
-    an envelope's `Except` entry and a `Remount` group naming nothing in the document each draw
-    `emitters/unmatched-key` once, naming the entity of the same correlation key, and no other
-    diagnostic; a README's text outside its blocks and its frozen blocks survive byte for byte, an
-    edit outside its blocks draws nothing and one inside an unfrozen block is replaced and draws a
-    warning, a block new to the generation lands beside its neighbours in the generated order, the
-    first of them included, a block whose ID holds `-->` keeps its markers whole, one frozen before
-    its entity's path is renamed gains no twin, and its table of contents lists the user's headings;
-    and a manifest of an older `Schema` is migrated, one of a newer refused with nothing written
-    ([write / integrate](../write-integrate.md)).
+    entity a correlation key carried across a renamed path variable; a file written once is never
+    written again, even after its user deletes it, nor reported when its user edits it, and one
+    marked `@morphic:ignore-file` is never written, pruned or reported; a hint's key, a
+    runtime-policy key, an envelope's `Except` entry and a `Remount` group naming nothing in the
+    document each draw `emitters/unmatched-key` once, naming the entity of the same correlation key,
+    and no other diagnostic; a README's text outside its blocks and its frozen blocks survive byte
+    for byte, an edit outside its blocks draws nothing and one inside an unfrozen block is replaced
+    and draws a warning, a block new to the generation lands beside its neighbours in the generated
+    order, the first of them included, a block whose ID holds `-->` keeps its markers whole, one
+    frozen before its entity's path variable is renamed gains no twin, and its table of contents
+    lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
+    refused with nothing written ([write / integrate](../write-integrate.md)).
