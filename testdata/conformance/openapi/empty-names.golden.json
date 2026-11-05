@@ -159,6 +159,52 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/UnnamedContent/content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j",
+          "name": {
+            "source": "j",
+            "canonical": "j"
+          },
+          "wireName": "j",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/parameters/UnnamedContent/content/application~1json/schema/items/properties/j"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/parameters/UnnamedList/schema/items": {
       "kind": "model",
       "id": "t/anon/components/parameters/UnnamedList/schema/items",
@@ -198,6 +244,52 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/parameters/UnnamedList/schema/items/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Carried/headers//content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Carried/headers//content/application~1json/schema/items/properties/i",
+          "name": {
+            "source": "i",
+            "canonical": "i"
+          },
+          "wireName": "i",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items/properties/i"
           }
         }
       ],
@@ -1041,6 +1133,25 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/HeaderContentItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HeaderContentItem",
+      "name": {
+        "source": "HeaderContentItem",
+        "canonical": "header_content_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HeaderContentItem"
+      },
+      "base": {
+        "target": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/HeaderItem": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/HeaderItem",
@@ -1258,6 +1369,25 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/ParamContentItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ParamContentItem",
+      "name": {
+        "source": "ParamContentItem",
+        "canonical": "param_content_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ParamContentItem"
+      },
+      "base": {
+        "target": "t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/ParamItem": {
       "kind": "scalar",
@@ -1543,6 +1673,32 @@
         "pointer": "/components/parameters/Unnamed"
       }
     },
+    "openapi:components/parameters/UnnamedContent": {
+      "reason": "no_ir_home",
+      "value": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "items": {
+                "properties": {
+                  "j": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          }
+        },
+        "in": "query",
+        "name": ""
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/parameters/UnnamedContent"
+      }
+    },
     "openapi:components/parameters/UnnamedList": {
       "reason": "no_ir_home",
       "value": {
@@ -1563,6 +1719,35 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/parameters/UnnamedList"
+      }
+    },
+    "openapi:components/responses/Carried": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "ok",
+        "headers": {
+          "": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "i": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Carried"
       }
     },
     "openapi:components/responses/Framed": {
@@ -1639,7 +1824,7 @@
         "source": 0,
         "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
         "position": {
-          "line": 94,
+          "line": 96,
           "column": 27
         }
       }
@@ -1652,7 +1837,7 @@
         "source": 0,
         "pointer": "/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
         "position": {
-          "line": 110,
+          "line": 125,
           "column": 23
         }
       }
@@ -1693,7 +1878,7 @@
     {
       "format": "openapi@3.1",
       "path": "empty-names.yaml",
-      "hash": "808427ef188ab8deb9fece2eb5fb432ac1be5a96ff1e4b9bedd3ef05dbb7b4c8"
+      "hash": "4c06db929a82dfe8d35d92281d5af81b4ff80455cb911d96953fe2316065e9ef"
     }
   ]
 }

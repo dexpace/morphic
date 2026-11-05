@@ -84,6 +84,8 @@ components:
     Line: {$ref: '#/components/parameters/Unnamed/content/application~1jsonl/itemSchema'}
     HeaderItem: {$ref: '#/components/responses/Listed/headers//schema/items'}
     ParamItem: {$ref: '#/components/parameters/UnnamedList/schema/items'}
+    HeaderContentItem: {$ref: '#/components/responses/Carried/headers//content/application~1json/schema/items'}
+    ParamContentItem: {$ref: '#/components/parameters/UnnamedContent/content/application~1json/schema/items'}
   responses:
     Framed:
       description: ok
@@ -97,7 +99,20 @@ components:
       headers:
         "":
           schema: {type: array, items: {type: object, properties: {h: {type: string}}}}
+    Carried:
+      description: ok
+      headers:
+        "":
+          content:
+            application/json:
+              schema: {type: array, items: {type: object, properties: {i: {type: string}}}}
   parameters:
+    UnnamedContent:
+      name: ""
+      in: query
+      content:
+        application/json:
+          schema: {type: array, items: {type: object, properties: {j: {type: string}}}}
     UnnamedList:
       name: ""
       in: query

@@ -176,10 +176,11 @@ testdata/conformance/openapi/discriminator-default-mapping.yaml	19:25	validation
 testdata/conformance/openapi/dynamic-ref.yaml	33:7	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	12:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	compiler	component-names
-testdata/conformance/openapi/empty-names.yaml	94:27	later-version-construct	compiler	version-gate
-testdata/conformance/openapi/empty-names.yaml	102:13	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/empty-names.yaml	106:13	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/empty-names.yaml	110:23	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/empty-names.yaml	96:27	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/empty-names.yaml	111:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	117:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	121:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	125:23	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/empty-request-content.yaml	14:18	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	27:22	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	5:10	validation-required-field	library	empty-is-missing
