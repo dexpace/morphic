@@ -60,12 +60,12 @@ no read shape's table and a read-only one in no create shape's, and a model one 
 and another patches has a table for each, since a patch body's members are optional and a member
 visible only at creation is absent from it. A direction alone would merge those two. A model whose
 own members and those of the models it holds carry no visibility marker has one table for every
-shape, a patch's apart only where the model requires a member, since a patch relaxes only what is
-required, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872 models carry
-none on their own members or on any model they hold or inherit, so a table per shape would repeat
-itself for any of them two shapes but a patch reach. A type no shape reaches, one no operation sends
-or returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches what it
-holds](plan/types.md#a-shape-reaches-what-it-holds)).
+shape, a patch's apart only where it or a model it holds requires a member, since a patch relaxes
+only what is required, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872
+models carry none on their own members or on any model they hold or inherit, so a table per shape
+would repeat itself for any of them two shapes but a patch reach. A type no shape reaches, one no
+operation sends or returns, is rendered once, unprojected, as an SDK declares it ([a shape reaches
+what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, and anchors a member only where the model
 declaring it is rendered; another table holding it, a subtype's for an inherited member, links
@@ -90,22 +90,31 @@ agent documents and samples show a placeholder in its place, whether the value w
 synthesized; an SDK's tests and the mock still send it. A sample's placeholder is the SDK target's
 to write, since the call is its code and the docs never edit it.
 
-A description is the spec author's text, and a generated site that passed its raw HTML through would
-publish whatever markup or script the document holds. So pages, like agent documents
-([below](#documents-for-agents)), render raw HTML in a description as text, save a bare `<br>`,
-written with or without its `/` and with no attribute, which renders as a line break. On the golden
-spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's
-grammar, outside code: 11 a `<br/>`, one an `<img>`, and 33 placeholders such as `<key>` and
-`<uuid>`, which a browser handed them would parse as elements, so the placeholder would vanish from
-the page.
+A description is the spec author's text, CommonMark that may hold raw HTML (`Docs.Description`). A
+generated site that passed that HTML through would publish whatever markup or script the document
+holds, and one that rendered all of it as text would show a Smithy model's `<p>` and `<code>` on
+every page. So pages and agent documents ([below](#documents-for-agents)) render it through an
+allowlist: `p`, `br`, `b`, `strong`, `i`, `em`, `code`, `pre`, `ul`, `ol`, `li`, `blockquote`,
+`sub`, `sup`, `table`, `thead`, `tbody`, `tr`, `th` and `td` with no attribute, `a` with an `href`
+and `img` with a `src` and an `alt`, each URL held to the rule below, render as themselves, and an
+element left open closes where its description ends. Any other tag, attribute or comment renders as
+text. On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
+CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a line
+break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source, and 33
+placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays visible where
+a browser handed it would parse it as an element and drop it. A summary, a name or any other spec
+string that is not CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
 way: a `javascript:` destination runs when it is followed. So a page or an agent document writes a
-destination only where it is absolute under `http`, `https` or `mailto`, or a relative path, which
-points into the site the author wrote for and is resolved against the base the docs options give
-that site. A fragment alone names a place on one of that site's pages, which no base names. Any
-other destination, and a relative path with no base set, renders as its link's text, with a warning
+destination only where it is absolute under `http`, `https` or `mailto`, or a relative path in a
+description, which points into the site the author wrote for and is resolved against the base the
+docs options give that site, as OpenAPI resolves a description's links in the context they are
+rendered in. A fragment alone names a place on one of that site's pages, which no base names, and a
+relative URL in a field of its own, such as an `ExternalDocs` link's, resolves against the
+document's servers or location, which a docs target does not hold. Any other destination, and a
+relative path with no base set, renders as its link's text, with a warning
 `emitters/docs/link-unwritten` naming it. `Document.TermsOfService` holds a URL or text, so a value
 that parses as no absolute URL is rendered as text, never resolved. On the golden spec, at those
 revisions, the links in `Docs` descriptions are 988 under `https`, 7 under `http`, one an `https`
@@ -145,9 +154,10 @@ a way to show one entity across API versions. Each is decided by data, never by 
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
   another's page an anchor there, and every `PropID` a model declares an anchor where that model is
-  rendered (above), a decorator answering with its `Alias`'s. A `Property` no model declares, a
-  header or a resource's identifier or state (`ResourceInfo`), is a row where its holder is rendered
-  and takes no anchor, since no link names one. Anything left without one is an error
+  rendered (above), save one no table holds, such as a write-only member of a model only responses
+  reach, which is rendered nowhere, a decorator answering with its `Alias`'s. A `Property` no model
+  declares, a header or a resource's identifier or state (`ResourceInfo`), is a row where its holder
+  is rendered and takes no anchor, since no link names one. Anything left without one is an error
   `emitters/docs/route-missing`, and a recursive type is linked by its ID, never inlined to a depth
   and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
@@ -178,19 +188,22 @@ a way to show one entity across API versions. Each is decided by data, never by 
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
-  no table, though the collision check reads it. A run finds its own entry under
-  `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also the version its
-  switcher marks current: nothing in a snapshot's document says which version it is. The engine
-  cannot plan the routes itself, since the catalog and the templates are the target's. A run plans
-  its own routes by the same pure function, so its pages agree with its snapshot's entry. A table
-  holds each entity's page and anchor from the output root, its snapshot's directory included, which
-  is what a switcher links. What spans versions, the site-scope `llms.txt` linking each version's
-  and an index of the versions, is written once, by the run of the last label `Document.Versions`
-  lists, which every snapshot keeps whole (architecture.md §2.2), since every run holds the labels
-  and tables it is built from; those pages sit at the output root and belong to the one generation,
-  so they keep their place when another label becomes last. The `""` snapshot's run writes the site
-  scope, which is then its version's too, as one index. A link to an entity a version lacks resolves
-  to that version's page saying so. Slugs may differ between versions; IDs do not.
+  no table, though the collision check reads it. A switcher lists the labels `Routes` keys, in the
+  order `Document.Versions` gives them, never one no snapshot was made for. A run finds its own
+  entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also the
+  version its switcher marks current: nothing in a snapshot's document says which version it is. The
+  engine cannot plan the routes itself, since the catalog and the templates are the target's. A run
+  plans its own routes by the same pure function, so its pages agree with its snapshot's entry. A
+  table holds each entity's page and anchor from the output root, its snapshot's directory included,
+  which is what a switcher links. What spans versions, the site-scope `llms.txt` linking each
+  version's and an index of the versions, is written once, by the run of the last of the labels
+  `Routes` keys in `Document.Versions` order, which every snapshot keeps whole (architecture.md
+  §2.2), since every run holds the labels and tables it is built from; those pages sit at the output
+  root and belong to the one generation, so they keep their place when another label becomes last,
+  and the collision check reads them against every label's directory, so a template putting one
+  under a label's name is refused. The `""` snapshot's run writes the site scope, which is then its
+  version's too, as one index. A link to an entity a version lacks resolves to that version's page
+  saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -210,10 +223,10 @@ disagree about a URL:
   can set through the [embedded reader](contract/embedded-policy.md). No IR fact states it, and a
   method cannot: `DELETE` and `PUT` are idempotent and may destroy.
 - **Spec text is escaped.** A heading or a list item built from a summary or a description is
-  escaped for Markdown, raw HTML in a description is rendered as text, never passed through, a bare
-  `<br>` as a line break, and a link is written only where a page would write it (above). A code
-  fence around an example or a sample is at least three backticks and one longer than the longest
-  run of backticks inside it, so no value closes it.
+  escaped for Markdown, raw HTML in a description is rendered through the pages' allowlist, and a
+  link is written only where a page would write it (above). A code fence around an example or a
+  sample is at least three backticks and one longer than the longest run of backticks inside it, so
+  no value closes it.
 
 ## Samples come from the SDK emitters
 
@@ -230,26 +243,26 @@ options](contract/options.md)), writing none of its artifacts unless the run nam
 it their samples in `EmitterInput.Samples`. So what a docs run shows depends on its options and
 never on which other targets share the run: a docs target whose options name `go`, run alone, shows
 the samples a run of both would. A named target the registry lacks, or one that reads samples
-itself, is an error in the options, and one with no configuration is refused as an absent
-configuration always is. The engine runs a named target for its samples even when its generation
-writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since a docs run
-handed none would drop them, and, when the run names it too, runs it once with its artifacts, which
-on a sliced document only a cross-version target may be (#1531). A run made for samples alone
-reports what any run of that target reports, and the engine decides as for any run whether that is
-fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs showing it. A
-target returns a sample for every operation whatever its `Scope`, which gates its artifacts alone,
-since its names are the whole document's: a scoped SDK run's docs keep every sample. A docs
-generation is a new one whenever the samples it is handed change, as an SDK target's own options can
-change them. A sample a target cannot render is a warning `emitters/<target>/sample-unrendered`,
-never an empty code block on the page, and so is one for an operation whose required input holds no
-example. A sample shows a call that succeeds, so its values are the `Input` of its operation's first
-success scenario (below): one ending in no `Error`, since an `Error` scenario's input is chosen to
-fail, and perhaps in no `Output`, as an operation answering with no body does. That is one the
-operation declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the
-plan assembles. An operation with neither has no sample: where `Assemble` off chose that, it draws
-no diagnostic, and where a required input holding no example kept one from being assembled, it draws
-the warning above. A value `Secret` or `Sensitive` marks is written as the target's placeholder for
-it (above).
+itself, is an error `engine/sample-target-invalid`, which the engine reports since the docs target
+cannot see the registry, and one with no configuration is refused as an absent configuration always
+is. The engine runs a named target for its samples even when its generation writes nothing ([write /
+integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
+them, and, when the run names it too, runs it once with its artifacts, which on a sliced document
+only a cross-version target may be (#1531). A run made for samples alone reports what any run of
+that target reports, and the engine decides as for any run whether that is fatal: the docs show that
+SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
+for every operation whatever its `Scope`, which gates its artifacts alone, since its names are the
+whole document's: a scoped SDK run's docs keep every sample. A docs generation is a new one whenever
+the samples it is handed change, as an SDK target's own options can change them. A sample a target
+cannot render is a warning `emitters/<target>/sample-unrendered`, never an empty code block on the
+page, and so is one for an operation whose required input holds no example. A sample shows a call
+that succeeds, so its values are the `Input` of its operation's first success scenario (below): one
+ending in no `Error`, since an `Error` scenario's input is chosen to fail, and perhaps in no
+`Output`, as an operation answering with no body does. That is one the operation declares in
+`Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan assembles. An
+operation with neither has no sample: where `Assemble` off chose that, it draws no diagnostic, and
+where a required input holding no example kept one from being assembled, it draws the warning above.
+A value `Secret` or `Sensitive` marks is written as the target's placeholder for it (above).
 
 ## One set of examples
 
@@ -263,7 +276,8 @@ member and operation:
   checked against the type and constraints its position shows it through, a content's against the
   shape its operation sends or returns it in, so a patch body's example may leave out a required
   member, and a type's against each shape `TypePlan.Shapes` gives it, admitted where one admits it
-  and shown only through those that do, or unprojected where no shape reaches it, an enum the
+  and shown only through those that do, or unprojected where no shape reaches it; a shape admitting
+  none of its type's set has no example there, which reports as an empty set does, an enum the
   document leaves open (`Enum.Closed` false) admitting a value it does not list. One they refuse is
   reported as a warning `emitters/plan/example-refused` and left out, so every consumer falls to the
   next set alike: an SDK's test sending it would be refused by the mock, as by the API. On the
@@ -315,9 +329,13 @@ member and operation:
   `emitters/plan/example-unsynthesized` and left out, never emitted invalid.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
-  ID where no key identifies it. So a value is the same in either declaration order, and on every
-  regeneration until the entity's schema, its key, the example policy,
-  `irfacts.CorrelationVersion` or the synthesizer's code changes.
+  ID where no key identifies it, save on a recurrence of its type along the value or deeper than
+  `MaxDepth`, where it takes the first variant or member, in source order, from which a value ends.
+  So a required recursive union ends: two of the golden spec's unions, such as
+  `cloudforce-one_EmailRuleCondition`, reach themselves through a variant requiring a list of them.
+  So a value is the same in either declaration order, and on every regeneration until the entity's
+  schema, its key, the example policy, `irfacts.CorrelationVersion` or the synthesizer's code
+  changes.
 - **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
   synthesizes its own.
 

@@ -160,6 +160,7 @@ the document, which determines it.
   integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
   is `.` or `..`, or differs from another only by letter case is an error
   `engine/snapshot-label-invalid` before any run. Any other target is run on a sliced document only
-  for its samples, which writes nothing, until its design says how (#1531). The pass is designed,
-  not built (architecture.md §2.2); until it is, no pass slices a document, and every run's
-  `Snapshot` is `""`, the one label `Routes` keys.
+  for its samples, which writes nothing, until its design says how (#1531); one named there for its
+  artifacts is an error `engine/target-unversioned` before any run. The pass is designed, not built
+  (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
+  `""`, the one label `Routes` keys.

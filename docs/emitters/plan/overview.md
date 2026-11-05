@@ -34,12 +34,12 @@ type Example struct {
 // and left out.
 const MaxExampleValues = 10_000
 
-// The sets of the positions Examples has no key for: a content's, a variant's and a message's
-// declared examples that Build's check admits, else their type's set, a message's those of its
-// payload's contents. Build reports what it refuses, so these report nothing
-// (../docs-and-mock.md#one-set-of-examples).
-func ContentExamples(p *Plan, doc *ir.Document, c *ir.Content) []Example
-func VariantExamples(p *Plan, doc *ir.Document, v *ir.Variant) []Example
+// The sets of the positions Examples has no key for: a content's and a variant's declared
+// examples that Build's check admits in the shape the caller shows them through, else their
+// type's set, and a message's, else those of its payload's contents. Build reports what it
+// refuses, so these report nothing (../docs-and-mock.md#one-set-of-examples).
+func ContentExamples(p *Plan, doc *ir.Document, c ir.Content, in ModelShape) []Example
+func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant, in ModelShape) []Example
 func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
 ```
 
