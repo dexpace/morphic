@@ -16,10 +16,11 @@ type Plan struct {
     Ops      map[ir.OpID]OpPlan         // one entry per operation
     Types    map[ir.TypeID]TypePlan     // one entry per registry type
     Examples map[string][]Example       // by the ID of each type, property, parameter, enum
-                                        // member and operation: its declared examples, else its
-                                        // type's where it adds no constraint, else one
-                                        // synthesized; read by the docs, the samples, SDK tests
-                                        // and the mock (../docs-and-mock.md#one-set-of-examples)
+                                        // member, message and operation: its declared
+                                        // examples, else its type's where it adds no
+                                        // constraint, else one synthesized; read by the docs,
+                                        // the samples, SDK tests and the mock
+                                        // (../docs-and-mock.md#one-set-of-examples)
     Version  string                     // hashes the document and policy it was built from (below)
 }
 

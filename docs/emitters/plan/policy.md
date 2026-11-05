@@ -32,8 +32,8 @@ type ExamplePolicy struct {
     Synthesize bool                    // off leaves an entity with none declared without one
     MaxDepth   int                     // how many models deep a value fills optional members,
                                        // its own the first; required ones go as deep as needed
-    MaxItems   int                     // how many items a list or map holds, raised to its
-                                       // minItems and lowered to its maxItems
+    MaxItems   int                     // how many entries a list or map holds, raised to its
+                                       // minItems or minProps, lowered to its maxItems or maxProps
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"

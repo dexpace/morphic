@@ -22,16 +22,16 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)).
   No runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
-  and the plan's [examples](#one-set-of-examples) for canned responses, synthesizing none of its
-  own, sending the whole `Envelope.Body` where a response is enveloped, `Others` to answer as each
-  declared response does, the error taxonomy to simulate declared failures, `TypePlan.Open` to say
-  whether a variant or an enum value the document does not list may be sent, `TypePlan.Strict` to
-  refuse a `oneOf` value as the SDK does, the `BindingView` to route requests, and the visibility
-  projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
-  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
-  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
-  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
-  ([mandatory tests](testing/mandatory-tests.md)) is diffed against.
+  and each response content's [example set](#one-set-of-examples) for canned responses,
+  synthesizing none of its own, sending the whole `Envelope.Body` where a response is enveloped,
+  `Others` to answer as each declared response does, the error taxonomy to simulate declared
+  failures, `TypePlan.Open` to say whether a variant or an enum value the document does not list
+  may be sent, `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the `BindingView` to
+  route requests, and the visibility projections to honor the same wire shapes an SDK
+  sends/receives. Refine lowers into a server-routing AST (routes from `HTTPBinding.URITemplate`,
+  handlers validating against constraints). Because the same plan feeds SDK and mock, the two are
+  **wire-consistent by construction** — the mock can *be* the interception target the SDK's
+  wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
@@ -55,7 +55,15 @@ rendered once for each shape its `TypePlan.Shapes` lists
 visible in that shape and marking those it requires. So a write-only property is in no read
 shape's table and a read-only one in no create shape's, and a model one operation creates and
 another patches has a table for each, since a patch body's members are optional and a member
-visible only at creation is absent from it. A direction alone would merge those two.
+visible only at creation is absent from it. A direction alone would merge those two. A type no
+shape reaches, one no operation sends or returns, is rendered once, unprojected, as an SDK
+declares it ([a shape reaches what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
+
+An example is shown through the shape it is shown in, so a response's example holds no write-only
+member and a request's no read-only one. A value `Property.Secret`, `Parameter.Secret` or
+`TypeCommon.Sensitive` marks is redacted in docs ([properties](../ir/properties.md)), so pages,
+agent documents and samples show a placeholder in its place, whether the value was declared or
+synthesized; an SDK's tests and the mock still send it.
 
 ## Routes and links
 
@@ -63,15 +71,21 @@ Every docs target needs URLs, links between pages, an answer for two entities wa
 a way to show one entity across API versions. Each is decided by data, never by a renderer:
 
 - **A catalog first, URLs second.** The emitter builds a catalog — services, groups, operations,
-  and the types with a page of their own — holding no URL. A model, union or enum has a page when
-  it is declared, not `Anonymous`, or when more than one reference names it. Any other type is
-  rendered where it is referenced: an anonymous model as a table on the page its one holder is
-  rendered on, and a list, map, tuple or scalar as the type it holds. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), 28 anonymous models have more than one holder, a response or
-  request body several operations share, so a holder's page alone would give their properties two
-  homes. A route plan then derives every URL from the catalog alone, through templates in the docs
-  emitter's options, one per kind of page (`"/{service}/{group}/{operation}"`). A slug is
-  presentation (INV3), rendered from names by the naming policy.
+  and the types with a page of their own — holding no URL. A type the document declares, neither
+  `Anonymous` nor a primitive, has a page whatever its kind, and so does an anonymous model, union
+  or enum that more than one reference reaches, counting through the anonymous lists, maps,
+  tuples and scalars that hold it.
+  Any other type is rendered where it is referenced: an anonymous model as a table on the page its
+  one holder is rendered on, and any other anonymous type as the type it spells. So no type is
+  rendered in two places. On the golden spec (spec @57b5196b, morphic @ab953d45), 28 anonymous
+  models are bodies 2 to 38 operations share, and a page only for a model, union or enum that more
+  than one reference names directly would leave 184 more rendered in several places, such as the
+  items of a declared list several models hold. A route plan then derives every URL from the
+  catalog alone, through templates in the docs emitter's options, one per kind of page
+  (`"/{service}/{group}/{operation}"`). A slug is presentation (INV3), rendered from names by the
+  naming policy, and two that collide in one template's scope are told apart by the ID-keyed
+  resolution identifiers take ([naming](refine/naming.md)): three pairs of the golden spec's
+  declared types share their canonical words, which the SDKs resolve as well.
 - **A total route plan.** Every `OpID` and every type with a page gets a route, every type rendered
   on another's page an anchor there, and every `PropID` an anchor on the page its model is rendered
   on. Anything left without one is a coded diagnostic, and a recursive type is linked by its ID,
@@ -130,8 +144,8 @@ generation writes nothing ([write / integrate](write-integrate.md#what-the-manif
 a docs run handed none would drop them. A docs generation is a new one whenever the samples it is
 handed change, as an SDK target's own options can change them. A sample a target cannot render is
 a coded diagnostic of that target's, never an empty code block on the page, and so is one for an
-operation whose required input holds no example. Each sample's values are the first of each set
-the plan's examples hold (below).
+operation whose required input holds no example. Each sample's values are the first of each input's
+example set (below): a body's its request content's, a parameter's its own.
 
 ## One set of examples
 
@@ -139,25 +153,29 @@ READMEs, samples, generated tests and mock responses all need example values, an
 synthesize its own where the document declares none, so the docs would show values the SDK's own
 tests never sent, and every regeneration could change them. So the plan holds one set,
 `Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
-member and operation:
+member, message and operation:
 
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs. One
   declaring none that adds no constraint to its type's takes its type's set, so a property shows
-  the value its type does. A content, a variant and a message have no ID: each one's declared
-  examples are read from the IR, and one declaring none takes its type's set. They are where a
-  document most often declares a body's examples: on the golden spec (spec @57b5196b, morphic
-  @ab953d45), 435 request, response and error contents declare 651 examples.
+  the value its type does. A content and a variant have no ID, so each one's set is its declared
+  examples, read from the IR, else its type's; the docs, the samples and the mock read a body's
+  examples from its content's set. Contents are where a document most often declares a body's
+  examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435 request, response and
+  error contents declare 651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
-  list synthesized holds, for each member or item, the first value of that member's own set, so a
-  property's value is the same alone and inside its model. The bounds cut only what validity leaves
-  optional ([plan policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and
-  a list's items past `MaxItems` beyond its minimum. A required member is filled as deep as its
+  list synthesized holds, for each member or item, the first value of that member's own set: a
+  declared value whole, and a synthesized one cut to the depth the bound leaves, so a property's
+  value is the same alone and inside its model wherever the bound leaves it whole, and an optional
+  recursive member ends. The bounds cut only what validity leaves optional ([plan
+  policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of
+  a list or map past `MaxItems` beyond its minimum. A required member is filled as deep as its
   schema requires, and a `minItems` above `MaxItems` is met: on the golden spec at least 250 models
   require members nested four or more models deep, and one list four items, which the default
   bounds would otherwise leave without an example. A value the synthesizer cannot make valid, as a
-  `pattern` it cannot satisfy or a required cycle no value ends, or one past its fixed limit on the
-  values one example holds, is reported and left out, never emitted invalid.
+  `pattern` it cannot satisfy or a required cycle no value ends, or one holding more values than
+  `plan.MaxExampleValues`, a fixed limit the plan package states, is reported and left out, never
+  emitted invalid.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
   ID where no key identifies it. So a value is the same in either declaration order, and on every
@@ -199,7 +217,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
 | Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID` |
 | Flags that exclude or require each other | the branches of a request body's `Union` |
-| A flag whose value is never echoed | `Property.Secret`, `TypeCommon.Sensitive` |
+| A flag whose value is never echoed | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
 Command names, positional arguments, `@file` inputs and hidden commands are presentation, so they
