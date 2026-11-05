@@ -42,8 +42,9 @@ type Capabilities struct {
     SurfaceVerify   bool            // produces a verify.Surface (../surface-verification.md)
     CrossVersion    bool            // implements Router and reads every version snapshot's routes
                                     // (../docs-and-mock.md#routes-and-links)
-    ReadsSamples    bool            // reads the samples of the run's other targets, so runs after
-                                    // them (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    ReadsSamples    bool            // reads the samples of the run's targets that do not set it, so
+                                    // runs after them
+                                    // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does

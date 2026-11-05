@@ -24,9 +24,10 @@ type Emitter interface {
 }
 
 // Router is implemented by a target whose Capabilities.CrossVersion is set. The engine calls it
-// on every version snapshot before any Generate and hands each run all the tables in
-// EmitterInput.Routes (../docs-and-mock.md#routes-and-links). It is pure, as Generate is, and
-// reports nothing: each run plans its own routes by the same function and reports what it finds.
+// on every version snapshot before any Generate, with the input that snapshot's Generate takes but
+// for Samples and Routes, and hands each run all the tables in EmitterInput.Routes
+// (../docs-and-mock.md#routes-and-links). It is pure, as Generate is, and reports nothing: each
+// run plans its own routes by the same function and reports what it finds.
 type Router interface {
     Routes(context.Context, EmitterInput) RouteTable
 }
@@ -71,8 +72,8 @@ type Sample struct {
     Code     string                 // the call, its values the plan's examples
 }
 
-// RouteTable is one snapshot's routes: each entity's page path and anchor, as a link to it is
-// written.
+// RouteTable is one snapshot's routes: each entity's page path from the output root, the
+// snapshot's directory included, and its anchor, as a link to it is written.
 type RouteTable map[EntityID]string
 
 // EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
@@ -148,5 +149,6 @@ the document, which determines it.
   of a full run. Scope is never a filtered `Document`.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
   single version snapshot and never interprets `Availability`. `Snapshot` names which one, and
-  `Routes` holds other snapshots' route tables, never their documents. The pass is designed, not
-  built (architecture.md §2.2); until it is, no pass slices a document.
+  `Routes` holds every snapshot's route table, its own among them, never another's document. The
+  pass is designed, not built (architecture.md §2.2); until it is, no pass slices a document, and
+  every run's `Snapshot` is `""`, the one label `Routes` keys.

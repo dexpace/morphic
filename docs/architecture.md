@@ -371,7 +371,9 @@ Designed, not yet built:
   aliases retained so provenance survives.
 - **filter** — include/exclude operations and types by pattern (Kiota-style path filtering), and
   the operations and properties holding a marker its settings name, such as an extension marking
-  one internal, followed by reachability trimming of orphaned types. A marker is read here and not
+  one internal, reporting a required property it removes as a warning, since an SDK lacking it may
+  send a request the API refuses, and pruning what it removes from examples (#723), followed by
+  reachability trimming of orphaned types. A marker is read here and not
   by one emitter, so the docs never describe an SDK other than the one generated
   (`docs/emitters/docs-and-mock.md`). Filtering serves *surface reduction*
   (a smaller SDK). Regenerating only one service of an existing SDK is a different problem and

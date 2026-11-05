@@ -26,7 +26,8 @@ type Plan struct {
 
 type Example struct {
     Value    ir.Example                 // the example, as the IR spells one
-    Inferred bool                       // synthesized under Policy.Examples; false = declared
+    Inferred bool                       // holds a value synthesized under Policy.Examples;
+                                        // false = every value it holds is declared
 }
 ```
 
