@@ -48,16 +48,13 @@ func (b *bases) holding(p Position) (resource, bool) {
 	if !ok {
 		return b.res.document(p.Doc), true
 	}
-	last := b.walks[at[reached]]
-	if last.s == sSchema || last.s == sLoose {
-		return last.in, last.known
-	}
-	// Read as a schema whatever the grammar reads it as, its own $id counts.
+	// Read as a schema whatever the grammar reads it as, its own $id counts,
+	// so it is entered from the walk above it, as past enters a schema.
 	before := walked{in: b.res.document(p.Doc), known: true}
 	if reached > 0 {
 		before = b.walks[at[reached-1]]
 	}
-	return b.res.entered(before, last.node, at[reached])
+	return b.res.entered(before, b.walks[at[reached]].node, at[reached])
 }
 
 // walk walks at, the positions on the way to one, as far as its document holds
