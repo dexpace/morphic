@@ -38,16 +38,15 @@ unread, in a line saying why.
 
 1. **Setup**: the merged tree in a throwaway worktree, as `references/rounds.md` opens.
 2. **Gate**: CI's run (`references/rounds.md#ci-is-the-gate`).
-3. **Facts**: `scripts/facts.py` (`references/rounds.md#facts-before-angles`).
-4. **Angles**: the whole change in the first two rounds
+3. **Angles**: the whole change in the first two rounds
    (`references/rounds.md#first-round-finds-everything`), then what moved
    (`references/rounds.md#later-rounds-read-what-moved`).
-5. **Standing reviews**, after the first round's angles
+4. **Standing reviews**, after the first round's angles
    (`references/rounds.md#read-standing-reviews`).
-6. **Fixes**, when the review fixes (its own PR, or when asked): each designed first
+5. **Fixes**, when the review fixes (its own PR, or when asked): each designed first
    (`references/rounds.md#design-the-fix-first`) and reviewed before it leaves
    (`references/rounds.md#review-own-fixes`).
-7. **Next round**, from the setup, when the branch, its base or `origin/main` moves
+6. **Next round**, from the setup, when the branch, its base or `origin/main` moves
    (`references/rounds.md#recheck-against-final-tree`), until
    `references/rounds.md#review-ends-with-nothing-left`.
 

@@ -37,21 +37,6 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 <rank> <angle> <file>:<line> <rule broken> <command> <output> <smallest fix>
 ```
 
-## Print a round's mechanical facts before its angles
-`facts-before-angles`
-
-- **Rule.** Each round runs `python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py <N>`
-  in its worktree, a stacked PR's base as `--base` and, from the third round, `--since`
-  (`references/rounds.md#later-rounds-read-what-moved`), and settles each line it prints in its
-  angle's matrix: a `rule` by its comparison, a `cite` by reading its line, a `command` by its exit
-  status, a `number` by deriving it, an `issue` read whole, a `pr` by its trial merge. A line left
-  unsettled is unreached. A fact derived by hand that a script could print joins it
-  (`morphic-curating-skills`).
-- **Why.** #1522's later rounds re-derived these by hand within a budget of about 80 tool calls, and
-  sampled the rest: one matched 37 of 50 closing issues' Directions, and the next found the body's
-  list of PRs sharing files wrong (#1522, #1530).
-- **Probe.** The report settles each line the script printed.
-
 ## Build the review from a ref only your session writes
 `review-head-in-own-ref`
 
@@ -280,18 +265,17 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Read what moved, from the third round on
 `later-rounds-read-what-moved`
 
-- **Rule.** From the third round, the fresh reader runs every angle over what
-  `python3.14 .claude/skills/morphic-reviewing-prs/scripts/facts.py --since <merged> <N>` lists as
-  stale, `<merged>` being the commit the round before reviewed, over each fix since, wording
-  included, read by `references/rounds.md#deep-and-broad`, over each cell left unreached or
-  reopened, named in its brief without findings, and over the PR body, not the whole change
+- **Rule.** From the third round, the fresh reader runs every angle over each file both
+  `git diff --name-only <merged> HEAD` and `git diff --name-only origin/<base>...HEAD` list,
+  `<merged>` the commit the round before reviewed, and each line citing a rule changed there
+  (`git grep -n '#<key>'`); over each fix since, wording included, read by
+  `references/rounds.md#deep-and-broad`; over each cell left unreached or reopened, named without
+  findings; and over the PR body, not the whole change
   (`references/rounds.md#missed-cell-widens-the-round`).
-- **Why.** #1522's later rounds each read the whole change, 41 files and then 42, at about 240,000
-  tokens, though of rounds 3 to 5's 13 `issue:` and `nit:` findings, 12 sat in what the round
-  before changed, the body, a clearance its rule refuses or a member no report lists as checked
-  (#1522, #1530).
-- **Probe.** The reader's brief lists the stale, unreached and reopened cells; the report gives each
-  a run or a reason.
+- **Why.** #1522's later rounds each reread the whole change at about 240,000 tokens, though 12 of
+  the 13 `issue:` and `nit:` findings of its rounds 3 to 5 sat in what the round before changed, the
+  body, a clearance its rule refuses or a member no report lists (#1522, #1530).
+- **Probe.** The reader's brief lists those cells; the report runs or settles each.
 
 ## Run the whole change again when a filled cell proves missed
 `missed-cell-widens-the-round`
