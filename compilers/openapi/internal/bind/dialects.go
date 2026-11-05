@@ -111,19 +111,19 @@ type entering struct {
 // enterIn returns what the schema n at at enters, held in the resource in, its
 // parent read in enclosing and, where schemaHeld says so, held by a schema
 // (heldBySchema). A schema no other holds is read in the dialect its `$schema`
-// names, and spells its identifier as that dialect does. One a schema holds
-// roots a resource where it writes an identifier as its embedder spells one,
-// as JSON Schema 2020-12 has an embedded resource do (§9.3.1), or as the
-// dialect its `$schema` names does, and only then is read in that dialect. A
-// `$schema` naming no dialect (DialectRule.NamesNone) chooses none.
+// names, which spells its identifier. One a schema holds roots a resource
+// where it writes an identifier as its embedder reads one (enter), as 2020-12
+// has an embedded resource do (§9.3.1), or as its `$schema`'s dialect spells
+// one beside no $ref its embedder ignores, and only then is read in that
+// dialect. A `$schema` naming no dialect (DialectRule.NamesNone) chooses none.
 func (r resources) enterIn(in resource, at Position, n *yaml.Node, enclosing string, schemaHeld func() bool) entering {
 	doc := at.Doc
 	uri, written := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(n), "$schema"))
 	named := written && !dialectRule(r.docs, doc, uri).NamesNone
 	held := named && schemaHeld()
-	own := dialectRule(r.docs, doc, enclosing).Keyword
+	own := dialectRule(r.docs, doc, enclosing)
 	if named && !held {
-		own = dialectRule(r.docs, doc, uri).Keyword
+		own = dialectRule(r.docs, doc, uri)
 	}
 	res, rooted, known := r.enter(in, n, own)
 	switch {
@@ -132,7 +132,8 @@ func (r resources) enterIn(in resource, at Position, n *yaml.Node, enclosing str
 	case !held:
 		return entering{res: res, rooted: rooted, known: known, names: true, dialect: uri}
 	}
-	if spelled := dialectRule(r.docs, doc, uri).Keyword; !rooted && spelled != own {
+	spelled := dialectRule(r.docs, doc, uri)
+	if !rooted && spelled.Keyword != own.Keyword && !r.ignoresIdentifier(doc, n, own) {
 		res, rooted, known = r.enter(in, n, spelled)
 	}
 	if !rooted {

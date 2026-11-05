@@ -248,6 +248,43 @@
             "source": 0,
             "pointer": "/components/schemas/Named/properties/leaf"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Named/properties/beside",
+          "name": {
+            "source": "beside",
+            "canonical": "beside"
+          },
+          "wireName": "beside",
+          "type": {
+            "target": "t/anon/components/schemas/Named/definitions/Leaf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:id": {
+              "reason": "out_of_scope",
+              "value": "https://example.com/elsewhere",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Named/properties/beside/id"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/properties/beside"
+          }
         }
       ],
       "abstract": false,
@@ -481,6 +518,15 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
+      "message": "id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read for nothing, as this schema's dialect ignores the keywords beside a $ref",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/properties/beside/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
       "message": "id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
       "provenance": {
         "source": 0,
@@ -510,7 +556,7 @@
     {
       "format": "openapi@3.1",
       "path": "schema-drafts.yaml",
-      "hash": "528b9e243097522fabc9b867808de3652ed6d6d50746f4b159c465cb2d9d7eb0"
+      "hash": "0583c85d81f31a5127f4ec4761bdaa0d16e797bfc6549c08cc3cf3023d95c166"
     }
   ]
 }

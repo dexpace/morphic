@@ -64,18 +64,86 @@ func TestTuples_AListOfItemsHoldsSchemas(t *testing.T) {
 
 // d4Rule is how a draft 4 schema names its resource and holds its subschemas.
 var d4Rule = bind.DialectRule{Keyword: "id", Fragments: true, Definitions: true, Dependencies: true, PlainNames: true,
-	Tuples: true}
+	Tuples: true, IgnoresRefFields: true}
 
 // draftRule answers with d4Rule for a schema naming draft 4, and the zero rule
 // for any other.
 func draftRule(cfg bind.Config) bind.Config {
+	return ruleFor(cfg, d4Rule)
+}
+
+// ruleFor answers with rule for a schema naming draft 4, and the zero rule for
+// any other.
+func ruleFor(cfg bind.Config, rule bind.DialectRule) bind.Config {
 	cfg.Dialect = func(_, dialect string) bind.DialectRule {
 		if dialect == "http://json-schema.org/draft-04/schema#" {
-			return d4Rule
+			return rule
 		}
 		return bind.DialectRule{}
 	}
 	return cfg
+}
+
+// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
+// schema writing a `$schema`, an identifier and a $ref, held by one whose rule
+// ignores what is beside a $ref: it roots no resource, whichever keyword its
+// own `$schema`'s dialect spells the identifier by, so a $ref naming its
+// identifier resolves to nothing. Held by a schema reading them, it does.
+func TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere(t *testing.T) {
+	t.Parallel()
+	src := func(embedder string) string {
+		return head + "components:\n  schemas:\n" +
+			"    T: {" + embedder + "properties: {e: {$schema: 'https://json-schema.org/draft/2020-12/schema',\n" +
+			"      $id: 'https://example.com/e', $ref: '#/components/schemas/B'}}}\n" +
+			"    B: {type: string}\n    R: {$ref: 'https://example.com/e'}\n"
+	}
+	held := entryAt(t, bound(t, src("$schema: 'http://json-schema.org/draft-04/schema#', "), draftRule(self)), "/components/schemas/R")
+	assert.NotEqual(t, bind.Resolved, held.Hop.Status, "draft 4 ignores the $schema and the $id beside e's $ref")
+	e := entryAt(t, bound(t, src(""), draftRule(self)), "/components/schemas/R")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, at("/components/schemas/T/properties/e"), e.Hop.Target)
+}
+
+// TestDialectRule_AnIdentifierBesideARefNamesNothing pins a rule ignoring what
+// a schema writes beside its $ref (DialectRule.IgnoresRefFields), as draft 4
+// does: an `id` there gives that $ref no base, roots no resource a $ref names,
+// and, naming a fragment alone, declares no plain name, so the $ref resolves
+// against the base above it. Under a rule applying them, as 2019-09's does,
+// each `id` there is read.
+func TestDialectRule_AnIdentifierBesideARefNamesNothing(t *testing.T) {
+	t.Parallel()
+	src := head + "components:\n  schemas:\n" +
+		"    T: {$schema: 'http://json-schema.org/draft-04/schema#', id: 'https://example.com/t/',\n" +
+		"      definitions: {A: {id: 'a', type: string}, B: {id: 'https://example.com/a', type: integer}},\n" +
+		"      properties: {p: {id: 'https://example.com/', $ref: 'a'}, f: {id: '#f', $ref: 'a'},\n" +
+		"        g: {$ref: '#f'}, h: {$ref: 'https://example.com/'}}}\n"
+	const props = "/components/schemas/T/properties/"
+	for name, c := range map[string]struct {
+		ignores bool
+		p       jsontext.Pointer
+	}{
+		"ignored": {ignores: true, p: "/components/schemas/T/definitions/A"},
+		"applied": {ignores: false, p: "/components/schemas/T/definitions/B"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			rule := d4Rule
+			rule.IgnoresRefFields = c.ignores
+			table := bound(t, src, ruleFor(self, rule))
+			e := entryAt(t, table, props+"p")
+			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+			assert.Equal(t, at(c.p), e.Hop.Target, "the base p's $ref resolves against")
+			for site, target := range map[jsontext.Pointer]jsontext.Pointer{"g": props + "f", "h": props + "p"} {
+				e := entryAt(t, table, props+site)
+				if !c.ignores {
+					require.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+					assert.Equal(t, at(target), e.Hop.Target, site)
+					continue
+				}
+				assert.NotEqual(t, bind.Resolved, e.Hop.Status, "%s names what an ignored id would", site)
+			}
+		})
+	}
 }
 
 // TestDialectRule_ReadsWhatADialectSpellsOtherwise pins what Config.Dialect

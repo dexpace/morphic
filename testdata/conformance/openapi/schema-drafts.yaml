@@ -34,3 +34,4 @@ components:
         Leaf: {id: '#leaf', type: string}
       properties:
         leaf: {$ref: '#leaf'}
+        beside: {id: 'https://example.com/elsewhere', $ref: '#leaf'}

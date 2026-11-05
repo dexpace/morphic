@@ -944,7 +944,8 @@ func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 // whose rest is additionalItems (#tuples), draft 6's dependencies kept as
 // validation-only (#validation-only), a keyword beside draft 7's $ref warned of
 // and 2019-09's applied silently (#later-version-construct), and draft 4's `id`
-// naming a resource whose fragment ids a $ref reads (#references).
+// naming a resource whose fragment ids a $ref reads, bar one beside that $ref,
+// which draft 4 ignores (#references).
 func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	tuple := func(name string) *ir.Tuple {
 		tp, ok := doc.Types[componentID(name)].(*ir.Tuple)
@@ -973,9 +974,11 @@ func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 	named, ok := doc.Types[componentID("Named")].(*ir.Model)
 	require.True(t, ok)
-	require.Len(t, named.Properties, 1)
-	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Named/definitions/Leaf"), named.Properties[0].Type.Target,
-		"#leaf names the definition draft 4's id declares it at")
+	require.Len(t, named.Properties, 2)
+	for _, p := range named.Properties {
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Named/definitions/Leaf"), p.Type.Target,
+			"#leaf names the definition draft 4's id declares it at, an id beside the $ref aside")
+	}
 	for _, d := range diags {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
 	}

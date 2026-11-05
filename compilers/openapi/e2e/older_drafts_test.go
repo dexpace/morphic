@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,6 +115,38 @@ func TestOlderDrafts_RefSiblingsAreWarnedOf(t *testing.T) {
 			v := doc.Types[componentID("V")]
 			require.NotNil(t, v)
 			assert.Equal(t, "d", v.Common().Docs.Description, "applied in every dialect")
+		})
+	}
+}
+
+// TestOlderDrafts_AnIdentifierBesideARefSetsNoBase pins an identifier beside a
+// $ref in each draft ignoring the keywords there, 4, 6 and 7, on the JSON Schema
+// test suite's "$ref prevents a sibling $id from changing the base uri": the
+// $ref resolves against the base above it, here to `base_foo`, and the
+// identifier draws no later version's warning, its info saying it is read for
+// nothing. 2019-09 and 2020-12 read it as the $ref's base, here naming `foo`.
+func TestOlderDrafts_AnIdentifierBesideARefSetsNoBase(t *testing.T) {
+	t.Parallel()
+	for draft, c := range map[string]struct{ id, defs, want string }{
+		draft04: {"id", "definitions", "base_foo"}, draft06: {"$id", "definitions", "base_foo"},
+		draft07: {"$id", "definitions", "base_foo"}, draft2019: {"$id", "$defs", "foo"}, draft2020: {"$id", "$defs", "foo"},
+	} {
+		t.Run(draft, func(t *testing.T) {
+			t.Parallel()
+			const base = "'http://localhost:1234/sibling_id/"
+			doc, diags := parseFull(t, openapitest.ComponentSpec("    T: {$schema: "+draft+", "+c.id+": "+base+"base/', type: object,\n"+
+				"      "+c.defs+": {foo: {"+c.id+": "+base+"foo.json', type: string}, base_foo: {"+c.id+": 'foo.json', type: number}},\n"+
+				"      properties: {p: {"+c.id+": "+base+"', $ref: 'foo.json'}}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			tm, ok := doc.Types[componentID("T")].(*ir.Model)
+			require.True(t, ok)
+			p, ok := propByWire(tm, "p")
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/"+c.defs+"/"+c.want), p.Type.Target)
+			assert.Empty(t, openapitest.PointersOf(diags, diag.LaterVersionConstruct), "the identifier is read as the draft reads it")
+			said := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/properties/p/"+c.id)
+			ignored := c.want == "base_foo"
+			assert.Equal(t, ignored, strings.Contains(said, "is read for nothing"), said)
 		})
 	}
 }

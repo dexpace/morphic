@@ -148,7 +148,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor", rule.Keyword} {
 		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
 		if keyword == rule.Keyword {
-			name, ok = fragmentOnly(name, ok && rule.Fragments)
+			name, ok = fragmentOnly(name, ok && rule.Fragments && !r.ignoresIdentifier(at.Doc, n, rule))
 		}
 		if !ok || !anchorNamed(rule, keyword, name) {
 			continue
@@ -290,14 +290,19 @@ func (ix *identifiers) lookupAnchor(root Position, name string) (Position, Reaso
 	}
 }
 
-// enter is the resource the content of the schema n, held in the resource in,
-// is in: a new one, named by its $id, where it writes one naming another URI
-// than in's; the document's own where its $id names its document; else in. An
-// $id naming in's own URI starts none. rooted reports that n roots the
-// resource returned, whose root the caller sets. known is false where n writes
-// no $id and merges past the view's bound, which may hide one.
-func (r resources) enter(in resource, n *yaml.Node, keyword string) (res resource, rooted, known bool) {
-	id, written := r.idOf(in.root.Doc, n, keyword)
+// enter is the resource the content of the schema n, held in the resource in
+// and read as rule says, is in: a new one, named by its identifier, where it
+// writes one naming another URI than in's; the document's own where its
+// identifier names its document; else in. An identifier naming in's own URI
+// starts none, and so does one beside a `$ref` rule ignores (ignoresIdentifier).
+// rooted reports that n roots the resource returned, whose root the caller
+// sets. known is false where n writes no identifier and merges past the view's
+// bound, which may hide one.
+func (r resources) enter(in resource, n *yaml.Node, rule DialectRule) (res resource, rooted, known bool) {
+	if r.ignoresIdentifier(in.root.Doc, n, rule) {
+		return in, false, true
+	}
+	id, written := r.idOf(in.root.Doc, n, rule.Keyword)
 	if !written {
 		return in, false, r.docs.list[in.root.Doc].view.Expanded(nodeview.Deref(n))
 	}
@@ -442,10 +447,23 @@ func unreserved(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("-._~", c) >= 0
 }
 
-// idOf is the $id n writes in document id, and whether it writes a non-empty
-// string one: a null $id is none, as refOf reads a null $ref.
+// idOf is the identifier n writes in document id under keyword, and whether it
+// writes a non-empty string one: a null one is none, as refOf reads a null
+// $ref.
 func (r resources) idOf(id DocID, n *yaml.Node, keyword string) (string, bool) {
 	return scalarOf(r.docs.list[id].view.ChildByToken(nodeview.Deref(n), keyword))
+}
+
+// ignoresIdentifier reports whether the schema n of document id, read as rule
+// says, writes a $ref whose siblings rule ignores (DialectRule.IgnoresRefFields),
+// so that its identifier names no resource, gives no base and declares no name,
+// as the JSON Schema drafts before 2019-09 have it.
+func (r resources) ignoresIdentifier(id DocID, n *yaml.Node, rule DialectRule) bool {
+	if !rule.IgnoresRefFields {
+		return false
+	}
+	_, ref := r.docs.refOf(id, n)
+	return ref
 }
 
 // fragmentOnly returns the plain name id names where it names a fragment
@@ -477,7 +495,7 @@ func (r resources) holding(p Position, path []*yaml.Node, schema, named bool) (r
 	res, known := r.document(p.Doc), true
 	s, tokens := r.docs.identityState(p.Doc), slices.Collect(p.Pointer.Tokens())
 	dialect, held := defaultDialect(r.docs, p.Doc), false
-	keyword := dialectRule(r.docs, p.Doc, dialect).Keyword
+	rule := dialectRule(r.docs, p.Doc, dialect)
 	for i, n := range path {
 		if i > 0 {
 			held = held || s == sSchema || s == sLoose
@@ -490,7 +508,7 @@ func (r resources) holding(p Position, path []*yaml.Node, schema, named bool) (r
 		if named {
 			e = r.enterIn(res, Position{Doc: p.Doc}, n, dialect, func() bool { return held })
 		} else {
-			e.res, e.rooted, e.known = r.enter(res, n, keyword)
+			e.res, e.rooted, e.known = r.enter(res, n, rule)
 		}
 		known = known && e.known
 		if e.rooted {

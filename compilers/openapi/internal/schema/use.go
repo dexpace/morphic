@@ -9,10 +9,12 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -49,12 +51,21 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 	return annotation.Site{Kind: annotation.Reference, Node: s, Voices: u.Voices, Referents: u.Referents}
 }
 
-// SiteAt is Site for s written at pointer, naming the keyword the dialect s is
-// read in names its identifier by, as annotation.Read keeps it.
+// SiteAt is Site for s written at pointer, saying how the dialect s is read in
+// reads its identifier, which annotation.Read keeps: the keyword naming it, and
+// whether the dialect ignores it beside a $ref s writes, as the binder does.
 func (u Use) SiteAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) annotation.Site {
 	site := u.Site(s)
-	site.Identifier = lowering.SchemaRulesAt(c, pointer).Identifier()
+	rules := lowering.SchemaRulesAt(c, pointer)
+	site.Identifier = annotation.Identifier{Keyword: rules.Identifier(), Ignored: rules.IgnoresRefFields() && writesRef(s)}
 	return site
+}
+
+// writesRef reports whether s writes a $ref the binder reads as one: a string,
+// empty or not. A null, a mapping or a list writes none.
+func writesRef(s *oas3.Schema) bool {
+	n := nodeview.Deref(annotation.RawPropertyNode(s, "$ref"))
+	return n != nil && n.Kind == yaml.ScalarNode
 }
 
 // DefaultChain is u.Site(s)'s chain less each referent past the narrowing whose

@@ -383,9 +383,10 @@ JSON Schema drafts 4, 6 and 7 ignore a schema's keywords beside its `$ref` too, 
 them, so in a schema read in one of those drafts ([`dialect-keywords`](#dialect-keywords)) the
 schema lowering applies each as 2020-12 does and warns of each field the draft's rows define at its
 key, OpenAPI's own among them, bar those whose reading applying them leaves alike: the `$schema`
-naming the draft, `definitions`, whose schemas only a `$ref` reads, and `$comment`. A key the rows
-define nothing for, an extension or an unknown keyword, is kept as written either way, and draws
-none.
+naming the draft, `definitions`, whose schemas only a `$ref` reads, and `$comment`. The identifier
+is not applied, as applying it would change what the `$ref` names: it names nothing there, as the
+draft has it ([`references`](#references)), and draws no warning. A key the rows define nothing
+for, an extension or an unknown keyword, is kept as written either way, and draws none.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
@@ -400,6 +401,7 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
   `e2e.TestOlderDrafts_RefSiblingsAreWarnedOf`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
@@ -483,11 +485,14 @@ or a drive letter does, as for an `$id` reaching a local file, even one an examp
 check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
 refused for one. In drafts 4, 6 and 7 one naming a
 fragment alone, `#name`, declares that plain name as an `$anchor` does, which is why the load phase
-holds an `$id`'s format to the schema's dialect rather than to the rule table's 2020-12 row;
-`definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
-schema another holds roots a resource where it writes an identifier as the dialect embedding it
-spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect its own `$schema`
-names does. An `$id` names the URI its part before the `#` resolves to against the base above it, by
+holds an `$id`'s format to the schema's dialect rather than to the rule table's 2020-12 row; one
+beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
+every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
+a value is one. A schema another holds roots a resource where it writes an identifier as the
+dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
+its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
+ignores. An `$id` names the URI its part before the `#` resolves to against the
+base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
 and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -573,7 +578,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
+  `bind.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
   `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
   `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
   `bind.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,

@@ -81,7 +81,10 @@ type DialectRule struct {
 	Dependencies bool
 	PlainNames   bool
 	Tuples       bool
-	NamesNone    bool
+	// IgnoresRefFields has a schema writing a `$ref` write no identifier, as
+	// the drafts before 2019-09 ignore every keyword beside one.
+	IgnoresRefFields bool
+	NamesNone        bool
 }
 
 // ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,

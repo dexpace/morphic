@@ -76,12 +76,13 @@ func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) 
 // readsBesideRef reports whether applying key, written beside a $ref in a
 // schema read with rules, reads otherwise than ignoring it: a field the rows
 // define, OpenAPI's own among them, bar the $ref, the `$schema` naming the
-// dialect, `definitions`, whose schemas only a $ref reads, and `$comment`,
-// which nothing reads. A key they define none for, an extension or an unknown
-// keyword, is kept as written either way.
+// dialect, `definitions`, whose schemas only a $ref reads, `$comment`, which
+// nothing reads, and the identifier, which the binder ignores there as the
+// dialect does (bind.DialectRule.IgnoresRefFields). A key they define none for,
+// an extension or an unknown keyword, is kept as written either way.
 func readsBesideRef(rules oas.SchemaRules, key string) bool {
 	switch key {
-	case "$ref", "$schema", "definitions", "$comment":
+	case "$ref", "$schema", "definitions", "$comment", rules.Identifier():
 		return false
 	default:
 		return rules.Defines(key)
