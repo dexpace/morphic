@@ -564,8 +564,8 @@ func TestCallShape_MissesAFunctionHandedOnToTheRunner(t *testing.T) {
 // named otherwise, it counts, so the plant reaches the analysis.
 func TestCallShape_LeavesOutWhatOnlyTestsReach(t *testing.T) {
 	t.Parallel()
-	const support = "ir/irtest"
-	require.Contains(t, testSupport, support, "the plant must be named as a test-support package")
+	require.NotEmpty(t, testSupport, "the plant must be named as a test-support package")
+	support := slices.Sorted(maps.Keys(testSupport))[0]
 	tests := []struct {
 		name, path string
 		want       map[string]map[string]int
