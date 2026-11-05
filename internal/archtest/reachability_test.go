@@ -79,6 +79,8 @@ var apiRoots = map[string]string{
 	"ir/irfacts.Index.Usage":                       factAPI,
 	"ir/irfacts.Index.Recursive":                   factAPI,
 	"ir/irfacts.Index.Component":                   factAPI,
+	"ir/irfacts.Index.Correlation":                 factAPI,
+	"ir/irfacts.Index.Correlated":                  factAPI,
 }
 
 // testSupport names each package whose production files exist for tests, with

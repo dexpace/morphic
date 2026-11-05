@@ -57,6 +57,8 @@ in opposite ways:
   revision and the `color` parameter's in the next, once `color` is listed first. The same holds
   for `allOf`, `anyOf` and `oneOf` branches. A consumer comparing by ID then attaches one entity's
   state to another, a wrong match rather than a missing one, and nothing about either ID shows it.
+  The golden spec's own history holds a case ([correlation
+  keys](./derived-facts.md#correlation-keys)).
   On the golden spec 9,957 of 41,697 types, 13,466 of 32,291 enum members, 5,871 of 49,434
   properties and all 8 servers have an ID that passes through an array index (spec @319dc756,
   morphic @b206dc99):

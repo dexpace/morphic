@@ -316,7 +316,7 @@ entry in that test allows, and nothing from a layer above its own.
 |---|---|---|
 | `barrier/` | 0: turns a panic in code the caller does not own into an error, and quotes what that code says on one bounded line | stdlib only |
 | `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
-| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
+| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion, correlation keys), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` + `barrier` |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
