@@ -40,6 +40,8 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
 		{"the output file", []string{"compile", spec, "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
+		// A long flag's separate value. A shorthand's takes the same branch of readAlone
+		// today, so this row holds both, and nothing would catch them coming apart.
 		{"after a flag and its separate value", []string{"compile", spec, "--fail-on", "error", "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
