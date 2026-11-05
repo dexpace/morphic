@@ -109,12 +109,12 @@ func (d Dialects) rowsAt(p bind.Position) oas.SchemaRules {
 	return d.byDoc[bind.Source]
 }
 
-// Of is At for a reading that has the schema's node and not where it is. A
-// node an alias places at several positions reads at all of them the rows of
-// the root last in pointer order among those whose trees hold it, as
-// readDialects governs them, so only a reading no valid node answers otherwise
-// in another dialect asks it, as an exclusive bound valid in draft 4 is
-// malformed in 2020-12.
+// Of is At for a reading that has the schema's node and not where it is, and
+// is false for a node that reads the source's own rows. A node an alias places
+// at several positions reads at all of them the rows of the root last in
+// pointer order among those whose trees hold it, as readDialects governs them,
+// so only a reading no valid node answers otherwise in another dialect asks
+// it, as an exclusive bound valid in draft 4 is malformed in 2020-12.
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok
@@ -195,6 +195,12 @@ func readDialects(table *bind.Table, others Others, d *dialects,
 			}
 			out.byRoot[root.At] = r.rows.Schema
 			out.govern(root.Node, r.rows.Schema)
+		}
+		// Outermost last: a node no root holds reads its document's own rows,
+		// noted only where they are not the source's, which Of's readers take
+		// for a node it notes nothing of.
+		if rows, own := out.byDoc[id]; own && id != bind.Source && rows != out.byDoc[bind.Source] {
+			out.govern(table.Document(id).Root, rows)
 		}
 	}
 	return out, diags

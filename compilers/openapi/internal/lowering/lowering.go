@@ -500,15 +500,17 @@ func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
 }
 
 // SchemaRulesOf is SchemaRulesAt for a reading that has the schema's node n
-// and not where it is, reading an aliased node in one dialect wherever it is
-// placed (load.Dialects.Of).
+// and not where it is: the rows load.Dialects.Of gives it, and the source's
+// own for a node it gives none, whatever document c reads, so a reading that
+// follows a $ref into another document still reads its schemas in their own
+// dialect. An aliased node reads one dialect wherever it is placed.
 func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
 	if c.loaded != nil {
 		if r, ok := c.loaded.dialects.Of(n); ok {
 			return r
 		}
 	}
-	return c.SchemaRules()
+	return sourceRows(c).Schema
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'

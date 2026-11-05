@@ -2880,9 +2880,11 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
   `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
   `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
+  `e2e.TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect`,
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
-  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
+  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
+  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
   dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
   [`tuples`](#tuples), [`references`](#references)), so a keyword only the draft defines, such as

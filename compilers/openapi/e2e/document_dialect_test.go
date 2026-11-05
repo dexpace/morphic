@@ -5,6 +5,8 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -219,4 +221,45 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$schema", "/components/schemas/R/$schema", "/jsonSchemaDialect"},
 		openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
+}
+
+// TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect pins that a schema
+// reached from another document is read in the dialect its own document's
+// jsonSchemaDialect names, whichever document's content the lowering reads:
+// draft 7's `dependencies` in other.yaml folds from an inline allOf branch the
+// source's G names, and a draft 7 source's `definitions`, as `$defs`, leaves a
+// body other.yaml declares to its media type, a file.
+func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"
+	compile := func(t *testing.T, root, other string) *ir.Document {
+		t.Helper()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(head+other), 0o600))
+		return compileSource(t, filepath.Join(dir, "root.yaml"), head+root)
+	}
+	t.Run("into a draft's document", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n    G: {$ref: './other.yaml#/components/schemas/F'}\n",
+			"jsonSchemaDialect: "+draft07+"\npaths: {}\ncomponents:\n  schemas:\n"+
+				"    F: {type: object, allOf: [{dependencies: {a: [b]}}]}\n")
+		f, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/F")].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason)
+		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the branch folds")
+	})
+	t.Run("from another document into a draft's", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "jsonSchemaDialect: "+draft07+"\npaths:\n  /x: {$ref: './other.yaml#/paths/~1x'}\n"+
+			"components:\n  schemas:\n    S: {type: string, definitions: {d: {type: integer}}}\n",
+			"paths:\n  /x:\n    post:\n      operationId: postX\n      requestBody:\n        content:\n"+
+				"          application/octet-stream: {schema: {$ref: './root.yaml#/components/schemas/S'}}\n"+
+				"      responses: {'200': {description: ok}}\n")
+		require.Len(t, doc.Services, 1)
+		require.Len(t, doc.Services[0].Groups, 1)
+		require.Len(t, doc.Services[0].Groups[0].Operations, 1)
+		contents := doc.Services[0].Groups[0].Operations[0].Request.Contents
+		require.Len(t, contents, 1)
+		assert.NotNil(t, contents[0].File, "a string its draft writes nothing else of is a file")
+	})
 }
