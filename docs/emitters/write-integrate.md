@@ -57,9 +57,8 @@ type Manifest struct {
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
 
-// Generations is a cross-version target's manifest, in the place any target's lies: each snapshot
-// run's Manifest by the label of its snapshot, "" for a document no pass sliced by version
-// (docs-and-mock.md#routes-and-links).
+// Generations is the manifest of a target run on several version snapshots, in the place any
+// target's lies: each run's Manifest by the label of its snapshot (contract/emitter.md).
 type Generations struct {
     Schema    int                 // as Manifest.Schema, the version of this format
     Snapshots map[string]Manifest // the last label's holds the files spanning versions
@@ -124,13 +123,14 @@ type Entry struct {
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
   check and no-op test read what was shipped, not what one run wrote.
-- **One generation across snapshots.** A target whose `Capabilities.CrossVersion` is set is run on
-  every version snapshot as one generation ([docs and mocks](docs-and-mock.md#routes-and-links)).
-  Its manifest is a `Generations`, which holds each snapshot run's `Manifest` under that snapshot's
-  label; each run's `Prior` is its own label's, and the writer reads a path across all of them, so a
-  file no run returns any longer, a dropped label's directory among them, is pruned as any other,
-  and one that moves from one label's run to another's, as a file spanning versions does when
-  another label becomes last, is neither pruned nor taken for a user's edit.
+- **One generation across snapshots.** A target is run on every version snapshot as one generation,
+  each run under its label's directory ([the
+  contract](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)). Its manifest is
+  a `Generations`, which holds each snapshot run's `Manifest` under that snapshot's label; each
+  run's `Prior` is its own label's, and the writer reads a path across all of them, so a file no run
+  returns any longer, a dropped label's directory among them, is pruned as any other, and one that
+  moves from one label's run to another's, as a file spanning versions does when another label
+  becomes last, is neither pruned nor taken for a user's edit.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.

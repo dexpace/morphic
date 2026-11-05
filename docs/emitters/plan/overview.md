@@ -25,12 +25,13 @@ type Plan struct {
 }
 
 type Example struct {
-    Value    ir.Example                 // the example, as the IR spells one
+    Example  ir.Example                 // the example, as the IR spells one
     Inferred bool                       // made under Policy.Examples, synthesized or assembled;
                                         // false = declared as it stands
 }
 
-// MaxExampleValues bounds the values one example holds; a larger one is reported and left out.
+// MaxExampleValues bounds the values one synthesized example holds; a larger one is reported
+// and left out.
 const MaxExampleValues = 10_000
 
 // The sets of the positions Examples has no key for: a content's, a variant's and a message's
