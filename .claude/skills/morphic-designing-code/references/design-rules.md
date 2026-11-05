@@ -47,6 +47,19 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   and the work at n, 2n and 4n
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`).
 
+## Prune a visitor to the path to its carriers
+`prune-a-visitor-to-its-carriers`
+
+- **Rule.** A visitor reading a type with few carriers returns false off the path to them, as
+  `checkStreamingModes` in `ir/irverify/kinds.go` does, rather than being shown every value, as
+  `checkInferred` is because every `Provenance` holds its field. The pruning changes no finding, so
+  it takes a test failing on a carrier off the path and a counting seam showing the values visited.
+- **Why.** `checkStability`, written in `checkInferred`'s shape for a type only operations and
+  their groups carry, made `irverify.Verify` over the golden spec about 4% slower than the pruned
+  walk (#1229), and two more checks had the same shape (#1267).
+- **Probe.** A document holding more beside the carriers shows the visitor the same number of
+  values.
+
 ## Give a value with a form a type of its own
 `type-the-form`
 
@@ -90,6 +103,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** Each new function does more than call another, each new interface has two
   implementations or a test seam, and `go test ./internal/archtest` passes.
 
+## A function crosses into another package only for a reason
+`function-crosses-for-a-reason`
+
+- **Rule.** A function one package hands another, as a field or a parameter, stays a function only
+  for I/O, a policy the callee needs inside its logic but must not know, a live or lazily built
+  query over changing state, a seam tests substitute, or a traversal or immediate callback. Any
+  other becomes the data the caller holds, a named type with methods in the lowest package needing
+  them. One that stays is a named type's method value, so its construction names its
+  implementation.
+- **Why.** `merge.Merger` relays six function fields its tests stub, one of them `Resolve`, a map
+  read in production and in its stub alike, where a map serves both (#1477, #1486).
+- **Probe.** `callShapeBaseline` in `internal/archtest` counts calls into packages a package does
+  not import; each new one is argued here.
+
 ## Count on `barrier.Catch` only for what it reaches
 `catch-reaches-one-goroutine`
 
@@ -111,7 +138,22 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
   a compile peak at 8.2 GB, spelling each node's pointer with every key above it (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the
-  branch, as #931's table does.
+  branch, as #931's table does. A new recursion under `compilers/openapi` also joins
+  `loweringRecursions` in `internal/archtest/recursion_test.go` with its bound
+  (`.claude/skills/morphic-checking-style/references/departures.md#bounded-recursion-stands`).
+
+## Hold each part of a charge to the cost it stands for
+`charge-each-part-to-its-cost`
+
+- **Rule.** For each part of what a bound's charge weighs, grow that part alone, on `main` and on
+  the branch. A charge growing while the cost stays flat refuses a valid document for nothing, and
+  a cost growing while the charge stays flat is a copy left unbounded. Read a survey of cost per
+  unit of charge at both ends: the low end is a charge standing for almost no cost.
+- **Why.** A `$ref` budget's first revision charged at every use a response's inline schema, which
+  lowers once, refusing 400 `$ref`s `main` compiles, and charged nothing for an alias's own fields,
+  which copy at every use, through four rounds reading the survey's high end (#1430).
+- **Probe.** Grow each part alone with the rest of the document fixed: charge and cost move
+  together.
 
 ## Share one implementation only among sites that mean the same
 `share-only-what-means-the-same`
