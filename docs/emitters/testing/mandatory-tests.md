@@ -328,13 +328,15 @@ throughout these documents.
     region follows its entity into the file a rename moves it to, one the declaration enclosed still
     inside it, and one whose entity is gone is reported and its file kept; a scoped run's manifest
     keeps every entry it left out; the staleness check lists no entity a correlation key carried
-    across a path rename; a file written once is never written again, nor reported when its user
-    edits it; a hint's key, a runtime-policy key, an envelope's `Except` entry and a `Remount` group
-    naming nothing in the document each draw `emitters/unmatched-key` once, naming the entity of the
-    same correlation key, and no other diagnostic; a README's text outside its blocks and its frozen
-    blocks survive byte for byte, an edit outside its blocks draws nothing and one inside an
-    unfrozen block is replaced and draws a warning, a block new to the generation lands beside its
-    neighbours in the generated order, the first of them included, a block whose ID holds `-->`
-    keeps its markers whole, one frozen before its entity's path is renamed gains no twin, and its
-    table of contents lists the user's headings; and a manifest of an older `Schema` is migrated,
-    one of a newer refused with nothing written ([write / integrate](../write-integrate.md)).
+    across a path rename; a file written once is never written again, even after its user deletes
+    it, nor reported when its user edits it, and one marked `@morphic:ignore-file` is never written,
+    pruned or reported; a hint's key, a runtime-policy key, an envelope's `Except` entry and a
+    `Remount` group naming nothing in the document each draw `emitters/unmatched-key` once, naming
+    the entity of the same correlation key, and no other diagnostic; a README's text outside its
+    blocks and its frozen blocks survive byte for byte, an edit outside its blocks draws nothing and
+    one inside an unfrozen block is replaced and draws a warning, a block new to the generation
+    lands beside its neighbours in the generated order, the first of them included, a block whose ID
+    holds `-->` keeps its markers whole, one frozen before its entity's path is renamed gains no
+    twin, and its table of contents lists the user's headings; and a manifest of an older `Schema`
+    is migrated, one of a newer refused with nothing written ([write /
+    integrate](../write-integrate.md)).

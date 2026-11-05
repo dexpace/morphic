@@ -68,8 +68,8 @@ type File struct {
     Path    string
     Digest  string               // SHA-256 over the bytes written, normalized (below)
     Origins []EntityID           // as the Artifact lists them
-    Once    bool                 // its Artifact's SkipIfExists: written when absent, the user's
-                                 // thereafter
+    Once    bool                 // its Artifact's SkipIfExists: written by the first generation
+                                 // that finds it absent, the user's thereafter
 }
 
 type Entry struct {
@@ -94,14 +94,16 @@ type Entry struct {
   header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
   regions. The writer leaves it as it is, reports it as a warning, since nothing is lost, rather
   than overwrite the edit, and keeps the file's prior entry in the new manifest, so the next
-  generation reports it again. A file integrated as blocks is checked by its blocks alone
-  ([below](#a-document-the-user-writes-around)).
+  generation reports it again. A file marked `@morphic:ignore-file` is its user's whole, as a file
+  written once is, so it is never written, pruned or checked for an edit, and a file integrated as
+  blocks is checked by its blocks alone ([below](#a-document-the-user-writes-around)).
 - **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest, a
-  file written once aside, the engine writes nothing. `Emitter` is a version, not the hash of the
-  executable the plan and IR caches key on, since a team's machines share the manifest and must
-  agree on what it holds, and it holds the Go release beside Morphic's, since its `go/format` shapes
-  Go's output ([emit rules](emit/rules.md)). A version naming no one tree, `(devel)` or one marked
-  `+dirty`, never matches, so a change being developed is never skipped.
+  file written once or marked `@morphic:ignore-file` aside, the engine writes nothing. `Emitter` is
+  a version, not the hash of the executable the plan and IR caches key on, since a team's machines
+  share the manifest and must agree on what it holds, and it holds the Go release beside Morphic's,
+  since its `go/format` shapes Go's output ([emit rules](emit/rules.md)). A version naming no one
+  tree, `(devel)` or one marked `+dirty`, never matches, so a change being developed is never
+  skipped.
 - **A scoped run.** A run under a `Scope` writes what the scope selects, removes and prunes nothing
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
@@ -110,12 +112,13 @@ type Entry struct {
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.
 - **Written once.** A file a target generates for the user to own, such as a test to fill in, is an
-  artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written
-  while absent, never rewritten or pruned, and never checked for an edit, since editing it is what
-  it is for. It is matched to a later generation through its origins, each followed to the entity
-  whose prior entry ([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped))
-  it is, so an entity renamed while its key holds, as a `Rename` hint renames one, is not written a
-  second time under its new name.
+  artifact with `SkipIfExists` ([the contract](contract/emitter.md)), recorded as `Once`: written by
+  the first generation that finds it absent and never again, so one its user deleted stays deleted,
+  never pruned, and never checked for an edit, since editing it is what it is for. It is matched to
+  a later generation through its origins, each followed to the entity whose prior entry
+  ([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped)) it is, so an entity
+  renamed while its key holds, as a `Rename` hint renames one, is not written a second time under
+  its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
   manifest from a newer Morphic is refused as an error and nothing is written, since its fields
