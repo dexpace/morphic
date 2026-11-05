@@ -95,12 +95,12 @@
 - **Rule.** A timeout or wall-clock bound failing in a package the change does not touch, at a load
   average above the cores the run has, is load until a rerun says otherwise. Rerun each failed
   package alone with the gate's flags, pinned with `GOMAXPROCS=<n>` beside `taskset -c` where it
-  exists, and report each rerun; a failure that holds there is real. Where reruns keep failing, run
-  gates one at a time with one private `GOCACHE`. Reruns never make the gate green, but a race
-  run with `-covermode=atomic -coverprofile=<file>` and `go run ./cmd/morphic-covergate <file>`
-  still give the coverage verdict.
-- **Why.** About a dozen gates failed on load while #1271 to #1274 were built, and seven branches
-  gated one at a time all exited 0 (#1248).
+  exists, then the steps the failure skipped, and report each run; a failure that holds there
+  is real. Where reruns keep failing, run gates one at a time with one private `GOCACHE`. Reruns
+  never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
+  `go run ./cmd/morphic-covergate <file>` still give the coverage verdict.
+- **Why.** Gates failed on load while #1271 to #1274 were built, and seven branches gated one at a
+  time all exited 0 (#1248).
 - **Probe.** `uptime` beside the failed package rerun alone.
 
 ## A stale local linter fails on export data, not on the change
