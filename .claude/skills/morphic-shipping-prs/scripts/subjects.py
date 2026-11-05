@@ -69,8 +69,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
     p.add_argument("number", type=int, help="the PR's number, or the one it will get")
     p.add_argument("title", help="the PR's title")
     args = p.parse_args(argv)
-    if not all(b.strip() for b in args.base):
-        p.error("a base is empty: a failed `gh pr view` prints none")
+    if not all(b.strip() and not b.endswith("/") for b in args.base):
+        p.error("a base names no branch: a failed `gh pr view` leaves it empty or origin/")
     args.base = [BASE, *args.base]
     if args.number < 1:
         p.error(f"number must be positive, not {args.number}")

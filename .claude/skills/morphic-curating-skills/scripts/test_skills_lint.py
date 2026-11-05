@@ -187,11 +187,14 @@ class LintTest(unittest.TestCase):
     def test_a_rule_cited_by_its_key_alone_is_reported(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, skill,
-              GOOD_SKILL + "Cite `#do-the-thing` or `#gate`, not `#N`, `#1234` or `#`.\n")
+              GOOD_SKILL + "Cite `#do-the-thing` or `#gate`, not `#N`, `#1234` or `#`; prose cites "
+              "#in-prose and a command `see #in-a-command`, but not C#, issue #12, a/#path or "
+              "[a heading](../../../docs/plan.md#a-heading).\n")
+        write(self.root, "docs/plan.md", "# A heading\n")
         n = GOOD_SKILL.count("\n") + 1
         want = [f"{skill}:{n}: cites #{key} by its key alone: cite references/<file>.md#{key}"
-                for key in ("do-the-thing", "gate")]
-        self.assertEqual(self.lint()[1], want)
+                for key in ("do-the-thing", "gate", "in-prose", "in-a-command")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_a_repository_script_is_found_beside_the_skills_own(self):
         skill = ".claude/skills/good-skill/SKILL.md"
@@ -199,7 +202,7 @@ class LintTest(unittest.TestCase):
         # The skill and the repository both hold scripts/tool.py, which is no finding.
         script(self.root, "scripts/tool.py", "true\n")
         write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/./fuzz.sh`, "
-              "`scripts/tool.py` and `scripts/none.sh`.\n")
+              "`scripts/tool.py`, `scripts/../scripts/test_tool.py` and `scripts/none.sh`.\n")
         n = GOOD_SKILL.count("\n") + 1
         self.assertEqual(self.lint()[1], [f"{skill}:{n}: scripts/none.sh does not exist"])
 

@@ -51,6 +51,8 @@ BARE_KEY = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
 # A rule key cited by #key alone, which names no file to hold it to: a span of a # and a key with a
 # letter in it, so an issue's #N stays apart.
 BARE_CITE = re.compile(r"#([a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
+# The same in prose, where a word, a path or a link's text runs into the # of what it names.
+PROSE_CITE = re.compile(r"(?<![\w/.\][(&#])#[a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\w-])")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -182,6 +184,11 @@ def declares(source: str, name: str) -> bool:
     if re.search(rf"^(?:func (?:\([^)]*\) )?|type |const |var ){n}\b", source, re.M):
         return True
     return any(re.search(rf"^\t{n}\b", body, re.M) for body in GO_BLOCK.findall(source))
+
+
+def cites_alone(key: str) -> str:
+    """Say that a span or prose cites a rule by its #key alone, naming no file to hold it to."""
+    return f"cites {key} by its key alone: cite references/<file>.md{key}"
 
 
 def names_a_path(tok: str) -> bool:
@@ -403,6 +410,8 @@ class Linter:
                 line = text.count("\n", 0, m.start()) + 1
                 self.report(f, line, "a § names no document: name it first, as in architecture §N")
         lines = text.split("\n")
+        # A SKILL.md's frontmatter is YAML, where `#` opens a comment, not prose.
+        prose_from = lines.index("---", 1) + 1 if lines[0] == "---" and "---" in lines[1:] else 0
         for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
@@ -416,15 +425,20 @@ class Linter:
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
                     word = path_word(word)
-                    if names_a_path(word) and (why := self.missing(d, word)):
+                    if BARE_CITE.fullmatch(word):
+                        self.report(f, i, cites_alone(word))
+                    elif names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
             # when its first segment is a tracked entry; one in a span is held whatever it starts
             # with.
-            for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
+            prose = LINK_TARGET.sub("]", ANY_SPAN.sub("", line))
+            for p in PROSE_PATH.findall(prose):
                 p = p.rstrip(".,;:)")
                 if self.first_is_tracked(p) and (why := self.missing(d, p)):
                     self.report(f, i, why)
+            for key in PROSE_CITE.findall(prose) if i > prose_from else ():
+                self.report(f, i, cites_alone(key))
             for target in LINK.findall(line):
                 if target.startswith(("http", "mailto:")):
                     continue
@@ -459,7 +473,7 @@ class Linter:
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
         if BARE_CITE.fullmatch(tok):
-            self.report(f, line, f"cites {tok} by its key alone: cite references/<file>.md{tok}")
+            self.report(f, line, cites_alone(tok))
             return
         if tok.startswith("morphic-") and "/" not in tok:
             if not {f".claude/skills/{tok}", f"cmd/{tok}"} & self.paths:
