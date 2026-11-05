@@ -45,12 +45,14 @@ and what is reported.
 `near-miss`
 
 - **Rule.** For each predicate that decides whether a new path applies, compile the issue's example
-  plus one keyword it does not expect (`description`, an `x-` extension). For "A lowers as B",
-  compile both spellings and diff them with IDs and pointers projected away, with `main` and a
-  planted defect as controls.
+  plus a near miss from each class of keyword it tells apart: for a schema, one per vocabulary
+  (`$id` among identifiers, an applicator, an assertion, `description` among annotations) beside an
+  `x-` extension, naming the class each probes. For "A lowers as B", compile both spellings and diff
+  them with IDs and pointers projected away, with `main` and a planted defect as controls.
 - **Why.** An all-or-nothing guard falls back to the reported defect on the near miss while the
   surrounding code handles the keyword partly, as a cycle guard skipped for any source that merely
-  wrote `$id` did (#763).
+  wrote `$id` did (#763), and a draft 7 predicate probed with annotations and assertions alone
+  missed that an `$id` beside a `$ref` moves its base (#1467).
 
 ## Check the failure form of every record a change re-attributes
 `reattributed-failure-form`

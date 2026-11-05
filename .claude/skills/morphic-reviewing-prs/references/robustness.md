@@ -11,6 +11,8 @@ allows. It loads `morphic-designing-code` and `morphic-measuring-performance`.
    OpenAPI compiler a count held to a limit counts through `compilers/openapi/internal/budget`
    (`CLAUDE.md`, "Bounded everything"), and its outcome comes from the rule for its kind
    (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#bound-outcome-from-the-rules`).
+   A charge the change widens re-measures what its comments state
+   (`references/robustness.md#remeasure-a-widened-charge`).
 2. Hold each limit at N and N+1 by lowering it by one at each site, as `morphic-verifying-changes`'s
    claim table says.
 3. Build the shapes that grow the work fastest, deep, wide, cyclic, aliased and chained across
@@ -40,3 +42,14 @@ results.
   bodies for handoffs: `gh pr list --state all --limit 1000 --search "#N in:body"`.
 - **Why.** A discriminator mapping resolved "as a `$ref` would" made a `$ref`-only crash reachable
   (#564, #749), and another reached an unbounded library recursion (#763).
+
+## Re-measure a budget's stated margin when a change widens its charge
+`remeasure-a-widened-charge`
+
+- **Rule.** When a change widens what a budget, bound or limit charges, `git grep -n` its name
+  across comments and documents for a stated margin or measured figure, rerun each on base and
+  head, and give both. The comment sits outside the diff, so a sweep of the diff's claims never
+  reaches it.
+- **Why.** #1470 made the reference expansion budget charge what a path item's operations copy, and
+  the 4.3x margin its default's comment states fell to 1.6x on the description it names (#1470).
+- **Probe.** The report gives each stated figure with its base and head reruns.

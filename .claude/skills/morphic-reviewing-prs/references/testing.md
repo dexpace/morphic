@@ -18,8 +18,8 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#fixture-still-reaches-its-stage`)
    and to failing when the code is wrong
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#assertion-must-be-able-to-fail`).
-4. For a check, lint or archtest rule the change adds, plant what it must catch and what it must
-   pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`; for one replacing
+4. For a check, lint or archtest rule or a gate target the change adds, plant what it must catch
+   and what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`; for one replacing
    another, take `references/testing.md#replacement-gate`.
 5. For a reader, parser or grammar the change rewrites, fuzz it against the one it replaces
    (`references/correctness.md#refactor-differential-fuzz`).

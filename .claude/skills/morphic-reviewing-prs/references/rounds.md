@@ -4,6 +4,14 @@ How a round runs and when the loop ends: where the review reads the change, what
 on, how a finding is ranked, a fix designed and checked, and what is posted. The angle references
 say what a round attacks.
 
+Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
+`references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
+branch (`references/rounds.md#branch-held-elsewhere`); and where the PR's stacked base has landed,
+take `.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
+Before the PR exists, as before a branch's first push, the base is the branch it will target, the
+worktree is added at the branch's head, and `<N>` is the number the push checklist in
+`morphic-shipping-prs` derives.
+
 Each round reviews the tree as it will land, in a throwaway worktree
 (`references/rounds.md#review-head-in-own-ref`):
 
@@ -14,11 +22,11 @@ git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
 git merge --no-edit "origin/$base" && git merge --no-edit origin/main
 ```
 
-Before the PR exists, as before a branch's first push, the tree is the branch's own worktree with
-its base and `origin/main` merged in, and `<N>` is the number the push checklist in
-`morphic-shipping-prs` derives. With no `origin`, or in a repository that must stay unwritten, take
-`references/rounds.md#review-without-origin` before any fetch. Abort a conflicting merge and review what merged; the conflict is an
-`issue:`. Probe only in that worktree. A round's report names what it reviewed, each angle's matrix, then the findings ranked:
+A conflict the review can resolve mechanically is resolved in that worktree and reported as the
+review's own resolution, so every angle reads `main`'s new commits beside the branch; one whose
+resolution is a design choice is aborted and reported with what could not be checked. Either way
+the conflict is an `issue:`. Probe only in that worktree. A round's report names what it reviewed,
+each angle's matrix, then the findings ranked:
 
 ```text
 Round <n>: head <sha>, base <sha>, main <sha>
@@ -49,19 +57,31 @@ Round <n>: head <sha>, base <sha>, main <sha>
   (#1403).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
 
+## Check that no other checkout holds work on the PR's branch
+`branch-held-elsewhere`
+
+- **Rule.** Before the setup's fetch, look for another checkout on the PR's branch:
+  `git worktree list | grep -F "[<head ref>]"`. Where one holds commits its remote lacks
+  (`git -C <dir> log --oneline origin/<branch>..HEAD`), read them before reviewing and ask who owns
+  the branch before pushing, and before each push
+  `git merge-base --is-ancestor origin/<branch> HEAD` confirms nothing moved the remote meanwhile.
+- **Why.** A second worktree on #1269's branch held eight unpushed commits fixing three inputs whose
+  cost grew with the square of their size, which the setup never led to (#1269).
+- **Probe.** `git worktree list`, read before the fetch.
+
 ## Read the gate from CI, and run locally only what CI cannot
 `ci-is-the-gate`
 
 - **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with the commit it ran on.
-  Never rerun it locally, a package's suite included, nor re-check by eye what it enforces. For a
+  Never rerun it locally, suites included, nor re-check by eye what it enforces. For a
   head behind a moved `main`, list `main`'s commits touching its files, run `go build ./...` on
-  the merged tree, and name merging `main` the author's next step.
+  the merged tree, and name merging `main` the next step.
   Locally, run only what CI cannot answer: probes, mutants, differentials, measurements. A run
-  still going is reported as running, never waited on; a conflicting PR has none.
-- **Why.** On #1278's merged tree a local `make gate` failed on a stale linter, then was stopped in
-  its coverage step (#1286), and a conflicting PR's empty check list read as pending (#1285).
-- **Probe.** `gh pr view <N> --json headRefOid,mergeable,statusCheckRollup` names the head, its
-  mergeability and checks.
+  still going is reported as running, never waited on; a conflicting PR has none, and an unpushed
+  branch none yet, its gate CI's on the push.
+- **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then was stopped in
+  coverage (#1286); a conflicting PR's empty check list read as pending (#1285).
+- **Probe.** `gh pr view <N> --json headRefOid,mergeable,statusCheckRollup`.
 
 ## Decide nothing on an assumption
 `decide-on-evidence`
@@ -96,7 +116,8 @@ Round <n>: head <sha>, base <sha>, main <sha>
 
 - **Rule.** A finding rests on a rule and a fact, so attack both. Read the rule to its end for its
   scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or the guide; look for a decision on the
-  line in `.golangci.yml`'s exclusions, a comment or the tracker; weigh the PR's stated intent, read
+  line in `.golangci.yml`'s exclusions, a comment or the tracker
+  (`references/rounds.md#oddity-needs-a-comment`); weigh the PR's stated intent, read
   only now, after a blind first pass; and where a tool gave the count, sort its hits by what each
   one is before calling any a defect. Report what survives.
 - **Why.** The 298 functions `thelper` reported were filed as a breach of `t.Helper`, though
@@ -104,6 +125,16 @@ Round <n>: head <sha>, base <sha>, main <sha>
   recorded a position `CONTRIBUTING.md` holds (#1173).
 - **Probe.** For each finding, name the text that could have excused it and what sorted the tool's
   hits.
+
+## A deliberate oddity is excused only by a comment at its line
+`oddity-needs-a-comment`
+
+- **Rule.** A deliberate oddity, such as a policy or a choice resting on an open issue, is a finding
+  unless a comment at its line says so: a decision recorded only in the tracker, a PR body or a
+  commit excuses nothing, as the next reader reaches the code first.
+- **Why.** A limitation recorded only in a PR body, a commit or the tracker was invisible to
+  whoever next edited the function (#239, #270).
+- **Probe.** For each oddity cleared, quote the comment at its line.
 
 ## Rank a finding by what was shown
 `rank-by-what-was-shown`
@@ -190,13 +221,13 @@ Round <n>: head <sha>, base <sha>, main <sha>
 ## Find everything in the first round, and confirm the fixes in the second
 `first-round-finds-everything`
 
-- **Rule.** The first round runs every angle over the whole change and fills every cell of each
-  angle's matrix, however many findings come first. The second reruns the first's probes from a
-  script outside the tree, while a fresh reader runs every angle again
+- **Rule.** The first round runs every angle over the whole change, fills every cell of each
+  angle's matrix however many findings come first, and keeps its probes in a script outside the
+  tree. The second reruns the script while a fresh reader runs every angle again
   (`references/rounds.md#fresh-reader-for-the-second-round`), and ends the review on no `issue:` or
   `nit:`. A defect it finds in what the first reviewed is a miss: name the cell or rule that should
   have held it, and sharpen that angle (`morphic-curating-skills`). One a fix added is a miss of
-  `references/rounds.md#design-the-fix-first`; many send the mechanism back to Design.
+  `references/rounds.md#design-the-fix-first`; many send it back to Design.
 - **Why.** #1329's review took eight rounds, each finding what the first should have, as each
   sampled what it checked (#1402).
 - **Probe.** The report gives each round's matrices in full, and each miss its cell.

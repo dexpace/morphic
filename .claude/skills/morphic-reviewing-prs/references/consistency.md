@@ -24,6 +24,6 @@ The matrix is each construct and name the change writes, with the example it was
   predicate for a bool and a verb for a mutator) and its meaning, as a name copying a neighbour's
   form but not its meaning misleads the reader who knows the package. A departure better by
   `CLAUDE.md`'s style order is argued in the PR, and the sites still written the old way are filed.
-- **Why.** A `replay bool` field was a verb where the package's bools are adjectives or predicates,
-  among names #562 first chose that broke the grammar their neighbours set (#562).
+- **Why.** Names first chosen for #562 broke the grammar their neighbours set, among them a bool
+  field named as a verb where the package's bools are adjectives or predicates (#562).
 - **Probe.** For each new name, grep the package's names of the same kind and compare their form.

@@ -1,6 +1,6 @@
 ---
 name: morphic-checking-style
-description: Use when checking Go in this repository against the org styleguide, in a review's written-rules pass, or when a styleguide rule or the org's go-styleguide skill seems to disagree with this repository.
+description: Use when checking Go in this repository against the org styleguide, in a review's Developer experience or Consistency angle, or when a styleguide rule or the org's go-styleguide skill seems to disagree with this repository.
 ---
 
 # Checking morphic Go against the styleguide

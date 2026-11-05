@@ -2,7 +2,7 @@
 
 The angle that reads the change as the next contributor meets it: whether its names, places,
 comments and messages let a reader find, follow and extend it without asking. It loads
-`morphic-checking-style`, the written-rules pass over the Go the change adds.
+`morphic-checking-style`, which holds the Go the change adds to the styleguide.
 
 1. **Names.** Each new identifier says what it holds or does, at a length in proportion to its
    scope; whether it matches its neighbours is Consistency's.
@@ -15,7 +15,8 @@ comments and messages let a reader find, follow and extend it without asking. It
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies`),
    and each normative document and `CONTRIBUTING.md` recipe it touches changes with it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#update-normative-docs-in-same-change`).
-   Moved code and divided documents take `references/developer-experience.md#moved-comments`.
+   Moved code and divided documents take `references/developer-experience.md#moved-comments`,
+   and a restructured one `references/developer-experience.md#restructure-accounts-for-every-sentence`.
 5. **Messages.** Each new diagnostic or error names what is wrong, where, and what the writer can
    do.
 
@@ -45,3 +46,15 @@ finding breaks.
   pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and
   `awk 'FNR==1{p=""} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
   `TestDocuments_OpenNoLineWithAPlus` holds `+`.
+
+## A restructured document accounts for every sentence it held
+`restructure-accounts-for-every-sentence`
+
+- **Rule.** When a change restructures a document, such as a skill split into references, account
+  for each sentence of the old text, the prose between rules as well as the rules: moved, reworded
+  or dropped with a reason the PR states. A comparison of the rules alone passes a dropped sentence
+  of prose.
+- **Why.** The review skill's split moved its rules word for word, and a second round found the old
+  `SKILL.md`'s sentence on deliberate oddities with no home (#1522 at a5cc10441).
+- **Probe.** For each sentence of the old file, `git grep -F` a phrase of it in the new tree, and
+  name each one missing.

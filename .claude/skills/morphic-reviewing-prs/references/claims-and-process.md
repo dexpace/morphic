@@ -5,15 +5,17 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 
 1. **Claims.** Check every member of each claim class
    (`references/claims-and-process.md#sweep-each-claim-class`), counts by
-   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`.
+   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, and run each
+   command an edited rule prescribes (`references/claims-and-process.md#run-prescribed-commands`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
    `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`.
-3. **Closed issues.** Read each issue the PR closes whole against the diff: its state, its body as
-   edited, every comment and each `## Out of scope` item
-   (`gh issue view <n> --json state,stateReason,body,comments,updatedAt`), until #1262 gives the
-   rule.
+3. **Closed issues.** Read each issue the PR closes whole against the diff, its state, comments and
+   out-of-scope items included
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole`),
+   and each choice resting on an open issue against the open PRs settling it
+   (`references/claims-and-process.md#open-issue-against-open-prs`).
 
 The matrix is each claim class with the members checked, and each closed issue with its asks.
 
@@ -59,6 +61,16 @@ The matrix is each claim class with the members checked, and each closed issue w
 - **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
   it; a rule with none is a round still open.
 
+## Run each command an edited rule prescribes
+`run-prescribed-commands`
+
+- **Rule.** For each command an edited Rule or Probe prescribes, run it once on the head from the
+  root, each placeholder filled with a real package, test or PR, and quote its exit status. One
+  that cannot run here, such as a macOS tool on Linux, is named as not run, with the reason.
+- **Why.** A rewritten Probe joined `-covermode=set` and `-race` in one `go test`, which refuses
+  the pair, and passed review on reading (#1311).
+- **Probe.** The report lists each prescribed command with its exit status.
+
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`
 
@@ -72,3 +84,16 @@ The matrix is each claim class with the members checked, and each closed issue w
   a later revision, and no pass would have looked for them (#1167, #1170).
 - **Probe.** The report lists each construct, the issues its search returned, and what the change
   does about each.
+
+## Check a choice resting on an open issue against the open PRs settling it
+`open-issue-against-open-prs`
+
+- **Rule.** When a change rests on an open issue, list the open PRs whose bodies close it, stacked
+  ones included, as `closingIssuesReferences` covers PRs into `main` alone:
+  `gh pr list --state open --limit 200 --search '"Closes #<N>" in:body' --json number,baseRefName`.
+  Read each one's answer before clearing the choice; a disagreement is an `issue:` naming what each
+  merge order owes.
+- **Why.** #1327 kept `IRVersion` while renaming two `Unmodeled` keys, citing #429 as open, while
+  #1351 closed #429 with the rule that such a rename moves the version, and the two merged without
+  a conflict (#1327, #1351).
+- **Probe.** The search above, for each issue the change cites as open.

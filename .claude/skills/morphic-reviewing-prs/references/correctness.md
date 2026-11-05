@@ -18,8 +18,9 @@ changed files' domain skill, such as `morphic-openapi-compiler` or `morphic-chan
    (`references/correctness.md#moved-code-vs-rule`), a rewritten reader
    (`references/correctness.md#refactor-differential-fuzz`), a query
    (`references/correctness.md#query-differential`), a generated sweep
-   (`references/correctness.md#reroot-generated-sweep`) or a merge of `main`
-   (`references/correctness.md#ported-check-grammar`).
+   (`references/correctness.md#reroot-generated-sweep`), a merge of `main`
+   (`references/correctness.md#ported-check-grammar`) or a CI or cache change
+   (`references/correctness.md#simulate-ci-runs`).
 
 A normative document has no output to compare: run its rules as a program
 (`references/design.md#review-design-rules`). The matrix is each altered output with its spec and
@@ -94,3 +95,17 @@ both builds' results.
   the merge commit.
 - **Why.** Evidence gathered on an older generator missed a stack overflow the base's grammar wrote
   (#566).
+
+## Simulate the runs a CI or cache change claims
+`simulate-ci-runs`
+
+- **Rule.** For a change to `.github/workflows`, the `Makefile`'s CI targets or anything setting
+  what Go caches, check each claim of what a run reuses, reruns or saves by simulating the runs:
+  fresh clones at one fixed path, the CI steps in order and a carried `GOCACHE`, on base and head,
+  quoting the `(cached)` lines and reading each test's opens from `-test.testlogfile`, with the
+  environment held fixed
+  (`.claude/skills/morphic-verifying-changes/references/toolchain.md#cache-probe-holds-the-environment`).
+- **Why.** Simulated runs of #1272's work found a test reading through `git` replay a stale pass
+  once files were dated, the listing closing that gap with no test, and a CI step deleting nothing
+  in its job (#1272, #1373).
+- **Probe.** The report gives each claim with the runs simulating it and their `(cached)` lines.

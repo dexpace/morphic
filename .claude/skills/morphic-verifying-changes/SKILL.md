@@ -10,8 +10,8 @@ probe, a `main` control, the opposite order. `CLAUDE.md`'s "Verify by executing"
 skill is how.
 
 The bar is `CLAUDE.md`'s: done means nothing left to find, shown by `morphic-reviewing-prs`'s
-first round. A defect `main` shares inside the
-change's mechanism is fixed or filed, never a reason to stop
+first round. A defect `main` shares inside the change's mechanism is fixed or filed, never a reason
+to stop
 (`.claude/skills/morphic-reviewing-prs/references/correctness.md#better-than-main`), and a fix
 goes to the type that owns the broken state
 (`references/sweep-every-site.md#fix-at-the-invariants-owner`).

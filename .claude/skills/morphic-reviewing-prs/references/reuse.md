@@ -1,10 +1,10 @@
 # Reuse and maintainability
 
-The angle that asks whether the change writes code someone else could maintain, as every line of
-our own is a line to keep: anything the tree, the standard library or a maintained library already
-holds, anything written twice, and whether what needs no morphic concept stays apart from what
-does. It loads `morphic-designing-code`, whose rules decide when sites share one implementation and
-where code with no domain lives.
+The angle that asks whether the change writes code someone else could maintain, as every line the
+repository owns is one more to keep: anything the tree, the standard library or a maintained library
+already holds, anything written twice, and whether what needs no morphic concept stays apart from
+what does. It loads `morphic-designing-code`, whose rules decide when sites share one implementation
+and where code with no domain lives.
 
 1. Search for what each addition already has (`references/reuse.md#mechanism-exists`), and for a
    library that could own each piece that is not Morphic's concern
