@@ -28,7 +28,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   clobber. Case-only renames go via a temp name (APFS/NTFS hazard).
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
   dead code additive writers cannot prune — cheap because both manifests are ID-keyed and the prior
-  IR/plan snapshot is serializable (INV7).
+  IR/plan snapshot is serializable (INV7). A prior entity counts as current where its entry is a
+  current entity's prior entry ([the names a generation
+  shipped](refine/naming.md#collisions-and-the-names-a-generation-shipped)), so an operation whose
+  path was renamed under an unchanged `operationId` is not listed as dead though its old ID is gone.
 
 ## What the manifest records
 
@@ -89,9 +92,9 @@ type Entry struct {
   newlines dropped, so an edit inside a region, a run of the formatter the generator ran and a
   checkout that converts line endings are not mistaken for an edit. A file carrying the generated
   header whose bytes on disk, normalized alike, no longer match its digest was edited outside its
-  regions. The writer leaves it as it is, reports it as a coded diagnostic, whose severity the
-  engine decides, rather than overwrite the edit, and keeps the file's prior entry in the new
-  manifest, so the next generation reports it again.
+  regions. The writer leaves it as it is, reports it as a warning, since nothing is lost, rather
+  than overwrite the edit, and keeps the file's prior entry in the new manifest, so the next
+  generation reports it again.
 - **Nothing to do.** When every `Inputs` field and every file's digest match the prior manifest,
   the engine writes nothing. `Emitter` is a version, not the hash of the executable the plan and IR
   caches key on, since a team's machines share the manifest and must agree on what it holds, and it
@@ -114,7 +117,8 @@ type Entry struct {
   its new name.
 - **Its own version.** Unlike the IR, a manifest holds choices that cannot be recomputed, so an
   older `Schema` is never refused: each version step has a migration, applied in order, and a
-  manifest from a newer Morphic is refused, since its fields cannot be read.
+  manifest from a newer Morphic is refused as an error and nothing is written, since its fields
+  cannot be read and a generation run without them would rename what was shipped.
 
 ## Regions follow their entity
 
@@ -122,13 +126,14 @@ A `@morphic:keep <name>` region belongs to an entity: the one whose declaration 
 a file's top level, the one whose declaration it follows, else the file's first origin, whose
 declaration it precedes. The manifest records each as a `Region`, keyed by that entity's ID, its
 correlation key and the region's name, with the region's text and where it stood against the
-declaration. A second region of one name in one entity is reported, since the key would no longer
-tell the two apart. So a region follows its entity, to the one whose prior entry
-([collisions](refine/naming.md#collisions-and-the-names-a-generation-shipped)) is the region's: when
-a rename moves the entity to another file, the next generation writes the region where it stood
-against the entity's declaration there, at the end of the declaration's body when the declaration
-enclosed it, so a member a user added stays a member, and before or after the declaration otherwise.
-The old file, emptied of generated symbols, is pruned as any other.
+declaration. A second region of one name in one entity is a warning, and the two stay where they
+are, their file kept, since the key cannot tell which goes where. So a region follows its entity, to
+the one whose prior entry is the region's ([the names a generation
+shipped](refine/naming.md#collisions-and-the-names-a-generation-shipped)): when a rename moves the
+entity to another file, the next generation writes the region where it stood against the entity's
+declaration there, at the end of the declaration's body when the declaration enclosed it, so a
+member a user added stays a member, and before or after the declaration otherwise. The old file,
+emptied of generated symbols, is pruned as any other.
 
 ```go
 type Region struct {
@@ -142,7 +147,7 @@ type Region struct {
 }
 ```
 
-A region whose entity no longer exists is reported and kept: its file is not pruned while it holds
+A region whose entity no longer exists is a warning, and kept: its file is not pruned while it holds
 one, and the staleness check lists it. Merging stays additive. A mode that rewrote generated code a
 user edited would take ordinary three-way merge semantics, the prior generation as the base and
 conflicts written with the markers merge tools read, never a merge of its own invention.
@@ -185,7 +190,7 @@ marker. The engine's integrate step then rewrites only those blocks in the file 
 - a block new to this generation goes after the nearest block before it in the generated order
   that the file holds, else before the nearest one after it, else at the end, so a section first in
   the generated order is not written last;
-- a block the generation no longer has is removed, unless frozen, and reported;
+- a block the generation no longer has is removed, unless frozen, and reported as an info;
 - the table of contents is a block of its own, rebuilt last from the headings of the merged file,
   so it lists the user's sections too.
 
