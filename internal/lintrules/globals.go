@@ -23,8 +23,7 @@ import (
 //
 // The rule reports writes it sees, and code init stores or starts. Any other
 // way code bound at initialization can run later and write is out of reach: a
-// callback handed to another package, a value kept in a struct field and
-// called elsewhere, reflection. Functions below state the rest.
+// closure a method returns, or reflection. Functions below state the rest.
 func (l layout) globalWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "globalwrites",
