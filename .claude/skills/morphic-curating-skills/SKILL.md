@@ -5,7 +5,7 @@ description: Use when work in this repository taught something worth keeping (a 
 
 # Curating the morphic skills
 
-Keep each lesson once, in its strongest form, where the next person will be when it applies.
+Keep each lesson once, in its strongest form, where the next person is when it applies.
 
 ## Where a lesson goes
 
@@ -36,10 +36,10 @@ List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md`, not a 
 - **Probe.** The command or planted defect that shows whether it holds, unless the Rule is one.
 ```
 
-A rule stays within 150 words, or becomes two. No narrative, dates or first person, and no count a
-command beside it does not derive, bar a Why's evidence, measured as the Probe asks and pinned,
-like any claim about a PR, by an issue, a merged PR or a revision, never an open PR. Cite a rule as
-`references/<file>.md#<key>`, from another skill by its full path.
+A rule stays within 150 words, or becomes two, the first citing the second. No narrative, dates
+or first person, and no count a command beside it does not derive, bar a Why's evidence, measured
+as the Probe asks and pinned, like any claim about a PR, by an issue, a merged PR or a revision,
+never an open PR. Cite a rule as `references/<file>.md#<key>`, from another skill by its full path.
 
 ## Limits
 
@@ -56,8 +56,8 @@ like any claim about a PR, by an issue, a merged PR or a revision, never an open
 
 ## Upkeep
 
-- Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
-  The gate does not run it.
-- After changing a rule's Why, confirm each item it cites is the work its clause describes.
+- Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit:
+  no gate runs it.
+- After changing a Why, confirm each item it cites is the work its clause describes.
 - A lesson failing again means its skill failed: sharpen the wording or trigger, not add a copy.
-- Skill changes ship like code, titled like `chore(skills): <subject>`.
+- Skill changes ship like code, as `chore(skills): <subject>`.

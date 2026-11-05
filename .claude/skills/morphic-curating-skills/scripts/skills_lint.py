@@ -48,6 +48,11 @@ RULE_CITE = re.compile(
     r"((?:\.claude/skills/[a-z0-9-]+/)?references/[A-Za-z0-9_.-]+\.md)#([a-z0-9-]+)")
 # A bare code span of lowercase words joined by hyphens, which may be a rule key written alone.
 BARE_KEY = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
+# A rule key cited by #key alone, which names no file to hold it to: a span of a # and a key with a
+# letter in it, so an issue's #N stays apart.
+BARE_CITE = re.compile(r"#([a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
+# The same in prose, where a word, a path or a link's text runs into the # of what it names.
+PROSE_CITE = re.compile(r"(?<![\w/.\][(&#])#[a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\w-])")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -92,11 +97,14 @@ FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
 SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
-LINE_SUFFIX = re.compile(r":[0-9]+$")
+# What follows the colon of a suffix a path may carry: a line, a line and column, or a range.
+LINE = r"[0-9]+(?::[0-9]+|-[0-9]+)?$"
+LINE_SUFFIX = re.compile(":" + LINE)
 # A code span holding a "/" names a repository path unless its form marks it as something else:
-# a JSON pointer or device (/), a flag (-), a pathspec's magic (:(), a pattern (+ or [), a URL
-# (://), or a placeholder (<spec>, {owner}).
-NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
+# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a placeholder (<spec>,
+# {owner}), or a colon before anything but a line suffix, as a URL, a refspec (main:refs/x) and a
+# pathspec's magic (:/, :(top)) hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|\+)|:(?!" + LINE + r")|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.
@@ -107,6 +115,7 @@ ELSEWHERE = {
     "golang.org": "a Go module",
     "runtime": "a Go package",
     "openapi": "a diagnostic code",
+    "refs": "a git ref",
 }
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
@@ -175,6 +184,11 @@ def declares(source: str, name: str) -> bool:
     if re.search(rf"^(?:func (?:\([^)]*\) )?|type |const |var ){n}\b", source, re.M):
         return True
     return any(re.search(rf"^\t{n}\b", body, re.M) for body in GO_BLOCK.findall(source))
+
+
+def cites_alone(key: str) -> str:
+    """Say that a span or prose cites a rule by its #key alone, naming no file to hold it to."""
+    return f"cites {key} by its key alone: cite references/<file>.md{key}"
 
 
 def names_a_path(tok: str) -> bool:
@@ -396,6 +410,8 @@ class Linter:
                 line = text.count("\n", 0, m.start()) + 1
                 self.report(f, line, "a § names no document: name it first, as in architecture §N")
         lines = text.split("\n")
+        # A SKILL.md's frontmatter is YAML, where `#` opens a comment, not prose.
+        prose_from = lines.index("---", 1) + 1 if lines[0] == "---" and "---" in lines[1:] else 0
         for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
@@ -409,15 +425,20 @@ class Linter:
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
                     word = path_word(word)
-                    if names_a_path(word) and (why := self.missing(d, word)):
+                    if BARE_CITE.fullmatch(word):
+                        self.report(f, i, cites_alone(word))
+                    elif names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
             # when its first segment is a tracked entry; one in a span is held whatever it starts
             # with.
-            for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
+            prose = LINK_TARGET.sub("]", ANY_SPAN.sub("", line))
+            for p in PROSE_PATH.findall(prose):
                 p = p.rstrip(".,;:)")
                 if self.first_is_tracked(p) and (why := self.missing(d, p)):
                     self.report(f, i, why)
+            for key in PROSE_CITE.findall(prose) if i > prose_from else ():
+                self.report(f, i, cites_alone(key))
             for target in LINK.findall(line):
                 if target.startswith(("http", "mailto:")):
                     continue
@@ -451,6 +472,9 @@ class Linter:
         shown, tok = tok, path_word(tok)
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
+        if BARE_CITE.fullmatch(tok):
+            self.report(f, line, cites_alone(tok))
+            return
         if tok.startswith("morphic-") and "/" not in tok:
             if not {f".claude/skills/{tok}", f"cmd/{tok}"} & self.paths:
                 self.report(f, line, f"no skill or command named {tok}")
@@ -466,16 +490,22 @@ class Linter:
 
     def missing(self, d: Path, p: str, shown: str = "") -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
-        skill for its own references/ and scripts/, to the repository otherwise. A path is held
-        up to a #entry, a :line or its first wildcard, and ./... names the module's packages. One
-        the tree lacks is None too when it names the Go toolchain's sources. The reason names
-        shown, the path as a span wrote it, where p has been read out of that spelling."""
+        skill for its own references/ and scripts/, then to the repository, which holds a scripts/
+        of its own, giving the skill's reason when neither holds it, and to the repository
+        otherwise. A path is held up to a #entry, a line suffix or its first wildcard, and ./...
+        names the module's packages. One the tree lacks is None too when it names the Go
+        toolchain's sources. The reason names shown, the path as a span wrote it, where p has been
+        read out of that spelling."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
             return None
         if rel.split("/", 1)[0] in ("references", "scripts"):
-            rel = (d / rel).relative_to(self.root).as_posix()
+            own = os.path.normpath((d / rel).relative_to(self.root).as_posix())
+            why = self.absent(shown or p, own)
+            if why is None or self.absent(shown or p, os.path.normpath(rel)) is None:
+                return None
+            return why
         rel = os.path.normpath(rel)
         why = self.absent(shown or p, rel)
         return None if why and self.in_toolchain(rel) else why

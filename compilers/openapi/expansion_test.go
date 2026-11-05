@@ -37,8 +37,9 @@ func compileExpanding(t *testing.T, src string, limit int) (*ir.Document, []ir.D
 // the source, and no position in it.
 func refusal(limit int) ir.Diagnostic {
 	return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded, Provenance: ir.Provenance{Source: 0},
-		Message: fmt.Sprintf("the copies its $refs make weigh more than the %d budgeted for them: each $ref to "+
-			"a declaration other than a schema or a link lowers its own copy of it", limit)}
+		Message: fmt.Sprintf("the copies its $refs and path items make weigh more than the %d budgeted for them: "+
+			"each $ref to a declaration other than a schema or a link lowers its own copy of it, and each "+
+			"additionalOperations entry its own copy of what its path item declares", limit)}
 }
 
 // assertRefused asserts a compile refused for its $refs' copies: no Document,
@@ -339,4 +340,147 @@ func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code, "the load phase's finding in the source comes first")
 	assert.Zero(t, diags[0].Provenance.Source)
 	assert.Equal(t, refusal(1), diags[1])
+}
+
+// itemWith returns a 3.2 document whose path item /p writes item, its own
+// fields, and mounts a get and the additional operations LINK and UNLINK, each
+// writing what ops gives it, beside the components.
+func itemWith(item string, ops [3]string, components string) string {
+	src := "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" + item +
+		"    get: {operationId: g, responses: {'200': {description: ok}}" + ops[0] + "}\n" +
+		"    additionalOperations:\n"
+	for i, method := range []string{"LINK", "UNLINK"} {
+		src += fmt.Sprintf("      %s: {operationId: %s, responses: {'200': {description: ok}}%s}\n",
+			method, strings.ToLower(method), ops[i+1])
+	}
+	return src + "components:\n" + components
+}
+
+// TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy pins what a
+// path item's additionalOperations entries, here LINK and UNLINK beside a get,
+// are charged for what the item declares itself, each copying it (GitHub
+// #1428): its inline parameter, which weighs 25 as paramP does, unless the
+// entry writes its own; its kept summary and extension, the keyword and its raw
+// value with a byte between, 7+1+3 and 3+1+3; and its server's ID, unless the
+// entry names its own. A $ref'd parameter is charged at every operation, the
+// first among them.
+func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing.T) {
+	t.Parallel()
+	const kept = 7 + 1 + 3 + 3 + 1 + 3
+	own := ", parameters: [{name: q, in: query, schema: {type: integer}}], servers: [{url: 'https://b.test'}]"
+	fields := "    summary: s\n    x-k: v\n    servers: [{url: 'https://a.test'}]\n"
+	for name, tc := range map[string]struct {
+		src  string
+		want func(server int) int
+	}{
+		"inline": {itemWith(fields+"    parameters: [{name: q, in: query, schema: {type: string}}]\n",
+			[3]string{}, "  schemas: {}\n"), func(server int) int { return 2 * (25 + kept + server) }},
+		"overridden": {itemWith(fields+"    parameters: [{name: q, in: query, schema: {type: string}}]\n",
+			[3]string{"", "", own}, "  schemas: {}\n"), func(server int) int { return 25 + kept + server + kept }},
+		"referenced": {itemWith(fields+"    parameters: [{$ref: '#/components/parameters/P'}]\n",
+			[3]string{}, paramP), func(server int) int { return 3*25 + 2*(kept+server) }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileExpanding(t, tc.src, -1)
+			require.NotNil(t, doc)
+			openapitest.RequireNoErrorDiags(t, diags)
+			require.NotEmpty(t, openapitest.FindOp(t, doc, "link").Servers)
+			want := tc.want(len(openapitest.FindOp(t, doc, "link").Servers[0]))
+
+			doc, diags = compileExpanding(t, tc.src, want)
+			require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+			doc, diags = compileExpanding(t, tc.src, want-1)
+			assertRefused(t, doc, diags, want-1)
+		})
+	}
+}
+
+// TestCompile_APathItemsFixedMethodsAreNotCharged pins that the fixed methods of
+// a path item copy what it declares unchanged: their number bounds the copies,
+// so neither a 3.1 item nor a 3.2 one mounting five of them, beside an inline
+// parameter, a kept extension and a server, spends the budget at all.
+func TestCompile_APathItemsFixedMethodsAreNotCharged(t *testing.T) {
+	t.Parallel()
+	var ops strings.Builder
+	for _, method := range []string{"get", "put", "post", "delete", "patch"} {
+		fmt.Fprintf(&ops, "    %s: {operationId: %s, responses: {'200': {description: ok}}}\n", method, method)
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
+				"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
+				"    parameters: [{name: q, in: query, schema: {type: string}}]\n" + ops.String()
+			doc, diags := compileExpanding(t, src, 1)
+			require.NotNil(t, doc, "%v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.NotEmpty(t, openapitest.FindOp(t, doc, "patch").Servers)
+		})
+	}
+}
+
+// TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder pins that every
+// additionalOperations entry is charged, the first among them, so an item is
+// charged the same in either order of its entries: LINK, writing its own
+// parameter and server, takes the extension, 3+1+3, and UNLINK takes it, the
+// parameter, weighing 25 as paramP does, and the server's ID. Leaving the
+// first entry free refused the item with LINK first and admitted it with
+// UNLINK first.
+func TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder(t *testing.T) {
+	t.Parallel()
+	const item = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
+		"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
+		"    parameters: [{name: q, in: query, schema: {type: string}}]\n    additionalOperations:\n"
+	const link = "      LINK: {operationId: link, parameters: [{name: q, in: query, schema: {type: integer}}], " +
+		"servers: [{url: 'https://b.test'}], responses: {'200': {description: ok}}}\n"
+	const unlink = "      UNLINK: {operationId: unlink, responses: {'200': {description: ok}}}\n"
+	for name, src := range map[string]string{"LINK first": item + link + unlink, "UNLINK first": item + unlink + link} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileExpanding(t, src, -1)
+			require.NotNil(t, doc)
+			openapitest.RequireNoErrorDiags(t, diags)
+			require.NotEmpty(t, openapitest.FindOp(t, doc, "unlink").Servers)
+			want := 3 + 1 + 3 + 25 + 3 + 1 + 3 + len(openapitest.FindOp(t, doc, "unlink").Servers[0])
+
+			doc, diags = compileExpanding(t, src, want)
+			require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+			doc, diags = compileExpanding(t, src, want-1)
+			assertRefused(t, doc, diags, want-1)
+		})
+	}
+}
+
+// TestCompile_AnItemsParameterIsWeighedInItsOwnDocument pins that a parameter
+// written beside a path item $ref is weighed where it is written when an
+// operation of the item it names, in another document, takes it: as the
+// source's grammar reads it, its schema one node, 25 as paramP weighs. The $ref
+// is charged what the item weighs, and LINK the parameter.
+func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	const item = "I:\n  get: {operationId: g, responses: {'200': {description: ok}}}\n" +
+		"  additionalOperations:\n    LINK: {operationId: link, responses: {'200': {description: ok}}}\n"
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(item), 0o600))
+	src := "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n    $ref: './other.yaml#/I'\n" +
+		"    parameters: [{name: q, in: query, schema: {type: object, properties: {a: {type: string}}}}]\n"
+	sources := []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}}
+	compile := func(limit int) (*ir.Document, []ir.Diagnostic) {
+		opts := compilers.Options{Reader: reader.Disk{},
+			FormatOptions: openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}}}
+		doc, diags, err := openapi.New().Compile(t.Context(), sources, opts)
+		require.NoError(t, err)
+		return doc, diags
+	}
+	want := weightAt(t, item, "/I") + 25
+
+	doc, diags := compile(want)
+	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, openapitest.FindOp(t, doc, "link").Params, 1, "LINK takes the parameter")
+	doc, diags = compile(want - 1)
+	assertRefused(t, doc, diags, want-1)
 }
