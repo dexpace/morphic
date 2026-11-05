@@ -60,8 +60,8 @@ type Manifest struct {
 // Generations is a cross-version target's manifest, in the place any target's lies: each run's
 // Manifest by the label of its snapshot, "" for an unsliced document (contract/emitter.md).
 type Generations struct {
-    Schema    int                 `json:"schema"`    // as Manifest.Schema, this format's version
-    Snapshots map[string]Manifest `json:"snapshots"` // the last label's holds the spanning files
+    Schema    int                 // as Manifest.Schema, this format's version
+    Snapshots map[string]Manifest // the last label's holds the files spanning versions
 }
 
 type Inputs struct {
@@ -135,9 +135,9 @@ type Entry struct {
   label, as when a document gains, loses or renames versions, that run takes the prior's entry
   holding the files spanning versions, the one entry listing a path outside its own label's
   directory, else its `""` one, so the names the site last shipped carry over. A prior is read as a
-  `Generations` where it holds `snapshots`, a member no `Manifest` has, else as a `Manifest`, which
-  a target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry
-  holding the spanning files.
+  `Generations` where it holds `Snapshots`, a field no `Manifest` has, else as a `Manifest`, which a
+  target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry holding
+  the spanning files.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.

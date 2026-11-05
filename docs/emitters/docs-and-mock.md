@@ -121,27 +121,28 @@ self-closing `<title/>` enters the mode too), so an unlisted `<title>` cannot sw
 the description. A text token is decoded and written escaped. A listed start tag, or a self-closing
 one, which HTML opens as a start tag, opens an element, `br`, `hr` and `img` opening none, written
 from its name with its listed attributes decoded, checked and escaped, never from its raw bytes; a
-listed end tag closes the element on top when it matches; and a `p`, `li`, `dt` or `dd` on top
-closes when a sibling opens or its parent closes. Every other token, a tag, an end tag or a comment,
-is written escaped from its raw bytes, so a stray `</td>` renders as text rather than closing the
-page's own table, a placeholder such as `<key>` keeps its place, and what is still open closes where
-the description ends. A refused `a` is its text, both its tags dropped, and a refused `img` its
-`alt`, else its tag as text. An `li`, `dt` or `dd` opens only with its list on top of the
-description's stack, and otherwise renders as text, so a description cannot add an item to the
-page's own list. No table tag is listed, since a browser closes a page's table around a
-description's own in ways no stack of the description's can follow, so a description in a schema
-table's cell cannot add a cell or a row to it; a description's table renders as text. The contract
-is that outcome, which T-41 checks by parsing each page as a browser does: the page's own elements
-stand as written around every description, however hostile, and every token the description holds
-stays visible or renders as a listed element. An HTML parser's tree-building fragment mode is no
-substitute: it drops a stray end tag and turns `<key>` into an element holding the rest of the text.
-Any other tag, attribute or comment renders as text, a custom element such as `<note>` among them.
-On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
-CommonMark's grammar, outside code, and 4 comments: 11 tags a `<br/>`, which renders as a line
-break, one an `<img>`, which renders as text since the rule below refuses its `cid:` source, and 33
-placeholders such as `<key>` and `<uuid>`, which no list names, so a placeholder stays visible where
-a browser handed it would parse it as an element and drop it. A summary, a name or any other spec
-string that is not CommonMark is escaped as text.
+listed end tag closes the element it matches, and any above it on the stack, as HTML closes them,
+and renders as text where none matches; and a `p`, `li`, `dt` or `dd` on top closes when a sibling
+opens or its parent closes. Every other token, a tag, an end tag or a comment, is written escaped
+from its raw bytes, so a stray `</td>` renders as text rather than closing the page's own table, a
+placeholder such as `<key>` keeps its place, and what is still open closes where the description
+ends. A refused `a` is its text, both its tags dropped, and a refused `img` its `alt`, else its tag
+as text. An `li`, `dt` or `dd` opens only with its list on top of the description's stack, and
+otherwise renders as text, so a description cannot add an item to the page's own list. No table tag
+is listed, since a browser closes a page's table around a description's own in ways no stack of the
+description's can follow, so a description in a schema table's cell cannot add a cell or a row to
+it; a description's table renders as text. The contract is that outcome, which T-41 checks by
+parsing each page as a browser does: the page's own elements stand as written around every
+description, however hostile, and every token the description holds stays visible or renders as a
+listed element. An HTML parser's tree-building fragment mode is no substitute: it drops a stray end
+tag and turns `<key>` into an element holding the rest of the text. Any other tag, attribute or
+comment renders as text, a custom element such as `<note>` among them. On the golden spec (spec
+@57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's grammar, outside
+code, and 4 comments: 11 tags a `<br/>`, which renders as a line break, one an `<img>`, which
+renders as text since the rule below refuses its `cid:` source, and 33 placeholders such as `<key>`
+and `<uuid>`, which no list names, so a placeholder stays visible where a browser handed it would
+parse it as an element and drop it. A summary, a name or any other spec string that is not
+CommonMark is escaped as text.
 
 A link or an image in that text, and a URL the document gives, such as an `ExternalDocs` link's, an
 `Example.ExternalURL` or a contact's, license's or terms-of-service URL, can carry script the same
@@ -210,10 +211,10 @@ a way to show one entity across API versions. Each is decided by data, never by 
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's
   [`Docs.Refs`](../ir/annotations.md#references-in-prose) resolve the same way, so a link follows
-  its target wherever its route moves, save a span inside raw HTML, a link or a code span, which
-  renders as its text, since a link there would split a tag, nest in another link or show as code,
-  and a span naming a type no route reaches, a primitive or a type spelled where it is used, which
-  renders as its text too, as the IR asks ([references in
+  its target wherever its route moves, save a span inside raw HTML, a link, an `a` open on the
+  description's stack or a code span, which renders as its text, since a link there would split a
+  tag, nest in another link or show as code, and a span naming a type no route reaches, a primitive
+  or a type spelled where it is used, which renders as its text too, as the IR asks ([references in
   prose](../ir/annotations.md#references-in-prose)), and draws no `route-missing`. A page no entity
   owns, the index of the versions or an `llms.txt`, is requested by its kind and its scope, a
   version's label, a service's ID or an SDK target and language, which the same templates route.
@@ -324,33 +325,37 @@ tests never sent, and every regeneration could change them. So the plan holds on
 `Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
 member and operation:
 
-- **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, each
-  checked against its type and constraints with visibility set aside, since the shape it is shown
-  through settles that: a value no shape could make valid, such as one its enum does not list, is
-  refused, an enum the document leaves open (`Enum.Closed` false) admitting a value it does not
-  list. Shown through a shape, an example drops the members that shape does not hold and takes, for
-  each member the shape requires and the example lacks, that member's own first value, an
-  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and labels
-  it generated, its declared members kept as written; with `Assemble` off it fills nothing, and an
-  example missing a member the shape requires gives way as one it cannot complete does. So a
-  response-form example serves a create shape, a patch body's may leave out a required member, and
-  no shape is left without one. `Build` refuses a union value several variants admit where the union
-  is `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and `Shown`
-  shows such a value elsewhere as the first of them, in source order. A shape can make a value two
-  variants of a `Strict` union admit, by dropping the member that kept one of them out, so `Shown`
-  checks admission again in the shape it shows and is false there, as for a member it cannot fill.
-  `plan.Shown` does this, the one projection every consumer reads an example through, and reports an
-  example it cannot complete, a required member's set being empty, so the consumer takes the set's
-  next one, or reports as an empty set does when none is left. One they refuse is reported as a
-  warning `emitters/plan/example-refused` and left out, so every consumer falls to the next set
-  alike: an SDK's test sending it would be refused by the mock, as by the API. On the golden spec
-  (spec @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types:
-  in 292 no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and
-  in 3 it is longer than `maxLength`. One declaring none that adds no constraint to its type's takes
-  its type's set, so a property shows the value its type does, save an enum member, which takes its
-  own value. A position whose type is a decorator takes its own examples, else the nearest
-  decorator's along the chain, as `CollapseAliases` folds them, else, where it adds no constraint,
-  the set of the type its `Alias` names.
+- **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
+  one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
+  since no value of it can be checked, shown, filled from or sent; each checked against its type and
+  constraints with visibility set aside, since the shape it is shown through settles that: a value
+  no shape could make valid, such as one its enum does not list, is refused, an enum the document
+  leaves open (`Enum.Closed` false) admitting a value it does not list. Shown through a shape, an
+  example drops the members that shape does not hold and takes, for each member the shape requires
+  and the example lacks, that member's own first value, an `Undeclared` name's from its catch-all
+  type's set, which marks what is shown `Inferred` and labels it generated, its declared members
+  kept as written; with `Assemble` off it fills nothing, and an example missing a member the shape
+  requires gives way as one it cannot complete does. So a response-form example serves a create
+  shape, a patch body's may leave out a required member, and, with `Assemble` on and every required
+  member's set holding a value, no shape is left without one. `Build` refuses a union value several
+  variants admit where the union is `TypePlan.Strict`, which decodes it as no variant, reporting it
+  once as above, and `Shown` shows such a value elsewhere as the first of them, in source order. A
+  shape can make a value two variants of a `Strict` union admit, by dropping the member that kept
+  one of them out, so `Shown` checks admission again in the shape it shows and is false there, as
+  for a member it cannot fill. `plan.Shown` does this, the one projection every consumer reads an
+  example through, reading `Assemble` from `Plan.Policy.Examples`, and returns false for an example
+  it cannot complete, a required member's set being empty, so the consumer takes the set's next one;
+  with none left the position has no example there, which the docs show as none, a sample reports as
+  `sample-unrendered` and the mock as `example-missing`. One they refuse is reported as a warning
+  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
+  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
+  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
+  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
+  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
+  type's set, so a property shows the value its type does, save an enum member, which takes its own
+  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
+  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
+  the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather
@@ -452,16 +457,19 @@ depends on it. What it needs is almost all IR and plan facts:
 | A flag whose value is never echoed | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
-A CLI's help reads a description as CommonMark and writes it as plain text, its markup dropped and
-every control character, a terminal escape sequence among them, removed, since a description could
-otherwise drive the user's terminal. Command names, positional arguments, `@file` inputs and hidden
-commands are presentation, so they are [shaping hints](contract/shaping-hints.md) keyed by ID,
-`Rename` and the `Extra` members a CLI target defines. Flag constraints are derived at refine from
-the union's branches by `PropID`, never by a property's leaf name: a leaf name derives no conflict
-between `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge into one flag.
-Flag names collide as identifiers do and are told apart by the same ID-keyed resolution
-([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A
-body field nested at any depth, or with `.` in its name, is a flag like any other, save past a
-type's first recurrence along its path, where the field is one flag taking JSON or an `@file`, since
-a recursive body has no last field (17 of the golden spec's operations send one), and a union beside
-properties, or a top-level `anyOf` body, still yields flags, its branches' constraints among them.
+A CLI's help reads a description as the pages do, through the same tokenizer and link rule, and
+writes it as plain text: a listed element as its text, every other token, a placeholder such as
+`<key>` or a comment such as `<!--sse-->` among them, as written, a link as its text followed by its
+URL, and every control character, a terminal escape sequence among them, removed, since a
+description could otherwise drive the user's terminal. Command names, positional arguments, `@file`
+inputs and hidden commands are presentation, so they are [shaping hints](contract/shaping-hints.md)
+keyed by ID, `Rename` and the `Extra` members a CLI target defines. Flag constraints are derived at
+refine from the union's branches by `PropID`, never by a property's leaf name: a leaf name derives
+no conflict between `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge
+into one flag. Flag names collide as identifiers do and are told apart by the same ID-keyed
+resolution ([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become
+`--foo-bar`. A body field nested at any depth, or with `.` in its name, is a flag like any other,
+save past a type's first recurrence along its path, where the field is one flag taking JSON or an
+`@file`, since a recursive body has no last field (17 of the golden spec's operations send one), and
+a union beside properties, or a top-level `anyOf` body, still yields flags, its branches'
+constraints among them.
