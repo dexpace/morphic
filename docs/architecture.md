@@ -381,7 +381,8 @@ Designed, not yet built:
   byte-identical across scoped runs, so the emitter consumes the full document plus a scope
   option and gates emission itself (a lesson oagen recorded after trying the filtered route).
 - **version-slice** — project a document carrying availability metadata into a concrete
-  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed).
+  per-version snapshot (the TypeSpec versioning model: timeline stored, snapshot consumed). Each
+  snapshot keeps `Document.Versions` whole, so every run reads the versions in one order.
 - **overlay** — user-supplied IR patches (rename hints, pagination declarations for specs that
   can't express them, doc overrides) applied as data, not code. IR overlays are language-neutral
   and each entry carries provenance (user-authored vs tool-inferred, mirroring the `Inferred`

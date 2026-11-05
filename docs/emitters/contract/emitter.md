@@ -152,12 +152,14 @@ the document, which determines it.
 - **Snapshots only.** The engine runs `version-slice` before any emitter; the emitter receives a
   single version snapshot and never interprets `Availability`. `Snapshot` names which one, and
   `Routes` holds every snapshot's route table, its own among them, never another's document. A
-  target is run once on each snapshot. Each run writes its artifacts under the directory its label
-  names, the label itself as one path segment, and the `""` snapshot's at the output root, the one
-  exception being the pages a cross-version target's last label writes for what spans versions
-  ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a path, and the
-  runs make one generation ([write / integrate](../write-integrate.md#what-the-manifest-records)). A
-  label that is no single segment, or two that differ only by letter case, are an error
-  `engine/snapshot-label-invalid` before any run. The pass is designed, not built (architecture.md
-  §2.2); until it is, no pass slices a document, and every run's `Snapshot` is `""`, the one label
-  `Routes` keys.
+  target whose `Capabilities.CrossVersion` is set is run once on each snapshot. Each run writes its
+  artifacts under the directory its label names, the label itself as one path segment, and the `""`
+  snapshot's at the output root, the one exception being the pages its last label writes for what
+  spans versions ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a
+  path, and the runs make one generation ([write /
+  integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
+  is `.` or `..`, or differs from another only by letter case is an error
+  `engine/snapshot-label-invalid` before any run. Any other target is run on a sliced document only
+  for its samples, which writes nothing, until its design says how (#1531). The pass is designed,
+  not built (architecture.md §2.2); until it is, no pass slices a document, and every run's
+  `Snapshot` is `""`, the one label `Routes` keys.

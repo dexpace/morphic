@@ -140,15 +140,16 @@ a way to show one entity across API versions. Each is decided by data, never by 
   ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
   canonical words, which the SDKs resolve as well. Two slugs collide whatever their letter case, as
   artifact paths do ([emit rules](emit/rules.md)), since a file system that ignores case keeps one
-  page of the two: two of the golden spec's operations are `deleteWebhook` and `DeleteWebhook`,
-  which slugs spelt as the source spells them would part by case alone.
+  page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
+  `webhooks`, which slugs spelt as the source spells them would part by case alone.
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
   another's page an anchor there, and every `PropID` a model declares an anchor where that model is
-  rendered (above), a decorator answering with its `Alias`'s. A header, a `Property` no model
-  declares, is a row of the response it is rendered with and takes no anchor, since no link names
-  one. Anything left without one is an error `emitters/docs/route-missing`, and a recursive type is
-  linked by its ID, never inlined to a depth and cut.
+  rendered (above), a decorator answering with its `Alias`'s. A `Property` no model declares, a
+  header or a resource's identifier or state (`ResourceInfo`), is a row where its holder is rendered
+  and takes no anchor, since no link names one. Anything left without one is an error
+  `emitters/docs/route-missing`, and a recursive type is linked by its ID, never inlined to a depth
+  and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
   an error `emitters/docs/route-collision` naming both, never a page that overwrites another and
   never a page dropped. The check runs on the URLs the templates produce, over every kind of route
@@ -163,11 +164,12 @@ a way to show one entity across API versions. Each is decided by data, never by 
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
-  versions. Each snapshot's run writes under the directory its label names, as every target's does
-  ([contract rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), which
-  the route plan, and no template, puts before every route but those of the pages spanning versions,
-  so one entity's pages in two versions have two paths. The runs make one generation of the target,
-  whose manifest holds each run's under its label ([write /
+  versions. Each snapshot's run writes under the directory its label names, as the contract has a
+  cross-version target's do ([contract
+  rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), which the route
+  plan, and no template, puts before every route but those of the pages spanning versions, so one
+  entity's pages in two versions have two paths. The runs make one generation of the target, whose
+  manifest holds each run's under its label ([write /
   integrate](write-integrate.md#what-the-manifest-records)). A document no pass slices by version,
   one stating none among them, is one snapshot labelled `""`, written at the output root. For a
   target whose `Capabilities.CrossVersion` is set, the engine asks the target for every snapshot's
@@ -184,11 +186,11 @@ a way to show one entity across API versions. Each is decided by data, never by 
   holds each entity's page and anchor from the output root, its snapshot's directory included, which
   is what a switcher links. What spans versions, the site-scope `llms.txt` linking each version's
   and an index of the versions, is written once, by the run of the last label `Document.Versions`
-  lists, since every run holds the labels and tables it is built from; those pages sit at the output
-  root and belong to the one generation, so they keep their place when another label becomes last.
-  The `""` snapshot's run writes the site scope, which is then its version's too, as one index. A
-  link to an entity a version lacks resolves to that version's page saying so. Slugs may differ
-  between versions; IDs do not.
+  lists, which every snapshot keeps whole (architecture.md §2.2), since every run holds the labels
+  and tables it is built from; those pages sit at the output root and belong to the one generation,
+  so they keep their place when another label becomes last. The `""` snapshot's run writes the site
+  scope, which is then its version's too, as one index. A link to an entity a version lacks resolves
+  to that version's page saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -231,18 +233,21 @@ the samples a run of both would. A named target the registry lacks, or one that 
 itself, is an error in the options, and one with no configuration is refused as an absent
 configuration always is. The engine runs a named target for its samples even when its generation
 writes nothing ([write / integrate](write-integrate.md#what-the-manifest-records)), since a docs run
-handed none would drop them, and runs it once on each snapshot when the run names it. A target
-returns a sample for every operation whatever its `Scope`, which gates its artifacts alone, since
-its names are the whole document's: a scoped SDK run's docs keep every sample. A docs generation is
-a new one whenever the samples it is handed change, as an SDK target's own options can change them.
-A sample a target cannot render is a warning `emitters/<target>/sample-unrendered`, never an empty
-code block on the page, and so is one for an operation whose required input holds no example. A
-sample shows a call that succeeds, so its values are the `Input` of its operation's first success
-scenario (below): one ending in no `Error`, since an `Error` scenario's input is chosen to fail, and
-perhaps in no `Output`, as an operation answering with no body does. That is one the operation
-declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan
-assembles. An operation with neither has no sample: where `Assemble` off chose that, it draws no
-diagnostic, and where a required input holding no example kept one from being assembled, it draws
+handed none would drop them, and, when the run names it too, runs it once with its artifacts, which
+on a sliced document only a cross-version target may be (#1531). A run made for samples alone
+reports what any run of that target reports, and the engine decides as for any run whether that is
+fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs showing it. A
+target returns a sample for every operation whatever its `Scope`, which gates its artifacts alone,
+since its names are the whole document's: a scoped SDK run's docs keep every sample. A docs
+generation is a new one whenever the samples it is handed change, as an SDK target's own options can
+change them. A sample a target cannot render is a warning `emitters/<target>/sample-unrendered`,
+never an empty code block on the page, and so is one for an operation whose required input holds no
+example. A sample shows a call that succeeds, so its values are the `Input` of its operation's first
+success scenario (below): one ending in no `Error`, since an `Error` scenario's input is chosen to
+fail, and perhaps in no `Output`, as an operation answering with no body does. That is one the
+operation declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the
+plan assembles. An operation with neither has no sample: where `Assemble` off chose that, it draws
+no diagnostic, and where a required input holding no example kept one from being assembled, it draws
 the warning above. A value `Secret` or `Sensitive` marks is written as the target's placeholder for
 it (above).
 
@@ -257,17 +262,18 @@ member and operation:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, each
   checked against the type and constraints its position shows it through, a content's against the
   shape its operation sends or returns it in, so a patch body's example may leave out a required
-  member, and a type's against the type unprojected, an enum the document leaves open (`Enum.Closed`
-  false) admitting a value it does not list. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  member, and a type's against each shape `TypePlan.Shapes` gives it, admitted where one admits it
+  and shown only through those that do, or unprojected where no shape reaches it, an enum the
+  document leaves open (`Enum.Closed` false) admitting a value it does not list. One they refuse is
+  reported as a warning `emitters/plan/example-refused` and left out, so every consumer falls to the
+  next set alike: an SDK's test sending it would be refused by the mock, as by the API. On the
+  golden spec (spec @57b5196b, morphic @ab953d45), a declared example fails its own type in at least
+  295 types: in 292 no member of the enum, each closed, holds it, such as `json` against `JSON` and
+  `CSV`, and in 3 it is longer than `maxLength`. One declaring none that adds no constraint to its
+  type's takes its type's set, so a property shows the value its type does, save an enum member,
+  which takes its own value. A position whose type is a decorator takes its own examples, else the
+  nearest decorator's along the chain, as `CollapseAliases` folds them, else, where it adds no
+  constraint, the set of the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required inputs and of the optional ones whose set is declared rather than
@@ -296,14 +302,16 @@ member and operation:
   value is the same alone and inside its model wherever the bound leaves it whole, and an optional
   recursive member ends. The bounds cut only what validity leaves optional ([plan
   policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of
-  a list or map past the larger of `MaxItems` and its minimum. A required member is filled as deep
-  as its schema requires, and a `minItems` above `MaxItems` is met: on the golden spec 245 models
-  reach a model four or more deep through their own required, non-null members alone, and one list
-  requires four items, which the default bounds would otherwise leave without an example. A value
-  the synthesizer cannot make valid, as a `pattern` it cannot satisfy or a required cycle no value
-  ends, or one holding more values than `plan.MaxExampleValues`, a fixed limit the plan package
-  states, 10,000, several times the roughly 1,300 values the largest synthesized example of the
-  golden spec's declared models holds under the default bounds, is reported as a warning
+  a list or map past the larger of `MaxItems` and its minimum, or past its minimum alone once it
+  lies deeper than `MaxDepth`, so a required list of its own model ends: the golden spec's
+  `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past that
+  depth. A required member is filled as deep as its schema requires, and a `minItems` above
+  `MaxItems` is met: on the golden spec 245 models reach a model four or more deep through their own
+  required, non-null members alone, and one list requires four items, which the default bounds would
+  otherwise leave without an example. A value the synthesizer cannot make valid, as a `pattern` it
+  cannot satisfy or a required cycle no value ends, or one holding more values than
+  `plan.MaxExampleValues`, a fixed limit the plan package states, 10,000, which bounds what a
+  hostile schema can make one example cost, is reported as a warning
   `emitters/plan/example-unsynthesized` and left out, never emitted invalid.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
