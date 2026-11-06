@@ -137,7 +137,7 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
   found a check no test held, which none of them had planted (#1191, #1216).
 - **Probe.** Run
-  `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt' ':!<file the condition is in>'`
+  `git grep -lF '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt' ':!<file the condition is in>'`
   to show whether a set survives; the report lists each condition the diff adds beside its plant.
 
 ## Rerun only the plants a merge can have changed

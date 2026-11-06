@@ -116,11 +116,11 @@ the rule here rather than reading it across.
   `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
 - **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
-## Compare a plain value with `assert.Equal`
+## Compare a plain value with testify's `Equal`
 `assert-equal-on-plain-values`
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
-  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` or `require.Equal` stands on a value with no
   unexported field or `Equal` method, which `cmp` alone calls; any other takes `cmp.Diff` with a
   direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
 - **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,

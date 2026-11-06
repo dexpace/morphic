@@ -164,7 +164,8 @@ class LintTest(unittest.TestCase):
         write(self.root, "ir/b.go", f"package ir\n\n// Per {cited}#gone too.\n")
         write(self.root, "docs/ir/notes.md", f"Per `{missing}#x`.\n")
         write(self.root, "CLAUDE.md", f"See `{cited}#do-the-thing` and `{cited}#gone` on one "
-                                      "line, not `references/r.md#gone`.\n")
+                                      f"line, not `references/r.md#gone`.\nAnd `{cited}#gone` on "
+                                      "the next.\n")
         write(self.root, ".golangci.yml", f"# {bad}")
         write(self.root, ".claude/agents/a.md", bad)
         (self.root / "bin.dat").write_bytes(b"\0" + bad.encode())
@@ -172,6 +173,7 @@ class LintTest(unittest.TestCase):
             f".claude/agents/a.md:1: {cited} holds no rule gone",
             f".golangci.yml:1: {cited} holds no rule gone",
             f"CLAUDE.md:1: {cited} holds no rule gone",
+            f"CLAUDE.md:2: {cited} holds no rule gone",
             f"docs/ir/notes.md:1: {missing} does not exist",
             f"ir/b.go:3: {cited} holds no rule gone",
             f"ir/testdata/in.md:1: {cited} holds no rule gone",

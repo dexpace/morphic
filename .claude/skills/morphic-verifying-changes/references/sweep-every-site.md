@@ -50,7 +50,7 @@ it.
   substring, not a whole word, and a renamed term with its article ("a emitter").
 - **Why.** Comments pointed at deleted functions, removed receivers and replaced resolvers, sending
   readers to code that no longer exists (#195, #834).
-- **Probe.** For each name the diff removes, `git grep -n '<old>'` over `*.go`, `docs/`,
+- **Probe.** For each name the diff removes, `git grep -nF '<old>'` over `*.go`, `docs/`,
   `README.md`, `CLAUDE.md` and `.claude/skills` on the final tree; each hit outside the diff's own
   deletions is a finding.
 
