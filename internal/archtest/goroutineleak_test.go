@@ -185,7 +185,8 @@ func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
 // function on a goroutine of their own, and only the first form is an ast.GoStmt.
 //
 // The match is syntactic, whatever the receiver's type. A false positive costs
-// one harmless extra TestMain; a miss is what this guard exists to prevent.
+// an extra TestMain and, as the race list rule reads this too, an entry on that
+// list or a reason in its tables; a miss is what both exist to prevent.
 func startsGoroutine(f *ast.File) bool {
 	found := false
 	ast.Inspect(f, func(n ast.Node) bool {
