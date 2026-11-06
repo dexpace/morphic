@@ -204,7 +204,7 @@ func TestValidationOnlyAt_KeepsADraftsDependenciesWhereItsDialectDefinesThem(t *
 	assert.Empty(t, diags)
 }
 
-// TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept pins the error// TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept pins the error
+// TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept pins the error
 // route through the combining readers: the keyword yields an error diagnostic
 // and no entry, rather than an entry announcing a preservation that failed.
 func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) {

@@ -67,7 +67,7 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "one fewer is mended whole")
 }
 
-// TestRecordSkippedFamilies_MissingOwner drives// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
+// TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
 // keyword families the dispatch passed over. It is reached directly for the
 // reason TestRecordUnhomedKeywords_MissingOwner is: the caller hands it either
 // the node it just looked up or one internAlias just interned, so no source

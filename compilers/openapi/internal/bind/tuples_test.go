@@ -142,7 +142,7 @@ func TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar(t *testing.
 	assert.Equal(t, bind.BadPointer, e.Hop.Reason, "a plain name opens with a letter: %s", e.Hop.Why())
 }
 
-// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
+// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a
 // schema writing a `$schema`, an identifier and a $ref, held by one whose rule
 // ignores what is beside a $ref: it roots no resource, whichever keyword its
 // own `$schema`'s dialect spells the identifier by, so a $ref naming its

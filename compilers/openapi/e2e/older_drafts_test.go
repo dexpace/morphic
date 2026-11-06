@@ -153,7 +153,7 @@ func TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten(t *testing.T) {
 	}
 }
 
-// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
+// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
 // whose entries or rest no schema spells, which no $ref reaches, against its
 // twin written with 2020-12's prefixItems: an entry of 5 or null is an error at
 // it, a rest of 5 an error and of null a warning that it is read as left out,

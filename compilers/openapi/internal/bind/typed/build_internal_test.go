@@ -189,8 +189,9 @@ func TestBuild_MendsWhatWasRecordedAndWhatItBuilds(t *testing.T) {
 // recorded answers by the model it holds the position it was read at, as Site
 // answers by the schema itself, one the parser read as false and mend decoded
 // again among them. Over a document naming no dialect, where each node reads
-// its document's, only a schema writing a list of items is, whose entries are
-// read where it is. Before Build, and for a nil model or nil bindings, none is.
+// its document's, only a schema writing a list of items is placed, as its
+// entries are read where it is. Before Build, and for a nil model or nil
+// bindings, none is placed.
 func TestBuild_PlacesEachSchemaByTheModelItHolds(t *testing.T) {
 	t.Parallel()
 	builder := func(t *testing.T, schemas string) *Builder {
