@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -25,6 +26,28 @@ func TestHeldAt_AContextPlacingNoPositionHoldsNothing(t *testing.T) {
 	_, placed := c.Position("/items/0")
 	assert.False(t, placed, "sanity: the context places no position")
 	assert.Nil(t, heldAt(c, "/items/0"))
+}
+
+// TestWrittenAt_ReadsWhereTheBindingsPlaceTheSchema pins where a tuple's
+// entries are read: where the bindings place the schema writing them, as for a
+// type list's array variant, which lowers at a pointer of its own, and at the
+// pointer it lowers at where they place it nowhere.
+func TestWrittenAt_ReadsWhereTheBindingsPlaceTheSchema(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#'
+paths: {}
+components:
+  schemas:
+    U: {type: [array, object], items: [{description: a}]}
+`)
+	js, ok := l.Ctx.Doc.Components.Schemas.Get("U")
+	require.True(t, ok)
+	_, at := writtenAt(l.Ctx, js.GetSchema(), "/components/schemas/U/type/0")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/U"), at)
+	_, at = writtenAt(l.Ctx, &oas3.Schema{}, "/x")
+	assert.Equal(t, jsontext.Pointer("/x"), at, "a schema the bindings place nowhere")
 }
 
 // TestListedTuple_ReadsADraftsEntriesAndRest pins what a part's reader takes

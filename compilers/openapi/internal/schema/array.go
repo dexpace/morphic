@@ -87,21 +87,32 @@ func itemsSchema(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 // as one left out, as 2020-12's are, which the load phase reports.
 func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, n int) (ir.TypeDef, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
+	there, site := writtenAt(c, s, pointer)
 	elems := make([]ir.TypeRef, 0, n)
 	for i := range n {
-		at := pointer + ids.Ptr("items", strconv.Itoa(i))
-		ref, refDiags := Ref(c, ts, depth, heldAt(c, at), at)
+		entry := ids.Ptr("items", strconv.Itoa(i))
+		ref, refDiags := Ref(c, ts, depth, heldAt(there, site+entry), pointer+entry)
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(s)}
-	at := pointer + ids.Ptr("additionalItems")
-	if rest := heldAt(c, at); !annotation.IsFalseSchema(rest) {
-		ref, restDiags := Ref(c, ts, depth, rest, at)
+	rest := ids.Ptr("additionalItems")
+	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(js) {
+		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
 		diags = append(diags, restDiags...)
 		t.Rest = &ref
 	}
 	return t, diags
+}
+
+// writtenAt returns where s, lowered at pointer, is written: where the
+// bindings place it (placedAt), as a type list lowers each of its variants at
+// a pointer of its own, and else pointer of c's document.
+func writtenAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (lowering.Ctx, jsontext.Pointer) {
+	if there, at, placed := placedAt(c, s); placed {
+		return there, at
+	}
+	return c, pointer
 }
 
 // ListedTuple returns the entries the array js writes as a tuple in a list of

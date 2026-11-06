@@ -113,8 +113,9 @@ func (d Dialects) rowsAt(p bind.Position) oas.SchemaRules {
 // is false for a node that reads the source's own rows. A node an alias places
 // at several positions reads at all of them the rows of the root last in
 // pointer order among those whose trees hold it, as readDialects governs them,
-// so a reading asks it only of a schema the bindings place nowhere, one they
-// place reading where it is (typed.Bindings.SiteOf).
+// so a reading asks it of a schema typed.Bindings.SiteOf does not place: one
+// the bindings place nowhere, or any where no schema names a dialect, as each
+// node then reads one.
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok

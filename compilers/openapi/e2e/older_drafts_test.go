@@ -103,6 +103,43 @@ func TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple(t *testing.T) {
 	assert.Equal(t, ir.KindTuple, doc.Types[at.Type.Target].Kind())
 }
 
+// TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten pins a draft's tuple
+// in a schema whose type list makes it a union: the array variant holds the
+// entries and rest the schema writes, as its 2020-12 twin's does, though the
+// variant lowers at a pointer of its own, whether a `$schema` or the
+// document's jsonSchemaDialect names the draft, and so does a tuple among its
+// entries. Nothing is left on the union.
+func TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten(t *testing.T) {
+	t.Parallel()
+	const tuple = "type: [array, object], items: [{type: array, items: [{type: string}], additionalItems: false}, " +
+		"{type: integer}], additionalItems: {type: boolean}"
+	for name, src := range map[string]string{
+		"by $schema": openapitest.ComponentSpec("    U: {$schema: " + draft04 + ", " + tuple + "}\n"),
+		"by jsonSchemaDialect": "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " + draft07 +
+			"\npaths: {}\ncomponents:\n  schemas:\n    U: {" + tuple + "}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, src)
+			openapitest.RequireNoErrorDiags(t, diags)
+			u, ok := doc.Types[componentID("U")].(*ir.Union)
+			require.True(t, ok)
+			assert.NotContains(t, u.Unmodeled, "openapi:additionalItems")
+			v, ok := doc.Types[u.Variants[0].Type.Target].(*ir.Tuple)
+			require.True(t, ok, "the array variant is the tuple")
+			require.Len(t, v.Elems, 2)
+			assert.Equal(t, ir.TypeID("t/prim/integer"), v.Elems[1].Target)
+			require.NotNil(t, v.Rest)
+			assert.Equal(t, ir.TypeID("t/prim/bool"), v.Rest.Target)
+			inner, ok := doc.Types[v.Elems[0].Target].(*ir.Tuple)
+			require.True(t, ok, "a tuple among its entries")
+			require.Len(t, inner.Elems, 1)
+			assert.Equal(t, ir.TypeID("t/prim/string"), inner.Elems[0].Target)
+			assert.Nil(t, inner.Rest)
+		})
+	}
+}
+
 // TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins// TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs pins a draft 7 tuple
 // whose entries or rest no schema spells, which no $ref reaches, against its
 // twin written with 2020-12's prefixItems: an entry of 5 or null is an error at

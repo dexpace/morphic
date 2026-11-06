@@ -224,13 +224,12 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 }
 
 // TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect pins that a schema
-// reached from another document is read in the dialect its own document's
-// jsonSchemaDialect names, whichever document's content the lowering reads:
-// draft 7's `dependencies` in other.yaml folds from an inline allOf branch the
-// source's G names, and a draft 7 source's `definitions`, as `$defs`, leaves a
-// body other.yaml declares to its media type, a file. A branch an alias of
-// other.yaml places under a draft 4 root and its document's own dialect folds
-// under the root alone, though the source names no dialect.
+// reached from another document is read in its own document's dialect,
+// whichever document's content the lowering reads: draft 7's `dependencies` in
+// other.yaml folds from an inline allOf branch the source's G names, a draft 7
+// source's `definitions`, as `$defs`, leaves a body other.yaml declares a file,
+// an alias of other.yaml folds a branch under a draft 4 root alone, and a
+// body's $ref into a draft 4 document of schemas reads its `id` as `$id`.
 func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"
@@ -279,5 +278,18 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		}
 		assert.Equal(t, ir.ReasonValidationOnly, reason("D4", "openapi:dependencies"))
 		assert.Equal(t, ir.ReasonDegradedLowering, reason("Now", "openapi:allOf/1"), "the source names no dialect")
+	})
+	t.Run("a body's $ref into a document of schemas naming a draft", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte("$schema: "+draft04+"\n"+
+			"A: {$ref: '#/B', id: 'x'}\nB: {type: string}\n"), 0o600))
+		doc := compileSource(t, filepath.Join(dir, "root.yaml"), head+"paths:\n  /x:\n    post:\n      operationId: postX\n"+
+			"      requestBody:\n        content:\n          application/octet-stream: {schema: {$ref: './lib.yaml#/A'}}\n"+
+			"      responses: {'200': {description: ok}}\n")
+		require.Len(t, doc.Services, 1)
+		contents := doc.Services[0].Groups[0].Operations[0].Request.Contents
+		require.Len(t, contents, 1)
+		assert.NotNil(t, contents[0].File, "draft 4's id beside a $ref, read in lib.yaml's dialect, is $id")
 	})
 }

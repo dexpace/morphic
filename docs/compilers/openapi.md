@@ -2446,9 +2446,10 @@ at it, or for `null` the warning a `null` field draws, read as left out, as `ite
 `prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
 [`null-schema`](#null-schema) reads it. A position that lowers to no
 `Tuple`, such as one with no `type: array`, keeps the list and the `additionalItems` beside it as
-[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
-list, `additionalItems` is the rest of no tuple, kept verbatim with an info
-`openapi/unknown-schema-keyword`. In any other dialect a list of items is no schema: the load phase
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`, and a type list's array
+variant is the tuple the schema writes. Beside an `items` that is no list, `additionalItems` is the
+rest of no tuple, kept verbatim with an info `openapi/unknown-schema-keyword`; beside a list in any
+other dialect, it is kept as at a position lowering to no `Tuple`. In any other dialect a list of items is no schema: the load phase
 reports it as an `openapi/invalid-items-list` error, at every schema the [`validation`](#validation)
 check reads, and the lowering reads `items` as absent.
 
