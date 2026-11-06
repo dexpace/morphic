@@ -193,7 +193,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(use.Site(s), pointer, c.ProvenanceAt)
+	a, readDiags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.ProvenanceAt)
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs

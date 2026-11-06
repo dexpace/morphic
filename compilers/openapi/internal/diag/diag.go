@@ -145,12 +145,14 @@ const (
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see boundLiteralDiag).
+	// number, at every schema the load phase's check reads (error severity:
+	// Morphic owns these keywords, so this is the sole diagnostic for the
+	// defect — see load.ownedFinding).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
-	// number under 3.0's or draft 4's) — see exclusiveFormDiag.
+	// number under 3.0's or draft 4's), at every schema the load phase's check
+	// reads — see load.ownedFinding.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -436,14 +438,15 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, lowered as in a document declaring that minor, or a keyword beside a 3.0
-	// schema's $ref, applied as in 3.1 and read as 3.0 defines it. Either reading
-	// loses least: with this diagnostic a consumer can set the construct aside,
-	// and from a verbatim copy could not recover the lowering
+	// on, lowered as in a document declaring that minor, or a keyword beside a
+	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
+	// versions apply one and read in its schema's minor and dialect. Either
+	// reading loses least: a consumer can set the construct aside, and could not
+	// recover the lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
-	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
-	// document is invalid for the version it declares, but it still lowers.
+	// A warning: the construct lowers, though the version or dialect it is
+	// written in reads it otherwise.
 	LaterVersionConstruct = "openapi/later-version-construct"
 	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
 	// document, so it has no sequence of items to describe
@@ -479,6 +482,13 @@ const (
 	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).
 	// Warning: a keyword written in that dialect may read otherwise there.
 	UnreadDialect = "openapi/unread-dialect"
+	// InvalidItemsList reports `items` written as a list, a tuple as JSON
+	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
+	// no list there, at it. The rule table's check leaves such a list to the
+	// load phase, which knows the schema's dialect once its references are
+	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
+	// is.
+	InvalidItemsList = "openapi/invalid-items-list"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

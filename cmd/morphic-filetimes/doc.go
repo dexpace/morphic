@@ -7,7 +7,8 @@
 // A file gets a time derived from its blob hash, and a directory holding one a
 // fixed time. The top level's .git entry is dated last, as Go hashes every entry
 // of a directory a test lists and a later git status moves it. A symlinked .git
-// has its target dated, which is out of scope. A dirty worktree is refused.
+// has its target dated, out of scope. A symlink or submodule stays undated. A
+// dirty worktree is refused.
 //
-// Exit code is 0 when done, 1 when refused or failed, and 2 on a usage error.
+// Exit code is 0 when done, 1 when refused or failed, 2 on a usage error.
 package main

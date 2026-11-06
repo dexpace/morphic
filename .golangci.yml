@@ -289,7 +289,7 @@ linters:
       - path: ^cmd/morphic-filetimes/main\.go$
         linters:
           - forbidigo
-        text: use of `exec\.Command` forbidden
+        text: use of `exec\.CommandContext` forbidden
       # Countdown and recorder are each a context.Context: each embeds the one
       # it wraps to answer Err on a schedule or to record each call, which is
       # how a context decorator is written, not a context held for later.

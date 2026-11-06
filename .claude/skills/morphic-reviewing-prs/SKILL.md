@@ -6,11 +6,11 @@ description: Use when asked to review a pull request, branch or commit range in 
 # Reviewing morphic pull requests
 
 A review finds every flaw in its first round and confirms the fixes in its second. A round runs
-every angle below over the whole change, however much it finds first, deep into its logic and broad
-over the code living with it (`references/rounds.md#deep-and-broad`). Each angle loads the skills
-holding its rules and fills a matrix whose every cell has a run or a reason. Nothing is decided on
-an assumption (`references/rounds.md#decide-on-evidence`), and a finding survives an attempt to
-disprove it (`references/rounds.md#disprove-each-finding`). Post nothing unless asked, then by
+every angle below, however much it finds first, deep into the change and broad over the code living
+with it (`references/rounds.md#deep-and-broad`). Each angle loads the skills holding its rules and
+fills a matrix, each cell with a run or a reason. Nothing is decided on an assumption
+(`references/rounds.md#decide-on-evidence`), and a finding survives an attempt to disprove it
+(`references/rounds.md#disprove-each-finding`). Post nothing unless asked, then by
 `references/rounds.md#posted-findings`.
 
 ## Angles
@@ -30,23 +30,25 @@ disprove it (`references/rounds.md#disprove-each-finding`). Post nothing unless 
 | `references/consistency.md` | each construct and name, against the codebase's own | `morphic-checking-style`, `morphic-designing-code` |
 | `references/claims-and-process.md` | every sentence the change writes, and how it ships | `morphic-shipping-prs` |
 
-Run them in this order, in one reader unless asked to fan out
-(`references/rounds.md#fan-out-an-angle-to-a-reader`); an angle the change cannot reach is
-settled in one line saying why.
+Run them in order, in one reader unless split or asked to fan out
+(`references/readers.md#fan-out-an-angle-to-a-reader`); one the change cannot reach is settled
+unread, in a line saying why.
 
 ## Rounds
 
 1. **Setup**: the merged tree in a throwaway worktree, as `references/rounds.md` opens.
 2. **Gate**: CI's run (`references/rounds.md#ci-is-the-gate`).
-3. **Angles**, over the whole change.
+3. **Angles**: the whole change in the first two rounds
+   (`references/rounds.md#first-round-finds-everything`), then what moved
+   (`references/rounds.md#later-rounds-read-what-moved`).
 4. **Standing reviews**, after the first round's angles
    (`references/rounds.md#read-standing-reviews`).
-5. **Fixes**, when the review fixes (its own PR, or when asked): each designed before it is written
+5. **Fixes**, when the review fixes (its own PR, or when asked): each designed first
    (`references/rounds.md#design-the-fix-first`) and reviewed before it leaves
    (`references/rounds.md#review-own-fixes`).
 6. **Next round**, from the setup, when the branch, its base or `origin/main` moves
-   (`references/rounds.md#recheck-against-final-tree`), by
-   `references/rounds.md#first-round-finds-everything`.
+   (`references/rounds.md#recheck-against-final-tree`), until
+   `references/rounds.md#review-ends-with-nothing-left`.
 
 ## Findings
 
@@ -55,5 +57,5 @@ Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (n
 justified in writing before merge. Each names its angle, the rule it breaks, file and line, the run
 and its output, and the smallest fix removing the class, not the instance. A defect the change
 introduces, exposes or makes reachable is in scope however old its root; a stated limitation is an
-`issue:` when a valid input shows head worse than base. The report gives each angle's matrix, and
-each equivalent mutant with its reason.
+`issue:` when a valid input shows head worse than base. The report gives each angle's matrix and
+each equivalent mutant's reason.

@@ -135,6 +135,13 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 		require.NoError(t, err)
 		require.Zero(t, packages.PrintErrors(pkgs), "the plants must type-check, or they prove nothing")
 		pkgs = slices.DeleteFunc(pkgs, func(p *packages.Package) bool { return strings.HasSuffix(p.ID, ".test") })
+		// go list reads each package's directory in a child the test cache does not
+		// see, so a file added to one wantedFindings does not walk, as testdata/outside
+		// is not, reruns the test only through this listing.
+		for _, p := range pkgs {
+			_, err := os.ReadDir(p.Dir)
+			require.NoError(t, err)
+		}
 
 		graph, err := checker.Analyze(analyzers, pkgs, nil)
 		require.NoError(t, err)
@@ -182,6 +189,15 @@ func readDeclarers(t *testing.T) {
 func TestDrawnFindings_OpenTheModuleFiles(t *testing.T) {
 	t.Parallel()
 	irtest.RequireOpensModuleFiles(t, "TestAnalyzers_ReadTheModulesLayout")
+}
+
+// TestDrawnFindings_ListThePackagesBesideThePlants holds drawnFindings to opening
+// the one directory the plants' walk does not reach, in go test's log.
+func TestDrawnFindings_ListThePackagesBesideThePlants(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.Abs("testdata/outside")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestAnalyzers_DrawExactlyThePlantedFindings", dir)
 }
 
 // listPackages returns the import paths the patterns, relative to this

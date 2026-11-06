@@ -58,8 +58,9 @@ for does:
   stay in the IR, where the docs emitter reads them, and the plan reports each decorator some
   reference reaches whose `Docs` or `Deprecation` reach no carrier, once rather than once per
   target, as an info `emitters/plan/decorator-annotations-unplaced` at the decorator. A decorator
-  nothing references generates nothing and is not reported, and neither is an unplaced example: no
-  SDK renders a schema example.
+  nothing references generates nothing and is not reported, and neither is an unplaced example,
+  which the plan's shared examples read wherever it sits
+  ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
 
 The fold is a shared refine helper in `emitters/refine`, reading only the IR facts `Alias` points
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same

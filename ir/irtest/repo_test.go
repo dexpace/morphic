@@ -184,7 +184,7 @@ func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			env := []string{subjectEnv + "=" + tc.subject}
+			env := []string{subjectEnv + "=" + tc.subject, "PWD=" + os.Getenv("PWD")}
 			if tc.marked {
 				env = append(env, irtest.OpensChildEnv+"=1")
 			}
@@ -442,4 +442,14 @@ func TestReadModuleFiles_RefusesAFileItCannotRead(t *testing.T) {
 			assert.GreaterOrEqual(t, rec.helperCalls, 1, "readModuleFiles marks itself a helper")
 		})
 	}
+}
+
+// TestRequireOpensModuleFiles_ReadsAChildThroughASymlinkedCheckout runs the check
+// from a directory reached through a symlink, where this process spells its paths
+// as $PWD does. The child must spell its own alike, or the log names none of them.
+func TestRequireOpensModuleFiles_ReadsAChildThroughASymlinkedCheckout(t *testing.T) {
+	link := filepath.Join(t.TempDir(), "checkout")
+	require.NoError(t, os.Symlink(irtest.RepoRoot(t), link))
+	t.Chdir(filepath.Join(link, "ir", "irtest"))
+	irtest.RequireOpensModuleFiles(t, "TestReadModuleFiles_OpensGoModAndGoSum")
 }
