@@ -39,7 +39,8 @@
 
 - **Rule.** The test cache keys a result on every environment variable the test reads, so the runs
   a cache probe compares share one `PATH`, `GODEBUG`, `GOFLAGS` and `TMPDIR`. A logging wrapper put
-  on `PATH` for one run alone reruns every test that starts a child. When the measurement needs
+  on `PATH` for one run alone reruns every test that starts a child. On btrfs, committing in place
+  moves `.git`'s size: clone it to the path. When the measurement needs
   `GODEBUG`, run it twice with `go clean -testcache` between and cite the second. For a cold cache,
   point `GOCACHE` at a fresh `mktemp -d`.
 - **Why.** A trace cited as a reproduction worked only because the command had run before (#381),
@@ -88,9 +89,9 @@
 - **Why.** `readDeclarers` read library sources from the module cache, never rechecked
   by go test (#1272). Sweeping `exec(test)?\.Command`, `packages.Load` and `decls.Load` found
   `git ls-files` tests, `decls.Load`'s fixtures and a package `lintrules` names.
-- **Probe.** `touch` that file and rerun: the last `ok` lacks `(cached)`. For a list, in a scratch
-  clone, commit a newly listed file, or under a pattern a new package, run `make filetimes`, rerun
-  without `-count=1`.
+- **Probe.** `touch` that file and rerun: the last `ok` lacks `(cached)`. For a list, commit a new
+  listed file, or package under a pattern, in a copy; clone to the primed path, `make filetimes`,
+  rerun without `-count=1`.
 
 ## A test hands its child the PWD it compares paths by
 `child-path-spelling`
