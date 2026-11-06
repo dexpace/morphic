@@ -138,7 +138,7 @@ func describeFormat(format Format) string {
 		MediaRanges:       "a comma-separated list of media types and media type ranges",
 		AnchorName:        "a name of a letter or '_', then letters, digits, '-', '_' and '.'",
 		PlainName:         "a name of a letter, then letters, digits, '-', '_', ':' and '.'",
-		PlainNameURI:      "a URI reference whose fragment, written alone and no JSON pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.'",
+		PlainNameURI:      "a URI reference that, naming a fragment alone and no JSON pointer, names a letter, then letters, digits, '-', '_', ':' and '.'",
 		ResourceURI:       "a URI reference whose fragment, if any, is empty",
 	}[format]
 }
