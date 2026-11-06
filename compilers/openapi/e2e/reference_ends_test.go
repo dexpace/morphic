@@ -152,7 +152,7 @@ func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 	t.Parallel()
 	const unplaced = ": it is in what the reference at /paths/~1a/get/parameters/0 resolved to, which the " +
 		"compiler cannot read where the parser placed it"
-	const kept = `union branch $ref "#/components/schemas/A" is unresolved` + unplaced + "; the branch is kept verbatim"
+	const kept = `" is unresolved` + unplaced + "; the branch is kept verbatim"
 	tests := []struct {
 		name, schema string
 		want         map[jsontext.Pointer]string
@@ -166,8 +166,18 @@ func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 		{
 			"union beside structural keywords",
 			"{type: object, properties: {id: {type: string}}, " +
-				"oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/A'}]}",
-			map[jsontext.Pointer]string{"/x-params/q/schema/oneOf/0": kept, "/x-params/q/schema/oneOf/1": kept},
+				"oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/oneOf/0": `union branch $ref "#/components/schemas/A` + kept,
+				"/x-params/q/schema/oneOf/1": `union branch $ref "#/components/schemas/B` + kept,
+			},
+		},
+		{
+			"anyOf beside structural keywords",
+			"{type: object, properties: {id: {type: string}}, anyOf: [{$ref: '#/components/schemas/A'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/anyOf/0": `union branch $ref "#/components/schemas/A` + kept,
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -186,6 +196,7 @@ x-params:
 components:
   schemas:
     A: {type: object, properties: {k: {type: string}}}
+    B: {type: string}
 `
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
