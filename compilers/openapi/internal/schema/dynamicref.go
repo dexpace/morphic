@@ -80,6 +80,8 @@ func anchorHolds(c lowering.Ctx, name string, at bind.Position) (string, bool) {
 // dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
 // addresses, or the reason it addresses none. It stops short of the index, so
 // the chain walk and the lowering path ask one function what a schema requests.
+// 2019-09's $recursiveRef, which no reading here asks of, is kept verbatim and
+// never expanded so (GitHub #1475).
 func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 	node := annotation.RawPropertyNode(s, "$dynamicRef")
 	if node == nil {

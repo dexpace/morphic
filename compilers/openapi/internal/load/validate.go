@@ -68,7 +68,10 @@ func declaredDialect(root *yaml.Node) string {
 // is the tree as the source writes it, an applied overlay's patch included, and
 // tree places each finding at the node it is about, naming where it was read
 // when an alias or a merge key mounts that node there. within bounds what the
-// check reads (see nodesAdmitted).
+// check reads (see nodesAdmitted). A draft's schema is held to its minor's
+// keyword rows, bar what the check hands back to judge in its dialect
+// (judgeOwned), so a keyword only the draft defines is held to none (GitHub
+// #1466).
 func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within budget.Limit) judgment {
 	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}}
 	version := declaredVersion(root)

@@ -190,11 +190,12 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 // which 3.0 requires and 2020-12 leaves optional (GitHub #650). The lowering
 // is alike in every dialect, so only this tells the document.
 //
-// It reads the declaration, never what it lowered to, so an array that lowers
-// to a tuple, an enum or an allOf is held to the rule as a List is; that a 3.0
-// prefixItems lowers at all is GitHub #820. `items: {}` is silent, as is a
-// list. missingArrayItemsBesideRef holds a $ref site's keywords to it; a
-// subschema kept verbatim, such as one under `not`, never reaches it.
+// It reads the declaration, never what it lowered to, so an array lowering to
+// a tuple or an enum is held to the rule as a List is; that a 3.0 prefixItems
+// lowers at all is GitHub #820. `items: {}` is silent, as is a list, read off
+// the raw node, which no documented parser behaviour models.
+// missingArrayItemsBesideRef holds a $ref site's keywords to it; a subschema
+// kept verbatim never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	_, listed := listedItems(s)
 	if listed || annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) {
