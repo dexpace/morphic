@@ -202,15 +202,15 @@ func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, 
 // whichever document holds it: any fragment no JSON pointer spells is a plain
 // name, as every JSON Schema dialect reads one (2020-12 §5). A name no grammar
 // admits, which only draft 4's `id` can declare, is BadPointer where no schema
-// declares it: no other dialect could, so it is likelier a pointer written
-// wrong.
+// declares it and none past a merge bound may: no other dialect could, so it
+// is likelier a pointer written wrong.
 func (b *binder) anchored(to resource, name string, h *Hop) (reading, Reason) {
 	b.find.identify(to.root.Doc)
 	at, why := b.ids.lookupAnchor(to.root, name)
 	switch {
 	case why == NoReason:
 		return b.pointed(to.root.Doc, at.Pointer, h)
-	case why == DuplicateAnchor || isAnchorName(name) || isPlainName(name):
+	case why != NoAnchor || isAnchorName(name) || isPlainName(name):
 		return reading{}, why
 	default:
 		return reading{}, BadPointer

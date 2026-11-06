@@ -345,6 +345,7 @@ func mergedKeys(root bool) string {
     Mapped: {properties: {<<: *d70, q: {$ref: '#/$defs/X'}}}
     Shallow: {<<: *d10, properties: {r: {$ref: '#/$defs/Y'}}}
     Plain: {$ref: '#/$defs/X'}
+    Unnamed: {$ref: '#1x'}
 `)
 	return b.String()
 }
@@ -352,7 +353,8 @@ func mergedKeys(root bool) string {
 // TestBind_SaysAKeyMayLiePastTheMergeBound pins MergeBound at each read a
 // merge past the bound can stop: a pointer, a schema resource's own
 // definitions, an $id a schema above a $ref may hide, which would give it
-// another base, a map of schemas' definitions, and the root's. A key a
+// another base, a map of schemas' definitions, the root's, and a plain name no
+// grammar admits, which a draft 4 `id` past the bound may declare. A key a
 // shallow merge lacks is missing outright, and one it supplies resolves.
 func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 	t.Parallel()
@@ -365,6 +367,7 @@ func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 		"/components/schemas/Missing":              bind.NoTarget,
 		"/components/schemas/Shallow/properties/r": bind.NoDefinition,
 		"/components/schemas/Plain":                bind.NoDefinition,
+		"/components/schemas/Unnamed":              bind.MergeBound,
 	} {
 		assert.Equal(t, want, entryAt(t, table, site).Hop.Reason, site)
 	}
