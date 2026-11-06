@@ -128,9 +128,9 @@ func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 
 // TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering pins the other side
 // of fillRefBranch's gate: a $ref off any loop that resolves to nothing is
-// reported, at the branch. A full compile drops this report for the one load
-// makes at that pointer (withoutRereported), so only the lowering's own list
-// can show it gone.
+// reported, at the branch. Load reports this fixture's $ref at that pointer too,
+// so a full compile drops the lowering's report (withoutRereported), and only
+// the lowering's own list can show it gone here.
 func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 	t.Parallel()
 	_, diags := lowerSpecOnly(t, openapitest.ComponentSpec(`    Y:
