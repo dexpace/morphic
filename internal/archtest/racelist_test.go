@@ -237,7 +237,7 @@ func TestRaceListViolations_PlantedShapesAreReported(t *testing.T) {
 	writeGoStmt(t, filepath.Join(root, "nested", "child", "w_test.go"), "child")
 	// Reported: a sibling whose name only starts with the entry's is not under it.
 	writeGoStmt(t, filepath.Join(root, "nestedx", "w_test.go"), "nestedx")
-	// Not reported: exempt, with a single-argument .Go call.
+	// Not reported: exempt, with a .Go call.
 	writeNamedGoCall(t, filepath.Join(root, "exempt", "w_test.go"), "exempt")
 	// Reported: an exemption for a directory that runs nothing concurrently.
 	writeDocFile(t, filepath.Join(root, "calm", "p.go"), "package p\n")
@@ -516,8 +516,8 @@ func concurrencyReasons(rel string, f *ast.File, parallel bool) []string {
 
 // callsParallel reports whether f calls a method named Parallel with no
 // argument, whatever its receiver's type, as t.Parallel() does. Like
-// isNamedGoCall it reads the syntax alone, so a Parallel method of another type
-// counts too, which errs towards requiring the race run.
+// startsGoroutine it reads the syntax alone, so a Parallel method of another
+// type counts too, which errs towards requiring the race run.
 func callsParallel(f *ast.File) bool {
 	found := false
 	ast.Inspect(f, func(n ast.Node) bool {

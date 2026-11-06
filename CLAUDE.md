@@ -308,21 +308,21 @@ These all exist already — extend them rather than building a parallel mechanis
   `go/types` can race when one load checks several at once (golang/go#81122), so a type another
   package declares is compared through `Package.Imported`, the copy the package itself sees.
 - **Goroutine leak check**: `internal/leakcheck` wraps `TestMain` around Go 1.27's `goroutineleak`
-  profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
-  `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
-  blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
-  `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
-  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside `make gate`, adds every
-  package under the roots `scripts/race-pipeline-roots.txt` names (`ir/`, `pass` and `compilers/`).
-  `TestRaceList_NamesEveryConcurrentPackage` holds both files to the tree. Outside the roots, a
-  package belongs on the list when a non-test file imports `sync` or `sync/atomic`, any file starts
-  a goroutine (a `go` statement or a single-argument `.Go(...)` call), or a test calls
-  `t.Parallel()`. Under a root only the first two count, and a package showing one is on the list or
-  is a `racePipelineOnly` entry in the test with its reason. A package off the list elsewhere is a
-  `raceExempt` entry with its reason, which no package under a root may be. So a race that only a
-  pipeline package's own tests reach is found after merge, by the `make race-pipeline` each push to
-  `main` runs, and not on the pull request; a race that only an exempt package's own tests reach is
-  found by neither run.
+  profile, and `internal/archtest` requires it wherever a `go` statement or a selector named `Go`,
+  `TryGo` or `AfterFunc` (`sync.WaitGroup.Go`, `errgroup.Group.Go`, `time.AfterFunc`) appears. It
+  finds only a goroutine blocked on an unreachable primitive — not a running one, nor one a global
+  still holds; whether `goleak` should cover those too is #568. Beside it, `make race` runs the
+  packages on `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside
+  `make gate`, adds every package under the roots `scripts/race-pipeline-roots.txt` names (`ir/`,
+  `pass` and `compilers/`). `TestRaceList_NamesEveryConcurrentPackage` holds both files to the tree.
+  Outside the roots, a package belongs on the list when a non-test file imports `sync` or
+  `sync/atomic`, any file starts a goroutine (a `go` statement or a selector named `Go`, `TryGo` or
+  `AfterFunc`), or a test calls `t.Parallel()`. Under a root only the first two count, and a package
+  showing one is on the list or is a `racePipelineOnly` entry in the test with its reason. A package
+  off the list elsewhere is a `raceExempt` entry with its reason, which no package under a root may
+  be. So a race that only a pipeline package's own tests reach is found after merge, by the
+  `make race-pipeline` each push to `main` runs, and not on the pull request; a race that only an
+  exempt package's own tests reach is found by neither run.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:

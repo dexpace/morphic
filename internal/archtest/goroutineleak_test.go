@@ -41,11 +41,11 @@ func TestGoroutineLeak_EveryGoStatementHasALeakCheck(t *testing.T) {
 }
 
 // TestGoroutineLeakCheckViolations_PlantedGoStatementIsCaught proves the
-// detector both ways, for each of the two shapes it recognizes: a directory
-// with a bare go statement and no call is reported, and one where a _test.go
-// file also calls leakcheck.Main is not; the same pair holds for a
-// single-argument ".Go(...)" call, the shape a go statement's ast.GoStmt does
-// not cover. The report names paths relative to the root it walked.
+// detector both ways, for a go statement and for a selector named Go: a
+// directory with a bare go statement and no call is reported, and one where a
+// _test.go file also calls leakcheck.Main is not; the same pair holds for a
+// ".Go(...)" call, the shape a go statement's ast.GoStmt does not cover. The
+// report names paths relative to the root it walked.
 func TestGoroutineLeakCheckViolations_PlantedGoStatementIsCaught(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -76,7 +76,7 @@ func writeGoStmt(t *testing.T, file, pkg string) {
 }
 
 // writeNamedGoCall plants a _test.go file that starts a goroutine through a
-// single-argument ".Go(...)" call rather than a go statement — the shape
+// ".Go(...)" call rather than a go statement — the shape
 // sync.WaitGroup.Go and errgroup.Group.Go both are.
 func writeNamedGoCall(t *testing.T, file, pkg string) {
 	t.Helper()
@@ -179,38 +179,26 @@ func unguardedDirs(dirs map[string]*dirGoroutineState) []string {
 	return violations
 }
 
-// startsGoroutine reports whether f contains a go statement, or a call shaped
-// like sync.WaitGroup.Go / errgroup.Group.Go: a single-argument method call
-// named Go. Both start a goroutine, but only the first is an ast.GoStmt, so a
-// check for go statements alone would miss the second, which engine's
-// concurrency test uses.
+// startsGoroutine reports whether f contains a go statement or a selector named
+// Go, TryGo or AfterFunc, called or passed as a value: sync.WaitGroup.Go,
+// errgroup.Group.Go and TryGo, time.AfterFunc and context.AfterFunc each run a
+// function on a goroutine of their own, and only the first form is an ast.GoStmt.
 //
-// The second match is syntactic: any single-argument ".Go(...)" call, whatever
-// the receiver's type. A false positive costs one harmless extra TestMain; a
-// miss is what this guard exists to prevent.
+// The match is syntactic, whatever the receiver's type. A false positive costs
+// one harmless extra TestMain; a miss is what this guard exists to prevent.
 func startsGoroutine(f *ast.File) bool {
 	found := false
 	ast.Inspect(f, func(n ast.Node) bool {
 		switch v := n.(type) {
 		case *ast.GoStmt:
 			found = true
-			return false
-		case *ast.CallExpr:
-			if isNamedGoCall(v) {
-				found = true
-				return false
-			}
+		case *ast.SelectorExpr:
+			found = slices.Contains([]string{"Go", "TryGo", "AfterFunc"}, v.Sel.Name)
+		default:
 		}
-		return true
+		return !found
 	})
 	return found
-}
-
-// isNamedGoCall reports whether call is a single-argument method call named
-// Go, whatever its receiver's type; startsGoroutine says why that is on purpose.
-func isNamedGoCall(call *ast.CallExpr) bool {
-	sel, isSel := call.Fun.(*ast.SelectorExpr)
-	return isSel && sel.Sel.Name == "Go" && len(call.Args) == 1
 }
 
 // callsLeakcheckMain reports whether f imports leakcheckImport and calls its
@@ -254,4 +242,37 @@ func importedAs(f *ast.File, path string) string {
 		return "leakcheck"
 	}
 	return ""
+}
+
+// TestStartsGoroutine_RecognizesEverySpelling parses one file per way a
+// function reaches a goroutine of its own, and one that starts none.
+func TestStartsGoroutine_RecognizesEverySpelling(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, body string
+		want       bool
+	}{
+		{"go statement", "go f()", true},
+		{"Go call", "w.Go(f)", true},
+		{"a call inside a call", "h(func() { w.Go(f) })", true},
+		{"TryGo call", "_ = w.TryGo(f)", true},
+		{"time.AfterFunc", "_ = time.AfterFunc(1, f)", true},
+		{"context.AfterFunc", "_ = context.AfterFunc(c, f)", true},
+		{"Go as a value", "run := w.Go; run(f)", true},
+		{"Go declared as a value", "var run = w.Go; run(f)", true},
+		{"Go as an argument", "spawn(w.Go)", true},
+		{"Go in a literal", "_ = T{start: w.Go}", true},
+		{"TryGo as a value", "run := w.TryGo; _ = run(f)", true},
+		{"AfterFunc as a value", "after := time.AfterFunc; _ = after", true},
+		{"neither", "w.Do(f)", false},
+		{"a variable named Go", "Go := f; Go()", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := "package p\n\nfunc x() {\n\t" + tc.body + "\n}\n"
+			f, err := parser.ParseFile(token.NewFileSet(), "p.go", src, parser.SkipObjectResolution)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, startsGoroutine(f), src)
+		})
+	}
 }
