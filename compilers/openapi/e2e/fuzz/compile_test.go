@@ -168,15 +168,14 @@ func embedSchema(fragment []byte) ([]byte, bool) {
 	return b, true
 }
 
-// seedCorpus adds every committed OpenAPI spec — the conformance corpus, the
-// golden petstore, and the testdata/openapi fixtures (cycle-detector
-// reproducers, pointer-resolution cases, and the unreadable response keys of
-// GitHub #262) — to the fuzz corpus, so mutation starts from valid,
-// feature-dense documents instead of empty input. The
-// degenerate cycle shapes (an alias-valued $ref, a `<<` merge key) are seeded
-// too: mutating them found five variants of one crash in GitHub #26, and
-// FuzzCompile already skips inputs with an error diagnostic, so seeding one
-// that's expected to be refused can't fail an oracle.
+// seedCorpus adds the .yaml specs directly under the conformance corpus and
+// testdata/openapi (cycle-detector reproducers, pointer-resolution cases, and
+// the unreadable response keys of GitHub #262) and the golden petstore to the
+// fuzz corpus, so mutation starts from valid, feature-dense documents instead
+// of empty input. The degenerate cycle shapes (an alias-valued $ref, a `<<`
+// merge key) are seeded too: mutating them found five variants of one crash in
+// GitHub #26, and FuzzCompile already skips inputs with an error diagnostic, so
+// seeding one that's expected to be refused can't fail an oracle.
 func seedCorpus(f *testing.F) {
 	f.Helper()
 	addYAMLDir(f, conformanceDir)
