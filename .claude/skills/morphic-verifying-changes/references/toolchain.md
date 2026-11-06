@@ -86,8 +86,8 @@
   for a child's list, list each directory above it. `irtest.RequireOpens` holds either through
   the test log, as `RequireOpensModuleFiles` does.
 - **Why.** `readDeclarers` read library sources from the module cache, never rechecked
-  by go test (#1272). Sweeping child sites, `grep -rn --include='*.go' -E 'exec.Command'`
-  and each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests.
+  by go test (#1272). Sweeping `grep -rn --include='*.go' -E 'exec(test)?\.Command'` and
+  `packages.Load` and `decls.Load` found `ir/irtest`'s `git ls-files` tests and `decls.Load`'s fixtures.
 - **Probe.** `touch` the file the verdict rests on and rerun: the last `ok` must lack `(cached)`.
   For a list, in a scratch clone with its own `GOCACHE`, commit a newly listed file, run
   `make filetimes`, rerun without `-count=1`.

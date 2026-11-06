@@ -12,8 +12,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/tools/go/packages"
 
 	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // goodDir holds the packages every case reads. They are siblings so that one
@@ -79,6 +81,25 @@ func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
 func TestLoad_ReadsOnlyProductionGoFiles(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []string{"fixture.go"}, fileNames(fixture(t)))
+}
+
+// TestLoad_ListsThePackagesDirectory holds a load to opening the directory it
+// reads through a child: go list's read is not in the test cache's key, so
+// only this listing reruns a test when a file is added to a fixture.
+func TestLoad_ListsThePackagesDirectory(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.Abs(goodDir + "/fixture")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestLoad_ReadsOnlyProductionGoFiles", dir)
+}
+
+// TestUnread_ReportsADirectoryItCannotList holds the listing's failure to an
+// error naming the package, beside the missing-file one.
+func TestUnread_ReportsADirectoryItCannotList(t *testing.T) {
+	t.Parallel()
+	errs := decls.Unread(&packages.Package{PkgPath: "x", Dir: filepath.Join(t.TempDir(), "gone")})
+	require.Len(t, errs, 2)
+	assert.ErrorContains(t, errs[1], "x: listing its directory")
 }
 
 // TestLoad_KeepsFilesInNameOrder holds Syntax to the order its doc promises,
