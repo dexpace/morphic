@@ -2,7 +2,7 @@
 
 How a round runs and when the loop ends: where the review reads the change, what a decision rests
 on, how a finding is ranked, a fix designed and checked, and what is posted. The angle references
-say what a round attacks.
+say what a round attacks, and `references/readers.md` who reads it.
 
 Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
 `references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
@@ -28,10 +28,12 @@ A conflict the review can resolve mechanically is resolved in that worktree and 
 review's own resolution, so every angle reads `main`'s new commits beside the branch; one whose
 resolution is a design choice is aborted and reported with what could not be checked. Either way
 the conflict is an `issue:`. Probe only in that worktree. A round's report names what it reviewed,
-the merged commit among it, each angle's matrix, then the findings ranked:
+the merged commit among it, each delegated reader's minutes and tool calls from its hand-back,
+each angle's matrix, then the findings ranked:
 
 ```text
 Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
+reader <minutes> minutes, <tool calls> tool calls
 <angle>: <cells run> run, <cells settled> settled (<reason each>), findings <refs>
 unreached <cells>; reopened <cells>, each with what its clearance lacked
 <rank> <angle> <file>:<line> <rule broken> <command> <output> <smallest fix>
@@ -155,21 +157,6 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   false breaches (#1178).
 - **Probe.** Each `issue:` and `nit:` in the report gives its command, its input and its quoted rule.
 
-## Fan a review out only when asked, an angle to a reader
-`fan-out-an-angle-to-a-reader`
-
-- **Rule.** A review runs its angles in one reader by default, bar the fresh one of each round after
-  the first (`references/rounds.md#fresh-reader-for-the-second-round`). When asked to fan out, give
-  each reader one angle and the code, in a directory of its own
-  (`references/rounds.md#reader-owns-its-directory`), with no conclusion of yours and, for
-  Correctness, no PR body, so that independent reads stay independent. What returns goes through
-  `references/rounds.md#disprove-each-finding` and
-  `references/rounds.md#audit-what-a-reader-cleared` before it counts.
-- **Why.** A finding comes back in the same confident register whether or not it holds, as the
-  review of #1162's twelve PRs counted false alarms in both its readers (#1162).
-- **Probe.** Each reader's brief names one angle and its directory, and holds no finding of
-  another's.
-
 ## Read the reviews already standing once the angles are done
 `read-standing-reviews`
 
@@ -216,13 +203,47 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
   A fix to a mechanism a design document specifies first takes
   `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
-  and its row of `references/design.md#design-review-matrix`. Push a round's fixes once, by the
-  push checklist from the detached setup, then rerun the setup.
+  and its row of `references/design.md#design-review-matrix`. Push a round's fixes once, after
+  `references/rounds.md#recheck-before-hand-off`, by the push checklist from the detached setup,
+  then rerun the setup.
 - **Why.** #1143's later rounds found defects its own fixes had added, such as a command failing
   from the root. #1233's author applied a posted redesign verbatim, and a later round found five
   nits in it (#1411).
 - **Probe.** Before pushing or posting, apply the fixes in a throwaway worktree and read
   `git diff <round's base>..HEAD` with those angles.
+
+## Recheck what a round's fixes can move before the next hand-off
+`recheck-before-hand-off`
+
+- **Rule.** Before the next round's hand-off, on the fix commit: rerun each plant whose mutated
+  file, killing test or fixtures the fixes edit
+  (`.claude/skills/morphic-verifying-changes/references/mutation.md#verdict-outlives-unchanged-files`);
+  derive each number the PR body states from a command run there, its output kept beside the body
+  draft (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#body-states-the-head`);
+  and rerun the trial merges
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs` and
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-lints-the-skills`
+  call for.
+- **Why.** #1532's seventh-round findings all sat in the sixth round's fixes, body or commit
+  message: a rewritten test passed a mutant stopping a scan at a file's first citing line, and the
+  body counted 14 open PRs sharing a file where six did. Trial merges rerun after a fix found a
+  conflict it gave an open PR (#1532).
+- **Probe.** The hand-off note lists each plant rerun with its verdict, each body number with its
+  command, and each trial merge's commit.
+
+## Compact the main session only at a clean round boundary
+`compact-at-a-round-boundary`
+
+- **Rule.** Compact the main session at a clean round boundary, before its window's limit compacts
+  it wherever it stands, and never mid-fix or mid-disproof. A clean boundary has the fixes pushed,
+  the body updated, the next reader dispatched and the round's state written to a file outside the
+  tree. After compacting, treat the summary as unverified, re-reading the round's report, the PR
+  body and the saved state before acting on it.
+- **Why.** #1532's main session reached 962k tokens before compacting on its own, and its summary
+  carried two wrong figures forward as settled, the open PRs sharing a file and a token count
+  doubled by counting transcript records, with no sign either was unchecked (#1532, #1542).
+- **Probe.** The first calls after a compaction read the round's report, the body and the saved
+  state.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`
@@ -242,7 +263,7 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 - **Rule.** The first round runs every angle over the whole change, fills every cell of each
   angle's matrix however many findings come first, and keeps its probes in a script outside the
   tree; the second reruns it while a fresh reader runs every angle again
-  (`references/rounds.md#fresh-reader-for-the-second-round`), and the review ends by
+  (`references/readers.md#fresh-reader-for-the-second-round`), and the review ends by
   `references/rounds.md#review-ends-with-nothing-left`. A defect the second finds in what the
   first reviewed is a miss: name the cell or rule that should have held it, and sharpen that angle
   (`morphic-curating-skills`). One a fix added is a miss of
@@ -256,7 +277,7 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 
 - **Rule.** A cell a round's budget leaves is named unreached, never reported clean. The review
   ends on a round with no `issue:` or `nit:` and no cell unreached or reopened
-  (`references/rounds.md#audit-what-a-reader-cleared`); after any other, the next round runs from
+  (`references/readers.md#audit-what-a-reader-cleared`); after any other, the next round runs from
   the setup.
 - **Why.** A round of #1522 listed beside its findings the prescribed commands it had not run;
   under a bar of no `issue:` or `nit:` alone, that list beside no findings would have ended the
@@ -266,7 +287,7 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Read what moved, from the third round on
 `later-rounds-read-what-moved`
 
-- **Rule.** From the third round, the fresh reader runs every angle over each file both
+- **Rule.** From the third round, a round's fresh readers run every angle over each file both
   `git diff --name-only <merged> HEAD` and `git diff --name-only origin/<base>...HEAD` list,
   `<merged>` the commit the round before reviewed, and each line citing a rule changed there
   (`git grep -n '#<key>'`); over each fix since, wording included, read by
@@ -288,51 +309,6 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   round 2's report says it read in full, and only a round rereading the whole change met it
   (#1522).
 - **Probe.** For each finding, the report says whether its cell was filled and unchanged.
-
-## Read each cell a reader settled against what its rule asks
-`audit-what-a-reader-cleared`
-
-- **Rule.** Before a delegated reader's round counts, read each cell its report settles against
-  the rule that cell answers to, and reopen one settled on less than it asks: a mutant judged
-  equivalent on this tree's inputs alone
-  (`.claude/skills/morphic-verifying-changes/references/mutation.md#equivalent-means-every-input`),
-  an issue or file read in part, a class sampled
-  (`references/claims-and-process.md#sweep-each-claim-class`). The next round reads it.
-- **Why.** On #1522, round 3 judged a mutant dropping `normpath` equivalent because no path on the
-  tree held a `.` or `..` segment, and round 4 cleared #1266's asks on lines cut at about 450
-  characters; the round after each found a defect there (#1522).
-- **Probe.** Each round's report lists the cells it reopened, each with what its clearance lacked.
-
-## Give each later round an unanchored reader
-`fresh-reader-for-the-second-round`
-
-- **Rule.** From the second round, one fresh agent runs the angles, given the PR, this skill and its
-  own directory holding the merged tree (`references/rounds.md#reader-owns-its-directory`), nothing
-  from an earlier round but names of cells to read. Its brief sets a tool-call budget and asks for a
-  running list of what it reproduced. The main session disproves each returned finding and audits
-  each clearance (`references/rounds.md#disprove-each-finding`,
-  `references/rounds.md#audit-what-a-reader-cleared`) before it counts. Where no agent can run, the
-  main session rereads the merged diff before its own notes.
-- **Why.** Fixes #1329's rounds proposed each passed a prototype of its own property and failed a
-  sibling document's requirement, seen a round later (#1402); seven finders on #1016 ran 55 minutes
-  before one returned (#1016).
-- **Probe.** The reader's brief holds nothing from an earlier round but cell names, and names a
-  budget and directory.
-
-## Give a delegated reader a directory of its own, and write nowhere else
-`reader-owns-its-directory`
-
-- **Rule.** A delegated reader's brief names a new directory only it writes, holding a detached
-  worktree of the merged tree, and forbids writing elsewhere: the reviewer's files and harnesses,
-  the main checkout and the repository's refs, bar the objects and worktrees it adds. Fingerprint
-  each harness the reviewer will rerun before the hand-off, and rebuild one whose fingerprint
-  changes.
-- **Why.** A reader vetting the Go blocks #1337's reviewer vetted rewrote the reviewer's harness
-  `go.mod`, so its `go vet` failed, and would have checked the reader's tree had it resolved
-  (#1529). A reader of #1522 fetched six refs into the repository (#1522).
-- **Probe.** The reader's brief names the directory and the prohibition;
-  `find <harness> -type f -exec cksum {} + | sort | cksum` prints one line before the hand-off and
-  after.
 
 ## Post a finding so that acting on it is safe
 `posted-findings`

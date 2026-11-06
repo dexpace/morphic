@@ -98,6 +98,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `git diff --stat origin/main...HEAD` and match each path to the PR title;
   `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`.
 
+## Settle a PR's scope before its second review round
+`scope-settled-by-the-second-round`
+
+- **Rule.** From a PR's second review round, an issue joins it only when its fix changes the PR's
+  own mechanism. Any other goes in a PR of its own, reviewed alongside and converging on its own.
+- **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
+  findings sat in their content (#1532).
+- **Probe.** Each issue `gh pr view <N> --json closingIssuesReferences` lists beyond those in the
+  first round's report names the change its fix makes to the PR's mechanism.
+
 ## Probe a change to an ignore rule at base and head
 `ignore-rule-both-ways`
 

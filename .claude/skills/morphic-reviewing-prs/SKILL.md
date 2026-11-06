@@ -30,8 +30,8 @@ fills a matrix, each cell with a run or a reason. Nothing is decided on an assum
 | `references/consistency.md` | each construct and name, against the codebase's own | `morphic-checking-style`, `morphic-designing-code` |
 | `references/claims-and-process.md` | every sentence the change writes, and how it ships | `morphic-shipping-prs` |
 
-Run them in order, in one reader unless asked to fan out
-(`references/rounds.md#fan-out-an-angle-to-a-reader`); one the change cannot reach is settled
+Run them in order, in one reader unless split or asked to fan out
+(`references/readers.md#fan-out-an-angle-to-a-reader`); one the change cannot reach is settled
 unread, in a line saying why.
 
 ## Rounds

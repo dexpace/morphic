@@ -158,12 +158,15 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 ## Confirm a trial merge happened before reading its tests
 `trial-merge-happened`
 
-- **Rule.** Merge a trial by SHA, and confirm it with
-  `git merge-base --is-ancestor <pr head> HEAD` before reading a result. `FETCH_HEAD` belongs to the
-  worktree that fetched, so in a new one the merge fails, the tree stays the branch alone, and its
-  tests pass.
-- **Why.** A loop over the open PRs printed `ok` for each while every merge had ended in `fatal`
-  (#1210).
+- **Rule.** Build a trial merge by SHA, as a worktree of a commit holding the merged tree:
+  `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
+  stopping on a conflict, where `git merge-tree` exits 1. Confirm it there with
+  `git merge-base --is-ancestor <pr head> HEAD` before reading a result, as a failed merge leaves
+  the branch alone, whose tests pass.
+- **Why.** A loop over the open PRs printed `ok` for each while every merge of `FETCH_HEAD`, which
+  belongs to the worktree that fetched, had ended in `fatal` (#1210). Copying 14 merges out by
+  `git archive`, `git init` and `git add -A` took 47 minutes, where this form linted 27 in about a
+  minute (#1532).
 - **Probe.** `git rev-list --parents -n1 HEAD` lists both heads.
 
 ## Trial-merge the open PRs after a change they may not survive
@@ -188,7 +191,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   shared across open PRs and neither a conflict check nor a test reads it.
 - **Why.** Two PRs each under a skill's body cap merged with no conflict at 512 words against 500,
   which would have failed the second to land on nothing in its own change (#1219).
-- **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` confirms.
+- **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` builds and
+  confirms.
 
 ## Count a cap two open PRs share at each one's head
 `cap-two-prs-share`
