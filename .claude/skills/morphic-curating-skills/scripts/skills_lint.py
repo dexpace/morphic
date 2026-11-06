@@ -3,7 +3,7 @@
 # requires-python = ">=3.14"
 # ///
 """Hold the skills under .claude/skills to their frontmatter, their limits and the tree they
-describe.
+describe, and each rule a file outside them cites to the rule it names.
 
 Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
@@ -245,6 +245,7 @@ class Linter:
         # The tree a clone holds, as load_tree lists it, with each directory above a file: a path
         # on disk that git ignores, such as a local plan or a built binary, is in no clone.
         self.names = {f.rsplit("/", 1)[-1] for f in known}
+        self.known = sorted(known)
         self.paths = set(known)
         for f in known:
             parts = f.split("/")
@@ -266,6 +267,7 @@ class Linter:
         for f, line, key in self.citations:
             if key in self.keys:
                 self.report(f, line, f"cites rule {key} without the file that holds it")
+        self.check_cited_from_outside()
         for f in self.files:
             for i, line in enumerate(f.read_text(errors="replace").split("\n"), 1):
                 if MACHINE.search(line):
@@ -419,9 +421,7 @@ class Linter:
                 self.citations += [(f, i, k) for k in BARE_KEY.findall(line)]
             for path, key in RULE_CITE.findall(line):
                 held = d / path if path.startswith("references/") else self.root / path
-                why = self.absent(path, held.relative_to(self.root).as_posix())
-                if why or f"\n`{key}`\n" not in "\n" + held.read_text():
-                    self.report(f, i, why or f"{path} holds no rule {key}")
+                self.check_cite(f, i, path, held, key)
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
                     word = path_word(word)
@@ -518,6 +518,29 @@ class Linter:
             return False
         rel = GOROOT_SRC.sub("", rel)
         return ".." not in rel.split("/") and (self.toolchain / rel).exists()
+
+    def check_cite(self, f: Path, line: int, path: str, held: Path, key: str) -> None:
+        """Report a citation of rule key by path, at line of f, unless held holds that rule."""
+        why = self.absent(path, held.relative_to(self.root).as_posix())
+        if why or f"\n`{key}`\n" not in "\n" + held.read_text():
+            self.report(f, line, why or f"{path} holds no rule {key}")
+
+    def check_cited_from_outside(self) -> None:
+        """Hold each rule a file outside the skills cites by its full path, as CLAUDE.md does, to
+        the rule its file holds: no other check reads those citations. Each file the tree holds,
+        as load_tree lists it, is read bar a binary one, and one never naming a skill's path has
+        its lines left unscanned, for speed alone."""
+        for rel in self.known:
+            if rel.startswith(".claude/skills/"):
+                continue
+            f = self.root / rel
+            data = f.read_bytes() if f.is_file() else b""
+            if b"\0" in data or b".claude/skills/" not in data:
+                continue
+            for i, line in enumerate(data.decode(errors="replace").split("\n"), 1):
+                for path, key in RULE_CITE.findall(line):
+                    if path.startswith(".claude/skills/"):
+                        self.check_cite(f, i, path, self.root / path, key)
 
     def absent(self, shown: str, rel: str) -> str | None:
         """Say why rel, a path from the repository root, is not in the tree a clone holds, naming

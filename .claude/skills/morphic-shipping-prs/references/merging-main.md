@@ -155,16 +155,26 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git diff --stat origin/main...HEAD`, read from the merge base, lists only files the
   branch changed; a two-dot diff against `origin/main` also lists what `main` gained since.
 
-## Confirm a trial merge happened before reading its tests
+## Build a trial merge as a worktree of a commit of the merged tree
+`trial-merge-by-commit-tree`
+
+- **Rule.** Build a trial merge by SHA, without copying the merge into a fresh repository:
+  `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
+  which a conflict stops.
+- **Why.** Copying 14 merges out by `git archive`, `git init` and `git add -A` took 47 minutes; this
+  form trial-merged all 27 open PRs in about a minute (#1532, #1542).
+
+## Confirm a trial merge by both its parents before reading a result
 `trial-merge-happened`
 
-- **Rule.** Merge a trial by SHA, and confirm it with
-  `git merge-base --is-ancestor <pr head> HEAD` before reading a result. `FETCH_HEAD` belongs to the
-  worktree that fetched, so in a new one the merge fails, the tree stays the branch alone, and its
-  tests pass.
-- **Why.** A loop over the open PRs printed `ok` for each while every merge had ended in `fatal`
-  (#1210).
-- **Probe.** `git rev-list --parents -n1 HEAD` lists both heads.
+- **Rule.** Build each trial merge by `references/merging-main.md#trial-merge-by-commit-tree`, then,
+  from the worktree that built it, confirm both parents with
+  `test "$(git -C <dir> rev-parse HEAD^1 HEAD^2)" = "$(git rev-parse <head> <pr head>)"` before
+  reading a result, as a failed step leaves `<dir>` missing or holding an earlier merge, of another
+  `<pr head>` or of an earlier `<head>`. Remove `<dir>` once read.
+- **Why.** A loop over the open PRs printed `ok` while every merge of another worktree's
+  `FETCH_HEAD` had ended in `fatal` (#1210). Run inside `<dir>`, a `<head>` of `HEAD` names the
+  trial's own commit, so the confirm runs where the build did.
 
 ## Trial-merge the open PRs after a change they may not survive
 `trial-merge-open-prs`
@@ -188,7 +198,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   shared across open PRs and neither a conflict check nor a test reads it.
 - **Why.** Two PRs each under a skill's body cap merged with no conflict at 512 words against 500,
   which would have failed the second to land on nothing in its own change (#1219).
-- **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` confirms.
+- **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` builds and
+  confirms.
 
 ## Count a cap two open PRs share at each one's head
 `cap-two-prs-share`
