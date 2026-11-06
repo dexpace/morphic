@@ -342,9 +342,6 @@ func TestUndatable_NamesEveryEntryItCannotDate(t *testing.T) {
 	entries := []entry{
 		{tag: "H", mode: "100644", path: "ok"},
 		{tag: "H", mode: "100755", path: "exec"},
-		{tag: "H", mode: "120000", path: "link"},
-		{tag: "H", mode: "160000", path: "sub"},
-		{tag: "H", mode: "100664", path: "odd"},
 		{tag: "M", mode: "100644", stage: 1, path: "base"},
 		{tag: "M", mode: "100644", stage: 3, path: "theirs"},
 		{tag: "M", mode: "120000", stage: 2, path: "both"},
@@ -354,9 +351,6 @@ func TestUndatable_NamesEveryEntryItCannotDate(t *testing.T) {
 	}
 	got := undatable(entries)
 	want := []string{
-		`"link" has mode 120000, not a regular file`,
-		`"sub" has mode 160000, not a regular file`,
-		`"odd" has mode 100664, not a regular file`,
 		`"base" is at index stage 1`,
 		`"theirs" is at index stage 3`,
 		`"both" is at index stage 2`,
@@ -383,10 +377,10 @@ func TestSchedule_DatesFilesByContentAndEveryDirectoryAbove(t *testing.T) {
 	t.Parallel()
 	one, two := strings.Repeat("11", 20), strings.Repeat("22", 20)
 	j, err := schedule([]entry{
-		{hash: one, path: "a/b/c.go"},
-		{hash: one, path: "a/b/d.go"},
-		{hash: two, path: "e.go"},
-		{hash: one, path: "z/f.go"},
+		{mode: modeFile, hash: one, path: "a/b/c.go"},
+		{mode: modeFile, hash: one, path: "a/b/d.go"},
+		{mode: modeFile, hash: two, path: "e.go"},
+		{mode: modeFile, hash: one, path: "z/f.go"},
 	})
 	require.NoError(t, err)
 
@@ -403,6 +397,22 @@ func TestSchedule_DatesFilesByContentAndEveryDirectoryAbove(t *testing.T) {
 	}
 }
 
+// TestSchedule_DatesNoLinkOrSubmoduleButEveryDirectoryAbove holds that an entry
+// that is no regular file gets no time of its own and no hash read, while the
+// directories above it are still dated. Mutants: date the entry; leave out its
+// directories.
+func TestSchedule_DatesNoLinkOrSubmoduleButEveryDirectoryAbove(t *testing.T) {
+	t.Parallel()
+	j, err := schedule([]entry{
+		{mode: "120000", hash: strings.Repeat("11", 20), path: "a/b/link"},
+		{mode: "160000", hash: "not a blob name", path: "c/sub"},
+	})
+	require.NoError(t, err, "a submodule's hash names a commit and is not read")
+
+	assert.Empty(t, j.files)
+	assert.Equal(t, []string{".", "a", "a/b", "c"}, j.dirs)
+}
+
 func TestSchedule_TerminatesAndRefuses(t *testing.T) {
 	t.Parallel()
 	j, err := schedule(nil)
@@ -410,11 +420,11 @@ func TestSchedule_TerminatesAndRefuses(t *testing.T) {
 	assert.Empty(t, j.files)
 	assert.Empty(t, j.dirs, "no tracked file, no directory to date")
 
-	j, err = schedule([]entry{{hash: strings.Repeat("11", 20), path: "/abs/f"}})
+	j, err = schedule([]entry{{mode: modeFile, hash: strings.Repeat("11", 20), path: "/abs/f"}})
 	require.NoError(t, err, "a path parseIndex would refuse still ends the walk")
 	assert.Equal(t, []string{"/", "/abs"}, j.dirs)
 
-	_, err = schedule([]entry{{hash: strings.Repeat("11", 20), path: "ok"}, {hash: "zz", path: "bad name"}})
+	_, err = schedule([]entry{{mode: modeFile, hash: strings.Repeat("11", 20), path: "ok"}, {mode: modeFile, hash: "zz", path: "bad name"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"bad name"`)
 }
@@ -645,14 +655,6 @@ func TestExecute_RefusesAnEntryItCannotDate(t *testing.T) {
 		setup func(r *repo)
 		want  string
 	}{
-		{"a symlink", func(r *repo) {
-			require.NoError(r.t, os.Symlink("README", filepath.Join(r.dir, "link")))
-			r.commit("link")
-		}, `"link" has mode 120000, not a regular file`},
-		{"a submodule", func(r *repo) {
-			head := strings.TrimSpace(r.git("rev-parse", "HEAD"))
-			r.git("update-index", "--add", "--cacheinfo", "160000,"+head+",sub")
-		}, `"sub" has mode 160000, not a regular file`},
 		{"an assume-unchanged file", func(r *repo) {
 			r.git("update-index", "--assume-unchanged", "README")
 			r.write("README", "changed behind git's back\n")
@@ -930,4 +932,32 @@ func TestMain_ExitCode(t *testing.T) {
 	main()
 
 	assert.Equal(t, 2, got)
+}
+
+// TestExecute_LeavesASymlinkUndated holds that a tracked symlink costs a test
+// listing its directory a rerun and costs the worktree no refusal, and that its
+// target keeps the time of its own blob, not the link's. Mutant: date the link.
+func TestExecute_LeavesASymlinkUndated(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	r.populate()
+	require.NoError(t, os.Symlink("README", filepath.Join(r.dir, "link")))
+	r.commit("link")
+	at := time.Date(2022, 2, 2, 2, 2, 2, 2, time.UTC)
+	scramble(t, r.dir, at)
+	link, err := os.Lstat(filepath.Join(r.dir, "link"))
+	require.NoError(t, err)
+
+	code, _, stderr := r.run()
+
+	assert.Equal(t, 0, code, stderr)
+	after, err := os.Lstat(filepath.Join(r.dir, "link"))
+	require.NoError(t, err)
+	assert.Equal(t, link.ModTime(), after.ModTime(), "the link keeps its own time")
+	hash := strings.Fields(r.git("rev-parse", "HEAD:README"))[0]
+	want, err := blobTime(hash)
+	require.NoError(t, err)
+	readme, err := os.Stat(filepath.Join(r.dir, "README"))
+	require.NoError(t, err)
+	assert.True(t, want.Equal(readme.ModTime()), "the target keeps the time of its own blob")
 }

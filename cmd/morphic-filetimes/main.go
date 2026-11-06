@@ -262,11 +262,9 @@ func parseIndex(out []byte) ([]entry, error) {
 }
 
 // undatable names the entries that cannot be dated as the content they hold:
-// one at a stage other than 0, an unresolved merge with no single blob; one
+// one at a stage other than 0, an unresolved merge with no single blob, and one
 // whose tag is not git's plain "cached", which marks it assume-unchanged or
-// skip-worktree, so that status does not vouch that the file matches its blob;
-// and one whose mode is not a regular file, as a symlink's own time is not
-// reachable through it and a submodule is not a blob.
+// skip-worktree, so that status does not vouch that the file matches its blob.
 func undatable(entries []entry) []string {
 	var bad []string
 	for _, e := range entries {
@@ -275,8 +273,6 @@ func undatable(entries []entry) []string {
 			bad = append(bad, fmt.Sprintf("%q is at index stage %d", e.path, e.stage))
 		case e.tag != tagCached:
 			bad = append(bad, fmt.Sprintf("%q is tagged %q, which hides changes to it from the status", e.path, e.tag))
-		case e.mode != modeFile && e.mode != modeExecutable:
-			bad = append(bad, fmt.Sprintf("%q has mode %s, not a regular file", e.path, e.mode))
 		}
 	}
 	return bad
@@ -300,18 +296,25 @@ func dirtyPaths(out []byte) []string {
 	return dirty
 }
 
-// schedule derives the time of every entry's file and the set of directories to
-// date: every directory above a file, the top level "." included, once each and
-// in sorted order. A hash that is no blob name fails the whole schedule.
+// schedule derives the time of every regular file and the set of directories to
+// date: every directory above an entry, the top level "." included, once each and
+// in sorted order. A symlink or a submodule is no file to date, but its
+// directories are. A regular file's hash that is no blob name fails the whole
+// schedule.
 func schedule(entries []entry) (job, error) {
 	var j job
 	seen := make(map[string]bool)
 	for _, e := range entries {
-		at, err := blobTime(e.hash)
-		if err != nil {
-			return job{}, fmt.Errorf("%q: %w", e.path, err)
+		// A symlink's own time is out of os.Chtimes's reach and a submodule holds no
+		// blob. Left undated, its entry differs per checkout, so a test listing its
+		// directory reruns: a miss, never a replay.
+		if e.mode == modeFile || e.mode == modeExecutable {
+			at, err := blobTime(e.hash)
+			if err != nil {
+				return job{}, fmt.Errorf("%q: %w", e.path, err)
+			}
+			j.files = append(j.files, stamp{path: e.path, at: at})
 		}
-		j.files = append(j.files, stamp{path: e.path, at: at})
 		// A directory seen already has its parents scheduled, so the walk
 		// ends there, and path.Dir reaches "." or "/" and then repeats.
 		for d := path.Dir(e.path); !seen[d]; d = path.Dir(d) {
