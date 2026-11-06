@@ -140,18 +140,20 @@ yourself. These rules are the ways that reading still lies.
   `git grep -lF '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt' ':!<file the condition is in>'`
   to show whether a set survives; the report lists each condition the diff adds beside its plant.
 
-## Rerun only the plants a merge can have changed
+## Rerun only the plants a merge or commit can have changed
 `verdict-outlives-unchanged-files`
 
-- **Rule.** A plant at hand keeps its verdict across a merge that changed neither the file it
-  mutates nor the test that killed it, with the fixtures it reads. Rerun the rest, and every plant
-  after a merge rewriting what lies between them, and name each verdict's revision in the body. A
-  set nobody kept has no verdicts (`references/mutation.md#rebuild-lost-plants`).
+- **Rule.** A plant at hand keeps its verdict across a merge or commit changing neither the file it
+  mutates, the test that killed it, the fixtures it reads nor what lies between them. Rerun the
+  rest, and name each verdict's revision in the body. A set nobody kept has no verdicts
+  (`references/mutation.md#rebuild-lost-plants`).
 - **Why.** A merge that changed no lowering left 79 plants at 100 to 170 s each, about 3.5 hours,
   where a diff left 23 (#1191, #1216). A diff of production files alone misses a merge removing the
   test that held a kill.
-- **Probe.** `git --literal-pathspecs diff --stat <verdict's revision> <head> -- <mutated file> <test's file> <its fixtures> <each file between them>`
-  prints nothing for each verdict carried over.
+- **Probe.** For each verdict carried over,
+  `git diff --stat <verdict's revision> <head> -- <paths>`, over those four, prints nothing,
+  and `git ls-files --error-unmatch -- <paths>` exits 0 at the head, lest a path matching nothing
+  pass.
 
 ## Plant through an overlay only where no test reads the source
 `overlay-reaches-the-compiler-alone`

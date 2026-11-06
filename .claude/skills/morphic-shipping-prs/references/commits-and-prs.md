@@ -105,10 +105,11 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   own mechanism. Any other goes in a PR of its own, reviewed alongside and converging on its own.
 - **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
   findings sat in their content (#1532).
-- **Probe.** Each issue a closing keyword in the body names
-  (`references/commits-and-prs.md#closing-keywords`) beyond those in the first round's report names
-  the change its fix makes to the PR's mechanism, read from the body, not
-  `closingIssuesReferences`, which a stacked PR leaves empty.
+- **Probe.** For each issue a closing keyword in the body names
+  (`references/commits-and-prs.md#closing-keywords`) and the body as the PR opened did not, the body
+  names the change its fix makes to the PR's mechanism. The opening body is the oldest `editedAt` of
+  `gh api graphql -f query='{repository(owner:"dexpace",name:"morphic"){pullRequest(number:<N>){userContentEdits(first:100){nodes{editedAt diff}}}}}'`,
+  or the body itself when that lists none; `closingIssuesReferences` is empty on a stacked PR.
 
 ## Probe a change to an ignore rule at base and head
 `ignore-rule-both-ways`

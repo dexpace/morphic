@@ -47,14 +47,14 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   (`references/rounds.md#review-ends-with-nothing-left`).
 - **Why.** #1532's seventh reader stopped at 51 of about 80 budgeted tool calls, naming five cells
   unreached, as its brief allowed (#1532, #1542).
-- **Probe.** The brief names each cell with its share and the budget, and the report runs each cell
-  or quotes why it could not.
+- **Probe.** The reader's brief names each cell with its share and the budget, and the report runs
+  each cell or quotes why it could not.
 
 ## Start every delegated reader at effort `xhigh`
 `start-readers-at-xhigh`
 
 - **Rule.** Start each delegated reader at effort `xhigh`, whatever the session runs at, setting it
-  on the call that starts the reader rather than in the brief.
+  on the call that starts the reader rather than in its brief.
 - **Why.** #1532's readers, started with no effort set, ran at the session's, so a session lowered
   for its mechanical work could lower what they catch (#1532, #1542).
 - **Probe.** On the reader's transcript,
