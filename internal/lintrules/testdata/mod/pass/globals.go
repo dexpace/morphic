@@ -178,7 +178,7 @@ func init() {
 	}
 }
 
-// Assigns writes each variable by assignment.
+// Assigns writes variables by assignment and by a range clause's =.
 func Assigns() {
 	counter = 1             // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 	total, subtotal = 1, 2  // want "globalwrites: assigns the package-level variable total; keep the state in a local or an argument" "globalwrites: assigns the package-level variable subtotal; keep the state in a local or an argument"
@@ -193,7 +193,7 @@ func Assigns() {
 	}
 }
 
-// Compounds writes each variable by compound assignment, ++ and --.
+// Compounds writes counter by compound assignment, ++ and --.
 func Compounds() {
 	counter += 2  // want "globalwrites: compound-assigns the package-level variable counter; keep the state in a local or an argument"
 	counter <<= 1 // want "globalwrites: compound-assigns the package-level variable counter; keep the state in a local or an argument"
@@ -412,7 +412,7 @@ func Literal() func() {
 	}
 }
 
-// Reads reads every variable, which draws nothing.
+// Reads reads variables of several kinds, which draws nothing.
 func Reads(k string) error {
 	_ = names["a"]
 	v, ok := names["a"]
