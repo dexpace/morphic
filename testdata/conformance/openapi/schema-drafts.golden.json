@@ -1,0 +1,624 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SchemaDrafts",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SchemaDrafts",
+        "canonical": "schema_drafts"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Named/definitions/Leaf": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Named/definitions/Leaf",
+      "name": {
+        "hint": "leaf"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:id": {
+          "reason": "out_of_scope",
+          "value": "#leaf",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/definitions/Leaf/id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/definitions/Leaf"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Open/additionalItems": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Open/additionalItems",
+      "name": {
+        "hint": "open_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Open/additionalItems"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "0",
+        "exclusiveMin": "0",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Pairs/items": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/Pairs/items",
+      "name": {
+        "hint": "pairs_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs/items"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/prim/integer",
+          "nullable": false
+        }
+      ]
+    },
+    "t/openapi/components/schemas/Applied": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Applied",
+      "name": {
+        "source": "Applied",
+        "canonical": "applied"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "2019-09 applies this"
+      },
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "https://json-schema.org/draft/2019-09/schema",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Applied/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Applied"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Count",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Count": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Count",
+      "name": {
+        "source": "Count",
+        "canonical": "count"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Count"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Labelled": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Labelled",
+      "name": {
+        "source": "Labelled",
+        "canonical": "labelled"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "draft 7 ignores this"
+      },
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-07/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Labelled/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Labelled"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Count",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Named": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Named",
+      "name": {
+        "source": "Named",
+        "canonical": "named"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-04/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/$schema"
+          }
+        },
+        "openapi:id": {
+          "reason": "out_of_scope",
+          "value": "https://example.com/named",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Named/properties/leaf",
+          "name": {
+            "source": "leaf",
+            "canonical": "leaf"
+          },
+          "wireName": "leaf",
+          "type": {
+            "target": "t/anon/components/schemas/Named/definitions/Leaf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/properties/leaf"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Named/properties/beside",
+          "name": {
+            "source": "beside",
+            "canonical": "beside"
+          },
+          "wireName": "beside",
+          "type": {
+            "target": "t/anon/components/schemas/Named/definitions/Leaf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:id": {
+              "reason": "out_of_scope",
+              "value": "https://example.com/elsewhere",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Named/properties/beside/id"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Named/properties/beside"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Open": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Open",
+      "name": {
+        "source": "Open",
+        "canonical": "open"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-07/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Open/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Open"
+      },
+      "elems": [
+        {
+          "target": "t/prim/bool",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/anon/components/schemas/Open/additionalItems",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Pair": {
+      "kind": "tuple",
+      "id": "t/openapi/components/schemas/Pair",
+      "name": {
+        "source": "Pair",
+        "canonical": "pair"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-04/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pair/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pair"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Count",
+          "nullable": false
+        }
+      ]
+    },
+    "t/openapi/components/schemas/Paired": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Paired",
+      "name": {
+        "source": "Paired",
+        "canonical": "paired"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-06/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Paired/$schema"
+          }
+        },
+        "openapi:dependencies": {
+          "reason": "validation_only",
+          "value": {
+            "a": [
+              "b"
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Paired/dependencies"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pairs": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Pairs",
+      "name": {
+        "source": "Pairs",
+        "canonical": "pairs"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-07/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pairs/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Pairs/items",
+        "nullable": false
+      }
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pair/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pairs/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Open/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependencies\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired/$schema"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "keyword \"description\" beside a $ref is ignored by this schema's dialect, as by the JSON Schema drafts before 2019-09; it is applied as in 2020-12",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Labelled/description"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Labelled/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Applied/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read for nothing, as this schema's dialect ignores the keywords beside a $ref",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/properties/beside/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named/definitions/Leaf/id"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "schema-drafts.yaml",
+      "hash": "b78295499c2a7573465295844639b3e6b754aca3b85c1defd8b0858dd4a6ffe1"
+    }
+  ]
+}

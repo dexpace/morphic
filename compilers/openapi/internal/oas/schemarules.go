@@ -6,6 +6,12 @@ package oas
 import (
 	"slices"
 	"strings"
+
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/ir"
 )
 
 // SchemaRules is the Schema Object's rows at one minor in one dialect: how a
@@ -20,9 +26,16 @@ type SchemaRules struct{ rows *schemaRows }
 // name, and the RuleRequiredWhen rules holding there. It is built once and
 // never written.
 type schemaRows struct {
-	fields   map[string]Field
+	fields map[string]Field
+	// own is the minor's own keywords a dialect reading others replaces, by
+	// name, which judge the format of one the dialect defines none of
+	// (formatField).
+	own      map[string]Field
 	required []Rule
 	minor    Minor
+	// ignoresRefFields reports that the dialect, not the minor, ignores the
+	// keywords beside a `$ref`.
+	ignoresRefFields bool
 }
 
 // SchemaRules returns the Schema Object's rows at the minor version names, in
@@ -41,11 +54,22 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	if !ok {
 		return SchemaRules{}, false
 	}
-	keywords, unread := dialectKeywords(minor, dialect)
-	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor}
+	d, unread := dialectOf(minor, dialect)
+	var keywords []Field
+	if d.keywords != nil {
+		keywords = d.keywords()
+	}
+	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor, ignoresRefFields: d.ignoresRefFields}
 	for _, f := range obj.Fields {
-		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
+		switch {
+		case !f.Defined.Holds(minor):
+		case keywords == nil || !f.Keyword:
 			rows.fields[f.Name] = f
+		default:
+			if rows.own == nil {
+				rows.own = map[string]Field{}
+			}
+			rows.own[f.Name] = f
 		}
 	}
 	for _, f := range keywords {
@@ -59,25 +83,92 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	return SchemaRules{rows: rows}, unread
 }
 
-// dialectKeywords returns the keywords dialect reads in place of minor's own,
-// nil where it reads minor's, and whether it is an absolute URI the table has
-// no rows for. A dialect is compared without a trailing empty fragment, which
-// draft 4's id writes and 2020-12's does not, as `$schema` values spell both.
-func dialectKeywords(minor Minor, dialect string) (keywords []Field, unread bool) {
-	if dialect == "" || minor == V30 {
-		return nil, false
+// dialectOf returns the dialect a schema written at minor and naming id is
+// read in, the zero dialect, the minor's own, where it names none the table
+// has rows for, and whether id is an absolute URI the table has no rows for. A
+// dialect is compared without a trailing empty fragment, which draft 4's id
+// writes and 2020-12's does not, as `$schema` values spell both.
+func dialectOf(minor Minor, id string) (d dialect, unread bool) {
+	if id == "" || minor == V30 {
+		return dialect{}, false
 	}
-	id := strings.TrimSuffix(dialect, "#")
-	for _, d := range schemaDialects() {
-		if strings.TrimSuffix(d.id, "#") != id {
-			continue
+	trimmed := strings.TrimSuffix(id, "#")
+	for _, known := range schemaDialects() {
+		if strings.TrimSuffix(known.id, "#") == trimmed {
+			return known, false
 		}
-		if d.keywords == nil {
-			return nil, false
-		}
-		return d.keywords(), false
 	}
-	return nil, NamesDialect(dialect)
+	return dialect{}, NamesDialect(id)
+}
+
+// IgnoresRefFields reports whether the dialect the rows are read in, rather
+// than their minor, ignores the keywords a schema writes beside its `$ref`, as
+// the JSON Schema drafts before 2019-09 do.
+func (r SchemaRules) IgnoresRefFields() bool { return r.rows != nil && r.rows.ignoresRefFields }
+
+// Identifier returns the keyword the rows name a schema's identifier by: `$id`,
+// or `id` where they define it alone, as JSON Schema draft 4 does, and "" where
+// they define neither, as 3.0's do.
+func (r SchemaRules) Identifier() string {
+	switch {
+	case r.Defines("$id"):
+		return "$id"
+	case r.Defines("id"):
+		return "id"
+	default:
+		return ""
+	}
+}
+
+// Formatted reports whether the rows give the field name the format f.
+func (r SchemaRules) Formatted(name string, f Format) bool {
+	fld, ok := r.field(name)
+	return ok && fld.Format == f
+}
+
+// FormatFinding returns the finding about o, a string value of a field whose
+// format the rows' dialect decides (Field.FormatOwner), where it is not of the
+// format the rows give the field, and false where it is, or the rows give the
+// field none.
+func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
+	f, ok := r.formatField(o.Field)
+	if !ok || f.Format == FormatNone || validFormat(f.Format, o.Value.Value) {
+		return ir.Diagnostic{}, false
+	}
+	return o.Finding(diag.Validation+"/"+classFormat, "Schema Object field %q must be %s in this schema's dialect",
+		o.Field, describeFormat(f.Format)), true
+}
+
+// TupleRestFinding returns the finding about the `additionalItems` beside o,
+// an `items` list the rows read as a tuple, whose rest it is: a warning where
+// it is null, read as the field left out as a null field is, and an error
+// where it is no schema, as a number is. It is false where o is no such list,
+// or its rest is absent or a schema, which the check judges where it lands.
+func (r SchemaRules) TupleRestFinding(o Owned) (ir.Diagnostic, bool) {
+	rest := nodeview.Deref(o.rest)
+	tuple := o.Field == "items" && o.Value.Kind == yaml.SequenceNode && r.Takes("items", List)
+	if !tuple || rest == nil || matches(Nested, rest) || matches(Boolean, rest) {
+		return ir.Diagnostic{}, false
+	}
+	at, code := o.at.Parent().AppendToken("additionalItems"), diag.Validation+"/"+classType
+	const want = "Schema Object field \"additionalItems\" must be a schema in this schema's dialect"
+	if isNull(rest) {
+		return o.findingAt(ir.SeverityWarning, at, code, want+"; it is null, which is read as the field left out"), true
+	}
+	return o.findingAt(ir.SeverityError, at, code, want), true
+}
+
+// formatField returns the row giving the field name its format: the dialect's,
+// or the minor's own for a keyword the dialect defines none of, as a keyword
+// 2020-12 added reads in a draft's schema (GitHub #820), an `$anchor` in draft
+// 7 among them. An `$id` the dialect spells otherwise, as draft 4 does `id`, is
+// read for nothing, so nothing gives it one.
+func (r SchemaRules) formatField(name string) (Field, bool) {
+	if f, ok := r.field(name); ok || r.rows == nil || name == "$id" {
+		return f, ok
+	}
+	f, ok := r.rows.own[name]
+	return f, ok
 }
 
 // NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a

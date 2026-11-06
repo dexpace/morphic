@@ -394,7 +394,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	}
 	unfolded := ""
 	if comp.speaks != nil {
-		unfolded = unfoldedWhy(speaks, comp.rebased[i], bs, residue)
+		unfolded = unfoldedWhy(c, speaks, comp.rebased[i], bs, residue)
 	}
 	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, unfolded, len(comp.disjoint) > 0))
 }
