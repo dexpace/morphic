@@ -232,6 +232,17 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   edit added a blank line, and 26 gathered unnoticed (#1143).
 - **Probe.** Fetch it back the same way and `cmp` it with the file sent.
 
+## State the head in a PR body, and each round's fixes in its commits
+`body-states-the-head`
+
+- **Rule.** A PR body states the head: its Summary and Test plan as they now hold, rewritten in
+  place when a commit changes what they say. What a review round fixed is told in that round's
+  commit messages, never appended to the body as a log of rounds.
+- **Why.** #1522's body gained a paragraph per review round saying what it fixed, which each later
+  round's reader re-read and re-checked against the tree (#1530).
+- **Probe.** Read `gh pr view <N> --json body --jq .body`: each sentence holds of the head, and none
+  tells what a round or an earlier commit changed.
+
 ## Send only a body the fetch produced
 `send-only-what-the-fetch-produced`
 

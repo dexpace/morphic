@@ -154,6 +154,32 @@ class LintTest(unittest.TestCase):
         self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
+    def test_a_rule_cited_from_outside_the_skills_is_held(self):
+        cited = ".claude/skills/good-skill/references/r.md"
+        missing = ".claude/skills/good-skill/references/no.md"
+        bad = f"`{cited}#gone`\n"
+        # Written in reverse of the order the findings come in, which is the tree's sorted order.
+        (self.root / "notes.txt").write_bytes(b"# \xe9 " + bad.encode())
+        write(self.root, "ir/testdata/in.md", bad)
+        write(self.root, "ir/b.go", f"package ir\n\n// Per {cited}#gone too.\n")
+        write(self.root, "docs/ir/notes.md", f"Per `{missing}#x`.\n")
+        write(self.root, "CLAUDE.md", f"See `{cited}#do-the-thing` and `{cited}#gone` on one "
+                                      f"line, not `references/r.md#gone`.\nAnd `{cited}#gone` on "
+                                      "the next.\n")
+        write(self.root, ".golangci.yml", f"# {bad}")
+        write(self.root, ".claude/agents/a.md", bad)
+        (self.root / "bin.dat").write_bytes(b"\0" + bad.encode())
+        self.assertEqual(self.lint()[1], [
+            f".claude/agents/a.md:1: {cited} holds no rule gone",
+            f".golangci.yml:1: {cited} holds no rule gone",
+            f"CLAUDE.md:1: {cited} holds no rule gone",
+            f"CLAUDE.md:2: {cited} holds no rule gone",
+            f"docs/ir/notes.md:1: {missing} does not exist",
+            f"ir/b.go:3: {cited} holds no rule gone",
+            f"ir/testdata/in.md:1: {cited} holds no rule gone",
+            f"notes.txt:1: {cited} holds no rule gone",
+        ])
+
     def test_a_span_path_is_held_whatever_its_first_segment(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each span below names no repository path, by its form or by its first segment.
