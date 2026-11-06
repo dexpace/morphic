@@ -99,6 +99,36 @@ func positionsOf(table *Table, id DocID) []Position {
 	return out
 }
 
+// draft4ID is the `$schema` value naming JSON Schema draft 4.
+const draft4ID = "http://json-schema.org/draft-04/schema#"
+
+// draftDialect reads a schema naming draft 4 as the load phase does: its
+// identifier `id`, ignored beside a `$ref`, fragment identifiers, and
+// `definitions`, `dependencies` and lists of items holding schemas.
+func draftDialect(_, dialect string) DialectRule {
+	if dialect == draft4ID {
+		return DialectRule{Keyword: "id", Fragments: true, Definitions: true, Dependencies: true, PlainNames: true,
+			Tuples: true, IgnoresRefFields: true}
+	}
+	return DialectRule{}
+}
+
+// dialectsTable binds a source whose schemas name dialects: draft 4 roots
+// writing `id`, one beside a `$ref`, `definitions` and a tuple, a draft 4
+// root a 2020-12 root holds, and a 2020-12 schema a draft 4 root holds.
+func dialectsTable(t *testing.T) *Table {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
+		"components:\n  schemas:\n"+
+		"    D: {$schema: '"+draft4ID+"', id: 'https://x.test/d/', definitions: {E: {id: 'e.json', items: [{id: 'f.json'}]}},\n"+
+		"      properties: {r: {id: 'https://x.test/elsewhere/', $ref: 'e.json'}, s: {$schema: 'https://json-schema.org/draft/2020-12/schema', $id: 's.json', $ref: 'e.json'},\n"+
+		"        t: {$schema: 'https://json-schema.org/draft/2020-12/schema', $id: 't.json', properties: {u: {$id: 'u.json'}}}}}\n"+
+		"    N: {$schema: 'https://json-schema.org/draft/2020-12/schema', $id: 'https://x.test/n/',\n"+
+		"      properties: {d: {$schema: '"+draft4ID+"', id: 'g.json', properties: {h: {id: 'h.json', $ref: '#'}}}}}\n"), &root))
+	return Bind(t.Context(), &root, Config{Self: "spec.yaml", Dialect: draftDialect})
+}
+
 // reversed is a copy of ps, last first.
 func reversed(ps []Position) []Position {
 	out := slices.Clone(ps)
@@ -110,8 +140,9 @@ func reversed(ps []Position) []Position {
 // walk from the document's root (resources.holding), at every position of each
 // fixture and asked in several orders, since what is remembered depends on what
 // was asked before: every resource, its root and its URI, and whether it is
-// known. The fixtures add, to basesTable's, an $id merged past the merge bound,
-// one past the pointer segments a walk follows, and a root that is no node.
+// known. The fixtures add, to basesTable's, schemas read in the dialects they
+// and their document name, an $id merged past the merge bound, one past the
+// pointer segments a walk follows, and a root that is no node.
 func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 	t.Parallel()
 	for name, fixture := range map[string]func(*testing.T) (*Table, []Position){
@@ -142,6 +173,19 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			}
 			return table, out
 		},
+		"dialects": func(t *testing.T) (*Table, []Position) {
+			table := dialectsTable(t)
+			return table, positionsOf(table, Source)
+		},
+		"a document's dialect": func(t *testing.T) (*Table, []Position) {
+			var root yaml.Node
+			require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"+
+				"jsonSchemaDialect: '"+draft4ID+"'\npaths: {}\ncomponents:\n  schemas:\n"+
+				"    A: {id: 'https://x.test/a/', definitions: {B: {id: 'b.json'}}, properties: {r: {id: 'x/', $ref: 'b.json'}}}\n"),
+				&root))
+			table := Bind(t.Context(), &root, Config{Self: "spec.yaml", Dialect: draftDialect})
+			return table, positionsOf(table, Source)
+		},
 		"no root": func(t *testing.T) (*Table, []Position) {
 			return Bind(t.Context(), &yaml.Node{Kind: yaml.AliasNode}, Config{Self: "spec.yaml"}),
 				[]Position{{}, {Pointer: "/a"}}
@@ -164,7 +208,7 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 				table, _ := fixture(t)
 				for _, p := range order {
 					path, _ := table.bases.res.docs.path(p)
-					want, wantKnown := table.bases.res.holding(p, path, true)
+					want, wantKnown := table.bases.res.holding(p, path, true, table.bases.ids.readsDialects(p.Doc))
 					got, known := table.bases.holding(p)
 					assert.Equal(t, want, got, p)
 					assert.Equal(t, wantKnown, known, p)

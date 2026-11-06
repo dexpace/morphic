@@ -13,25 +13,32 @@ import (
 // Table.InOwnResource) as resources.holding does, remembering the walk at each
 // position it passes. A position below one walked before starts there rather
 // than at its document's root, so asking at every level of a deep schema walks
-// its depth once rather than once a level.
+// its depth once rather than once a level. Where ids says a document is read
+// through its dialects (identifiers.readsDialects), each schema is read in the
+// one the schema holding it enters (resources.enterIn).
 type bases struct {
 	res   resources
 	walks map[Position]walked
+	ids   *identifiers
 }
 
 // walked is the walk to a position, stopped there on the way to one below: the
-// node there, the state the grammar reads it at, and the resource the walk is
-// in past it, with whether that is known.
+// node there, the state the grammar reads it at, the resource the walk is in
+// past it, with whether that is known, the dialect what is below it is read
+// in, and whether a schema holds it (heldBySchema).
 type walked struct {
-	node  *yaml.Node
-	in    resource
-	s     state
-	known bool
+	node    *yaml.Node
+	in      resource
+	dialect string
+	s       state
+	known   bool
+	held    bool
 }
 
-// newBases returns bases over r, having walked nothing.
-func newBases(r resources) *bases {
-	return &bases{res: r, walks: map[Position]walked{}}
+// newBases returns bases over r, whose documents' dialect roots ids holds,
+// having walked nothing.
+func newBases(r resources, ids *identifiers) *bases {
+	return &bases{res: r, walks: map[Position]walked{}, ids: ids}
 }
 
 // holding is resources.holding of p read as a schema, along what its pointer
@@ -41,20 +48,27 @@ func newBases(r resources) *bases {
 func (b *bases) holding(p Position) (resource, bool) {
 	if !p.Pointer.IsValid() {
 		path, _ := b.res.docs.path(p)
-		return b.res.holding(p, path, true /* schema */)
+		return b.res.holding(p, path, true /* schema */, b.ids.readsDialects(p.Doc))
 	}
 	at := prefixes(p, nodeview.MaxPointerSegments)
 	reached, ok := b.walk(at)
 	if !ok {
 		return b.res.document(p.Doc), true
 	}
-	// Read as a schema whatever the grammar reads it as, its own $id counts,
-	// so it is entered from the walk above it, as past enters a schema.
-	before := walked{in: b.res.document(p.Doc), known: true}
+	// Read as a schema whatever the grammar reads it as, its own identifier
+	// counts, so it is entered from the walk above it, as past enters a schema.
+	before := b.start(p.Doc)
 	if reached > 0 {
 		before = b.walks[at[reached-1]]
 	}
-	return b.res.entered(before, b.walks[at[reached]].node, at[reached])
+	e := b.entered(before, b.walks[at[reached]].node, at[reached])
+	return e.res, e.known
+}
+
+// start is where a walk of document id starts, above its root: in its own
+// resource, read in its default dialect, held by nothing.
+func (b *bases) start(id DocID) walked {
+	return walked{in: b.res.document(id), known: true, dialect: defaultDialect(b.res.docs, id)}
 }
 
 // walk walks at, the positions on the way to one, as far as its document holds
@@ -70,8 +84,7 @@ func (b *bases) walk(at []Position) (int, bool) {
 			return 0, false
 		}
 		b.res.docs.work.spend(1)
-		start := walked{in: b.res.document(at[0].Doc), known: true}
-		b.walks[at[0]] = b.res.past(start, root, b.res.docs.identityState(at[0].Doc), at[0])
+		b.walks[at[0]] = b.past(b.start(at[0].Doc), root, b.res.docs.identityState(at[0].Doc), at[0])
 		k = 0
 	}
 	for ; k+1 < len(at); k++ {
@@ -81,7 +94,8 @@ func (b *bases) walk(at []Position) (int, bool) {
 			break
 		}
 		b.res.docs.work.spend(1)
-		b.walks[at[k+1]] = b.res.past(from, child, step(from.s, token), at[k+1])
+		s := stepIn(b.res.docs, at[0].Doc, from.node, from.s, token, from.dialect)
+		b.walks[at[k+1]] = b.past(from, child, s, at[k+1])
 	}
 	return k, true
 }
@@ -130,22 +144,38 @@ func prefixes(p Position, most int) []Position {
 }
 
 // past is the walk from, gone on to n at here, which the grammar reads at s:
-// a schema, or a position of a document of schemas, is entered, so an $id it
-// writes starts the resource the walk is in past it (resources.holding).
-func (r resources) past(from walked, n *yaml.Node, s state, here Position) walked {
-	out := walked{node: n, s: s, in: from.in, known: from.known}
+// a schema, or a position of a document of schemas, is entered, so an
+// identifier it writes starts the resource the walk is in past it, and its
+// `$schema` the dialect (resources.holding).
+func (b *bases) past(from walked, n *yaml.Node, s state, here Position) walked {
+	out := walked{node: n, s: s, in: from.in, known: from.known, dialect: from.dialect, held: heldBelow(from)}
 	if s == sSchema || s == sLoose {
-		out.in, out.known = r.entered(from, n, here)
+		e := b.entered(from, n, here)
+		out.in, out.known, out.dialect = e.res, e.known, e.dialect
 	}
 	return out
 }
 
-// entered is the resource the walk from is in once it enters the schema n at
-// here, and whether that is known.
-func (r resources) entered(from walked, n *yaml.Node, here Position) (resource, bool) {
-	next, rooted, ok := r.enter(from.in, n)
-	if rooted {
-		next.root = here
+// entered is what the walk from enters at the schema n at here: the resource
+// it is in past it, whether that is known, and the dialect what n holds is
+// read in, as resources.holding enters each schema on its way.
+func (b *bases) entered(from walked, n *yaml.Node, here Position) entering {
+	e := entering{dialect: from.dialect}
+	if b.ids.readsDialects(here.Doc) {
+		held := heldBelow(from)
+		e = b.res.enterIn(from.in, here, n, from.dialect, func() bool { return held })
+	} else {
+		e.res, e.rooted, e.known = b.res.enter(from.in, n, dialectRule(b.res.docs, here.Doc, from.dialect))
 	}
-	return next, from.known && ok
+	if e.rooted {
+		e.res.root = here
+	}
+	e.known = from.known && e.known
+	return e
+}
+
+// heldBelow reports whether a schema holds what lies directly below the walk
+// from: one does at or above it.
+func heldBelow(from walked) bool {
+	return from.held || from.s == sSchema || from.s == sLoose
 }

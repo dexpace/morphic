@@ -37,8 +37,8 @@ func TestBoundOf_FillsAFieldForEveryValueBound(t *testing.T) {
 // TestAgreement_ReadsABoundInTheDialectOfItsSchemas pins the dialect the
 // writers of a value bound are read in. A numeric exclusiveMinimum is a bound
 // from 3.1 on, so two writers of one meet and fold; in 3.0 it is no bound of
-// the dialect, which the lowering reports and drops, so the writers state
-// nothing and stay apart where they write it differently.
+// the dialect, which the load phase reports and the lowering drops, so the
+// writers state nothing and stay apart where they write it differently.
 func TestAgreement_ReadsABoundInTheDialectOfItsSchemas(t *testing.T) {
 	t.Parallel()
 	conjunct := func(text string) *oas3.Schema {

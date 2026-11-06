@@ -36,7 +36,8 @@ var deepMergeSpec = func() string {
 
 // TestOneResource_SaysWhyAPositionMayLieInAnother pins the verdict's three
 // answers: a schema in its document's own resource, one under an $id, and one a
-// merge past the bound may hide an $id above, which must not read as none.
+// merge past the bound may hide an identifier above, which must not read as
+// none.
 func TestOneResource_SaysWhyAPositionMayLieInAnother(t *testing.T) {
 	t.Parallel()
 	l, diags := LoweredFor(t, deepMergeSpec)
@@ -44,7 +45,7 @@ func TestOneResource_SaysWhyAPositionMayLieInAnother(t *testing.T) {
 	for at, want := range map[jsontext.Pointer]string{
 		"/components/schemas/Plain":        "",
 		"/components/schemas/Held/$defs/d": "starts a schema resource of its own",
-		"/components/schemas/Deep":         "may hide an $id",
+		"/components/schemas/Deep":         "may hide an identifier",
 	} {
 		why, ok := oneResource(l.Ctx, bind.Position{Pointer: at})
 		assert.Equal(t, want == "", ok, at)

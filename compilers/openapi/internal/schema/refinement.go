@@ -325,7 +325,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 			})
 			if len(residue) > 0 {
 				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
-					unfolded: unfoldedWhy(voices.speaks[i], voices.rebased[i], bs, residue)})
+					unfolded: unfoldedWhy(c, voices.speaks[i], voices.rebased[i], bs, residue)})
 			}
 		}
 	}
