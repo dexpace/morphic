@@ -30,8 +30,9 @@ concurrency:
 # alone, and never saves.
 #
 # The cache stays one run's size for three reasons. A step before each save
-# deletes entries the run did not use, since the go command's own trim waits
-# five days (cmd/go/internal/cache, trimLimit). go.sum is in the key, so a
+# deletes the index entries the run did not use, and the outputs no entry left
+# names, since the go command's own trim waits five days
+# (cmd/go/internal/cache, trimLimit). go.sum is in the key, so a
 # dependency change starts a cache afresh instead of adding to the module cache
 # of the last. And the fuzz corpus, which that trim never removes, is dropped
 # before the checks job's save; the suite job runs no -fuzz, so writes none.
@@ -97,12 +98,23 @@ jobs:
       - name: drop the fuzz corpus
         if: github.event_name == 'push'
         run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
-      # Keep what this run used and no more: go moves an entry's time on a use
-      # over an hour after the last, so one older than two hours went unused.
+      # Keep what this run used and no more. An index entry (-a) moves on a use
+      # over an hour after the last and on every store, so one older than two
+      # hours went unused. An output (-d) does not move when a store finds its
+      # bytes already there, as a rerun's unchanged coverage profile does, so it
+      # goes only when it is that old and no entry left names it.
       - &prune
         name: drop cache entries this run did not use
         if: github.event_name == 'push'
-        run: find "${{ steps.toolchain.outputs.gocache }}" -type f -mmin +120 -delete
+        env:
+          LC_ALL: C
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          find "$GOCACHE_ROOT" -type f -name '*-a' -mmin +120 -delete
+          kept=$(mktemp)
+          find "$GOCACHE_ROOT" -type f -name '*-a' -exec awk '{print $3 "-d"}' {} + | sort -u >"$kept"
+          find "$GOCACHE_ROOT" -type f -name '*-d' -mmin +120 -printf '%f\t%p\n' | sort |
+            join -t "$(printf '\t')" -v 1 - "$kept" | cut -f2 | xargs -r -d '\n' rm -f
       - &save
         name: save caches
         if: github.event_name == 'push'
