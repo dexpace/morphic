@@ -199,7 +199,10 @@ var composedHints = []struct {
 //
 // A composed variant of an inline branch has no row:
 // docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
-// so only the $ref form the Host case uses reaches composedVariant.
+// so only the $ref form the Host case uses reaches composedVariant. A
+// components/mediaTypes entry keyed "" (#1536) and a header under a nested
+// encoding (#1535) have none either: each is named from its pointer, not by a
+// path that composes from the empty name.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
@@ -208,11 +211,24 @@ func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	union, ok := doc.Types[mixed.Properties[0].Type.Target].(*ir.Union)
 	require.True(t, ok, "a heterogeneous enum lowers to a union of literals")
 	assert.Equal(t, "empty", union.Name.Hint, "the enclosing node keeps the plain minted hint")
+	require.Len(t, union.Variants, 2)
+	assert.Equal(t, "empty_0", union.Variants[0].Name.Hint, "a variant is named as its literal")
+	assert.Equal(t, "empty_1", union.Variants[1].Name.Hint, "a variant is named as its literal")
 
 	for _, tc := range composedHints {
 		node, found := doc.Types[tc.id]
 		require.True(t, found, "no node at %s; the composition site moved", tc.id)
 		assert.Equal(t, tc.hint, node.Common().Name.Hint, "composed hint at %s", tc.id)
+	}
+
+	rows := make(map[ir.TypeID]bool, len(composedHints))
+	for _, tc := range composedHints {
+		rows[tc.id] = true
+	}
+	for id, node := range doc.Types {
+		if strings.HasPrefix(node.Common().Name.Hint, "empty_") {
+			assert.True(t, rows[id], "%s composes from an empty name and has no row", id)
+		}
 	}
 }
 
