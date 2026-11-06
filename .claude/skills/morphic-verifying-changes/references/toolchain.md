@@ -48,6 +48,18 @@
 - **Probe.** A test reading `PATH`, run twice under one `PATH` and once under another: the third
   run is not `(cached)`.
 
+## A rerun on btrfs can come from a directory's size in its parent's listing
+`btrfs-directory-size`
+
+- **Rule.** On btrfs a directory's size moves with its entries, and go test hashes the size of each
+  entry a test lists. So a file added to a directory reruns a test listing only that directory's
+  parent, through clones at one path too. Confirm a directory's own listing by its `open` in
+  `-test.testlogfile`, not by the rerun.
+- **Why.** A test listing only the module root reran on a file added under `ir/`, with no `open` of
+  `ir` in its log, and stayed `(cached)` on one added under `compilers/openapi/` (#1373).
+- **Probe.** `stat -c %s ir` before and after a commit adding a file there, and
+  `grep -Fx "open <module root>/ir"` over the log of a test that does not list it.
+
 ## A test's go children never reach a go wrapper on PATH
 `test-go-children-ignore-path`
 
