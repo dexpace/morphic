@@ -5,6 +5,7 @@ package decls_test
 
 import (
 	"go/types"
+	"io/fs"
 	"iter"
 	"path/filepath"
 	"strings"
@@ -36,6 +37,14 @@ func fixture(t *testing.T) *decls.Package {
 	p, err := decls.Load(goodDir + "/fixture")
 	require.NoError(t, err)
 	return p
+}
+
+// TestFixtures_AreWalkedInThisProcess lists the fixtures' whole tree: go list reads
+// it in a child the test cache does not see, and a load lists only the packages it
+// finds, so a package a wildcard case would newly match reruns the tests only here.
+func TestFixtures_AreWalkedInThisProcess(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, filepath.WalkDir("testdata", func(_ string, _ fs.DirEntry, err error) error { return err }))
 }
 
 func TestLoad_Refusals(t *testing.T) {
