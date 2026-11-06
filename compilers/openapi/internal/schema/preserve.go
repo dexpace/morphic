@@ -31,27 +31,20 @@ import (
 // requires, so it is called here rather than inside annotation.Read:
 // $dynamicRef has no field in the schema model either and is decided by
 // recordUnexpandedDynamicRef, which runs after Read; a draft's `dependencies`
-// is Read's (annotation.Dialect). td is the node the
-// position lowered to, nil for none of its own, which may hold a tuple's rest
-// (tupleRest).
+// is Read's (annotation.Dialect), and `additionalItems` beside a list the
+// census's (keywordHome). td is the node the position lowered to, nil for none
+// of its own.
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
-	taken := tupleRest(c, s, pointer, td)
+	var taken []string
+	if _, listed := listedItems(s); listed {
+		taken = append(taken, "additionalItems")
+	}
 	if lowering.SchemaRulesAt(c, pointer).Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
 	}
 	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
-}
-
-// tupleRest returns `additionalItems` where td, the node s lowered to at
-// pointer, is the tuple an `items` list reads as (listedTuple), which holds it
-// as its rest, and nothing otherwise.
-func tupleRest(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []string {
-	if _, tuple := listedTuple(c, s, pointer); !tuple || !isKind(td, ir.KindTuple) {
-		return nil
-	}
-	return []string{"additionalItems"}
 }
 
 // undefinedKeywords returns the keywords s writes that the schema model names

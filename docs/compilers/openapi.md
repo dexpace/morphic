@@ -2445,8 +2445,9 @@ such as `5` or `null`, is an `openapi/validation` error at it, and a rest no sch
 at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
 `prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
 [`null-schema`](#null-schema) reads it. A position that lowers to no
-`Tuple`, such as one with no `type: array`, keeps the list as
-[`shape-applicator`](#shape-applicator) keeps `items`, and `additionalItems` verbatim with an info
+`Tuple`, such as one with no `type: array`, keeps the list and the `additionalItems` beside it as
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
+list, `additionalItems` is the rest of no tuple, kept verbatim with an info
 `openapi/unknown-schema-keyword`. In any other dialect a list of items is no schema: the load phase
 reports it as an `openapi/invalid-items-list` error, at every schema the [`validation`](#validation)
 check reads, and the lowering reads `items` as absent.
@@ -2464,10 +2465,11 @@ check reads, and the lowering reads `items` as absent.
 
 ### `shape-applicator`
 
-`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`
-each constrain an instance whether or not a `type` is written beside them, and each has exactly one
-IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a
-`Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
+`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`,
+and the `additionalItems` a draft writes beside a list of `items` ([`tuples`](#tuples)), each
+constrain an instance whether or not a `type` is written beside them, and each has exactly one IR
+home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a `Tuple`'s
+positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
 `patternProperties` and `required` lists that left it a map
 ([containers](../ir/containers.md)), and a `required` naming a key keeps it a `Model`
 ([`required-members`](#required-members)). A position whose lowering produced none of these — an

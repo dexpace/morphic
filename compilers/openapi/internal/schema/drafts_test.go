@@ -58,14 +58,17 @@ func TestLower_AListOfItemsInADraftIsATuple(t *testing.T) {
 
 // TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise pins what the
 // census keeps of a draft 4 schema: additionalItems nothing where the tuple
-// holds it as its rest, and verbatim where the position lowered to no tuple;
-// `dependencies` as a validation-only keyword; `id` as `$id` is kept; and
-// `definitions` nothing, as `$defs` is not.
+// holds it as its rest, and where the position lowered to no tuple, verbatim
+// beside its list of items as a degraded lowering, as the twin `items` beside
+// `prefixItems` is, but beside an `items` that is no list as an unknown
+// keyword; `dependencies` as a validation-only keyword; `id` as `$id` is kept;
+// and `definitions` nothing, as `$defs` is not.
 func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(
 		"    T: {"+d4+", type: array, items: [{type: string}], additionalItems: false}\n"+
 			"    U: {"+d4+", items: [{type: string}], additionalItems: false}\n"+
+			"    V: {"+d4+", type: array, items: {type: string}, additionalItems: false}\n"+
 			"    D: {"+d4+", type: object, id: 'https://example.com/d', dependencies: {a: [b]}, definitions: {X: {}}}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	keys := func(name string) []string {
@@ -77,7 +80,11 @@ func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 		return out
 	}
 	assert.NotContains(t, keys("T"), "openapi:additionalItems", "the tuple holds its rest")
-	assert.Contains(t, keys("U"), "openapi:additionalItems", "no tuple holds it")
+	u := doc.Types[componentID("U")].Common().Unmodeled
+	assert.Equal(t, ir.ReasonDegradedLowering, u["openapi:additionalItems"].Reason, "no tuple holds it")
+	assert.Equal(t, ir.ReasonDegradedLowering, u["openapi:items"].Reason)
+	assert.Equal(t, ir.ReasonOutOfScope, doc.Types[componentID("V")].Common().Unmodeled["openapi:additionalItems"].Reason,
+		"it is no tuple's rest beside one schema of items")
 	d := doc.Types[componentID("D")].Common().Unmodeled
 	assert.Equal(t, ir.ReasonValidationOnly, d["openapi:dependencies"].Reason)
 	assert.Equal(t, ir.ReasonOutOfScope, d["openapi:id"].Reason)
