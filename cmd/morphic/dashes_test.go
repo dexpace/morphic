@@ -56,6 +56,8 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"after a cluster of short flags and its separate value", []string{"compile", spec, "-ho", "out.json", "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
+		{"after a separate value that is a double dash", []string{"compile", spec, "-o", "--", "-output=ir.json"},
+			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
 			`write "--help", not "-help"`, "morphic compile"},
 		{"the version flag", []string{"-version"}, `write "--version", not "-version"`, "morphic"},
