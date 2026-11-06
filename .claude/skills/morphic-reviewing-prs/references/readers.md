@@ -9,10 +9,10 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Rule.** A review runs its angles in one reader by default, bar the fresh one of each round after
   the first (`references/readers.md#fresh-reader-for-the-second-round`) and the two of a split round
   (`references/readers.md#split-whole-reads-from-what-moved`). When asked to fan out, give each
-  reader one angle and the code, in a directory of its own
-  (`references/readers.md#reader-owns-its-directory`), with no conclusion of yours and, for
-  Correctness, no PR body, so that independent reads stay independent. What returns goes through
-  `references/rounds.md#disprove-each-finding` and
+  reader one angle and the code, briefed by `references/readers.md#brief-a-reader-to-its-cells`, in
+  a directory of its own (`references/readers.md#reader-owns-its-directory`), with no conclusion of
+  yours and, for Correctness, no PR body, so that independent reads stay independent. What returns
+  goes through `references/rounds.md#disprove-each-finding` and
   `references/readers.md#audit-what-a-reader-cleared` before it counts.
 - **Why.** A finding comes back in the same confident register whether or not it holds, as the
   review of #1162's twelve PRs counted false alarms in both its readers (#1162).
@@ -47,8 +47,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   (`references/rounds.md#review-ends-with-nothing-left`).
 - **Why.** #1532's seventh reader stopped at 51 of about 80 budgeted tool calls, naming five cells
   unreached, as its brief allowed (#1532, #1542).
-- **Probe.** The reader's brief names each cell with its share and the budget, and the report runs
-  each cell or quotes why it could not.
+- **Probe.** The reader's brief names each cell with its share and the budget, their sum, and the
+  report runs each cell or quotes why it could not.
 
 ## Start every delegated reader at effort `xhigh`
 `start-readers-at-xhigh`
@@ -66,8 +66,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 
 - **Rule.** A delegated reader's brief asks it to send independent reads and commands in one turn,
   and to write bulky output to a file in its directory and read it in parts with `grep` or `head`.
-- **Why.** Each API call re-reads the whole context, yet #1532's readers of rounds 2 to 7 batched
-  at most 4 of their 40 to 67 (#1532, #1542).
+- **Why.** Each API call re-reads the whole context, yet #1532's readers of rounds 2 to 7 batched at
+  most 4 of their 40 to 67 (#1532, #1542).
 - **Probe.** The reader's brief asks both, and
   `jq -r 'select(.type=="assistant") | "\(.message.id) \([.message.content[]? | select(.type=="tool_use")] | length)"' <transcript> | awk '{n[$1]+=$2} END {for (i in n) {c++; b+=n[i]>1}; print c, b}'`
   prints the reader's API calls, one per `message.id`, and how many batched.
@@ -99,8 +99,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 
 - **Rule.** Keep every harness the reviewer will rerun, such as a probe or a script planting
   mutants, under one directory outside the tree and every reader's, so that one fingerprint covers
-  them. Fingerprint it before each hand-off and after the hand-back, and rebuild what changed
-  before rerunning any of it.
+  them. Fingerprint it before each hand-off and after the hand-back, and rebuild what changed before
+  rerunning any of it.
 - **Why.** #1532's main session reran a harness after a reader's hand-back that it had not
   fingerprinted before the hand-off (#1532).
 - **Probe.** Before the hand-off, with `<list>` outside the directory,
@@ -135,9 +135,9 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 ## Read each cell a reader settled against what its rule asks
 `audit-what-a-reader-cleared`
 
-- **Rule.** Before a delegated reader's round counts, read each cell its report settles against
-  the rule that cell answers to, and reopen one settled on less than it asks: a mutant judged
-  equivalent on this tree's inputs alone
+- **Rule.** Before a delegated reader's round counts, read each cell its report settles against the
+  rule that cell answers to, and reopen one settled on less than it asks: a mutant judged equivalent
+  on this tree's inputs alone
   (`.claude/skills/morphic-verifying-changes/references/mutation.md#equivalent-means-every-input`),
   an issue or file read in part, a class sampled
   (`references/claims-and-process.md#sweep-each-claim-class`). The next round reads it.

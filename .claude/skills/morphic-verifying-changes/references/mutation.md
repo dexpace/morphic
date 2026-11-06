@@ -151,9 +151,8 @@ yourself. These rules are the ways that reading still lies.
   where a diff left 23 (#1191, #1216). A diff of production files alone misses a merge removing the
   test that held a kill.
 - **Probe.** For each verdict carried over,
-  `git diff --stat <verdict's revision> <head> -- <paths>`, over those four, prints nothing,
-  and `git ls-files --error-unmatch -- <paths>` exits 0 at the head, lest a path matching nothing
-  pass.
+  `git diff --stat <verdict's revision> <head> -- <paths>`, over those four, prints nothing, and
+  `git ls-files --error-unmatch -- <paths>` exits 0 at the head, lest a path matching nothing pass.
 
 ## Plant through an overlay only where no test reads the source
 `overlay-reaches-the-compiler-alone`

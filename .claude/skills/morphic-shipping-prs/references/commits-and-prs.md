@@ -145,12 +145,11 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** For each issue a closing keyword in the body names
   (`references/commits-and-prs.md#closing-keywords`), read
-  `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt`
-  when the PR opens and again before a report says the PR closes it. A closed issue's closing
-  comment is a recorded decision, its reference leaving the body; a comment or body edit is part of
-  the ask; each `## Out of scope` item or deferred alternative naming pending work goes to an open
-  issue, stated where
-  `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
+  `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
+  and again before a report says the PR closes it. A closed issue's closing comment is a recorded
+  decision, its reference leaving the body; a comment or body edit is part of the ask; each
+  `## Out of scope` item or deferred alternative naming pending work goes to an open issue, stated
+  where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
 - **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight of
   its issues' comments or later edits; closing #1433 would have stated an out-of-scope case nowhere
   (#1210, #1435).

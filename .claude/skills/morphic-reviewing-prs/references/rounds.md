@@ -224,13 +224,13 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs` and
   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-lints-the-skills` call
   for.
-- **Why.** #1532's seventh-round findings sat in the sixth round's fixes, body or commit message:
-  a rewritten test passed a mutant stopping a scan at a file's first citing line, and the body
-  counted 14 open PRs sharing a file, not six. Trial merges rerun after a fix found a
-  conflict it gave an open PR (#1532).
-- **Probe.** The round's saved state (`references/rounds.md#compact-at-a-round-boundary`), never
-  the reader's brief, lists each plant rerun with its verdict, each body number with its command,
-  and each trial merge's commit.
+- **Why.** #1532's seventh-round findings sat in the sixth round's fixes, body or commit message: a
+  rewritten test passed a mutant stopping a scan at a file's first citing line, and the body counted
+  14 open PRs sharing a file, not six. Trial merges rerun after a fix found a conflict it gave an
+  open PR (#1532).
+- **Probe.** The round's saved state (`references/rounds.md#compact-at-a-round-boundary`), never the
+  reader's brief, lists each plant rerun with its verdict, each body number with its command, and
+  each trial merge's commit.
 
 ## Compact the main session only at a clean round boundary
 `compact-at-a-round-boundary`
