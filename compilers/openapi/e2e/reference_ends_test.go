@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -139,4 +140,75 @@ components:
 		"/x-params/q/schema/discriminator/mapping/a": `discriminator mapping "a" references unresolved schema ` +
 			`"#/components/schemas/A"` + unplaced,
 	}, got)
+}
+
+// TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt pins the report
+// fillRefBranch and diagUnresolvedBranches make where load makes none: a $ref in
+// the first copy of a key written twice, which a reference object resolved to
+// and the binder cannot place (docs/parser-library.md#duplicate-key), is never
+// read, so a full compile keeps the lowering's report (withoutRereported), and
+// removing it loses the error.
+func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
+	t.Parallel()
+	const unplaced = ": it is in what the reference at /paths/~1a/get/parameters/0 resolved to, which the " +
+		"compiler cannot read where the parser placed it"
+	const kept = `" is unresolved` + unplaced + "; the branch is kept verbatim"
+	tests := []struct {
+		name, schema string
+		want         map[jsontext.Pointer]string
+	}{
+		{
+			"allOf", "{allOf: [{$ref: '#/components/schemas/A'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/allOf/0": `unresolved allOf $ref "#/components/schemas/A"` + unplaced,
+			},
+		},
+		{
+			"union beside structural keywords",
+			"{type: object, properties: {id: {type: string}}, " +
+				"oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/oneOf/0": `union branch $ref "#/components/schemas/A` + kept,
+				"/x-params/q/schema/oneOf/1": `union branch $ref "#/components/schemas/B` + kept,
+			},
+		},
+		{
+			"anyOf beside structural keywords",
+			"{type: object, properties: {id: {type: string}}, anyOf: [{$ref: '#/components/schemas/A'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/anyOf/0": `union branch $ref "#/components/schemas/A` + kept,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a: {get: {parameters: [{$ref: '#/x-params/q'}], responses: {"200": {description: ok}}}}
+x-params:
+  q:
+    name: q
+    in: query
+    schema: ` + tc.schema + `
+  q: {name: r, in: query, schema: {type: string}}
+components:
+  schemas:
+    A: {type: object, properties: {k: {type: string}}}
+    B: {type: string}
+`
+			_, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
+			require.NoError(t, err)
+			got := map[jsontext.Pointer]string{}
+			for _, d := range diags {
+				if d.Code == diag.UnresolvedRef {
+					got[d.Provenance.Pointer] = d.Message
+					assert.Equal(t, ir.SeverityError, d.Severity, "severity of %q", d.Message)
+				}
+			}
+			assert.Equal(t, tc.want, got, "got %+v", diags)
+		})
+	}
 }

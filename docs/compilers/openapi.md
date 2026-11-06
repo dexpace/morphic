@@ -2075,8 +2075,9 @@ In all five, whatever structural body the schema declares is lowered — `proper
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
 `openapi/degraded-construct` at the schema naming which of the five applied; in case 3 the broken
-reference is reported as well, as an `openapi/unresolved-ref` error. Case 1's body-less sibling
-leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
+reference is reported as well, as an `openapi/unresolved-ref` error, or, on a loop of `$ref`s, by
+the loop's one `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)). Case 1's body-less
+sibling leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
 [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
 sibling's are both reported. A `null` branch in this shape is **not** lifted to `Nullable`: the
 union it belongs to is no longer structural, so lifting one branch out of it would assert something

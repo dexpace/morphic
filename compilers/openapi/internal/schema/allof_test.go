@@ -126,6 +126,23 @@ func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef))
 }
 
+// TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering pins the other side
+// of fillRefBranch's gate: a $ref off any loop that resolves to nothing is
+// reported, at the branch. Load reports this fixture's $ref at that pointer too,
+// so a full compile drops the lowering's report (withoutRereported), and only
+// the lowering's own list can show it gone here.
+func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
+	t.Parallel()
+	_, diags := lowerSpecOnly(t, openapitest.ComponentSpec(`    Y:
+      allOf:
+        - $ref: '#/components/schemas/Ghost'
+`))
+	require.Len(t, diags, 1, "got %+v", diags)
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Y/allOf/0"), diags[0].Provenance.Pointer)
+}
+
 func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Base:
