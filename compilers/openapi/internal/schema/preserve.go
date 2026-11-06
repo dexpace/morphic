@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,11 +30,20 @@ import (
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read:
 // $dynamicRef has no field in the schema model either and is decided by
-// recordUnexpandedDynamicRef, which runs after Read and keeps nothing once the
-// reference has expanded. A census running before it could not tell that from
-// an unread keyword.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
+// recordUnexpandedDynamicRef, which runs after Read; a draft's `dependencies`
+// is Read's (annotation.Dialect), and `additionalItems` beside a list the
+// census's (keywordHome). td is the node the position lowered to, nil for none
+// of its own.
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+	var taken []string
+	if _, listed := listedItems(s); listed {
+		taken = append(taken, "additionalItems")
+	}
+	if lowering.SchemaRulesAt(c, pointer).Takes("definitions", oas.Map) {
+		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
+		taken = append(taken, "definitions")
+	}
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
 }
 

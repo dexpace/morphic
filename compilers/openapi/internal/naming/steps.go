@@ -51,6 +51,11 @@ func (c chain) then(part string) chain {
 // declaration order.
 func stepOf(enclosing chain, rest []string) (hint chain, branch bool, step int) {
 	keyword := rest[0]
+	if keyword == "items" && len(rest) > 1 && isDecimalIndex(rest[1]) {
+		// A tuple's positional item written as a list of items, as the JSON
+		// Schema drafts before 2020-12 spell one, named as prefixItems names it.
+		return enclosing.then(rest[1]), false, 2
+	}
 	if role, ok := structuralRoles[keyword]; ok {
 		return enclosing.then(role), false, 1
 	}
@@ -82,9 +87,11 @@ func stepOf(enclosing chain, rest []string) (hint chain, branch bool, step int) 
 }
 
 // structuralRoles maps each keyword whose one schema the lowering names by role
-// to that role.
+// to that role: a tuple's rest is an item, whether 2020-12's items or a draft's
+// additionalItems holds it.
 var structuralRoles = map[string]string{
 	"items":                "item",
+	"additionalItems":      "item",
 	"additionalProperties": "value",
 	"contentSchema":        "content",
 }

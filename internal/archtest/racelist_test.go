@@ -240,7 +240,7 @@ func TestRaceListViolations_PlantedShapesAreReported(t *testing.T) {
 	writeGoStmt(t, filepath.Join(root, "nested", "child", "w_test.go"), "child")
 	// Reported: a sibling whose name only starts with the entry's is not under it.
 	writeGoStmt(t, filepath.Join(root, "nestedx", "w_test.go"), "nestedx")
-	// Not reported: exempt, with a single-argument .Go call.
+	// Not reported: exempt, with a .Go call.
 	writeNamedGoCall(t, filepath.Join(root, "exempt", "w_test.go"), "exempt")
 	// Reported: an exemption for a directory that runs nothing concurrently.
 	writeDocFile(t, filepath.Join(root, "calm", "p.go"), "package p\n")
@@ -363,6 +363,27 @@ func TestRaceListViolations_PipelineRootsCountOnlyWhatMakeRaceReaches(t *testing
 		`tool: needs the race run (tool/p_test.go runs tests in parallel) but is on no race list, in no ` +
 			`raceExempt and in no racePipelineOnly`,
 	}
+	if d := cmp.Diff(want, got); d != "" {
+		t.Errorf("report differs (-want +got):\n%s", d)
+	}
+}
+
+// TestRaceListViolations_AnEntryNeedsItsReason plants an exemption and a
+// deferral that are sound but for their blank reasons, since each is the one
+// place a race neither run finds, or only the push run finds, is explained.
+func TestRaceListViolations_AnEntryNeedsItsReason(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeGoStmt(t, filepath.Join(root, "tool", "w_test.go"), "tool")
+	writeGoStmt(t, filepath.Join(root, "pipe", "w_test.go"), "pipe")
+
+	got, err := raceListViolations(root, raceRule{
+		roots:        []string{"pipe"},
+		exempt:       map[string]string{"tool": " "},
+		pipelineOnly: map[string]string{"pipe": "\t"},
+	})
+	require.NoError(t, err)
+	want := []string{`pipe: is in racePipelineOnly with no reason`, `tool: is in raceExempt with no reason`}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("report differs (-want +got):\n%s", d)
 	}
@@ -498,8 +519,8 @@ func concurrencyReasons(rel string, f *ast.File, parallel bool) []string {
 
 // callsParallel reports whether f calls a method named Parallel with no
 // argument, whatever its receiver's type, as t.Parallel() does. Like
-// isNamedGoCall it reads the syntax alone, so a Parallel method of another type
-// counts too, which errs towards requiring the race run.
+// startsGoroutine it reads the syntax alone, so a Parallel method of another
+// type counts too, which errs towards requiring the race run.
 func callsParallel(f *ast.File) bool {
 	found := false
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -637,7 +658,7 @@ func raceListCovers(entries []string, dir string) bool {
 
 // exemptionProblem returns the message for the raceExempt entry dir, or nil
 // when it is sound: dir lies under none of rule.roots, needs the race run
-// (needs has it), and is not on the list.
+// (needs has it), is not on the list, and gives a reason.
 func exemptionProblem(rule raceRule, needs map[string][]string, dir string) []string {
 	root, underRoot := pipelineRootOf(rule.roots, dir)
 	switch _, needed := needs[dir]; {
@@ -648,6 +669,8 @@ func exemptionProblem(rule raceRule, needs map[string][]string, dir string) []st
 		return []string{dir + ": is in raceExempt but needs no race run"}
 	case raceListCovers(rule.entries, dir):
 		return []string{dir + ": is on the race list and in raceExempt, which are exclusive"}
+	case strings.TrimSpace(rule.exempt[dir]) == "":
+		return []string{dir + ": is in raceExempt with no reason"}
 	default:
 		return nil
 	}
@@ -655,7 +678,8 @@ func exemptionProblem(rule raceRule, needs map[string][]string, dir string) []st
 
 // deferralProblem returns the message for the racePipelineOnly entry dir, or
 // nil when it is sound: dir lies under one of rule.roots, shows a signal
-// `make race` counts there (needs has it), and is not on the list.
+// `make race` counts there (needs has it), is not on the list, and gives a
+// reason.
 func deferralProblem(rule raceRule, needs map[string][]string, dir string) []string {
 	_, underRoot := pipelineRootOf(rule.roots, dir)
 	switch _, needed := needs[dir]; {
@@ -665,6 +689,8 @@ func deferralProblem(rule raceRule, needs map[string][]string, dir string) []str
 		return []string{dir + ": is in racePipelineOnly but shows no sync import or goroutine"}
 	case raceListCovers(rule.entries, dir):
 		return []string{dir + ": is on the race list and in racePipelineOnly, which are exclusive"}
+	case strings.TrimSpace(rule.pipelineOnly[dir]) == "":
+		return []string{dir + ": is in racePipelineOnly with no reason"}
 	default:
 		return nil
 	}
