@@ -68,10 +68,12 @@ function-by-class cells and the mutants planted, killed and judged equivalent, e
 ## Plant defects past the ones a PR lists
 `plant-beyond-the-listed-mutants`
 
-- **Rule.** Re-plant every mutation the PR lists
-  (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`), then
-  plant your own at each new branch, call and argument the list skips. A listed mutant reddening a
-  test shows only that its own site is pinned.
+- **Rule.** Re-plant every mutation the PR lists, from its literal edits
+  (`.claude/skills/morphic-verifying-changes/references/claims.md#cite-a-plant-by-its-edit`) or,
+  where it gives only a count and class, by
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`, then plant
+  your own at each new branch, call and argument the list skips. A listed mutant reddening a test
+  shows only that its own site is pinned.
 - **Why.** Each mutant #1153 listed reddened a test, while dropping an argument its new code passed
   reddened none. At #1406's a4dda68a its listed mutants reddened tests too, while its new checks
   fired on text writing no `$ref`.
