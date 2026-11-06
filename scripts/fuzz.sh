@@ -71,17 +71,20 @@ readonly minimize_time=1s
 # What prune keeps of each target's corpus. Go never trims the directory, so
 # these two bound what a search restores and what the cache holds: at most
 # targets x max_corpus_entries x max_entry_kb. The count sits above what a target
-# still builds on, since FuzzCycleDetector neared 1,000 entries in five nights
-# with its coverage still rising, and below where re-running every entry, which
-# a search does inside its budget, would leave it little time to search.
+# still builds on, since in five simulated nights FuzzCycleDetector reached about
+# 450 to 500 entries at a 10s minimizing bound and about 900 to 1,100 at 1s, its
+# coverage still rising, and below where re-running every entry, which a search
+# does inside its budget, would leave it little time to search.
 readonly max_corpus_entries=3000
 readonly max_entry_kb=64
 
 # list_targets prints "<import path> <target> <directory>", one line per target.
+# go test takes a name as a target only if what follows Fuzz is not lower case,
+# so a helper named FuzzyEqual is none.
 list_targets() {
 	local import dir decl
 	go list -f '{{.ImportPath}} {{.Dir}}' ./... | while read -r import dir; do
-		{ grep -h '^func Fuzz' "$dir"/*_test.go 2>/dev/null || true; } | while read -r _ decl; do
+		{ grep -h '^func Fuzz[^a-z]' "$dir"/*_test.go 2>/dev/null || true; } | while read -r _ decl; do
 			printf '%s %s %s\n' "$import" "${decl%%(*}" "$dir"
 		done
 	done

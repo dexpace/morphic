@@ -107,7 +107,10 @@ func RequireOpens(t *testing.T, test string, paths ...string) {
 		remaining: time.Until(deadline),
 		bounded:   bounded,
 		run: func(args []string) ([]byte, error) {
-			cmd := exectest.Command(t.Context(), t, []string{opensChildEnv + "=1"}, os.Args[0], args...)
+			// exectest leaves PWD out, and without it the child spells its paths from the
+			// physical directory, which through a symlink are none of the caller's.
+			env := []string{opensChildEnv + "=1", "PWD=" + os.Getenv("PWD")}
+			cmd := exectest.Command(t.Context(), t, env, os.Args[0], args...)
 			return cmd.CombinedOutput()
 		},
 		read: os.ReadFile,

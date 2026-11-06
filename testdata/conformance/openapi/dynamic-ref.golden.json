@@ -361,7 +361,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$dynamicRef was not expanded because an $id at or above \"/components/schemas/\" starts a schema resource of its own, and the IR resolves no resource base URIs; it is kept verbatim under Unmodeled",
+      "message": "$dynamicRef was not expanded because an identifier at or above \"/components/schemas/\" starts a schema resource of its own, and the IR resolves no resource base URIs; it is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas//$dynamicRef"

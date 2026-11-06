@@ -5,3 +5,6 @@ package decls
 
 // LoadAlone is loadAlone, for the external tests.
 var LoadAlone = loadAlone
+
+// Unread is unread, for the external tests.
+var Unread = unread

@@ -70,8 +70,9 @@ also find the sentence stating each limitation the body states, where the rule p
 
 ## PR text
 
-A Summary and a Test plan, and a Breaking section when the title carries `!`. Every sentence that
-states behaviour is executed on the final tree first
+A Summary and a Test plan stating the head (`references/commits-and-prs.md#body-states-the-head`),
+and a Breaking section when the title carries `!`. Every sentence that states behaviour is executed
+on the final tree first
 (`.claude/skills/morphic-verifying-changes/references/claims.md#pr-claims-match-evidence`). Edit a
 posted body from its live copy (`references/commits-and-prs.md#edit-pr-body-from-live-copy`).
 

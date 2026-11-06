@@ -103,20 +103,22 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 		t.Skipf("git ls-files unavailable (%v)", err)
 	}
 
+	require.NotEmpty(t, out, "git tracks no files, so an empty result proves nothing")
 	var offenders []string
 	tracked := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	require.NotEmpty(t, tracked, "git tracks no files, so an empty result proves nothing")
 	dirs := map[string]bool{}
 	for _, rel := range tracked {
+		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr == nil {
+			for dir := filepath.Dir(rel); !dirs[dir]; dir = filepath.Dir(dir) {
+				dirs[dir] = true
+			}
+		}
 		raw, readErr := os.ReadFile(filepath.Join(root, rel))
 		if readErr != nil {
-			continue // a file staged for deletion, or a submodule entry
+			continue // a file deleted but not staged, a submodule, or a link to no readable file
 		}
 		if bytes.ContainsRune(raw, '\r') {
 			offenders = append(offenders, rel)
-		}
-		for dir := filepath.Dir(rel); !dirs[dir]; dir = filepath.Dir(dir) {
-			dirs[dir] = true
 		}
 	}
 	listDirectories(t, root, dirs)
@@ -162,7 +164,7 @@ func TestTrackedFiles_ListsEveryDirectoryAboveAFile(t *testing.T) {
 	want := map[string]bool{root: true}
 	for rel := range strings.SplitSeq(strings.TrimSuffix(string(out), "\x00"), "\x00") {
 		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr != nil {
-			continue // a file staged for deletion, which the child skips too
+			continue // a file deleted but not staged, which the child skips too
 		}
 		parts := strings.Split(rel, "/")
 		for n := 1; n < len(parts); n++ {

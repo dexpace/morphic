@@ -191,6 +191,10 @@ func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceabl
 				inner = append(inner, nested{written: p, at: decls.property(name)})
 			}
 		case kv.Key == "items":
+			if _, listed := listedItems(s); listed {
+				// A tuple, or a malformed list, which no element the body declares restates.
+				return nil, nil, false
+			}
 			inner = append(inner, nested{written: s.GetItems(), at: r.declarationsAt(c).items})
 		case kv.Key == "$ref":
 			if !r.lands(c) {

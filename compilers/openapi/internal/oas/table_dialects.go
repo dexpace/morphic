@@ -5,20 +5,23 @@ package oas
 
 // dialect is a JSON Schema dialect a 3.1 or 3.2 Schema Object can declare,
 // through its `$schema` or its document's jsonSchemaDialect: the URI naming
-// it, and what builds the keywords it reads in place of the minor's, nil where
-// they are the minor's own. The keywords are built only for a dialect a schema
-// names, so a compile naming none pays for no row of one.
+// it, what builds the keywords it reads in place of the minor's, nil where
+// they are the minor's own, and whether it ignores the keywords beside a
+// `$ref`, as the drafts before 2019-09 do. The keywords are built only for a
+// dialect a schema names, so a compile naming none pays for no row of one.
 type dialect struct {
-	id       string
-	keywords func() []Field
-	cites    []Cite
+	id               string
+	keywords         func() []Field
+	cites            []Cite
+	ignoresRefFields bool
 }
 
 // schemaDialects are the dialects the table has rows for: the OAS dialect and
-// JSON Schema 2020-12, whose keywords are the minor's, and JSON Schema draft
-// 4. Each is named by the id its meta-schema declares: the OAS dialect's by
-// the one OpenAPI names, and by each dated one its meta-schema is published
-// under for 3.1 and 3.2, as tooling may support values of `$schema` besides.
+// JSON Schema 2020-12, whose keywords are the minor's, and the JSON Schema
+// drafts before them. Each is named by the id its meta-schema declares: the
+// OAS dialect's by the one OpenAPI names, and by each dated one its
+// meta-schema is published under for 3.1 and 3.2, as tooling may support
+// values of `$schema` besides.
 func schemaDialects() []dialect {
 	c := sectioned("Schema Object")
 	defined := c(V31, "in addition to the vocabularies as specified in the JSON Schema Specification Draft 2020-12")
@@ -32,13 +35,19 @@ func schemaDialects() []dialect {
 		{id: "https://spec.openapis.org/oas/3.2/dialect/2025-09-17", cites: published},
 		{id: "https://spec.openapis.org/oas/3.2/dialect/2026-02-26", cites: published},
 		{id: "https://json-schema.org/draft/2020-12/schema", cites: []Cite{defined}},
-		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, cites: []Cite{others}},
+		{id: "https://json-schema.org/draft/2019-09/schema", keywords: draft2019Keywords, cites: []Cite{others}},
+		{id: "http://json-schema.org/draft-07/schema#", keywords: draft07Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextDraft07Core)(`8.3. Schema References With "$ref"`, `All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-06/schema#", keywords: draft06Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextDraft06Core)(`8. Schema references with $ref`, `All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextJSONReference03)("3. Syntax", `Any members other than "$ref" in a JSON Reference object SHALL be ignored.`)}},
 	}
 }
 
-// draft04 returns a constructor of citations of the JSON Schema draft 4 text
+// jsonSchemaText returns a constructor of citations of the JSON Schema text
 // named, under one of its headings.
-func draft04(text Text) func(section, sentence string) Cite {
+func jsonSchemaText(text Text) func(section, sentence string) Cite {
 	return func(section, sentence string) Cite {
 		return Cite{Text: text, Section: section, Sentence: sentence}
 	}
@@ -46,17 +55,16 @@ func draft04(text Text) func(section, sentence string) Cite {
 
 // draft04Keywords are the keywords of JSON Schema draft 4: its core text's and
 // its validation text's. Each is defined at every minor that lets a schema
-// declare a dialect. A reading follows them only where it asks the rows; one
-// that reads a keyword by name reads it as 2020-12 does (GitHub #1457).
+// declare a dialect.
 func draft04Keywords() []Field {
-	core := draft04(TextDraft04Core)
-	ref := draft04(TextJSONReference03)("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
-	v := draft04(TextDraft04Validation)
+	core := jsonSchemaText(TextDraft04Core)
+	ref := jsonSchemaText(TextJSONReference03)("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
+	v := jsonSchemaText(TextDraft04Validation)
 	s := From(V31)
 	integer := "The value of this keyword MUST be an integer."
 	return []Field{
 		keyword("$schema", String, s, core(`6.1. Purpose`, `this URI MUST be both absolute and normalized.`)).formatted(AbsoluteURI),
-		keyword("id", String, s, core(`7.2.1. Valid values`, `The value for this keyword MUST be a string, and MUST be a valid URI.`)),
+		keyword("id", String, s, core(`7.2.1. Valid values`, `The value for this keyword MUST be a string, and MUST be a valid URI.`)).formatted(URI),
 		keyword("$ref", String, s, ref).formatted(URI),
 		keyword("multipleOf", PositiveNumber, s, v(`5.1.1.1. Valid values`, `The value of "multipleOf" MUST be a JSON number.`)),
 		keyword("maximum", Number, s, v(`5.1.2.1. Valid values`, `The value of "maximum" MUST be a JSON number.`)),

@@ -5,6 +5,7 @@ package decls_test
 
 import (
 	"go/types"
+	"io/fs"
 	"iter"
 	"path/filepath"
 	"strings"
@@ -12,8 +13,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/tools/go/packages"
 
 	"github.com/dexpace/morphic/internal/decls"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // goodDir holds the packages every case reads. They are siblings so that one
@@ -34,6 +37,26 @@ func fixture(t *testing.T) *decls.Package {
 	p, err := decls.Load(goodDir + "/fixture")
 	require.NoError(t, err)
 	return p
+}
+
+// TestFixtures_AreWalkedInThisProcess lists the fixtures' whole tree: go list reads
+// it in a child the test cache does not see, and a load lists only the packages it
+// finds, so a package a wildcard case would newly match, beside the ones loaded,
+// reruns the tests only here.
+func TestFixtures_AreWalkedInThisProcess(t *testing.T) {
+	t.Parallel()
+	root, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+	require.NoError(t, filepath.WalkDir(root, func(_ string, _ fs.DirEntry, err error) error { return err }))
+}
+
+// TestFixtures_WalkOpensTheWholeTree holds that walk to go test's log, at the root
+// and at the level a new package would land on.
+func TestFixtures_WalkOpensTheWholeTree(t *testing.T) {
+	t.Parallel()
+	root, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestFixtures_AreWalkedInThisProcess", root, filepath.Join(root, "good"))
 }
 
 func TestLoad_Refusals(t *testing.T) {
@@ -79,6 +102,26 @@ func TestLoad_ReportsAMissingPackageOnce(t *testing.T) {
 func TestLoad_ReadsOnlyProductionGoFiles(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, []string{"fixture.go"}, fileNames(fixture(t)))
+}
+
+// TestLoad_ListsThePackagesDirectory holds a load to opening the directory it
+// reads through a child: go list's read is not in the test cache's key, so
+// where no walk lists a fixture, as internal/jsonshape's and internal/census's,
+// only this listing reruns a test when a file is added to it.
+func TestLoad_ListsThePackagesDirectory(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.Abs(goodDir + "/fixture")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestLoad_ReadsOnlyProductionGoFiles", dir)
+}
+
+// TestUnread_ReportsADirectoryItCannotList holds the listing's failure to an
+// error naming the package, beside the missing-file one.
+func TestUnread_ReportsADirectoryItCannotList(t *testing.T) {
+	t.Parallel()
+	errs := decls.Unread(&packages.Package{PkgPath: "x", Dir: filepath.Join(t.TempDir(), "gone")})
+	require.Len(t, errs, 2)
+	assert.ErrorContains(t, errs[1], "x: listing its directory")
 }
 
 // TestLoad_KeepsFilesInNameOrder holds Syntax to the order its doc promises,

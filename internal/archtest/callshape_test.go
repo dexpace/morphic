@@ -57,10 +57,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":   1,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's six functions, which #1488 keeps under #1477's rule: I/O
+		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
 		// (Open), policy bind may not import (Locate, Refuse), a live query
-		// (Written), and lookups through load's key normalization (Through, Beside).
-		"compilers/openapi/internal/load": 6,
+		// (Written), lookups through load's key normalization (Through, Beside),
+		// and a dialect's rows, built only once a schema names it (Dialect).
+		"compilers/openapi/internal/load": 7,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
@@ -89,10 +90,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate and Seen, which #1488 keeps under #1477's rule: the
-		// checker places its own findings to drop the repeat an alias makes, a
-		// policy, and Seen observes the walk, a traversal callback.
-		"compilers/openapi/internal/load": 9,
+		// oas.Options' Locate, Seen and Owned, which #1488 keeps under #1477's
+		// rule: the checker places its own findings, and an Owned's, to drop the
+		// repeat an alias makes, a policy, and Seen observes the walk, as Owned
+		// takes each value it leaves to the load phase, traversal callbacks.
+		"compilers/openapi/internal/load": 12,
 	},
 	"compilers/openapi/internal/resolve": {
 		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's

@@ -115,19 +115,21 @@ the rule here rather than reading it across.
   `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
 - **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
-## Compare a plain value with `assert.Equal`
+## Compare a plain value with testify's `Equal`
 `assert-equal-on-plain-values`
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
-  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
-  unexported field or `Equal` method, which `cmp` alone calls. Any other value takes `cmp.Diff` with
-  a direction key (rule 6.15), and no test calls `reflect.DeepEqual` itself.
-- **Why.** Such a value lacks what the rule's reason names: the two agree on nil against empty, on
-  order and on a NaN in separate values, and `assert.Equal` labels both sides where a bare
-  `cmp.Diff` labels neither (#1206). A literal slice or map goes this way about twice as often as
-  the tree calls `cmp.Diff` (#1246).
-- **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
-  `git grep -nE '^func \([a-zA-Z]+ \*?[a-zA-Z]+\) Equal\(' -- '*.go' ':!*testdata*'` no method.
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` or `require.Equal` stands on
+  a value with no unexported field or `Equal` method, which `cmp` alone calls; any other takes
+  `cmp.Diff` with a direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
+- **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,
+  and `assert.Equal` labels both sides, a bare `cmp.Diff` neither (#1206). Literal slices and maps
+  take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed 117 calls on
+  values with unexported fields (#1533, #1534).
+- **Probe.** The program of
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-a-typed-mechanism-by-type`
+  finds no `assert.Equal` or `require.Equal` a change adds on a value holding an unexported field or
+  `Equal` method; `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`

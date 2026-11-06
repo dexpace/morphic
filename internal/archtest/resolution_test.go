@@ -356,28 +356,11 @@ func membersOf(g libGraph, api map[string]string) ([]resolutionMember, error) {
 }
 
 // libraryAPI derives the library's resolution API once per test binary, from
-// the packages of it the module's production code reaches.
+// the packages of it the module's production code reaches. The library's
+// sources sit in the module cache, which go test never rechecks; a bump reruns
+// these tests through archtest's walk of the module root, which lists go.mod
+// and go.sum.
 var libraryAPI = sync.OnceValues(deriveResolutionAPI)
-
-// libraryMembers returns the API libraryAPI derives, after opening the module's
-// go.mod and go.sum. The library's sources sit in the module cache, which go
-// test never rechecks. A bump already reruns the package through archtest's walk
-// of the module root, which lists go.sum; these opens tie the tests to a bump
-// themselves.
-func libraryMembers(t *testing.T) []resolutionMember {
-	t.Helper()
-	irtest.ReadModuleFiles(t)
-	members, err := libraryAPI()
-	require.NoError(t, err)
-	return members
-}
-
-// TestLibraryMembers_OpensTheModuleFiles holds libraryMembers to the module's
-// go.mod and go.sum in go test's log, through the cheapest test that calls it.
-func TestLibraryMembers_OpensTheModuleFiles(t *testing.T) {
-	t.Parallel()
-	irtest.RequireOpensModuleFiles(t, "TestResolutionAPI_IsTheReviewedSet")
-}
 
 // deriveResolutionAPI reads the library's sources and derives the API from its
 // two anchors.
@@ -620,7 +603,8 @@ func productionPaths() ([]string, error) {
 // one a list would have missed, is counted from the start.
 func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 	t.Parallel()
-	members := libraryMembers(t)
+	members, err := libraryAPI()
+	require.NoError(t, err)
 	pkgs, err := productionLoad()
 	require.NoError(t, err)
 
@@ -649,7 +633,8 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 // library to reviewedMembers, in both directions.
 func TestResolutionAPI_IsTheReviewedSet(t *testing.T) {
 	t.Parallel()
-	members := libraryMembers(t)
+	members, err := libraryAPI()
+	require.NoError(t, err)
 	shorts := make([]string, len(members))
 	for i, m := range members {
 		shorts[i] = m.short
@@ -824,7 +809,8 @@ func plantedResolved(s resolvedState) bool {
 // name. Without it, a counter that recognized nothing would pass the pin.
 func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 	t.Parallel()
-	members := libraryMembers(t)
+	members, err := libraryAPI()
+	require.NoError(t, err)
 	for _, plant := range []struct{ dir, src string }{
 		{"compilers/openapi/internal/diag", plantedUses},
 		{"compilers/openapi/internal/ids", plantedElsewhere},

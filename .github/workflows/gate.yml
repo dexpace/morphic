@@ -23,9 +23,9 @@ concurrency:
 #
 # Only the suite job reads a cached test result: the checks job runs go test
 # only with -bench, and the fuzz search job only with -fuzz, neither of which go
-# help test lists as cacheable. So the suite job first sets each tracked file's
-# time from its content, because Go keys a cached test result on the size, mode
-# and time of each file inside the module that the test opens, and a checkout
+# help test lists as cacheable. So the suite job first sets each tracked regular
+# file's time from its content, because Go keys a cached test result on the size,
+# mode and time of each file inside the module that the test opens, and a checkout
 # gives every file a new time.
 #
 # A run on main restores the cache the previous run of the same job, toolchain
@@ -35,13 +35,19 @@ concurrency:
 # pull request restores that save, reuses the results of the tests its change
 # leaves alone, and never saves.
 #
-# The cache stays bounded for three reasons. The go command deletes build cache
-# entries unused for five days, scanning once a day (cmd/go/internal/cache,
-# trimLimit and trimInterval). go.sum is in the key, so a dependency change
-# starts a cache afresh instead of adding to the module cache of the last. And
-# the fuzz corpus, which that trim never removes, never enters these saves: only
-# the fuzz search job runs -fuzz, and it saves $GOCACHE/fuzz alone, under its own
-# key, bounded by make fuzz-prune.
+# The cache stays one run's size for three reasons. A step after each restore
+# dates the entries back two hours, and a step before each save deletes the
+# index entries still that old, which the run did not use, and the outputs no
+# entry left names, since the go command's own trim waits five days
+# (cmd/go/internal/cache, trimLimit). The dating is what makes the deletion
+# exact: the go command moves an entry's time on a use only when that time is
+# over an hour old, so without it an entry used less than an hour ago looks
+# used by this run, and a push within two hours of the last would keep what it
+# did not use. go.sum is in the key, so a dependency change starts a cache
+# afresh instead of adding to the module cache of the last. And the fuzz
+# corpus, which that trim never removes, never enters these saves: only the fuzz
+# search job runs -fuzz, and it saves $GOCACHE/fuzz alone, under its own key,
+# bounded by make fuzz-prune.
 jobs:
   checks:
     name: lint, bench
@@ -76,6 +82,19 @@ jobs:
             ${{ steps.toolchain.outputs.gomodcache }}
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-
+      # The go command moves an entry's time on a use only when that time is over
+      # an hour old, so date what was restored past that. Every entry this run
+      # uses then moves, and the prune before the save drops the rest, however
+      # soon this push follows the last. A pull request never saves, so it
+      # keeps the times as restored.
+      - &age
+        name: date the restored cache back
+        if: github.event_name == 'push'
+        env:
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          mkdir -p "$GOCACHE_ROOT"
+          find "$GOCACHE_ROOT" \( -name '*-a' -o -name '*-d' \) -exec touch -h -d '2 hours ago' {} +
       - name: gofmt
         run: make fmt
       - name: vet
@@ -97,6 +116,24 @@ jobs:
         run: make fuzz-check
       - name: benchmarks
         run: make bench-smoke
+      # Keep what this run used and no more. The dating after the restore put
+      # every entry two hours back, and a use or a store moves an index entry
+      # (-a), so one still that old went unused. An output (-d), a file or an
+      # executable's directory, does not move when a store finds its bytes
+      # already there, as a rerun's unchanged coverage profile does, so it goes
+      # only when it is that old and no entry left names it.
+      - &prune
+        name: drop cache entries this run did not use
+        if: github.event_name == 'push'
+        env:
+          LC_ALL: C
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          find "$GOCACHE_ROOT" -type f -name '*-a' -mmin +120 -delete
+          kept=$(mktemp)
+          find "$GOCACHE_ROOT" -type f -name '*-a' -exec awk '{print $3 "-d"}' {} + | sort -u >"$kept"
+          find "$GOCACHE_ROOT" -name '*-d' -mmin +120 -printf '%f\t%p\n' | sort |
+            join -t "$(printf '\t')" -v 1 - "$kept" | cut -f2 | xargs -r -d '\n' rm -rf
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -117,6 +154,7 @@ jobs:
       - *setup-go
       - *toolchain
       - *restore
+      - *age
       # Tests that load packages with go/packages run go list -export, which
       # compiles what make build does. Built first, that compile no longer runs
       # beside the tests that time a child process, which load can push past
@@ -142,6 +180,7 @@ jobs:
         run: make coverage
       - name: race
         run: make race
+      - *prune
       - *save
       # After the save, so a race found here costs no pull request its cache.
       - name: race, the whole pipeline
