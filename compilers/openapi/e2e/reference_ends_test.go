@@ -205,6 +205,7 @@ components:
 			for _, d := range diags {
 				if d.Code == diag.UnresolvedRef {
 					got[d.Provenance.Pointer] = d.Message
+					assert.Equal(t, ir.SeverityError, d.Severity, "severity of %q", d.Message)
 				}
 			}
 			assert.Equal(t, tc.want, got, "got %+v", diags)
