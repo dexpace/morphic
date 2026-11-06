@@ -75,10 +75,12 @@ readonly max_corpus_entries=3000
 readonly max_entry_kb=64
 
 # list_targets prints "<import path> <target> <directory>", one line per target.
+# go test takes a name as a target only if what follows Fuzz is not lower case,
+# so a helper named FuzzyEqual is none.
 list_targets() {
 	local import dir decl
 	go list -f '{{.ImportPath}} {{.Dir}}' ./... | while read -r import dir; do
-		{ grep -h '^func Fuzz' "$dir"/*_test.go 2>/dev/null || true; } | while read -r _ decl; do
+		{ grep -h '^func Fuzz[^a-z]' "$dir"/*_test.go 2>/dev/null || true; } | while read -r _ decl; do
 			printf '%s %s %s\n' "$import" "${decl%%(*}" "$dir"
 		done
 	done
