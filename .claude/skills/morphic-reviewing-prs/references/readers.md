@@ -104,8 +104,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Why.** #1532's main session reran a harness after a reader's hand-back that it had not
   fingerprinted before the hand-off (#1532).
 - **Probe.** Before the hand-off,
-  `find <harness directory> -type f -exec cksum {} + | sort > <list>`,
-  `<list>` outside it, and after it the same into `diff <list> -`, which prints nothing or names
+  `find <harness directory> -type f -exec cksum {} + | sort > <list>`, with `<list>` outside the
+  directory, and after the hand-back the same into `diff <list> -`, which prints nothing or names
   each file to rebuild.
 
 ## Split a round reading what moved, when it carries whole reads, between two readers
