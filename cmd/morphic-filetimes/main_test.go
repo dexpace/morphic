@@ -829,6 +829,17 @@ func TestGitIn_EndsAGitThatHangs(t *testing.T) {
 	assert.Less(t, time.Since(start), 5*time.Second, "the call outlived its bound")
 }
 
+// TestGitIn_KeepsTheFirstLineOfAnExplanation holds the error to git's first line,
+// which a real refusal such as a dubious owner runs past. Mutant: keep it all.
+func TestGitIn_KeepsTheFirstLineOfAnExplanation(t *testing.T) {
+	fakeGit(t, "echo first >&2\necho second >&2\nexit 1\n")
+
+	_, err := gitIn(".", nil, maxGitOutput, gitTimeout)("status")
+
+	require.Error(t, err)
+	assert.Equal(t, "git status: first: exit status 1", err.Error())
+}
+
 // TestGitIn_BoundsWhatItKeepsOfStderr. A git failing with twice maxGitStderr
 // bytes of explanation is quoted at maxGitStderr and no more. Mutant: give
 // stderr the limit stdout has.
