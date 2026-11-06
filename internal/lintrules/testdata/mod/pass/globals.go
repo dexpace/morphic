@@ -17,11 +17,17 @@ func (t *tally) Add()         { t.n++ }
 func (t tally) Get() int      { return t.n }
 func (t *tally) Self() *tally { return t }
 
+// Tally takes a map as an argument, which a method of any receiver may write.
+func (t *tally) Tally(m map[string]int) { t.n += len(m) }
+
 // Gen and Two are generic methods, which a call instantiates in its Fun.
 func (t *tally) Gen[X any]()    { t.n++ }
 func (t *tally) Two[X, Y any]() { t.n++ }
 
 func (t *tally) init() { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
+
+// initTables is named like init, and is not it.
+func initTables() { counter = 2 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 
 // ptrAlias spells *tally, and a method declared on it takes the pointer.
 type ptrAlias = *tally
@@ -38,6 +44,12 @@ type (
 func (r registry) Set(k string) { r[k] = 1 }
 func (r registry) Size() int    { return len(r) }
 func (s *stack) Push(v int)     { *s = append(*s, v) }
+
+// namedRows and namedGrid range as the slice and the pointer to an array they name.
+type (
+	namedRows [][]int
+	namedGrid *[2][]int
+)
 
 // column is a named slice with a value receiver.
 type column []int
@@ -105,6 +117,8 @@ var (
 	readDecl                 = ledger.Get
 	calledDecl               = store.Size()
 	grid                     *[2][]int
+	byName                   namedRows
+	byNamedPtr               namedGrid
 	feed                     func(yield func([]int) bool)
 	matcher                  = regexp.MustCompile(`x`)
 	errNone                  = errors.New("none")
@@ -234,7 +248,9 @@ func Methods() {
 	(*tally).Gen[int](cursor)         // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
 	(*tally).Two[int, string](cursor) // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
 	((*tally).Add)(cursor)            // want "globalwrites: uses a method that can write the package-level variable cursor; keep the state in a local or an argument"
-	registry.Set(store, "a")          // want "globalwrites: uses a method that can write the package-level variable store; keep the state in a local or an argument"
+	via := cursor
+	(*tally).Add(via)        // want "globalwrites: uses a method that can write the package-level variable cursor through its alias via; keep the state in a local or an argument"
+	registry.Set(store, "a") // want "globalwrites: uses a method that can write the package-level variable store; keep the state in a local or an argument"
 	_ = (*base64.Encoding).EncodeToString(base64.StdEncoding, nil)
 	_ = matcher.MatchString("x") // want "globalwrites: uses a method that can write the package-level variable matcher; keep the state in a local or an argument"
 	_ = base64.StdEncoding.EncodeToString(nil)
@@ -278,6 +294,12 @@ func Aliases(k string) {
 	v[0] = 1 // want "globalwrites: writes an element or field of the package-level variable items through its alias v; keep the state in a local or an argument"
 	for _, row := range grid {
 		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable grid through its alias row; keep the state in a local or an argument"
+	}
+	for _, row := range byName {
+		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable byName through its alias row; keep the state in a local or an argument"
+	}
+	for _, row := range byNamedPtr {
+		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable byNamedPtr through its alias row; keep the state in a local or an argument"
 	}
 	m = nil
 	l := slab
@@ -400,6 +422,8 @@ func Reads(k string) error {
 	_ = ledger.n
 	_, _, _ = v, ok, k
 	_ = errNone.Error()
+	own := &tally{}
+	own.Tally(names)
 	if errors.Is(errNone, errNone) {
 		return errNone
 	}
