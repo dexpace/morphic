@@ -137,7 +137,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		if unmended(js) {
 			return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
 				"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
-					"and the load phase decodes no more than %d such schemas one below another; lowered as any",
+					"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
+					"moving the schemas below it into a component reads them",
 				typed.MaxMends)}
 		}
 		if b := js.GetBool(); b != nil && !*b {

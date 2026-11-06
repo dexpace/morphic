@@ -63,7 +63,8 @@ func ownedFinding(o oas.Owned, rules oas.SchemaRules) (ir.Diagnostic, bool) {
 		case rules.Takes("items", oas.List):
 			return rules.TupleRestFinding(o)
 		}
-		return o.Finding(diag.InvalidItemsList, "items must be a schema in this schema's dialect, not a list"), true
+		return o.Finding(diag.InvalidItemsList, "items must be a schema in this schema's dialect, not a list; "+
+			"write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"), true
 	case "exclusiveMinimum", "exclusiveMaximum":
 		boolean := rules.Takes(o.Field, oas.Boolean)
 		if written := o.Value.Kind == yaml.ScalarNode && o.Value.Tag == "!!bool"; written != boolean {
