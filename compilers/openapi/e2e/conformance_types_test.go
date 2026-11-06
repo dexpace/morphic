@@ -169,7 +169,9 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
 // pattern group, a tuple slot or rest, an enum branch, a composed union
-// variant. A slice rather than a map so a failure names them in a fixed order.
+// variant, a contentSchema, a media type's itemSchema, and the items of a
+// schema a header or a parameter holds, directly or under its content. A slice
+// rather than a map so a failure names them in a fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -182,19 +184,25 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},
+	{"t/anon/components/schemas/Blob/properties//contentSchema", "empty_content"},
+	{"t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema", "empty_item"},
+	{"t/anon/components/parameters/Unnamed/content/application~1jsonl/itemSchema", "empty_item"},
+	{"t/anon/components/responses/Listed/headers//schema/items", "empty_item"},
+	{"t/anon/components/parameters/UnnamedList/schema/items", "empty_item"},
+	{"t/anon/components/responses/Carried/headers//content/application~1json/schema/items", "empty_item"},
+	{"t/anon/components/parameters/UnnamedContent/content/application~1json/schema/items", "empty_item"},
 }
 
 // assertEmptyDerivedHints covers hints a child composes from an enclosing
 // node's. Concatenating onto an empty hint once yielded a leading "_", which is
 // non-empty so irverify's presence check passes it, yet no grammar produces it.
 //
-// composedHints has no row for contentSchema, which an empty-named property
-// reaches (#743). The sequential media type's itemSchema cannot need one: both
-// callers of lowerPayload pass a non-empty hint, since ids.ComponentEntry
-// refuses a component keyed "" and the fallbacks are "response" and "request".
-// A composed variant of an inline branch is absent too:
+// A composed variant of an inline branch has no row:
 // docs/compilers/openapi.md#union-beside-structure keeps that union verbatim,
-// so only the $ref form the Host case uses reaches composedVariant.
+// so only the $ref form the Host case uses reaches composedVariant. A
+// components/mediaTypes entry keyed "" (#1536) and a header under a nested
+// encoding (#1535) have none either: each is named from its pointer, not by a
+// path that composes from the empty name.
 func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
@@ -203,11 +211,24 @@ func assertEmptyDerivedHints(t *testing.T, doc *ir.Document) {
 	union, ok := doc.Types[mixed.Properties[0].Type.Target].(*ir.Union)
 	require.True(t, ok, "a heterogeneous enum lowers to a union of literals")
 	assert.Equal(t, "empty", union.Name.Hint, "the enclosing node keeps the plain minted hint")
+	require.Len(t, union.Variants, 2)
+	assert.Equal(t, "empty_0", union.Variants[0].Name.Hint, "a variant is named as its literal")
+	assert.Equal(t, "empty_1", union.Variants[1].Name.Hint, "a variant is named as its literal")
 
 	for _, tc := range composedHints {
 		node, found := doc.Types[tc.id]
 		require.True(t, found, "no node at %s; the composition site moved", tc.id)
 		assert.Equal(t, tc.hint, node.Common().Name.Hint, "composed hint at %s", tc.id)
+	}
+
+	rows := make(map[ir.TypeID]bool, len(composedHints))
+	for _, tc := range composedHints {
+		rows[tc.id] = true
+	}
+	for id, node := range doc.Types {
+		if strings.HasPrefix(node.Common().Name.Hint, "empty_") {
+			assert.True(t, rows[id], "%s composes from an empty name and has no row", id)
+		}
 	}
 }
 
