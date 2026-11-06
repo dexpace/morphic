@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -34,6 +35,11 @@ const (
 	// of a repository this size is a few hundred kilobytes, so the bound is a
 	// stop for a runaway git, not a limit anything reaches.
 	maxGitOutput = 64 << 20
+
+	// gitTimeout bounds one git call. The calls read an index and a few
+	// refs, which take well under a second, so the bound is a stop for a git
+	// that hangs, not a limit anything reaches.
+	gitTimeout = 2 * time.Minute
 
 	// maxGitStderr bounds the stderr kept to explain a git failure.
 	maxGitStderr = 4 << 10
@@ -87,7 +93,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		emitf(stderr, "%s\n", usage)
 		return 2
 	}
-	return execute(system{dir: ".", git: gitIn(".", nil, maxGitOutput), chtimes: os.Chtimes}, stdout, stderr)
+	return execute(system{dir: ".", git: gitIn(".", nil, maxGitOutput, gitTimeout), chtimes: os.Chtimes}, stdout, stderr)
 }
 
 // execute prepares the job and then applies it, so nothing changes unless the
@@ -248,7 +254,7 @@ func parseIndex(out []byte) ([]entry, error) {
 			return nil, fmt.Errorf("record %q: stage: %w", rec, err)
 		}
 		if !fs.ValidPath(p) || p == "." {
-			return nil, fmt.Errorf("record %q: the path is not a file below the top level", rec)
+			return nil, fmt.Errorf("record %q: the path is not valid UTF-8 slash form below the top level", rec)
 		}
 		entries = append(entries, entry{tag: fields[0], mode: fields[1], hash: fields[2], stage: stage, path: p})
 	}
@@ -349,15 +355,24 @@ func inWindow(offset time.Duration) time.Time {
 }
 
 // gitIn returns a function running git in dir with env added to the process's
-// environment. It reads at most limit bytes of stdout and fails past that, and
-// a failure carries git's first line of explanation.
-func gitIn(dir string, env []string, limit int) func(args ...string) ([]byte, error) {
+// environment. It reads at most limit bytes of stdout, ends a git still running
+// after timeout, and fails past either, and a failure carries git's first line
+// of explanation.
+func gitIn(dir string, env []string, limit int, timeout time.Duration) func(args ...string) ([]byte, error) {
 	return func(args ...string) ([]byte, error) {
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
 		cmd.Env = append(os.Environ(), env...)
+		// A git that forked a child holding its pipes outlives its kill, so
+		// the call ends once the pipes have had as long again to close.
+		cmd.WaitDelay = timeout
 		out, errOut := &capture{limit: limit}, &capture{limit: maxGitStderr}
 		cmd.Stdout, cmd.Stderr = out, errOut
 		if err := cmd.Run(); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, fmt.Errorf("git %s: not done within %v: %w", args[0], timeout, ctxErr)
+			}
 			detail, _, _ := strings.Cut(strings.TrimSpace(errOut.String()), "\n")
 			if detail == "" {
 				return nil, fmt.Errorf("git %s: %w", args[0], err)

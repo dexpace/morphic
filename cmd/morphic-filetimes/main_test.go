@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -130,7 +131,7 @@ func (r *repo) populate() {
 // system returns the command's view of the repository, with git as hermetic as
 // the tests' own.
 func (r *repo) system() system {
-	return system{dir: r.dir, git: gitIn(r.dir, hermeticEnv(), maxGitOutput), chtimes: os.Chtimes}
+	return system{dir: r.dir, git: gitIn(r.dir, hermeticEnv(), maxGitOutput, gitTimeout), chtimes: os.Chtimes}
 }
 
 // run executes the command on the repository.
@@ -322,6 +323,16 @@ func TestParseIndex_RefusesWhatIsNotARecord(t *testing.T) {
 		_, err := parseIndex([]byte(out))
 		assert.Error(t, err, name)
 	}
+}
+
+// TestParseIndex_NamesWhyAPathIsRefused. A path that is not valid UTF-8 is
+// refused for its encoding, which the message says rather than blaming where
+// the path points.
+func TestParseIndex_NamesWhyAPathIsRefused(t *testing.T) {
+	t.Parallel()
+	_, err := parseIndex([]byte("H 100644 " + strings.Repeat("ab", 20) + " 0\tcaf\xe9.txt\x00"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "the path is not valid UTF-8 slash form below the top level")
 }
 
 // TestUndatable_NamesEveryEntryItCannotDate. Mutants: drop the mode test; drop
@@ -523,7 +534,7 @@ func TestExecute_SkipsAnAbsentGit(t *testing.T) {
 	t.Parallel()
 	work, gitDir := t.TempDir(), filepath.Join(t.TempDir(), "repo.git")
 	env := append(hermeticEnv(), "GIT_DIR="+gitDir, "GIT_WORK_TREE="+work)
-	git := gitIn(work, env, maxGitOutput)
+	git := gitIn(work, env, maxGitOutput, gitTimeout)
 	_, err := git("init", "-q", "-b", "main")
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(work, "f"), []byte("f\n"), 0o644))
@@ -696,7 +707,7 @@ func TestExecute_RefusesWhereItIsNotATopLevel(t *testing.T) {
 	}
 	for _, tc := range tests {
 		sys := r.system()
-		sys.dir, sys.git = tc.dir, gitIn(tc.dir, hermeticEnv(), maxGitOutput)
+		sys.dir, sys.git = tc.dir, gitIn(tc.dir, hermeticEnv(), maxGitOutput, gitTimeout)
 		code, stdout, stderr := runSystem(sys)
 		assert.Equal(t, 1, code, tc.name)
 		assert.Empty(t, stdout, tc.name)
@@ -709,7 +720,7 @@ func TestExecute_RefusesOutsideAWorktree(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	env := append(hermeticEnv(), "GIT_CEILING_DIRECTORIES="+filepath.Dir(dir))
-	code, stdout, stderr := runSystem(system{dir: dir, git: gitIn(dir, env, maxGitOutput), chtimes: os.Chtimes})
+	code, stdout, stderr := runSystem(system{dir: dir, git: gitIn(dir, env, maxGitOutput, gitTimeout), chtimes: os.Chtimes})
 	assert.Equal(t, 1, code)
 	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "not in a git worktree: git rev-parse: fatal: not a git repository")
@@ -778,20 +789,57 @@ func TestGitIn_BoundsAndExplains(t *testing.T) {
 	t.Parallel()
 	r := newRepo(t)
 
-	out, err := gitIn(r.dir, hermeticEnv(), 5)("rev-parse", "--git-dir")
+	out, err := gitIn(r.dir, hermeticEnv(), 5, gitTimeout)("rev-parse", "--git-dir")
 	require.NoError(t, err, "five bytes fit a limit of five")
 	assert.Equal(t, ".git\n", string(out))
 
-	_, err = gitIn(r.dir, hermeticEnv(), 4)("rev-parse", "--git-dir")
+	_, err = gitIn(r.dir, hermeticEnv(), 4, gitTimeout)("rev-parse", "--git-dir")
 	require.Error(t, err)
 	assert.Equal(t, "git rev-parse: output is over 4 bytes", err.Error())
 
-	_, err = gitIn(r.dir, hermeticEnv(), maxGitOutput)("no-such-verb")
+	_, err = gitIn(r.dir, hermeticEnv(), maxGitOutput, gitTimeout)("no-such-verb")
 	require.Error(t, err)
 	var exit *exec.ExitError
 	require.ErrorAs(t, err, &exit)
 	assert.Contains(t, err.Error(), "git no-such-verb: git: 'no-such-verb' is not a git command")
 	assert.NotContains(t, err.Error(), "\n")
+}
+
+// fakeGit puts a git running script ahead of the real one on PATH. It sets the
+// environment, so its callers cannot run in parallel, which also keeps another
+// test from forking while the script is open for writing.
+func fakeGit(t *testing.T, script string) {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "git"), []byte("#!/bin/sh\n"+script), 0o755))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestGitIn_EndsAGitThatHangs. The fake git forks a sleep that holds its pipes
+// after the kill. Mutants: run git with no deadline; leave out the wait delay.
+func TestGitIn_EndsAGitThatHangs(t *testing.T) {
+	fakeGit(t, "sleep 10\n")
+
+	start := time.Now()
+	_, err := gitIn(".", nil, maxGitOutput, 50*time.Millisecond)("ls-files")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, "git ls-files: not done within 50ms: context deadline exceeded", err.Error())
+	assert.Less(t, time.Since(start), 5*time.Second, "the call outlived its bound")
+}
+
+// TestGitIn_BoundsWhatItKeepsOfStderr. A git failing with twice maxGitStderr
+// bytes of explanation is quoted at maxGitStderr and no more. Mutant: give
+// stderr the limit stdout has.
+func TestGitIn_BoundsWhatItKeepsOfStderr(t *testing.T) {
+	fakeGit(t, fmt.Sprintf("head -c %d /dev/zero | tr '\\0' x >&2\nexit 1\n", 2*maxGitStderr))
+
+	_, err := gitIn(".", nil, maxGitOutput, gitTimeout)("ls-files")
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), strings.Repeat("x", maxGitStderr))
+	assert.NotContains(t, err.Error(), strings.Repeat("x", maxGitStderr+1))
 }
 
 func TestCapture_KeepsTheFirstBytesAndConsumesAll(t *testing.T) {
@@ -815,7 +863,7 @@ func TestCapture_KeepsTheFirstBytesAndConsumesAll(t *testing.T) {
 // has no stderr to quote and says what the system said.
 func TestGitIn_ReportsAMissingGit(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	_, err := gitIn(".", nil, maxGitOutput)("rev-parse")
+	_, err := gitIn(".", nil, maxGitOutput, gitTimeout)("rev-parse")
 	require.Error(t, err)
 	assert.True(t, strings.HasPrefix(err.Error(), "git rev-parse: exec: "), err.Error())
 	assert.ErrorIs(t, err, exec.ErrNotFound)
