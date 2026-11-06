@@ -169,9 +169,9 @@ func unread(p *packages.Package) []error {
 	if len(p.Syntax) == 0 {
 		errs = append(errs, fmt.Errorf("%s has no production Go file", p.PkgPath))
 	}
-	// go list reads the directory in a child the test cache does not see, so a file
-	// added to a package the test binary does not link reruns a test only through
-	// this listing.
+	// go list reads the directory in a child the test cache does not see, so unless
+	// a test walks the directory itself, a file added to a package its binary does
+	// not link reruns the test only through this listing.
 	if _, err := os.ReadDir(p.Dir); err != nil {
 		errs = append(errs, fmt.Errorf("%s: listing its directory: %w", p.PkgPath, err))
 	}

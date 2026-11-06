@@ -41,7 +41,8 @@ func fixture(t *testing.T) *decls.Package {
 
 // TestFixtures_AreWalkedInThisProcess lists the fixtures' whole tree: go list reads
 // it in a child the test cache does not see, and a load lists only the packages it
-// finds, so a package a wildcard case would newly match reruns the tests only here.
+// finds, so a package a wildcard case would newly match, beside the ones loaded,
+// reruns the tests only here.
 func TestFixtures_AreWalkedInThisProcess(t *testing.T) {
 	t.Parallel()
 	root, err := filepath.Abs("testdata")
@@ -105,7 +106,8 @@ func TestLoad_ReadsOnlyProductionGoFiles(t *testing.T) {
 
 // TestLoad_ListsThePackagesDirectory holds a load to opening the directory it
 // reads through a child: go list's read is not in the test cache's key, so
-// only this listing reruns a test when a file is added to a fixture.
+// where no walk lists a fixture, as internal/jsonshape's and internal/census's,
+// only this listing reruns a test when a file is added to it.
 func TestLoad_ListsThePackagesDirectory(t *testing.T) {
 	t.Parallel()
 	dir, err := filepath.Abs(goodDir + "/fixture")

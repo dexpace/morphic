@@ -136,7 +136,8 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 		require.Zero(t, packages.PrintErrors(pkgs), "the plants must type-check, or they prove nothing")
 		pkgs = slices.DeleteFunc(pkgs, func(p *packages.Package) bool { return strings.HasSuffix(p.ID, ".test") })
 		// go list reads each package's directory in a child the test cache does not
-		// see, so a file added to one reruns the test only through this listing.
+		// see, so a file added to one wantedFindings does not walk, as testdata/outside
+		// is not, reruns the test only through this listing.
 		for _, p := range pkgs {
 			_, err := os.ReadDir(p.Dir)
 			require.NoError(t, err)
