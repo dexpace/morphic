@@ -45,6 +45,19 @@ Read the documents for your layer, and skip the rest until you need them.
   as `ir/nofloat_test.go` is, and in a package of one source file a test file needs no prefix.
   *Fails if missed:* `make coverage`, for a test in another package than its code, since coverage
   counts only a package's own tests. Nothing fails for a test in the wrong file of its package.
+- **A fuzz target goes in a `fuzz` package of its own when its package's other tests link far more
+  than it needs.** `go test -fuzz` instruments all a test binary links bar a few runtime packages
+  and pays for that on every execution, and a binary links every test file's imports, so a target
+  beside tests that import `internal/decls` or testify searches at a fraction of its speed.
+  `ir/fuzz` and `compilers/openapi/e2e/fuzz` hold test files alone, import no test tooling, and
+  read a table they share with a package's other tests from `internal/ircases` or
+  `internal/testspec`, which import next to nothing, rather than restating it. A target
+  stays beside its code when it needs the package's internals, compares against a library its code
+  links anyway, or its package's tests link little. Coverage counts only a package's own tests, so
+  nothing in a `fuzz` package stands in for them. *Fails if missed:* nothing fails for a target that
+  stays and searches slowly, and `make coverage` fails for a statement only moved seeds reached.
+  `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` fails for an import of test tooling in
+  a `fuzz` package.
 - **A test is external, `package x_test`, unless it cannot be.** It reaches what it must of the
   package's internals through the package's `export_test.go`, which names each one once, under its
   exported spelling or, where that is taken, a name that says what it adds, as
@@ -88,7 +101,7 @@ Read the documents for your layer, and skip the rest until you need them.
   an interface, which reflection could call.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
-  one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
+  one package decides, such as the conformance corpus, the goldens, benchmarks and a
   scenario several packages settle together. A test of one package's code stays in that package even
   when it compiles a whole spec through `openapi.New` to reach the code, as `internal/schema`'s
   `parseFull` tests do, since only there does it count toward that package's coverage. The e2e

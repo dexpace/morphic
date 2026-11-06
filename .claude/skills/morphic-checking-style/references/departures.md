@@ -170,6 +170,21 @@ the rule here rather than reading it across.
   `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists, bar a conversion inside a `var (...)` group.
 
+## Fuzz from a package that links no test tooling
+`fuzz-packages-link-nothing`
+
+- **Rule.** Rules 6.20, 6.5 and 2.9 keep a test beside its code, assert through testify and name a
+  test helper package for the package it serves. A target in `ir/fuzz` or
+  `compilers/openapi/e2e/fuzz` sits apart from its code, fails through `t.Errorf` or `t.Fatalf`,
+  and takes shared rows from `internal/ircases` or `internal/testspec`, which import the standard
+  library alone. Elsewhere those rules stand as `CONTRIBUTING.md`, "Where a test goes", places them.
+  `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` holds the packages to this.
+- **Why.** `go test -fuzz` instruments all a binary links bar a few runtime packages, and every
+  execution pays, so a target beside tests that link `internal/decls` spends much of its CPU on
+  counters, and rows from `ir/irtest` would add go-cmp's. #1315 gives both measured, the counters
+  with their command; #1381 names the platform.
+- **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
+
 ## Convert a type where it is passed to an optional interface
 `optional-interface-converted`
 

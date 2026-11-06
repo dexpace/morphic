@@ -159,6 +159,7 @@ barrier/     Layer 0 — runs code its caller does not own, turns a panic in it 
              quotes what that code says on one bounded line. Outside tests, the one package
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
+  fuzz/      Test files only, so outside the layering: the fuzz targets over ir's public API.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
@@ -176,6 +177,7 @@ compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Im
              compiler above it.
     e2e/     Test files only, so outside the layering: that compiler's end-to-end tests, the
              conformance corpus and goldens among them, compiled through its public face.
+      fuzz/  Test files only too: the fuzz targets that compile whole documents.
 pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
@@ -197,7 +199,8 @@ cmd/morphic-covergate/
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,
-             conformance, ctxtest, decls, exectest, jsonshape, keydoc, leakcheck, lintrules, testspec).
+             conformance, ctxtest, decls, exectest, ircases, jsonshape, keydoc, leakcheck,
+             lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -381,7 +384,8 @@ departs from it, with what holds each difference.
 - **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
-  preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
+  preconditions, `assert` for values, bar a `fuzz` package, which links no test tooling
+  (CONTRIBUTING's "Where a test goes"); compare with `cmp.Diff`, or `assert.Equal` on a value holding
   no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex
   expected output; `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external test packages
   (`package foo_test`) preferred, reaching internals through the package's `export_test.go`, and an

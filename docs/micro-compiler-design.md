@@ -483,7 +483,7 @@ Tests move with the code they cover, and an internal test for `value.go` becomes
 `internal/value` unchanged. The ones that will bite are the suites spanning concerns —
 `conformance_test.go`, `golden_test.go`, `annotations_test.go`, `fuzz_test.go` — which exercise the
 whole compiler and belong at the top level as external tests against `Compile`; they now sit in
-`compilers/openapi/e2e`, a package of test files only. Any test that survives only by reaching
+`compilers/openapi/e2e`, a package of test files only, and the fuzz targets in its `fuzz` package. Any test that survives only by reaching
 across a new boundary is evidence the boundary is in the wrong place, and should be treated as such
 rather than worked around with an export.
 

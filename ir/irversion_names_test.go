@@ -72,7 +72,7 @@ func TestIRVersion_PinsTheNames(t *testing.T) {
 // The grammar decides at each rune from that rune and its two neighbours, so
 // those names reach every decision it makes over the classes the witnesses
 // stand for. The ASCII runes pin which runes separate, which one class hides.
-// canonicalCases stays out: a row added there changes no name, so it moves no
+// ircases.Canonical stays out: a row added there changes no name, so it moves no
 // hash.
 func describeNames(witnesses []rune, hints []string) string {
 	var b strings.Builder
