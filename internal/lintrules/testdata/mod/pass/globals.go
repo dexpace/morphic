@@ -73,6 +73,11 @@ type holderPtr struct{ *tally }
 //go:linkname opaque example.com/elsewhere.opaque
 func opaque()
 
+// opaqueMap has no body and a named result.
+//
+//go:linkname opaqueMap example.com/elsewhere.opaqueMap
+func opaqueMap() (m map[string]int)
+
 var (
 	counter, total, subtotal int
 	names                    = map[string]int{}
@@ -305,6 +310,66 @@ func Chain(k int) {
 	var both = names
 	both = shared.Table
 	both["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias both; keep the state in a local or an argument"
+}
+
+// NamedResult writes, after the return, through the named result it binds.
+func NamedResult() (m map[string]int) {
+	defer func() {
+		m["a"]++ // want "globalwrites: writes an element or field of the package-level variable names through its alias m; keep the state in a local or an argument"
+	}()
+	return names
+}
+
+// NamedResults binds each of three results, one of a type that shares nothing.
+func NamedResults() (n int, s, t []int) {
+	defer func() {
+		s[0] = n // want "globalwrites: writes an element or field of the package-level variable items through its alias s; keep the state in a local or an argument"
+		t[0] = n // want "globalwrites: writes an element or field of the package-level variable rows through its alias t; keep the state in a local or an argument"
+	}()
+	return counter, items, rows[0]
+}
+
+// LiteralResult binds a literal's own named result.
+func LiteralResult() func() map[string]int {
+	return func() (r map[string]int) {
+		defer func() {
+			r["a"]++ // want "globalwrites: writes an element or field of the package-level variable names through its alias r; keep the state in a local or an argument"
+		}()
+		return names
+	}
+}
+
+// ReturnsOnly returns a variable through a named result, which writes nothing.
+func ReturnsOnly() (m map[string]int) { return names }
+
+// OwnResult fills a result of its own, beside a literal returning a variable,
+// whose return binds the literal's result and not this one.
+func OwnResult() (m map[string]int) {
+	_ = func() map[string]int { return names }
+	m = map[string]int{}
+	m["a"] = 1
+	return
+}
+
+// PathResult returns the variable on one path and fills a map of its own on
+// another, and is read without order: the result holds the variable throughout.
+func PathResult(x bool) (m map[string]int) {
+	if x {
+		return names
+	}
+	m = map[string]int{}
+	m["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias m; keep the state in a local or an argument"
+	return m
+}
+
+// SeparateResult keeps the map of its own in a local, the remedy for PathResult.
+func SeparateResult(x bool) (m map[string]int) {
+	if x {
+		return names
+	}
+	own := map[string]int{}
+	own["a"] = 1
+	return own
 }
 
 // Literal writes from a function literal.

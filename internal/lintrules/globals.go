@@ -364,10 +364,10 @@ type binding struct {
 
 // findAliases takes to a fixed point the locals that hold part of a
 // package-level variable: one receiving a value rooted at it, or at an alias,
-// by :=, =, a var or a range clause. It is flow-insensitive, so a local that
-// ever holds the value holds it throughout, and the remedy is a separate local.
-// Each pass that grows the set adds a local, so one more than the bindings
-// settles it.
+// by :=, =, a var, a range clause or a return. It is flow-insensitive, so a
+// local that ever holds the value holds it throughout, and the remedy is a
+// separate local. Each pass that grows the set adds a local, so one more than
+// the bindings settles it.
 func (c globalCheck) findAliases(root ast.Node) {
 	bindings := c.bindingsIn(root)
 	for range len(bindings) + 1 {
@@ -408,8 +408,8 @@ func (c globalCheck) bindingsIn(root ast.Node) []binding {
 // given is a target of a binding and the one expression it receives.
 type given struct{ target, src ast.Expr }
 
-// bindingsOf returns what the statement or spec n binds: by := or =, a var, or
-// a range clause, each target with the value it receives.
+// bindingsOf returns what the statement, spec or function n binds: by := or =,
+// a var, a range clause or a return, each target with the value it receives.
 func (c globalCheck) bindingsOf(n ast.Node) []given {
 	switch n := n.(type) {
 	case *ast.AssignStmt:
@@ -425,9 +425,41 @@ func (c globalCheck) bindingsOf(n ast.Node) []given {
 			return nil
 		}
 		return []given{{n.Key, n.X}, {n.Value, n.X}}
+	case *ast.FuncDecl:
+		return returned(n.Type, n.Body)
+	case *ast.FuncLit:
+		return returned(n.Type, n.Body)
 	default:
 		return nil
 	}
+}
+
+// returned returns each named result of a function with the value a return in
+// its own body gives it, through which a deferred literal can write. A bare
+// return binds nothing here, and a literal's returns bind the literal's results.
+func returned(ft *ast.FuncType, body *ast.BlockStmt) []given {
+	if ft.Results == nil || body == nil {
+		return nil
+	}
+	var names []ast.Expr
+	for _, field := range ft.Results.List {
+		for _, id := range field.Names {
+			names = append(names, id)
+		}
+	}
+	var out []given
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			out = append(out, pair(names, n.Results)...)
+		default:
+			// Anything else only holds the returns.
+		}
+		return true
+	})
+	return out
 }
 
 // pair returns each target with the one value it receives: its own value, or
