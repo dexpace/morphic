@@ -124,6 +124,22 @@ func TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect(t *testing.T) {
 	}
 }
 
+// TestSchemaRules_FormatFindingSaysWhatADraftsIdentifierMustBe pins the
+// finding about a draft 7 `$id` naming a fragment alone that is no plain name.
+func TestSchemaRules_FormatFindingSaysWhatADraftsIdentifierMustBe(t *testing.T) {
+	var n yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
+		"    S: {$id: '#_x'}\n"), &n))
+	var owned []oas.Owned
+	oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{Owned: func(o oas.Owned) { owned = append(owned, o) }})
+	require.Len(t, owned, 1)
+	d, bad := rulesOf("3.1.0", draft07).FormatFinding(owned[0])
+	require.True(t, bad)
+	assert.Equal(t, `Schema Object field "$id" must be a URI reference that, naming a fragment alone and no JSON pointer, `+
+		`names a plain name: a letter, then letters, digits, '-', '_', ':' and '.' in this schema's dialect`,
+		oas.AsPlaced(d).Message)
+}
+
 // TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList pins the
 // `additionalItems` beside an `items` list, which a dialect reading the list
 // as a tuple reads as its rest: one no schema spells is an error at it, a null
