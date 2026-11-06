@@ -1,0 +1,26 @@
+# The packages `make race` runs under the race detector, one `go test`
+# pattern per line. A `#` starts a comment only as a line's first non-blank
+# character. The Makefile reads this file, so it is the only list.
+#
+# The rule, which internal/archtest TestRaceList_NamesEveryConcurrentPackage
+# holds this file to, over the roots in scripts/race-pipeline-roots.txt:
+#   - outside the roots, a package belongs when its production code imports
+#     sync or sync/atomic, any file starts a goroutine, or a test calls
+#     t.Parallel();
+#   - under a root, only the first two count, and a package showing one is
+#     listed here or is a racePipelineOnly entry in
+#     internal/archtest/racelist_test.go with its reason;
+#   - a package off this list elsewhere is a raceExempt entry in that file
+#     with its reason, which no package under a root may be.
+#
+# Every package under a root is raced by `make race-pipeline`, which each push
+# to main runs. A race that only a pipeline package's own tests reach is found
+# there, after merge, and not on the pull request. A race that only an exempt
+# package's own tests reach is found by neither run.
+./barrier
+./cmd/morphic
+./compilers/openapi/internal/load
+./engine/...
+./internal/ctxtest
+./internal/leakcheck
+./ir/irfacts

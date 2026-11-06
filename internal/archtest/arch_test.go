@@ -490,6 +490,10 @@ var rules = map[string][]string{
 	"internal/lintrules/testdata/planted": {module + "/ir",
 		module + "/internal/lintrules/testdata/planted" + subtreeSuffix, "github.com/speakeasy-api/openapi/openapi"},
 	"internal/lintrules/testdata/reach": {module + "/ir"},
+	// The one race scripts/race-reach.sh requires `go test -race` to report. Its
+	// accesses are production code so that coverage instruments them; it imports
+	// nothing.
+	"internal/archtest/testdata/racereach": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

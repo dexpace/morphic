@@ -61,16 +61,18 @@ const outcomesGolden = "testdata/resolver_outcomes.golden"
 const probeEnv = "MORPHIC_RESOLVER_PROBE"
 
 // probeTimeout is how long a shape gets before it counts as hanging. A shape
-// that resolves at all resolves in milliseconds, so this only ever bounds a
-// hang, and only a shape that hangs pays it; none does at the pinned version
+// that resolves at all takes under a second when the machine is idle, but one
+// that ends can come near the bound under load, so a shape that waits it out
+// has hung or was slowed by load (#1010); none hangs at the pinned version
 // (docs/parser-library.md#reference-object-cycle). Subtests run in parallel,
 // so it is the wall-clock cost of the slowest shape, not their sum.
 const probeTimeout = 10 * time.Second
 
 // probeMaxStack bounds the helper's goroutine stacks, as load's crash oracle
-// bounds its own. At the runtime's default of 1 GB a stack overflow under -race
-// can take longer than probeTimeout and read as a hang; these shapes are a few
-// references deep, so nothing short of a runaway recursion comes near 64 MB.
+// bounds its own. At the runtime's default of 1 GB a stack overflow, under a
+// developer's -race run most of all, can take longer than probeTimeout
+// and read as a hang; these shapes are a few references deep, so nothing
+// short of a runaway recursion comes near 64 MB.
 const probeMaxStack = 64 << 20
 
 // helperTimeout is the helper's own -test.timeout. It is twice probeTimeout, so

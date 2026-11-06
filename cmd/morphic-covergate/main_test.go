@@ -51,6 +51,8 @@ func TestRun_JudgesAProfile(t *testing.T) {
 		{"copies that never ran stay uncovered", head + "x/a.go:1.1,2.2 3 0\nx/a.go:1.1,2.2 3 0\n", 1,
 			[]string{"COVERAGE FAIL: x/a.go:1.1,2.2 (3 statement(s) uncovered)",
 				"Coverage gate failed: 3 of 3 statements uncovered; 100% is required."}, nil},
+		{"set mode judges a block by whether it ran", "mode: set\nx/a.go:1.1,2.2 1 0\nx/a.go:1.1,2.2 1 1\n", 0,
+			[]string{"Coverage gate passed: all 1 statements covered."}, nil},
 		{"blocks of one file are told apart", head + "x/a.go:1.1,2.2 1 1\nx/a.go:3.1,4.2 1 0\n", 1,
 			[]string{"COVERAGE FAIL: x/a.go:3.1,4.2 (1 statement(s) uncovered)",
 				"Coverage gate failed: 1 of 2 statements uncovered; 100% is required."},

@@ -15,7 +15,7 @@
 
 - **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give new
   code a test in its own package, and check a package as the `Makefile` does:
-  `go test ./<pkg> -race -covermode=atomic -coverprofile=f`, then
+  `go test ./<pkg> -covermode=set -coverprofile=f`, then
   `go run ./cmd/morphic-covergate f`.
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
@@ -97,8 +97,8 @@
   package alone with the gate's flags, pinned with `GOMAXPROCS=<n>` beside `taskset -c` where it
   exists, then the steps the failure skipped, and report each run; a failure that holds there
   is real. Where reruns keep failing, take `references/toolchain.md#queue-gates-one-at-a-time`.
-  Reruns never make the gate green; a race run with `-covermode=atomic -coverprofile=<file>` and
-  `go run ./cmd/morphic-covergate <file>` still give the coverage verdict.
+  Reruns never make the gate green; a `go test ./... -covermode=set -coverprofile=<file>` run and
+  `go run ./cmd/morphic-covergate <file>` give the coverage verdict.
 - **Why.** Gates failed on load while #1271 to #1274 were built, and a race run's profile gave the
   coverage verdict of a tree whose gate failed only on timeouts (#1248, #1347).
 - **Probe.** `uptime` beside the failed package rerun alone.
