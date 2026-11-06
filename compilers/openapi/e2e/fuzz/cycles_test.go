@@ -6,8 +6,6 @@ package fuzz_test
 import (
 	"testing"
 
-	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
@@ -32,8 +30,7 @@ func FuzzCycleDetector(f *testing.F) {
 	f.Add([]byte("\t\x00: [")) // undecodable: reported as a parse error, not a fault
 
 	f.Fuzz(func(t *testing.T, data []byte) {
-		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
+		doc, diags, err := compileSpec(t.Context(), "fuzz.yaml", data)
 		if err != nil {
 			if doc != nil {
 				t.Errorf("a Go error returned a document: %v", err)
