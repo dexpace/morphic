@@ -381,8 +381,8 @@ departs from it, with what holds each difference.
 - **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
-  preconditions, `assert` for values; compare with `cmp.Diff`, or testify's `Equal` on a value
-  holding no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex
+  preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
+  no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex
   expected output; `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external test packages
   (`package foo_test`) preferred, reaching internals through the package's `export_test.go`, and an
   in-package test file named `foo_internal_test.go` (CONTRIBUTING's "Where a test goes"); where
