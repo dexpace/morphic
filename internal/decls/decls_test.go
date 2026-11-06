@@ -44,7 +44,18 @@ func fixture(t *testing.T) *decls.Package {
 // finds, so a package a wildcard case would newly match reruns the tests only here.
 func TestFixtures_AreWalkedInThisProcess(t *testing.T) {
 	t.Parallel()
-	require.NoError(t, filepath.WalkDir("testdata", func(_ string, _ fs.DirEntry, err error) error { return err }))
+	root, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+	require.NoError(t, filepath.WalkDir(root, func(_ string, _ fs.DirEntry, err error) error { return err }))
+}
+
+// TestFixtures_WalkOpensTheWholeTree holds that walk to go test's log, at the root
+// and at the level a new package would land on.
+func TestFixtures_WalkOpensTheWholeTree(t *testing.T) {
+	t.Parallel()
+	root, err := filepath.Abs("testdata")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestFixtures_AreWalkedInThisProcess", root, filepath.Join(root, "good"))
 }
 
 func TestLoad_Refusals(t *testing.T) {
