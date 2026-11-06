@@ -334,6 +334,17 @@ func Chain(k int) {
 	both["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias both; keep the state in a local or an argument"
 }
 
+// ChainAlone is a reverse chain and no other binding, so the fixed point needs a
+// pass for each binding it has.
+func ChainAlone(k int) {
+	var first, second, third, fourth []int
+	fourth = third
+	third = second
+	second = first
+	first = items
+	fourth[k] = 1 // want "globalwrites: writes an element or field of the package-level variable items through its alias fourth; keep the state in a local or an argument"
+}
+
 // NamedResult writes, after the return, through the named result it binds.
 func NamedResult() (m map[string]int) {
 	defer func() {
