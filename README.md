@@ -10,7 +10,7 @@
 <p align="center">Idiomatic SDKs and docs from any API spec. One spec-agnostic IR, many targets.</p>
 
 <p align="center">
-  <a href="https://github.com/dexpace/morphic/actions/workflows/gate.yml"><img alt="gate" src="https://github.com/dexpace/morphic/actions/workflows/gate.yml/badge.svg"></a>
+  <a href="https://github.com/dexpace/morphic/actions/workflows/gate.yml"><img alt="gate" src="https://github.com/dexpace/morphic/actions/workflows/gate.yml/badge.svg?event=push"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="go.mod"><img alt="Go" src="https://img.shields.io/github/go-mod/go-version/dexpace/morphic?logo=go&logoColor=white"></a>
 </p>
@@ -347,10 +347,11 @@ That is not a summary of CI; it is what CI runs on a pull request. Every check i
 `.github/workflows/gate.yml` runs a `Makefile` target bar `lint`, which the golangci-lint action
 runs at the version the `Makefile` pins, so the local command and a pull request's run are the same
 steps; a push to `main` also runs `make race-pipeline`, which `make gate` does not. CI splits the
-checks across two jobs that run side by side. The `Makefile` holds the step list, and each target
-(`make coverage`, `make fuzz`, `make bench` and the rest) runs on its own while iterating. Coverage
-is gated at exactly 100% of statements, counted from the profile rather than from `go test`'s
-rounded percentage, so one uncovered statement fails the build.
+checks across two jobs that run side by side. The fuzz search is outside it: a nightly job runs
+`make fuzz`, and the gate runs `make fuzz-check`, which searches nothing. The `Makefile` holds the
+step list, and each target (`make coverage`, `make fuzz`, `make bench` and the rest) runs on its own
+while iterating. Coverage is gated at exactly 100% of statements, counted from the profile rather
+than from `go test`'s rounded percentage, so one uncovered statement fails the build.
 
 Run a single test with `go test ./ir -run TestName`. Beyond that:
 
@@ -385,8 +386,9 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
   which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
-- **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
-  longer search). One target runs on its own with, for example,
+- **Fuzzing.** Every target's seeds run in `go test ./...`; the search runs nightly in CI. By hand,
+  `make fuzz` searches every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a longer search).
+  One target runs on its own with, for example,
   `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Design docs

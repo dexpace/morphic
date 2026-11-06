@@ -14,7 +14,8 @@
 #                   to main runs it, and it is outside `make gate`
 #   make filetimes  date tracked files by content, so a checkout reuses test results
 #   make bench      benchmark timings (the gate only smoke-runs them)
-#   make fuzz FUZZTIME=5m    a longer search than the gate's
+#   make fuzz       the search the gate leaves to the nightly job, 10s a target
+#   make fuzz FUZZTIME=5m    a longer one
 
 GO ?= go
 
@@ -95,23 +96,24 @@ export GOFLAGS
 # upstream release reddens main with no change to this repo.
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
-# Per-target fuzz budget, bounded on purpose. The gate's job is to keep every
-# target executable and to search a little on every change; a campaign is what
-# `make fuzz FUZZTIME=5m` is for.
+# Per-target fuzz budget of a search run by hand. The gate searches nothing: every
+# target's seeds run in the suite, and the nightly job in gate.yml sets its own
+# budget. A campaign is what `make fuzz FUZZTIME=5m` is for.
 FUZZTIME ?= 10s
 
 .DEFAULT_GOAL := gate
 
 # The gate runs one check at a time even under `make -j`. Prerequisites of a
-# single target are otherwise eligible to run concurrently, which would let
-# `fuzz` write a reproducer into testdata/ while `coverage` is running
-# `go test ./...` over the same tree. CI runs them on two machines instead.
+# single target are otherwise eligible to run concurrently, which would put
+# `bench-smoke` beside `coverage`, whose tests of child processes read load as a
+# hang (#1010). CI runs them on two machines instead.
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	race-pipeline fuzz bench bench-smoke print-lint-version print-go-version filetimes
+	race-pipeline fuzz fuzz-check fuzz-prune bench bench-smoke print-lint-version print-go-version \
+	filetimes
 
-gate: fmt vet lint lint-planted build coverage race fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage race fuzz-check bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -221,6 +223,14 @@ race-pipeline:
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
+
+# What a search is held to, searching nothing: the gate's share of `fuzz`.
+fuzz-check:
+	./scripts/fuzz.sh check
+
+# Bounds the corpus a search leaves in the build cache, which Go never trims.
+fuzz-prune:
+	./scripts/fuzz.sh prune
 
 bench:
 	./scripts/bench.sh
