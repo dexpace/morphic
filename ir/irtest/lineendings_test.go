@@ -103,9 +103,9 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 		t.Skipf("git ls-files unavailable (%v)", err)
 	}
 
+	require.NotEmpty(t, out, "git tracks no files, so an empty result proves nothing")
 	var offenders []string
 	tracked := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
-	require.NotEmpty(t, tracked, "git tracks no files, so an empty result proves nothing")
 	dirs := map[string]bool{}
 	for _, rel := range tracked {
 		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr == nil {
