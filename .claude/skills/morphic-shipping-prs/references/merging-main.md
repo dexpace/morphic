@@ -155,15 +155,15 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git diff --stat origin/main...HEAD`, read from the merge base, lists only files the
   branch changed; a two-dot diff against `origin/main` also lists what `main` gained since.
 
-## Confirm a trial merge happened before reading its tests
+## Build a trial merge by SHA, and confirm it before reading its tests
 `trial-merge-happened`
 
-- **Rule.** Build a trial merge by SHA, as a worktree of a commit of the merged tree:
+- **Rule.** Build it as a worktree of a commit of the merged tree:
   `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
-  which a conflict stops. Confirm it there with
-  `test "$(git rev-parse HEAD^2)" = "$(git rev-parse <pr head>)"` before reading a result, as a
-  failed step leaves `<dir>` missing or holding an earlier merge, maybe of a PR stacked on this one;
-  remove it once read.
+  which a conflict stops. Confirm both parents there with
+  `test "$(git rev-parse HEAD^1 HEAD^2)" = "$(git rev-parse <head> <pr head>)"` before reading a
+  result, as a failed step leaves `<dir>` missing or holding an earlier merge, of this PR at an
+  earlier head or one stacked on it; remove it once read.
 - **Why.** A loop over the open PRs printed `ok` while every merge of another worktree's
   `FETCH_HEAD` had ended in `fatal` (#1210). Copying 14 merges out by `git archive`, `git init` and
   `git add -A` took 47 minutes; this form linted 27 in about a minute (#1532).
