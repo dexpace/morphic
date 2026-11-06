@@ -81,6 +81,12 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"invisible mix":              "\u200b\t\ufeff\u3164",
 		// White_Space, though it renders a line.
 		"ogham space mark": "\u1680",
+		// White_Space in neither Zs nor Cc.
+		"line separator":      "\u2028",
+		"paragraph separator": "\u2029",
+		// Controls past C0, which only their own term holds.
+		"delete":     "\x7f",
+		"c1 control": "\u0080",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
