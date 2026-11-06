@@ -87,6 +87,8 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		// Controls past C0, which only their own term holds.
 		"delete":     "\x7f",
 		"c1 control": "\u0080",
+		// Other_Default_Ignorable in Mn, which no other term holds.
+		"combining grapheme joiner": "\u034f",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
