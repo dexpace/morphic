@@ -91,8 +91,7 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 // walks (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	// A family that ranges a map sorts its keys first. Each such range has its own
-	// determinism test. A new range lacking one goes unnoticed unless a committed
-	// spec draws a warning from it, which the corpus tests then catch (GitHub #1546).
+	// determinism test. A new range lacking one can go unnoticed (GitHub #1546).
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
