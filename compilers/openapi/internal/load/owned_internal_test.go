@@ -100,6 +100,20 @@ func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 		_, bad = ownedFinding(oas.Owned{Field: "items", Value: openapitest.StrNode("x")}, rules)
 		assert.False(t, bad, "an items the check hands over as no list is no list to judge")
 	}
+	list := ownedOf(t, "    S: {items: [{type: string}]}\n")
+	require.Len(t, list, 1)
+	for _, tc := range []struct {
+		rules  oas.SchemaRules
+		remedy string
+	}{
+		{own, "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"},
+		{rows("3.0.3", ""), "OpenAPI 3.0 writes no tuple, which 3.1 writes as prefixItems"},
+	} {
+		d, bad := ownedFinding(list[0], tc.rules)
+		require.True(t, bad)
+		assert.Equal(t, "items must be a schema in this schema's dialect, not a list; "+tc.remedy, oas.AsPlaced(d).Message,
+			"a list of items says what a document of its version writes instead")
+	}
 }
 
 // TestOwnedFindings_ReportAnAliasedValueOnce pins that a value an alias places

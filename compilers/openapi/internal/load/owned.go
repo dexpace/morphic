@@ -63,8 +63,8 @@ func ownedFinding(o oas.Owned, rules oas.SchemaRules) (ir.Diagnostic, bool) {
 		case rules.Takes("items", oas.List):
 			return rules.TupleRestFinding(o)
 		}
-		return o.Finding(diag.InvalidItemsList, "items must be a schema in this schema's dialect, not a list; "+
-			"write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"), true
+		return o.Finding(diag.InvalidItemsList, "items must be a schema in this schema's dialect, not a list; %s",
+			itemsListRemedy(rules)), true
 	case "exclusiveMinimum", "exclusiveMaximum":
 		boolean := rules.Takes(o.Field, oas.Boolean)
 		if written := isBoolean(o.Value); written != boolean {
@@ -82,4 +82,15 @@ func ownedFinding(o oas.Owned, rules oas.SchemaRules) (ir.Diagnostic, bool) {
 		return o.Finding(diag.NumericPrecision, "%s literal %q: %s", o.Field, o.Value.Value, err.Error()), true
 	}
 	return ir.Diagnostic{}, false
+}
+
+// itemsListRemedy says what a writer can do about an `items` list where rules
+// read no tuple: write it as `prefixItems`, or name by `$schema` a draft that
+// reads one, where the rows define both, as 2020-12's do; else move to 3.1,
+// as 3.0's rows define neither.
+func itemsListRemedy(rules oas.SchemaRules) string {
+	if rules.Defines("prefixItems") && rules.Defines("$schema") {
+		return "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"
+	}
+	return "OpenAPI 3.0 writes no tuple, which 3.1 writes as prefixItems"
 }

@@ -53,15 +53,22 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 			})
 		}
 	}
-	for _, tc := range []struct{ name, src string }{
-		{"2020-12", openapitest.ComponentSpec("    L: {$schema: " + draft2020 + ", " + list + "}\n    B: {}\n")},
-		{"3.1's own", openapitest.ComponentSpec("    L: {" + list + "}\n    B: {}\n")},
-		{"3.0", openapitest.ComponentSpecVer("3.0.3", "    L: {"+list+"}\n    B: {}\n")},
+	const draftOrPrefix = "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"
+	for _, tc := range []struct{ name, src, remedy string }{
+		{"2020-12", openapitest.ComponentSpec("    L: {$schema: " + draft2020 + ", " + list + "}\n    B: {}\n"), draftOrPrefix},
+		{"3.1's own", openapitest.ComponentSpec("    L: {" + list + "}\n    B: {}\n"), draftOrPrefix},
+		{"3.0", openapitest.ComponentSpecVer("3.0.3", "    L: {"+list+"}\n    B: {}\n"),
+			"OpenAPI 3.0 writes no tuple, which 3.1 writes as prefixItems"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, tc.src)
 			assert.Equal(t, []jsontext.Pointer{"/components/schemas/L/items"}, openapitest.PointersOf(diags, diag.InvalidItemsList))
+			for _, d := range diags {
+				if d.Code == diag.InvalidItemsList {
+					assert.True(t, strings.HasSuffix(d.Message, "not a list; "+tc.remedy), d.Message)
+				}
+			}
 			assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "the list reads as no items, not a false schema")
 			l, ok := doc.Types[componentID("L")].(*ir.List)
 			require.True(t, ok)

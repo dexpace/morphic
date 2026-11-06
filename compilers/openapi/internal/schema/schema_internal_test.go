@@ -57,6 +57,12 @@ func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
 	assert.Equal(t, []jsontext.Pointer{jsontext.Pointer(past)}, openapitest.PointersOf(diags, diag.DegradedConstruct),
 		"the innermost schema left false")
 	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "and no false the document writes")
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			assert.True(t, strings.HasSuffix(d.Message, "moving the schemas below it into a component reads them"),
+				"it says what the writer can do: %s", d.Message)
+		}
+	}
 	_, diags = LowerSpec(t, chain(typed.MaxMends+1))
 	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "one fewer is mended whole")
 }
