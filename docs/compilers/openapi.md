@@ -606,6 +606,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestOlderDrafts_AnIDNamesAResource`,
   `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
+  `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
+  `bind.TestFragmentName_DeclaresAnyNameDraft4Writes`,
+  `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `bind.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
   `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
   `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
@@ -2458,6 +2461,8 @@ check reads, and the lowering reads `items` as absent.
   `openapi/unknown-schema-keyword`, `openapi/validation`
 - Tests: `schema.TestLower_TupleRest`, `e2e.TestOlderDrafts_AListOfItemsIsATuple`,
   `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
+  `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
   `bind.TestTuples_AListOfItemsHoldsSchemas`,
   `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`, `load.TestBuiltTargets`,
   `oas.TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList`
@@ -2467,7 +2472,7 @@ check reads, and the lowering reads `items` as absent.
 ### `shape-applicator`
 
 `properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`,
-and the `additionalItems` a draft writes beside a list of `items` ([`tuples`](#tuples)), each
+and the `additionalItems` written beside a list of `items` ([`tuples`](#tuples)), each
 constrain an instance whether or not a `type` is written beside them, and each has exactly one IR
 home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a `Tuple`'s
 positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
@@ -2514,7 +2519,8 @@ is kept on the union, under a report naming a union of models.
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
-  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
+  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`
 - Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
@@ -2885,6 +2891,7 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
   `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
   `e2e.TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect`,
+  `e2e.TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader`,
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
