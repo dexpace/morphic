@@ -115,7 +115,7 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 		}
 		raw, readErr := os.ReadFile(filepath.Join(root, rel))
 		if readErr != nil {
-			continue // a file staged for deletion, or a submodule entry
+			continue // a file deleted but not staged, a submodule, or a link to no readable file
 		}
 		if bytes.ContainsRune(raw, '\r') {
 			offenders = append(offenders, rel)
@@ -164,7 +164,7 @@ func TestTrackedFiles_ListsEveryDirectoryAboveAFile(t *testing.T) {
 	want := map[string]bool{root: true}
 	for rel := range strings.SplitSeq(strings.TrimSuffix(string(out), "\x00"), "\x00") {
 		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr != nil {
-			continue // a file staged for deletion, which the child skips too
+			continue // a file deleted but not staged, which the child skips too
 		}
 		parts := strings.Split(rel, "/")
 		for n := 1; n < len(parts); n++ {
