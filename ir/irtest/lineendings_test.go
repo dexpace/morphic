@@ -108,15 +108,17 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 	require.NotEmpty(t, tracked, "git tracks no files, so an empty result proves nothing")
 	dirs := map[string]bool{}
 	for _, rel := range tracked {
+		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr == nil {
+			for dir := filepath.Dir(rel); !dirs[dir]; dir = filepath.Dir(dir) {
+				dirs[dir] = true
+			}
+		}
 		raw, readErr := os.ReadFile(filepath.Join(root, rel))
 		if readErr != nil {
 			continue // a file staged for deletion, or a submodule entry
 		}
 		if bytes.ContainsRune(raw, '\r') {
 			offenders = append(offenders, rel)
-		}
-		for dir := filepath.Dir(rel); !dirs[dir]; dir = filepath.Dir(dir) {
-			dirs[dir] = true
 		}
 	}
 	listDirectories(t, root, dirs)
