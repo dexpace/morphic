@@ -30,6 +30,10 @@ type Bindings struct {
 	// was read.
 	at    map[*schemaRef]bind.Position
 	discs map[*oas3.Discriminator]bind.Position
+	// of is where each schema at knows was read, by the model it holds, which
+	// decoding builds afresh for every path to a node (SiteOf), kept only where
+	// a schema names a dialect (dialectRooted).
+	of map[*oas3.Schema]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
 	// unplaced is the reference object each schema and discriminator of an end
@@ -52,6 +56,19 @@ func (b *Bindings) Site(js *schemaRef) (bind.Position, bool) {
 		return bind.Position{}, false
 	}
 	p, ok := b.at[js]
+	return p, ok
+}
+
+// SiteOf is Site for a reading that holds the model js holds and not js, as
+// one of an allOf's conjuncts does: each is decoded afresh for every path to
+// its node (docs/parser-library.md#alias-expansion), so it names one position
+// where its node may stand at several. It is false before Builder.Build, and
+// where no schema names a dialect, as each node then reads one.
+func (b *Bindings) SiteOf(s *oas3.Schema) (bind.Position, bool) {
+	if b == nil || s == nil {
+		return bind.Position{}, false
+	}
+	p, ok := b.of[s]
 	return p, ok
 }
 
@@ -314,7 +331,28 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 		out = append(out, bd.build(ctx, l))
 	}
 	bd.mend(ctx)
+	if !dialectRooted(bd.b.table) {
+		return out
+	}
+	bd.b.of = make(map[*oas3.Schema]bind.Position, len(bd.b.at))
+	for js, p := range bd.b.at {
+		if s := js.GetSchema(); s != nil {
+			bd.b.of[s] = p
+		}
+	}
 	return out
+}
+
+// dialectRooted reports whether a schema of a document t read names a
+// dialect by `$schema`, the one way a node an alias places twice stands under
+// two: with none, each node reads its own document's, which its node tells.
+func dialectRooted(t *bind.Table) bool {
+	for id := range bind.DocID(t.Documents()) {
+		if len(t.Document(id).Dialects) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // build builds the schema at l, unless one is held there already: one inside

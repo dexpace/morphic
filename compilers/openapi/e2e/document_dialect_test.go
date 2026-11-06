@@ -228,7 +228,9 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 // jsonSchemaDialect names, whichever document's content the lowering reads:
 // draft 7's `dependencies` in other.yaml folds from an inline allOf branch the
 // source's G names, and a draft 7 source's `definitions`, as `$defs`, leaves a
-// body other.yaml declares to its media type, a file.
+// body other.yaml declares to its media type, a file. A branch an alias of
+// other.yaml places under a draft 4 root and its document's own dialect folds
+// under the root alone, though the source names no dialect.
 func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"
@@ -261,5 +263,21 @@ func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
 		contents := doc.Services[0].Groups[0].Operations[0].Request.Contents
 		require.Len(t, contents, 1)
 		assert.NotNil(t, contents[0].File, "a string its draft writes nothing else of is a file")
+	})
+	t.Run("an alias in another document under two dialects", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n"+
+			"    G: {$ref: './other.yaml#/components/schemas/D4'}\n    H: {$ref: './other.yaml#/components/schemas/Now'}\n",
+			"paths: {}\ncomponents:\n  schemas:\n    B: {type: object}\n"+
+				"    D4: {$schema: "+draft04+", type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/B'}, "+
+				"&br {dependencies: {a: [b]}}]}}}\n"+
+				"    Now: {type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/B'}, *br]}}}\n")
+		reason := func(at, key string) ir.UnmodeledReason {
+			td := doc.Types[ir.TypeID("t/anon@other.yaml/components/schemas/"+at+"/properties/p")]
+			require.NotNil(t, td, at)
+			return unmodeledEntry(t, td.Common().Unmodeled, key).Reason
+		}
+		assert.Equal(t, ir.ReasonValidationOnly, reason("D4", "openapi:dependencies"))
+		assert.Equal(t, ir.ReasonDegradedLowering, reason("Now", "openapi:allOf/1"), "the source names no dialect")
 	})
 }

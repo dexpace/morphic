@@ -319,6 +319,58 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 	assert.Equal(t, ir.ReasonOutOfScope, reason("Now/properties/dep"))
 }
 
+// TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader pins
+// a node an alias places under a draft 4 root and a 2020-12 schema, read in
+// each place's dialect by the readers that hold the schema and not where it
+// is: an allOf branch's `dependencies` folds as validation-only under the
+// draft and stays in its branch at the other, a body schema writing `id` is a
+// file under the draft alone, and a boolean exclusive bound bounds under the
+// draft and is dropped, reported, at the other. The roots' names, which order
+// them, decide none of it.
+func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader(t *testing.T) {
+	t.Parallel()
+	body := func(path, at string) string {
+		return "  /" + path + ":\n    post:\n      requestBody:\n        content:\n          application/octet-stream:\n" +
+			"            schema: {$ref: '#/components/schemas/" + at + "/properties/f'}\n" +
+			"      responses: {'204': {description: ok}}\n"
+	}
+	for _, root := range []string{"D4", "Z4"} {
+		t.Run(root, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"+body("a", root)+body("b", "Now")+
+				"components:\n  schemas:\n    B: {type: object, properties: {a: {type: string}}}\n"+
+				"    "+root+":\n      $schema: "+draft04+"\n      type: object\n      properties:\n"+
+				"        dep: {allOf: [{$ref: '#/components/schemas/B'}, &br {dependencies: {a: [b]}}]}\n"+
+				"        f: &f {type: string, id: x}\n"+
+				"        lo: &lo {type: number, minimum: 1, exclusiveMinimum: true}\n"+
+				"    Now:\n      type: object\n      properties:\n"+
+				"        dep: {allOf: [{$ref: '#/components/schemas/B'}, *br]}\n        f: *f\n        lo: *lo\n")
+			assertOnlyErrorDiags(t, diags, []string{diag.ExclusiveBoundForm})
+			unmodeled := func(at string) ir.Unmodeled {
+				td := doc.Types[ir.TypeID("t/anon/components/schemas/"+at+"/properties/dep")]
+				require.NotNil(t, td, at)
+				return td.Common().Unmodeled
+			}
+			assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, unmodeled(root), "openapi:dependencies").Reason)
+			assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, unmodeled("Now"), "openapi:allOf/1").Reason,
+				"2020-12 defines no dependencies, so the branch is kept")
+			assert.NotNil(t, requestContent(t, operationAt(t, doc, "POST", "/a")).File, "draft 4's id is $id")
+			assert.Nil(t, requestContent(t, operationAt(t, doc, "POST", "/b")).File, "2020-12 defines no id")
+			bound := func(at string) *ir.Constraints {
+				m, ok := doc.Types[componentID(at)].(*ir.Model)
+				require.True(t, ok, at)
+				p, ok := propByWire(m, "lo")
+				require.True(t, ok, at)
+				require.NotNil(t, p.Constraints, at)
+				return p.Constraints
+			}
+			assert.Equal(t, ir.BigVal("1"), *bound(root).ExclusiveMin)
+			assert.Nil(t, bound("Now").ExclusiveMin, "2020-12's exclusive bound is a number")
+			assert.Equal(t, ir.BigVal("1"), *bound("Now").Min)
+		})
+	}
+}
+
 // TestOlderDrafts_AnAnchorTakesItsDraftsGrammar pins an anchor's name, read in
 // its schema's dialect: the drafts before 2020-12 admit a colon and no leading
 // '_', 2020-12 the reverse, so 2019-09's `$anchor: a:b` and draft 7's

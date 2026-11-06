@@ -183,3 +183,45 @@ func TestBuild_MendsWhatWasRecordedAndWhatItBuilds(t *testing.T) {
 	assert.False(t, bd.Bindings().At(bind.Position{Pointer: "/x-lib/S/items"}).IsBool(), "a landing's")
 	assert.False(t, bd.Bindings().At(bind.Position{Pointer: src.Pointer + "/items"}).IsBool(), "the source's")
 }
+
+// TestBuild_PlacesEachSchemaByTheModelItHolds pins Bindings.SiteOf: once Build
+// has run over a document a schema of which names a dialect, each schema
+// recorded answers by the model it holds the position it was read at, as Site
+// answers by the schema itself, one the parser read as false and mend decoded
+// again among them. Before Build, over a document naming no dialect, where
+// each node reads its document's, and for a nil model or nil bindings, none
+// is placed.
+func TestBuild_PlacesEachSchemaByTheModelItHolds(t *testing.T) {
+	t.Parallel()
+	builder := func(t *testing.T, schemas string) *Builder {
+		t.Helper()
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n"+
+			"components:\n  schemas:\n"+schemas), &root))
+		return NewBuilder(bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))
+	}
+	at := func(p string) bind.Position { return bind.Position{Pointer: jsontext.Pointer(p)} }
+	bd := builder(t, "    D: {$schema: 'http://json-schema.org/draft-07/schema#'}\n")
+	decodedAt(t, bd, "{properties: {a: {type: string}}, items: "+chainOf(1)+"}", at("/s"))
+	require.True(t, bd.Bindings().At(at("/s/items")).IsBool(), "the parser reads the items above a list as false")
+	a := bd.Bindings().At(at("/s/properties/a")).GetSchema()
+	_, placed := bd.Bindings().SiteOf(a)
+	assert.False(t, placed, "nothing is placed by its model before Build")
+
+	bd.Build(t.Context())
+	for _, p := range []string{"/s", "/s/properties/a", "/s/items"} {
+		site, ok := bd.Bindings().SiteOf(bd.Bindings().At(at(p)).GetSchema())
+		assert.True(t, ok, p)
+		assert.Equal(t, at(p), site)
+	}
+	_, placed = bd.Bindings().SiteOf(nil)
+	assert.False(t, placed, "a nil model")
+	_, placed = (*Bindings)(nil).SiteOf(a)
+	assert.False(t, placed, "nil bindings")
+
+	plain := builder(t, "    D: {type: object}\n")
+	decodedAt(t, plain, "{properties: {a: {type: string}}}", at("/s"))
+	plain.Build(t.Context())
+	_, placed = plain.Bindings().SiteOf(plain.Bindings().At(at("/s/properties/a")).GetSchema())
+	assert.False(t, placed, "no schema names a dialect")
+}

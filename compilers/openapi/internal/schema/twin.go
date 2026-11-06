@@ -11,7 +11,7 @@ import (
 )
 
 // TwinKeyword returns the keyword JSON Schema 2020-12 writes for key, a key
-// s writes, where the dialect s is read in (lowering.SchemaRulesOf) spells it
+// s writes, where the dialect s is read in (rulesOf) spells it
 // otherwise: draft 4's identifier `id` as `$id`, a draft's `definitions` as
 // `$defs`, its `dependencies`, which 2019-09 split in two, as
 // `dependentSchemas`, and 2019-09's `$recursiveAnchor` as `$dynamicAnchor`. It
@@ -23,7 +23,7 @@ func TwinKeyword(c lowering.Ctx, s *oas3.Schema, key string) string {
 	default:
 		return key
 	}
-	rules := lowering.SchemaRulesOf(c, s.GetRootNode())
+	rules := rulesOf(c, s)
 	switch {
 	case key == "id" && rules.Identifier() == "id":
 		return "$id"
@@ -36,4 +36,18 @@ func TwinKeyword(c lowering.Ctx, s *oas3.Schema, key string) string {
 	default:
 		return key
 	}
+}
+
+// rulesOf returns the rows s is read with, for a reading that has s and not
+// where it is: those of where the bindings place it (typed.Bindings.SiteOf),
+// in whichever document, so a node an alias places under two roots reads at
+// each the dialect of that place, and those of its node where they place it
+// nowhere (lowering.SchemaRulesOf).
+func rulesOf(c lowering.Ctx, s *oas3.Schema) oas.SchemaRules {
+	if at, placed := c.Bindings().SiteOf(s); placed {
+		if there, read := lowering.InDocument(c, at.Doc); read {
+			return lowering.SchemaRulesAt(there, at.Pointer)
+		}
+	}
+	return lowering.SchemaRulesOf(c, s.GetRootNode())
 }

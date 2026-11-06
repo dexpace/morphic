@@ -2863,10 +2863,8 @@ naming it. A value no absolute URI names chooses nothing, as though it were not 
 no such warning: the rule table reports it where it judges it ([`validation`](#validation)), which
 in a document a reference reaches is only what the reference reaches
 ([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
-an alias places under two roots is read in each one's at each, bar the exclusive bounds an `allOf`
-reads across its branches to fold them, which a node reads in one root's at every position: that of
-the root last in pointer order among those whose trees hold it, which for a node no alias places is
-the innermost.
+an alias places under two roots is read in each one's at each, by the folding of an `allOf` and the
+reading of a body as a file too.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
