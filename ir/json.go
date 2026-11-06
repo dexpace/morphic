@@ -43,9 +43,10 @@ func (d *Document) MarshalJSONTo(enc *jsontext.Encoder) error {
 // bytes (invariant 7): map entries sorted by key, the minimal string escaping of RFC 8785, and a
 // refusal to write a string that is not UTF-8 or an object that repeats a name,
 // where the alternatives are a silent U+FFFD and an ambiguous document. The rest
-// pin v2's defaults, so no caller option can stringify a number, drop a zero
-// struct, respell or reorder a raw value, substitute a marshaler, or write null
-// for a nil list or map held as a map's value, which is [] or {}.
+// pin v2's defaults, so once MarshalJSONTo runs no caller option can stringify a
+// number, drop a zero struct, respell or reorder a raw value, substitute a
+// marshaler, or write null for a nil list or map held as a map's value, which is
+// [] or {}.
 func canonicalOptions() json.Options {
 	return json.JoinOptions(
 		json.Deterministic(true),
