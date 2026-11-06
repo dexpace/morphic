@@ -472,7 +472,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this inline allOf branch reads its $refs against another base than the position does, as an $id at or above it names another URI, so nothing it writes folds; the branch (not) is kept verbatim under Unmodeled",
+      "message": "this inline allOf branch reads its $refs against another base than the position does, as an identifier at or above it names another URI, so nothing it writes folds; the branch (not) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"

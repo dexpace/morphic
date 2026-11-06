@@ -208,7 +208,8 @@ func addYAMLDir(f *testing.F, dir string) {
 
 // schemaSeeds are small JSON Schema fragments that exercise distinct branches of
 // the schema lowerer: scalars, composition, unions, containers, constraints,
-// nullability, and validation-only keywords.
+// nullability, validation-only keywords, and the JSON Schema drafts a fragment
+// can name, whose tuples, identifiers and anchors read otherwise than 2020-12's.
 func schemaSeeds() []string {
 	return []string{
 		`{"type":"string"}`,
@@ -227,5 +228,12 @@ func schemaSeeds() []string {
 		`{"prefixItems":[{"type":"string"},{"type":"integer"}]}`,
 		`{"type":"number","minimum":0,"maximum":10,"multipleOf":0.1}`,
 		`{"not":{"type":"string"}}`,
+		`{"$schema":"http://json-schema.org/draft-07/schema#","type":"array","items":[{"type":"string"},` +
+			`{"$ref":"#/components/schemas/Fuzzed/definitions/A"}],"additionalItems":false,"definitions":{"A":{"type":"integer"}}}`,
+		`{"$schema":"http://json-schema.org/draft-04/schema#","id":"https://ex.test/a","type":"object",` +
+			`"properties":{"p":{"$ref":"#x"},"n":{"type":"integer","minimum":0,"exclusiveMinimum":true}},` +
+			`"definitions":{"X":{"id":"#x","type":"string"}},"dependencies":{"a":["b"]}}`,
+		`{"$schema":"https://json-schema.org/draft/2019-09/schema","$defs":{"L":{"$anchor":"a:b","type":"string"}},` +
+			`"type":"object","properties":{"p":{"$ref":"#a:b"}}}`,
 	}
 }

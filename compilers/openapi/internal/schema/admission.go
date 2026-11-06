@@ -367,7 +367,7 @@ func newDeclarationSet() declarationSet {
 // nothing, and the getters read it as empty.
 func (d *declarationSet) add(s *oas3.Schema) {
 	d.schemas = append(d.schemas, s)
-	if items := s.GetItems(); annotation.Written(items) {
+	if items := itemsSchema(s); annotation.Written(items) {
 		if d.items == nil {
 			d.items = &place{}
 		}
@@ -474,7 +474,7 @@ func definesNullableAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) 
 func (w *admission) written(s *oas3.Schema, nullable bool) admitted {
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
-	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
+	if items := itemsSchema(s); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
 		out.items = items
 	}
 	if form, ok := formOf(s); ok {

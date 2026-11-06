@@ -221,3 +221,47 @@ components:
 		})
 	}
 }
+
+// TestBodyFile_ReadsADraftsSpellingAsItsTwin holds a string body on
+// application/octet-stream to the keywords a JSON Schema draft spells
+// otherwise than 2020-12: draft 4's identifier `id`, a draft's `definitions`
+// and 2019-09's `$recursiveAnchor` say nothing of the value, as `$id`, `$defs`
+// and `$dynamicAnchor` do, so the body is a file, beside a $ref too, and in a
+// dialect defining none of them each is a keyword a file's schema may not
+// write.
+func TestBodyFile_ReadsADraftsSpellingAsItsTwin(t *testing.T) {
+	t.Parallel()
+	const (
+		d4, d7, d2019, d2020 = "http://json-schema.org/draft-04/schema#", "http://json-schema.org/draft-07/schema#",
+			"https://json-schema.org/draft/2019-09/schema", "https://json-schema.org/draft/2020-12/schema"
+	)
+	for _, tc := range []struct {
+		dialect, schema string
+		file            bool
+	}{
+		{d4, "{type: string, id: 'https://example.com/f'}", true},
+		{d4, "{$ref: '#/components/schemas/Text', id: 'https://example.com/f'}", true},
+		{d7, "{type: string, id: 'https://example.com/f'}", false},
+		{d2020, "{type: string, id: 'https://example.com/f'}", false},
+		{d7, "{type: string, definitions: {Page: {type: integer}}}", true},
+		{d2019, "{type: string, definitions: {Page: {type: integer}}}", false},
+		{d2019, "{type: string, $recursiveAnchor: true}", true},
+		{d2020, "{type: string, $recursiveAnchor: true}", false},
+	} {
+		t.Run(tc.dialect+" "+tc.schema, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, "jsonSchemaDialect: '"+tc.dialect+"'\n"+openapitest.PathsSpec(`  /f:
+    post:
+      operationId: f
+      requestBody:
+        content:
+          application/octet-stream: {schema: `+tc.schema+`}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Text: {type: string}
+`), openapi.Options{})
+			assert.Equal(t, tc.file, openapitest.FindOp(t, doc, "f").Request.Contents[0].File != nil)
+		})
+	}
+}
