@@ -135,8 +135,8 @@ func TestSchemaRules_FormatFindingSaysWhatADraftsIdentifierMustBe(t *testing.T) 
 	require.Len(t, owned, 1)
 	d, bad := rulesOf("3.1.0", draft07).FormatFinding(owned[0])
 	require.True(t, bad)
-	assert.Equal(t, `Schema Object field "$id" must be a URI reference that, naming a fragment alone and no JSON pointer, `+
-		`names a plain name: a letter, then letters, digits, '-', '_', ':' and '.' in this schema's dialect`,
+	assert.Equal(t, `Schema Object field "$id" must be a URI reference whose fragment, where written alone and no JSON `+
+		`pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.' in this schema's dialect`,
 		oas.AsPlaced(d).Message)
 }
 
