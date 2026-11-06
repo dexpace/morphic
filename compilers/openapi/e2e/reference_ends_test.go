@@ -144,22 +144,30 @@ components:
 
 // TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt pins the report
 // fillRefBranch and diagUnresolvedBranches make where load makes none: a $ref in
-// what a reference object resolved to is never read, so a full compile keeps
-// the lowering's report (withoutRereported), and removing it loses the error.
+// the first copy of a key written twice, which a reference object resolved to
+// and the binder cannot place (docs/parser-library.md#duplicate-key), is never
+// read, so a full compile keeps the lowering's report (withoutRereported), and
+// removing it loses the error.
 func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 	t.Parallel()
 	const unplaced = ": it is in what the reference at /paths/~1a/get/parameters/0 resolved to, which the " +
 		"compiler cannot read where the parser placed it"
-	tests := []struct{ name, schema, at, says string }{
+	const kept = `union branch $ref "#/components/schemas/A" is unresolved` + unplaced + "; the branch is kept verbatim"
+	tests := []struct {
+		name, schema string
+		want         map[jsontext.Pointer]string
+	}{
 		{
-			"allOf", "{allOf: [{$ref: '#/components/schemas/A'}]}", "/x-params/q/schema/allOf/0",
-			`unresolved allOf $ref "#/components/schemas/A"` + unplaced,
+			"allOf", "{allOf: [{$ref: '#/components/schemas/A'}]}",
+			map[jsontext.Pointer]string{
+				"/x-params/q/schema/allOf/0": `unresolved allOf $ref "#/components/schemas/A"` + unplaced,
+			},
 		},
 		{
 			"union beside structural keywords",
-			"{type: object, properties: {id: {type: string}}, oneOf: [{$ref: '#/components/schemas/A'}]}",
-			"/x-params/q/schema/oneOf/0",
-			`union branch $ref "#/components/schemas/A" is unresolved` + unplaced + "; the branch is kept verbatim",
+			"{type: object, properties: {id: {type: string}}, " +
+				"oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/A'}]}",
+			map[jsontext.Pointer]string{"/x-params/q/schema/oneOf/0": kept, "/x-params/q/schema/oneOf/1": kept},
 		},
 	}
 	for _, tc := range tests {
@@ -188,7 +196,7 @@ components:
 					got[d.Provenance.Pointer] = d.Message
 				}
 			}
-			assert.Equal(t, map[jsontext.Pointer]string{jsontext.Pointer(tc.at): tc.says}, got, "got %+v", diags)
+			assert.Equal(t, tc.want, got, "got %+v", diags)
 		})
 	}
 }
