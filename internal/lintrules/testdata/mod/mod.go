@@ -8,3 +8,8 @@ import "github.com/dexpace/morphic/ir"
 func Root(name string) (ir.TypeRegistry, ir.TypeID) {
 	return ir.TypeRegistry{}, ir.TypeID(name) // want "registrywrites: builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; edit a document's registry through an ir.Editor"
 }
+
+var rootCount int
+
+// Count writes a package-level variable, which draws nothing in the root.
+func Count() { rootCount++ }

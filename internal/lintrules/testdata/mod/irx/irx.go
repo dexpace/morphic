@@ -14,3 +14,9 @@ func Edge(name string) (ir.TypeRegistry, ir.TypeID, ir.Naming) {
 	reg := ir.TypeRegistry{}                                // want "registrywrites: builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; edit a document's registry through an ir.Editor"
 	return reg, ir.TypeID(name), ir.Naming{Canonical: name} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }
+
+var irxCount int
+
+// Count writes a package-level variable, which draws nothing outside the
+// pipeline's packages: irx is not ir.
+func Count() { irxCount++ }

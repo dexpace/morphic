@@ -738,9 +738,10 @@ something a caller asks for with `none`, never a default.
   it keeps, such as a traversal callback.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
-  no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
-  is held to findings planted for it, since a clean tree cannot tell a rule from one that matches
-  nothing.
+  no pipeline stage prints or logs, or writes a package-level variable directly or through a local
+  alias, bar the forms `internal/lintrules/globals.go` states out of reach, and that a switch over
+  an IR enum names every member. Each rule is held to findings planted for it, since a clean tree
+  cannot tell a rule from one that matches nothing.
 - **Wire-conformance harness** (from milestone 3): expected request shapes (method, path,
   query, body keys) are derived *from the IR alone* — offline, deterministic, shared across
   every language emitter; generated SDKs run under HTTP interception and the requests are

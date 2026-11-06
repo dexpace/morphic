@@ -290,9 +290,10 @@ These all exist already — extend them rather than building a parallel mechanis
   pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
   seam among them, and only with the table's edit (#1478).
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
-  `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
-  analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
-  in archtest. Each is held to findings planted for it, since a rule that recognizes nothing
+  `.golangci.yml`; one about which package may build or spell a part of the IR, or what state a
+  pipeline package may keep, is a go/analysis analyzer in `internal/lintrules`, which `make vet`
+  runs through `cmd/morphic-vet`. Neither lives in archtest. Each is held to findings planted for
+  it, since a rule that recognizes nothing
   leaves a clean tree clean: `make lint-planted` holds the linters to
   `internal/lintrules/testdata/planted`, and `internal/lintrules`' own test holds the analyzers to
   `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
