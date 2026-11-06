@@ -68,9 +68,10 @@ readonly minimize_time=10s
 # What prune keeps of each target's corpus. Go never trims the directory, so
 # these two bound what a search restores and what the cache holds: at most
 # targets x max_corpus_entries x max_entry_kb. The count sits above what a target
-# still builds on, since FuzzCycleDetector neared 1,000 entries in five nights
-# with its coverage still rising, and below where re-running every entry, which
-# a search does inside its budget, would leave it little time to search.
+# still builds on, since in five nights FuzzCycleDetector reached about 450 to 500
+# entries at a 10s minimizing bound and about 900 to 1,100 at 1s, its coverage
+# still rising, and below where re-running every entry, which a search does inside
+# its budget, would leave it little time to search.
 readonly max_corpus_entries=3000
 readonly max_entry_kb=64
 
