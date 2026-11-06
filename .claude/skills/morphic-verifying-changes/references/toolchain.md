@@ -101,7 +101,9 @@
   spells the physical directory and its parent the logical one.
 - **Why.** Every `RequireOpens` pin failed on a correct tree behind a symlink, which `/tmp` and
   `/var` are on macOS, and CI's real path never showed it (#1373).
-- **Probe.** `ln -s` the checkout under a second name, then run the package from there with `go test -count=1`.
+- **Probe.** `ln -s` a directory above the checkout under a second name, then run the package through it
+  with `go test -count=1`; a link at the module root itself also fails `internal/archtest`, whose walks do
+  not descend it.
 
 ## A full disk or a removed cache reads as a failing build
 `full-disk-reads-as-a-failure`
