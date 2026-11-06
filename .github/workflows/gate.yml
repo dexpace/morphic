@@ -29,12 +29,12 @@ concurrency:
 # request restores that save, reuses the results of the tests its change leaves
 # alone, and never saves.
 #
-# The cache stays bounded for three reasons. The go command deletes build cache
-# entries unused for five days, scanning once a day (cmd/go/internal/cache,
-# trimLimit and trimInterval). go.sum is in the key, so a dependency change
-# starts a cache afresh instead of adding to the module cache of the last. And
-# the fuzz corpus, which that trim never removes, is dropped before the checks
-# job's save; the suite job runs no -fuzz, so writes none.
+# The cache stays one run's size for three reasons. A step before each save
+# deletes entries the run did not use, since the go command's own trim waits
+# five days (cmd/go/internal/cache, trimLimit). go.sum is in the key, so a
+# dependency change starts a cache afresh instead of adding to the module cache
+# of the last. And the fuzz corpus, which that trim never removes, is dropped
+# before the checks job's save; the suite job runs no -fuzz, so writes none.
 jobs:
   checks:
     name: lint, fuzz, bench
@@ -97,6 +97,12 @@ jobs:
       - name: drop the fuzz corpus
         if: github.event_name == 'push'
         run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
+      # Keep what this run used and no more: go moves an entry's time on a use
+      # over an hour after the last, so one older than two hours went unused.
+      - &prune
+        name: drop cache entries this run did not use
+        if: github.event_name == 'push'
+        run: find "${{ steps.toolchain.outputs.gocache }}" -type f -mmin +120 -delete
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -141,6 +147,7 @@ jobs:
         run: make coverage
       - name: race
         run: make race
+      - *prune
       - *save
       # After the save, so a race found here costs no pull request its cache.
       - name: race, the whole pipeline
