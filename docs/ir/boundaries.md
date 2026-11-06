@@ -9,8 +9,8 @@ JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`
 `contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
 `unevaluatedProperties`, and the earlier drafts' `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, express *validation logic*, not data shape; no target
-language's type system represents them, and none of the other source formats has an equivalent. The IR
-deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
+language's type system represents them, and none of the other source formats has an equivalent.
+The IR deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
 (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
 emit an `info` diagnostic, so the information is never silently lost and a future
 validation-oriented emitter (request validators, mock servers) can still consume them — selecting
@@ -25,8 +25,8 @@ rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
-resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the OpenAPI compiler
-lowers each is stated with its rules:
+resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the
+OpenAPI compiler lowers each is stated with its rules:
 [`content-vocabulary`](../compilers/openapi.md#content-vocabulary),
 [`dialect-keywords`](../compilers/openapi.md#dialect-keywords) and
 [`dynamic-ref`](../compilers/openapi.md#dynamic-ref).

@@ -510,9 +510,9 @@ it `id`, its `$id` then naming nothing, and a document fetched over the network 
 `jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
 or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
 check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
-refused for one. In drafts 4, 6 and 7 one naming a
-fragment alone, `#name`, declares that plain name as an `$anchor` does, which is why the load phase
-holds an `$id`'s format to the schema's dialect rather than to the rule table's 2020-12 row; one
+refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
+name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
+dialect rather than to the rule table's 2020-12 row; one
 beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
 every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
 a value is one. A schema another holds roots a resource where it writes an identifier as the
@@ -3317,8 +3317,8 @@ type. It leaves the media type to say where it is absent, `true`, or writes no k
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
 the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
 the value, as a JSON Schema draft's spellings of them do where the schema's dialect defines one,
-draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
-payload's octets,
+draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds
+`maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
 keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
