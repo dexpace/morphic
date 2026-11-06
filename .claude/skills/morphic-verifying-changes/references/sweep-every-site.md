@@ -24,8 +24,9 @@ it.
   the module root of a scratch clone and removed after. A grep finds a spelling, not a type.
 - **Why.** Of 997 range statements outside tests at 0d09a96d, 63 range over a map, and 3 of those
   lines match `grep -iE 'map|byid|keys'`: `for index := range status` names no map (#1538).
-- **Probe.** The program first reports a site planted for it, then the report gives its sites beside
-  the grep's.
+- **Probe.** The program first reports a site planted for each form the mechanism takes, nested in a
+  container and behind a pointer too, and passes a planted near miss; then the report gives its
+  sites beside the grep's.
 
 ## Fix the state at the type that owns it, not where the defect surfaced
 `fix-at-the-invariants-owner`

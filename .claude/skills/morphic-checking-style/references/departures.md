@@ -129,8 +129,8 @@ the rule here rather than reading it across.
   values with unexported fields (#1533, #1534).
 - **Probe.** The program of
   `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-a-typed-mechanism-by-type`
-  finds no `assert.Equal` a change adds on a value holding an unexported field or `Equal` method;
-  `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
+  finds no `assert.Equal` or `require.Equal` a change adds on a value holding an unexported field or
+  `Equal` method; `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`

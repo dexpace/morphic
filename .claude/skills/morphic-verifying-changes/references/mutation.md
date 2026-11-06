@@ -58,13 +58,15 @@ yourself. These rules are the ways that reading still lies.
 ## Count a table row's kill only from the row run alone
 `a-kill-in-a-row-run-alone`
 
-- **Rule.** Where a table's rows share state, such as a directory or a fixture, run each row a
-  mutant fails on its own (`go test -run "<Test>/<row>"`, as a row name may hold a quote) before
-  counting it: a row failing only after another left state behind is fallout, not a kill.
+- **Rule.** Where a table's rows share state, run each row a mutant fails on its own before counting
+  it, as `go test -v -run '^<Test>$/^<row>$'` with the row spelt as `-v` prints it, its
+  regular-expression characters escaped and a quote written `'\''`, and see one `=== RUN` line name
+  it: a row failing only after another left state behind is fallout, not a kill.
 - **Why.** A plant at `cmd/morphic/dashes.go:93` failed four rows of
-  `TestRun_SingleDashLongFlagsAreRefused`, and two of them passed when run alone, failing only on a
-  file the first row left behind (#1538, #1516 at 9aa24431).
-- **Probe.** For each row the report counts as a kill, its run alone under the plant.
+  `TestRun_SingleDashLongFlagsAreRefused`, and two passed alone, failing only on a file the first
+  row left (#1538, #1516 at 9aa24431). A pattern in double quotes expanded a row's `$ref` to nothing
+  and ran no test (#1532).
+- **Probe.** Each row counted as a kill shows its `=== RUN` line from a run alone under the plant.
 
 ## A mutant run owns its cache and stops before the disk fills
 `mutant-run-owns-its-cache`
@@ -134,8 +136,9 @@ yourself. These rules are the ways that reading still lies.
   carries nothing over.
 - **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
   found a check no test held, which none of them had planted (#1191, #1216).
-- **Probe.** `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt'` shows
-  whether a set survives, and the report lists each condition the diff adds beside its plant.
+- **Probe.** Run
+  `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt' ':!<file the condition is in>'`
+  to show whether a set survives; the report lists each condition the diff adds beside its plant.
 
 ## Rerun only the plants a merge can have changed
 `verdict-outlives-unchanged-files`

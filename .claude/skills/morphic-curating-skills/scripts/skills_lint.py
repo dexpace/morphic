@@ -526,9 +526,10 @@ class Linter:
             self.report(f, line, why or f"{path} holds no rule {key}")
 
     def check_cited_from_outside(self) -> None:
-        """Hold each rule a tracked file outside the skills cites by its full path, as CLAUDE.md
-        does, to the rule its file holds: no other check reads those citations. A binary file is
-        left out, and one never naming a skill's path is passed over unread, for speed alone."""
+        """Hold each rule a file outside the skills cites by its full path, as CLAUDE.md does, to
+        the rule its file holds: no other check reads those citations. Each file the tree holds,
+        as load_tree lists it, is read bar a binary one, and one never naming a skill's path has
+        its lines left unscanned, for speed alone."""
         for rel in self.known:
             if rel.startswith(".claude/skills/"):
                 continue
