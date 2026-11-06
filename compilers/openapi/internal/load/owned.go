@@ -86,10 +86,10 @@ func ownedFinding(o oas.Owned, rules oas.SchemaRules) (ir.Diagnostic, bool) {
 
 // itemsListRemedy says what a writer can do about an `items` list where rules
 // read no tuple: write it as `prefixItems`, or name by `$schema` a draft that
-// reads one, where the rows define both, as 2020-12's do; else move to 3.1,
-// as 3.0's rows define neither.
+// reads one, where the rows define `prefixItems`, as 2020-12's and every minor
+// letting a schema name a dialect do; else move to 3.1, as 3.0's define none.
 func itemsListRemedy(rules oas.SchemaRules) string {
-	if rules.Defines("prefixItems") && rules.Defines("$schema") {
+	if rules.Defines("prefixItems") {
 		return "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"
 	}
 	return "OpenAPI 3.0 writes no tuple, which 3.1 writes as prefixItems"
