@@ -450,7 +450,7 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // SchemaRules returns the Schema Object's rows of the document whose content c
 // reads (rowsOf). A reading only a minor decides, such as a required `items` or
 // the effect `nullable` has, asks these rather than the version; a keyword's
-// shape, which a schema's dialect decides, asks SchemaRulesOf. A version the
+// shape, which a schema's dialect decides, asks SchemaRulesAt. A version the
 // table does not cover, and a context with no document, answer with the zero
 // rows.
 func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
@@ -486,16 +486,31 @@ func sourceRows(c Ctx) load.Rows {
 	return c.loaded.rows
 }
 
-// SchemaRulesOf returns the rows the schema whose node is n is read with: those
-// of the dialect the innermost schema resource root holding it names, where one
-// does (load.Dialects), and c's otherwise (SchemaRules).
+// SchemaRulesAt returns the rows the schema at pointer of c's document is read
+// with: those of the dialect the innermost schema resource root at or above it
+// names, where one does (load.Dialects.At), and c's otherwise (SchemaRules),
+// as where c reads another document's content at the source's positions.
+func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
+	if at, placed := c.Position(pointer); placed && c.loaded != nil {
+		if r, ok := c.loaded.dialects.At(at); ok {
+			return r
+		}
+	}
+	return c.SchemaRules()
+}
+
+// SchemaRulesOf is SchemaRulesAt for a reading that has the schema's node n
+// and not where it is: the rows load.Dialects.Of gives it, and the source's
+// own for a node it gives none, whatever document c reads, so a reading that
+// follows a $ref into another document still reads its schemas in their own
+// dialect. An aliased node reads one dialect wherever it is placed.
 func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
 	if c.loaded != nil {
 		if r, ok := c.loaded.dialects.Of(n); ok {
 			return r
 		}
 	}
-	return c.SchemaRules()
+	return sourceRows(c).Schema
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'

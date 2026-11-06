@@ -333,7 +333,8 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
   is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
-  admits it (#1466).
+  admits it, and a keyword only the draft defines, or a `definitions` entry no `$ref` reaches, is
+  held to none (#1466).
 
 ### `minor-required-fields`
 
@@ -402,6 +403,14 @@ The keys beside a `$ref` are judged as the object they belong to: a Reference Ob
 Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
 a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
 warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
+JSON Schema drafts 4, 6 and 7 ignore a schema's keywords beside its `$ref` too, and 2019-09 applies
+them, so in a schema read in one of those drafts ([`dialect-keywords`](#dialect-keywords)) the
+schema lowering applies each as 2020-12 does and warns of each field the draft's rows define at its
+key, OpenAPI's own among them, bar those whose reading applying them leaves alike: the `$schema`
+naming the draft, `definitions`, whose schemas only a `$ref` reads, and `$comment`. The identifier
+is not applied, as applying it would change what the `$ref` names: it names nothing there, as the
+draft has it ([`references`](#references)), and draws no warning. A key the rows define nothing
+for, an extension or an unknown keyword, is kept as written either way, and draws none.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
@@ -411,9 +420,12 @@ judges a Parameter Object's `allowReserved` against where the declared minor app
 ([`allow-reserved-locations`](#allow-reserved-locations)), and its `allowEmptyValue` against the
 style it is written under ([`allow-empty-value`](#allow-empty-value)).
 
-- Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
+- Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`,
+  `schema-drafts`
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
+  `e2e.TestOlderDrafts_RefSiblingsAreWarnedOf`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
   `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
@@ -479,15 +491,34 @@ names the schema writing the `$id`; under none, `#` names the document's root. A
 fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, in the
 source or another document, so a name under an `$id` is that `$id`'s resource's and not its
 document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
-name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
-none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed:
+name or a URI two schemas declare names neither, and a name its schema's dialect's grammar refuses
+is declared by none, the load phase reporting it: 2020-12's admits a leading `_` and no `:`, the
+grammar of 2019-09's `$anchor` and of drafts 6 and 7's identifier naming a fragment alone the
+reverse. Draft 4 states none, so its `id` naming a fragment alone declares any name no JSON pointer
+spells, read as a `$ref`'s fragment is, and a `$ref` naming one no grammar admits resolves to it;
+where no schema declares such a name, the `$ref` is reported as naming no JSON pointer.
+An anchor keyword a draft defines none of, draft 7's `$anchor` or 2019-09's `$dynamicAnchor`, is
+read as 2020-12 reads it, by 2020-12's grammar. Identifiers are read only where a schema is placed:
 by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,
 so one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
 document that names none has no grammar, so it is read as a document of schemas: its root and any
 key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source,
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
-it is read. An `$id` names the URI its part before the `#` resolves to against the base above it, by
+it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
+it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
+`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
+or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
+check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
+refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
+name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
+dialect rather than to the rule table's 2020-12 row; one
+beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
+every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
+a value is one. A schema another holds roots a resource where it writes an identifier as the
+dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
+its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
+ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
 and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -572,6 +603,17 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestOlderDrafts_AnIDNamesAResource`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
+  `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
+  `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
+  `bind.TestFragmentName_DeclaresAnyNameDraft4Writes`,
+  `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
+  `bind.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
+  `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
+  `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
+  `bind.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,
+  `bind.TestDialectRule_AWalkStartsInTheDialectAboveIt`,
   `e2e.TestGolden_SplitSpec`, `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
@@ -2396,18 +2438,48 @@ absent `items` reads as `true`, the top type, and either of those or a schema lo
 them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it does beside a
 `List`, reported as an info `openapi/validation-only-keyword`.
 
-- Cases: `tuples-prefixitems`
-- Codes: `openapi/validation-only-keyword`
-- Tests: `schema.TestLower_TupleRest`
+JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
+`additionalItems` beside it. In a schema read in one of them
+([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
+each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
+beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. Each entry is named as
+a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
+is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
+such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
+at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
+`prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
+[`null-schema`](#null-schema) reads it. A type list's array variant is the tuple the schema writes,
+which leaves nothing on the union. Any other position that lowers to no `Tuple`, such as one with no
+`type: array`, keeps the list and the `additionalItems` beside it as
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
+list, `additionalItems` is the rest of no tuple, kept verbatim with an info
+`openapi/unknown-schema-keyword`.
+
+In any other dialect a list of items is no schema: the load phase reports it as an
+`openapi/invalid-items-list` error, at every schema the [`validation`](#validation) check reads, and
+the lowering reads `items` as absent; an `additionalItems` beside it is kept as at a position
+lowering to no `Tuple`.
+
+- Cases: `tuples-prefixitems`, `schema-drafts`
+- Codes: `openapi/validation-only-keyword`, `openapi/invalid-items-list`,
+  `openapi/unknown-schema-keyword`, `openapi/validation`
+- Tests: `schema.TestLower_TupleRest`, `e2e.TestOlderDrafts_AListOfItemsIsATuple`,
+  `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
+  `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
+  `bind.TestTuples_AListOfItemsHoldsSchemas`,
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`, `load.TestBuiltTargets`,
+  `oas.TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList`
 - Status: partly built: `items: true` and an absent `items` lower alike, though only the first makes
   an `unevaluatedItems` beside them inert, and that one is still kept as live (#862).
 
 ### `shape-applicator`
 
-`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`
-each constrain an instance whether or not a `type` is written beside them, and each has exactly one
-IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a
-`Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
+`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`,
+and the `additionalItems` written beside a list of `items` ([`tuples`](#tuples)), each
+constrain an instance whether or not a `type` is written beside them, and each has exactly one IR
+home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a `Tuple`'s
+positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
 `patternProperties` and `required` lists that left it a map
 ([containers](../ir/containers.md)), and a `required` naming a key keeps it a `Model`
 ([`required-members`](#required-members)). A position whose lowering produced none of these — an
@@ -2451,7 +2523,8 @@ is kept on the union, under a report naming a union of models.
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
-  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
+  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`
 - Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
@@ -2525,7 +2598,13 @@ to name it by, and nothing can collide with it, since such a schema has nothing 
 boolean `true` schema is the top type, as `{}` is, and reports nothing. A `$ref` naming a boolean
 schema below a component takes what that position lowers to, whichever is declared first: the closed
 `Model` at its pointer, or an alias there of the top type. A position nothing else lowers, such as a
-closed tuple's `items: false`, is lowered for the `$ref` alone.
+closed tuple's `items: false`, is lowered for the `$ref` alone. The parser decodes as `false` a
+schema the document writes as a mapping where a keyword beneath it fails to decode under its own
+name, such as an `items` above a JSON Schema draft's list of `items`
+([`failure-beneath-itself`](../parser-library.md#failure-beneath-itself)). The load phase decodes
+each such schema again as written, and in turn each one that leaves `false` below it, up to
+`typed.MaxMends` of them one below another; one past them becomes the top type, reported as an
+`openapi/degraded-construct` error at it, since it is no `false` the document writes.
 
 That preservation is load-bearing, not decorative: a closed empty `Model` admits `{}`, and the
 source admits nothing, so the lowered type is one value wider than what was written. Without the
@@ -2546,7 +2625,9 @@ emitter that wants the exact reading has everything it needs to produce it.
 
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
-- Tests: `schema.TestLower_DepthCapExceeded`,
+- Tests: `schema.TestLower_DepthCapExceeded`, `schema.TestLower_ASchemaPastTheMendsIsTheTopType`,
+  `e2e.TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`,
   `e2e.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
   `e2e.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
@@ -2596,9 +2677,8 @@ of its own, since reading it so loses nothing.
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
   `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
-- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
-  an `items`, turns the outer position into the `false` schema (#1299).
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
 ## 7. Schemas: keywords beyond the shape
 
@@ -2614,8 +2694,8 @@ the target is; and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
-literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
-that wrote it. Exclusive bounds follow the schema's dialect
+literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the keyword.
+Exclusive bounds follow the schema's dialect
 ([`dialect-keywords`](#dialect-keywords)). In 3.0's, and in JSON Schema draft 4's, the boolean
 modifies the bound beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears
 `Min` or `Max`, so a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and
@@ -2624,7 +2704,11 @@ or `openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-co
 2020-12's, the dialect 3.1 and 3.2 name, the keyword is a bound of its own, kept beside `Min`/`Max`
 when both are declared, a field apiece and no `Unmodeled` entry
 ([constraints](../ir/constraints.md)). The other dialect's form (a boolean in 2020-12's, a number in
-3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error. A bound beside a
+3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error at the keyword. Both
+errors are the load phase's, once each schema's dialect is known, at every schema the
+[`validation`](#validation) check reads, which the rule table leaves these keywords' shape to: one
+under `not`, `if` or `propertyNames`, or beside an `enum`, is reported as one the lowering reads,
+and an aliased value once. A bound beside a
 node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
 kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
@@ -2635,7 +2719,10 @@ which a bool cannot tell from one never written, and a count that does not fit i
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
-- Tests: `schema.TestConstraints_ExclusiveBoolean30`,
+- Tests: `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`,
+  `load.TestOwnedFindings_ReportAnAliasedValueOnce`,
+  `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
   `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`,
@@ -2662,12 +2749,16 @@ position owns, one entry per family: `not`, `dependentSchemas`, `dependentRequir
 one object, at the schema — `if`, `then` and `else` under `openapi:if-then-else`, `contains` with
 `minContains` and `maxContains` under `openapi:contains`, and `unevaluatedItems` with an
 `unevaluatedProperties` that is not `false` under `openapi:unevaluated`, the `false` one being a
-closure ([`additional-properties`](#additional-properties)). Each entry is reported as an info
-`openapi/validation-only-keyword` at the schema that wrote it.
+closure ([`additional-properties`](#additional-properties)). In a schema read in JSON Schema draft
+4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
+`dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
+elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
+info `openapi/validation-only-keyword` at the schema that wrote it.
 
-- Cases: `negation-not`, `dependent-required`
+- Cases: `negation-not`, `dependent-required`, `schema-drafts`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
+  `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
   `schema.TestLower_ValidationOnlyKeywords`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
 
@@ -2756,30 +2847,37 @@ kept on the Document the same way.
 3.1 has them choose it. A schema of a 3.1 or 3.2 document is read in the dialect the `$schema` of
 the innermost schema resource root holding it names, itself included: a Schema Object no other
 Schema Object holds, the root of a document that is no OpenAPI document, which holds every schema in
-it, or a schema whose `$id` roots a resource of its own, as JSON Schema lets an embedded resource
-name its dialect. Else it is read in its document's `jsonSchemaDialect`, and else in its minor's
-own, the OAS dialect. A `$schema` on any other schema chooses nothing, since JSON Schema writes one
-at a resource's root, and an `$id` naming its own document roots no resource. A 3.0 document defines
-neither keyword, so its schemas are read in 3.0's dialect whatever either names. The rule table has
-rows for three dialects, each named by the id its meta-schema declares, with or without a trailing
-empty fragment. The OAS dialect, `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema
-2020-12, `https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the
-OAS dialect is also named by each dated id its meta-schema is published under:
+it, or a schema whose identifier roots a resource of its own ([`references`](#references)), as JSON
+Schema lets an embedded resource name its dialect. Else it is read in its document's
+`jsonSchemaDialect`, and else in its minor's own, the OAS dialect. A `$schema` on any other schema
+chooses nothing, since JSON Schema writes one at a resource's root, and an `$id` naming its own
+document roots no resource. A 3.0 document defines neither keyword, so its schemas are read in 3.0's
+dialect whatever either names. The rule table has rows for each dialect named here by the id its
+meta-schema declares, with or without a trailing empty fragment. The OAS dialect,
+`https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema 2020-12,
+`https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the OAS
+dialect is also named by each dated id its meta-schema is published under:
 `https://spec.openapis.org/oas/3.1/dialect/2024-10-25` and `2024-11-10`, and
 `https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
-support values of `$schema` besides. JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`,
-has keyword rows of its own. A dialect changes the keywords alone: the fields OpenAPI adds to a
-Schema Object, such as `discriminator` and `xml`, and the rules it states of one stay the minor's. A
-reading the rows decide follows the schema's: draft 4 spells an exclusive bound as a boolean
-modifying the bound beside it ([`constraints`](#constraints)). A schema naming any other dialect by
-an absolute URI, a later draft or one of the author's, is read in its minor's own, with an
-`openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it. A value no
-absolute URI names chooses nothing, as though it were not written, and draws no such warning: the
-rule table reports it where it judges it ([`validation`](#validation)), which in a document a
-reference reaches is only what the reference reaches ([`openapi-versions`](#openapi-versions)). A
-node an alias places at several positions is read in one dialect at all of them: that of the root
-last in pointer order among those whose trees hold it, which for a node no alias places is the
-innermost.
+support values of `$schema` besides. JSON Schema 2019-09,
+`https://json-schema.org/draft/2019-09/schema`, draft 7, `http://json-schema.org/draft-07/schema#`,
+draft 6, `http://json-schema.org/draft-06/schema#`, and draft 4,
+`http://json-schema.org/draft-04/schema#`, have keyword rows of their own. A dialect changes the
+keywords alone: the fields OpenAPI adds to a Schema Object, such as `discriminator` and `xml`, and
+the rules it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4
+spells an exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)),
+the drafts before 2020-12 a tuple as a list of `items` ([`tuples`](#tuples)), those before 2019-09
+`dependencies` ([`validation-only`](#validation-only)) and an identifier naming a fragment alone
+([`references`](#references)), draft 4 the identifier as `id`, and drafts 4, 6 and 7 ignore the
+keywords beside a `$ref` ([`later-version-construct`](#later-version-construct)). A schema naming
+any other dialect by an absolute URI, an earlier draft or one of the author's, is read in its
+minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`
+naming it. A value no absolute URI names chooses nothing, as though it were not written, and draws
+no such warning: the rule table reports it where it judges it ([`validation`](#validation)), which
+in a document a reference reaches is only what the reference reaches
+([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
+an alias places under two roots is read in each one's at each, by the folding of an `allOf` and the
+reading of a body as a file too.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
@@ -2796,15 +2894,20 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
   `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
   `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
+  `e2e.TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect`,
+  `e2e.TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader`,
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
-  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
-- Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
-  a list, `additionalItems`, `dependencies`, `definitions`, `id`, or the keywords beside a `$ref`, is
-  read as 2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them
-  would also have an aliased node read per position (#1457); the rule table's check holds a schema
-  read in a draft to its minor's keyword rows (#1466); and an `$id` naming its document by the 3.2
-  `$self` roots a resource of its own, as the document is known by its location alone (#863).
+  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
+  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
+- Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
+  dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
+  [`tuples`](#tuples), [`references`](#references)), so a keyword only the draft defines, such as
+  `dependencies` or draft 4's `id`, is held to none, as is a `definitions` entry no `$ref` reaches
+  (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
+  2020-12 reads it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never
+  expanded as its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self`
+  roots a resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -3214,8 +3317,9 @@ type. It leaves the media type to say where it is absent, `true`, or writes no k
 `string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
 the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
-the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
-payload's octets,
+the value, as a JSON Schema draft's spellings of them do where the schema's dialect defines one,
+draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds
+`maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
 keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
@@ -3241,7 +3345,8 @@ response and an error case.
   `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
   `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
   `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
-  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`,
+  `operation.TestBodyFile_ReadsADraftsSpellingAsItsTwin`
 
 ### `binary-media`
 
@@ -3378,7 +3483,8 @@ they are read from every declaration of the part's name: `Multi` where any is an
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with
 `format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
 it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
-elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+elements, its `prefixItems` and the `items` after them, or a draft's list of `items` and the
+`additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an
 array branch of a union it writes, whose other branches are read as a body's union branches are: one
 declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
 names only `application/octet-stream` or media types the binary policy names
@@ -3388,16 +3494,16 @@ default content type OpenAPI makes `application/octet-stream`, a union being rea
 each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
 that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
-default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
-neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
-declares no encoding still gets entries for its array and file parts, and an entry declaring nothing
-leaves none. What an Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI gives it no
-effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at the
-field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart nor
-form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
-`itemEncoding` under one that is not multipart. A media type is read without its parameters and in
-any case.
+default disagrees, and an array writing no `items`, or a draft's tuple no `additionalItems`, says
+nothing of its elements past its prefix, so neither is a file. A part is entered only when its
+`PartEncoding` holds something, so a body that declares no encoding still gets entries for its array
+and file parts, and an entry declaring nothing leaves none. What an Encoding Object writes beyond
+those fields is [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where
+OpenAPI gives it no effect is reported as an `openapi/validation` warning, of the class
+`validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a media type
+that is neither multipart nor form, which lowers nowhere, or before 3.2 outside a request body, and
+a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is read
+without its parameters and in any case.
 
 - Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
@@ -3420,7 +3526,9 @@ any case.
   `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
   `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
   `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
-  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
+  `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
+  `schema.TestListedTuple_ReadsADraftsEntriesAndRest`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own

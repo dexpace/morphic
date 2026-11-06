@@ -59,10 +59,10 @@ func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch 
 	if decided {
 		return head
 	}
-	if !besideRefsOpen(c.Bindings(), js) {
+	if !besideRefsOpen(c, js) {
 		return readsOther
 	}
-	own := readOpen(s, true /* unions */)
+	own := readOpen(c, s, true /* unions */)
 	union := slices.Concat(s.GetAnyOf(), s.GetOneOf())
 	if !own.open() || len(union) == 0 {
 		return own
@@ -85,10 +85,10 @@ func readBranch(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileRea
 	if decided {
 		return head
 	}
-	if !besideRefsOpen(c.Bindings(), js) {
+	if !besideRefsOpen(c, js) {
 		return readsOther
 	}
-	return readOpen(s, false /* unions */)
+	return readOpen(c, s, false /* unions */)
 }
 
 // maxFileRefHops bounds the $refs besideRefsOpen follows (styleguide
@@ -101,17 +101,18 @@ const maxFileRefHops = 64
 // $ref holds with what the $ref names, beside a 3.0 $ref too as the schema
 // lowering reads one, so `{$ref: X, contentEncoding: base64}` says a body is
 // text where X says nothing.
-func besideRefsOpen(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+func besideRefsOpen(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	for range maxFileRefHops + 1 {
 		if js == nil || js.IsBool() || js.GetSchema().Ref == nil {
 			return true
 		}
-		if !writesOnly(js.GetSchema(), func(key string) bool {
-			return key == "$ref" || key != "type" && openKeyword(key, false /* unions */)
+		s := js.GetSchema()
+		if !writesOnly(s, func(key string) bool {
+			return key == "$ref" || key != "type" && openKeyword(schema.TwinKeyword(c, s, key), false /* unions */)
 		}) {
 			return false
 		}
-		js = refs.Declared(js)
+		js = c.Bindings().Declared(js)
 	}
 	return false
 }
@@ -164,8 +165,8 @@ func declaresBinary(s *oas3.Schema) bool {
 // readOpen reads s, a schema declaring no raw bytes, as a string, untyped or
 // other: other where it writes a keyword no file leaves open (openKeyword), or
 // a type other than string, alone or with null.
-func readOpen(s *oas3.Schema, unions bool) fileReading {
-	if !writesOnlyOpenKeywords(s, unions) {
+func readOpen(c lowering.Ctx, s *oas3.Schema, unions bool) fileReading {
+	if !writesOnlyOpenKeywords(c, s, unions) {
 		return readsOther
 	}
 	types := withoutNull(s.GetType())
@@ -179,10 +180,11 @@ func readOpen(s *oas3.Schema, unions bool) fileReading {
 	}
 }
 
-// writesOnlyOpenKeywords reports whether every keyword s writes is one a file's
-// schema may write (openKeyword).
-func writesOnlyOpenKeywords(s *oas3.Schema, unions bool) bool {
-	return writesOnly(s, func(key string) bool { return openKeyword(key, unions) })
+// writesOnlyOpenKeywords reports whether every keyword s, a schema of c,
+// writes is one a file's schema may write (openKeyword), a draft's spelling of
+// one read as its twin (schema.TwinKeyword).
+func writesOnlyOpenKeywords(c lowering.Ctx, s *oas3.Schema, unions bool) bool {
+	return writesOnly(s, func(key string) bool { return openKeyword(schema.TwinKeyword(c, s, key), unions) })
 }
 
 // writesOnly reports whether every keyword s writes is one allowed takes, a
@@ -220,14 +222,13 @@ func openKeyword(key string, unions bool) bool {
 // branch admitting no value but null, or none at all, says nothing of the
 // bytes, so it is passed over; a union of nothing else is other.
 func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], read branchReader) fileReading {
-	refs := c.Bindings()
 	if !slices.ContainsFunc(branches, func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !admitsNoBytes(refs, branch)
+		return !admitsNoBytes(c, branch)
 	}) {
 		return readsOther
 	}
 	return leastOf(c, branches, func(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-		if admitsNoBytes(c.Bindings(), branch) {
+		if admitsNoBytes(c, branch) {
 			return readsBinary // the top, which leaves the least of the others
 		}
 		return read(c, branch)
@@ -251,13 +252,13 @@ func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileRe
 // admitsNoBytes reports whether branch, one of a union's, admits no value but
 // null, or none at all, read through the $refs it starts: a false schema, or a
 // type null writing nothing else a reader of a file looks at.
-func admitsNoBytes(refs *typed.Bindings, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if annotation.IsFalseSchema(refEnd(refs, branch)) {
+func admitsNoBytes(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if annotation.IsFalseSchema(refEnd(c.Bindings(), branch)) {
 		return true
 	}
-	s := schemaOf(refs, branch)
+	s := schemaOf(c.Bindings(), branch)
 	return s != nil && slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
-		writesOnlyOpenKeywords(s, false /* unions */)
+		writesOnlyOpenKeywords(c, s, false /* unions */)
 }
 
 // withoutNull returns types with null removed, a copy so the schema's own

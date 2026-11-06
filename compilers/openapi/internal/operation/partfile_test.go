@@ -200,6 +200,51 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	}
 }
 
+// TestReadPartFile_ReadsADraftsTupleThroughItsEntries holds a part a JSON
+// Schema draft writes as a tuple, an `items` list, to its entries and the
+// `additionalItems` beside them, as a 2020-12 tuple is held to its prefixItems
+// and items: written inline, through a `$ref` or as a union's branch, a closed
+// tuple of untyped elements is files, and one writing no rest, or an entry of
+// text, is none.
+func TestReadPartFile_ReadsADraftsTupleThroughItsEntries(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, part  string
+		file, multi bool
+	}{
+		{"a closed tuple of untyped elements", "{type: array, items: [{}, {}], additionalItems: false}", true, true},
+		{"a tuple whose rest writes no type", "{type: array, items: [{}], additionalItems: {}}", true, true},
+		{"a tuple writing no additionalItems", "{type: array, items: [{}]}", false, true},
+		{"a tuple of an untyped element and a string", "{type: array, items: [{}, {type: string}], additionalItems: false}",
+			false, true},
+		{"a $ref to a closed tuple", "{$ref: '#/components/schemas/Pair'}", true, true},
+		{"a union with a closed tuple", "{oneOf: [{}, {$ref: '#/components/schemas/Pair'}]}", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, "jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#'\n"+
+				openapitest.PathsSpec(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {file: `+tc.part+`}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Pair: {type: array, items: [{}, {}], additionalItems: false}
+`), openapi.Options{})
+			entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
+			require.Len(t, entries, 1, "a part that repeats has an entry")
+			for _, pe := range entries {
+				assert.Equal(t, tc.file, pe.Filename, "filename")
+				assert.Equal(t, tc.multi, pe.Multi, "multi")
+			}
+		})
+	}
+}
+
 // TestReadPartFile_AMarkerNamesOnlyAGuess holds the marker to a file only the
 // binary policy reads: a part the merged type makes raw bytes is declared, in
 // either branch order, though another declaration of it leaves its media type
