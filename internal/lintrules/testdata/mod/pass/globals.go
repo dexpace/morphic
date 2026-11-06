@@ -522,4 +522,25 @@ func Shadows(items []int) {
 	items[0] = 1
 }
 
-var sheets [2][]int
+var (
+	typed  any = map[string]int{}
+	sheets [2][]int
+)
+
+// OutOfReach spells what the rule states it cannot see, which draws nothing: a
+// channel send or close, a conversion, a type assertion, and an alias held in a
+// literal, an element or behind a pointer.
+func OutOfReach() {
+	queue <- items
+	close(queue)
+	registry(names)["a"] = 1
+	typed.(map[string]int)["a"] = 1
+	held := []map[string]int{names}
+	held[0]["a"] = 1
+	own := make([]map[string]int, 1)
+	own[0] = names
+	own[0]["a"] = 1
+	behind := new(map[string]int)
+	*behind = names
+	(*behind)["a"] = 1
+}
