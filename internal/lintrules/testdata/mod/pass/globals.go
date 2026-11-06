@@ -258,13 +258,15 @@ func Methods() {
 
 // Builtins writes through delete, clear, copy and append.
 func Builtins() {
-	delete(names, "a")       // want "globalwrites: writes through delete to the package-level variable names; keep the state in a local or an argument"
-	clear(names)             // want "globalwrites: writes through clear to the package-level variable names; keep the state in a local or an argument"
-	copy(items, []int{1})    // want "globalwrites: writes through copy to the package-level variable items; keep the state in a local or an argument"
-	_ = append(items[:1], 2) // want "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
-	_ = append(items, 3)     // want "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
-	items = append(items, 1) // want "globalwrites: assigns the package-level variable items; keep the state in a local or an argument" "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
-	(delete)(names, "b")     // want "globalwrites: writes through delete to the package-level variable names; keep the state in a local or an argument"
+	delete(names, "a")        // want "globalwrites: writes through delete to the package-level variable names; keep the state in a local or an argument"
+	clear(names)              // want "globalwrites: writes through clear to the package-level variable names; keep the state in a local or an argument"
+	copy(items, []int{1})     // want "globalwrites: writes through copy to the package-level variable items; keep the state in a local or an argument"
+	_ = append(items[:1], 2)  // want "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
+	_ = append(items, 3)      // want "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
+	items = append(items, 1)  // want "globalwrites: assigns the package-level variable items; keep the state in a local or an argument" "globalwrites: writes through append to the package-level variable items; keep the state in a local or an argument"
+	copy(items[1:], []int{1}) // want "globalwrites: writes through copy to the package-level variable items; keep the state in a local or an argument"
+	clear(rows[0])            // want "globalwrites: writes through clear to the package-level variable rows; keep the state in a local or an argument"
+	(delete)(names, "b")      // want "globalwrites: writes through delete to the package-level variable names; keep the state in a local or an argument"
 	_ = append([]int(nil), items...)
 	_ = append(slices.Clone(items), 1)
 	copy([]int{}, items)
@@ -310,6 +312,25 @@ func Aliases(k string) {
 	x, y := names, items
 	x["b"] = 3 // want "globalwrites: writes an element or field of the package-level variable names through its alias x; keep the state in a local or an argument"
 	y[0] = 2   // want "globalwrites: writes an element or field of the package-level variable items through its alias y; keep the state in a local or an argument"
+	var bound []int
+	for _, bound = range rows {
+		bound[0] = 1 // want "globalwrites: writes an element or field of the package-level variable rows through its alias bound; keep the state in a local or an argument"
+	}
+	for _, row := range sheets {
+		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable sheets through its alias row; keep the state in a local or an argument"
+	}
+	var kept []int
+	kept, ok = lists["b"]
+	kept[0] = 1 // want "globalwrites: writes an element or field of the package-level variable lists through its alias kept; keep the state in a local or an argument"
+	var spec, specOK = lists["c"]
+	spec[0] = 1 // want "globalwrites: writes an element or field of the package-level variable lists through its alias spec; keep the state in a local or an argument"
+	_ = specOK
+	totals := names
+	totals["c"] += 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias totals; keep the state in a local or an argument"
+	clear(totals)    // want "globalwrites: writes through clear to the package-level variable names through its alias totals; keep the state in a local or an argument"
+	seq := items
+	copy(seq, []int{1}) // want "globalwrites: writes through copy to the package-level variable items through its alias seq; keep the state in a local or an argument"
+	_ = append(seq, 1)  // want "globalwrites: writes through append to the package-level variable items through its alias seq; keep the state in a local or an argument"
 	_, _ = ok, k
 	for _, row := range rows {
 		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable rows through its alias row; keep the state in a local or an argument"
@@ -500,3 +521,5 @@ func Shadows(items []int) {
 	names["a"] = 1
 	items[0] = 1
 }
+
+var sheets [2][]int
