@@ -122,7 +122,7 @@ func draft2019Keywords() []Field {
 		keyword("$vocabulary", RawMap, s, c(`8.1.2. The "$vocabulary" Keyword`, `The value of this keyword MUST be an object.`)),
 		keyword("$id", String, s, c(`8.2.2. The "$id" Keyword`, `Therefore, "$id" MUST NOT contain a non-empty fragment, and SHOULD NOT contain an empty fragment.`)).formatted(ResourceURI),
 		keyword("$anchor", String, s, c(`8.2.3. Defining location-independent identifiers with "$anchor"`, `If present, the value of this keyword MUST be a string, which MUST start with a letter ([A-Za-z]), followed by any number of letters, digits ([0-9]), hyphens ("-"), underscores ("_"), colons (":"), or periods (".").`)).formatted(PlainName),
-		keyword("$ref", String, s, c(`8.2.4.1. Direct References with "$ref"`, `The value of the "$ref" property MUST be a string which is a URI`)).formatted(URI),
+		keyword("$ref", String, s, c(`8.2.4.1. Direct References with "$ref"`, `The value of the "$ref" property MUST be a string which is a URI-Reference.`)).formatted(URI),
 		keyword("$recursiveRef", String, s, c(`8.2.4.2.1. Dynamically recursive references with "$recursiveRef"`, `The value of the "$recursiveRef" property MUST be a string which is a URI-reference.`)).formatted(URI),
 		keyword("$recursiveAnchor", Boolean, s, c(`8.2.4.2.2. Enabling Recursion with "$recursiveAnchor"`, `The value of the "$recursiveAnchor" property MUST be a boolean.`)),
 		schemaMapOf("$defs", s, c(`8.2.5. Schema Re-Use With "$defs"`, `This keyword's value MUST be an object.`)),
