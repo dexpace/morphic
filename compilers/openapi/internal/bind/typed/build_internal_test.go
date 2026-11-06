@@ -188,9 +188,9 @@ func TestBuild_MendsWhatWasRecordedAndWhatItBuilds(t *testing.T) {
 // has run over a document a schema of which names a dialect, each schema
 // recorded answers by the model it holds the position it was read at, as Site
 // answers by the schema itself, one the parser read as false and mend decoded
-// again among them. Before Build, over a document naming no dialect, where
-// each node reads its document's, and for a nil model or nil bindings, none
-// is placed.
+// again among them. Over a document naming no dialect, where each node reads
+// its document's, only a schema writing a list of items is, whose entries are
+// read where it is. Before Build, and for a nil model or nil bindings, none is.
 func TestBuild_PlacesEachSchemaByTheModelItHolds(t *testing.T) {
 	t.Parallel()
 	builder := func(t *testing.T, schemas string) *Builder {
@@ -220,8 +220,11 @@ func TestBuild_PlacesEachSchemaByTheModelItHolds(t *testing.T) {
 	assert.False(t, placed, "nil bindings")
 
 	plain := builder(t, "    D: {type: object}\n")
-	decodedAt(t, plain, "{properties: {a: {type: string}}}", at("/s"))
+	decodedAt(t, plain, "{properties: {a: {type: string}}, items: [{type: string}]}", at("/s"))
 	plain.Build(t.Context())
 	_, placed = plain.Bindings().SiteOf(plain.Bindings().At(at("/s/properties/a")).GetSchema())
 	assert.False(t, placed, "no schema names a dialect")
+	site, placed := plain.Bindings().SiteOf(plain.Bindings().At(at("/s")).GetSchema())
+	assert.True(t, placed, "a schema writing a list of items")
+	assert.Equal(t, at("/s"), site)
 }

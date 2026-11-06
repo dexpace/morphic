@@ -2447,14 +2447,17 @@ is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry n
 such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
 at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
 `prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
-[`null-schema`](#null-schema) reads it. A position that lowers to no
-`Tuple`, such as one with no `type: array`, keeps the list and the `additionalItems` beside it as
-[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`, and a type list's array
-variant is the tuple the schema writes. Beside an `items` that is no list, `additionalItems` is the
-rest of no tuple, kept verbatim with an info `openapi/unknown-schema-keyword`; beside a list in any
-other dialect, it is kept as at a position lowering to no `Tuple`. In any other dialect a list of items is no schema: the load phase
-reports it as an `openapi/invalid-items-list` error, at every schema the [`validation`](#validation)
-check reads, and the lowering reads `items` as absent.
+[`null-schema`](#null-schema) reads it. A type list's array variant is the tuple the schema writes,
+which leaves nothing on the union. Any other position that lowers to no `Tuple`, such as one with no
+`type: array`, keeps the list and the `additionalItems` beside it as
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
+list, `additionalItems` is the rest of no tuple, kept verbatim with an info
+`openapi/unknown-schema-keyword`.
+
+In any other dialect a list of items is no schema: the load phase reports it as an
+`openapi/invalid-items-list` error, at every schema the [`validation`](#validation) check reads, and
+the lowering reads `items` as absent; an `additionalItems` beside it is kept as at a position
+lowering to no `Tuple`.
 
 - Cases: `tuples-prefixitems`, `schema-drafts`
 - Codes: `openapi/validation-only-keyword`, `openapi/invalid-items-list`,

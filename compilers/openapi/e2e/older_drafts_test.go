@@ -29,7 +29,8 @@ const (
 // spells a tuple so, at 3.1 and 3.2: a Tuple of its entries, an entry's $ref
 // bound, whose rest is additionalItems, none for `false` and the top type for
 // an absent one. In 2020-12, and in a 3.0 document, a list is no schema: an
-// openapi/invalid-items-list error at it, and a List of the top type.
+// openapi/invalid-items-list error at it saying what the version writes, a
+// List of the top type, and the additionalItems beside it kept as degraded.
 func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 	t.Parallel()
 	const list = "type: array, items: [{type: string}, {$ref: '#/components/schemas/B'}]"
@@ -53,11 +54,14 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 			})
 		}
 	}
-	const draftOrPrefix = "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"
+	const (
+		draftOrPrefix = "write a tuple as prefixItems, or name a JSON Schema draft that reads a list as one by $schema"
+		rest          = "additionalItems: {type: boolean}"
+	)
 	for _, tc := range []struct{ name, src, remedy string }{
-		{"2020-12", openapitest.ComponentSpec("    L: {$schema: " + draft2020 + ", " + list + "}\n    B: {}\n"), draftOrPrefix},
-		{"3.1's own", openapitest.ComponentSpec("    L: {" + list + "}\n    B: {}\n"), draftOrPrefix},
-		{"3.0", openapitest.ComponentSpecVer("3.0.3", "    L: {"+list+"}\n    B: {}\n"),
+		{"2020-12", openapitest.ComponentSpec("    L: {$schema: " + draft2020 + ", " + list + ", " + rest + "}\n    B: {}\n"), draftOrPrefix},
+		{"3.1's own", openapitest.ComponentSpec("    L: {" + list + ", " + rest + "}\n    B: {}\n"), draftOrPrefix},
+		{"3.0", openapitest.ComponentSpecVer("3.0.3", "    L: {"+list+", "+rest+"}\n    B: {}\n"),
 			"OpenAPI 3.0 writes no tuple, which 3.1 writes as prefixItems"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -73,6 +77,8 @@ func TestOlderDrafts_AListOfItemsIsATuple(t *testing.T) {
 			l, ok := doc.Types[componentID("L")].(*ir.List)
 			require.True(t, ok)
 			assert.Equal(t, ir.TypeID("t/prim/any"), l.Elem.Target)
+			assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, l.Unmodeled, "openapi:additionalItems").Reason,
+				"the rest beside the list is kept as at a position lowering to no tuple")
 		})
 	}
 }
