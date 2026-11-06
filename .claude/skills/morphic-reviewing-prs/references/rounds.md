@@ -204,7 +204,7 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   A fix to a mechanism a design document specifies first takes
   `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
   and its row of `references/design.md#design-review-matrix`. Push a round's fixes once, after
-  `references/rounds.md#recheck-before-hand-off`, by the push checklist from the detached setup,
+  `references/rounds.md#author-pass-before-hand-off`, by the push checklist from the detached setup,
   then rerun the setup.
 - **Why.** #1143's later rounds found defects its own fixes had added, such as a command failing
   from the root. #1233's author applied a posted redesign verbatim, and a later round found five
@@ -213,17 +213,17 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   `git diff <round's base>..HEAD` with those angles.
 
 ## Recheck what a round's fixes can move before the next hand-off
-`recheck-before-hand-off`
+`author-pass-before-hand-off`
 
 - **Rule.** Before each hand-off, on the fix commit: rerun each plant whose verdict
   `.claude/skills/morphic-verifying-changes/references/mutation.md#verdict-outlives-unchanged-files`
-  does not carry across the fixes;
-  derive each number the PR body states from a command run there, its output kept beside the body
-  draft (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#body-states-the-head`);
-  and rerun the trial merges
+  does not carry across the fixes; derive each number the PR body states from a command run there,
+  its output kept beside the body draft
+  (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#body-states-the-head`); and
+  rerun the trial merges
   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs` and
-  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-lints-the-skills`
-  call for.
+  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-lints-the-skills` call
+  for.
 - **Why.** #1532's seventh-round findings sat in the sixth round's fixes, body or commit message:
   a rewritten test passed a mutant stopping a scan at a file's first citing line, and the body
   counted 14 open PRs sharing a file, not six. Trial merges rerun after a fix found a

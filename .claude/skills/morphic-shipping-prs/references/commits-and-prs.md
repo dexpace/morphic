@@ -102,14 +102,17 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `scope-settled-by-the-second-round`
 
 - **Rule.** From a PR's second review round, an issue joins it only when its fix changes the PR's
-  own mechanism. Any other goes in a PR of its own, reviewed alongside and converging on its own.
+  own mechanism, bar a stacked child's issues a landing PR carries
+  (`references/commits-and-prs.md#closing-keywords`). Any other goes in a PR of its own, reviewed
+  alongside and converging on its own.
 - **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
   findings sat in their content (#1532).
-- **Probe.** For each issue a closing keyword in the body names
+- **Probe.** For each issue, bar a stacked child's, that a closing keyword in the body names
   (`references/commits-and-prs.md#closing-keywords`) and the body as the PR opened did not, the body
-  names the change its fix makes to the PR's mechanism. The opening body is the oldest `editedAt` of
-  `gh api graphql -f query='{repository(owner:"dexpace",name:"morphic"){pullRequest(number:<N>){userContentEdits(first:100){nodes{editedAt diff}}}}}'`,
-  or the body itself when that lists none; `closingIssuesReferences` is empty on a stacked PR.
+  names the change its fix makes to the PR's mechanism. The opening body is the `diff` that
+  `gh api graphql -f query='{repository(owner:"dexpace",name:"morphic"){pullRequest(number:<N>){userContentEdits(last:1){nodes{diff}}}}}'`
+  prints, or the body itself when it prints none; `closingIssuesReferences` is empty on a stacked
+  PR.
 
 ## Probe a change to an ignore rule at base and head
 `ignore-rule-both-ways`

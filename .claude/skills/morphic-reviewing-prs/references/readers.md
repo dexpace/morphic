@@ -57,9 +57,9 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   on the call that starts the reader rather than in its brief.
 - **Why.** #1532's readers, started with no effort set, ran at the session's, so a session lowered
   for its mechanical work could lower what they catch (#1532, #1542).
-- **Probe.** On the reader's transcript,
-  `jq -r 'select(.params.output_config.effort) | .params.output_config.effort' <transcript> | sort | uniq -c`
-  prints `xhigh` alone.
+- **Probe.** On the starting session's transcript,
+  `jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Agent") | .input.effort // "unset"' <transcript>`
+  prints `xhigh` for each reader, where a reader's own transcript records the effort it inherited.
 
 ## Brief a reader to batch its calls
 `reader-batches-its-calls`
@@ -103,20 +103,21 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   before rerunning any of it.
 - **Why.** #1532's main session reran a harness after a reader's hand-back that it had not
   fingerprinted before the hand-off (#1532).
-- **Probe.** `find <harness directory> -type f -exec cksum {} + | sort | cksum` prints one line
-  before the hand-off and the same line after.
+- **Probe.** Before the hand-off,
+  `find <harness directory> -type f -exec cksum {} + | sort > <list>`, and after it the same into
+  `diff <list> -`, which prints nothing or names each file to rebuild.
 
 ## Split a scoped round carrying whole reads between two readers
 `split-whole-reads-from-what-moved`
 
 - **Rule.** A round reading what moved (`references/rounds.md#later-rounds-read-what-moved`)
-  carrying whole reads goes to two parallel readers, each in its own directory. One takes what moved
-  and the PR body, checking the body's claims against the diff. The other takes the whole reads, the
-  closing issues with their comments, tracker searches and evidence outside the repository, matching
-  each ask and Direction step to the line meeting it or the body's reason none does, without
-  reviewing the diff. The main session merges both reports and disproves each finding. A round of
-  the diff and body alone keeps one reader; neither half splits by file
-  (`references/readers.md#no-split-by-file`).
+  carrying whole reads goes to two parallel readers, each in its own directory. One takes what
+  moved, the PR body, whose claims it checks against the diff, and each other cell the round
+  carries. The other takes the whole reads, the closing issues with their comments, read as
+  `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-met-at-its-site`
+  says, tracker searches and evidence outside the repository, without reviewing the diff. The main
+  session merges both reports and disproves each finding. A round of the diff and body alone keeps
+  one reader; neither half splits by file (`references/readers.md#no-split-by-file`).
 - **Why.** #1532's seventh reader left five cells unreached, the closing issues read whole and an
   issue's Direction among them (#1532).
 - **Probe.** Each brief of a split round names its half and its directory.
