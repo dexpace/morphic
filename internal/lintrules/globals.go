@@ -480,9 +480,10 @@ func pair(lhs, rhs []ast.Expr) []given {
 
 // aliasable reports whether a local of type t shares what it was given: a map,
 // a slice or a pointer. A struct, an array, an interface, a channel and a
-// function are copies or out of reach, and an alias held in one, or in a slice
-// or map literal, or reached through a conversion, a type assertion or a
-// function result, is out of sight.
+// function are copies or out of reach. Out of sight too is an alias held in one,
+// or in an element of a slice or map or behind a pointer, as s[0] = v and *p = v
+// put it there as much as a literal does, or reached through a conversion, a
+// type assertion or a function result.
 func aliasable(t types.Type) bool {
 	switch t.Underlying().(type) {
 	case *types.Map, *types.Slice, *types.Pointer:
