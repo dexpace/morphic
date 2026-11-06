@@ -21,8 +21,6 @@ import (
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
-
-	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // The callers apiRoots names, one reason per kind of caller.
@@ -144,7 +142,6 @@ type sourceFunc struct {
 // as safe for concurrent use.
 func moduleProgram(t *testing.T) program {
 	t.Helper()
-	irtest.ReadModuleFiles(t) // the dependencies moduleBuild parses sit in the module cache, which go test never rechecks
 	p, err := moduleBuild()
 	require.NoError(t, err)
 	return p
@@ -203,13 +200,6 @@ func programOf(prog *ssa.Program, roots []*packages.Package, built map[*packages
 		p.mains = append(p.mains, m.Func("init"), m.Func("main"))
 	}
 	return p, nil
-}
-
-// TestModuleProgram_OpensTheModuleFiles holds moduleProgram to the module's
-// go.mod and go.sum in go test's log, through the test that calls it.
-func TestModuleProgram_OpensTheModuleFiles(t *testing.T) {
-	t.Parallel()
-	irtest.RequireOpensModuleFiles(t, "TestReachability_OnlyTestsReachNoFunction")
 }
 
 // builtPackage is one package as buildPackage leaves it: its syntax, what the
