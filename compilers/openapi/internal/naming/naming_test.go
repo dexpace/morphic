@@ -118,6 +118,8 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 		{"an extension keyword likewise", "/components/schemas/Foo/x-ext/items", compile.SubHint("x-ext", "item")},
 		{"a keyed keyword with no key names itself", "/components/schemas/Foo/properties", "properties"},
 		{`the component keyed ""`, "/components/schemas//items", compile.SubHint("", "item")},
+		{`a key "" under a keyword the walk does not read`, "/components/schemas/Foo/x-ext//items",
+			compile.SubHint("", "item")},
 		{"the schemas map holds no schema to own it", "/components/schemas", "schemas"},
 		{"the empty pointer", "", ""},
 	}
