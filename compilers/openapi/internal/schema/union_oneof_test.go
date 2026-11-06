@@ -466,6 +466,31 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	}
 }
 
+// TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported pins that a branch
+// diagUnresolvedBranches skips, for naming a referent or lying on a loop of
+// $refs, leaves the branches after it reported: the skip moves to the next
+// branch rather than ending the walk.
+func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
+	t.Parallel()
+	tests := []struct{ name, skipped string }{
+		{"after one naming a referent", "#/components/schemas/A"},
+		{"after one on a loop", "#/components/schemas/Z/oneOf/0"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := lowerSpecOnly(t, openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Z:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '`+tc.skipped+`'}, {$ref: '#/components/schemas/Ghost'}]
+`))
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/Z/oneOf/1"),
+				"Ghost", "the branch after the skipped one")
+		})
+	}
+}
+
 // TestOneOf_CoDeclaredNotDistributedReasons pins the five shapes distribution
 // declines, each kept verbatim under ReasonDegradedLowering with its own reason
 // in the diagnostic (docs/compilers/openapi.md#union-beside-structure).

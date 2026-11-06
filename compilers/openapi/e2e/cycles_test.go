@@ -280,7 +280,8 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 // allOf branch and a union branch on a loop of $refs from being reported twice.
 // Load reports the loop once as cyclic-ref, so the lowering reports no
 // unresolved-ref for a branch on it: removing the gate in fillRefBranch or the
-// one in diagUnresolvedBranches adds that error. Each case reaches one gate.
+// one in diagUnresolvedBranches adds that error. Each case reaches one gate,
+// the anyOf case the union's under its other keyword.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
@@ -308,6 +309,17 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
         - $ref: '#/components/schemas/Z/oneOf/0'
 `, []report{
 			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"anyOf branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      anyOf:
+        - $ref: '#/components/schemas/Z/anyOf/1'
+        - $ref: '#/components/schemas/Z/anyOf/0'
+`, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"},
 			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
 		}},
 	}
