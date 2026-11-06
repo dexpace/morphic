@@ -20,6 +20,9 @@ func (t *tally) Self() *tally { return t }
 // Tally takes a map as an argument, which a method of any receiver may write.
 func (t *tally) Tally(m map[string]int) { t.n += len(m) }
 
+// Bind keeps its receiver in the closure it returns.
+func (t *tally) Bind() func() { return func() { t.n++ } }
+
 // Gen and Two are generic methods, which a call instantiates in its Fun.
 func (t *tally) Gen[X any]()    { t.n++ }
 func (t *tally) Two[X, Y any]() { t.n++ }
@@ -525,11 +528,25 @@ func Shadows(items []int) {
 var (
 	typed  any = map[string]int{}
 	sheets [2][]int
+	keeper = ledger.Bind()
+	hoard  = stash{m: map[string]int{}}
 )
 
+// stash is a struct value holding a map, which its value receiver writes through.
+type stash struct{ m map[string]int }
+
+func (s stash) Set() { s.m["a"] = 1 }
+
+// handed writes what it is given, and table returns a variable.
+func handed(v []int) { v[0] = 1 }
+
+func table() map[string]int { return names }
+
 // OutOfReach spells what the rule states it cannot see, which draws nothing: a
-// channel send or close, a conversion, a type assertion, and an alias held in a
-// literal, an element or behind a pointer.
+// channel send or close, a conversion, a type assertion, a callee given a
+// variable, a function's result, a method on a value holding a map, and an alias
+// held in a literal, an element, a copied struct or array, or behind a pointer.
+// keeper above is the method at package level that keeps its receiver.
 func OutOfReach() {
 	queue <- items
 	close(queue)
@@ -543,4 +560,12 @@ func OutOfReach() {
 	behind := new(map[string]int)
 	*behind = names
 	(*behind)["a"] = 1
+	slices.Sort(items)
+	handed(items)
+	table()["a"] = 1
+	hoard.Set()
+	copied := hoard
+	copied.m["a"] = 1
+	gridCopy := sheets
+	gridCopy[0][0] = 1
 }
