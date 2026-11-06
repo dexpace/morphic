@@ -568,7 +568,9 @@ context-switch between repos.
   cleanup or bug the change neither needs nor exposes is filed, not folded in.
 - **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it,
   its second round when the first ran before the push, land what it finds as new commits, and run
-  the next round on them, until one finds no `issue:` or `nit:`.
+  the next round on them, until one finds no `issue:` or `nit:` and leaves no cell unreached or
+  reopened
+  (`.claude/skills/morphic-reviewing-prs/references/rounds.md#review-ends-with-nothing-left`).
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.

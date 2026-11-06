@@ -98,6 +98,22 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `git diff --stat origin/main...HEAD` and match each path to the PR title;
   `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`.
 
+## Settle a PR's scope before its second review round
+`scope-settled-by-the-second-round`
+
+- **Rule.** From a PR's second review round, an issue joins it only when its fix changes the PR's
+  own mechanism, bar a stacked child's issues a landing PR carries
+  (`references/commits-and-prs.md#closing-keywords`). Any other goes in a PR of its own, reviewed
+  alongside and converging on its own.
+- **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
+  findings sat in their content (#1532).
+- **Probe.** For each issue, bar a stacked child's, that a closing keyword in the body names
+  (`references/commits-and-prs.md#closing-keywords`) and the body as the PR opened did not, the body
+  names the change its fix makes to the PR's mechanism. The opening body is the `diff` that
+  `gh api graphql -f query='{repository(owner:"dexpace",name:"morphic"){pullRequest(number:<N>){userContentEdits(last:1){nodes{diff}}}}}'`
+  prints, or the body itself when it prints none; `closingIssuesReferences` is empty on a stacked
+  PR.
+
 ## Probe a change to an ignore rule at base and head
 `ignore-rule-both-ways`
 
@@ -127,15 +143,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Read each issue a PR closes whole, and again before saying it closes
 `closing-issue-read-whole`
 
-- **Rule.** For each issue in `closingIssuesReferences`, read
-  `gh issue view <n> --json state,stateReason,body,comments,updatedAt` when the PR opens and again
-  before a report says the PR closes it. A closed issue's closing comment is a recorded decision,
-  and its reference leaves the body; a comment or a body edit is part of the ask; each
-  `## Out of scope` item or deferred alternative naming work still to do goes to an open issue,
-  stated where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
-- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks eight of
-  its issues held in comments or later edits; closing #1433 would have left a case it put out of
-  scope stated nowhere (#1210, #1435).
+- **Rule.** For each issue a closing keyword in the body names
+  (`references/commits-and-prs.md#closing-keywords`), read
+  `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
+  and again before a report says the PR closes it. A closed issue's closing comment is a recorded
+  decision, its reference leaving the body; a comment or body edit is part of the ask; each
+  `## Out of scope` item or deferred alternative naming pending work goes to an open issue, stated
+  where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
+- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight of
+  its issues' comments or later edits; closing #1433 would have stated an out-of-scope case nowhere
+  (#1210, #1435).
 - **Probe.** The report gives each closing issue's `updatedAt` as last read, none newer, then
   `references/commits-and-prs.md#closing-issue-met-at-its-site`.
 
@@ -231,6 +248,17 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   `gh pr edit` applied a body and never exited (#724). `--jq .body` appends a newline, so each
   edit added a blank line, and 26 gathered unnoticed (#1143).
 - **Probe.** Fetch it back the same way and `cmp` it with the file sent.
+
+## State the head in a PR body, and each round's fixes in its commits
+`body-states-the-head`
+
+- **Rule.** A PR body states the head: its Summary and Test plan as they now hold, rewritten in
+  place when a commit changes what they say. What a review round fixed is told in that round's
+  commit messages, never appended to the body as a log of rounds.
+- **Why.** #1522's body gained a paragraph per review round saying what it fixed, which each later
+  round's reader re-read and re-checked against the tree (#1530).
+- **Probe.** Read `gh pr view <N> --json body --jq .body`: each sentence holds of the head, and none
+  tells what a round or an earlier commit changed.
 
 ## Send only a body the fetch produced
 `send-only-what-the-fetch-produced`

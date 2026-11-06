@@ -143,8 +143,8 @@ verifier and codecs must reach.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
-- **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
-  body. Then take `references/ir-lessons.md#widened-field-consumers`.
+- **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
 
 ## Ask each consumer of a widened field what it did with the old value
 `widened-field-consumers`
