@@ -377,7 +377,7 @@ func TestRaceListViolations_AnEntryNeedsItsReason(t *testing.T) {
 	got, err := raceListViolations(root, raceRule{
 		roots:        []string{"pipe"},
 		exempt:       map[string]string{"tool": " "},
-		pipelineOnly: map[string]string{"pipe": ""},
+		pipelineOnly: map[string]string{"pipe": "\t"},
 	})
 	require.NoError(t, err)
 	want := []string{`pipe: is in racePipelineOnly with no reason`, `tool: is in raceExempt with no reason`}
