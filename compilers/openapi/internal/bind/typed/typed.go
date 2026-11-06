@@ -339,12 +339,12 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 // index places each schema recorded by the model it holds (Bindings.SiteOf):
 // every one where a schema names a dialect (dialectRooted), as a node an alias
 // places twice may then stand under two, and else each writing a list of
-// items, whose entries are read where the schema is written (writesItemsList).
+// items, whose entries are read where the schema is written (listsItems).
 func (bd *Builder) index() {
 	rooted := dialectRooted(bd.b.table)
 	for js, p := range bd.b.at {
 		s := js.GetSchema()
-		if s == nil || !rooted && !writesItemsList(s) {
+		if s == nil || !rooted && !listsItems(s) {
 			continue
 		}
 		if bd.b.of == nil {
@@ -354,10 +354,10 @@ func (bd *Builder) index() {
 	}
 }
 
-// writesItemsList reports whether s writes `items` as a list, a tuple as the
+// listsItems reports whether s writes `items` as a list, a tuple as the
 // JSON Schema drafts before 2020-12 spell one, whose entries the parser's
 // model holds none of: the load phase builds them at their positions.
-func writesItemsList(s *oas3.Schema) bool {
+func listsItems(s *oas3.Schema) bool {
 	n := nodeview.Child(s.GetRootNode(), "items")
 	return n != nil && n.Kind == yaml.SequenceNode
 }
