@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -159,10 +160,13 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node,
 	rule := dialectRule(r.docs, at.Doc, e.dialect)
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor", rule.Keyword} {
 		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
-		if keyword == rule.Keyword {
-			name, ok = fragmentOnly(name, ok && rule.Fragments && !r.ignoresIdentifier(at.Doc, n, rule))
+		switch {
+		case keyword == rule.Keyword:
+			name, ok = fragmentName(rule, name, ok && rule.Fragments && !r.ignoresIdentifier(at.Doc, n, rule))
+		case ok:
+			ok = anchorNamed(rule, keyword, name)
 		}
-		if !ok || !anchorNamed(rule, keyword, name) {
+		if !ok {
 			continue
 		}
 		k := anchorKey{root: res.root, name: name}
@@ -478,12 +482,23 @@ func (r resources) ignoresIdentifier(id DocID, n *yaml.Node, rule DialectRule) b
 	return ref
 }
 
-// fragmentOnly returns the plain name id names where it names a fragment
-// alone, "#name", as an identifier the drafts before 2019-09 declare an anchor
-// by, and false for any other, or where written is false.
-func fragmentOnly(id string, written bool) (string, bool) {
-	name, ok := strings.CutPrefix(id, "#")
-	return name, written && ok && name != ""
+// fragmentName returns the plain name the identifier id declares in a schema
+// read as rule says, where it names a fragment alone, "#name", as the drafts
+// before 2019-09 have one: of the plain-name grammar where rule gives it
+// (DialectRule.PlainFragments), as drafts 6 and 7 do, else any no JSON pointer
+// spells, as in draft 4, read as land reads a $ref's fragment. It is false for
+// any other, a fragment holding a second '#' among them, as a $ref writing one
+// names nothing, or where written is false.
+func fragmentName(rule DialectRule, id string, written bool) (string, bool) {
+	raw, ok := strings.CutPrefix(id, "#")
+	switch {
+	case !written || !ok || raw == "" || strings.Contains(raw, "#"):
+		return "", false
+	case rule.PlainFragments:
+		return raw, isPlainName(raw)
+	}
+	name := string(fragment.Pointer(id))
+	return name, name != "" && !strings.HasPrefix(name, "/") && utf8.ValidString(name)
 }
 
 // scalarOf is the string n holds, and whether it holds a non-empty one that

@@ -493,7 +493,10 @@ source or another document, so a name under an `$id` is that `$id`'s resource's 
 document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
 name or a URI two schemas declare names neither, and a name its schema's dialect's grammar refuses
 is declared by none, the load phase reporting it: 2020-12's admits a leading `_` and no `:`, the
-drafts before it the reverse, in the identifier naming a fragment alone and in 2019-09's `$anchor`.
+grammar of 2019-09's `$anchor` and of drafts 6 and 7's identifier naming a fragment alone the
+reverse. Draft 4 states none, so its `id` naming a fragment alone declares any name no JSON pointer
+spells, read as a `$ref`'s fragment is, and a `$ref` naming one no grammar admits resolves to it;
+where no schema declares such a name, the `$ref` is reported as naming no JSON pointer.
 An anchor keyword a draft defines none of, draft 7's `$anchor` or 2019-09's `$dynamicAnchor`, is
 read as 2020-12 reads it, by 2020-12's grammar. Identifiers are read only where a schema is placed:
 by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,

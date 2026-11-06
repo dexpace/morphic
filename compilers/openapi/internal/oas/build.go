@@ -71,9 +71,11 @@ func (f Field) also(shape Shape, s Span) Field {
 	return f
 }
 
-// formatted sets the syntax of the field's string value.
-func (f Field) formatted(format Format) Field {
+// formatted sets the syntax of the field's string value, citing cites for
+// what it adds to the field's own.
+func (f Field) formatted(format Format, cites ...Cite) Field {
 	f.Format = format
+	f.Cites = append(f.Cites, cites...)
 	return f
 }
 

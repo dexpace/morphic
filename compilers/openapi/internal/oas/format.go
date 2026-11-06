@@ -45,6 +45,11 @@ func validFormat(format Format, s string) bool {
 		return u != nil && u.Fragment == ""
 	case PlainName:
 		return validPlainName(s)
+	case PlainNameURI:
+		if name, alone := strings.CutPrefix(s, "#"); alone && name != "" && !strings.HasPrefix(name, "/") {
+			return validPlainName(name)
+		}
+		return validURI(s) != nil
 	default:
 		return true
 	}
@@ -128,8 +133,8 @@ func validAnchorName(s string) bool {
 	return s != ""
 }
 
-// validPlainName reports whether s is a plain name a draft before 2020-12
-// declares an anchor by. The binder reads a declaration in such a draft by the
+// validPlainName reports whether s is a plain name drafts 6, 7 and 2019-09
+// declare an anchor by. The binder reads a declaration in such a draft by the
 // same grammar (bind.isPlainName).
 func validPlainName(s string) bool {
 	for i, c := range s {

@@ -67,20 +67,21 @@ type Config struct {
 
 // DialectRule is what the table reads otherwise in a dialect than in 2020-12.
 // Keyword is the identifier's keyword, `$id` where empty, or draft 4's `id`.
-// With Fragments an identifier naming a fragment alone declares that plain
-// name, with Definitions a schema's `definitions` holds schemas, and with
-// Dependencies a schema in its `dependencies` is one, as the drafts before
-// 2019-09 have them, with PlainNames `$anchor` takes the plain-name grammar
-// (isPlainName), as 2019-09's does, and with Tuples an `items` list is a
-// tuple, as before 2020-12. With NamesNone the value names no dialect, so a
-// `$schema` writing it chooses none.
+// With Fragments one naming a fragment alone declares that name: any no JSON
+// pointer spells, as in draft 4, or with PlainFragments one of the plain-name
+// grammar, as in drafts 6 and 7. With Definitions `definitions` holds schemas,
+// with Dependencies a schema in `dependencies` is one, as before 2019-09, with
+// PlainNames `$anchor` takes that grammar, as in 2019-09, and with Tuples an
+// `items` list is a tuple, as before 2020-12. With NamesNone the value names no
+// dialect, so its `$schema` chooses none.
 type DialectRule struct {
-	Keyword      string
-	Fragments    bool
-	Definitions  bool
-	Dependencies bool
-	PlainNames   bool
-	Tuples       bool
+	Keyword        string
+	Fragments      bool
+	PlainFragments bool
+	Definitions    bool
+	Dependencies   bool
+	PlainNames     bool
+	Tuples         bool
 	// IgnoresRefFields has a schema writing a `$ref` write no identifier, as
 	// the drafts before 2019-09 ignore every keyword beside one.
 	IgnoresRefFields bool

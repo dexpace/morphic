@@ -109,10 +109,14 @@ const (
 	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
 	// $id must be (JSON Schema 2020-12 §8.2.1).
 	ResourceURI
-	// PlainName is a plain name as the JSON Schema drafts before 2020-12 write
+	// PlainName is a plain name as JSON Schema drafts 6, 7 and 2019-09 write
 	// one: a letter, then letters, digits, '-', '_', ':' and '.'
 	// (draft-handrews-json-schema-02 §8.2.3).
 	PlainName
+	// PlainNameURI is a URI reference whose fragment, where it is written alone
+	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
+	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
+	PlainNameURI
 )
 
 // Level is how firmly the specification states a rule.

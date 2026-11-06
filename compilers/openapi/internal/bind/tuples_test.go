@@ -95,7 +95,7 @@ func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
 	t.Parallel()
 	other := "{$schema: 'http://json-schema.org/draft-04/schema#',\n" +
 		"  definitions: {A: {type: string}, Sib: {$id: 'https://example.com/elsewhere/', $ref: '#/definitions/A'}}}\n"
-	d7 := bind.DialectRule{Keyword: "$id", Fragments: true, Definitions: true, Dependencies: true, PlainNames: true,
+	d7 := bind.DialectRule{Keyword: "$id", Fragments: true, PlainFragments: true, Definitions: true, Dependencies: true,
 		Tuples: true, IgnoresRefFields: true}
 	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#/definitions/Sib'}\n",
 		ruleFor(withDocuments(map[string]string{"o.yaml": other}), d7))
@@ -112,6 +112,34 @@ func TestDialectRule_AChainIntoAnotherDocumentReadsItsDialect(t *testing.T) {
 	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
 	assert.Equal(t, bind.Position{Doc: docNamed(t, table, "o.yaml"), Pointer: "/definitions/A"}, e.Chain.End,
 		"draft 4's id at the root gives the $ref its base")
+}
+
+// TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar pins the name
+// an identifier naming a fragment alone declares. In draft 4, which states no
+// grammar, it is any no JSON pointer spells, read as a $ref's fragment is, so a
+// $ref to it resolves, and two declaring one name neither. With PlainFragments,
+// as drafts 6 and 7 have it, only a plain name is declared. A name no schema
+// declares and no grammar admits is no pointer, as in 2020-12.
+func TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar(t *testing.T) {
+	t.Parallel()
+	src := func(keyword, more string) string {
+		return head + "components:\n  schemas:\n    D: {$schema: 'http://json-schema.org/draft-04/schema#',\n" +
+			"      definitions: {X: {" + keyword + ": '#1x'}, Y: {" + keyword + ": '#a%20b'}" + more + "},\n" +
+			"      properties: {x: {$ref: '#1x'}, y: {$ref: '#a b'}, n: {$ref: '#2y'}}}\n"
+	}
+	table := bound(t, src("id", ""), draftRule(self))
+	for site, target := range map[jsontext.Pointer]jsontext.Pointer{"x": "/definitions/X", "y": "/definitions/Y"} {
+		e := entryAt(t, table, "/components/schemas/D/properties/"+site)
+		require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+		assert.Equal(t, at("/components/schemas/D"+target), e.Hop.Target)
+	}
+	assert.Equal(t, bind.BadPointer, entryAt(t, table, "/components/schemas/D/properties/n").Hop.Reason)
+	twice := entryAt(t, bound(t, src("id", ", Z: {id: '#1x'}"), draftRule(self)), "/components/schemas/D/properties/x")
+	assert.Equal(t, bind.DuplicateAnchor, twice.Hop.Reason, twice.Hop.Why())
+
+	plain := bind.DialectRule{Keyword: "$id", Fragments: true, PlainFragments: true, Definitions: true}
+	e := entryAt(t, bound(t, src("$id", ""), ruleFor(self, plain)), "/components/schemas/D/properties/x")
+	assert.Equal(t, bind.BadPointer, e.Hop.Reason, "a plain name opens with a letter: %s", e.Hop.Why())
 }
 
 // TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a// TestDialectRule_AnEmbedderIgnoringARefsSiblingsRootsNothingThere pins a

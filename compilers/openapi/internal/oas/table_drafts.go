@@ -11,7 +11,8 @@ func draft06Keywords() []Field {
 	s := From(V31)
 	return []Field{
 		keyword("$schema", String, s, c(`7. The "$schema" keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),
-		keyword("$id", String, s, c(`9.2. The "$id" keyword`, `If present, the value for this keyword MUST be a string, and MUST represent a valid URI-reference [RFC3986].`)).formatted(URI),
+		keyword("$id", String, s, c(`9.2. The "$id" keyword`, `If present, the value for this keyword MUST be a string, and MUST represent a valid URI-reference [RFC3986].`)).
+			formatted(PlainNameURI, c(`9.2. The "$id" keyword`, `The fragment identifier MUST begin with a letter ([A-Za-z]), followed by any number of letters, digits ([0-9]), hyphens ("-"), underscores ("_"), colons (":"), or periods (".").`)),
 		keyword("$ref", String, s, c(`8. Schema references with $ref`, `An object schema with a "$ref" property MUST be interpreted as a "$ref" reference.`)).formatted(URI),
 		keyword("multipleOf", PositiveNumber, s, v(`6.1. multipleOf`, `The value of "multipleOf" MUST be a number, strictly greater than 0.`)),
 		keyword("maximum", Number, s, v(`6.2. maximum`, `The value of "maximum" MUST be a number`)),
@@ -60,7 +61,8 @@ func draft07Keywords() []Field {
 	s := From(V31)
 	return []Field{
 		keyword("$schema", String, s, c(`7. The "$schema" Keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),
-		keyword("$id", String, s, c(`8.2. The "$id" Keyword`, `If present, the value for this keyword MUST be a string, and MUST represent a valid URI-reference [RFC3986].`)).formatted(URI),
+		keyword("$id", String, s, c(`8.2. The "$id" Keyword`, `If present, the value for this keyword MUST be a string, and MUST represent a valid URI-reference [RFC3986].`)).
+			formatted(PlainNameURI, c(`8.2.3. Location-independent identifiers`, `This value MUST begin with the number sign that specifies a fragment ("#"), then a letter ([A-Za-z]), followed by any number of letters, digits ([0-9]), hyphens ("-"), underscores ("_"), colons (":"), or periods (".").`)),
 		keyword("$ref", String, s, c(`8.3. Schema References With "$ref"`, `The value of the "$ref" property MUST be a URI Reference.`)).formatted(URI),
 		keyword("$comment", String, s, c(`9. Comments With "$comment"`, `The value of this keyword MUST be a string.`)),
 		keyword("type", String, s, v(`6.1.1. type`, `The value of this keyword MUST be either a string or an array.`)).
