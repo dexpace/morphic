@@ -72,8 +72,8 @@ The matrix is each claim class with the members checked, and each closed issue w
 
 - **Rule.** For each command an edited Rule or Probe prescribes, run it once on the head from the
   root, each placeholder filled with a real package, test or PR, and again with the hardest value
-  it admits: a pattern holding a backslash, a name holding a bracket, a value holding a plus. Quote
-  each exit status. One that cannot run here, such as a macOS tool on Linux, is named as not run,
+  it admits: a pattern holding a backslash, a name holding a bracket, a value holding a plus, a PR
+  stacked on another. Quote each exit status. One that cannot run here, such as a macOS tool on Linux, is named as not run,
   with the reason.
 - **Why.** A rewritten Probe joined `-covermode=set` and `-race` in one `go test`, which refuses
   the pair, and passed review on reading (#1364). Three `git grep` Probes matched nothing, or were
