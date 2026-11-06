@@ -488,6 +488,29 @@ func TestAliasWeigher_MemoizesSharedTarget(t *testing.T) {
 	assert.Equal(t, 31, w.computations)
 }
 
+// TestAliasWeigher_PopsRepeatedFrame weighs `a: [&x {k: v}, *x]`, an anchor
+// followed by its own alias. pushChildren pushes both before either is
+// weighed, and the alias, popped first, pushes the anchor again, so the stack
+// holds it twice. Only the check at the top of weigh's loop keeps the second
+// frame from computing it again; the 25 aliases of the test above never put
+// the target on the stack twice.
+func TestAliasWeigher_PopsRepeatedFrame(t *testing.T) {
+	t.Parallel()
+	base := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+	root := ynode.Map(ynode.Scalar("a"), ynode.Seq(base, ynode.Alias(base)))
+
+	w := newAliasWeigher(budget.AtMost(1_000_000))
+	require.Empty(t, w.weigh(t.Context(), root))
+
+	assert.Equal(t, len(w.weight), w.computations,
+		"the anchor, on the stack twice, is computed once")
+	assert.Empty(t, w.inFlight,
+		"the second frame pops unexpanded, so nothing is left in flight")
+	// Distinct nodes: root, its key "a", the sequence, the alias node, base,
+	// and base's own key and value: 7.
+	assert.Equal(t, 7, w.computations)
+}
+
 func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	t.Parallel()
 	root := aliasFanOutNode(40)
@@ -542,6 +565,8 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	require.NotEmpty(t, culprits, "a cyclic alias graph expands without bound and must be refused")
 	culprit := culprits[0]
 	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "the cycle saturates rather than looping")
+	assert.Equal(t, len(w.weight)-1, w.computations,
+		"the node the cycle cut holds a weight, and its frame pops uncomputed")
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
