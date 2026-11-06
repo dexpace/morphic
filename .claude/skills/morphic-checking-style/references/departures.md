@@ -177,8 +177,8 @@ the rule here rather than reading it across.
   and takes shared rows from `internal/ircases` or `internal/testspec`, which import the standard
   library alone. Elsewhere those rules stand as `CONTRIBUTING.md`, "Where a test goes", places them.
   `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` holds the packages to this.
-- **Why.** `go test -fuzz` instruments all a binary links bar a few runtime packages, on every
-  execution, so a target beside tests that link `internal/decls` spends much of its CPU on
+- **Why.** `go test -fuzz` instruments all a binary links bar a few runtime packages, and every
+  execution pays, so a target beside tests that link `internal/decls` spends much of its CPU on
   counters, and rows from `ir/irtest` would add go-cmp's. #1315 gives both measured, the counters
   with their command; #1381 names the platform.
 - **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
