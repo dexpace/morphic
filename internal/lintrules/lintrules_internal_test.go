@@ -21,6 +21,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/checker"
 	"golang.org/x/tools/go/packages"
+
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // plantRoot is the tree the tests lay out like the module, and plantDir where
@@ -133,6 +135,13 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 		require.NoError(t, err)
 		require.Zero(t, packages.PrintErrors(pkgs), "the plants must type-check, or they prove nothing")
 		pkgs = slices.DeleteFunc(pkgs, func(p *packages.Package) bool { return strings.HasSuffix(p.ID, ".test") })
+		// go list reads each package's directory in a child the test cache does not
+		// see, so a file added to one wantedFindings does not walk, as testdata/outside
+		// is not, reruns the test only through this listing.
+		for _, p := range pkgs {
+			_, err := os.ReadDir(p.Dir)
+			require.NoError(t, err)
+		}
 
 		graph, err := checker.Analyze(analyzers, pkgs, nil)
 		require.NoError(t, err)
@@ -154,12 +163,14 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 	return got
 }
 
-// readDeclarers reads the sources of the packages declaring what the rules key
-// on. go list reads them in a process go test's cache does not see, and the
-// cache keys a result on the files a test opens, so without this an edit to
-// one, such as a renamed field the plants spell, replays a stale pass.
+// readDeclarers reads the module's go.mod and go.sum and the sources of the
+// packages declaring what the rules key on. go list reads the sources in a
+// process go test's cache does not see, and the library's sit in the module
+// cache, which the cache never rechecks. So a dependency that moves reruns the
+// tests only through the go.mod and go.sum opened here, which change with it.
 func readDeclarers(t *testing.T) {
 	t.Helper()
+	irtest.ReadModuleFiles(t)
 	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles, Env: append(os.Environ(), "GOPACKAGESDRIVER=off")}
 	pkgs, err := packages.Load(cfg, irPath, compilePath, referencesPath, "github.com/speakeasy-api/openapi/expression")
 	require.NoError(t, err)
@@ -171,6 +182,22 @@ func readDeclarers(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+}
+
+// TestDrawnFindings_OpenTheModuleFiles holds readDeclarers to the module's
+// go.mod and go.sum in go test's log, through the cheapest test that reaches it.
+func TestDrawnFindings_OpenTheModuleFiles(t *testing.T) {
+	t.Parallel()
+	irtest.RequireOpensModuleFiles(t, "TestAnalyzers_ReadTheModulesLayout")
+}
+
+// TestDrawnFindings_ListThePackagesBesideThePlants holds drawnFindings to opening
+// the one directory the plants' walk does not reach, in go test's log.
+func TestDrawnFindings_ListThePackagesBesideThePlants(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.Abs("testdata/outside")
+	require.NoError(t, err)
+	irtest.RequireOpens(t, "TestAnalyzers_DrawExactlyThePlantedFindings", dir)
 }
 
 // listPackages returns the import paths the patterns, relative to this

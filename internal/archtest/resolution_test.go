@@ -356,7 +356,10 @@ func membersOf(g libGraph, api map[string]string) ([]resolutionMember, error) {
 }
 
 // libraryAPI derives the library's resolution API once per test binary, from
-// the packages of it the module's production code reaches.
+// the packages of it the module's production code reaches. The library's
+// sources sit in the module cache, which go test never rechecks; a bump reruns
+// these tests through archtest's walk of the module root, which lists go.mod
+// and go.sum.
 var libraryAPI = sync.OnceValues(deriveResolutionAPI)
 
 // deriveResolutionAPI reads the library's sources and derives the API from its

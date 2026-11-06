@@ -12,6 +12,7 @@
 #   make race-pipeline   those and every package under the roots in
 #                   scripts/race-pipeline-roots.txt, under -race; each push
 #                   to main runs it, and it is outside `make gate`
+#   make filetimes  date tracked files by content, so a checkout reuses test results
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -108,7 +109,7 @@ FUZZTIME ?= 10s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
-	race-pipeline fuzz bench bench-smoke print-lint-version print-go-version
+	race-pipeline fuzz bench bench-smoke print-lint-version print-go-version filetimes
 
 gate: fmt vet lint lint-planted build coverage race fuzz bench-smoke
 
@@ -173,6 +174,15 @@ coverage:
 	fi; \
 	$(GO) test ./... -timeout 300s -covermode=set -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# Dates every tracked regular file from its content, so Go's test cache, which
+# keys a result on the time of each file inside the module that the test opens,
+# reuses one across checkouts. A symlink or a submodule is left undated. It
+# refuses a dirty worktree, the normal state while developing, and it is cache
+# plumbing that CI runs before its tests rather than a check, so the gate does
+# not list it.
+filetimes:
+	$(GO) run ./cmd/morphic-filetimes
 
 # The race detector runs alone, over the packages on scripts/race-packages.txt,
 # whose header states the rule for them and what a package left off must say.

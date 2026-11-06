@@ -5,7 +5,8 @@ on:
   pull_request:
 
 # A push to a pull request supersedes the run its previous push started. Runs on
-# main are never cancelled: each saves the caches the pull requests after it use.
+# main are never cancelled: each saves the cache the next run on main restores
+# and the pull requests after it use.
 concurrency:
   group: gate-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -14,11 +15,33 @@ concurrency:
 # `make gate` runs them all, bar the step only a push to main runs: `make
 # race-pipeline`, after the cache save.
 #
-# A run on main starts from empty Go build and module caches and saves what it
-# built. A pull request's run restores what the latest run of the same job on
-# main saved, so it rebuilds only what the change touches. Main never restores,
-# so each save holds one run's builds and the cache cannot grow from one commit
-# to the next.
+# Only the suite job reads a cached test result: the checks job runs go test
+# only with -fuzz and -bench, which go help test does not list as cacheable. So
+# the suite job first sets each tracked regular file's time from its content,
+# because Go keys a cached test result on the size, mode and time of each file
+# inside the module that the test opens, and a checkout gives every file a new
+# time.
+#
+# A run on main restores the cache the previous run of the same job, toolchain
+# and go.sum saved, and saves. The suite job clears the test results first, and
+# the checks job, the only one that fuzzes, drops $GOCACHE/fuzz first. Clearing
+# keeps the builds and the module cache, so main rebuilds only what its commit
+# changed, but it reruns every test and so cannot replay a stale pass. A pull
+# request restores that save, reuses the results of the tests its change leaves
+# alone, and never saves.
+#
+# The cache stays one run's size for three reasons. A step after each restore
+# dates the entries back two hours, and a step before each save deletes the
+# index entries still that old, which the run did not use, and the outputs no
+# entry left names, since the go command's own trim waits five days
+# (cmd/go/internal/cache, trimLimit). The dating is what makes the deletion
+# exact: the go command moves an entry's time on a use only when that time is
+# over an hour old, so without it an entry used less than an hour ago looks
+# used by this run, and a push within two hours of the last would keep what it
+# did not use. go.sum is in the key, so a dependency change starts a cache
+# afresh instead of adding to the module cache of the last. And the fuzz
+# corpus, which that trim never removes, is dropped before the checks job's
+# save; the suite job runs no -fuzz, so writes none.
 jobs:
   checks:
     name: lint, fuzz, bench
@@ -44,15 +67,27 @@ jobs:
             echo "gomodcache=$(go env GOMODCACHE)"
           } >>"$GITHUB_OUTPUT"
       - &restore
-        name: restore main's caches
-        if: github.event_name == 'pull_request'
+        name: restore the previous run on main's caches
         uses: actions/cache/restore@v6
         with:
           path: |
             ${{ steps.toolchain.outputs.gocache }}
             ${{ steps.toolchain.outputs.gomodcache }}
-          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
-          restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-
+      # The go command moves an entry's time on a use only when that time is over
+      # an hour old, so date what was restored past that. Every entry this run
+      # uses then moves, and the prune before the save drops the rest, however
+      # soon this push follows the last. A pull request never saves, so it
+      # keeps the times as restored.
+      - &age
+        name: date the restored cache back
+        if: github.event_name == 'push'
+        env:
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          mkdir -p "$GOCACHE_ROOT"
+          find "$GOCACHE_ROOT" \( -name '*-a' -o -name '*-d' \) -exec touch -h -d '2 hours ago' {} +
       - name: gofmt
         run: make fmt
       - name: vet
@@ -78,6 +113,28 @@ jobs:
           name: fuzz-findings
           path: "**/testdata/fuzz/**"
           if-no-files-found: ignore
+      # The fuzz corpus has no cache of its own yet (#1273).
+      - name: drop the fuzz corpus
+        if: github.event_name == 'push'
+        run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
+      # Keep what this run used and no more. The dating after the restore put
+      # every entry two hours back, and a use or a store moves an index entry
+      # (-a), so one still that old went unused. An output (-d), a file or an
+      # executable's directory, does not move when a store finds its bytes
+      # already there, as a rerun's unchanged coverage profile does, so it goes
+      # only when it is that old and no entry left names it.
+      - &prune
+        name: drop cache entries this run did not use
+        if: github.event_name == 'push'
+        env:
+          LC_ALL: C
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          find "$GOCACHE_ROOT" -type f -name '*-a' -mmin +120 -delete
+          kept=$(mktemp)
+          find "$GOCACHE_ROOT" -type f -name '*-a' -exec awk '{print $3 "-d"}' {} + | sort -u >"$kept"
+          find "$GOCACHE_ROOT" -name '*-d' -mmin +120 -printf '%f\t%p\n' | sort |
+            join -t "$(printf '\t')" -v 1 - "$kept" | cut -f2 | xargs -r -d '\n' rm -rf
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -86,7 +143,7 @@ jobs:
           path: |
             ${{ steps.toolchain.outputs.gocache }}
             ${{ steps.toolchain.outputs.gomodcache }}
-          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
   suite:
     name: build, coverage (exactly 100%), race detector
@@ -97,16 +154,33 @@ jobs:
       - *setup-go
       - *toolchain
       - *restore
+      - *age
       # Tests that load packages with go/packages run go list -export, which
       # compiles what make build does. Built first, that compile no longer runs
       # beside the tests that time a child process, which load can push past
       # their bound (#1010).
       - name: build
         run: make build
+      # Go keys a cached test result on the time of each file inside the module
+      # that the test opens, and a checkout gives every file a new one. This
+      # dates them from content.
+      # After build, as any git status, go build's VCS stamping included, gives
+      # .git a new time that the tests listing the module root hash. Nothing may
+      # run git between this step and the first test step.
+      - name: date files by content
+        run: make filetimes
+      # Not -count=1, which stores no results: a pull request would then find
+      # none to reuse. This writes an expiry that voids the restored ones. It
+      # precedes both test steps, as the race step is a test run that would
+      # otherwise replay a pass main stored.
+      - name: clear restored test results
+        if: github.event_name == 'push'
+        run: go clean -testcache
       - name: coverage
         run: make coverage
       - name: race
         run: make race
+      - *prune
       - *save
       # After the save, so a race found here costs no pull request its cache.
       - name: race, the whole pipeline

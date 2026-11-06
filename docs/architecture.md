@@ -607,6 +607,7 @@ morphic/
 ├── cmd/morphic-harness/    #           CLI over internal/harness (tooling, not the pipeline).
 ├── cmd/morphic-census/     #           CLI over internal/census (tooling, not the pipeline).
 ├── cmd/morphic-covergate/  #           Judges the coverage profile (tooling, not the pipeline).
+├── cmd/morphic-filetimes/  #           Dates tracked files by content (tooling, not the pipeline).
 └── cmd/morphic-vet/        #           Runs internal/lintrules under go vet (tooling, not the pipeline).
 ```
 

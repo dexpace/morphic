@@ -162,7 +162,8 @@ ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imp
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
              usage, recursion), derived on demand and never stored. Imports ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
-  irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
+  irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir,
+             internal/exectest + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
   compile/   Layer 1 — what every compiler shares: the type registry with its coordinate map,
              diagnostics, and the naming and identifier grammars. Imports ir only.
@@ -194,6 +195,9 @@ cmd/morphic-census/
              engine + internal/census + internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
+cmd/morphic-filetimes/
+             Layer 4 — dates tracked files by their content, so a test cache survives a checkout;
+             imports the stdlib only.
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,

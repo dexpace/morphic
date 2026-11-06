@@ -58,6 +58,9 @@ var raceExempt = map[string]string{
 	"cmd/morphic-covergate": "tooling outside the pipeline: its parallel tests call run over " +
 		"coverage profiles they write to their own temporary files, or over arguments that name " +
 		"none, and tallyOf over profiles they build in memory",
+	"cmd/morphic-filetimes": "tooling outside the pipeline: its parallel tests run execute, which " +
+		"shells out to git, each in a temporary repository of its own, and call its helpers over " +
+		"values held in memory",
 	"cmd/morphic-harness": "tooling outside the pipeline: its parallel tests call run on separate " +
 		"goroutines, each sweeping a directory of its own through harness.CheckPath",
 	"cmd/morphic-vet": "tooling outside the pipeline: its one parallel test starts the test " +
