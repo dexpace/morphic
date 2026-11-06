@@ -193,7 +193,7 @@ func startsGoroutine(f *ast.File) bool {
 		case *ast.GoStmt:
 			found = true
 		case *ast.SelectorExpr:
-			found = slices.Contains([]string{"Go", "TryGo", "AfterFunc"}, v.Sel.Name)
+			found = found || slices.Contains([]string{"Go", "TryGo", "AfterFunc"}, v.Sel.Name)
 		default:
 		}
 		return !found
@@ -254,6 +254,9 @@ func TestStartsGoroutine_RecognizesEverySpelling(t *testing.T) {
 	}{
 		{"go statement", "go f()", true},
 		{"Go call", "w.Go(f)", true},
+		{"Go call with a method value", "w.Go(s.run)", true},
+		{"AfterFunc with a selector argument", "_ = time.AfterFunc(time.Second, f)", true},
+		{"Go as a value beside a selector", "a, b := w.Go, x.y; _, _ = a, b", true},
 		{"a call inside a call", "h(func() { w.Go(f) })", true},
 		{"TryGo call", "_ = w.TryGo(f)", true},
 		{"time.AfterFunc", "_ = time.AfterFunc(1, f)", true},
