@@ -161,10 +161,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Rule.** Build a trial merge by SHA, as a worktree of a commit holding the merged tree:
   `t=$(git merge-tree --write-tree <head> <pr head>) && git worktree add --detach <dir> "$(git commit-tree "$t" -p <head> -p <pr head> -m trial)"`,
   stopping on a conflict, where `git merge-tree` exits 1. Confirm it there with
-  `git merge-base --is-ancestor <pr head> HEAD` before reading a result, as a failed merge leaves
-  the branch alone, whose tests pass.
-- **Why.** A loop over the open PRs printed `ok` for each while every merge of `FETCH_HEAD`, which
-  belongs to the worktree that fetched, had ended in `fatal` (#1210). Copying 14 merges out by
+  `git merge-base --is-ancestor <pr head> HEAD` before reading a result, as a failed step leaves
+  `<dir>` missing or holding an earlier merge.
+- **Why.** A loop over the open PRs printed `ok` for each while every merge of another worktree's
+  `FETCH_HEAD` had ended in `fatal` (#1210). Copying 14 merges out by
   `git archive`, `git init` and `git add -A` took 47 minutes, where this form linted 27 in about a
   minute (#1532).
 - **Probe.** `git rev-list --parents -n1 HEAD` lists both heads.

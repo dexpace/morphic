@@ -105,8 +105,10 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   own mechanism. Any other goes in a PR of its own, reviewed alongside and converging on its own.
 - **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
   findings sat in their content (#1532).
-- **Probe.** Each issue `gh pr view <N> --json closingIssuesReferences` lists beyond those in the
-  first round's report names the change its fix makes to the PR's mechanism.
+- **Probe.** Each issue a closing keyword in the body names
+  (`references/commits-and-prs.md#closing-keywords`) beyond those in the first round's report names
+  the change its fix makes to the PR's mechanism, read from the body, not
+  `closingIssuesReferences`, which a stacked PR leaves empty.
 
 ## Probe a change to an ignore rule at base and head
 `ignore-rule-both-ways`
@@ -137,15 +139,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Read each issue a PR closes whole, and again before saying it closes
 `closing-issue-read-whole`
 
-- **Rule.** For each issue in `closingIssuesReferences`, read
+- **Rule.** For each issue a closing keyword in the body names
+  (`references/commits-and-prs.md#closing-keywords`), read
   `gh issue view <n> --json state,stateReason,body,comments,updatedAt` when the PR opens and again
   before a report says the PR closes it. A closed issue's closing comment is a recorded decision,
-  and its reference leaves the body; a comment or a body edit is part of the ask; each
-  `## Out of scope` item or deferred alternative naming work still to do goes to an open issue,
+  its reference leaving the body; a comment or body edit is part of the ask; each
+  `## Out of scope` item or deferred alternative naming pending work goes to an open issue,
   stated where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
 - **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks eight of
-  its issues held in comments or later edits; closing #1433 would have left a case it put out of
-  scope stated nowhere (#1210, #1435).
+  its issues held in comments or later edits; closing #1433 would have left an out-of-scope case
+  stated nowhere (#1210, #1435).
 - **Probe.** The report gives each closing issue's `updatedAt` as last read, none newer, then
   `references/commits-and-prs.md#closing-issue-met-at-its-site`.
 

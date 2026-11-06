@@ -150,8 +150,8 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** A merge that changed no lowering left 79 plants at 100 to 170 s each, about 3.5 hours,
   where a diff left 23 (#1191, #1216). A diff of production files alone misses a merge removing the
   test that held a kill.
-- **Probe.** `git diff --stat <verdict's revision> <head> -- <mutated file> <test's file>` prints
-  nothing for each verdict carried over.
+- **Probe.** `git --literal-pathspecs diff --stat <verdict's revision> <head> -- <mutated file> <test's file> <its fixtures> <each file between them>`
+  prints nothing for each verdict carried over.
 
 ## Plant through an overlay only where no test reads the source
 `overlay-reaches-the-compiler-alone`

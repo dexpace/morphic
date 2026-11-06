@@ -36,33 +36,51 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Probe.** The reader's brief holds nothing from an earlier round but cell names, and names a
   budget and directory.
 
-## Start a reader at effort `xhigh`, briefed to reach each of its cells
+## Brief a reader to reach each of its cells
 `brief-a-reader-to-its-cells`
 
-- **Rule.** Start each delegated reader at effort `xhigh`, whatever the session's. Its brief names
-  each cell, sets a tool-call budget summed from a share per cell, and asks for a running list of
-  what it reproduced. The reader reaches each cell or states why it cannot here; budget left
-  unspent is no reason, as each cell named unreached is one more round
+- **Rule.** Start each delegated reader by `references/readers.md#start-readers-at-xhigh`. Its brief
+  names each cell, sets a tool-call budget summed from a share per cell, asks for a running list of
+  what it reproduced, and holds `references/readers.md#reader-batches-its-calls` and
+  `references/readers.md#reader-bounds-its-commands`. The reader reaches each cell or states why it
+  cannot here; budget left unspent is no reason, as each cell named unreached is one more round
   (`references/rounds.md#review-ends-with-nothing-left`).
 - **Why.** #1532's seventh reader stopped at 51 of about 80 budgeted tool calls, naming five cells
-  unreached, as its brief allowed. #1532's reader transcripts record the session's effort, so a
-  session lowered for its mechanical work would lower what they catch (#1532, #1542).
-- **Probe.** The reader's brief states the effort, each cell with its share and the budget; its
-  report runs each cell or quotes why it could not.
+  unreached, as its brief allowed (#1532, #1542).
+- **Probe.** The brief names each cell with its share and the budget, and the report runs each cell
+  or quotes why it could not.
 
-## Brief a reader to batch its calls and bound its commands
-`reader-batches-and-bounds`
+## Start every delegated reader at effort `xhigh`
+`start-readers-at-xhigh`
+
+- **Rule.** Start each delegated reader at effort `xhigh`, whatever the session runs at, setting it
+  on the call that starts the reader rather than in the brief.
+- **Why.** #1532's readers, started with no effort set, ran at the session's, so a session lowered
+  for its mechanical work could lower what they catch (#1532, #1542).
+- **Probe.** On the reader's transcript,
+  `jq -r 'select(.params.output_config.effort) | .params.output_config.effort' <transcript> | sort | uniq -c`
+  prints `xhigh` alone.
+
+## Brief a reader to batch its calls
+`reader-batches-its-calls`
 
 - **Rule.** A delegated reader's brief asks it to send independent reads and commands in one turn,
-  write bulky output to a file in its directory and read it in parts with `grep` or `head`, bound
-  each command that can outlast a few minutes, and build each trial merge by
-  `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
-- **Why.** Every call re-reads the whole context, yet #1532's readers of rounds 2 to 7 batched at
-  most 4 of their 40 to 67 calls, and a sixth-round command returned after 47 minutes despite a
-  10-minute timeout (#1532, #1542).
-- **Probe.** The reader's brief asks all four, and
+  and to write bulky output to a file in its directory and read it in parts with `grep` or `head`.
+- **Why.** Each API call re-reads the whole context, yet #1532's readers of rounds 2 to 7 batched
+  at most 4 of their 40 to 67 (#1532, #1542).
+- **Probe.** The reader's brief asks both, and
   `jq -r 'select(.type=="assistant") | "\(.message.id) \([.message.content[]? | select(.type=="tool_use")] | length)"' <transcript> | awk '{n[$1]+=$2} END {for (i in n) {c++; b+=n[i]>1}; print c, b}'`
-  prints the reader's calls, each a unique `message.id`, and how many batched.
+  prints the reader's API calls, one per `message.id`, and how many batched.
+
+## Brief a reader to bound its commands
+`reader-bounds-its-commands`
+
+- **Rule.** A delegated reader's brief asks it to bound each command that can outlast a few minutes
+  by what it walks or a limit of its own, never the tool's timeout alone, and to build each trial
+  merge by `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-happened`.
+- **Why.** A command of #1532's sixth round returned after 47 minutes despite a 10-minute tool
+  timeout (#1532, #1542).
+- **Probe.** The reader's brief asks both.
 
 ## Give a delegated reader a directory of its own, and write nowhere else
 `reader-owns-its-directory`
@@ -91,13 +109,13 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 ## Split a scoped round carrying whole reads between two readers
 `split-whole-reads-from-what-moved`
 
-- **Rule.** A round reading what moved (`references/rounds.md#later-rounds-read-what-moved`) with
-  whole reads among its cells goes to two parallel readers, each in its own directory. One takes
-  what moved and the PR body, checking the body's claims against the diff. The other takes the
-  whole reads: the closing issues with their comments, each issue's Direction, tracker searches and
-  evidence outside the repository, looking up each site an ask points to but reviewing no diff.
-  The main session merges both reports and disproves each finding. A round of the diff and body
-  alone keeps one reader, and neither half splits by file
+- **Rule.** A round reading what moved (`references/rounds.md#later-rounds-read-what-moved`)
+  carrying whole reads goes to two parallel readers, each in its own directory. One takes what moved
+  and the PR body, checking the body's claims against the diff. The other takes the whole reads, the
+  closing issues with their comments, tracker searches and evidence outside the repository, matching
+  each ask and Direction step to the line meeting it or the body's reason none does, without
+  reviewing the diff. The main session merges both reports and disproves each finding. A round of
+  the diff and body alone keeps one reader; neither half splits by file
   (`references/readers.md#no-split-by-file`).
 - **Why.** #1532's seventh reader left five cells unreached, the closing issues read whole and an
   issue's Direction among them (#1532).

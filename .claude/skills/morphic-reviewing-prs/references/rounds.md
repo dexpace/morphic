@@ -215,9 +215,9 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Recheck what a round's fixes can move before the next hand-off
 `recheck-before-hand-off`
 
-- **Rule.** Before the next round's hand-off, on the fix commit: rerun each plant whose mutated
-  file, killing test or fixtures the fixes edit
-  (`.claude/skills/morphic-verifying-changes/references/mutation.md#verdict-outlives-unchanged-files`);
+- **Rule.** Before the next round's hand-off, on the fix commit: rerun each plant whose verdict
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#verdict-outlives-unchanged-files`
+  does not carry across the fixes;
   derive each number the PR body states from a command run there, its output kept beside the body
   draft (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#body-states-the-head`);
   and rerun the trial merges
@@ -234,16 +234,15 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Compact the main session only at a clean round boundary
 `compact-at-a-round-boundary`
 
-- **Rule.** Compact the main session at a clean round boundary, before its window's limit compacts
-  it wherever it stands, and never mid-fix or mid-disproof. A clean boundary has the fixes pushed,
-  the body updated, the next reader dispatched and the round's state written to a file outside the
-  tree. After compacting, treat the summary as unverified, re-reading the round's report, the PR
-  body and the saved state before acting on it.
+- **Rule.** Compact the main session, or ask whoever drives it to, at a clean round boundary, before
+  its window's limit compacts it wherever it stands, and never mid-fix or mid-disproof. A clean
+  boundary has the fixes pushed, the body updated, the next reader dispatched and the round's state
+  written to a file outside the tree. After compacting, treat the summary as unverified, re-reading
+  the round's report, the PR body and the saved state before acting on it.
 - **Why.** #1532's main session reached 962k tokens before compacting on its own, and its summary
   carried two wrong figures forward as settled, the open PRs sharing a file and a token count
   doubled by counting transcript records, with no sign either was unchecked (#1532, #1542).
-- **Probe.** The first calls after a compaction read the round's report, the body and the saved
-  state.
+- **Probe.** The first calls after a compaction read those three.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`
