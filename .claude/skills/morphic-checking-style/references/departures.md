@@ -120,9 +120,9 @@ the rule here rather than reading it across.
 `assert-equal-on-plain-values`
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
-  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` or `require.Equal` stands on a value with no
-  unexported field or `Equal` method, which `cmp` alone calls; any other takes `cmp.Diff` with a
-  direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` or `require.Equal` stands on
+  a value with no unexported field or `Equal` method, which `cmp` alone calls; any other takes
+  `cmp.Diff` with a direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
 - **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,
   and `assert.Equal` labels both sides, a bare `cmp.Diff` neither (#1206). Literal slices and maps
   take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed 117 calls on

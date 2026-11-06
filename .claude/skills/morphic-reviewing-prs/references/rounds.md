@@ -273,9 +273,9 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   `references/rounds.md#deep-and-broad`; over each cell left unreached or reopened, named without
   findings; and over the PR body, not the whole change
   (`references/rounds.md#missed-cell-widens-the-round`).
-- **Why.** #1522's later rounds each reread the whole change at about 240,000 tokens, though 12 of
-  the 13 `issue:` and `nit:` findings of its rounds 3 to 5 sat in what the round before changed, the
-  body, a clearance its rule refuses or a member no report lists (#1522, #1530).
+- **Why.** #1522's later rounds each reread the whole change, though 12 of the 13 `issue:` and
+  `nit:` findings of its rounds 3 to 5 sat in what the round before changed, the body, a clearance
+  its rule refuses or a member no report lists (#1522, #1530).
 - **Probe.** The reader's brief lists those cells; the report runs or settles each.
 
 ## Run the whole change again when a filled cell proves missed
