@@ -83,14 +83,14 @@
 - **Rule.** A test whose verdict rests on a file outside the module, or one only a child
   (`go list`, `git`) reads, opens in its own process the in-module files the child reads,
   or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`;
-  for a child's list, list each directory above it. `irtest.RequireOpens` holds either through
-  the test log, as `RequireOpensModuleFiles` does.
+  for a child's list, list each directory above it, and those under a pattern's root.
+  `irtest.RequireOpens` holds either through the test log.
 - **Why.** `readDeclarers` read library sources from the module cache, never rechecked
-  by go test (#1272). Sweeping `grep -rn --include='*.go' -E 'exec(test)?\.Command'` and
-  `packages.Load` and `decls.Load` found `ir/irtest`'s `git ls-files` tests and `decls.Load`'s fixtures.
-- **Probe.** `touch` the file the verdict rests on and rerun: the last `ok` must lack `(cached)`.
-  For a list, in a scratch clone with its own `GOCACHE`, commit a newly listed file, run
-  `make filetimes`, rerun without `-count=1`.
+  by go test (#1272). Sweeping `exec(test)?\.Command`, `packages.Load` and `decls.Load` found
+  `git ls-files` tests, `decls.Load`'s fixtures and a package `lintrules` names.
+- **Probe.** `touch` that file and rerun: the last `ok` lacks `(cached)`. For a list, in a scratch
+  clone, commit a newly listed file, or under a pattern a new package, run `make filetimes`, rerun
+  without `-count=1`.
 
 ## A full disk or a removed cache reads as a failing build
 `full-disk-reads-as-a-failure`
