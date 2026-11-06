@@ -938,6 +938,58 @@ func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	assert.Equal(t, 1, unread, "draft 4 and 2020-12 are read")
 }
 
+// assertSchemaDrafts pins what the JSON Schema drafts before 2020-12 spell
+// otherwise, each read in the draft its schema names
+// (docs/compilers/openapi.md#dialect-keywords): a list of items as a tuple
+// whose rest is additionalItems (#tuples), as an array's items too, which
+// the parser reads as false (#whole-schema-fallbacks), draft 6's dependencies kept as
+// validation-only (#validation-only), a keyword beside draft 7's $ref warned of
+// and 2019-09's applied silently (#later-version-construct), and draft 4's `id`
+// naming a resource whose fragment ids a $ref reads, bar one beside that $ref,
+// which draft 4 ignores (#references).
+func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	tuple := func(name string) *ir.Tuple {
+		tp, ok := doc.Types[componentID(name)].(*ir.Tuple)
+		require.True(t, ok, "%s lowers to a tuple", name)
+		return tp
+	}
+	pair := tuple("Pair")
+	require.Len(t, pair.Elems, 2)
+	assert.Equal(t, componentID("Count"), pair.Elems[1].Target, "an entry's $ref is bound")
+	assert.Nil(t, pair.Rest, "additionalItems: false admits nothing past them")
+	pairs, ok := doc.Types[componentID("Pairs")].(*ir.List)
+	require.True(t, ok)
+	nested, ok := doc.Types[pairs.Elem.Target].(*ir.Tuple)
+	require.True(t, ok, "a tuple as an array's items, which the parser reads as false")
+	assert.Len(t, nested.Elems, 2)
+	open := tuple("Open")
+	require.Len(t, open.Elems, 1)
+	require.NotNil(t, open.Rest, "additionalItems is the rest")
+	rest, ok := doc.Types[open.Rest.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, rest.Constraints)
+	assert.Equal(t, ir.BigVal("0"), *rest.Constraints.ExclusiveMin, "draft 7's exclusive bound is a number")
+
+	paired, ok := doc.Types[componentID("Paired")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonValidationOnly, paired.Unmodeled["openapi:dependencies"].Reason)
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Labelled/description"))
+	assert.Empty(t, diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Applied/description"))
+
+	named, ok := doc.Types[componentID("Named")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, named.Properties, 2)
+	for _, p := range named.Properties {
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Named/definitions/Leaf"), p.Type.Target,
+			"#leaf names the definition draft 4's id declares it at, an id beside the $ref aside")
+	}
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
+	}
+}
+
 // assertSchemaIdentifiers pins a $ref naming a schema by an identifier, as JSON
 // Schema 2020-12 §8.2 reads one (docs/compilers/openapi.md#references): a plain
 // name a $anchor or a $dynamicAnchor declares, every schema under no $id being

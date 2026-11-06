@@ -91,7 +91,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(use.Site(ref), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, ref, pointer), pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {
@@ -121,7 +121,7 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	// can be carrying an Encoding.
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
 	diags = append(diags, recordUnexpandedDynamicRef(c, p, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, p, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, p, s, pointer, nil)...)
 }
 
 // PromoteUse reads the vendor extensions into the deprecation and redaction of a

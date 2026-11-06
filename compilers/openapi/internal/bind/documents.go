@@ -53,6 +53,21 @@ type docs struct {
 	work    *work
 	reached map[DocID]bool
 	fresh   []DocID
+	// rules is each document's reading of each dialect it names, which
+	// Config.Dialect gives (dialectRule), asked once, and last the one asked
+	// last.
+	rules map[ruleKey]DialectRule
+	last  struct {
+		key   ruleKey
+		rule  DialectRule
+		asked bool
+	}
+}
+
+// ruleKey is a document and a dialect its schemas name.
+type ruleKey struct {
+	doc     DocID
+	dialect string
 }
 
 // newDocs returns the documents of a table over the source tree root.
@@ -60,7 +75,7 @@ func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
 	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true,
 		openapi: true}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}}
+		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}, rules: map[ruleKey]DialectRule{}}
 }
 
 // locate is the name of the document uri names, written in the document

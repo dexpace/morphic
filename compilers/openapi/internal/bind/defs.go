@@ -37,9 +37,9 @@ type definitions struct {
 // document's root, else the definitions of the nearest object above site
 // holding "$defs" in the model, whatever was read before
 // (docs/parser-library.md#defs-order, docs/parser-library.md#root-defs). A
-// schema's own answer only where an $id makes it a resource, which resolve
-// reads instead; where schema says site's own hold the key, the reason says
-// so. A read the merge bound stopped answers MergeBound.
+// schema's own answer only where an identifier makes it a resource, which
+// resolve reads instead; where schema says site's own hold the key, the reason
+// says so. A read the merge bound stopped answers MergeBound.
 func (d definitions) definition(site Position, path []*yaml.Node, pointer jsontext.Pointer, schema bool,
 ) (reading, Reason) {
 	r, reason := d.docs.read(site.Doc, pointer)

@@ -76,35 +76,63 @@ func (d *dialects) at(version, dialect string) dialectRows {
 }
 
 // Dialects is the rows the schemas a resource root naming its dialect holds
-// (bind.Document.Dialects) are read with, by each node of that root's tree, a
-// root it holds governing its own. A schema no such root holds reads its
-// document's rows. Nothing writes it once the load phase returns it, so every
-// context copying it may read it at once.
+// (bind.Document.Dialects) are read with: by where each is (At), and by each
+// node of that root's tree (Of), a root it holds governing its own. A schema
+// no such root holds reads its document's rows. Nothing writes it once the
+// load phase returns it, so every context copying it may read it at once.
 type Dialects struct {
+	byRoot map[bind.Position]oas.SchemaRules
 	byNode map[*yaml.Node]oas.SchemaRules
+	// byDoc is the rows each document's schemas no root governs are read
+	// with, and byName each document by its name, for the load phase's own
+	// judgement (ownedFindings).
+	byDoc  map[bind.DocID]oas.SchemaRules
+	byName map[string]bind.DocID
 }
 
-// Of returns the rows the schema whose node is n is read with where a root
-// holding it, itself included, names its dialect, the innermost such root's,
-// and false where none does. A node an alias places at several positions reads
-// at all of them the rows of the root last in pointer order among those whose
-// trees hold it, as readDialects governs them. No reading today tells one
-// valid node's two dialects apart (GitHub #1457).
+// At returns the rows the schema at p is read with where a root at or above
+// it names its dialect, the innermost such root's, and false where none does.
+func (d Dialects) At(p bind.Position) (oas.SchemaRules, bool) {
+	return bind.DialectAt(d.byRoot, p)
+}
+
+// rowsAt returns the rows the schema at p is read with: the innermost dialect
+// root's at or above it (At), else its document's, else the source's, as for a
+// document the compile did not read beside it.
+func (d Dialects) rowsAt(p bind.Position) oas.SchemaRules {
+	if r, ok := d.At(p); ok {
+		return r
+	}
+	if r, ok := d.byDoc[p.Doc]; ok {
+		return r
+	}
+	return d.byDoc[bind.Source]
+}
+
+// Of is At for a reading that has the schema's node and not where it is, and
+// is false for a node that reads the source's own rows. A node an alias places
+// at several positions reads at all of them the rows of the root last in
+// pointer order among those whose trees hold it, as readDialects governs them,
+// so a reading asks it of a schema typed.Bindings.SiteOf does not place: one
+// the bindings place nowhere, or, where no schema names a dialect, one writing
+// no list of items, as each node then reads one.
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok
 }
 
-// govern notes that every node of the tree under root, which aliases place
-// there included, reads rules, but those a root governed before it holds.
-// Roots are governed innermost first, so a nested root keeps its own. Each
-// node is read once, so the walk is bounded by the document's nodes.
+// govern notes that every mapping and list of the tree under root, which
+// aliases place there included, reads rules, but those a root governed before
+// it holds. Roots are governed innermost first, so a nested root keeps its own.
+// No scalar is noted, since the only schema one can be is a boolean, which
+// writes no keyword. Each mapping and list is walked once, so the walk reads
+// each entry the document writes once.
 func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
 		n := nodeview.Deref(stack[len(stack)-1])
 		stack = stack[:len(stack)-1]
-		if n == nil {
+		if n == nil || n.Kind == yaml.ScalarNode {
 			continue
 		}
 		if _, governed := d.byNode[n]; governed {
@@ -150,25 +178,32 @@ func readDialects(table *bind.Table, others Others, d *dialects,
 			unread(ir.Provenance{Source: o.Index, Pointer: at}, "jsonSchemaDialect", o.dialect)
 		}
 	}
-	out := Dialects{byNode: map[*yaml.Node]oas.SchemaRules{}}
+	out := Dialects{byRoot: map[bind.Position]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
+		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: d.at(d.version, d.dialect).rows.Schema}, byName: map[string]bind.DocID{}}
 	for id := range bind.DocID(table.Documents()) {
+		out.byName[table.Document(id).Name] = id
 		version, ok := versionOf(table, others, d, id)
 		if !ok {
 			continue
 		}
+		if o, listed := others.Named(table.Document(id).Name); listed && id != bind.Source {
+			out.byDoc[id] = d.at(o.version, o.dialect).rows.Schema
+		}
 		// Innermost first: a root's pointer extends that of a root holding it,
 		// so it sorts after, and the list is in pointer order.
 		for _, root := range slices.Backward(table.Document(id).Dialects) {
-			if !oas.NamesDialect(root.URI) {
-				// It chooses nothing: the schema reads as though it wrote none,
-				// so a malformed value adds no reading to validation's finding.
-				continue
-			}
 			r := d.at(version, root.URI)
 			if r.unread {
 				unread(place(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema", root.URI)
 			}
+			out.byRoot[root.At] = r.rows.Schema
 			out.govern(root.Node, r.rows.Schema)
+		}
+		// Outermost last: a node no root holds reads its document's own rows,
+		// noted only where they are not the source's, which Of's readers take
+		// for a node it notes nothing of.
+		if rows, own := out.byDoc[id]; own && id != bind.Source && rows != out.byDoc[bind.Source] {
+			out.govern(table.Document(id).Root, rows)
 		}
 	}
 	return out, diags
@@ -182,4 +217,23 @@ func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (st
 	}
 	o, ok := others.Named(table.Document(id).Name)
 	return o.version, ok
+}
+
+// dialectRuleOf returns what the binder reads otherwise in dialect, whose rows
+// rules are, than in 2020-12 (bind.DialectRule): the identifier, `$id`, or
+// draft 4's `id` where the rows define it alone; one naming a fragment alone as
+// an anchor where they define no `$anchor`, by the plain-name grammar where
+// they give the identifier it; that grammar for `$anchor` where they give it;
+// `definitions`, and schemas in `dependencies`, where they define them; an
+// `items` list as a tuple where they take one; no identifier beside a `$ref`
+// where they ignore what is there; and whether dialect names one at all
+// (oas.NamesDialect).
+func dialectRuleOf(rules oas.SchemaRules, dialect string) bind.DialectRule {
+	rule := bind.DialectRule{Keyword: rules.Identifier(), Definitions: rules.Takes("definitions", oas.Map),
+		Dependencies: rules.Defines("dependencies"), Tuples: rules.Takes("items", oas.List),
+		IgnoresRefFields: rules.IgnoresRefFields(), NamesNone: !oas.NamesDialect(dialect)}
+	rule.Fragments = rule.Keyword != "" && !rules.Defines("$anchor")
+	rule.PlainFragments = rules.Formatted(rule.Keyword, oas.PlainNameURI)
+	rule.PlainNames = rules.Formatted("$anchor", oas.PlainName)
+	return rule
 }

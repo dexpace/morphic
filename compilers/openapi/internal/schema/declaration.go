@@ -146,7 +146,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		return nil
 	}
 	use := nodeUse(c, ts, s, pointer, target)
-	a, diags := annotation.Read(use.Site(s), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.ProvenanceAt)
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -175,7 +175,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td)...)
 }
 
 // recordDeclarationResidue keeps, on the node pointer owns, every keyword the

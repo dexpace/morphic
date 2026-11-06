@@ -10,12 +10,15 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -116,21 +119,28 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
 	// struct, back when one held the whole compile.
-	depth++
-	if depth > maxSchemaDepth {
-		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
-	}
 	if !annotation.Written(js) {
 		// None, or a null, which states nothing: an entry written so — a
 		// property, a branch, a component, items — lowers as the empty schema.
 		// A keyword whose absence differs from the empty schema reads a null as
 		// left out before it gets here (docs/compilers/openapi.md#null-schema).
+		// It nests nothing, so the depth bound reports none at its pointer, as
+		// a tuple's absent rest would otherwise draw.
 		return ts.PrimRef(ir.PrimAny), nil
 	}
+	depth++
+	if depth > maxSchemaDepth {
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
+	}
 	if js.IsBool() {
-		// The parser reads a body as false too when a keyword beneath it fails to
-		// decode under its own name, so a false here may be no false (GitHub #1299).
+		if unmended(js) {
+			return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+				"schema read as false, as the parser fails to decode a keyword beneath it under its own name "+
+					"and the load phase decodes no more than %d such schemas one below another; lowered as any; "+
+					"moving the schemas below it into a component reads them",
+				typed.MaxMends)}
+		}
 		if b := js.GetBool(); b != nil && !*b {
 			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
@@ -144,6 +154,15 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return refSiteRef(c, ts, js, schema, pointer, home)
 	}
 	return schemaBody(c, ts, depth, schema, pointer, home)
+}
+
+// unmended reports whether js is a boolean the parser read from a mapping the
+// document writes, which the load phase decodes again unless it lies past
+// typed.MaxMends (docs/parser-library.md#failure-beneath-itself), and which
+// says nothing of the values there.
+func unmended(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	n := nodeview.Deref(js.GetCore().GetRootNode())
+	return n != nil && n.Kind == yaml.MappingNode
 }
 
 // falseSchema hoists a boolean `false` schema as a closed empty model (it
@@ -463,7 +482,9 @@ func declaresShape(s *oas3.Schema) bool {
 // what to *build*. Wherever the question is instead whether a lowering can carry
 // what the position wrote, the distinction does not apply: an ir.Union has no
 // element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
-// it would lose a co-declared property set.
+// it would lose a co-declared property set. An `items` list narrows too, read
+// off the raw node, since nothing documents what the parser's model holds there.
 func narrowsInstance(s *oas3.Schema) bool {
-	return len(s.GetRequired()) > 0 || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
+	_, listed := listedItems(s)
+	return len(s.GetRequired()) > 0 || listed || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
 }

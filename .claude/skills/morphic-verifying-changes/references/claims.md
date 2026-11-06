@@ -189,6 +189,16 @@ to read — and to execute outside the case its author measured.
 - **Probe.** Before pushing, rerun each quoted mutation and probe on the final tree and paste what
   it printed.
 
+## Cite a plant by its literal edit
+`cite-a-plant-by-its-edit`
+
+- **Rule.** A test plan or commit citing a plant gives its literal edit, the text before and after
+  at a named file and line, so that a reader rebuilds that plant and no other.
+- **Why.** "A leading separator planted at the `contentSchema` entry" fit `"_content"` and
+  `"content_"`, which stay green, beside the `"_"` that reddens the `Blob` row (#1538, #1518 at
+  beb3aa08).
+- **Probe.** Rebuild each cited plant from its words alone, and get the verdict cited.
+
 ## Hold every behavioural claim in a comment with a test
 `comment-claims-held-by-test`
 
