@@ -102,7 +102,8 @@ jobs:
       # over an hour after the last and on every store, so one older than two
       # hours went unused. An output (-d) does not move when a store finds its
       # bytes already there, as a rerun's unchanged coverage profile does, so it
-      # goes only when it is that old and no entry left names it.
+      # goes only when it is that old and no entry left names it. An executable
+      # `go run` stores is a directory, so the step removes either.
       - &prune
         name: drop cache entries this run did not use
         if: github.event_name == 'push'
@@ -113,8 +114,8 @@ jobs:
           find "$GOCACHE_ROOT" -type f -name '*-a' -mmin +120 -delete
           kept=$(mktemp)
           find "$GOCACHE_ROOT" -type f -name '*-a' -exec awk '{print $3 "-d"}' {} + | sort -u >"$kept"
-          find "$GOCACHE_ROOT" -type f -name '*-d' -mmin +120 -printf '%f\t%p\n' | sort |
-            join -t "$(printf '\t')" -v 1 - "$kept" | cut -f2 | xargs -r -d '\n' rm -f
+          find "$GOCACHE_ROOT" -name '*-d' -mmin +120 -printf '%f\t%p\n' | sort |
+            join -t "$(printf '\t')" -v 1 - "$kept" | cut -f2 | xargs -r -d '\n' rm -rf
       - &save
         name: save caches
         if: github.event_name == 'push'
