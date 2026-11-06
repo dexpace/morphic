@@ -47,8 +47,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   (`references/rounds.md#review-ends-with-nothing-left`).
 - **Why.** #1532's seventh reader stopped at 51 of about 80 budgeted tool calls, naming five cells
   unreached, as its brief allowed (#1532, #1542).
-- **Probe.** The reader's brief names each cell with its share and the budget, their sum, and the
-  report runs each cell or quotes why it could not.
+- **Probe.** The reader's brief names each cell with its share and the budget as the shares' sum,
+  and the report runs each cell or quotes why it could not.
 
 ## Start every delegated reader at effort `xhigh`
 `start-readers-at-xhigh`
@@ -135,9 +135,9 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 ## Read each cell a reader settled against what its rule asks
 `audit-what-a-reader-cleared`
 
-- **Rule.** Before a delegated reader's round counts, read each cell its report settles against the
-  rule that cell answers to, and reopen one settled on less than it asks: a mutant judged equivalent
-  on this tree's inputs alone
+- **Rule.** Before a delegated reader's round counts, read each cell its report settles against
+  the rule that cell answers to, and reopen one settled on less than it asks: a mutant judged
+  equivalent on this tree's inputs alone
   (`.claude/skills/morphic-verifying-changes/references/mutation.md#equivalent-means-every-input`),
   an issue or file read in part, a class sampled
   (`references/claims-and-process.md#sweep-each-claim-class`). The next round reads it.
