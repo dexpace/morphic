@@ -29,13 +29,18 @@ concurrency:
 # request restores that save, reuses the results of the tests its change leaves
 # alone, and never saves.
 #
-# The cache stays one run's size for three reasons. A step before each save
-# deletes the index entries the run did not use, and the outputs no entry left
-# names, since the go command's own trim waits five days
-# (cmd/go/internal/cache, trimLimit). go.sum is in the key, so a
-# dependency change starts a cache afresh instead of adding to the module cache
-# of the last. And the fuzz corpus, which that trim never removes, is dropped
-# before the checks job's save; the suite job runs no -fuzz, so writes none.
+# The cache stays one run's size for three reasons. A step after each restore
+# dates the entries back two hours, and a step before each save deletes the
+# index entries still that old, which the run did not use, and the outputs no
+# entry left names, since the go command's own trim waits five days
+# (cmd/go/internal/cache, trimLimit). The dating is what makes the deletion
+# exact: the go command moves an entry's time on a use only when that time is
+# over an hour old, so without it an entry used less than an hour ago looks
+# used by this run, and a push within two hours of the last would keep what it
+# did not use. go.sum is in the key, so a dependency change starts a cache
+# afresh instead of adding to the module cache of the last. And the fuzz
+# corpus, which that trim never removes, is dropped before the checks job's
+# save; the suite job runs no -fuzz, so writes none.
 jobs:
   checks:
     name: lint, fuzz, bench
@@ -69,6 +74,19 @@ jobs:
             ${{ steps.toolchain.outputs.gomodcache }}
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-
+      # The go command moves an entry's time on a use only when that time is over
+      # an hour old, so date what was restored past that. Every entry this run
+      # uses then moves, and the prune before the save drops the rest, however
+      # soon this push follows the last. A pull request never saves, so it
+      # keeps the times as restored.
+      - &age
+        name: date the restored cache back
+        if: github.event_name == 'push'
+        env:
+          GOCACHE_ROOT: ${{ steps.toolchain.outputs.gocache }}
+        run: |
+          mkdir -p "$GOCACHE_ROOT"
+          find "$GOCACHE_ROOT" \( -name '*-a' -o -name '*-d' \) -exec touch -h -d '2 hours ago' {} +
       - name: gofmt
         run: make fmt
       - name: vet
@@ -98,12 +116,12 @@ jobs:
       - name: drop the fuzz corpus
         if: github.event_name == 'push'
         run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
-      # Keep what this run used and no more. An index entry (-a) moves on a use
-      # over an hour after the last and on every store, so one older than two
-      # hours went unused. An output (-d) does not move when a store finds its
-      # bytes already there, as a rerun's unchanged coverage profile does, so it
-      # goes only when it is that old and no entry left names it. An executable
-      # `go run` stores is a directory, so the step removes either.
+      # Keep what this run used and no more. The dating after the restore put
+      # every entry two hours back, and a use or a store moves an index entry
+      # (-a), so one still that old went unused. An output (-d), a file or an
+      # executable's directory, does not move when a store finds its bytes
+      # already there, as a rerun's unchanged coverage profile does, so it goes
+      # only when it is that old and no entry left names it.
       - &prune
         name: drop cache entries this run did not use
         if: github.event_name == 'push'
@@ -135,6 +153,7 @@ jobs:
       - *setup-go
       - *toolchain
       - *restore
+      - *age
       # Tests that load packages with go/packages run go list -export, which
       # compiles what make build does. Built first, that compile no longer runs
       # beside the tests that time a child process, which load can push past
