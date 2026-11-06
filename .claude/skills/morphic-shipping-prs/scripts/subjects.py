@@ -5,17 +5,17 @@
 """Print each commit subject on the branch, and the PR title, that breaks the message rules as it
 lands, so that a push can run behind it.
 
-Usage: python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py NUMBER TITLE
+Usage: python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py [--base REF]... NUMBER TITLE
 
 NUMBER is the PR's number, or the one it will get. The subjects are those of the commits on HEAD's
-first-parent line back to origin/main, merges left out, so a commit a merge brought in, from main or
-a stacked base, is not counted even where origin/main lags it, while a branch started on another
-PR's tip counts that PR's commits as its own (#1341). A squash lands the title, or a branch's one
-commit under its own subject, with " (#NUMBER)" appended, so both are measured with it; a subject
-the squash replaces never lands as the subject, and is measured without. Each is held to the
-Conventional Commits form, no trailing period and 72 characters. Prints a "what: problem: subject"
-line per finding, then a summary line. Exit 0 when every subject holds, 1 on a finding, 2 when it
-cannot run.
+first-parent line that neither origin/main nor any --base reaches, merges left out, so a commit a
+merge brought in is not counted even where the base lags it. A stacked branch passes the branch it
+targets, and one that left a stack also passes its former base's tip, whose commits sit on its own
+first-parent line (#1341). A squash lands the title, or a branch's one commit under its own
+subject, with " (#NUMBER)" appended, so both are measured with it; a subject the squash replaces
+never lands as the subject, and is measured without. Each is held to the Conventional Commits form,
+no trailing period and 72 characters. Prints a "what: problem: subject" line per finding, then a
+summary line. Exit 0 when every subject holds, 1 on a finding, 2 when it cannot run.
 """
 
 import argparse
@@ -52,20 +52,26 @@ def check(number: int, title: str, commits: list[str]) -> list[str]:
     return [f"{what}: {p}: {s}" for what, s, end in subjects for p in problems(s, end)]
 
 
-def branch_subjects() -> list[str]:
-    """Return the subject of each commit on HEAD's first-parent line back to origin/main, merges
+def branch_subjects(bases: list[str]) -> list[str]:
+    """Return the subject of each commit on HEAD's first-parent line that no base reaches, merges
     left out."""
-    out = subprocess.run(["git", "log", "--no-merges", "--first-parent", "--format=%s",
-                          f"{BASE}..HEAD"],
+    assert bases, "a branch's commits are read against at least one base"
+    out = subprocess.run(["git", "log", "--no-merges", "--first-parent", "--format=%s", "HEAD",
+                          "--not", *bases],
                          capture_output=True, text=True, check=True).stdout
     return out.splitlines()
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p.add_argument("--base", action="append", default=[], metavar="REF",
+                   help=f"a ref whose commits are not the branch's own, beside {BASE}; repeatable")
     p.add_argument("number", type=int, help="the PR's number, or the one it will get")
     p.add_argument("title", help="the PR's title")
     args = p.parse_args(argv)
+    if not all(b.strip() and not b.endswith("/") for b in args.base):
+        p.error("a base names no branch: a failed `gh pr view` leaves it empty or origin/")
+    args.base = [BASE, *args.base]
     if args.number < 1:
         p.error(f"number must be positive, not {args.number}")
     if not args.title.strip():
@@ -76,7 +82,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse(sys.argv[1:] if argv is None else argv)
     try:
-        commits = branch_subjects()
+        commits = branch_subjects(args.base)
     except (OSError, subprocess.CalledProcessError) as e:
         print(f"subjects: {getattr(e, 'stderr', '').strip() or e}", file=sys.stderr)
         return 2

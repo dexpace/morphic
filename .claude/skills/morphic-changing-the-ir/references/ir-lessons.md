@@ -4,18 +4,21 @@ What an IR change meets that `docs/ir` does not say: other branches claiming the
 hand lists that must name a new field, guarantees a type held without stating them, and what the
 verifier and codecs must reach.
 
-## Take the next version when another PR claims yours
+## The PR merging second takes the next version
 `version-collisions`
 
-- **Rule.** Two open PRs that bump `IRVersion` from one base claim one version: the constant
-  merges silently, and only the `generations` row and the version-history entry conflict. The
-  PR merging second keeps `main`'s row and entry, moves the constant to the next version, and
-  appends its own under it.
-- **Why.** #1065 and #1066 both set 0.18.0, and the constant merged with no conflict; #734 and #735
-  both bumped to 0.10.0 and conflicted only in the history.
-- **Probe.** List the open PRs that set a version, or whose diff failed:
-  `for n in $(gh pr list --state open --limit 1000 --json number --jq '.[].number'); do d=$(gh pr diff $n) || echo "$n: diff unread"; grep -q '^+const IRVersion' <<<"$d" && echo $n; done`.
-  After the merge, `go test ./ir -run TestIRVersion` prints the row to append.
+- **Rule.** A branch bumping `IRVersion` takes the version after its base's, whatever other open
+  PRs claim, and the PR merging second keeps `main`'s row and entry, moves the constant to the next
+  version and appends its own under it. Any of the constant, the `generations` row and the
+  version-history entry can merge silently, so check for a repeated version after each merge
+  moving one.
+- **Why.** #1065 and #1066 both set 0.18.0 and the constant merged with no conflict; #734 and #735
+  conflicted only in the history; and two setting 0.30.0 conflicted in the constant, their rows and
+  entries merging clean, doubled (#1378).
+- **Probe.** After the merge, `grep -o 'version: "[0-9.]*"' ir/irversion_test.go | sort | uniq -d`
+  prints only 0.3.0 and 0.4.0, repeated by design, and
+  `grep -oE '^- \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*' docs/ir/version-history.md | sort | uniq -d` prints
+  nothing.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`
@@ -53,9 +56,22 @@ verifier and codecs must reach.
 - **Why.** `appendTypeIDs` reads an operation by reflection, so such a position becomes a GraphQL
   root and the check on field arguments goes silent on its type, which classifying the position
   does not show (#1223).
-- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the readers.
-  Add a struct holding a `TypeID` to `ir.Docs`, keep it out of the oracle in `ir/edges_test.go`, and
-  watch `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fail until `appendTypeIDs` skips the struct.
+- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the code readers
+  (documents: `references/ir-lessons.md#reference-lists-in-documents`).
+  Add a struct holding a `TypeID` to `ir.Docs`, leave it out of `ir/edges_test.go`'s oracle, and
+  `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fails until `appendTypeIDs` skips the struct.
+
+## A new TypeID position is read in the documents listing references
+`reference-lists-in-documents`
+
+- **Rule.** Check a new `TypeID` position against each list of references a design document gives,
+  as well as the readers in code: a reader the documents specify and no code implements has no line
+  for a grep to find and no test to redden.
+- **Why.** `docs/emitters/refine/decorators.md` listed what an aliased type's collapse rewrites
+  without the new `DocRef.Type`, so a span naming a decorator pointed at a type with no
+  declaration, past the PR's sweep of the code readers (#1219).
+- **Probe.** `git grep -nE 'each reference|every reference|mapping or default' -- docs/emitters docs/ir`
+  finds the lists, each read for the new position.
 
 ## Find every list a new ID class must join
 `new-id-class`
@@ -127,8 +143,8 @@ verifier and codecs must reach.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
-- **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
-  body. Then take `references/ir-lessons.md#widened-field-consumers`.
+- **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
 
 ## Ask each consumer of a widened field what it did with the old value
 `widened-field-consumers`
@@ -170,18 +186,19 @@ verifier and codecs must reach.
   lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
   unmet.
 
-## Shape a declaration from its type's own definition
+## Shape a declaration from what an additive change leaves alone
 `declaration-reads-its-definition`
 
 - **Rule.** A plan fact that shapes a declaration, such as a closed sum against a struct of
-  pointers, reads the type's own definition. Where it must read a distant fact (the directions the
-  type travels, the operations reaching it), the document names that fact and the break a change
-  of it causes the declaration's callers.
-- **Why.** A fix to #1329's member rule read which way a union travels, so a new operation
-  elsewhere would flip the union between a closed sum and a struct of pointers, breaking its
-  callers.
-- **Probe.** For each fact the rule reads, name the IR node it comes from; one outside the type's
-  own definition is named in the document with its break, or is a finding.
+  pointers, reads what adding a member, a variant or an operation leaves as it was, such as the
+  type's value type and row, never one member's value or the operations reaching it. Where it
+  must read a fact such a change moves, the document names that fact and the break it causes the
+  declaration's callers.
+- **Why.** A fix to #1329's member rule read which way a union travels, so a new operation would
+  flip its form; an enum lowered as text once a member passed `int64` would turn
+  `type Code int64` into `type Code string` (#1334).
+- **Probe.** Add a member, a variant and an operation to a fixture: the declaration's form holds,
+  or the document names its break.
 
 ## Count what a design assumes about real input before choosing it
 `measure-the-premise`
@@ -189,7 +206,7 @@ verifier and codecs must reach.
 - **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
   about real input it rests on, then count it on the golden spec and the corpus, through `ir`'s
   own derivations
-  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#program-from-the-document`).
+  (`.claude/skills/morphic-reviewing-prs/references/design.md#program-from-the-document`).
   A program running the proposed rules shows only that they are total, since it assumes that fact;
   a worked example, chosen because it fits, shows nothing.
 - **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
@@ -247,7 +264,18 @@ verifier and codecs must reach.
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
   (#189).
 - **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each, at each call site.
+  verdict on each, at each call site; a property Unicode publishes also takes
+  `references/ir-lessons.md#sweep-a-published-property`.
+
+## Sweep a predicate over every code point where Unicode publishes its property
+`sweep-a-published-property`
+
+- **Rule.** A predicate claiming a property Unicode publishes, such as default-ignorable or white
+  space, is swept by a throwaway test over every code point against the UCD files for
+  `unicode.Version`, beside its witnesses, and each range bound it holds has a witness on each side.
+- **Why.** A fix for #832 had a witness per class in `isInvisible`, yet moving a range's lower
+  bound from U+FFF9 to U+FFF8 reddened no test (#832).
+- **Probe.** The sweep prints no code point where the predicate and the UCD files differ.
 
 ## Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms
 `json-decoder-fixed-point`

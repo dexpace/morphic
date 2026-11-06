@@ -16,6 +16,18 @@ it.
 - **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer and watch
   it go red.
 
+## Sweep a mechanism that turns on a type with the types
+`sweep-a-typed-mechanism-by-type`
+
+- **Rule.** Where the mechanism turns on a type, such as a range over a map or a value holding an
+  unexported field, sweep it with `go/types`: a `golang.org/x/tools/go/packages` program, run from
+  the module root of a scratch clone and removed after. A grep finds a spelling, not a type.
+- **Why.** Of 997 range statements outside tests at 0d09a96d, 63 range over a map, and 3 of those
+  lines match `grep -iE 'map|byid|keys'`: `for index := range status` names no map (#1538).
+- **Probe.** The program first reports a site planted for each form the mechanism takes, nested in a
+  container and behind a pointer too, and passes a planted near miss; then the report gives its
+  sites beside the grep's.
+
 ## Fix the state at the type that owns it, not where the defect surfaced
 `fix-at-the-invariants-owner`
 
@@ -38,7 +50,7 @@ it.
   substring, not a whole word, and a renamed term with its article ("a emitter").
 - **Why.** Comments pointed at deleted functions, removed receivers and replaced resolvers, sending
   readers to code that no longer exists (#195, #834).
-- **Probe.** For each name the diff removes, `git grep -n '<old>'` over `*.go`, `docs/`,
+- **Probe.** For each name the diff removes, `git grep -nF '<old>'` over `*.go`, `docs/`,
   `README.md`, `CLAUDE.md` and `.claude/skills` on the final tree; each hit outside the diff's own
   deletions is a finding.
 

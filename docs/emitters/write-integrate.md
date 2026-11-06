@@ -57,6 +57,13 @@ type Manifest struct {
     Regions  []Region            // the hand-written regions found, sorted by entity, then name
 }
 
+// Generations is a cross-version target's manifest, in the place any target's lies: each run's
+// Manifest by the label of its snapshot, "" for an unsliced document (contract/emitter.md).
+type Generations struct {
+    Schema    int                 // as Manifest.Schema, this format's version
+    Snapshots map[string]Manifest // the last label's holds the files spanning versions
+}
+
 type Inputs struct {
     Doc     string               // the document's digest, which Plan.Version takes
                                  // (plan/overview.md)
@@ -65,6 +72,9 @@ type Inputs struct {
                                  // its build information
     Config  string               // SHA-256 of the decoded options, resolved policy and resolved
                                  // hints, each as its canonical JSON
+    Handed  string               // SHA-256 of the snapshot label, samples and routes the engine
+                                 // handed the run beside its document (contract/emitter.md), as
+                                 // canonical JSON; "" = none
 }
 
 type File struct {
@@ -113,6 +123,21 @@ type Entry struct {
   outside it, a README block among them, and keeps the prior manifest's entry of every entity, file
   and region it leaves out, so its manifest is the whole SDK's: the next run's names, staleness
   check and no-op test read what was shipped, not what one run wrote.
+- **One generation across snapshots.** A target whose `Capabilities.CrossVersion` is set is run on
+  every version snapshot as one generation, each run under its label's directory ([the
+  contract](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)). Its manifest is
+  a `Generations`, which holds each snapshot run's `Manifest` under that snapshot's label; each
+  run's `Prior` is its own label's, and the writer reads a path across all of them, so a file no run
+  returns any longer, a dropped label's directory among them, is pruned as any other, and one that
+  moves from one label's run to another's, as a file spanning versions does when another label
+  becomes last, is neither pruned nor taken for a user's edit. Its manifest is a `Generations` even
+  for an unsliced document, whose one label is `""`, and where a prior holds no entry for the last
+  label, as when a document gains, loses or renames versions, that run takes the prior's entry
+  holding the files spanning versions, the one entry listing a path outside its own label's
+  directory, else its `""` one, so the names the site last shipped carry over. A prior is read as a
+  `Generations` where it holds `Snapshots`, a field no `Manifest` has, else as a `Manifest`, which a
+  target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry holding
+  the spanning files.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.

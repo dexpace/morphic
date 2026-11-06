@@ -21,18 +21,21 @@ Each row names the rule and code that shows it holding, the thing to copy.
 | Adding | Rule | Good example |
 |---|---|---|
 | any function | ask what would make it wrong, and refuse that at entry (`CLAUDE.md`, "Assert aggressively") | `Classify` in `compilers/openapi/internal/value/scalar.go` |
-| work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
+| work on a path every input takes | ask what it costs before writing it (`.claude/skills/morphic-reviewing-prs/references/performance.md#price-common-path`) | `TestWalkValues_StructsAndMapsCostNoAllocation` |
 | a lowering, check, pass or helper | `references/design-rules.md#functional-core` | `Read` in `compilers/openapi/internal/annotation/annotation.go` |
 | state every walk of a run must share | `references/design-rules.md#shared-run-state` | `typePositions` in `compilers/openapi/internal/lowering/lowering.go` |
-| a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run` | `checkInferred` in `ir/irverify/inferred.go` |
+| a walk, index, lookup or cache over a document | `references/design-rules.md#read-once-per-run`, pruned by `references/design-rules.md#prune-a-visitor-to-its-carriers` | `checkInferred` in `ir/irverify/inferred.go` |
 | a value with a format, or a state meaning none | `references/design-rules.md#type-the-form` | `Limit` in `compilers/openapi/internal/budget/limit.go` |
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` | `Compiler` in `compilers/compilers.go` |
 | a wrapper, interface or option | `references/design-rules.md#no-forwarding-layer` | `DocumentReader` in `compilers/reader.go` |
+| a function another package calls back | `references/design-rules.md#function-crosses-for-a-reason` | `Config` in `compilers/openapi/internal/bind/table.go` |
 | a limit | `references/design-rules.md#bound-the-product` | `maxResumeWork` in `compilers/openapi/internal/load/resume.go` |
 | a call into code the package does not own | `references/design-rules.md#catch-reaches-one-goroutine` | `taggedMappingRefusal` in `compilers/openapi/internal/load/load.go` |
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` | `Deprecation` in `ir/docs.go` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` | `Inferred` in `ir/inferred.go` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` | `Pointer` in `compilers/openapi/internal/fragment/fragment.go` |
+| a helper or algorithm another site may hold | `references/design-rules.md#share-only-what-means-the-same` | `hoistScalar` in `compilers/openapi/internal/schema/scalar.go` |
+| code that needs no morphic concept | `references/design-rules.md#domain-free-code-lives-apart` | `Catch` in `barrier/barrier.go` |
 
 ## Already checked
 
@@ -44,6 +47,4 @@ A claim about cost goes through `morphic-measuring-performance`.
 
 ## References
 
-- `references/design-rules.md`: functions over growing structs, one read per run, typed forms,
-  placement by the second user, no forwarding layers, what `barrier.Catch` reaches, bounds on what
-  the work grows with.
+- `references/design-rules.md`: each rule the table names, and the cost behind each.
