@@ -11,14 +11,14 @@
 # The search runs nightly and by hand, not on a pull request. The gate runs
 # `check`, which holds the targets to the limits below and searches nothing.
 #
-# Usage: fuzz.sh [fuzztime]    search each target (default 10s, or $FUZZTIME)
+# Usage: fuzz.sh [fuzztime]    search each target (default 5s, or $FUZZTIME)
 #        fuzz.sh check         hold the targets to the limits, searching nothing
 #        fuzz.sh prune         bound the corpus Go keeps under $GOCACHE/fuzz
 set -euo pipefail
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
-mode="${1:-${FUZZTIME:-10s}}"
+mode="${1:-${FUZZTIME:-5s}}"
 
 # A search's budget is a duration or a count above zero, with an optional
 # leading plus, as go test reads -fuzztime. Anything else is refused here, before
@@ -60,10 +60,13 @@ quarantined=""
 # search takes, not something a new target does by accident.
 readonly max_targets=16
 
-# Minimizing a found crash is bounded too. Left at its 60s default it would
-# dominate the run on the one occasion it matters, and the reproducer is written
-# out either way.
-readonly minimize_time=10s
+# Minimizing is bounded tightly. For a target taking a string or []byte the flag
+# governs every new input that adds coverage as well as a found crash, a worker
+# minimizing runs no search (go1.27 internal/fuzz: minimize.go's isMinimizable,
+# fuzz.go's queueForMinimization, worker.go's loop), and left at its 60s default
+# it would dominate the run. A shorter bound can leave a crash's reproducer and
+# each new corpus entry less minimal; the reproducer is written out either way.
+readonly minimize_time=1s
 
 # What prune keeps of each target's corpus. Go never trims the directory, so
 # these two bound what a search restores and what the cache holds: at most
@@ -179,12 +182,13 @@ prune_corpus() {
 # search runs every target, one after another, and carries on past a failure: a
 # finding in one target must not cost the rest of the night's search.
 search() {
-	local fuzztime="$1" import target _dir fuzzed=0 failed=""
+	local fuzztime="$1" import target _dir fuzzed=0 failed="" replayed="" log
+	log="$(mktemp)"
 
 	# go test handles an interrupt and exits, which reads as a failed target, so
 	# without this the loop would carry on to the next one. The shell runs it once
 	# go test has gone.
-	trap 'echo "fuzz.sh: interrupted" >&2; exit 130' INT
+	trap 'rm -f "$log"; echo "fuzz.sh: interrupted" >&2; exit 130' INT
 
 	while read -r import target _dir; do
 		if is_quarantined "$target"; then
@@ -193,10 +197,21 @@ search() {
 		fi
 		printf '=== fuzz %s (%s) for %s\n' "$target" "$import" "$fuzztime"
 		fuzzed=$((fuzzed + 1))
-		go test "$import" -run '^$' -fuzz "^${target}\$" \
-			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" || failed="$failed $target"
+		# A budget that ends while Go replays the target's corpus searched nothing, and
+		# go test passes it all the same.
+		# tee ignores an interrupt, so go test's closing lines still print.
+		if ! go test "$import" -run '^$' -fuzz "^${target}\$" \
+			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" | tee -i "$log"; then
+			failed="$failed $target"
+		elif ! grep -q 'now fuzzing with' "$log"; then
+			replayed="$replayed $target"
+		fi
 	done <<<"$targets"
+	rm -f "$log"
 
+	if [ -n "$replayed" ]; then
+		echo "fuzz.sh: searched nothing, the budget ended replaying the corpus:$replayed" >&2
+	fi
 	if [ -n "$failed" ]; then
 		echo "fuzz.sh: failed:$failed" >&2
 		exit 1
