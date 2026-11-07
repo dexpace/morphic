@@ -199,8 +199,9 @@ search() {
 		fuzzed=$((fuzzed + 1))
 		# A budget that ends while Go replays the target's corpus searched nothing, and
 		# go test passes it all the same.
+		# tee ignores an interrupt, so go test's closing lines still print.
 		if ! go test "$import" -run '^$' -fuzz "^${target}\$" \
-			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" | tee "$log"; then
+			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" | tee -i "$log"; then
 			failed="$failed $target"
 		elif ! grep -q 'now fuzzing with' "$log"; then
 			replayed="$replayed $target"
