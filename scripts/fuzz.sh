@@ -182,12 +182,13 @@ prune_corpus() {
 # search runs every target, one after another, and carries on past a failure: a
 # finding in one target must not cost the rest of the night's search.
 search() {
-	local fuzztime="$1" import target _dir fuzzed=0 failed=""
+	local fuzztime="$1" import target _dir fuzzed=0 failed="" replayed="" log
+	log="$(mktemp)"
 
 	# go test handles an interrupt and exits, which reads as a failed target, so
 	# without this the loop would carry on to the next one. The shell runs it once
 	# go test has gone.
-	trap 'echo "fuzz.sh: interrupted" >&2; exit 130' INT
+	trap 'rm -f "$log"; echo "fuzz.sh: interrupted" >&2; exit 130' INT
 
 	while read -r import target _dir; do
 		if is_quarantined "$target"; then
@@ -196,10 +197,20 @@ search() {
 		fi
 		printf '=== fuzz %s (%s) for %s\n' "$target" "$import" "$fuzztime"
 		fuzzed=$((fuzzed + 1))
-		go test "$import" -run '^$' -fuzz "^${target}\$" \
-			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" || failed="$failed $target"
+		# A budget that ends while Go replays the target's corpus searched nothing, and
+		# go test passes it all the same.
+		if ! go test "$import" -run '^$' -fuzz "^${target}\$" \
+			-fuzztime="$fuzztime" -fuzzminimizetime="$minimize_time" | tee "$log"; then
+			failed="$failed $target"
+		elif ! grep -q 'now fuzzing with' "$log"; then
+			replayed="$replayed $target"
+		fi
 	done <<<"$targets"
+	rm -f "$log"
 
+	if [ -n "$replayed" ]; then
+		echo "fuzz.sh: searched nothing, the budget ended replaying the corpus:$replayed" >&2
+	fi
 	if [ -n "$failed" ]; then
 		echo "fuzz.sh: failed:$failed" >&2
 		exit 1
