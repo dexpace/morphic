@@ -195,7 +195,7 @@ func (e *Engine) Run(ctx context.Context, specPath string, opts RunOptions) (*Re
 	if err != nil {
 		return nil, err
 	}
-	limit, err := e.registry.SourceLimit(configurer(opts, reader.Disk{}))
+	limit, err := e.registry.SourceLimit(configuration(opts, reader.Disk{}))
 	if err != nil {
 		return nil, fmt.Errorf("engine: detect %q: %w", specPath, err)
 	}
@@ -379,11 +379,11 @@ func (e *Engine) prepare(opts RunOptions) (plan, error) {
 }
 
 // compile runs the pipeline over source: detect, compile, then passes, each
-// compiler configured by configure. The Result it returns is not yet judged.
-func (e *Engine) compile(ctx context.Context, source compilers.Source, configure compilers.Configure,
+// compiler configured by cfg. The Result it returns is not yet judged.
+func (e *Engine) compile(ctx context.Context, source compilers.Source, cfg compilers.Configuration,
 	p plan,
 ) (*Result, error) {
-	det, ok, err := e.registry.Detect(ctx, source, configure)
+	det, ok, err := e.registry.Detect(ctx, source, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("engine: detect %q: %w", source.Path, err)
 	}
@@ -469,27 +469,15 @@ func (e *Engine) served() string {
 	return "this build compiles " + strings.Join(names, ", ")
 }
 
-// configurer returns what configures each compiler for a run under opts: the
-// options it would compile with, and docs, which reads every document the
-// compile reads beyond the spec. Each compiler is asked under them, because
-// recognizing a source is a read of it that the caller's budgets bound as much
-// as the compile's reads.
-func configurer(opts RunOptions, docs compilers.DocumentReader) compilers.Configure {
-	return func(c compilers.Compiler) (compilers.Options, error) {
-		formatOpts, err := formatOptions(c, opts)
-		return compilers.Options{FormatOptions: formatOpts, Reader: docs}, err
+// configuration returns what configures each compiler for a run under opts:
+// the options in whichever channel opts sets them, and docs, which reads every
+// document the compile reads beyond the spec. Each compiler is asked under
+// them, because recognizing a source is a read of it that the caller's budgets
+// bound as much as the compile's reads.
+func configuration(opts RunOptions, docs compilers.DocumentReader) compilers.Configuration {
+	return compilers.Configuration{
+		FormatOptions: opts.FormatOptions,
+		Settings:      compilers.OptionSet{Settings: opts.CompilerOptions},
+		Reader:        docs,
 	}
-}
-
-// formatOptions resolves the options c would compile with, decoding the
-// textual channel through c itself.
-func formatOptions(c compilers.Compiler, opts RunOptions) (any, error) {
-	if len(opts.CompilerOptions) == 0 {
-		return opts.FormatOptions, nil
-	}
-	decoded, err := c.DecodeOptions(compilers.OptionSet{Settings: opts.CompilerOptions})
-	if err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return decoded, nil
 }

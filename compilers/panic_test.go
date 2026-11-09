@@ -71,14 +71,6 @@ func (b *breaker) SourceTable(sources []compilers.Source, opts compilers.Options
 	return b.scripted.SourceTable(sources, opts)
 }
 
-// configureViaDecodeOptions is the Configure the engine gives the registry: it
-// asks the compiler to decode its options, so a DecodeOptions that panics
-// panics inside configuring.
-func configureViaDecodeOptions(c compilers.Compiler) (compilers.Options, error) {
-	decoded, err := c.DecodeOptions(compilers.OptionSet{})
-	return compilers.Options{FormatOptions: decoded}, err
-}
-
 // requirePanic requires err to be a contract breach recording a panic of value.
 func requirePanic(t *testing.T, err error, value any) {
 	t.Helper()
@@ -107,21 +99,21 @@ func TestRegistry_RegisterRefusesACompilerWhoseFormatsPanic(t *testing.T) {
 func TestRegistry_DetectRefusesACompilerThatPanics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		at        string
-		configure compilers.Configure
-		wantCall  string
+		name     string
+		at       string
+		cfg      compilers.Configuration
+		wantCall string
 	}{
-		{"Detect", "Detect", nil, "detect by alpha@1: Detect: panic: boom"},
-		{"configuring through DecodeOptions", "DecodeOptions", configureViaDecodeOptions, "detect by alpha@1: configure: panic: boom"},
-		{"SourceLimit", "SourceLimit", nil, "source limit of alpha@1: SourceLimit: panic: boom"},
+		{"Detect", "Detect", compilers.Configuration{}, "detect by alpha@1: Detect: panic: boom"},
+		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: configure: panic: boom"},
+		{"SourceLimit", "SourceLimit", compilers.Configuration{}, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			b := newBreaker(tt.at, "boom")
 
-			det, ok, err := registryOf(t, b).Detect(t.Context(), spec, tt.configure)
+			det, ok, err := registryOf(t, b).Detect(t.Context(), spec, tt.cfg)
 
 			requirePanic(t, err, "boom")
 			assert.Contains(t, err.Error(), tt.wantCall)
@@ -139,7 +131,7 @@ func TestRegistry_DetectRefusesAPanicBeforeALaterCompilerTakesTheSource(t *testi
 	first := newBreaker("DecodeOptions", "first exploded")
 	second := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "alpha"}
 
-	_, ok, err := registryOf(t, first, second).Detect(t.Context(), spec, configureViaDecodeOptions)
+	_, ok, err := registryOf(t, first, second).Detect(t.Context(), spec, settings())
 
 	requirePanic(t, err, "first exploded")
 	assert.False(t, ok)
@@ -155,7 +147,7 @@ func TestRegistry_DetectDoesNotAskACompilerAfterTheOneThatTakesTheSource(t *test
 	later := newBreaker("Detect", "never reached")
 	later.formats = []compilers.SourceFormat{beta}
 
-	det, ok, err := registryOf(t, taker, later).Detect(t.Context(), spec, nil)
+	det, ok, err := registryOf(t, taker, later).Detect(t.Context(), spec, compilers.Configuration{})
 
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -172,7 +164,7 @@ func TestRegistry_DetectRefusesAnOwnersConfigureThatPanics(t *testing.T) {
 	owner := newBreaker("DecodeOptions", "owner exploded")
 	owner.formats = []compilers.SourceFormat{beta}
 
-	_, ok, err := registryOf(t, recognizer, owner).Detect(t.Context(), spec, configureViaDecodeOptions)
+	_, ok, err := registryOf(t, recognizer, owner).Detect(t.Context(), spec, settings())
 
 	requirePanic(t, err, "owner exploded")
 	assert.Contains(t, err.Error(), "detect by beta@2: configure: panic")
@@ -193,7 +185,7 @@ func TestRegistry_FormatsAreAskedOnce(t *testing.T) {
 	b.formats[0] = beta
 	b.at = "Formats"
 
-	det, ok, err := reg.Detect(t.Context(), spec, nil)
+	det, ok, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
 	require.NoError(t, err, "Formats is not asked again, so its panic is never reached")
 	require.True(t, ok)
 	_, compileErr := det.Compile(t.Context())
@@ -215,7 +207,7 @@ func TestRegistry_DetectNamesTheFormatsItRegisteredNotTheOnesItIsToldNow(t *test
 	reg := registryOf(t, b)
 	b.formats[0] = beta
 
-	_, _, err := reg.Detect(t.Context(), compilers.Source{Path: spec.Path, Data: []byte("unmarked")}, nil)
+	_, _, err := reg.Detect(t.Context(), compilers.Source{Path: spec.Path, Data: []byte("unmarked")}, compilers.Configuration{})
 
 	require.ErrorIs(t, err, compilers.ErrContract)
 	assert.Contains(t, err.Error(), "detect by alpha@1")
@@ -300,14 +292,14 @@ func TestDetectionCompile_ARegistryThatBrokeOnceStillWorks(t *testing.T) {
 	t.Parallel()
 	b := newBreaker("Compile", "boom")
 	reg := registryOf(t, b)
-	det, ok, err := reg.Detect(t.Context(), spec, nil)
+	det, ok, err := reg.Detect(t.Context(), spec, compilers.Configuration{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	_, err = det.Compile(t.Context())
 	require.ErrorIs(t, err, compilers.ErrContract)
 
 	b.at = "none"
-	det, ok, err = reg.Detect(t.Context(), spec, nil)
+	det, ok, err = reg.Detect(t.Context(), spec, compilers.Configuration{})
 	require.NoError(t, err)
 	require.True(t, ok)
 	out, err := det.Compile(t.Context())

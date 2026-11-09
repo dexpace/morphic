@@ -19,21 +19,23 @@ var (
 	beta  = compilers.SourceFormat{Name: "beta", Version: "2"}
 )
 
-// errUnconfigurable is what configuring a compiler fails with in these tests.
+// errUnconfigurable is what decoding a compiler's settings fails with in these
+// tests.
 var errUnconfigurable = errors.New("unknown setting")
 
-// configureBy answers with a per-compiler FormatOptions value, and with
-// errUnconfigurable for any compiler it holds no value for. A failed answer
-// carries a value anyway, as a decoder that got partway might, so a registry
-// that used it rather than the defaults would be seen doing so.
-func configureBy(values map[compilers.Compiler]string) compilers.Configure {
-	return func(c compilers.Compiler) (compilers.Options, error) {
-		v, ok := values[c]
-		if !ok {
-			return compilers.Options{FormatOptions: "half-decoded"}, errUnconfigurable
-		}
-		return compilers.Options{FormatOptions: v}, nil
-	}
+// settings is a Configuration holding a setting, which each compiler asked
+// decodes for itself.
+func settings() compilers.Configuration {
+	return compilers.Configuration{Settings: compilers.OptionSet{Settings: map[string]string{"k": "v"}}}
+}
+
+// undecodable is a stub compiler serving format, recognizing a source holding
+// marker, whose DecodeOptions fails. It answers with a value anyway, as a
+// decoder that got partway might, so a registry that used it rather than the
+// defaults would be seen doing so.
+func undecodable(format compilers.SourceFormat, marker string) *stubCompiler {
+	return &stubCompiler{formats: []compilers.SourceFormat{format}, marker: marker, decoded: "half-decoded",
+		decodeErr: errUnconfigurable}
 }
 
 func registryOf(t *testing.T, cs ...compilers.Compiler) *compilers.Registry {
@@ -46,22 +48,24 @@ func registryOf(t *testing.T, cs ...compilers.Compiler) *compilers.Registry {
 }
 
 // TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions pins that recognition
-// runs under the options the compiler would compile with, and that the ones the
-// taker was configured with are the ones handed back for the compile.
+// runs under the options the compiler would compile with, each decoding the
+// settings for itself beside the one Reader, and that the ones the taker was
+// configured with are the ones handed back for the compile.
 func TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 	t.Parallel()
-	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha"}
-	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta"}
+	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha", decoded: "for alpha"}
+	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta", decoded: "for beta"}
 	reg := registryOf(t, a, b)
+	cfg := settings()
+	cfg.Reader = failingReader{}
 
-	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")},
-		configureBy(map[compilers.Compiler]string{a: "for alpha", b: "for beta"}))
+	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")}, cfg)
 
 	require.NoError(t, err)
 	require.True(t, ok)
-	assert.Equal(t, []compilers.Options{{FormatOptions: "for alpha"}}, a.saw)
-	assert.Equal(t, []compilers.Options{{FormatOptions: "for beta"}}, b.saw)
-	assert.Equal(t, compilers.Options{FormatOptions: "for beta"}, det.Options)
+	assert.Equal(t, []compilers.Options{{FormatOptions: "for alpha", Reader: failingReader{}}}, a.saw)
+	assert.Equal(t, []compilers.Options{{FormatOptions: "for beta", Reader: failingReader{}}}, b.saw)
+	assert.Equal(t, compilers.Options{FormatOptions: "for beta", Reader: failingReader{}}, det.Options)
 }
 
 // TestRegistry_DetectConfiguresADeclinerItCannotConfigureByDefaults pins that
@@ -70,12 +74,11 @@ func TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 // asked under its defaults.
 func TestRegistry_DetectConfiguresADeclinerItCannotConfigureByDefaults(t *testing.T) {
 	t.Parallel()
-	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha"}
-	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta"}
+	a := undecodable(alpha, "alpha")
+	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta", decoded: "for beta"}
 	reg := registryOf(t, a, b)
 
-	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")},
-		configureBy(map[compilers.Compiler]string{b: "for beta"}))
+	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")}, settings())
 
 	require.NoError(t, err)
 	require.True(t, ok)
@@ -88,14 +91,14 @@ func TestRegistry_DetectConfiguresADeclinerItCannotConfigureByDefaults(t *testin
 // configure it is the caller's error — after it was asked under its defaults.
 func TestRegistry_DetectFailsWhenTheTakerCannotBeConfigured(t *testing.T) {
 	t.Parallel()
-	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha"}
+	a := undecodable(alpha, "alpha")
 	reg := registryOf(t, a)
 
-	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("alpha")},
-		configureBy(map[compilers.Compiler]string{}))
+	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, settings())
 
 	require.ErrorIs(t, err, errUnconfigurable)
-	assert.Contains(t, err.Error(), "alpha@1", "the error names the format being compiled")
+	assert.Contains(t, err.Error(), "compilers: options for alpha@1: decode: unknown setting",
+		"the error names the format being compiled and the decoding that failed")
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Detection{}, det)
 	assert.Equal(t, []compilers.Options{{}}, a.saw)
@@ -107,21 +110,19 @@ func TestRegistry_DetectFailsWhenTheTakerCannotBeConfigured(t *testing.T) {
 // it is the error even though the recognizer was configured fine.
 func TestRegistry_DetectConfiguresTheOwnerNotTheRecognizer(t *testing.T) {
 	t.Parallel()
-	recognizer := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "beta", detects: beta, parsed: "alpha's parse"}
-	owner := &stubCompiler{formats: []compilers.SourceFormat{beta}}
-	reg := registryOf(t, recognizer, owner)
+	recognizer := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "beta", detects: beta,
+		parsed: "alpha's parse", decoded: "for alpha"}
+	owner := &stubCompiler{formats: []compilers.SourceFormat{beta}, decoded: "for beta"}
 	src := compilers.Source{Data: []byte("beta")}
 
-	det, ok, err := reg.Detect(t.Context(), src,
-		configureBy(map[compilers.Compiler]string{recognizer: "for alpha", owner: "for beta"}))
+	det, ok, err := registryOf(t, recognizer, owner).Detect(t.Context(), src, settings())
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Same(t, compilers.Compiler(owner), det.Compiler)
 	assert.Equal(t, compilers.Options{FormatOptions: "for beta"}, det.Options)
 	assert.Nil(t, det.Recognition.Parsed)
 
-	_, ok, err = reg.Detect(t.Context(), src,
-		configureBy(map[compilers.Compiler]string{recognizer: "for alpha"}))
+	_, ok, err = registryOf(t, recognizer, undecodable(beta, "")).Detect(t.Context(), src, settings())
 	require.ErrorIs(t, err, errUnconfigurable)
 	assert.False(t, ok)
 }
@@ -132,10 +133,11 @@ func TestRegistry_DetectConfiguresTheOwnerNotTheRecognizer(t *testing.T) {
 func TestRegistry_DetectNamesAnUnservedFormatWithoutConfiguringIt(t *testing.T) {
 	t.Parallel()
 	gamma := compilers.SourceFormat{Name: "gamma", Version: "3"}
-	reg := registryOf(t, &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "gamma", detects: gamma})
+	recognizer := undecodable(alpha, "gamma")
+	recognizer.detects = gamma
+	reg := registryOf(t, recognizer)
 
-	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("gamma")},
-		configureBy(map[compilers.Compiler]string{}))
+	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("gamma")}, settings())
 
 	require.NoError(t, err)
 	assert.False(t, ok)
@@ -143,18 +145,48 @@ func TestRegistry_DetectNamesAnUnservedFormatWithoutConfiguringIt(t *testing.T) 
 	assert.Nil(t, det.Compiler)
 }
 
-// TestRegistry_DetectGivesDefaultsWithoutAConfigure pins the nil Configure.
-func TestRegistry_DetectGivesDefaultsWithoutAConfigure(t *testing.T) {
+// TestRegistry_DetectGivesDefaultsUnderTheZeroConfiguration pins the zero
+// Configuration: no compiler decodes anything, and each is asked under its
+// defaults.
+func TestRegistry_DetectGivesDefaultsUnderTheZeroConfiguration(t *testing.T) {
 	t.Parallel()
-	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha"}
+	a := undecodable(alpha, "alpha")
 	reg := registryOf(t, a)
 
-	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, nil)
+	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, compilers.Configuration{})
 
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, compilers.Options{}, det.Options)
 	assert.Equal(t, []compilers.Options{{}}, a.saw)
+}
+
+// TestRegistry_DetectHandsEachCompilerTheFormatOptionsWithoutSettings pins a
+// Configuration holding no setting: each compiler is asked under FormatOptions
+// as given, without decoding anything, and every one is handed its Reader.
+func TestRegistry_DetectHandsEachCompilerTheFormatOptionsWithoutSettings(t *testing.T) {
+	t.Parallel()
+	a := undecodable(alpha, "alpha")
+	b := undecodable(beta, "beta")
+	docs := failingReader{}
+	cfg := compilers.Configuration{FormatOptions: "typed", Reader: docs}
+
+	det, ok, err := registryOf(t, a, b).Detect(t.Context(), compilers.Source{Data: []byte("beta")}, cfg)
+
+	require.NoError(t, err)
+	require.True(t, ok)
+	want := compilers.Options{FormatOptions: "typed", Reader: docs}
+	assert.Equal(t, want, det.Options)
+	assert.Equal(t, []compilers.Options{want}, a.saw)
+	assert.Equal(t, []compilers.Options{want}, b.saw)
+}
+
+// failingReader is a DocumentReader these tests hand on and never read
+// through.
+type failingReader struct{}
+
+func (failingReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
+	return nil, errors.New("not read in these tests")
 }
 
 // TestRegistry_DetectStopsOnACanceledContext pins that recognition, which may
@@ -166,7 +198,7 @@ func TestRegistry_DetectStopsOnACanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	_, ok, err := reg.Detect(ctx, compilers.Source{Data: []byte("alpha")}, nil)
+	_, ok, err := reg.Detect(ctx, compilers.Source{Data: []byte("alpha")}, compilers.Configuration{})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, ok)

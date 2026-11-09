@@ -41,7 +41,7 @@ func TestRegistry_SourceLimitIsTheLargestLimitAsked(t *testing.T) {
 				cs = append(cs, &stubCompiler{formats: []compilers.SourceFormat{format}, limit: limit})
 			}
 
-			got, err := registryOf(t, cs...).SourceLimit(nil)
+			got, err := registryOf(t, cs...).SourceLimit(compilers.Configuration{})
 
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
@@ -54,10 +54,11 @@ func TestRegistry_SourceLimitIsTheLargestLimitAsked(t *testing.T) {
 // defaults when those fail to decode, as Detect asks it.
 func TestRegistry_SourceLimitAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 	t.Parallel()
-	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, limit: 5}
-	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, limit: 9}
+	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, limit: 5, decoded: "for alpha"}
+	b := undecodable(beta, "")
+	b.limit = 9
 
-	got, err := registryOf(t, a, b).SourceLimit(configureBy(map[compilers.Compiler]string{a: "for alpha"}))
+	got, err := registryOf(t, a, b).SourceLimit(settings())
 
 	require.NoError(t, err)
 	assert.Equal(t, 9, got)
@@ -70,20 +71,19 @@ func TestRegistry_SourceLimitAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 func TestRegistry_SourceLimitRefusesACompilerThatPanics(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		at        string
-		configure compilers.Configure
-		wantCall  string
+		name     string
+		at       string
+		cfg      compilers.Configuration
+		wantCall string
 	}{
-		{"configuring through DecodeOptions", "DecodeOptions", configureViaDecodeOptions,
-			"detect by alpha@1: configure: panic: boom"},
-		{"SourceLimit", "SourceLimit", nil, "source limit of alpha@1: SourceLimit: panic: boom"},
+		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: configure: panic: boom"},
+		{"SourceLimit", "SourceLimit", compilers.Configuration{}, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := registryOf(t, newBreaker(tt.at, "boom")).SourceLimit(tt.configure)
+			got, err := registryOf(t, newBreaker(tt.at, "boom")).SourceLimit(tt.cfg)
 
 			requirePanic(t, err, "boom")
 			assert.Contains(t, err.Error(), tt.wantCall)
@@ -122,10 +122,9 @@ func TestRegistry_DetectHoldsEachAnswerToTheCompilersLimit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: tc.marker, limit: tc.limit,
-				declines: tc.declines}
+				declines: tc.declines, decoded: "for alpha"}
 
-			det, ok, err := registryOf(t, a).Detect(t.Context(), compilers.Source{Data: []byte(tc.data)},
-				configureBy(map[compilers.Compiler]string{a: "for alpha"}))
+			det, ok, err := registryOf(t, a).Detect(t.Context(), compilers.Source{Data: []byte(tc.data)}, settings())
 
 			assert.Equal(t, []compilers.Options{{FormatOptions: "for alpha"}}, a.limitsAsked,
 				"the limit under the options the answer was given under")

@@ -34,12 +34,9 @@ import (
 // added. Each entry says what its calls are.
 var callShapeBaseline = map[string]map[string]int{
 	"compilers": {
-		// The registry calls the methods of each compiler it holds: a designed seam.
-		"compilers/openapi": 5,
-		// Detection's configuration, which the engine and the harness hand the
-		// registry as a callback until #1482 makes it data.
-		"engine":           1,
-		"internal/harness": 1,
+		// The registry calls the methods of each compiler it holds, DecodeOptions
+		// among them as it resolves a compiler's options: a designed seam.
+		"compilers/openapi": 6,
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
