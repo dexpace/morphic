@@ -322,19 +322,24 @@ func isBlankName(s string) bool {
 // isInvisible reports whether r is white space, a control, or
 // Default_Ignorable_Code_Point, the set the blank rules take as carrying no
 // visible mark. U+1680 OGHAM SPACE MARK renders a line and stays in, as white
-// space (GitHub #832). The package unicode has no table for that property, so it
-// is built from its terms as
-// DerivedCoreProperties.txt defines it, Other_Default_Ignorable_Code_Point,
-// Cf and Variation_Selector less Prepended_Concatenation_Mark and the two
-// ranges unicode lacks a table for, the interlinear annotation characters and
-// the Egyptian hieroglyph format controls, which are Cf and render.
+// space (GitHub #832).
+//
+// Package unicode has no Default_Ignorable_Code_Point table, so it is built
+// from its terms as DerivedCoreProperties.txt defines it:
+// Other_Default_Ignorable_Code_Point, Cf and Variation_Selector, less
+// Prepended_Concatenation_Mark, the two ranges unicode lacks a table for (the
+// interlinear annotation characters and the Egyptian hieroglyph format
+// controls, which are Cf and render) and White_Space, which is in the set
+// anyway.
 func isInvisible(r rune) bool {
 	// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
 	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
 	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
 	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
 	// TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release
-	// moves unicode.Version, so that move rechecks both.
+	// moves unicode.Version. Rechecking these two ranges is then not enough, as
+	// Unicode has changed the derivation itself between releases: rebuild
+	// isInvisible from that derivation and sweep every code point against it.
 	const (
 		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
 		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'

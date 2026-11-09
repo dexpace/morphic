@@ -151,11 +151,15 @@ func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 
 // TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release moves
 // unicode.Version, since isInvisible holds two ranges no table of package unicode
-// carries. Recheck them against DerivedCoreProperties.txt, then move the version here.
+// carries, and Unicode has changed the derivation itself between releases, not
+// only those ranges. Rebuild isInvisible from DerivedCoreProperties.txt's
+// Default_Ignorable_Code_Point derivation and sweep every code point against it,
+// then move the version here.
 func TestIsInvisible_RangesWereCheckedAgainstThisUnicode(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "17.0.0", unicode.Version,
-		"recheck isInvisible's ranges against DerivedCoreProperties.txt, then move this version")
+		"rebuild isInvisible from DerivedCoreProperties.txt's Default_Ignorable_Code_Point "+
+			"derivation and sweep every code point against it, then move this version")
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,
