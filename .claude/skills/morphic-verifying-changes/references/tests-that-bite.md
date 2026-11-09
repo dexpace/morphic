@@ -160,6 +160,6 @@ is not behaviour held.
 - **Why.** `TestRun_SingleDashLongFlagsAreRefused` shared one `t.TempDir()` across its 21 rows, and
   a plant only its first row reaches failed all 21; with a directory per row, it failed one (#1622,
   #1516 at 698197b8).
-- **Probe.** Plant a defect only the first row reaches that changes what the Rule names and lets
-  every later row run, then count the failing rows by their indent:
+- **Probe.** In a sequential table, plant a defect only the first row reaches that changes what the
+  Rule names and lets every later row run, then count the failing rows by their indent:
   `go test -count=1 -run '^<Test>$' ./<package> | grep -cE '^ {4}--- FAIL: <Test>/'` prints 1.
