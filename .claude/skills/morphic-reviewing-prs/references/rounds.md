@@ -248,10 +248,11 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Review the tree as it will merge
 `recheck-against-final-tree`
 
-- **Rule.** After review fixes land or `main` or the base is merged in, review the branch as it
-  will merge: rerun the probes the body and comments cite and every sweep the branch relies on over
-  the merged tree, re-diff each change `main` made to files the branch touches, and look for helpers
-  `main` renamed, features on both sides that interact, and normative text `main` moved.
+- **Rule.** After review fixes land, short of `references/rounds.md#nit-round-checks-its-fixes`, or
+  `main` or the base is merged in, review the branch as it will merge: rerun the probes the body
+  and comments cite and every sweep the branch relies on over the merged tree, re-diff each change
+  `main` made to files the branch touches, and look for helpers `main` renamed, features on both
+  sides that interact, and normative text `main` moved.
 - **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
   `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382).
 - **Probe.** `git diff <merge-base>..origin/main -- <files the branch touches>` and confirm each
@@ -278,7 +279,9 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 - **Rule.** A cell a round's budget leaves is named unreached, never reported clean. The review
   ends on a round with no `issue:` or `nit:` and no cell unreached or reopened
   (`references/readers.md#audit-what-a-reader-cleared`); after any other, the next round runs from
-  the setup.
+  the setup, and from the third round reads what
+  `references/rounds.md#later-rounds-read-what-moved` or
+  `references/rounds.md#nit-round-checks-its-fixes` says.
 - **Why.** A round of #1522 listed beside its findings the prescribed commands it had not run;
   under a bar of no `issue:` or `nit:` alone, that list beside no findings would have ended the
   review (#1522).
@@ -287,7 +290,8 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Read what moved, from the third round on
 `later-rounds-read-what-moved`
 
-- **Rule.** From the third round, a round's fresh readers run every angle over each file both
+- **Rule.** From the third round, short of `references/rounds.md#nit-round-checks-its-fixes`, a
+  round's fresh readers run every angle over each file both
   `git diff --name-only <merged> HEAD` and `git diff --name-only origin/<base>...HEAD` list,
   `<merged>` the commit the round before reviewed, and each line citing a rule changed there
   (`git grep -n '#<key>'`); over each fix since, wording included, read by
@@ -299,12 +303,30 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   its rule refuses or a member no report lists (#1522, #1530).
 - **Probe.** The reader's brief lists those cells; the report runs or settles each.
 
+## After a nit-only round, check fixes
+`nit-round-checks-its-fixes`
+
+- **Rule.** From the third round, after a nit-only round, where each commit of the change since
+  fixes a finding, leaving unchanged what production code, a script, rule or normative text does,
+  and no merge touched the change's files, its brief says so. Without angles, its reader reads CI's
+  run, each fix against the tree, each body sentence against them, and runs each open cell, planting
+  otherwise only for a fix's test; a merge adds `references/rounds.md#recheck-against-final-tree`.
+  An `issue:` sends the next round to `references/rounds.md#later-rounds-read-what-moved`; a wrong
+  brief, this round.
+- **Why.** Whatever their fixes, such rounds took 34% of reviewer CPU for 17% of `issue:` findings
+  (#1611).
+- **Probe.** Its brief names that round's `<merged>`, findings, all `nit:`, each fix and open
+  cell; since then, no commit breaks the Rule, `main` and the base changed no file
+  `git diff --name-only origin/<base>...<head>` lists.
+
 ## Run the whole change again when a filled cell proves missed
 `missed-cell-widens-the-round`
 
 - **Rule.** A defect a round finds in a cell an earlier round filled and no audit reopened, nothing
   having changed there since, sends the next round over the whole change, as the earlier reads
-  missed it. Short of one, a miss in a filled cell nothing changes stays until a reader meets it.
+  missed it, bar a `nit:` found in or just before a round under
+  `references/rounds.md#nit-round-checks-its-fixes`. Short of such a defect, a miss in a filled cell
+  nothing changes stays until a reader meets it.
 - **Why.** The 13th of #1522's findings in rounds 3 to 5 was an ask in #1506's comments, which
   round 2's report says it read in full, and only a round rereading the whole change met it
   (#1522).

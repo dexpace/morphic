@@ -227,7 +227,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.reader != nil {
 		resolved = l.reader.read.keys()
 	}
-	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends())
+	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends(), l.dialects)
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
@@ -238,6 +238,8 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	}
 	var unread []ir.Diagnostic
 	l.named, unread = readDialects(l.bound.bindings.Table(), l.bound.others, l.dialects, l.bound.placer(l.at))
+	l.judged = judgeOwned(l.judged, l.named)
+	l.self.judged = l.judged
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = slices.Concat(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed), unread)
 	return false, nil
@@ -247,7 +249,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // document resolved, since a rebuild discards a first resolution's objects.
 func (l *loading) reach(ctx context.Context) (bool, error) {
 	l.reached = validateReached(ctx, l.at, l.bound, l.doc, l.sibs, l.media, l.opts, l.self,
-		l.pass.elsewhere(l.placeSite))
+		l.pass.elsewhere(l.placeSite), l.named)
 	return false, nil
 }
 

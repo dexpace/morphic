@@ -61,18 +61,32 @@ func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Positio
 // them (see resolve). It runs once every reference object is resolved, since a
 // pointer through one reads on where the parser resolved it: ends says where
 // each one's chain ended, in whichever document writes it
-// (resolution.ends). reader reads other documents, or is nil when none is read.
+// (resolution.ends). reader reads other documents, or is nil; d reads each
+// dialect's rows (dialectRuleOf).
 func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
-	reader *external, ends map[refSite]referenceEnd,
+	reader *external, ends map[refSite]referenceEnd, d *dialects,
 ) bound {
+	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
 		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[self.siteIn(name, p)]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
+		},
+		Dialect: func(name, dialect string) bind.DialectRule {
+			declared := doc.GetOpenAPI()
+			if name != self.path {
+				declared = declaredVersion(opened[name])
+			}
+			_, _, rows := d.of(declared, dialect)
+			return dialectRuleOf(rows.Schema, dialect)
 		}}
 	if reader != nil {
-		cfg.Open = func(name string) (*yaml.Node, error) { return reader.document(ctx, name) }
+		cfg.Open = func(name string) (*yaml.Node, error) {
+			tree, err := reader.document(ctx, name)
+			opened[name] = tree
+			return tree, err
+		}
 	}
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)

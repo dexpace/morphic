@@ -27,27 +27,24 @@ const (
 )
 
 // Constraints reads a schema's scalar value constraints (string, number and
-// object-count) into an ir.Constraints, nil when none is present. Collection
-// bounds are read where lists are lowered.
-//
-// Numeric bounds come from the raw YAML nodes, never the *float64 model fields,
-// to keep full decimal precision; a literal no BigVal holds is skipped with an
-// error diag.NumericPrecision diagnostic.
-//
-// exclusiveBoolean selects the exclusiveMinimum/exclusiveMaximum dialect (see
-// applyExclusive); the caller decides it.
+// object-count) into an ir.Constraints, nil when none is present; collection
+// bounds are read where lists are lowered. Numeric bounds come from the raw
+// YAML nodes, never the *float64 model fields, to keep full decimal precision.
+// A literal no BigVal holds, or an exclusive bound in the other form than
+// exclusiveBoolean selects, is skipped; the load phase reports it
+// (load.ownedFinding).
 //
 // The second return holds the one keyword that reaches no field, a 3.0
-// exclusive modifier with no bound beside it (see applyExclusiveFlag), placed
-// by pointer and locate, for the caller to merge.
+// exclusive modifier with no bound beside it (applyExclusiveFlag), placed by
+// pointer and locate, for the caller to merge.
 func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, locate Locator) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
 	residue := boundResidue{pointer: pointer, locate: locate}
-	diags := numericBounds(c, s)
-	diags = append(diags, applyExclusive(c, s, minBound, &residue, exclusiveBoolean)...)
+	numericBounds(c, s)
+	diags := applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
 	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
 	// The parser's model holds these four as int64, and a literal past that as 0,
 	// which nothing reports yet (GitHub #1050).
@@ -108,9 +105,9 @@ func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic
 }
 
 // numericBounds fills Min, Max, and MultipleOf from the raw minimum/maximum/
-// multipleOf nodes, preserving exact decimal text.
-func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
-	var diags []ir.Diagnostic
+// multipleOf nodes, preserving exact decimal text, and skips one no decimal
+// spells.
+func numericBounds(c *ir.Constraints, s *oas3.Schema) {
 	bounds := []struct {
 		prop string
 		dst  **ir.BigVal
@@ -124,24 +121,10 @@ func numericBounds(c *ir.Constraints, s *oas3.Schema) []ir.Diagnostic {
 		if node == nil {
 			continue
 		}
-		v, err := value.NumericLiteral(node)
-		if err != nil {
-			diags = append(diags, boundLiteralDiag(b.prop, node.Value, err))
-			continue
+		if v, err := value.NumericLiteral(node); err == nil {
+			*b.dst = &v
 		}
-		*b.dst = &v
 	}
-	return diags
-}
-
-// boundLiteralDiag reports a numeric bound whose literal is not a finite number.
-// load already suppresses the library's own float64 type-mismatch check on
-// these keywords (a valid magnitude beyond float64 range must not fail the
-// spec), so this is the sole diagnostic for a bad bound — hence error severity:
-// a non-numeric bound is an invalid schema, not a lossy-but-tolerable value.
-func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.NumericPrecision, ir.Provenance{},
-		"%s literal %q: %s", prop, literal, err.Error())
 }
 
 // applyExclusive reads exclusiveMinimum or exclusiveMaximum, as side picks, in
@@ -150,8 +133,8 @@ func boundLiteralDiag(prop, literal string, err error) ir.Diagnostic {
 // read from the raw node to avoid the float64 trap, and writes it to the side's
 // exclusive field beside any minimum/maximum rather than in place of it.
 // exclusiveBoolean is true for 3.0's dialect and draft 4's. A value in the
-// wrong form for the dialect is reported and dropped, since load suppresses
-// the library's own type-mismatch check.
+// wrong form for the dialect, or a literal no decimal spells, is dropped, and
+// the load phase reports it (Constraints).
 func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *boundResidue, exclusiveBoolean bool) []ir.Diagnostic {
 	ev := s.GetExclusiveMaximum()
 	if side == minBound {
@@ -163,16 +146,14 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 		return nil
 	}
 	if ev.IsLeft() != exclusiveBoolean {
-		return []ir.Diagnostic{exclusiveFormDiag(prop, exclusiveBoolean)}
+		return nil
 	}
 	if ev.IsLeft() {
 		return applyExclusiveFlag(c, s, side, residue, ev.GetLeft())
 	}
-	v, err := value.NumericLiteral(node)
-	if err != nil {
-		return []ir.Diagnostic{boundLiteralDiag(prop, node.Value, err)}
+	if v, err := value.NumericLiteral(node); err == nil {
+		setExclusiveBound(c, side, &v)
 	}
-	setExclusiveBound(c, side, &v)
 	return nil
 }
 
@@ -219,20 +200,6 @@ func inclusiveBound(c *ir.Constraints, side boundSide) **ir.BigVal {
 		return &c.Min
 	}
 	return &c.Max
-}
-
-// exclusiveFormDiag reports an exclusiveMinimum/exclusiveMaximum whose value form
-// is wrong for the schema's dialect: 3.0's and draft 4's spell it as a boolean
-// modifier of minimum/maximum, while 2020-12's (3.1's and 3.2's own) spells it as
-// a numeric bound. The mismatched value carries no usable bound, so it is dropped
-// with this error rather than accepted as a degenerate constraint.
-func exclusiveFormDiag(prop string, exclusiveBoolean bool) ir.Diagnostic {
-	want := "a number"
-	if exclusiveBoolean {
-		want = "a boolean"
-	}
-	return diag.Newf(ir.SeverityError, diag.ExclusiveBoundForm, ir.Provenance{},
-		"%s must be %s in this schema's dialect", prop, want)
 }
 
 // unmodifiableExclusiveDiag reports a 3.0 exclusive-bound modifier written
