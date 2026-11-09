@@ -76,7 +76,7 @@ func TestRegistry_SourceLimitRefusesACompilerThatPanics(t *testing.T) {
 		cfg      compilers.Configuration
 		wantCall string
 	}{
-		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: configure: panic: boom"},
+		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: DecodeOptions: panic: boom"},
 		{"SourceLimit", "SourceLimit", compilers.Configuration{}, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {

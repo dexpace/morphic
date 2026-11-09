@@ -105,7 +105,7 @@ func TestRegistry_DetectRefusesACompilerThatPanics(t *testing.T) {
 		wantCall string
 	}{
 		{"Detect", "Detect", compilers.Configuration{}, "detect by alpha@1: Detect: panic: boom"},
-		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: configure: panic: boom"},
+		{"configuring through DecodeOptions", "DecodeOptions", settings(), "detect by alpha@1: DecodeOptions: panic: boom"},
 		{"SourceLimit", "SourceLimit", compilers.Configuration{}, "source limit of alpha@1: SourceLimit: panic: boom"},
 	}
 	for _, tt := range tests {
@@ -155,10 +155,10 @@ func TestRegistry_DetectDoesNotAskACompilerAfterTheOneThatTakesTheSource(t *test
 	assert.Empty(t, later.asked["Detect"])
 }
 
-// TestRegistry_DetectRefusesAnOwnersConfigureThatPanics pins the second place
-// configuring is asked: the owner of a format another compiler recognized, which
-// is configured in its own right once the claim is known.
-func TestRegistry_DetectRefusesAnOwnersConfigureThatPanics(t *testing.T) {
+// TestRegistry_DetectRefusesAnOwnersDecodeOptionsThatPanics pins the second
+// place configuring is asked: the owner of a format another compiler
+// recognized, which is configured in its own right once the claim is known.
+func TestRegistry_DetectRefusesAnOwnersDecodeOptionsThatPanics(t *testing.T) {
 	t.Parallel()
 	recognizer := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha", detects: beta}
 	owner := newBreaker("DecodeOptions", "owner exploded")
@@ -167,7 +167,7 @@ func TestRegistry_DetectRefusesAnOwnersConfigureThatPanics(t *testing.T) {
 	_, ok, err := registryOf(t, recognizer, owner).Detect(t.Context(), spec, settings())
 
 	requirePanic(t, err, "owner exploded")
-	assert.Contains(t, err.Error(), "detect by beta@2: configure: panic")
+	assert.Contains(t, err.Error(), "detect by beta@2: DecodeOptions: panic")
 	assert.False(t, ok)
 }
 

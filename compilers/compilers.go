@@ -425,7 +425,7 @@ func (e *registered) ask(ctx context.Context, src Source, cfg Configuration) (an
 // second result for the caller to judge, beside the defaults.
 func (e *registered) configured(cfg Configuration) (opts Options, failed, breached error) {
 	if perr := barrier.Catch(func() { opts, failed = optionsFor(e.c, cfg) }); perr != nil {
-		return Options{}, nil, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("configure", perr))
+		return Options{}, nil, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("DecodeOptions", perr))
 	}
 	return opts, failed, nil
 }
