@@ -225,25 +225,35 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: restBesidePatterns(ts, m)}
+			// A key no pattern matches is unconstrained unless a closure says
+			// otherwise. Beside `unevaluatedProperties: false` it stays the top
+			// type, though JSON Schema then admits such a key only where
+			// composition evaluates it (GitHub #862).
+			top := ts.PrimRef(ir.PrimAny)
+			m.AdditionalProps = &ir.AdditionalProps{Value: &top}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
+	forbidRest(m)
 	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags
 }
 
-// restBesidePatterns types the keys no pattern matches where additionalProperties
-// says nothing of them: the top type, as JSON Schema admits any such key, or no
-// type at all beside `additionalProperties: false`, which admits none.
-func restBesidePatterns(ts *compile.Types, m *ir.Model) *ir.TypeRef {
-	if m.Additional == ir.AdditionalClosed {
-		return nil
+// forbidRest drops from a closed model's catch-all the value typing the keys no
+// pattern matches, which the closure allows none of, and the catch-all itself
+// when no pattern is left (docs/ir/models.md#catch-alls). Each writer of a
+// closure beside a catch-all calls it once the closure is decided.
+func forbidRest(m *ir.Model) {
+	if m.Additional != ir.AdditionalClosed || m.AdditionalProps == nil {
+		return
 	}
-	top := ts.PrimRef(ir.PrimAny)
-	return &top
+
+	m.AdditionalProps.Value = nil
+	if len(m.AdditionalProps.Patterns) == 0 {
+		m.AdditionalProps = nil
+	}
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source

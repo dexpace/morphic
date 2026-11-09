@@ -1900,15 +1900,20 @@ it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) ke
 (`degraded_lowering`), which is what distinguishes it from a model that merely wrote
 `additionalProperties: false`, and reported as an info `openapi/false-schema` at the branch. What
 the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
-model would trade one silent loss for another. A `true` conjunct admits everything, so contributing
-nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is
-distributed ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed
-and keeps the branch, and the branch is reported once.
+model would trade one silent loss for another. The model's catch-all keeps only its patterns, as
+beside `additionalProperties: false` ([catch-alls](../ir/models.md#catch-alls)), since the closure
+forbids every key they leave: its value goes, an `additionalProperties` the schema writes being kept
+verbatim under `openapi:additionalProperties` (`degraded_lowering`), and a catch-all left no pattern
+goes whole. A `true` conjunct admits everything, so contributing nothing from it is exact and
+nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is distributed
+([`union-beside-structure`](#union-beside-structure)), every composed variant is closed and keeps
+the branch, and the branch is reported once.
 
 - Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
-  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
+  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`,
+  `schema.TestAllOf_FalseBranchClosesTheCatchAllItForbids`
 
 ### `allof-disjoint-conjuncts`
 
@@ -2339,8 +2344,8 @@ at that position, whichever is lowered first.
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619); and a `Literal` carries no value type or format (#668). Open:
-  whether a mixed-type enum's `null` lifts out of its union (#618).
+  only an info diagnostic (#619); and a `Literal` an `allOf` refines takes no type or format another
+  conjunct declares (#1641). Open: whether a mixed-type enum's `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -2368,9 +2373,12 @@ object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
-  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`
+  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
+  `schema.TestAllOf_AClosureAfterCompositionKeepsTheCatchAll`
 - Status: partly built: an `unevaluatedProperties: false` that a catch-all beside it makes inert
-  in JSON Schema still lowers to a closure, which keeps the object a `Model` (#862).
+  in JSON Schema still lowers to a closure, which keeps the object a `Model`, and one beside
+  `patternProperties` alone leaves the catch-all typing a key no pattern matches as the top type,
+  where JSON Schema admits such a key only if composition evaluates it (#862).
 
 ### `required-members`
 
@@ -3974,6 +3982,7 @@ that names its key.
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
   `lowering.TestPromoterEnumOpenness_WritesNothing`,
   `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `e2e.TestPromotion_AMappedKeyOpensAUnion`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,

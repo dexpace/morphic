@@ -119,9 +119,9 @@ admitting no value in common, by these rules, and a pair none of them separates 
   decided for every filter at once: a member separates only where no filter can leave it out, its
   `Visibility` the zero value, and a declaration some filter leaves out separates only where its
   model is closed as well. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
-  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
-  add, counts as open.
+  `patternProperties` beside `additionalProperties: false` does
+  ([catch-alls](../../ir/models.md#catch-alls)), so the closure alone separates nothing, and a
+  polymorphic base, which holds its subtypes' values and the members they add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through a
 finite chain of separated members, and a cycle of models separates nothing by itself. The plan

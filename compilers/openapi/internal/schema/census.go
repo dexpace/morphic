@@ -181,9 +181,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	if len(types) == 0 {
 		return true
 	}
+
 	if len(types) > 1 {
 		return false
 	}
+
 	switch lit.Value.Kind {
 	case ir.ValueObject:
 		return types[0] == oas3.SchemaTypeObject
@@ -195,9 +197,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	default:
 		return false
 	}
+
 	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
 		return true
 	}
+
 	prim, known := spelling.Lookup(string(types[0]))
 	return known && prim == lit.ValueType
 }

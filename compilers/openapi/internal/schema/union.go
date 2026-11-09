@@ -704,7 +704,7 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillModelProperties(c, ts, depth, idx, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.GetRequired(), body.comp))
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
-	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
+	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared

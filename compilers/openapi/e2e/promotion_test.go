@@ -279,6 +279,56 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
 }
 
+// TestPromotion_AMappedKeyOpensAUnion pins the compiler applying the union
+// openness promotion, which the promoter's own test cannot see: under a mapping
+// naming the key, a oneOf and an anyOf writing it open and are marked as a
+// guess, one not writing it stays closed, and under the default mapping, which
+// names no key for it, the key opens nothing.
+func TestPromotion_AMappedKeyOpensAUnion(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    One:
+      oneOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Any:
+      anyOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Plain:
+      oneOf: [{type: string}, {type: integer}]
+`
+	mapped := openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{openapi.TargetUnionOpen: {{Key: "x-open-union"}}},
+	}}
+	for _, tc := range []struct {
+		name string
+		opts openapi.Options
+		open map[string]bool
+	}{
+		{"a mapping naming the key", mapped, map[string]bool{"One": true, "Any": true, "Plain": false}},
+		{"the default mapping", openapi.Options{}, map[string]bool{"One": false, "Any": false, "Plain": false}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := compileClean(t, spec, tc.opts)
+
+			for name, open := range tc.open {
+				u, ok := doc.Types[componentID(name)].(*ir.Union)
+				require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+				assert.Equal(t, !open, u.Closed, name)
+				var guess ir.Inferred
+				if open {
+					guess = "extension-promotion"
+				}
+				assert.Equal(t, guess, u.Provenance.Inferred, name)
+			}
+		})
+	}
+}
+
 // defaultKeySpec is a document one default source fills one target of: the key,
 // writing value at its member if it has one, sits on a deprecated operation, on
 // an undeprecated one and on an enum, since the targets live on those carriers

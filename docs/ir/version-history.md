@@ -307,7 +307,8 @@ it sees. Changes made together in one bump are listed together under it.
     the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
-    catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to
-    0.32.0 decoding the value as required fails on the missing member.
+    catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
+    which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
+    A consumer pinned to 0.32.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.

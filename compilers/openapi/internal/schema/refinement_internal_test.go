@@ -293,6 +293,9 @@ func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
 		{ir.Value{Kind: ir.ValueNumber, Num: "1e2"}, kindNumber},
 		{ir.Value{Kind: ir.ValueRefKind}, 0},
 		{ir.Value{Kind: ir.ValueCtor}, 0},
+		{ir.Value{Kind: ir.ValueInf}, 0},
+		{ir.Value{Kind: ir.ValueNegInf}, 0},
+		{ir.Value{Kind: ir.ValueNaN}, 0},
 		{ir.Value{Kind: "no kind"}, 0},
 	} {
 		assert.Equal(t, tc.want, kindOfValue(tc.v), tc.v.Kind)

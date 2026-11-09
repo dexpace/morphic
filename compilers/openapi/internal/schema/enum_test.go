@@ -885,6 +885,7 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 		{"an object", `{type: object, const: {a: 1}}`, "", ""},
 		{"a list", `{type: array, const: [1]}`, "", ""},
 		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type"},
+		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type"},
 		{"a null", `{type: "null", const: null}`, "", ""},
 	}
 	for _, tc := range tests {

@@ -16,7 +16,7 @@ type Model struct {
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
     AdditionalProps *AdditionalProps // catch-all beside the declared structure; a catch-all
                                      // with nothing beside it is a MapT, never a Model (docs/ir/containers.md)
-    Additional     AdditionalMode  // openness of the property set beyond declared + AdditionalProps
+    Additional     AdditionalMode  // openness beyond declared + the catch-all's patterns
     Constraints    *Constraints    // cardinality of the property set (minProperties/maxProperties);
                                    // Additional says whether undeclared properties are allowed at all,
                                    // this says how many an instance may carry
@@ -34,8 +34,8 @@ type Model struct {
 
 type AdditionalMode string
 // ""                         — unspecified (open by JSON Schema default)
-// "closed"                   — no properties beyond the declared set (additionalProperties: false,
-//                              closed-by-construction records)
+// "closed"                   — no properties beyond the declared set and the catch-all's patterns
+//                              (additionalProperties: false, closed-by-construction records)
 // "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false)
 
 type WireIDRange struct { From, To int }
@@ -114,16 +114,16 @@ no pattern matches:
   follow: an object writing `patternProperties` beside `additionalProperties: false`. The model is
   `Additional` closed as well, which says the same of every member beyond its declared ones and
   the patterns.
-- **Patterns and a value.** Both hold: an object writing `patternProperties` and no
-  `additionalProperties`, whose other keys JSON Schema admits whatever they hold, types the value
-  as the top type.
+- **Patterns and a value.** Both hold: an object writing `patternProperties` and neither
+  `additionalProperties` nor `unevaluatedProperties: false`, whose other keys JSON Schema admits
+  whatever they hold, types the value as the top type.
 
 A catch-all with neither a value nor a pattern admits nothing a closed model does not already say,
 so it is not written: `irverify` reports one (`ir/catch-all-empty`). A closed model whose catch-all
 has a value types keys its closure forbids, so a reader of the value and a reader of the closure
 would admit different payloads: `irverify` reports that too (`ir/catch-all-closed`). A model closed
-only after composition (`closed_after_composition`) may keep a value, since a catch-all is itself
-what evaluates a key in JSON Schema.
+only after composition (`closed_after_composition`) may keep a value, since a catch-all the source
+writes is itself what evaluates a key in JSON Schema.
 
 ## The flattening
 
