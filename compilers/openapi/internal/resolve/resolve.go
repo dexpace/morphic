@@ -66,15 +66,15 @@ type Scope struct {
 }
 
 // Names is a set of names, such as the component schemas a document declares,
-// never written once NamesOf builds it. A copy shares the set, which only
-// resolve can reach, so no reader writes through one. The zero Names holds no
-// name.
+// never written once NewNames builds it. A copy shares the set, which only
+// resolve can reach, so no reader writes through one, and a Names is safe for
+// concurrent use. The zero Names holds no name.
 type Names struct {
 	set map[string]bool
 }
 
-// NamesOf returns the set holding each of names.
-func NamesOf(names ...string) Names {
+// NewNames returns the set holding each of names.
+func NewNames(names ...string) Names {
 	set := make(map[string]bool, len(names))
 	for _, name := range names {
 		set[name] = true

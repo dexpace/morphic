@@ -45,7 +45,7 @@ func loadBound(t *testing.T, path, src string, opts load.Options, declared ...st
 		SelfPath: path,
 		Doc:      doc.Doc,
 		Bindings: doc.Bindings,
-		Declares: resolve.NamesOf(declared...),
+		Declares: resolve.NewNames(declared...),
 	}}
 }
 
@@ -197,7 +197,7 @@ func TestIsRefSite_IncludesTheDegenerateRef(t *testing.T) {
 
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: resolve.NamesOf("User")}
+	sc := resolve.Scope{Declares: resolve.NewNames("User")}
 
 	id, state := sc.ComponentRef("/components/schemas/User")
 	assert.Equal(t, ids.NamedComponent, state)
@@ -219,7 +219,7 @@ func TestResolveComponentRef(t *testing.T) {
 // the interned node rather than an unbacked ID (issue #14).
 func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: resolve.NamesOf("A~B")}
+	sc := resolve.Scope{Declares: resolve.NewNames("A~B")}
 
 	id, state := sc.ComponentRef("/components/schemas/A~B")
 	assert.Equal(t, ids.NamedComponent, state)

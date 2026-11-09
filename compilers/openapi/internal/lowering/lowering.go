@@ -422,7 +422,7 @@ func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
 	if doc == nil {
 		return resolve.Names{}
 	}
-	return resolve.NamesOf(slices.Collect(doc.Components.GetSchemas().Keys())...)
+	return resolve.NewNames(slices.Collect(doc.Components.GetSchemas().Keys())...)
 }
 
 // DeclaresSchema reports whether the document declares a component schema of
