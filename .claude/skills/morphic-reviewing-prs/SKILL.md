@@ -5,7 +5,7 @@ description: Use when asked to review a pull request, branch or commit range in 
 
 # Reviewing morphic pull requests
 
-A review finds every flaw in its first round and confirms the fixes in its second. A round runs
+A review finds every flaw in its first round and confirms the fixes in its second. A full round runs
 every angle below, however much it finds first, deep into the change and broad over the code living
 with it (`references/rounds.md#deep-and-broad`). Each angle loads the skills holding its rules and
 fills a matrix, each cell with a run or a reason. Nothing is decided on an assumption
@@ -40,7 +40,8 @@ unread, in a line saying why.
 2. **Gate**: CI's run (`references/rounds.md#ci-is-the-gate`).
 3. **Angles**: the whole change in the first two rounds
    (`references/rounds.md#first-round-finds-everything`), then what moved
-   (`references/rounds.md#later-rounds-read-what-moved`).
+   (`references/rounds.md#later-rounds-read-what-moved`,
+   `references/rounds.md#nit-round-checks-its-fixes`).
 4. **Standing reviews**, after the first round's angles
    (`references/rounds.md#read-standing-reviews`).
 5. **Fixes**, when the review fixes (its own PR, or when asked): each designed first
