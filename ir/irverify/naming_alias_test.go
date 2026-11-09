@@ -89,6 +89,9 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"c1 control": "\u0080",
 		// Other_Default_Ignorable in Mn, which no other term holds.
 		"combining grapheme joiner": "\u034f",
+		// Cf and Other_Default_Ignorable past the BMP, which no other row holds.
+		"tag character": "\U000e0041",
+		"reserved tag":  "\U000e0000",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
