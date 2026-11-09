@@ -20,7 +20,7 @@ document, read for what these consumers need.
 | tags as the structure of a reference | `Document.TagDefs` with each tag's documentation, parent and kind; `Operation.Tags`, every membership; `Service.Groups`, the section tree the tags describe ([services](./services.md)) | carried |
 | documentation a path shares among its operations | `Unmodeled["openapi:pathItem/summary"]` and `["openapi:pathItem/description"]` on each operation the path item mounts | no typed home yet (#1319) |
 | how a response's values feed another operation | `Unmodeled["openapi:links"]` on the response | no typed home yet (#669) |
-| two revisions at once | the [correlation key](./derived-facts.md#correlation-keys) of each entity, derived on demand | not built yet (#679) |
+| two revisions at once | the [correlation key](./derived-facts.md#correlation-keys) of each entity, derived on demand (`irfacts.Index.Correlation` and `Correlated`) | carried |
 
 ## Identity across revisions
 

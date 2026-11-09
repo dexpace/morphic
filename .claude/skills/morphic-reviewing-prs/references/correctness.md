@@ -7,7 +7,7 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
 
 1. Read the diff before the PR body (`references/correctness.md#code-before-claims`).
 2. For each output the change alters, state the result a consumer should get on real input, then
-   compile a minimal spec on `origin/main` and in the worktree and read the IR and every diagnostic
+   compile a minimal spec on `$main` and in the worktree and read the IR and every diagnostic
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
    golden spec where it holds the construct, fetched as `CLAUDE.md`'s "Priority" section shows.
    Where they differ, take `references/correctness.md#better-than-main`.
@@ -64,7 +64,7 @@ both builds' results.
 `refactor-differential-fuzz`
 
 - **Rule.** For a refactor that rewrites readers (parsers, splitters, containment tests), copy the
-  old functions from `origin/main` beside the new ones in a scratch module and fuzz that each pair
+  old functions from `$main` beside the new ones in a scratch module and fuzz that each pair
   agrees. Turn intended divergences into narrow, named exclusions. Afterwards diff the shipped
   function bodies against the copies the harness ran.
 - **Why.** A rewritten reader parts from the old one on inputs no table holds, since a table
@@ -102,11 +102,37 @@ both builds' results.
 
 - **Rule.** For a change to `.github/workflows`, the `Makefile`'s CI targets or anything setting
   what Go caches, check each claim of what a run reuses, reruns or saves by simulating the runs:
-  fresh clones at one fixed path, the CI steps in order and a carried `GOCACHE`, on base and head,
-  quoting the `(cached)` lines and reading each test's opens from `-test.testlogfile`, with the
-  environment held fixed
+  fresh clones (`git clone -n`) at one fixed path, the CI steps in order and a carried `GOCACHE`,
+  on base and head, quoting the `(cached)` lines and reading each test's opens from
+  `-test.testlogfile`, the environment held fixed
   (`.claude/skills/morphic-verifying-changes/references/toolchain.md#cache-probe-holds-the-environment`).
+  Steps reading a file's age take `references/correctness.md#age-based-step-at-mains-cadence`, jobs
+  no pull request triggers `references/correctness.md#job-no-pull-request-triggers`.
 - **Why.** Simulated runs of #1272's work found a test reading through `git` replay a stale pass
   once files were dated, the listing closing that gap with no test, and a CI step deleting nothing
   in its job (#1272, #1374).
-- **Probe.** The report gives each claim with the runs simulating it and their `(cached)` lines.
+- **Probe.** The report gives each claim beside its simulated runs' `(cached)` lines.
+
+## Simulate a step that reads a file's age at the gap main's pushes keep
+`age-based-step-at-mains-cadence`
+
+- **Rule.** A step deciding by a file's age, such as a prune of the cache, is simulated at the gap
+  between `main`'s pushes, from `git log --first-parent -40 --format=%ct "$main"`, as well as a
+  long one, and each pull request's run reads a copy of the saved cache: a pull request never saves,
+  and the go command's reads move a live cache's times.
+- **Why.** A prune by age, simulated three hours apart, kept the cache flat, and 40 minutes apart,
+  near `main`'s median gap of 35, let it grow from 598 to 1280 MB, as Go moves an entry's time on a
+  use only once it is over an hour old (#1373, #1559).
+- **Probe.** The report gives each gap simulated beside the median measured.
+
+## Read a real run for a job no pull request triggers
+`job-no-pull-request-triggers`
+
+- **Rule.** No pull request or simulation reaches a job only `schedule` or `workflow_dispatch`
+  starts: a schedule runs the default branch's workflow, and a dispatch only a workflow the default
+  branch holds. Say so, read a real run's log from a trial branch in its place
+  (`gh run view <id> --log`), and hold each body sentence about the job to what that run predates.
+- **Why.** A nightly job's PR cited a push run on a trial branch, and `gh run list` filtered to
+  `--event schedule` printed none (#1382, #1606).
+- **Probe.** `gh run view <id> --json event,headSha,headBranch`, beside the commits the branch
+  gained after that run.

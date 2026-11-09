@@ -135,7 +135,7 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
 | server | the service or operation naming it, and its URL template |
 | callback operation | the operation declaring it, the method and the runtime expression keying it |
-| anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type, and what its encoding decodes to; a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
+| anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type; what the encoding of a property, a header, a list or a scalar decodes to (an OpenAPI `contentSchema`); a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
 
 An entity several positions name takes the least of their keys, so its key is the same whatever
 order the document declares them in. A key no two entities of a document share identifies one. Where
@@ -152,5 +152,17 @@ consumer comparing two revisions derives both sides' keys in one build. One that
 records `irfacts.CorrelationVersion` beside them, the version of the derivation, which moves with
 any change to how a key is derived; across a change of it a stored key matches nothing, so a
 changed derivation costs matches rather than handing one entity another's state. `IRVersion` is
-not that version: it refuses a document, and a change to the derivation changes none. Not built yet
-(#679).
+not that version: it refuses a document, and a change to the derivation changes none.
+
+On the golden spec (spec @319dc756, compiled by morphic @fb5ae802f), every operation, parameter,
+group, server, service and auth scheme has a key, every operation by its route, as do 37,510 of its
+41,234 types, 47,367 of 49,390 properties and 29,637 of 32,312 enum members. All but two of the
+entities without one lie beneath a union variant nothing in the document names, untagged or a
+discriminator maps no tag to; the two are anonymous models one model composes in place. Against the
+spec's revision b7e65ddd, 44 entities whose IDs moved are matched by their keys, and one ID stays
+while naming another entity:
+`t/anon/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
+`direction` parameter's schema at b7e65ddd and the `status` parameter's at 319dc756, and their keys
+tell them apart. Against c92b9b0f, each of the nineteen operations that kept its route and ID under
+a renamed `operationId` is matched to itself. Deriving every key of the golden spec takes about
+150 ms, against a compile of about 6 s.
