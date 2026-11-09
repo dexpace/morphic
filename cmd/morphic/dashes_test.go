@@ -36,6 +36,11 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			`write "--opt", not "-opt"`, "morphic compile"},
 		{"before the command it belongs to", []string{"-opt=a=1", "compile", spec},
 			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
+		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
+			`write "--help", not "-help"`, "morphic compile"},
+		{"the version flag", []string{"-version"}, `write "--version", not "-version"`, "morphic"},
+		{"validate's flags", []string{"validate", spec, "-skip-validate"},
+			`write "--skip-validate", not "-skip-validate"`, "morphic validate"},
 		{"the output file", []string{"compile", spec, "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"after a flag and then an operand", []string{"compile", "--pretty", spec, "-output=ir.json"},
@@ -72,11 +77,6 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"after a cluster's separate value that is a double dash", []string{"compile", spec, "-ho", "--", "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
-		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
-			`write "--help", not "-help"`, "morphic compile"},
-		{"the version flag", []string{"-version"}, `write "--version", not "-version"`, "morphic"},
-		{"validate's flags", []string{"validate", spec, "-skip-validate"},
-			`write "--skip-validate", not "-skip-validate"`, "morphic validate"},
 	}
 
 	for _, tt := range tests {
