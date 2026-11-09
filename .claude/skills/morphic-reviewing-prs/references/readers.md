@@ -25,8 +25,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Rule.** From the second round, one fresh agent runs the angles, or two in a split round
   (`references/readers.md#split-whole-reads-from-what-moved`), given the PR, this skill and its own
   directory holding the merged tree (`references/readers.md#reader-owns-its-directory`), nothing
-  earlier but names of cells to read and what `references/rounds.md#nit-round-checks-its-fixes`
-  asks. Its brief follows
+  earlier but names of cells to read and what
+  `references/later-rounds.md#nit-round-checks-its-fixes` asks. Its brief follows
   `references/readers.md#brief-a-reader-to-its-cells`. The main session disproves each returned
   finding and audits each clearance (`references/rounds.md#disprove-each-finding`,
   `references/readers.md#audit-what-a-reader-cleared`) before it counts. Where no agent can run, the
@@ -35,7 +35,7 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   sibling document's requirement, seen a round later (#1402); seven finders on #1016 ran 55 minutes
   before one returned (#1016).
 - **Probe.** The reader's brief holds nothing earlier but cell names and what
-  `references/rounds.md#nit-round-checks-its-fixes` asks, and names a budget and directory.
+  `references/later-rounds.md#nit-round-checks-its-fixes` asks, and names a budget and directory.
 
 ## Brief a reader to reach each of its cells
 `brief-a-reader-to-its-cells`
@@ -112,7 +112,7 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 ## Split a round reading what moved, when it carries whole reads, between two readers
 `split-whole-reads-from-what-moved`
 
-- **Rule.** A round reading what moved (`references/rounds.md#later-rounds-read-what-moved`)
+- **Rule.** A round reading what moved (`references/later-rounds.md#later-rounds-read-what-moved`)
   carrying whole reads goes to two parallel readers, each in its own directory. One takes what
   moved, the PR body, whose claims it checks against the diff, and each other cell the round
   carries. The other takes the whole reads, the closing issues with their comments, read as

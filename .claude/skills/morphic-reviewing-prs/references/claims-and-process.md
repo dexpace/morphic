@@ -5,8 +5,13 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 
 1. **Claims.** Check every member of each claim class
    (`references/claims-and-process.md#sweep-each-claim-class`), counts by
-   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, and run each
-   command an edited rule prescribes (`references/claims-and-process.md#run-prescribed-commands`).
+   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, a gate sentence
+   at a head with no run by `references/claims-and-process.md#gate-claim-without-a-run`, each
+   edited rule and `SKILL.md` line, a cut to meet a word cap too, against `main`'s words
+   (`references/claims-and-process.md#cut-against-mains-words`) and as an edited rule beside the
+   rule it cites (`references/claims-and-process.md#edited-rule-against-its-neighbours`), and run
+   each command an edited rule prescribes
+   (`references/claims-and-process.md#run-prescribed-commands`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
@@ -20,6 +25,8 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole`),
    its title and Direction against the head
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-met-at-its-site`),
+   its reproduction run on the base and on the head
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-reproduction-reruns`),
    and each choice resting on an open issue against the open PRs settling it
    (`references/claims-and-process.md#open-issue-against-open-prs`).
 
@@ -67,6 +74,21 @@ The matrix is each claim class with the members checked, and each closed issue w
 - **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
   it; a rule with none is a round still open.
 
+## Read each cut against main's words, not only beside the rules it cites
+`cut-against-mains-words`
+
+- **Rule.** Where the change shortens or rewords a rule or a `SKILL.md` passage, as a word cap
+  forces, read `git diff --word-diff "$main"...<head> -- '.claude/skills/*.md'` and place each
+  removed span: carried into the head's text, or a change of meaning the PR states and wants. A
+  span that is neither is a condition the cut dropped.
+- **Why.** At #1619's de5d2d471, a cut fitting
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#read-the-kill-in-the-output`
+  within 150 words dropped "a timeout" from the runs giving no verdict, so a new panic clause read a
+  `-timeout` expiry as a kill. Rounds reading cut lines beside the rules they cite passed it, and
+  the word diff against `main` showed it (#1619 at ef0739abe).
+- **Probe.** The report lists each removed span beside where it went, or the stated change it
+  makes.
+
 ## Run each command an edited rule prescribes
 `run-prescribed-commands`
 
@@ -106,3 +128,16 @@ The matrix is each claim class with the members checked, and each closed issue w
   #1351 closed #429 with the rule that such a rename moves the version, and the two merged without
   a conflict (#1327, #1351).
 - **Probe.** The search above, for each issue the change cites as open.
+
+## A gate sentence at a head with no CI run is unverified
+`gate-claim-without-a-run`
+
+- **Rule.** A body sentence saying a gate target passes, at a head with no CI run yet, as before the
+  first push or a fix's push, is reported unverified with the commit it names, and read against
+  CI's run once a push makes one. Its author runs it before writing it; a review does not rerun the
+  gate (`references/rounds.md#ci-is-the-gate`), but may run a package's `go test` or one `make`
+  target a sentence's claim turns on, as a probe.
+- **Why.** `references/rounds.md#ci-is-the-gate` forbade the run that executing every body
+  sentence on the final tree asked for, at a review planned before any push (#1596).
+- **Probe.** `references/rounds.md#gate-run-by-workflow`'s command at the head, beside the commit
+  each such sentence names.

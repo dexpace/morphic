@@ -6,12 +6,14 @@ to read — and to execute outside the case its author measured.
 ## Check an every, never or only claim at every site it covers
 `universal-claims-enumerate-every-site`
 
-- **Rule.** Before a comment, assertion message or doc states an absolute (never, always, only,
-  every, read by nothing, validated once), enumerate each caller, return path, producer, position
-  and route it covers and check each; otherwise scope the claim to the sites checked or name the
-  exceptions. A field's doc describes what every writer of the field writes.
+- **Rule.** Before a comment, assertion message, doc, test name or PR body states an absolute
+  (never, always, only, every, no, read by nothing, validated once), enumerate each caller, return
+  path, producer, position, route and input class it covers and check each; otherwise scope the
+  claim to the sites checked or name the exceptions. A field's doc describes what every writer of
+  the field writes.
 - **Why.** "Read by nothing" was written while `constraints.go` read the field, and "never reports a
-  spec-level problem" over paths that do (#111, #190).
+  spec-level problem" over paths that do (#111, #190). A body's "a change that adds one now fails a
+  test" held for no union whose branches stand alone (#1514, #1594).
 - **Probe.** List the sites mechanically (writers by `git grep`, callers, return statements,
   composition positions) and compile one input per site, reading every diagnostic.
 
@@ -182,12 +184,26 @@ to read — and to execute outside the case its author measured.
 - **Rule.** A PR body or commit reports what the final tree showed: a fix it names is in the diff; a
   mutation it cites was planted exactly, once, at the named site, with each subtest's outcome read
   under `-v`; "all routes" comes from probing each route; a match count comes with the matches read.
-  One site's result is not its mechanism's. Edit a body once `git ls-remote` shows its push landed.
-- **Why.** Bodies claimed fixes that had not landed, "every package green" where none went red, and
-  a bite in subtests that passed under the mutation (#349, #135, #382, #379). A body outran a
-  refused commit, and a grep count held ordinary text (#1210).
+  One site's result is not its mechanism's, and a measured figure takes
+  `references/claims.md#figure-names-its-conditions`. Edit a body once `git ls-remote` shows its
+  push landed.
+- **Why.** Bodies claimed unlanded fixes, "every package green" where none went red, a bite in
+  subtests that passed under the mutation (#349, #135, #382, #379), a body outran a refused commit,
+  and a grep count held ordinary text (#1210).
 - **Probe.** Before pushing, rerun each quoted mutation and probe on the final tree and paste what
   it printed.
+
+## A measured figure names what it was measured under
+`figure-names-its-conditions`
+
+- **Rule.** A figure a PR body or commit quotes from a measurement names its budget and method,
+  such as a fuzz time, a minimization bound or a profile's window, and a wall-clock figure also its
+  machine, core count and load, so a later check can agree or disagree with it.
+- **Why.** A body gave a fuzz search's minutes with no machine or load, and another a share of time
+  spent minimizing that read 77%, 90% and 84% at budgets of 5, 45 and 90 seconds (#1382, #1385,
+  #1607).
+- **Probe.** Each figure in the body names those beside it; `uptime` and `nproc`, or
+  `sysctl -n hw.ncpu`, give the last two.
 
 ## Cite a plant by its literal edit
 `cite-a-plant-by-its-edit`
