@@ -120,17 +120,28 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 ## Read the gate from CI, and run locally only what CI cannot
 `ci-is-the-gate`
 
-- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit. Never rerun
-  it locally, suites included, nor re-check by eye what it enforces. For a head behind `main`, list
-  `main`'s commits touching its files, run `go build ./...` on the merged tree, and name merging
-  `main` the next step. Locally, run only what CI cannot: probes, mutants, differentials,
-  measurements, and the skills lint and scripts' tests, run by no CI. A run still going is reported
-  running, never waited on; a conflicting PR has none, nor an unpushed branch
-  (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
+- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit by
+  `references/rounds.md#gate-run-by-workflow`. Never rerun it locally, suites included, nor re-check
+  by eye what it enforces. For a head behind `main`, list `main`'s commits touching its files, run
+  `go build ./...` on the merged tree, and name merging `main` the next step. Locally, run only what
+  CI cannot: probes, mutants, differentials, measurements, and the skills lint and scripts' tests. A
+  run still going is reported running, never waited on; a conflicting PR has none, nor an unpushed
+  branch (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#read-a-ci-jobs-log`.
 - **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then stalled in
   coverage (#1286); a conflicting PR's empty check list read as pending (#1285).
-- **Probe.** `gh pr view <N> --json headRefOid,mergeable,statusCheckRollup`.
+- **Probe.** `gh pr view <N> --json headRefOid,mergeable`.
+
+## Read the gate's run by its workflow, not the PR's checks
+`gate-run-by-workflow`
+
+- **Rule.** Read whether the gate ran at a commit from its workflow's runs,
+  `gh run list --commit <head> --workflow gate.yml --json status,conclusion`, which prints `[]`
+  where none started: a PR's checks hold other workflows, such as CodeQL, and a push GitHub took
+  can get no gate run.
+- **Why.** At #1619's 483aae831 the PR's checks held CodeQL's alone, read as the gate still running,
+  while that command printed `[]`, and the commits on either side each had a run.
+- **Probe.** The command at the head, beside `gh pr view <N> --json headRefOid,statusCheckRollup`.
 
 ## Decide nothing on an assumption
 `decide-on-evidence`

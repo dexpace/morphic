@@ -122,5 +122,5 @@ The matrix is each claim class with the members checked, and each closed issue w
   target a sentence's claim turns on, as a probe.
 - **Why.** `references/rounds.md#ci-is-the-gate` forbade the run that executing every body
   sentence on the final tree asked for, at a review planned before any push (#1596).
-- **Probe.** `gh pr view <N> --json headRefOid,statusCheckRollup`, beside the commit each such
-  sentence names.
+- **Probe.** `references/rounds.md#gate-run-by-workflow`'s command at the head, beside the commit
+  each such sentence names.
