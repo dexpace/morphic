@@ -26,22 +26,22 @@ func TestRegistrySchemes_SharesNothingWithTheRegistry(t *testing.T) {
 	}}
 	c := lowering.Ctx{Doc: doc}
 	declared, _ := auth.LowerSecuritySchemes(c)
-	reg := auth.NewRegistry(c, declared)
+	reg := auth.RegistryOf(c, declared)
 
 	clear(reg.Schemes())
 
 	assert.Contains(t, reg.Schemes(), ids.UnresolvedAuth("ghost"))
 }
 
-// TestNewRegistry_SharesNothingWithTheDeclaredSchemes pins NewRegistry's copy:
+// TestRegistryOf_SharesNothingWithTheDeclaredSchemes pins RegistryOf's copy:
 // what a caller does to the map it handed over reaches no reading of the
 // registry, as what a requirement adds to the registry never reaches the map
 // (operation.TestLowerService_LeavesTheDeclaredSchemesAsTheyWere).
-func TestNewRegistry_SharesNothingWithTheDeclaredSchemes(t *testing.T) {
+func TestRegistryOf_SharesNothingWithTheDeclaredSchemes(t *testing.T) {
 	t.Parallel()
 	id := ids.Auth("key")
 	declared := map[ir.AuthID]ir.AuthScheme{id: {ID: id}}
-	reg := auth.NewRegistry(lowering.Ctx{Doc: &soa.OpenAPI{}}, declared)
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, declared)
 
 	clear(declared)
 

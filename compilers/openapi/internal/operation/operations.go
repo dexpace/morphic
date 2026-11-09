@@ -31,7 +31,7 @@ import (
 // rather than assembling a Document out of them.
 func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
 	reg := servers.NewRegistry()
-	schemes := auth.NewRegistry(c, declared)
+	schemes := auth.RegistryOf(c, declared)
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),

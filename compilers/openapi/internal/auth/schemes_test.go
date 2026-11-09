@@ -152,7 +152,7 @@ func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 			got, diags := auth.LowerSecuritySchemes(c)
 			assert.Empty(t, got)
 			assert.Empty(t, diags)
-			assert.Nil(t, auth.NewRegistry(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+			assert.Nil(t, auth.RegistryOf(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
 		})
 	}
 }

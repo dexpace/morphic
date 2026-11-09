@@ -452,7 +452,7 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	reg := auth.NewRegistry(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
 
 	absent, absentDiags := reg.Requirements(c, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
@@ -656,7 +656,7 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	reg := auth.NewRegistry(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
 	got, diags := reg.Requirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
