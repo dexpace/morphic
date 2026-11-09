@@ -37,6 +37,9 @@ type stubCompiler struct {
 	// the options each SourceLimit call was asked under.
 	limit       int
 	limitsAsked []compilers.Options
+	// decoded and decodeErr are what DecodeOptions answers any settings with.
+	decoded   any
+	decodeErr error
 }
 
 func (s *stubCompiler) Formats() []compilers.SourceFormat { return s.formats }
@@ -52,7 +55,7 @@ func (s *stubCompiler) Detect(_ context.Context, src compilers.Source, opts comp
 	return compilers.Recognition{Format: s.formats[0], Parsed: s.parsed}, nil, true
 }
 
-func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return nil, nil }
+func (s *stubCompiler) DecodeOptions(compilers.OptionSet) (any, error) { return s.decoded, s.decodeErr }
 
 func (s *stubCompiler) SourceLimit(opts compilers.Options) int {
 	s.limitsAsked = append(s.limitsAsked, opts)
@@ -69,7 +72,7 @@ func (s *stubCompiler) Compile(_ context.Context, _ []compilers.Source, _ compil
 // parts most tests read.
 func detect(t *testing.T, reg *compilers.Registry, src compilers.Source) (compilers.Compiler, compilers.Recognition, []ir.Diagnostic, bool) {
 	t.Helper()
-	det, ok, err := reg.Detect(t.Context(), src, nil)
+	det, ok, err := reg.Detect(t.Context(), src, compilers.Configuration{})
 	require.NoError(t, err, "no compiler here can fail to be configured")
 	return det.Compiler, det.Recognition, det.Declined, ok
 }
@@ -310,7 +313,7 @@ func TestRegistry_DetectRefusesAClaimNamingNoFormat(t *testing.T) {
 	require.NoError(t, reg.Register(broken))
 	require.NoError(t, reg.Register(claims))
 
-	_, ok, err := reg.Detect(t.Context(), compilers.Source{Path: "s.txt", Data: []byte("beta")}, nil)
+	_, ok, err := reg.Detect(t.Context(), compilers.Source{Path: "s.txt", Data: []byte("beta")}, compilers.Configuration{})
 
 	require.ErrorIs(t, err, compilers.ErrContract)
 	assert.Contains(t, err.Error(), "alpha@1", "the error names the compiler that broke the contract")
