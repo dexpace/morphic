@@ -137,10 +137,12 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 
 - **Rule.** Read whether the gate ran at a commit from its workflow's runs,
   `gh run list --commit <head> --workflow gate.yml --json status,conclusion`, which prints `[]`
-  where none started: a PR's checks hold other workflows, such as CodeQL, and a push GitHub took
-  can get no gate run.
+  where none has started: a PR's checks hold other workflows, such as CodeQL. A push can get its
+  gate run minutes late or never, so `[]` is reported as no run yet, with the time it was read.
 - **Why.** At #1619's 483aae831 the PR's checks held CodeQL's alone, read as the gate still running,
-  while that command printed `[]`, and the commits on either side each had a run.
+  while that command printed `[]`, and the commits on either side each had a run. At a70daa173 it
+  printed `[]` until the gate run started, nearly three minutes after CodeQL's, and a review had
+  already called the run missing.
 - **Probe.** The command at the head, beside `gh pr view <N> --json headRefOid,statusCheckRollup`.
 
 ## Decide nothing on an assumption
