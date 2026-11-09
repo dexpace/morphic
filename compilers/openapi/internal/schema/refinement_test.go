@@ -666,17 +666,64 @@ func TestRefinement_ANarrowingKeepsItsTargetOnANode(t *testing.T) {
 // keeps the reference, so the target's node stands as it does beneath a Base.
 func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Host:
+	const mode = "{$ref: '#/components/schemas/Host/$defs/Mode'}"
+	for name, written := range map[string]string{
+		"in a branch":  "{allOf: [" + mode + ", {enum: [a]}]}",
+		"beside":       "{enum: [a], allOf: [" + mode + "]}",
+		"const beside": "{const: a, allOf: [" + mode + "]}",
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Host:
       type: object
       $defs:
         Mode: {type: string, enum: [a, b], example: b}
-    Narrow: {allOf: [{$ref: '#/components/schemas/Host/$defs/Mode'}, {enum: [a]}]}
+    Narrow: `+written+"\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
+		require.True(t, ok, "%s: nothing but the kept $ref names the target", name)
+		assert.Len(t, en.Members, 2, name)
+		assert.NotEmpty(t, en.Examples, "%s: the target's examples stay on its node", name)
+	}
+}
+
+// TestRefinement_AValueSetBesideTheAllOfIsAConjunct pins GitHub #1309: an enum or
+// a const beside an allOf that refines is one of its conjuncts, not its rival. It
+// lowers as if no allOf were written where it is the principal, with what the
+// branches say folded as written beside it, and a narrower branch is the
+// principal. Beside an allOf that composes, it still wins and keeps the allOf.
+func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Flat: {type: string, enum: [a], description: the level, deprecated: true}
+    Noted: {type: string, enum: [a], allOf: [{description: the level, deprecated: true}]}
+    Const: {const: a, allOf: [{description: the level}]}
+    Narrowed: {enum: [a, b], allOf: [{enum: [a]}]}
+    Composes: {enum: [x], allOf: [{type: object, properties: {p: {type: string}}}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
-	require.True(t, ok, "nothing but the kept $ref names the target")
-	assert.Len(t, en.Members, 2)
-	assert.NotEmpty(t, en.Examples, "the target's examples stay on its node")
+	flat, noted := typeByName(doc, "Flat"), typeByName(doc, "Noted")
+	assert.Equal(t, ir.KindEnum, noted.Kind())
+	assert.Equal(t, flat.Common().Docs, noted.Common().Docs)
+	assert.Equal(t, flat.Common().Deprecation, noted.Common().Deprecation)
+	assert.Empty(t, noted.Common().Unmodeled)
+	lit, ok := typeByName(doc, "Const").(*ir.Literal)
+	require.True(t, ok, "got %T", typeByName(doc, "Const"))
+	assert.Equal(t, "the level", lit.Docs.Description)
+	assert.Empty(t, lit.Unmodeled)
+
+	narrowed, ok := typeByName(doc, "Narrowed").(*ir.Scalar)
+	require.True(t, ok, "got %T", typeByName(doc, "Narrowed"))
+	en, ok := doc.Types[narrowed.Base.Target].(*ir.Enum)
+	require.True(t, ok, "the narrower branch is the principal")
+	assert.Len(t, en.Members, 1)
+	assert.Empty(t, narrowed.Unmodeled, "the wider set beside it says nothing more")
+	for _, at := range []string{"/components/schemas/Noted", "/components/schemas/Const", "/components/schemas/Narrowed"} {
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "%s keeps nothing", at)
+	}
+
+	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
+	require.True(t, ok)
+	assert.Contains(t, composes.Unmodeled, "openapi:allOf")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Composes"),
+		"it lowered as the enum, with allOf kept verbatim")
 }
 
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
@@ -1580,7 +1627,6 @@ func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
         beside: {$ref: '#/components/schemas/Str', allOf: [{description: branch, default: b}]}
         dynamic: {$dynamicRef: '#node', allOf: [{description: branch}]}
         dynamicRef: {$dynamicRef: '#node', allOf: [{$ref: '#/components/schemas/Bound'}]}
-        elected: {enum: [a], allOf: [{description: branch}]}
     Bound: {type: string, readOnly: true}
     Items:
       type: array
@@ -1593,8 +1639,6 @@ func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
 	assert.Contains(t, beside.Unmodeled, "openapi:allOf")
 	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamic").Docs.Description)
 	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamicRef").Visibility.Only)
-	elected := propertyOf(t, doc, "Holder", "elected")
-	assert.Empty(t, doc.Types[elected.Type.Target].Common().Docs.Description, "an election's loser speaks for nothing")
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
 	assert.Empty(t, doc.Types[items.Elem.Target].Common().Docs.Description, "nor does a branch beside a $ref")

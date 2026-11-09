@@ -88,13 +88,27 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 	return r
 }
 
-// allOfDecides reports whether s's allOf is what its position lowers: not a
-// family the election passed over, which stays verbatim (GitHub #1309), nor
-// keywords beside a $ref, a $dynamicRef or a union, whose branches keep what they
-// write on each variant (docs/compilers/openapi.md#union-beside-structure).
-func allOfDecides(s *oas3.Schema) bool {
-	return len(s.GetAllOf()) > 0 && s.Ref == nil && dispatchOf(s).won == "allOf" &&
-		!declaresUnion(s) && !declaresDynamicRef(s)
+// allOfConjoins reports whether s's allOf conjoins with what its position
+// lowers: it is no keyword beside a $ref, a $dynamicRef or a union, whose
+// branches keep what they write on each variant
+// (docs/compilers/openapi.md#union-beside-structure).
+func allOfConjoins(s *oas3.Schema) bool {
+	return len(s.GetAllOf()) > 0 && s.Ref == nil && !declaresUnion(s) && !declaresDynamicRef(s)
+}
+
+// allOfDecides reports whether s's allOf is what its position lowers: one the
+// election of competing keywords made the value, or one refining, whose rival
+// there, an enum or a const beside it, is one of its conjuncts. One such a value
+// set beats otherwise stays verbatim (docs/compilers/openapi.md#competing-keywords).
+func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
+	if !allOfConjoins(s) {
+		return false
+	}
+	if dispatchOf(s).won == "allOf" {
+		return true
+	}
+	_, refines := refinementOf(c, s, "")
+	return refines
 }
 
 // voicesOf keys what voicesAmong read of one schema.
@@ -291,7 +305,7 @@ func foldsNullable(bs *oas3.Schema) bool {
 // only where it reduced to a shared node, target being what the position lowered
 // to: a branch owning that node keeps what it writes there.
 func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
-	if !allOfDecides(s) {
+	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(s, pointer)
@@ -313,7 +327,7 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 // pays for each entry once, not for each branch repeating it. Value bounds, which
 // agree by meeting, are no such entry: a use never reads them through its $ref.
 func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
-	if !allOfDecides(s) {
+	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(s, "")

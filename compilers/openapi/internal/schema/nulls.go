@@ -507,7 +507,7 @@ type nullableVoicesOf struct {
 // $ref branch, which no fold compares.
 func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
 	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
-		if !allOfDecides(s) {
+		if !allOfDecides(c, s) {
 			return nil
 		}
 		comp := allOfBranches(s, "")

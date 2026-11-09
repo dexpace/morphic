@@ -176,7 +176,7 @@ func throughRef(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		return refs[0]
 	}
-	if !allOfDecides(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(allOfBranches(s, "")) {
+	if !allOfConjoins(s) || annotation.DeclaresAny(s, objectKeywords) || !refinableBranches(allOfBranches(s, "")) {
 		return nil
 	}
 	return refs[0]

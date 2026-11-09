@@ -617,7 +617,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
-		diags = append(diags, diagDisjointConjuncts(c, body.comp)...)
+		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)

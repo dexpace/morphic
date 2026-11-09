@@ -40,8 +40,8 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
-		diags = append(diags, diagDisjointConjuncts(c, comp)...)
-		if allOfDecides(s) {
+		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
+		if allOfDecides(c, s) {
 			v := voicingOf(c, s)
 			comp.speaks, comp.rebased = v.speaks, v.rebased
 		}

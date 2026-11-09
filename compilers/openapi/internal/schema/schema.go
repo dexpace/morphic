@@ -256,12 +256,19 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 //
 // The families are conjoined where a schema writes more than one, so electing
 // a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
-// ones passed over are kept verbatim beside it (recordSkippedFamilies). A
-// keyword the elected lowering never reads, such as `type: string` beside an
-// allOf, goes through preserveUnhomedKeywords, which asks the built node
-// whether it has a field for it.
+// ones passed over are kept verbatim beside it (recordSkippedFamilies), but for
+// an allOf that refines, which decides the position. A keyword the elected
+// lowering never reads goes through preserveUnhomedKeywords, which asks the
+// built node whether it has a field for it.
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	d := dispatchOf(s)
+	if r, refines := refinementOf(c, s, pointer); refines {
+		if r.principal != nil {
+			return lowerPrincipal(c, ts, depth, r)
+		}
+		resolveBeaten(c, ts, r)
+		d = d.besideAllOf()
+	}
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
 		return owner, append(diags, ownDiags...)
@@ -272,16 +279,10 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		r, refines := refinementOf(c, s, pointer)
-		if !refines {
-			return unhomed(lowerAllOf(c, ts, depth, s, pointer))
-		}
-		if r.principal != nil {
-			return lowerPrincipal(c, ts, depth, r)
-		}
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
 	}
-	// won is "" — the schema declares no family, so the type set decides — or
-	// an allOf no branch of which decides what the position is.
+	// won is "": the schema declares no family, or only an allOf that refines
+	// with no branch deciding what the position is, so the type set decides.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
@@ -367,6 +368,18 @@ type dispatch struct {
 	skipped []string
 }
 
+// besideAllOf returns the election lower() makes of the keywords beside s's
+// allOf, d being s's own: the one of a schema writing no allOf, as a refinement
+// whose principal is no branch lowers. allOf is the last of familyOrder, so it
+// wins only where no other family is written.
+func (d dispatch) besideAllOf() dispatch {
+	out := dispatch{skipped: slices.DeleteFunc(slices.Clone(d.skipped), func(f string) bool { return f == "allOf" })}
+	if d.won != "allOf" {
+		out.won = d.won
+	}
+	return out
+}
+
 // dispatchOf elects the family lower() lowers and collects the rest. A schema
 // declaring none leaves won empty and skipped nil.
 //
@@ -425,10 +438,17 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		return diags
 	}
 	skipped := strings.Join(kept, " and ")
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
 			"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
 		skipped, d.won, d.won, skipped))
+	if !slices.Contains(kept, "allOf") {
+		return diags
+	}
+	// An allOf that refines is no rival of the value set (lower), so one passed
+	// over composes, and its conjuncts may share no value, as they are read where
+	// it wins (lowerAllOf).
+	return append(diags, diagDisjointConjuncts(c, readAllOf(c, s, pointer), "the "+d.won+" it lowered as")...)
 }
 
 // writesType reports whether s writes a type. A YAML null, which the parser reads

@@ -1307,10 +1307,12 @@ be, with nothing lost, where:
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
 
-An `enum` or a `const` beside the `allOf` wins the election of
-[`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
-`allOf` writes alone speaks for it as a narrowed one does below. That `allOf` stays verbatim: its
-branches fold nothing, and its `$ref` lowers nothing.
+An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts, the keywords beside
+the `allOf` writing a value set, rather than its rival in the election of
+[`competing-keywords`](#competing-keywords): `{enum: [a], allOf: [{$ref: Level}]}` elects its
+principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its branches fold and its
+`$ref` still lowers. Beside an `allOf` that composes, the value set wins that election and the
+`allOf` stays verbatim.
 
 The principal is chosen from the whole set:
 
@@ -1386,6 +1388,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AValueComparesAsAnEnumEntryDoes`,
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
   `schema.TestRefinement_ANarrowedRefStillLowersItsTarget`,
+  `schema.TestRefinement_AValueSetBesideTheAllOfIsAConjunct`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
@@ -1401,8 +1404,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
-  (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
-  (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
+  (#661), and a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
+  (#1067).
 
 ### `allof-beside-ref`
 
@@ -1957,8 +1960,9 @@ any version. A conjunct writing an `allOf` also states nothing here where its `t
 leave at most a null, which is what keeps a schema composing a reported one from drawing a second
 report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
 entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
-`allOf` that does not compose, one beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) or
-passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)), is not read.
+`allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
+One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
+any composition is, and the warning names the value set the position lowered as.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
@@ -1969,9 +1973,10 @@ passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
-  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
+  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
+  `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`
 - Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
-  (#1390), and an `allOf` an `enum` or a `const` beside it passes over is not read (#1309).
+  (#1390).
 
 ### `union`
 
@@ -2224,8 +2229,11 @@ nullable `X` ([type-graph](../ir/type-graph.md#type-references)), because the co
 asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins with it, and
 collapsing would resolve the position to a shared primitive, which must never carry one
 declaration's keywords. Where a *structural* sibling is written as well,
-[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept. A
-keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing an object,
+[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept.
+An `allOf` that refines ([`allof-refinement`](#allof-refinement)) is no rival of an `enum` or a
+`const` beside it, which is one of its conjuncts, so the election passes over it only where it
+composes. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is

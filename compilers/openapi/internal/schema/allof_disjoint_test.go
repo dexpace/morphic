@@ -117,6 +117,13 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"a distributed union",
 			`{allOf: [` + refStr + `, ` + refObj + `], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: string, allOf/1: object"},
+		{"an allOf an enum passes over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`,
+			"allOf/0: string, allOf/1: object"},
+		{"an allOf a const passes over", `{type: string, const: a, allOf: [{type: integer}]}`,
+			"type: string, allOf/0: integer"},
+		{"an allOf an enum passes over beside a union",
+			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
+			"allOf/0: string, allOf/1: object"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -132,11 +139,28 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 	}
 }
 
+// TestAllOf_DisjointReportNamesWhatThePositionLoweredAs pins the report's last
+// clause to the node it describes: a composition, or the value set an election
+// passed the allOf over for.
+func TestAllOf_DisjointReportNamesWhatThePositionLoweredAs(t *testing.T) {
+	t.Parallel()
+	for written, shape := range map[string]string{
+		`{type: string, allOf: [{type: integer}]}`:            "which a composition cannot state",
+		`{type: string, enum: [a], allOf: [{type: integer}]}`: "which the enum it lowered as cannot state",
+		`{type: string, const: a, allOf: [{type: integer}]}`:  "which the const it lowered as cannot state",
+	} {
+		doc, _ := parseFull(t, disjointSpec(written, ""))
+		reports := disjointReports(doc.Diagnostics)
+		require.Len(t, reports, 1, written)
+		assert.Contains(t, reports[0].Message, shape, written)
+	}
+}
+
 // TestAllOf_DisjointReportStaysSilent holds the readings that must not report:
 // a conjunct writing no type states nothing, and neither does a boolean, an
 // unresolved $ref or a keyword beside a $ref; a null both sides admit is a value
 // they share; a lone conjunct narrowing the instance types contradicts nothing;
-// and an allOf that does not compose is not read.
+// and an allOf beside a $ref, which does not compose, is not read.
 func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -167,7 +191,6 @@ func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 		{"a keyword beside a $ref, unread from 3.1 on too",
 			`{allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}`, "", ""},
 		{"a type no dialect defines", `{type: widget, allOf: [` + refObj + `]}`, "", ""},
-		{"an enum passing the allOf over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`, "", ""},
 		{"an allOf beside a $ref", `{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "", ""},
 		{"a null read past its budget",
 			`{allOf: [` + strings.Repeat(`{$ref: '#/components/schemas/Props'}, `, 130) +

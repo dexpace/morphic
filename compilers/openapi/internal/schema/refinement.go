@@ -76,7 +76,7 @@ type decision struct {
 // the bindings, never the registry, so a decision turns on no lowering order, and
 // each position's many readers share one reading.
 func refinementOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	if !allOfDecides(s) {
+	if !allOfConjoins(s) {
 		return refinement{}, false
 	}
 	d := lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
@@ -212,8 +212,9 @@ func (w *admission) elect(conjuncts []conjunct, ref *conjunct) *conjunct {
 
 // narrowsAll reports whether conjunct i is a value set within every other
 // conjunct and more than a restatement of what a $ref fixes, which a $ref's own is
-// not. Only a branch can be one: a value set beside the allOf is no refinement.
-// No set is compared with itself, which answers nothing and walks the whole set.
+// not. The keywords beside the allOf are one where they write an enum or a const
+// (allOfDecides). No set is compared with itself, which answers nothing and walks
+// the whole set.
 func (w *admission) narrowsAll(conjuncts []conjunct, i int, ref *conjunct) bool {
 	cj := &conjuncts[i]
 	if !cj.read.fixed || cj == ref || (ref != nil && w.setWithin(ref.read, cj.read)) {
@@ -260,11 +261,18 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) 
 		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
 		return ref.Target, diags
 	}
+	resolveBeaten(c, ts, r)
+	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
+	return ref.Target, diags
+}
+
+// resolveBeaten resolves the $ref of r, whose principal is an inline branch or
+// the keywords beside the allOf: nothing else may lower what a $ref they beat
+// names.
+func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 	if r.ref != nil {
 		resolveSchemaRef(c, ts, r.ref.schema)
 	}
-	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
-	return ref.Target, diags
 }
 
 // refinedShape describes what a refinement lowers to, for the diagnostic
