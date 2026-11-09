@@ -271,6 +271,12 @@ func componentIDByName(name string) ir.TypeID {
 	return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name))
 }
 
+// typeAt keys the position whose type a mapping target names, by the position
+// the target names as the context reads it (lowering.Scoped).
+type typeAt struct {
+	at lowering.ScopedPosition
+}
+
 // mappingTargetID resolves a discriminator mapping target, a bare schema name
 // or a $ref string, to the TypeID of the schema it names. A bare name (even one
 // containing '/') naming a declared component resolves in any source order,
@@ -290,8 +296,9 @@ func mappingTargetID(c lowering.Ctx, scope resolve.Scope, d *oas3.Discriminator,
 	}
 	// No variant types: a tag asks whether the mapping reaches the subtype, so
 	// it reads through whatever a union's variants name (readsThrough). Each
-	// subtype asks it of every entry, so it is read once (Ctx.TypePosition).
-	at := c.TypePosition(named, func() bind.Position {
+	// subtype asks it of every entry, so it is read once in each scope
+	// (lowering.Remembered).
+	at := lowering.Remembered(c, typeAt{lowering.Scoped(c, named)}, func() bind.Position {
 		position, _ := typePosition(c, named, decl, nil)
 		return position
 	})

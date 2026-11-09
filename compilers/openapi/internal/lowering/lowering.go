@@ -122,12 +122,6 @@ type Ctx struct {
 	// reference a lowering reads, and with it every word the context holds.
 	loaded *loadResult
 
-	// typePositions remembers each answer TypePosition read. Copies share it on
-	// purpose: an answer reads only the document and its bindings, which no
-	// lowering changes, so what one copy remembers is what another would read.
-	// Nil in a zero context.
-	typePositions map[scopedPosition]bind.Position
-
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
@@ -178,14 +172,18 @@ type loadResult struct {
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
-	// readings remembers each answer Remembered read. It sits here for the
-	// reason loaded is a pointer, and copies share it as they do typePositions.
+	// readings remembers each answer Remembered read, in a map per type of key
+	// and answer (memo). Copies share it on purpose: an answer reads only the
+	// documents and their bindings, which no lowering changes, so what one copy
+	// remembers is what another would read.
 	readings map[any]any
 }
 
-// scopedPosition is a position, the document it is in, and the scope it is
-// read in (see Within), which a TypePosition answer is kept under.
-type scopedPosition struct {
+// ScopedPosition is a position as a context reads it: with the scope it is read
+// in (see Within) and the document the context places positions in. It keys a
+// reading that turns on where a position is read (Remembered), and only Scoped
+// builds one, as the scope is the context's own and unexported.
+type ScopedPosition struct {
 	foreign bool
 	holder  string
 	home    int
@@ -213,10 +211,9 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		NullableWidening: nullable,
 		overlay:          origin,
 
-		typePositions: map[scopedPosition]bind.Position{},
-		reached:       resolve.NewReached(),
-		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
-		expansion:     newExpansion(limits.MaxReferenceExpansion),
+		reached:   resolve.NewReached(),
+		Kept:      &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion: newExpansion(limits.MaxReferenceExpansion),
 	}
 }
 
@@ -273,13 +270,13 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // being derived from it, since resolving either reads every document the
 // source names, which only the load phase may (GitHub #757). One call sets
 // both, so no context carries one without the other. The copy remembers no
-// TypePosition answer or name of c's, which read c's bindings and documents.
+// answer Remembered read for c, nor a name of c's, which read c's bindings and
+// documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
-	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
 
@@ -292,42 +289,41 @@ func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
 }
 
-// TypePosition returns read's answer for at in c's scope, read once and
-// remembered for every copy of c. read is where a discriminator mapping target
-// naming at names a type, which must follow from the documents and the
-// mapping targets alone. Each subtype asks it of every entry of its base's
-// mapping, so n subtypes read each n times. A zero context reads it every time.
-func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Position {
-	if c.typePositions == nil {
-		return read()
-	}
-	key := scopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
-	if named, seen := c.typePositions[key]; seen {
-		return named
-	}
-	named := read()
-	c.typePositions[key] = named
-	return named
+// Scoped returns at as c reads it: in c's scope, and in the coordinates of the
+// document c places its positions in.
+func Scoped(c Ctx, at bind.Position) ScopedPosition {
+	return ScopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
 }
 
 // Remembered returns read's answer for key, read once and remembered for every
 // copy of c. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
-// keeps its readings from another's. A key holding another type of answer reads
-// again, and a context given no load phase reads every time.
-func Remembered[V any](c Ctx, key any, read func() V) V {
+// keeps its readings from another's. Each type of key and answer has a map of
+// its own, so neither is boxed to be found or kept, and a key read for two
+// types of answer is read once for each. A context given no load phase reads
+// every time.
+func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 	if c.loaded == nil {
 		return read()
 	}
-	if held, seen := c.loaded.readings[key]; seen {
-		if answer, ok := held.(V); ok {
-			return answer
-		}
+	answers, ok := c.loaded.readings[memo[K, V]{}].(map[K]V)
+	if !ok {
+		// Kept before read runs, so a reading that asks Remembered for answers of
+		// the same types keeps them here rather than in a map this one replaces.
+		answers = map[K]V{}
+		c.loaded.readings[memo[K, V]{}] = answers
+	}
+	if answer, seen := answers[key]; seen {
+		return answer
 	}
 	answer := read()
-	c.loaded.readings[key] = answer
+	answers[key] = answer
 	return answer
 }
+
+// memo is what the map of Remembered's answers of type V, to keys of type K, is
+// kept under. It holds nothing, so it is boxed without allocating.
+type memo[K comparable, V any] struct{}
 
 // Siblings returns the fields the load phase modelled beside the document's
 // path item $refs (see WithLoaded). A load.Siblings only answers questions, so

@@ -70,9 +70,8 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// KeptOnce.Once, Promoter.Referent, Ctx.TypePosition and Remembered each
-		// call the function they are handed before they return: immediate
-		// callbacks.
+		// KeptOnce.Once, Promoter.Referent and Remembered each call the function
+		// they are handed before they return: immediate callbacks.
 		"compilers/openapi/internal/operation": 1,
 		"compilers/openapi/internal/schema":    17,
 	},
