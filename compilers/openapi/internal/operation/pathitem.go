@@ -227,9 +227,10 @@ func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
 	return annotation.CopyEntriesInto(&op.Unmodeled, kept)
 }
 
-// applyPathItem keeps, on the carrier into, what a path item declares that its
-// operations have no home for: its documentation, x-* extensions and undeclared
-// keys, less what cedes says a nearer layer of the mount keeps.
+// applyPathItem keeps, on the carrier into, what a path item declares besides
+// its operations: its documentation, in the carrier's PathDocs where it has
+// one, and its x-* extensions and undeclared keys, verbatim, less what cedes
+// says a nearer layer of the mount keeps.
 //
 // They share one entry point because every route that lowers a path item (a
 // path, a webhook, a callback expression) must reach each, and a second call
@@ -267,8 +268,8 @@ type carrier struct {
 }
 
 // pathItemScope is the key scope a path item's declarations take on an
-// operation it mounts, as in openapi:pathItem/summary and openapi:pathItem/x-id.
-// An item mounting none extends it with its own pointer (onNearestNode).
+// operation it mounts, as in openapi:pathItem/x-id. An item mounting none
+// extends it with its own pointer (onNearestNode).
 const pathItemScope = "pathItem"
 
 // onOperations carries a path item's declarations into kept and its
@@ -387,7 +388,7 @@ func pathItemDeclares(pi *soa.PathItem, key string) bool {
 var pathItemDocKeywords = []string{"summary", "description"}
 
 // applyPathItemDocs writes a path item's summary and description into the
-// PathDocs into holds, less what cedes says a nearer layer of the mount writes,
+// PathDocs into holds, less what cedes says another layer of the mount writes,
 // so a $ref site's summary stands in front of its target's. Nothing is
 // reported: the pair reaches a field. An item mounting none keeps the pair
 // verbatim beside what else it keeps on the nearest node, which
@@ -416,13 +417,15 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 }
 
 // writePathDocs writes into docs the summary and description pi declares, each
-// unless cedes says a nearer layer of the mount writes it.
+// unless cedes says another layer of the mount writes it. A layer leaving one
+// out cedes it to any layer writing it, as only a written keyword is owned
+// (declaresText), so its empty text lands only where no layer writes one.
 func writePathDocs(docs *ir.Docs, pi *soa.PathItem, cedes func(string) bool) {
-	if text := pi.GetSummary(); text != "" && !cedes(constructOf(constructDoc, "summary")) {
-		docs.Summary = text
+	if !cedes(constructOf(constructDoc, "summary")) {
+		docs.Summary = pi.GetSummary()
 	}
-	if text := pi.GetDescription(); text != "" && !cedes(constructOf(constructDoc, "description")) {
-		docs.Description = text
+	if !cedes(constructOf(constructDoc, "description")) {
+		docs.Description = pi.GetDescription()
 	}
 }
 
