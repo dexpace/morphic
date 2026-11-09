@@ -316,9 +316,11 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** Read a job's log with `gh run view <run> --log --job <job>`, the job's id from
   `gh run view <run> --json jobs`, and check the size of what a redirect wrote: the REST read,
   `gh api repos/<owner>/<repo>/actions/jobs/<job>/logs`, exits 1 and writes nothing without
-  `--allow-escape-sequences`, so a count over its file reads as a real zero.
+  `--allow-escape-sequences`, so a count over its file reads as a real zero. While the run goes on,
+  only that read, with the flag, returns a finished job's log.
 - **Why.** A review reading statement counts and `(cached)` lines found no rule naming the command,
-  and the obvious one wrote 0 bytes to its file (#1602).
+  and the obvious one wrote 0 bytes to its file; mid-run, `gh run view` refused a finished job's
+  log (#1602).
 - **Probe.** `gh run view <run> --log --job <job> | wc -c` prints more than 0.
 
 ## Re-read the prose when a review round changes the design

@@ -116,13 +116,13 @@ narrowed: <round before>, <its findings>, <commits since>
 ## Read the gate from CI, and run locally only what CI cannot
 `ci-is-the-gate`
 
-- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit.
-  Never rerun it locally, suites included, nor re-check by eye what it enforces. For a head behind
-  `main`, list `main`'s commits touching its files, run `go build ./...` on the merged tree, and
-  name merging `main` the next step. Locally, run only what CI cannot: probes, mutants,
-  differentials, measurements, and the skills lint and scripts' tests, run by no CI. A run still
-  going is reported running, never waited on; a conflicting PR has none, nor an unpushed
-  branch (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
+- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit. Never rerun
+  it locally, suites included, nor re-check by eye what it enforces. For a head behind `main`, list
+  `main`'s commits touching its files, run `go build ./...` on the merged tree, and name merging
+  `main` the next step. Locally, run only what CI cannot: probes, mutants, differentials,
+  measurements, and the skills lint and scripts' tests, run by no CI. A run still going is reported
+  running, never waited on; a conflicting PR has none, nor an unpushed branch
+  (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#read-a-ci-jobs-log`.
 - **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then stalled in
   coverage (#1286); a conflicting PR's empty check list read as pending (#1285).

@@ -647,6 +647,9 @@ def main(argv: list[str] | None = None) -> int:
         print("skills_lint: no git repository here; in a copy git archive unpacked, run git init "
               "and git add -A first", file=sys.stderr)
         return 2
+    except OSError as e:  # no git on PATH, or a working directory since removed
+        print(f"skills_lint: {e}", file=sys.stderr)
+        return 2
     try:
         n, found = findings(root)
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:

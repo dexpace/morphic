@@ -263,9 +263,8 @@ verifier and codecs must reach.
   filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
   (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
-- **Probe.** Assert its verdict on each witness and producer output at each call site; a
-  property Unicode publishes also takes
-  `references/ir-lessons.md#sweep-a-published-property`.
+- **Probe.** Assert its verdict on each witness and producer output at each call site; a property
+  Unicode publishes also takes `references/ir-lessons.md#sweep-a-published-property`.
 
 ## Sweep a predicate over every code point where Unicode publishes its property
 `sweep-a-published-property`

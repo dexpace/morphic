@@ -11,14 +11,14 @@ never rewritten.
 
 ## Before each commit
 
-- Work in your own worktree, and check `git branch --show-current` before committing: other work
+- Work in your own worktree, checking `git branch --show-current` before committing: other work
   moves a shared checkout's branch.
 - Gate the commit on each check's exit status, in one command
   (`references/commits-and-prs.md#gate-by-exit-status`).
 - `git status --untracked-files=all` lists only what you meant to add
   (`references/commits-and-prs.md#commit-only-what-you-meant`).
-- A removed or changed exported identifier, or a method added to an exported interface, outside
-  `internal/` and `main` packages makes the change breaking
+- A removed or changed exported identifier, or a method added to an exported interface with no
+  unexported method, outside `internal/` and `main` packages makes the change breaking
   (`references/commits-and-prs.md#exported-api-change-needs-bang`).
 
 ## Before each push
@@ -39,9 +39,8 @@ git diff "origin/<base>"...HEAD -- ':!go.sum' | grep '^+' >> "$o"
 grep -niE "${pat:?}" "$o"; grep -nE "${cs:?}" "$o"
 ```
 
-`git status` is empty, as the push carries HEAD; judge each artifact hit. Grep the PR's own text
-the same way (`gh pr view N --json title,body --jq '.title, .body'`), and an edited body
-before its send.
+`git status` is empty, as the push carries HEAD; judge each hit. Grep the PR's text the same way
+(`gh pr view N --json title,body --jq '.title, .body'`), and an edited body before its send.
 
 Once every hit is fixed or justified, push behind the lint and the subject check
 (`references/commits-and-prs.md#own-commits-against-the-base`), which exit 1 on a hit. `<title>`
@@ -74,8 +73,8 @@ also find each limitation the body states where the rule places it
 ## PR text
 
 A Summary and a Test plan stating the head (`references/commits-and-prs.md#body-states-the-head`),
-and a Breaking section when the title carries `!`. Every sentence that states behaviour is executed
-on the final tree first
+and a Breaking section when the title carries `!`. Every sentence stating behaviour is executed on
+the final tree first
 (`.claude/skills/morphic-verifying-changes/references/claims.md#pr-claims-match-evidence`). Edit a
 posted body from its live copy (`references/commits-and-prs.md#edit-pr-body-from-live-copy`).
 

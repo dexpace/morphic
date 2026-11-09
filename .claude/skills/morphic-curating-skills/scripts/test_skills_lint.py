@@ -287,7 +287,8 @@ class LintTest(unittest.TestCase):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each expands to a place outside the tree, so none is held to it; $GOROOT alone still is.
         spans = ("Then `ls \"$PWD/ir\"`, `ls $PWD/gone`, `ls $D/ir`, `cat $OUT/x.log`, "
-                 "`ls \"$HOME/x\"`, `ls ${PWD}/ir`, `ls '$TMP/y'` and `$WORK/z`, but not "
+                 "`ls \"$HOME/x\"`, `ls ${PWD}/ir`, `ls '$TMP/y'`, `ls $GOROOT_FINAL/gone` and "
+                 "`$WORK/z`, but not "
                  "`cat $GOROOT/src/gone.go`.\n")
         write(self.root, skill, GOOD_SKILL + spans)
         n = GOOD_SKILL.count("\n") + 1
@@ -580,6 +581,24 @@ class ArgumentsTest(unittest.TestCase):
             self.assertEqual(skills_lint.main([]), 2)
         self.assertIn("run git init and git add -A first", err.getvalue())
         lint.assert_not_called()
+
+    def test_no_git_or_no_working_directory_is_one_line_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = Path(d) / "gone"
+            gone.mkdir()
+            cases = (("no git on PATH", d, str(gone), False),
+                     ("a removed working directory", gone, os.environ["PATH"], True))
+            for name, cwd, path, remove in cases:
+                with self.subTest(name):
+                    with contextlib.chdir(cwd), mock.patch.dict(os.environ, {"PATH": path}), \
+                            mock.patch.object(skills_lint, "findings") as lint, \
+                            contextlib.redirect_stderr(io.StringIO()) as err:
+                        if remove:
+                            gone.rmdir()
+                        code = skills_lint.main([])
+                    self.assertEqual(code, 2)
+                    self.assertRegex(err.getvalue(), r"^skills_lint: \[Errno 2\] [^\n]*\n$")
+                    lint.assert_not_called()
 
     def test_help_prints_the_usage_and_lints_nothing(self):
         out = io.StringIO()

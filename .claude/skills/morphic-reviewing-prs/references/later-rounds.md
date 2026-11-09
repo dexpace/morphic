@@ -26,8 +26,8 @@ the whole change again. `references/rounds.md` says how a round runs and when th
   unreached or reopened cell. From the third round, the round after one reads only what
   `references/later-rounds.md#narrowed-round-reads-the-fixes` lists, where each commit since fixes
   a finding, leaving unchanged what production code, a script, rule or normative text does, and no
-  merge touched the change's files. Its brief records that, or
-  its report's `narrowed:` line where no agent runs. An `issue:` sends the next round to
+  merge touched the change's files. Its brief records that, or its report's `narrowed:` line where
+  no agent runs. An `issue:` sends the next round to
   `references/later-rounds.md#later-rounds-read-what-moved`; a wrong record, this one.
 - **Why.** Whatever their fixes, such rounds took 34% of reviewer CPU for 17% of `issue:` findings
   (#1611); a `question:` beside a `nit:` read either way (#1617).
