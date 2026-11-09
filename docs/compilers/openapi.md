@@ -1452,9 +1452,10 @@ the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties
 fold, being a composing model's openness; a bound does not where the position has no field for it,
 as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
 no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
-of a type list holding either where a variant does; a collection bound `Constraints` cannot state, a
-`uniqueItems` of `false` or a count past 64 bits, never folds; and a composition distributed across
-a union keeps every branch on each variant ([`union-beside-structure`](#union-beside-structure)).
+of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
+a `uniqueItems` of `false` or a count past 64 bits, never folds; and a composition distributed
+across a union keeps every branch on each variant
+([`union-beside-structure`](#union-beside-structure)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
@@ -1520,7 +1521,10 @@ every entry reads that one twice.
   `schema.TestCollectionBound_OnABranchLandsAsItsFlatSpelling`,
   `schema.TestCollectionBound_OnABranchMeetsInEveryOrder`,
   `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
-  `schema.TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList`
+  `schema.TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt`
+- Status: partly built: a value bound on a branch beside a type list stays with its branch, though
+  the variants that hold one beside the `allOf` hold it too, since those need not be variants it
+  constrains (#1310).
 
 ### `allof-redeclared-property`
 

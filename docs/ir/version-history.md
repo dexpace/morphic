@@ -320,13 +320,15 @@ it sees. Changes made together in one bump are listed together under it.
   - A `minItems`, `maxItems` or true `uniqueItems` on an inline branch reaches the `Constraints` one
     written beside the `allOf` reaches: of the `Property`, `Parameter` or alias `Scalar` holding a
     refinement's use of its principal, or of the `List` or `Tuple` the position lowers to. The branch
-    had been kept whole under `Unmodeled`. A bound on a branch beside a type list lands on the
-    variants holding it and is no longer also kept.
+    had been kept whole under `Unmodeled`. A collection bound on a branch beside a type list lands
+    on its `List` or `Tuple` variant.
   - An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts rather than the
     winner of the election of competing keywords, so the `allOf` is no longer kept whole under
     `Unmodeled`: its branches fold, a `$ref` it writes lowers, and a narrower branch is what the
     position uses. One beside an `allOf` that composes still wins it, and conjuncts sharing no value
-    there draw the warning a composition's do.
+    there draw the warning a composition's do. A union variant written as such a value set narrowing
+    a `$ref` takes the hint the `$ref` suggests, as the same conjunction written in its branches
+    does, where it took `variant_N`, so the symbol an emitter generates from it is renamed.
   - The `ValueType` of the `Enum` or `Literal` a refinement lowers to reads the type and format every
     conjunct declares, where it read its own schema's alone, and a branch whose format it holds is
     no longer kept.

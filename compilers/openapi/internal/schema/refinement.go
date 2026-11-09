@@ -344,23 +344,26 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 // homesAt returns which bounds the position s is written at, lowered to target,
 // holds for its voices, as the census asks of those written beside its allOf. A
 // carrier or an alias holds value bounds, and collection bounds where it is a
-// use of the principal, a reference (keywordHome). A node the position owns
-// holds what its kind does, and the Union a type list lowers to what any variant
-// does (preserveVariantsUnhomed).
+// use of the principal, a reference (keywordHome). A node the position owns holds
+// what its kind does, and the Union a type list lowers to the collection bounds
+// its List or Tuple variant does. A value bound stays with its branch there: the
+// variant one beside the allOf reaches need not be one it constrains (GitHub #1310).
 func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
 		r, refined := refinementOf(c, s, pointer)
 		return boundHomes{value: true, collection: refined && r.principal != nil}
 	}
 	// A node still building holds nothing yet.
-	var nodes []ir.TypeDef
+	var homes boundHomes
 	if td, ok := ts.Node(target.Target); ok {
-		nodes = []ir.TypeDef{td}
+		homes.value = constraintsHome(td)
+		nodes := []ir.TypeDef{td}
 		if u, isUnion := td.(*ir.Union); isUnion {
 			nodes = variantNodes(ts, u)
 		}
+		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
 	}
-	return boundHomes{value: slices.ContainsFunc(nodes, constraintsHome), collection: slices.ContainsFunc(nodes, holdsCollectionBounds)}
+	return homes
 }
 
 // variantNodes returns the registered nodes of u's variants.

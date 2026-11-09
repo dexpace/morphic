@@ -317,8 +317,9 @@ func TestUnion_VariantHints(t *testing.T) {
 // TestUnion_ADecoratedBranchIsHintedAsItsRef pins GitHub #1018. OpenAPI 3.0
 // cannot write keywords beside a $ref, so a document annotates a union branch by
 // wrapping it, and the wrapped branch names its variant for the $ref as 3.1's
-// `{$ref: X, description: …}` does. A branch that says anything about a value
-// beyond its annotations is a type of its own and keeps the positional hint.
+// `{$ref: X, description: …}` does, as does one narrowing the $ref by a value
+// set. A branch saying anything else about a value is a type of its own and keeps
+// the positional hint.
 // Each row also holds the branch's own node to the hint an outside $ref to the
 // branch derives: positional, or its target's name where the branch is itself a
 // $ref.
@@ -370,6 +371,18 @@ func TestUnion_ADecoratedBranchIsHintedAsItsRef(t *testing.T) {
 			version: "3.1.0",
 			branch:  "{allOf: [{$ref: " + pet + ", description: x}], description: y}",
 			want:    "pet",
+		},
+		{
+			name:   "an enum beside the wrapped ref, narrowing it",
+			branch: "{enum: [a], allOf: [{$ref: '#/components/schemas/Mode'}]}",
+			extra:  "    Mode: {type: string, enum: [a, b]}\n",
+			want:   "mode",
+		},
+		{
+			name:   "the same enum in a branch beside the ref",
+			branch: "{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}]}",
+			extra:  "    Mode: {type: string, enum: [a, b]}\n",
+			want:   "mode",
 		},
 		{
 			name:   "an empty schema before the wrapped ref",

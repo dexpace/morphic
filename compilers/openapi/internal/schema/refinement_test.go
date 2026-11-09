@@ -1659,26 +1659,22 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	assert.Equal(t, "d", beside.Docs.Description)
 }
 
-// TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList pins a bound on a
-// branch of an allOf beside a type list: it lands on the variants that hold the
-// same bound written flat, and its branch is not also kept.
-func TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList(t *testing.T) {
+// TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt pins a value
+// bound on a branch of an allOf beside a type list: it stays with its branch,
+// reported, as the variants the same bound beside the allOf reaches, the integer
+// one among them here, need not be ones it constrains (GitHub #1310). A
+// collection bound there lands on the list variant
+// (TestCollectionBound_OnABranchLandsAsItsFlatSpelling).
+func TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-		"    Flat: {type: [string, integer], format: x-mine, maxLength: 2}\n"+
-			"    OnBranch: {type: [string, integer], format: x-mine, allOf: [{maxLength: 2}]}\n"))
+		"    OnBranch: {type: [string, integer], format: x-mine, allOf: [{maxLength: 2}]}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
-	for _, name := range []string{"Flat", "OnBranch"} {
-		u, ok := typeByName(doc, name).(*ir.Union)
-		require.True(t, ok, "%s: got %T", name, typeByName(doc, name))
-		assert.Empty(t, u.Unmodeled, name)
-		for _, v := range u.Variants {
-			sc, ok := doc.Types[v.Type.Target].(*ir.Scalar)
-			require.True(t, ok, "%s: got %T", name, doc.Types[v.Type.Target])
-			assert.Equal(t, &ir.Constraints{MaxLength: new(int64(2))}, sc.Constraints, name)
-		}
-	}
+	u, ok := typeByName(doc, "OnBranch").(*ir.Union)
+	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
+	assert.Contains(t, u.Unmodeled, "openapi:allOf/0")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/OnBranch/allOf/0"), "the branch (maxLength)")
 }
 
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
