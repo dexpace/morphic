@@ -5,10 +5,10 @@ package ir
 
 // Flattening is the shape of a model across its composition, as
 // [FlattenedProperties] computes it (docs/ir/models.md#the-flattening): its
-// properties and which are required, while each model's catch-all stays its
-// own. It points into the registry it was computed from and copies no property,
-// so it describes that registry as it stood; a caller that changes the registry
-// flattens again.
+// properties, which are required and which redacted, while each model's
+// catch-all stays its own. It points into the registry it was computed from
+// and copies no property, so it describes that registry as it stood; a caller
+// that changes the registry flattens again.
 type Flattening struct {
 	// Properties are the members, one per wire name, each at the place the walk
 	// first reads its wire name.
@@ -25,7 +25,8 @@ type Flattening struct {
 }
 
 // FlatProperty is one member of a [Flattening]: the declaration it takes, the
-// other declarations of its wire name, and whether an instance must carry it.
+// other declarations of its wire name, whether an instance must carry it, and
+// whether its value is redacted.
 type FlatProperty struct {
 	// PropertyDecl is the declaration the member takes: the last of its wire
 	// name the walk reads, so a model's declaration overrides that of every
@@ -38,6 +39,10 @@ type FlatProperty struct {
 	// declarations is Required, or a model along the walk lists its wire name
 	// in Requires.
 	Required bool
+	// Secret reports that the member's value is redacted: one of its
+	// declarations is Secret, or is of a type that is Sensitive or whose Base
+	// reaches one. Like Required, it accumulates over every declaration.
+	Secret bool
 }
 
 // PropertyDecl is one property declaration and the model declaring it.
@@ -96,8 +101,13 @@ type flattener struct {
 	// entries name it.
 	aliasOf   map[TypeID]int
 	aliasEnds []TypeID
+	// sensitivity holds, for each type a redaction is read through, whether
+	// its Base reaches a Sensitive type, false while the type is on the chain
+	// being read, so a chain is read once however many declarations name it.
+	sensitivity map[TypeID]bool
 	// steps counts what the walk reads: each entry and model end, alias
-	// scalar, property and Requires name.
+	// scalar, property and Requires name, and each type a redaction is read
+	// off.
 	steps int
 }
 
@@ -302,7 +312,7 @@ func (f *flattener) result() Flattening {
 		out.Properties = make([]FlatProperty, len(f.members))
 	}
 	for i, mb := range f.members {
-		out.Properties[i] = mb.flat(f.required)
+		out.Properties[i] = f.flat(mb)
 	}
 	for _, name := range f.requires {
 		if _, declared := f.index[name]; !declared {
@@ -313,14 +323,14 @@ func (f *flattener) result() Flattening {
 }
 
 // flat returns the member as a FlatProperty: the last declaration read takes
-// it, and every other is overridden, listed at its first reading. required
-// holds the names a Requires along the walk lists.
-func (mb member) flat(required map[string]bool) FlatProperty {
+// it, and every other is overridden, listed at its first reading.
+func (f *flattener) flat(mb member) FlatProperty {
 	last := mb.reads[len(mb.reads)-1]
-	fp := FlatProperty{PropertyDecl: last, Required: required[last.Property.EffectiveWireName()]}
+	fp := FlatProperty{PropertyDecl: last, Required: f.required[last.Property.EffectiveWireName()]}
 	var listed map[PropID]bool
 	for _, d := range mb.reads {
 		fp.Required = fp.Required || d.Property.Required
+		fp.Secret = fp.Secret || d.Property.Secret || f.sensitive(d.Property.Type.Target)
 		if d.Property.ID == last.Property.ID || listed[d.Property.ID] {
 			continue
 		}
@@ -331,4 +341,56 @@ func (mb member) flat(required map[string]bool) FlatProperty {
 		fp.Overridden = append(fp.Overridden, d)
 	}
 	return fp
+}
+
+// sensitive reports whether id names a type that is Sensitive, or whose Base
+// reaches one, a scalar's or a model's (docs/ir/type-graph.md). Each type
+// whose Base it follows is read once per walk, so a chain many declarations
+// name is read once, and a cycle the IR permits ends at a type already on the
+// chain.
+func (f *flattener) sensitive(id TypeID) bool {
+	var chain []TypeID
+	var found bool
+	for {
+		f.steps++
+		if known, read := f.sensitivity[id]; read {
+			found = known
+			break
+		}
+
+		td := f.types[id]
+		if IsNilTypeDef(td) {
+			break
+		}
+		if td.Common().Sensitive {
+			found = true
+			break
+		}
+
+		var base *TypeRef
+		switch t := td.(type) {
+		case *Scalar:
+			base = t.Base
+		case *Model:
+			base = t.Base
+		default:
+			// No other kind has a Base to inherit through.
+		}
+		if base == nil {
+			break
+		}
+
+		if f.sensitivity == nil {
+			f.sensitivity = map[TypeID]bool{}
+		}
+		f.sensitivity[id] = false
+		chain = append(chain, id)
+		id = base.Target
+	}
+
+	for _, c := range chain {
+		f.sensitivity[c] = found
+	}
+
+	return found
 }

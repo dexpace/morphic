@@ -514,8 +514,8 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 }
 
 // flatLines renders each member of f on one line: the declaration it takes as
-// ID@owner, each it overrides after a <, and "required" when an instance must
-// carry it.
+// ID@owner, each it overrides after a <, "required" when an instance must
+// carry it, and "secret" when its value is redacted.
 func flatLines(f ir.Flattening) []string {
 	out := make([]string, 0, len(f.Properties))
 	for _, fp := range f.Properties {
@@ -526,17 +526,35 @@ func flatLines(f ir.Flattening) []string {
 		if fp.Required {
 			line += " required"
 		}
+		if fp.Secret {
+			line += " secret"
+		}
 		out = append(out, line)
 	}
 	return out
 }
 
 // flatRandom is withinRandom with a wire name on every property, its eight
-// property IDs sharing three names, Required on two of the IDs, and a
-// Requires on each model declaring one property: one name some model may
-// declare, one none does.
+// property IDs sharing three names, Required on two of the IDs and Secret on
+// one, and a Requires on each model declaring one property: one name some
+// model may declare, one none does. A source of its own, which leaves the
+// composition withinRandom's, types each property ID at one of the type IDs
+// withinRandom returns and makes some declared types Sensitive.
 func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
+
+	facets := rand.New(rand.NewPCG(seed, seed+13))
+	var typeOf [8]ir.TypeID
+	for i := range typeOf {
+		typeOf[i] = types[facets.IntN(len(types))]
+	}
+
+	for _, id := range types {
+		if td := doc.Types[id]; !ir.IsNilTypeDef(td) && facets.IntN(4) == 0 {
+			td.Common().Sensitive = true
+		}
+	}
+
 	for _, td := range doc.Types {
 		m, ok := td.(*ir.Model)
 		if !ok || m == nil {
@@ -546,12 +564,47 @@ func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			digit := int(m.Properties[i].ID[len(m.Properties[i].ID)-1] - '0')
 			m.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
 			m.Properties[i].Required = digit == 1 || digit == 4
+			m.Properties[i].Secret = digit == 6
+			m.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
 		}
 		if len(m.Properties) == 1 {
 			m.Requires = []string{"w2", "zz"}
 		}
 	}
 	return doc, types
+}
+
+// reachesSensitive reports whether id names a type that is Sensitive, or
+// whose Base, a scalar's or a model's, leads to one, a visited set ending a
+// cycle.
+func reachesSensitive(types ir.TypeRegistry, id ir.TypeID) bool {
+	seen := map[ir.TypeID]bool{}
+	for !seen[id] {
+		seen[id] = true
+		td := types[id]
+		if ir.IsNilTypeDef(td) {
+			return false
+		}
+		if td.Common().Sensitive {
+			return true
+		}
+
+		var base *ir.TypeRef
+		switch t := td.(type) {
+		case *ir.Scalar:
+			base = t.Base
+		case *ir.Model:
+			base = t.Base
+		default:
+			// No other kind has a Base.
+		}
+		if base == nil {
+			return false
+		}
+		id = base.Target
+	}
+
+	return false
 }
 
 // composition returns the live models root composes, read through alias

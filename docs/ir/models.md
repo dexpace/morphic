@@ -102,10 +102,10 @@ a map requires no key and a decorator says nothing its `Base` does not.
 
 ## The flattening
 
-`ir.FlattenedProperties(types, id)` returns a model's full shape: its members,
-one per wire name, each with the declaration it takes, the declarations that one overrides and
-whether an instance must carry it, beside the names a `Requires` lists that no member declares and
-the composition entries that name no model. Its rules:
+`ir.FlattenedProperties(types, id)` returns a model's full shape: its members, one per wire name,
+each with the declaration it takes, the declarations that one overrides, whether an instance must
+carry it and whether its value is redacted, beside the names a `Requires` lists that no member
+declares and the composition entries that name no model. Its rules:
 
 - *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
   of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
@@ -129,15 +129,21 @@ the composition entries that name no model. Its rules:
   at any distance, unless that model composes it too; and of two declarations whose models do not
   compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
-  slot with its own type. The member takes every facet but whether it is required — type,
-  `Presence`, visibility, default, docs — from the declaration it takes, and lists the ones it
-  overrides, which is where a consumer conjoining more finds them. Nothing is reported: redeclaring
-  is how a subtype narrows, and whether two declarations agree is a question about their types,
-  which the flattening does not ask.
+  slot with its own type. The member takes every facet but whether it is required and whether it
+  is redacted — type, `Presence`, visibility, default, docs — from the declaration it takes, and
+  lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
+  reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
+  about their types, which the flattening does not ask.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
   the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
   requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is
   undeclared, a member only the catch-all governs.
+- *Redaction.* A member is redacted (`FlatProperty.Secret`) where any of its declarations asks for
+  it: one that is `Secret`, or whose type is `Sensitive` or has a `Base` that reaches a sensitive
+  type ([type graph](./type-graph.md)). A redaction only accumulates, as requiredness does, so a
+  conjunct that redeclares a field another conjunct marks secret cannot print it in the clear: the
+  member takes the later declaration's type and keeps the earlier one's redaction. A consumer reads
+  the member's `Secret` and need not conjoin `Overridden` itself.
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
@@ -156,9 +162,10 @@ the composition entries that name no model. Its rules:
   quadratically down a deep hierarchy, which its cost tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
   its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
-  the walk needs no step budget and no recursion. It costs the declarations it returns plus the
-  models, entries and aliases it passes, so an `irfacts` index could answer no faster, and it stays
-  a function of `ir`.
+  the walk needs no step budget and no recursion. Each type a redaction is read through is read once
+  too, so a `Base` chain many declarations name costs one reading, and one that cycles ends where it
+  repeats. It costs the declarations it returns plus the models, entries, aliases and types it
+  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
