@@ -84,6 +84,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.33.0", format: 1, shape: "0adcd68b4066926aebce88cfba6729c8be8bc8a559bdef084429021ca5628dfa",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.34.0", format: 1, shape: "0adcd68b4066926aebce88cfba6729c8be8bc8a559bdef084429021ca5628dfa",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf conjunct says what it says written beside the allOf: a branch's collection bound reaches Constraints, an enum or a const beside a refining allOf is one of its conjuncts, and the value set a refinement lowers to is typed by every conjunct"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
