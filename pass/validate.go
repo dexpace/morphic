@@ -90,8 +90,8 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 // not yet held to that: it allocates per type it indexes and per question it
 // walks (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
-	// A family that ranges a map sorts its keys first. Each such range has its own
-	// determinism test. A new range lacking one can go unnoticed (GitHub #1546).
+	// A family that ranges a map sorts its keys first and needs a determinism test
+	// of its own: a range added without one can go unnoticed (GitHub #1546).
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
 		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
