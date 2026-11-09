@@ -18,7 +18,9 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
     `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
     `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-    `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
+    `Authenticator`, `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
+    ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
+    `OffsetDateTime`.
     Which unit the runtime renders into is #1489's to decide.
   - Each name Kotlin's default imports give that any refine step or template can write, such as
     `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and `Result`, since a top-level declaration
@@ -31,7 +33,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, in
-    every unit; the joined name of each public class the target nests in a type, such as
+    every unit, bar `AlphaApi` and `BetaApi`, annotation classes Kotlin/Native 2.4.0 leaves out of
+    the header; the joined name of each public class the target nests in a type, such as
     `UserBuilder` and `UserCompanion` beside a model `User` and `PaymentUnknown` beside a union
     `Payment`; and the names the export gives classes of its own, `Base`, `MutableSet`,
     `MutableDictionary`, `Number` and each boxed number's, such as `Int`, `Double` and `ULong`.

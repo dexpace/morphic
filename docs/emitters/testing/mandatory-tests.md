@@ -358,8 +358,8 @@ throughout these documents.
     member no table of its declaring model holds anchored in the first table of a model whose
     flattening holds it, an inherited one linked there and an anonymous model composed in place no
     table of its own; each example through the shape it is shown in, a write-only member in no
-    response's; a placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent
-    documents and in samples, a sample's written by its SDK target; and raw HTML in a description
+    response's; a placeholder for every redacted value, on pages, in agent documents and in
+    samples, a sample's written by its SDK target; and raw HTML in a description
     rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
     themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
     an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
@@ -487,3 +487,21 @@ throughout these documents.
     entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
     none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
     `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+43. **T-43 · Redaction** — on every target, a value redacted through `Property.Secret`, through
+    `Parameter.Secret` and a response header's `Secret`, through a sensitive component and a type
+    whose `Base` reaches one, through a list's sensitive element and a map's sensitive key and
+    value, through a union's sensitive variant, and through a member a later conjunct redeclares
+    without `Secret`, shows as `[REDACTED]` in every string form of each type holding it, held by
+    value or by reference, a union's and its variant wrapper's among them, and in a sensitive type's
+    own where the target declares one, an enum's among them, in every logging event, one a
+    structured logger writes as JSON included, and in every error message, a transport failure's
+    that quotes a redacted path segment or query value included, a collection as the marker alone
+    and a map whose values alone are redacted with its keys shown, and goes out and comes back on
+    the wire byte for byte; a raw body holding one is never logged or printed
+    ([redaction](../refine/redaction.md)).
+44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
+    none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
+    operation's documentation names its tier and what it means on every target, an unstated one
+    names none and no badge reads it as `stable`, and each target's opt-in requirement is held where
+    it has one, on each method the operation lowers to, its `WithResponse` method among them
+    ([stability](../operations/stability.md)).
