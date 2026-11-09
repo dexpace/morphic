@@ -79,7 +79,8 @@ const (
 	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
-	// TargetEnumOpen clears ir.Enum.Closed.
+	// TargetEnumOpen clears ir.Enum.Closed, or ir.Union.Closed on the union a
+	// mixed enum lowers to.
 	TargetEnumOpen = lowering.TargetEnumOpen
 	// TargetUnionOpen clears ir.Union.Closed.
 	TargetUnionOpen = lowering.TargetUnionOpen

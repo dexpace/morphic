@@ -3972,7 +3972,10 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 `Union.Closed` is read the same way, by presence, through the target `union.open`: a `oneOf` or
 `anyOf` is closed by definition, so a document can only declare the open case. No default key names
 it, since no spelling for an open union has become common, so a union opens only under a mapping
-that names its key.
+that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-const)) reads
+`enum.open` as well, as the enum would: the key describes the enum the document writes, whatever
+node holds it, so `x-extensible-enum` opens it under the default mapping, and on a `oneOf` it opens
+nothing.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`

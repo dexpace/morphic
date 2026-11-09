@@ -56,8 +56,8 @@ const (
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate ExtensionTarget = "deprecation.removalDate"
 
-	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
-	// the document does not list.
+	// TargetEnumOpen clears ir.Enum.Closed, or a mixed enum's ir.Union.Closed,
+	// saying the member set admits values the document does not list.
 	//
 	// It names the fact rather than the field, unlike the rest of this
 	// vocabulary: a schema's `enum` is closed by definition, so openness is the
@@ -359,8 +359,9 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 	return diags
 }
 
-// EnumOpenness clears e.Closed when the vendor extensions kept in unmodeled
-// state the set open, and marks prov with the heuristic when they do.
+// EnumOpenness clears *closed, an enum's or that of the union a mixed enum
+// lowers to, when the vendor extensions kept in unmodeled state the set open,
+// and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -369,21 +370,21 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Provenance) []ir.Diagnostic {
-	if e == nil || prov == nil {
+func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetEnumOpen, &e.Closed, prov)
+	return p.openness(unmodeled, TargetEnumOpen, closed, prov)
 }
 
-// UnionOpenness clears u.Closed when the vendor extensions kept in unmodeled
-// state the union open, and marks prov with the heuristic when they do, as
-// EnumOpenness opens an enum.
-func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, u *ir.Union, prov *ir.Provenance) []ir.Diagnostic {
-	if u == nil || prov == nil {
+// UnionOpenness clears *closed, a union's, when the vendor extensions kept in
+// unmodeled state the union open, and marks prov with the heuristic when they
+// do, as EnumOpenness opens an enum.
+func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetUnionOpen, &u.Closed, prov)
+	return p.openness(unmodeled, TargetUnionOpen, closed, prov)
 }
 
 // openness clears *closed and marks prov when a source of target in unmodeled

@@ -59,11 +59,7 @@ witnessing it.
 
 ### `open-unions`
 
-- Uncovered: OpenAPI states it only through a vendor extension, and no spelling for one is common
-  enough to join the default promotion mapping, which the corpus compiles with. A spec here would
-  hold a closed union and witness nothing. `e2e.TestPromotion_AMappedKeyOpensAUnion` holds the
-  compiler opening a union under a mapping that names a key, and this retires when a spelling joins
-  the default mapping
+- Witnesses: `extension-promotion`
 
 ### `custom-scalars`
 

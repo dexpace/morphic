@@ -193,6 +193,23 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
+	// A mixed enum lowers to a union, which its key opens as it would the enum;
+	// a oneOf writing the key is no enum, so the key opens nothing there.
+	for _, tc := range []struct {
+		schema   string
+		closed   bool
+		inferred ir.Inferred
+	}{
+		{"Mixed", false, "extension-promotion"},
+		{"MixedFixed", true, ""},
+		{"NotAnEnum", true, ""},
+	} {
+		u, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
+		require.True(t, ok, "%s lowers to a union", tc.schema)
+		assert.Equal(t, tc.closed, u.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, u.Provenance.Inferred, "%s heuristic marker", tc.schema)
+	}
+
 	for _, schema := range []string{"Size", "Shade"} {
 		enum, ok := doc.Types[componentID(schema)].(*ir.Enum)
 		require.True(t, ok)
