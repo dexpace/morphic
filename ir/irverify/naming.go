@@ -336,8 +336,8 @@ func isInvisible(r rune) bool {
 	// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
 	// DerivedCoreProperties.txt's header writes the second as 13430..13440, but
 	// U+13440 is Mn and in no added term, so subtracting it changes nothing.
-	// TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release
-	// moves unicode.Version. Rechecking these two ranges is then not enough, as
+	// TestIsInvisible_WasSweptAgainstThisUnicode fails when a Go release moves
+	// unicode.Version. Rechecking these two ranges is then not enough, as
 	// Unicode has changed the derivation itself between releases: rebuild
 	// isInvisible from that derivation and sweep every code point against it.
 	const (
