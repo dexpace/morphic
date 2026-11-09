@@ -249,25 +249,22 @@ components:
 x-lib:
   Cat: {type: object}
 `
-	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loaded)
-	pet, ok := loaded.Doc.Components.Schemas.Get("Pet")
+	c := loweringtest.Context(t, spec, lowering.Policy{})
+	pet, ok := c.Doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
 	d := pet.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
 
-	carrying := lowering.New(0, loaded, lowering.Policy{})
-	at, built, ok := carrying.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	at, built, ok := c.RefScope().MappingTarget(d, "#/x-lib/Cat")
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
 
-	holds := carrying.RefScope().Holds
+	holds := c.RefScope().Holds
 	require.NotNil(t, holds)
-	assert.True(t, holds(loaded.Doc.GetRootNode(), "x-lib"))
-	assert.False(t, holds(loaded.Doc.GetRootNode(), "x-none"))
+	assert.True(t, holds(c.Doc.GetRootNode(), "x-lib"))
+	assert.False(t, holds(c.Doc.GetRootNode(), "x-none"))
 }
 
 // TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every

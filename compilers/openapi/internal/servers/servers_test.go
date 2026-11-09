@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -349,16 +348,14 @@ paths: {}
 // registered and reports nothing, without lowering the declaration again.
 func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 	t.Parallel()
-	loaded, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
+	c := loweringtest.Context(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
     servers: [{url: https://a.example, bogus: 1}]
     get: {responses: {"200": {description: ok}}}
-`), load.Options{})
-	require.NoError(t, err)
-	c := lowering.New(0, loaded, lowering.Policy{Grouping: lowering.GroupByTags})
-	item, ok := loaded.Doc.GetPaths().Get("/a")
+`, lowering.Policy{Grouping: lowering.GroupByTags})
+	item, ok := c.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	list := item.GetObject().GetServers()
 	require.Len(t, list, 1)

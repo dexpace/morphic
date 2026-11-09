@@ -13,9 +13,8 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/ir"
 )
@@ -35,10 +34,7 @@ webhooks:
   petCreated:
     post: {operationId: petCreated, responses: {"200": {description: ok}}}
 `
-	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags})
 
 	declared, _ := auth.LowerSecuritySchemes(c)
 
@@ -55,10 +51,7 @@ webhooks:
 // refused.
 func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, bool) {
 	t.Helper()
-	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags,
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags,
 		Limits: lowering.Limits{MaxReferenceExpansion: limit}})
 	declared, _ := auth.LowerSecuritySchemes(c)
 	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
