@@ -70,10 +70,10 @@ const (
 	TargetEnumOpen ExtensionTarget = "enum.open"
 
 	// TargetUnionOpen clears the ir.Union.Closed of a oneOf or an anyOf, saying
-	// a payload may hold a variant the union does not list. It names the fact for TargetEnumOpen's
-	// reason: a oneOf or anyOf is closed by definition. No default key names
-	// it, since no spelling for an open union has become common; a document
-	// that writes one names its own mapping.
+	// a payload may hold a variant the union does not list. It names the fact
+	// for TargetEnumOpen's reason: a oneOf or anyOf is closed by definition. No
+	// default key names it, since no spelling for an open union has become
+	// common; a document that writes one names its own mapping.
 	TargetUnionOpen ExtensionTarget = "union.open"
 
 	// TargetStability fills ir.Operation.Stability. The words a value may use

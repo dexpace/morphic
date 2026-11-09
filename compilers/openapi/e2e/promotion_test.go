@@ -374,6 +374,7 @@ components:
 		assert.True(t, u.Closed, "%s stays closed", name)
 		assert.Empty(t, u.Provenance.Inferred, name)
 	}
+
 	var lost []string
 	for _, d := range doc.Diagnostics {
 		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
