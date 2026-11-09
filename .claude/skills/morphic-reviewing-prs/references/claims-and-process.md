@@ -6,9 +6,10 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 1. **Claims.** Check every member of each claim class
    (`references/claims-and-process.md#sweep-each-claim-class`), counts by
    `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, a gate sentence
-   at a head with no run by `references/claims-and-process.md#gate-claim-without-a-run`, and run
-   each command an edited rule prescribes
-   (`references/claims-and-process.md#run-prescribed-commands`).
+   at a head with no run by `references/claims-and-process.md#gate-claim-without-a-run`, each
+   edited `SKILL.md` line, a cut to meet its word cap too, as an edited rule beside the rule it
+   cites (`references/claims-and-process.md#edited-rule-against-its-neighbours`), and run each
+   command an edited rule prescribes (`references/claims-and-process.md#run-prescribed-commands`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
