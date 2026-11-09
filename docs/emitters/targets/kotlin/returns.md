@@ -15,6 +15,12 @@ How each [return shape](../../operations/returns.md) lowers in Kotlin.
   responses it returns are wrapped in different envelope types.
 - **Another declared response.** With no body, `suspend fun deleteMethod(): Deleted?`.
 
+`Response` and `EnvelopedResponse` hold the raw headers, so each is a class, never a `data class`,
+whose `toString` shows a header its entry redacts as `[REDACTED]` and its body through the body's
+own ([redaction](../../refine/redaction.md#a-redacted-value)), as [Go's](../go/returns.md) do.
+`OtherResponse` and the failures keep a class's `toString`, which prints neither, and their
+exceptions carry no message.
+
 ## `OtherResponse`
 
 Kotlin throws an exception that carries an `OtherResponse`, outside [the tree of
