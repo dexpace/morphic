@@ -307,9 +307,9 @@ func redacted(id ir.PropID, wire string) ir.Property {
 	return p
 }
 
-// sensitiveScalar is a Sensitive scalar over base.
-func sensitiveScalar(id, base ir.TypeID) *ir.Scalar {
-	s := irtest.ScalarOf(id, base)
+// sensitiveScalar is a Sensitive string scalar.
+func sensitiveScalar(id ir.TypeID) *ir.Scalar {
+	s := irtest.ScalarOf(id, "t/prim/string")
 	s.Sensitive = true
 	return s
 }
@@ -336,7 +336,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 				owning("m", mixing("a", "b")),
 				owning("a", nil, typed("a.tok", "tok", "pw")),
 				owning("b", nil, typed("b.tok", "tok", "t/prim/string")),
-				sensitiveScalar("pw", "t/prim/string"),
+				sensitiveScalar("pw"),
 			),
 			want: []string{"b.tok@b < a.tok@a secret"},
 		},
@@ -344,7 +344,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 			name: "sensitivity is shared by every type whose Base reaches it, however often it is asked",
 			doc: irtest.DocOf(
 				owning("m", nil, typed("m.s", "s", "s2"), typed("m.t", "t", "s1"), typed("m.sub", "sub", "sub")),
-				irtest.ScalarOf("s2", "s1"), irtest.ScalarOf("s1", "s0"), sensitiveScalar("s0", "t/prim/string"),
+				irtest.ScalarOf("s2", "s1"), irtest.ScalarOf("s1", "s0"), sensitiveScalar("s0"),
 				owning("sub", based("sup")), irtest.ModelOf("sup", func(m *ir.Model) { m.Sensitive = true }),
 			),
 			want: []string{"m.s@m secret", "m.t@m secret", "m.sub@m secret"},
@@ -356,7 +356,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 					typed("m.gone", "gone", "missing"), typed("m.nil", "nil", "nil")),
 				irtest.ScalarOf("c1", "c2"), irtest.ScalarOf("c2", "c1"),
 				&ir.List{ID: "list", Elem: ir.TypeRef{Target: "pw"}},
-				sensitiveScalar("pw", "t/prim/string"),
+				sensitiveScalar("pw"),
 			),
 			want: []string{"m.c@m", "m.d@m", "m.l@m", "m.gone@m", "m.nil@m"},
 		},
@@ -520,7 +520,7 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 		// n declarations each typed at the head of one scalar chain n long,
 		// ending at a Sensitive scalar.
 		"a chain to a sensitive type every declaration's type heads": func(n int) (ir.TypeRegistry, ir.TypeID) {
-			return redactionChain(n, sensitiveScalar(scalarAt(n), "t/prim/string"))
+			return redactionChain(n, sensitiveScalar(scalarAt(n)))
 		},
 		// The same, the chain's end leading back to its head.
 		"a cycle of scalars every declaration's type enters": func(n int) (ir.TypeRegistry, ir.TypeID) {
