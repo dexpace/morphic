@@ -18,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -48,10 +47,10 @@ webhooks:
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry(), schemes)
+	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), schemes)
 
 	assert.Empty(t, diags)
-	assert.Empty(t, svc.Groups, "neither the path loop nor the webhook loop lowered an operation")
+	assert.Empty(t, lowered.Service.Groups, "neither the path loop nor the webhook loop lowered an operation")
 }
 
 // lowerUnder lowers spec's service with what path items copy held to limit,
@@ -66,9 +65,9 @@ func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, 
 		lowering.Limits{MaxReferenceExpansion: limit}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	schemes, _ := auth.LowerSecuritySchemes(c)
-	svc, _, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), servers.NewRegistry(), schemes)
+	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), schemes)
 	ops := make([]ir.Operation, 0, 3)
-	for _, g := range svc.Groups {
+	for _, g := range lowered.Service.Groups {
 		ops = append(ops, g.Operations...)
 	}
 	_, refused := c.ExpansionRefusal()

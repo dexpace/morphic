@@ -18,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
-	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -100,11 +99,11 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 
 	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry(), schemes)
+	lowered, svcDiags := operation.LowerService(t.Context(), c, types, schemes)
 	report(svcDiags)
 	_, finished := types.Finish(t.Context())
 	report(finished)
-	return svc, loadDiags
+	return lowered.Service, loadDiags
 }
 
 // errorFindings spells each error in diags as its code and pointer, in the order

@@ -23,7 +23,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
-	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -193,12 +192,11 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	schemes, authDiags := auth.LowerSecuritySchemes(c)
 	acc.AppendAll(authDiags)
 
-	srv := servers.NewRegistry()
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, c, ts, srv, schemes)
-	out.Auth = schemes.Schemes()
-	out.Services = []ir.Service{svc}
-	out.Servers = srv.Servers()
-	out.TagDefs = tagDefs
+	lowered, svcDiags := operation.LowerService(ctx, c, ts, schemes)
+	out.Auth = lowered.Auth
+	out.Services = []ir.Service{lowered.Service}
+	out.Servers = lowered.Servers
+	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
