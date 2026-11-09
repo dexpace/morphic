@@ -34,6 +34,8 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#limit-outcome-through-a-seam`)
    and each table row setting up the state it can change
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#row-owns-its-state`).
+   A test the change leaves alone is not yet held to a claim the change widens, such as every
+   method of a type it adds one to (#1623).
 4. For a check, lint or archtest rule or a gate target the change adds, plant what it must catch and
    what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`, among
    them `.claude/skills/morphic-verifying-changes/references/checkers.md#gate-target-draws-a-plant`,
