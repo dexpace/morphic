@@ -14,6 +14,7 @@ operation's documentation says its tier and what the tier means, in the generate
 docs, which badge every stated tier, `stable` included. A target that can make a caller acknowledge
 a tier may ([Go](../targets/go/operations.md#stability),
 [Kotlin](../targets/kotlin/operations.md#stability)). Each method an operation lowers to carries
-it, a `WithResponse` method ([return shapes](returns.md)) as much as the one returning the value,
-since either calls the operation. No target leaves an `alpha` operation out: hiding operations is
-the filter pass's (architecture.md §2.2), so the SDK and its docs hold the same ones.
+its tier's documentation, and the acknowledgement where the target asks one, a `WithResponse`
+method ([return shapes](returns.md)) as much as the one returning the value, since either calls the
+operation. No target leaves an `alpha` operation out: hiding operations is the filter pass's
+(architecture.md §2.2), so the SDK and its docs hold the same ones.
