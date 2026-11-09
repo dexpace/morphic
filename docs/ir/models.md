@@ -131,9 +131,9 @@ declares and the composition entries that name no model. Its rules:
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
   slot with its own type. The member takes every facet but whether it is required and whether it
   is redacted — type, `Presence`, visibility, default, docs — from the declaration it takes, and
-  lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is reported: redeclaring
-  is how a subtype narrows, and whether two declarations agree is a question about their types,
-  which the flattening does not ask.
+  lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
+  reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
+  about their types, which the flattening does not ask.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
   the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
   requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is

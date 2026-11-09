@@ -6,9 +6,9 @@ package ir
 // Flattening is the shape of a model across its composition, as
 // [FlattenedProperties] computes it (docs/ir/models.md#the-flattening): its
 // properties, which are required and which redacted, while each model's
-// catch-all stays its own. It points into the registry it was computed from and copies no property,
-// so it describes that registry as it stood; a caller that changes the registry
-// flattens again.
+// catch-all stays its own. It points into the registry it was computed from
+// and copies no property, so it describes that registry as it stood; a caller
+// that changes the registry flattens again.
 type Flattening struct {
 	// Properties are the members, one per wire name, each at the place the walk
 	// first reads its wire name.
