@@ -29,9 +29,11 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    and to failing when the code is wrong
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#assertion-must-be-able-to-fail`),
    an absence read on its field
-   (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#absence-on-the-field`)
-   and a time limit's outcome raised through a seam
-   (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#limit-outcome-through-a-seam`).
+   (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#absence-on-the-field`),
+   a time limit's outcome raised through a seam
+   (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#limit-outcome-through-a-seam`)
+   and each table row setting up the state it can change
+   (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#row-owns-its-state`).
 4. For a check, lint or archtest rule or a gate target the change adds, plant what it must catch and
    what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`, among
    them `.claude/skills/morphic-verifying-changes/references/checkers.md#gate-target-draws-a-plant`,

@@ -76,7 +76,8 @@ yourself. These rules are the ways that reading still lies.
 - **Rule.** Where a table's rows share state, run each row a mutant fails on its own before counting
   it, as `go test -v -run '^<Test>$/^<row>$'` with the row spelt as `-v` prints it, its
   regular-expression characters escaped and a quote written `'\''`, and see one `=== RUN` line name
-  it: a row failing only after another left state behind is fallout, not a kill.
+  it: a row failing only after another left state behind is fallout, not a kill. The shared state
+  is reported too (`references/tests-that-bite.md#row-owns-its-state`).
 - **Why.** A plant at `cmd/morphic/dashes.go:93` failed four rows of
   `TestRun_SingleDashLongFlagsAreRefused`, and two passed alone, failing only on a file the first
   row left (#1538, #1516 at 9aa24431). A pattern in double quotes expanded a row's `$ref` to nothing
