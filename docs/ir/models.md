@@ -162,9 +162,10 @@ declares and the composition entries that name no model. Its rules:
   quadratically down a deep hierarchy, which its cost tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
   its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
-  the walk needs no step budget and no recursion. It costs the declarations it returns plus the
-  models, entries and aliases it passes, so an `irfacts` index could answer no faster, and it stays
-  a function of `ir`.
+  the walk needs no step budget and no recursion. Each type a redaction is read through is read once
+  too, so a `Base` chain many declarations name costs one reading, and one that cycles ends where it
+  repeats. It costs the declarations it returns plus the models, entries, aliases and types it
+  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.

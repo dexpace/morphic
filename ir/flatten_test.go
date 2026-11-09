@@ -307,10 +307,10 @@ func redacted(id ir.PropID, wire string) ir.Property {
 	return p
 }
 
-// sensitiveScalar is a scalar over base, Sensitive when sensitive says so.
-func sensitiveScalar(id, base ir.TypeID, sensitive bool) *ir.Scalar {
+// sensitiveScalar is a Sensitive scalar over base.
+func sensitiveScalar(id, base ir.TypeID) *ir.Scalar {
 	s := irtest.ScalarOf(id, base)
-	s.Sensitive = sensitive
+	s.Sensitive = true
 	return s
 }
 
@@ -336,29 +336,29 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 				owning("m", mixing("a", "b")),
 				owning("a", nil, typed("a.tok", "tok", "pw")),
 				owning("b", nil, typed("b.tok", "tok", "t/prim/string")),
-				sensitiveScalar("pw", "t/prim/string", true),
+				sensitiveScalar("pw", "t/prim/string"),
 			),
 			want: []string{"b.tok@b < a.tok@a secret"},
 		},
 		{
-			name: "sensitivity is shared by every type whose Base reaches it",
+			name: "sensitivity is shared by every type whose Base reaches it, however often it is asked",
 			doc: irtest.DocOf(
-				owning("m", nil, typed("m.s", "s", "s1"), typed("m.sub", "sub", "sub")),
-				sensitiveScalar("s1", "s0", false), sensitiveScalar("s0", "t/prim/string", true),
+				owning("m", nil, typed("m.s", "s", "s2"), typed("m.t", "t", "s1"), typed("m.sub", "sub", "sub")),
+				irtest.ScalarOf("s2", "s1"), irtest.ScalarOf("s1", "s0"), sensitiveScalar("s0", "t/prim/string"),
 				owning("sub", based("sup")), irtest.ModelOf("sup", func(m *ir.Model) { m.Sensitive = true }),
 			),
-			want: []string{"m.s@m secret", "m.sub@m secret"},
+			want: []string{"m.s@m secret", "m.t@m secret", "m.sub@m secret"},
 		},
 		{
-			name: "a type nothing sensitive reaches, or the registry lacks, asks for none",
+			name: "a type nothing sensitive reaches, or the registry lacks, asks for none, however often it is asked",
 			doc: irtest.DocOf(
-				owning("m", nil, typed("m.c", "c", "c1"), typed("m.l", "l", "list"),
+				owning("m", nil, typed("m.c", "c", "c1"), typed("m.d", "d", "c2"), typed("m.l", "l", "list"),
 					typed("m.gone", "gone", "missing"), typed("m.nil", "nil", "nil")),
-				sensitiveScalar("c1", "c2", false), sensitiveScalar("c2", "c1", false),
+				irtest.ScalarOf("c1", "c2"), irtest.ScalarOf("c2", "c1"),
 				&ir.List{ID: "list", Elem: ir.TypeRef{Target: "pw"}},
-				sensitiveScalar("pw", "t/prim/string", true),
+				sensitiveScalar("pw", "t/prim/string"),
 			),
-			want: []string{"m.c@m", "m.l@m", "m.gone@m", "m.nil@m"},
+			want: []string{"m.c@m", "m.d@m", "m.l@m", "m.gone@m", "m.nil@m"},
 		},
 	}
 	for _, tc := range cases {
@@ -495,10 +495,11 @@ func TestFlattenedProperties_PointsIntoTheRegistry(t *testing.T) {
 }
 
 // TestFlattenedProperties_WorkGrowsLinearly holds the steps one walk takes
-// (FlattenSteps) to linear growth around three sizes on two shapes: an alias
-// chain every entry names, which a walk reading the chain per entry makes
-// quadratic, and a lattice, which a walk entering a model again per path
-// makes exponential.
+// (FlattenSteps) to linear growth around three sizes on four shapes: an alias
+// chain every entry names, and a Base chain, ending at a Sensitive type or
+// back at its head, that every declaration's type heads, which a walk reading
+// the chain per entry or declaration makes quadratic; and a lattice, which a
+// walk entering a model again per path makes exponential.
 func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 	t.Parallel()
 	shapes := map[string]func(n int) (ir.TypeRegistry, ir.TypeID){
@@ -506,16 +507,24 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 		"a chain of aliases named by every entry": func(n int) (ir.TypeRegistry, ir.TypeID) {
 			doc := irtest.DocOf(owning("end", nil, wired("end.p", "p")))
 			for i := range n {
-				doc.Types[ir.TypeID(fmt.Sprintf("s%04d", i))] = irtest.ScalarOf(ir.TypeID(fmt.Sprintf("s%04d", i)),
-					ir.TypeID(fmt.Sprintf("s%04d", i+1)))
+				doc.Types[scalarAt(i)] = irtest.ScalarOf(scalarAt(i), scalarAt(i+1))
 			}
-			doc.Types[ir.TypeID(fmt.Sprintf("s%04d", n))] = irtest.ScalarOf(ir.TypeID(fmt.Sprintf("s%04d", n)), "end")
+			doc.Types[scalarAt(n)] = irtest.ScalarOf(scalarAt(n), "end")
 			heads := make([]ir.TypeID, n)
 			for i := range heads {
-				heads[i] = "s0000"
+				heads[i] = scalarAt(0)
 			}
 			doc.Types["m"] = owning("m", mixing(heads...))
 			return doc.Types, "m"
+		},
+		// n declarations each typed at the head of one scalar chain n long,
+		// ending at a Sensitive scalar.
+		"a chain to a sensitive type every declaration's type heads": func(n int) (ir.TypeRegistry, ir.TypeID) {
+			return redactionChain(n, sensitiveScalar(scalarAt(n), "t/prim/string"))
+		},
+		// The same, the chain's end leading back to its head.
+		"a cycle of scalars every declaration's type enters": func(n int) (ir.TypeRegistry, ir.TypeID) {
+			return redactionChain(n, irtest.ScalarOf(scalarAt(n), scalarAt(0)))
 		},
 		// n levels of two models, each composing both of the level below.
 		"a lattice every path of which reaches the bottom": func(n int) (ir.TypeRegistry, ir.TypeID) {
@@ -544,6 +553,24 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 				"steps around 100, 200, 400 grow linearly: %v", steps)
 		})
 	}
+}
+
+// scalarAt is the ID of the i-th scalar of a chain.
+func scalarAt(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("s%04d", i)) }
+
+// redactionChain is a model of n declarations, each typed at the head of a
+// chain of n scalars leading to end.
+func redactionChain(n int, end *ir.Scalar) (ir.TypeRegistry, ir.TypeID) {
+	doc := irtest.DocOf(end)
+	for i := range n {
+		doc.Types[scalarAt(i)] = irtest.ScalarOf(scalarAt(i), scalarAt(i+1))
+	}
+	props := make([]ir.Property, n)
+	for i := range props {
+		props[i] = typed(ir.PropID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
+	}
+	doc.Types["m"] = owning("m", nil, props...)
+	return doc.Types, "m"
 }
 
 // ExampleFlattenedProperties lays out an error response composing a success

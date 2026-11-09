@@ -101,8 +101,13 @@ type flattener struct {
 	// entries name it.
 	aliasOf   map[TypeID]int
 	aliasEnds []TypeID
+	// sensitivity holds, for each type a redaction is read through, whether
+	// its Base reaches a Sensitive type, false while the type is on the chain
+	// being read, so a chain is read once however many declarations name it.
+	sensitivity map[TypeID]bool
 	// steps counts what the walk reads: each entry and model end, alias
-	// scalar, property and Requires name.
+	// scalar, property and Requires name, and each type a redaction is read
+	// off.
 	steps int
 }
 
@@ -307,7 +312,7 @@ func (f *flattener) result() Flattening {
 		out.Properties = make([]FlatProperty, len(f.members))
 	}
 	for i, mb := range f.members {
-		out.Properties[i] = mb.flat(f.types, f.required)
+		out.Properties[i] = f.flat(mb)
 	}
 	for _, name := range f.requires {
 		if _, declared := f.index[name]; !declared {
@@ -318,16 +323,14 @@ func (f *flattener) result() Flattening {
 }
 
 // flat returns the member as a FlatProperty: the last declaration read takes
-// it, and every other is overridden, listed at its first reading. required
-// holds the names a Requires along the walk lists, and types the registry the
-// declarations' types are read in.
-func (mb member) flat(types TypeRegistry, required map[string]bool) FlatProperty {
+// it, and every other is overridden, listed at its first reading.
+func (f *flattener) flat(mb member) FlatProperty {
 	last := mb.reads[len(mb.reads)-1]
-	fp := FlatProperty{PropertyDecl: last, Required: required[last.Property.EffectiveWireName()]}
+	fp := FlatProperty{PropertyDecl: last, Required: f.required[last.Property.EffectiveWireName()]}
 	var listed map[PropID]bool
 	for _, d := range mb.reads {
 		fp.Required = fp.Required || d.Property.Required
-		fp.Secret = fp.Secret || d.Property.Secret || sensitive(types, d.Property.Type.Target)
+		fp.Secret = fp.Secret || d.Property.Secret || f.sensitive(d.Property.Type.Target)
 		if d.Property.ID == last.Property.ID || listed[d.Property.ID] {
 			continue
 		}
@@ -341,17 +344,26 @@ func (mb member) flat(types TypeRegistry, required map[string]bool) FlatProperty
 }
 
 // sensitive reports whether id names a type that is Sensitive, or whose Base
-// reaches one, a scalar's or a model's (docs/ir/type-graph.md). A chain longer
-// than the registry repeats a type, a cycle the IR permits, so the walk stops
-// there.
-func sensitive(types TypeRegistry, id TypeID) bool {
-	for range len(types) + 1 {
-		td, ok := types[id]
-		if !ok || IsNilTypeDef(td) {
-			return false
+// reaches one, a scalar's or a model's (docs/ir/type-graph.md). Each type
+// whose Base it follows is read once per walk, so a chain many declarations
+// name is read once, and a cycle the IR permits ends at a type already on the
+// chain.
+func (f *flattener) sensitive(id TypeID) bool {
+	var chain []TypeID
+	found := false
+	for {
+		f.steps++
+		if known, read := f.sensitivity[id]; read {
+			found = known
+			break
+		}
+		td := f.types[id]
+		if IsNilTypeDef(td) {
+			break
 		}
 		if td.Common().Sensitive {
-			return true
+			found = true
+			break
 		}
 		var base *TypeRef
 		switch t := td.(type) {
@@ -363,9 +375,17 @@ func sensitive(types TypeRegistry, id TypeID) bool {
 			// No other kind has a Base to inherit through.
 		}
 		if base == nil {
-			return false
+			break
 		}
+		if f.sensitivity == nil {
+			f.sensitivity = map[TypeID]bool{}
+		}
+		f.sensitivity[id] = false
+		chain = append(chain, id)
 		id = base.Target
 	}
-	return false
+	for _, c := range chain {
+		f.sensitivity[c] = found
+	}
+	return found
 }
