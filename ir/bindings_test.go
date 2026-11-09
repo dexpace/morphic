@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -97,6 +98,39 @@ func TestHTTPLocation_Constants(t *testing.T) {
 	}, "unspecified")
 }
 
+// TestHTTPInbound_Constants pins the on-disk spelling of every HTTPInbound
+// value, which a consumer switches on to read a request the API sends.
+func TestHTTPInbound_Constants(t *testing.T) {
+	t.Parallel()
+	assertConstantSpellings(t, map[ir.HTTPInbound]string{
+		ir.HTTPInboundWebhook:  "webhook",
+		ir.HTTPInboundCallback: "callback",
+	}, "none")
+}
+
+// TestHTTPInbound_TiesToConstBlock keeps Valid to the const block, read from
+// the ir package's declarations, and to the empty kind, which a request the
+// client sends takes: a kind added without teaching Valid fails here, not as a
+// spurious ir/unknown-http-inbound on a document that spells it correctly.
+func TestHTTPInbound_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "HTTPInbound")
+	require.NotEmpty(t, declared, "the ir sources must declare HTTPInbound constants")
+	for _, c := range declared {
+		assert.True(t, ir.HTTPInbound(c.Value).Valid(), "declared kind %q must be Valid", c.Value)
+	}
+	assert.True(t, ir.HTTPInbound("").Valid(), "a request the client sends")
+}
+
+// TestHTTPInbound_UnknownIsInvalid pins the other direction: Valid rejects a
+// kind no const declares, re-cased and plural spellings among them.
+func TestHTTPInbound_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []ir.HTTPInbound{"Webhook", "callbacks", "push", "outbound"} {
+		assert.False(t, kind.Valid(), "%q", kind)
+	}
+}
+
 // TestRequestCompression_JSONContract pins RequestCompression's omitempty
 // contract (Encodings is optional) and that a populated RequestCompression
 // round-trips with its encoding priority order preserved.
@@ -129,11 +163,12 @@ func TestHTTPParamBinding_JSONContract(t *testing.T) {
 	})
 }
 
-// TestCallback_JSONContract pins Callback's omitempty contract (both fields
-// are optional) and that a populated Callback round-trips.
+// TestCallback_JSONContract pins Callback's omitempty contract (every field
+// is optional) and that a populated Callback round-trips.
 func TestCallback_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Callback{}, `{}`, ir.Callback{
+		Name:       "onEvent",
 		Expression: "$request.body#/callbackUrl",
 		Operations: []ir.OpID{"op/onEvent", "op/onError"},
 	})

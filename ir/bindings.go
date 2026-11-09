@@ -159,8 +159,8 @@ type HTTPParamBinding struct {
 	BodyPath []PropID `json:"bodyPath,omitempty"`
 }
 
-// HTTPInbound is who starts an HTTP operation the API sends rather than
-// receives (docs/ir/http-binding.md#inbound-operations).
+// HTTPInbound is the kind of an HTTP request the API sends rather than
+// receives, which says what routes it (docs/ir/http-binding.md#inbound-operations).
 type HTTPInbound string
 
 // HTTP inbound kinds.
@@ -173,6 +173,19 @@ const (
 	// Callbacks (OpenAPI callbacks).
 	HTTPInboundCallback HTTPInbound = "callback"
 )
+
+// Valid reports whether k is one of the kinds declared above, or empty, a
+// request the client sends. HTTPInbound is a bare string enum, so nothing
+// rejects an invented kind on the wire; irverify calls this so that one is
+// reported rather than switched on.
+func (k HTTPInbound) Valid() bool {
+	switch k {
+	case "", HTTPInboundWebhook, HTTPInboundCallback:
+		return true
+	default:
+		return false
+	}
+}
 
 // Callback is an out-of-band operation set keyed by a runtime expression
 // (docs/ir/http-binding.md).
