@@ -300,15 +300,15 @@ func isWordSequence(s string) bool {
 }
 
 // isBlankName reports whether s holds no rune a name could be made of. It takes
-// as invisible only what Unicode's own properties list (isInvisible), needing no
-// format's grammar.
+// as invisible only the runes isInvisible lists from Unicode's own properties,
+// needing no format's grammar.
 //
 // strings.TrimSpace is not that test: IsSpace misses the zero-width joiners,
 // the soft hyphen and the BOM (all Cf), and space, control and Cf all miss
 // U+3164 HANGUL FILLER and its two jamo siblings, default-ignorable characters
 // used to pass off a name as empty.
 //
-// U+2800 BRAILLE PATTERN BLANK is not so classified, so it is left alone:
+// U+2800 BRAILLE PATTERN BLANK is outside that set, so it is left alone:
 // judging it would need the grammar the name is read under.
 func isBlankName(s string) bool {
 	for _, r := range s {
@@ -344,14 +344,17 @@ func isInvisible(r rune) bool {
 		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
 		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
 	)
+
 	interlinear := r >= interlinearFirst && r <= interlinearLast
 	egyptianFormat := r >= egyptianFormatFirst && r <= egyptianFormatLast
+
 	switch {
 	case unicode.IsSpace(r), unicode.IsControl(r):
 		return true
 	case interlinear, egyptianFormat, unicode.Is(unicode.Prepended_Concatenation_Mark, r):
 		return false
 	}
+
 	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
 		unicode.Is(unicode.Variation_Selector, r)
 }
