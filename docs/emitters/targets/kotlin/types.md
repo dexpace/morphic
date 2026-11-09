@@ -22,8 +22,8 @@ Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a valu
 `Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
 the root's type, and its serializer, in every signature. A value class over a sensitive chain
 overrides `toString` to show `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)),
-its serializer and a parameter writing the value itself; a `typealias` can declare nothing, so only
-its holders redact it.
+while its serializer and a parameter write the value itself, never `toString`; a `typealias` can
+declare nothing, so only its holders redact it.
 
 ## Enums
 
