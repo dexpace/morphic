@@ -584,7 +584,8 @@ morphic/
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
 │   │       ├── servers/    #             the servers a document declares, one registry
 │   │       ├── document/   #             info, and what the document keeps verbatim
-│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
+│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes,
+│   │                       #             and lowering/loweringtest/, a context over a loaded document
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
