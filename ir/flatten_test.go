@@ -555,6 +555,22 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 	}
 }
 
+// TestFlattenedProperties_StepsCountEachTypeARedactionReads holds FlattenSteps
+// to the walk a redaction takes, which TestFlattenedProperties_WorkGrowsLinearly
+// sees only through it: a declaration typed at the head of ten scalars costs
+// ten steps more than one typed at a type the registry lacks.
+func TestFlattenedProperties_StepsCountEachTypeARedactionReads(t *testing.T) {
+	t.Parallel()
+	steps := func(target ir.TypeID) int {
+		doc := irtest.DocOf(owning("m", nil, typed("m.p", "p", target)))
+		for i := range 10 {
+			doc.Types[scalarAt(i)] = irtest.ScalarOf(scalarAt(i), scalarAt(i+1))
+		}
+		return ir.FlattenSteps(doc.Types, "m")
+	}
+	assert.Equal(t, steps("missing")+10, steps(scalarAt(0)), "each scalar a redaction reads through is a step")
+}
+
 // scalarAt is the ID of the i-th scalar of a chain.
 func scalarAt(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("s%04d", i)) }
 
