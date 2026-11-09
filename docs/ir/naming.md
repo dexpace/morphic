@@ -94,7 +94,10 @@ What is left is decidable without any grammar, and `irverify` holds an alias to 
   `"\ufe0f"` are alike here. The format characters Unicode takes out of that property because they
   render — the prepended concatenation marks, the interlinear annotation characters and the
   Egyptian hieroglyph format controls — are visible, so an entry made of them is not blank, as
-  U+2800 is not.
+  U+2800 BRAILLE PATTERN BLANK, which renders as whitespace, is not.
+  The same test decides every other blank rule, not the alias rule alone: a path segment
+  (`ir/path-segment-blank`) and a set entry (`ir/set-entry-blank`), a token endpoint auth method
+  among them, are blank by it.
   An invisible rune sitting *beside* a visible one is a different question and is not asked:
   whether `com.example.<ZWSP>User` is a legal name is decidable only under the grammar of the
   format it will be matched against, which the IR does not know.

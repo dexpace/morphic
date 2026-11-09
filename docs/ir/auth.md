@@ -73,11 +73,11 @@ one, and `irverify` reports a repeat (`ir/oauth-scope-duplicate`).
 **How a client authenticates to the token endpoint** is `TokenEndpointAuthMethods`, spelled as the
 IANA registry RFC 8414's `token_endpoint_auth_methods_supported` draws on spells it
 (`client_secret_basic`, `client_secret_post`, `private_key_jwt`, …). It is a set: the methods the
-endpoint accepts, none blank and none repeated. The registry is open, so a value outside it is kept
-as written, and an empty list means the source does not say, leaving the choice to the SDK's
-[runtime policy](../emitters/contract/runtime-policy.md). No format the matrix covers states it as a
-field; an OpenAPI document that does so writes a vendor extension, which stays under `Unmodeled`
-until a promotion target reads it.
+endpoint accepts, none blank ([what blank means](./naming.md#aliases)) and none repeated. The
+registry is open, so a value outside it is kept as written, and an empty list means the source does
+not say, leaving the choice to the SDK's [runtime policy](../emitters/contract/runtime-policy.md).
+No format the matrix covers states it as a field; an OpenAPI document that does so writes a vendor
+extension, which stays under `Unmodeled` until a promotion target reads it.
 
 **A declared credential shape** is `Credentials`, a reference to a registered type, for a scheme —
 typically `custom` — whose credential is several fields combined into a request rather than the
