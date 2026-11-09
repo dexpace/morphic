@@ -305,8 +305,8 @@ func isWordSequence(s string) bool {
 //
 // strings.TrimSpace is not that test: IsSpace misses the zero-width joiners,
 // the soft hyphen and the BOM (all Cf), and space, control and Cf all miss
-// U+3164 HANGUL FILLER and its two jamo siblings, default-ignorable characters
-// used to pass off a name as empty.
+// the Hangul fillers, such as U+3164, and the variation selectors,
+// default-ignorable characters used to pass off a name as empty.
 //
 // U+2800 BRAILLE PATTERN BLANK is outside that set, so it is left alone:
 // judging it would need the grammar the name is read under.
