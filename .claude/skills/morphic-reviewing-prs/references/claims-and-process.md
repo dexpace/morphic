@@ -7,9 +7,11 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`references/claims-and-process.md#sweep-each-claim-class`), counts by
    `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, a gate sentence
    at a head with no run by `references/claims-and-process.md#gate-claim-without-a-run`, each
-   edited `SKILL.md` line, a cut to meet its word cap too, as an edited rule beside the rule it
-   cites (`references/claims-and-process.md#edited-rule-against-its-neighbours`), and run each
-   command an edited rule prescribes (`references/claims-and-process.md#run-prescribed-commands`).
+   edited rule and `SKILL.md` line, a cut to meet a word cap too, against `main`'s words
+   (`references/claims-and-process.md#cut-against-mains-words`) and as an edited rule beside the
+   rule it cites (`references/claims-and-process.md#edited-rule-against-its-neighbours`), and run
+   each command an edited rule prescribes
+   (`references/claims-and-process.md#run-prescribed-commands`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
@@ -71,6 +73,21 @@ The matrix is each claim class with the members checked, and each closed issue w
   act missed a rule on the same construct (#1426).
 - **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
   it; a rule with none is a round still open.
+
+## Read each cut against main's words, not only beside the rules it cites
+`cut-against-mains-words`
+
+- **Rule.** Where the change shortens or rewords a rule or a `SKILL.md` passage, as a word cap
+  forces, read `git diff --word-diff "$main"...<head> -- '.claude/skills/*.md'` and place each
+  removed span: carried into the head's text, or a change of meaning the PR states and wants. A
+  span that is neither is a condition the cut dropped.
+- **Why.** At #1619's de5d2d471, a cut fitting
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#read-the-kill-in-the-output`
+  within 150 words dropped "a timeout" from the runs giving no verdict, so a new panic clause read a
+  `-timeout` expiry as a kill. Rounds reading cut lines beside the rules they cite passed it, and
+  the word diff against `main` showed it (#1619 at ef0739abe).
+- **Probe.** The report lists each removed span beside where it went, or the stated change it
+  makes.
 
 ## Run each command an edited rule prescribes
 `run-prescribed-commands`
