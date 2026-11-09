@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -46,7 +45,7 @@ func loadBound(t *testing.T, path, src string, opts load.Options, declared ...st
 		SelfPath: path,
 		Doc:      doc.Doc,
 		Bindings: doc.Bindings,
-		Declares: func(name string) bool { return slices.Contains(declared, name) },
+		Declares: resolve.NamesOf(declared...),
 	}}
 }
 
@@ -198,7 +197,7 @@ func TestIsRefSite_IncludesTheDegenerateRef(t *testing.T) {
 
 func TestResolveComponentRef(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: func(n string) bool { return n == "User" }}
+	sc := resolve.Scope{Declares: resolve.NamesOf("User")}
 
 	id, state := sc.ComponentRef("/components/schemas/User")
 	assert.Equal(t, ids.NamedComponent, state)
@@ -220,7 +219,7 @@ func TestResolveComponentRef(t *testing.T) {
 // the interned node rather than an unbacked ID (issue #14).
 func TestResolveComponentRef_NonCanonicalEscape(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{Declares: func(n string) bool { return n == "A~B" }}
+	sc := resolve.Scope{Declares: resolve.NamesOf("A~B")}
 
 	id, state := sc.ComponentRef("/components/schemas/A~B")
 	assert.Equal(t, ids.NamedComponent, state)

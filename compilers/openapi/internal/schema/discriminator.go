@@ -287,7 +287,7 @@ type typeAt struct {
 // promises. It reads no registry, so no answer turns on which schema lowered
 // first. scope is c's.
 func mappingTargetID(c lowering.Ctx, scope resolve.Scope, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
-	if scope.Declares(target) {
+	if scope.Declares.Has(target) {
 		return componentIDByName(target), true
 	}
 	named, decl, ok := scope.MappingTarget(d, target)

@@ -5,6 +5,7 @@ package lowering
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
@@ -72,23 +73,16 @@ type Ctx struct {
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
-	// map. It sits behind one pointer for the reason loaded does: RefScope copies
-	// the whole context into a closure.
+	// map. It sits behind one pointer for the reason loaded does.
 	promoter *Promoter
 
-	// schemas is the set of component-schema names the document declares.
-	//
-	// It is unexported and read through DeclaresSchema because a struct copy
-	// shares a map rather than copying it: as an exported field it would be the
-	// one part of a by-value context a callee could write to, and the write would
-	// be visible to its caller's caller. An accessor makes that unrepresentable
-	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
-	// holds the struct to.
-	schemas map[string]bool
+	// schemas is the set of component-schema names the document declares, read
+	// through DeclaresSchema and handed to each scope RefScope builds. Every copy
+	// shares it, and a resolve.Names lets none write to it.
+	schemas resolve.Names
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
-	// the two share a word: RefScope copies the whole context into a closure,
-	// whose size class a field more would move.
+	// the two share a word.
 	NullableWidening NullableWidening
 
 	// foreign marks a lowering of content another document holds, read in that
@@ -110,16 +104,16 @@ type Ctx struct {
 	// where one was applied. Its zero value answers for every compile without an
 	// overlay, so nothing below has to ask whether there was one.
 	//
-	// It is unexported for the reason schemas is — it holds a map, which a struct
-	// copy would share — and it is read only through ProvenanceAt, which keeps
-	// "provenance is built in exactly one place" true of the source index as well
-	// as of the pointer.
+	// It is unexported for the reason streaming is — it holds a map, which a
+	// struct copy would share — and it is read only through ProvenanceAt, which
+	// keeps "provenance is built in exactly one place" true of the source index
+	// as well as of the pointer.
 	overlay overlay.Origin
 
 	// loaded is what the load phase resolved with the document, set only by
 	// WithLoaded and nil in a context given none. It sits behind one pointer
-	// because RefScope copies the whole context into a closure for every
-	// reference a lowering reads, and with it every word the context holds.
+	// because every lowering takes a copy of the context, and a closure over one
+	// that escapes moves it to the heap, with every word the context holds.
 	loaded *loadResult
 
 	// reached records where each reference a lowering resolved landed in the
@@ -422,26 +416,18 @@ func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	return c
 }
 
-// declaredSchemaNames collects the names under components/schemas, or nil when
+// declaredSchemaNames collects the names under components/schemas, none when
 // the document declares none.
-func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
-	if doc == nil || doc.Components == nil {
-		return nil
+func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
+	if doc == nil {
+		return resolve.Names{}
 	}
-	schemas := doc.Components.GetSchemas()
-	if schemas == nil {
-		return nil
-	}
-	names := make(map[string]bool, schemas.Len())
-	for name := range schemas.Keys() {
-		names[name] = true
-	}
-	return names
+	return resolve.NamesOf(slices.Collect(doc.Components.GetSchemas().Keys())...)
 }
 
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
-func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
+func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
 // reads (rowsOf). A reading only a minor decides, such as a required `items` or
@@ -528,7 +514,7 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Foreign: c.foreign, Holder: c.holder,
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign, Holder: c.holder,
 		Ends: resolve.ReferenceEnd, Reached: c.reached}
 	if l := c.loaded; l != nil {
 		r := l.reads

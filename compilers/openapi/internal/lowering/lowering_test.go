@@ -234,9 +234,8 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	scope := c.RefScope()
 
 	assert.Equal(t, "spec.yaml", scope.SelfPath)
-	require.NotNil(t, scope.Declares, "a scope with no predicate would resolve nothing")
-	assert.True(t, scope.Declares("User"))
-	assert.False(t, scope.Declares("Missing"))
+	assert.True(t, scope.Declares.Has("User"))
+	assert.False(t, scope.Declares.Has("Missing"))
 }
 
 // TestRefScope_NoDocumentResolvesNoRef pins that a context with no document

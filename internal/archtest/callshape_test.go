@@ -100,9 +100,6 @@ var callShapeBaseline = map[string]map[string]int{
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
-		// Scope.Declares, filled with lowering.Ctx.DeclaresSchema until #1481 hands
-		// it the names as a value.
-		"compilers/openapi/internal/lowering": 1,
 	},
 	"compilers/openapi/internal/scan": {
 		// Placement through scan.Locator and its pointers, which #1487 replaces
