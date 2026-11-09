@@ -492,13 +492,15 @@ throughout these documents.
     list's sensitive element and a map's sensitive key and value, through a union's sensitive
     variant, and through a member a later conjunct redeclares without `Secret`, shows as
     `[REDACTED]` in every string form of each type holding it, a union's and its variant wrapper's
-    among them, in every logging event, one a structured logger writes as JSON included, and in
-    every error message, a collection as the marker alone and a map whose values alone are redacted
-    with its keys shown, and goes out and comes back on the wire byte for byte; a raw body holding
-    one is never logged or printed ([redaction](../refine/redaction.md)).
+    among them, and in a sensitive type's own where the target declares one, in every logging event,
+    one a structured logger writes as JSON included, and in every error message, a transport
+    failure's that quotes a redacted path segment or query value included, a collection as the
+    marker alone and a map whose values alone are redacted with its keys shown, and goes out and
+    comes back on the wire byte for byte; a raw body holding one is never logged or printed
+    ([redaction](../refine/redaction.md)).
 44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
-    none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a
-    `beta` operation's documentation names its tier on every target, an unstated one names none and
-    no badge reads it as `stable`, and each target's opt-in requirement is held where it has one, on
-    each method the operation lowers to, its `WithResponse` method among them
+    none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
+    operation's documentation names its tier and what it means on every target, an unstated one
+    names none and no badge reads it as `stable`, and each target's opt-in requirement is held where
+    it has one, on each method the operation lowers to, its `WithResponse` method among them
     ([stability](../operations/stability.md)).

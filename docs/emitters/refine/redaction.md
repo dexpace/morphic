@@ -31,9 +31,13 @@ as an SDK does, so none shows a value another hides.
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
 text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's
 printing and logging read of every type the SDK or its runtime declares that holds one, a model, a
-request type, a union, each variant's wrapper and a response's headers type among them; the
-lifecycle events the logging hooks emit ([runtime policy](../contract/runtime-policy.md)); a URL's
-path segment or query value from a redacted parameter; a header's value; and every error message. A
+request type, a union, each variant's wrapper and a response's headers type among them, and of a
+sensitive type the SDK declares itself, where the target can give it one; the lifecycle events the
+logging hooks emit ([runtime policy](../contract/runtime-policy.md)); a URL's path segment or query
+value from a redacted parameter; a header's value; and every error message, a transport failure's
+included. An HTTP library can write the URL it was sent into its own failures, as Go's `net/http`
+and Ktor's timeouts do, so the runtime quotes a request's URL only in its redacted form, in a
+failure as in a log line. The wire form is written from the value, never through those forms. A
 value a caller takes out of every holder, as a string or a list of its own, renders as the target
 renders it. A redacted collection shows the marker alone, not its length, since how many tokens or
 keys a value holds can be what a reader must not learn. A body kept as it arrived, a failure's

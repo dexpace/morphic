@@ -28,6 +28,12 @@ of its own. Over any other root it declares an alias, `type Created = time.Time`
 base64, and never runs a closed model's strict decoder or an open enum's keeper of unknown values
 for one.
 
+A defined type over a sensitive chain declares `String`, `GoString` and `LogValue`, each showing
+`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)), so `fmt` and `log/slog`
+redact it in a slice or a caller's own struct too. json/v2 reads none of them, and the SDK writes a
+path segment or query value from the value, `string(k)`, never through `fmt`, which would send the
+marker. An alias can declare no method, so only its holders redact it.
+
 ## Enums
 
 An enum is a named type with a typed constant per member, over its `ValueType`'s Go row or, where

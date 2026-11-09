@@ -20,7 +20,10 @@ A Kotlin type codes through its row's `Codec`, a `KSerializer` the row names unl
 
 Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a value class over
 `Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
-the root's type, and its serializer, in every signature.
+the root's type, and its serializer, in every signature. A value class over a sensitive chain
+overrides `toString` to show `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)),
+its serializer and a parameter writing the value itself; a `typealias` can declare nothing, so only
+its holders redact it.
 
 ## Enums
 
