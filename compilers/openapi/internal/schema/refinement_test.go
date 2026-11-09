@@ -750,8 +750,9 @@ func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
 	t.Parallel()
 	const s = "    S: {allOf: [{type: integer, format: int32}, {const: 80}]}\n"
 	const raw = "    Raw: {$ref: '#/components/schemas/S/allOf/1'}\n"
-	var docs []*ir.Document
-	for _, order := range []string{s + raw, raw + s} {
+	orders := []string{s + raw, raw + s}
+	docs := make([]*ir.Document, 0, len(orders))
+	for _, order := range orders {
 		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", order))
 		openapitest.RequireNoErrorDiags(t, diags)
 		lit, ok := doc.Types["t/anon/components/schemas/S/allOf/1"].(*ir.Literal)

@@ -352,13 +352,13 @@ func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRe
 		r, refined := refinementOf(c, s, pointer)
 		return boundHomes{value: true, collection: refined && r.principal != nil}
 	}
-	td, ok := ts.Node(target.Target)
-	if !ok {
-		return boundHomes{}
-	}
-	nodes := []ir.TypeDef{td}
-	if u, isUnion := td.(*ir.Union); isUnion {
-		nodes = variantNodes(ts, u)
+	// A node still building holds nothing yet.
+	var nodes []ir.TypeDef
+	if td, ok := ts.Node(target.Target); ok {
+		nodes = []ir.TypeDef{td}
+		if u, isUnion := td.(*ir.Union); isUnion {
+			nodes = variantNodes(ts, u)
+		}
 	}
 	return boundHomes{value: slices.ContainsFunc(nodes, constraintsHome), collection: slices.ContainsFunc(nodes, holdsCollectionBounds)}
 }

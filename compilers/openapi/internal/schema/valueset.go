@@ -45,7 +45,7 @@ func valueSetNode(c lowering.Ctx, ts *compile.Types, r refinement, pointer jsont
 		return nil
 	}
 	td, ok := ts.Node(id)
-	if !ok || !(isKind(td, ir.KindLiteral) || isKind(td, ir.KindEnum)) {
+	if !ok || !isKind(td, ir.KindLiteral) && !isKind(td, ir.KindEnum) {
 		return nil
 	}
 	return td
