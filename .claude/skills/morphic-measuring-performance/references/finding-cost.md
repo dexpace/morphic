@@ -96,9 +96,9 @@ how to measure so the number means what the claim says.
 ## Profile a fuzz worker alone, over a window past its warm-up
 `profile-a-fuzz-worker-alone`
 
-- **Rule.** `go test` refuses `-cpuprofile` beside `-fuzz`, and a test binary given both has every
-  process write one file pprof cannot read. Profile a worker from an `init` in a scratch copy of
-  the target's package that, when `os.Args` holds `-test.fuzzworker`, sleeps past warm-up and runs
+- **Rule.** `go test` refuses `-cpuprofile` beside `-fuzz`, and a test binary given both has its
+  workers write the profile's file too. Profile a worker from an `init` in a scratch copy of the
+  target's package that, when `os.Args` holds `-test.fuzzworker`, sleeps past warm-up and runs
   `pprof.StartCPUProfile` over a fixed window, and quote the window with the figure. Run it with
   `-test.fuzzminimizetime=0x`, as a worker the minimization bound restarts starts its window again.
   The whole search's CPU time is `references/finding-cost.md#cpu-time-without-a-counter`'s, over
