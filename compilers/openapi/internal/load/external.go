@@ -36,7 +36,7 @@ import (
 // lets a reference leave the source. It stands in for the resolver's file
 // system and HTTP client, reading every document through that reader, and
 // prepares each tree as Load does the source's: the same budgets and pre-parse
-// refusals, then releaseAnchors.
+// refusals, then readyForModel.
 //
 // The tree is stored where the resolver looks for a parsed document, so the
 // model builds from it, not from the resolver's own parse, which drops anchored
@@ -491,7 +491,7 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 	if err := e.admit(ctx, key, root); err != nil {
 		return nil, err
 	}
-	releaseAnchors(ctx, root)
+	readyForModel(ctx, root)
 	e.read.self.escapes.escape(ctx, root)
 	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
@@ -538,55 +538,115 @@ func (e external) admit(ctx context.Context, key string, root *yaml.Node) error 
 		return refused(key, fmt.Sprintf("it parses to %d nodes, past the %d-node budget",
 			nodes, e.opts.MaxSourceNodes.Cap()))
 	}
-	if reason, refuse := reachesLocal(ctx, root, key); refuse {
+	if reason, refuse := reachesLocal(ctx, root, key, e.readsID(root)); refuse {
 		return refused(key, "it is fetched over the network and "+reason+
 			", which a remote document must not do")
 	}
 	return nil
 }
 
+// readsID returns whether the binder reads a schema of root, a document read
+// beside the source, written in dialect as naming its identifier `id`: by the
+// rows dialect has at the version root declares, or the source's, as the
+// binder asks them (bindSchemas).
+func (e external) readsID(root *yaml.Node) func(dialect string) bool {
+	d := &dialects{spec: e.read.self.judged.checker.Spec(), version: e.doc.GetOpenAPI()}
+	declared := declaredVersion(root)
+	return func(dialect string) bool {
+		_, _, rows := d.of(declared, dialect)
+		return dialectRuleOf(rows.Schema, dialect).Keyword == "id"
+	}
+}
+
 // reachesLocal returns why root, a document fetched over the network, must not
-// be read, when a $ref or $id in it takes the resolver to the local file
+// be read, when a $ref or an identifier in it takes a read to the local file
 // system, and whether one does (GitHub #929). base keys the document.
 //
-// A $ref naming a local file against base is one (localTarget). So is a $id
-// naming a local location, which would rebase a relative $ref under it onto
-// the disk; refusing it keeps every base off the disk without following the
-// resolver's $id scopes. A urn: $id names no file. The walk reads a value
-// through an alias.
-func reachesLocal(ctx context.Context, root *yaml.Node, base string) (reason string, refuse bool) {
+// A $ref naming a local file against base does (localTarget), as does a $id
+// naming a local location, rebasing a relative $ref under it onto the disk. An
+// `id` does only where a dialect root's `$schema` or jsonSchemaDialect names
+// reads it as an identifier (readsID), as draft 4 does, so an example's is
+// none. The walk reads a value through an alias.
+func reachesLocal(ctx context.Context, root *yaml.Node, base string, readsID func(dialect string) bool,
+) (reason string, refuse bool) {
 	if !overNetwork(base) {
 		return "", false
 	}
+	r := localReading{base: base, named: map[string]bool{declaredDialect(root): true}}
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		reason, refuse = localReach(n, base)
-		if refuse {
+		if r.read(n) {
 			return nodeview.Stop
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
-	return reason, refuse
-}
-
-// localReach returns why the mapping n, in a document read from base, takes
-// the resolver to the local file system, and whether it does: through the
-// first $ref or $id it writes itself that names a local location.
-func localReach(n *yaml.Node, base string) (reason string, refuse bool) {
-	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-		key, own := nodeview.KeyOf(n.Content[i])
-		value := nodeview.Deref(n.Content[i+1])
-		if !own || value == nil || value.Kind != yaml.ScalarNode || (key != "$ref" && key != "$id") {
-			continue
-		}
-		t, local := localTarget(value.Value, base)
-		if local && key == "$ref" {
-			return fmt.Sprintf("its $ref %q reaches the local file %s", value.Value, t), true
-		}
-		if local {
-			return fmt.Sprintf("its $id %q rebases references onto the local %s", value.Value, t), true
+	if r.reason != "" || r.rebased == "" {
+		return r.reason, r.reason != ""
+	}
+	for dialect := range r.named {
+		if readsID(dialect) {
+			return r.rebased, true
 		}
 	}
 	return "", false
+}
+
+// localReading is what a walk of a document read from base has found that can
+// take a read of it to the local file system: the first $ref or $id that does,
+// the first `id` that would were it an identifier, and each dialect a
+// `$schema` or its jsonSchemaDialect names.
+type localReading struct {
+	base, reason, rebased string
+	named                 map[string]bool
+}
+
+// read notes what the mapping n writes itself, a value's alias followed, and
+// reports whether a $ref or $id of it reaches the local file system.
+func (r *localReading) read(n *yaml.Node) bool {
+	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
+		key, own := nodeview.KeyOf(n.Content[i])
+		value := nodeview.Deref(n.Content[i+1])
+		if !own || value == nil || value.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch {
+		case key == "$ref", key == "$id":
+			if r.reason = localReference(key, value.Value, r.base); r.reason != "" {
+				return true
+			}
+		case key == "id" && r.rebased == "":
+			r.rebased = localID(value.Value, r.base)
+		case key == "$schema":
+			r.named[value.Value] = true
+		}
+	}
+	return false
+}
+
+// localReference returns why a $ref or $id, key, written value in a document
+// read from base takes the resolver to the local file system: a $ref naming a
+// local file, or a $id naming a local location. It is "" for one that does not.
+func localReference(key, value, base string) string {
+	t, local := localTarget(value, base)
+	switch {
+	case !local:
+		return ""
+	case key == "$ref":
+		return fmt.Sprintf("its $ref %q reaches the local file %s", value, t)
+	default:
+		return fmt.Sprintf("its $id %q rebases references onto the local %s", value, t)
+	}
+}
+
+// localID returns why an `id` written value in a document read from base would
+// rebase references onto the local file system, were it read as JSON Schema
+// draft 4 reads it: where it names a location on disk as the binder, which
+// alone reads one, resolves it (bind.IdentifierURI). It is "" for one that
+// stays on the network, as a relative one does, or names nothing.
+func localID(value, base string) string {
+	if t, local, named := bind.IdentifierURI(value, base); named && local {
+		return fmt.Sprintf("its id %q rebases references onto the local %s", value, t)
+	}
+	return ""
 }
 
 // overNetwork reports whether key names a document the reader fetched over the

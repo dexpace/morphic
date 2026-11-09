@@ -263,27 +263,61 @@ it sees. Changes made together in one bump are listed together under it.
   to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
   an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
   replace.
-- **0.31.0** — four changes to the type nodes, made together:
+- **0.31.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.30.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.30.0 refuses the document as another generation's.
+- **0.32.0** — `FileInfo` and `PartEncoding` gained `Inferred`, the heuristics that read a body or a
+  multipart part as a file ([payloads](./payloads.md)), held to `Filename` on a part
+  (`ir/part-encoding-inferred-not-filename`). The OpenAPI compiler reads more of the specification's
+  file idioms ([`file-bodies`](../compilers/openapi.md#file-bodies),
+  [`multipart-encoding`](../compilers/openapi.md#multipart-encoding),
+  [`item-schema`](../compilers/openapi.md#item-schema)). As declared files: a body on
+  `application/octet-stream` whose schema says no more than that it is a string, or a union of such
+  schemas and raw bytes; a schema declaring `format: binary` with no `type`; a multipart part, or
+  each element of an array part (its `prefixItems` and the `items` after them), declaring raw bytes,
+  writing no `type` from 3.1, or saying no more than that it is a string while its encoding entry
+  names `application/octet-stream` alone; a union part whose every value is one of those, read off
+  its variants, or each branch of its declaration, an array branch through its elements; and each
+  item of a multipart sequential body read so off `itemSchema` and `itemEncoding`, with an
+  `ItemEncoding` saying so where none is written. A union part with a list or tuple among its
+  variants, file or not, has `Multi`. Marked
+  `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
+  a media type the compiler's binary policy names
+  ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
+  `application/octet-stream` is no longer a file, nor is `format: binary` beside a
+  `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.
+- **0.33.0** — four changes to the type nodes, made together:
   - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
     hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
-    `oneOf` or `anyOf` is. `InputOnly` marks a union only a request carries, as `Model.InputOnly`
-    marks an input object. Both are always written. A consumer pinned to 0.30.0 refuses the document
-    for its unknown members.
+    `oneOf` or `anyOf` is, unless a promoted extension opens it, as `x-extensible-enum` does under
+    the default mapping on the union of literals a mixed enum lowers to. `InputOnly` marks a union
+    only a request carries, as `Model.InputOnly` marks an input object. Both are always written. A
+    consumer pinned to 0.32.0 refuses the document for its unknown members.
   - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
-    the value fits what was declared, so a consumer pinned to 0.30.0 that read them finds nothing.
+    the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
-    catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to
-    0.30.0 decoding the value as required fails on the missing member.
+    catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
+    which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
+    A consumer pinned to 0.32.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
-- **0.32.0** — three changes to the HTTP binding, made together:
+- **0.34.0** — three changes to the HTTP binding, made together:
   - `HTTPBinding.IsWebhook` became `Inbound`, a closed `webhook | callback`, empty for an operation
     the client sends, so a callback operation is marked the way a webhook is, where only a reverse
     lookup through its declaring operation's `Callbacks` showed it. `Callback` gained `Name`, the
-    callbacks-map key. A consumer pinned to 0.31.0 refuses the document for its unknown members,
+    callbacks-map key. A consumer pinned to 0.33.0 refuses the document for its unknown members,
     and finds no `isWebhook` where it read one.
   - `HTTPBinding` gained `PathDocs`, a path item's own summary and description, which the OpenAPI
     compiler had kept on each operation the item mounts under `openapi:pathItem/summary` and
@@ -291,5 +325,5 @@ it sees. Changes made together in one bump are listed together under it.
     are retired there; an item mounting no operation still keeps its pair on the nearest node.
   - An inbound operation's `Auth` now states only what it declares, inheriting no service, server
     or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
-    consumer pinned to 0.31.0 reading a webhook with no `Auth` as inheriting hands it the client's
+    consumer pinned to 0.33.0 reading a webhook with no `Auth` as inheriting hands it the client's
     credentials.

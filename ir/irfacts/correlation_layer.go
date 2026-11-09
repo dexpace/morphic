@@ -12,25 +12,29 @@ import (
 
 // seedLayer offers the keys of the service layer's named entities: each
 // service, group and operation, and each auth scheme. An operation another one
-// declares as a callback, with no name of its own, is keyed through the
-// declaring operation instead.
+// declares as a callback is keyed through the declaring operation instead.
 func (c *correlator) seedLayer() {
-	callbacks := callbackOperations(c.doc)
-	ir.ForEachOperation(c.doc, func(op ir.Operation) { c.ops[op.ID] = &op })
+	ops := c.seedGroups()
 	for i := range c.doc.Services {
 		svc := &c.doc.Services[i]
 		c.offer(named("service", svc.Name), string(svc.ID), func(c *correlator, key string) {
 			c.errorCases(key, svc.CommonErrors)
 			c.servers(key, svc.Servers)
 		})
-		c.seedGroups(svc.Groups)
 	}
-	ir.ForEachOperation(c.doc, func(op ir.Operation) {
-		if callbacks[op.ID] && op.Name.Source == "" {
-			return
+	c.partHeaders = indexPartHeaders(c.doc.Services, ops)
+	callbacks := callbackOperations(c.doc)
+	routes := map[string]int{}
+	for _, op := range ops {
+		if !callbacks[op.ID] {
+			routes[routeKey(op)]++
 		}
-		c.offerOperation(operationKey(&op), c.ops[op.ID])
-	})
+	}
+	for _, op := range ops {
+		if !callbacks[op.ID] {
+			c.offerOperation(operationKey(op, routes), op)
+		}
+	}
 	for id, scheme := range c.doc.Auth {
 		credentials := scheme.Credentials
 		c.offer(named("auth", scheme.Name), string(id), func(c *correlator, key string) {
@@ -49,34 +53,36 @@ func named(kind string, n ir.Naming) string {
 }
 
 // seedGroups offers each group's key, its ID, which a rule mints from a name
-// and never from a position. It walks no deeper than ir.MaxGroupDepth.
-func (c *correlator) seedGroups(groups []ir.OperationGroup) {
-	type level struct {
-		groups []ir.OperationGroup
-		depth  int
-	}
-	stack := []level{{groups: groups}}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
+// and never from a position, and returns the operations the groups hold, each
+// once, in declaration order. It walks the groups ir.ForEachGroup reaches.
+func (c *correlator) seedGroups() []*ir.Operation {
+	var ops []*ir.Operation
+	ir.ForEachGroup(c.doc, func(g ir.OperationGroup) {
+		c.offer(segment("group", string(g.ID)), string(g.ID), nil)
+		for i := range g.Operations {
+			op := &g.Operations[i]
+			if _, seen := c.ops[op.ID]; !seen {
+				c.ops[op.ID] = op
+				ops = append(ops, op)
+			}
 		}
-		for i := range top.groups {
-			g := &top.groups[i]
-			c.offer(segment("group", string(g.ID)), string(g.ID), nil)
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
-		}
-	}
+	})
+	return ops
 }
 
-// operationKey is an operation's own key: its declared name, else its method
-// and route with each variable written {}, a webhook's event name standing for
-// the route. An operation with neither has none.
-func operationKey(op *ir.Operation) string {
-	if op.Name.Source != "" {
-		return segment("op", op.Name.Source)
+// operationKey is op's own key: its route, unless no HTTP binding places op or
+// another operation shares the route, as routes counts them, and then its
+// declared name. An operation with neither has none.
+func operationKey(op *ir.Operation, routes map[string]int) string {
+	if route := routeKey(op); route != "" && routes[route] == 1 {
+		return route
 	}
+	return named("op", op.Name)
+}
+
+// routeKey is op's method and route, each variable written {}, a webhook's
+// event name standing for the route, and "" when no HTTP binding places op.
+func routeKey(op *ir.Operation) string {
 	if len(op.Bindings.HTTP) == 0 {
 		return ""
 	}
@@ -143,15 +149,16 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 	c.callbacks(key, op)
 }
 
-// callbacks offers each unnamed operation op declares as a callback its key:
-// op's, then the callback's name and the method. The runtime expression is a
-// detail of where the request goes, so a rewritten expression keeps the key.
+// callbacks offers each operation op declares as a callback its key: op's,
+// then the callback's name and the method, whether or not the operation has a
+// name of its own. The runtime expression is a detail of where the request
+// goes, so a rewritten expression keeps the key.
 func (c *correlator) callbacks(key string, op *ir.Operation) {
 	for _, b := range op.Bindings.HTTP {
 		for _, cb := range b.Callbacks {
 			for _, id := range cb.Operations {
 				target, ok := c.ops[id]
-				if !ok || target.Name.Source != "" || len(target.Bindings.HTTP) == 0 {
+				if !ok || len(target.Bindings.HTTP) == 0 {
 					continue
 				}
 				method := target.Bindings.HTTP[0].Method
@@ -173,7 +180,9 @@ func (c *correlator) params(key string, op *ir.Operation) {
 	}
 }
 
-// paramKey is the key of p, a parameter of op keyed key.
+// paramKey is the key of p, a parameter of op keyed key. A host binding is
+// passed over: it fills a host-prefix label in addition to the binding at the
+// parameter's modeled location (docs/ir/http-binding.md), which places it.
 func paramKey(key string, op *ir.Operation, p *ir.Parameter) string {
 	for _, b := range op.Bindings.HTTP {
 		for _, pb := range b.ParamBindings {
@@ -256,6 +265,41 @@ func (c *correlator) stream(key string, s *ir.StreamDetail) {
 	}
 	c.ref(part(key, "events"), s.Events)
 	c.ref(part(key, "initial"), s.Initial)
+}
+
+// indexPartHeaders indexes the headers each multipart part declares by the property
+// the part encodes, over every payload of ops and services.
+func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropID][]ir.Header {
+	parts := map[ir.PropID][]ir.Header{}
+	add := func(p *ir.Payload) {
+		if p == nil {
+			return
+		}
+		for i := range p.Contents {
+			for prop, enc := range p.Contents[i].Encoding {
+				parts[prop] = append(parts[prop], enc.Headers...)
+			}
+		}
+	}
+	addErrors := func(es []ir.ErrorCase) {
+		for i := range es {
+			add(es[i].Payload)
+		}
+	}
+	for i := range services {
+		addErrors(services[i].CommonErrors)
+	}
+	for _, op := range ops {
+		add(op.Request)
+		for i := range op.Responses {
+			add(op.Responses[i].Payload)
+		}
+		if op.Default != nil {
+			add(op.Default.Payload)
+		}
+		addErrors(op.Errors)
+	}
+	return parts
 }
 
 // headers offers each header of hs its key, key then the header's name in

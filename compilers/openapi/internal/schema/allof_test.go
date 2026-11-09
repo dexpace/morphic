@@ -152,14 +152,88 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 // schema's minItems, an error the load reports and parseFull tolerates.
 func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    M:
+	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    U: {properties: {u: {type: string}}}
+    M:
       allOf:
         - {type: string, allOf: []}
-        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/U'}
 `))
 	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
 	assert.Contains(t, msg, "the branch (type, allOf) is kept verbatim")
+}
+
+// TestAllOf_FalseBranchClosesTheCatchAllItForbids pins that a `false` allOf
+// branch leaves a catch-all only its patterns, since the closure it writes
+// forbids every key they leave (docs/ir/models.md#catch-alls), and keeps a
+// written additionalProperties verbatim instead, at the composed model and at
+// each variant a union beside the allOf distributes over.
+func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
+	t.Parallel()
+	const pq = `    P: {type: object, properties: {p: {type: string}}}
+    Q: {type: object, properties: {q: {type: string}}}
+`
+	const written, patterns = "      additionalProperties: {type: string}\n", "      patternProperties: {'^x-': {type: string}}\n"
+	tests := []struct {
+		name, beside string
+		kept, raw    bool
+	}{
+		{"a written catch-all", written, false, true},
+		{"patterns alone", patterns, true, false},
+		{"patterns beside a written catch-all", written + patterns, true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const branches = "      allOf: [false, {type: object, properties: {a: {type: string}}}]\n"
+			spec := openapitest.ComponentSpec(pq + "    M:\n" + branches + tc.beside +
+				"    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n" + branches + tc.beside)
+			doc, diags := schema.LowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, id := range []ir.TypeID{
+				componentID("M"), "t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1",
+			} {
+				m, ok := doc.Types[id].(*ir.Model)
+				require.True(t, ok, "%s is a model, not %T", id, doc.Types[id])
+				assert.Equal(t, ir.AdditionalClosed, m.Additional, id)
+				entry, raw := m.Unmodeled["openapi:additionalProperties"]
+				require.Equal(t, tc.raw, raw, "%s: what the source writes is kept, and only that: %+v", id, m.Unmodeled)
+				if raw {
+					assert.JSONEq(t, `{"type": "string"}`, string(entry.Value), id)
+					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, id)
+				}
+				if !tc.kept {
+					assert.Nil(t, m.AdditionalProps, "%s: a catch-all left no pattern is none", id)
+					continue
+				}
+				require.NotNil(t, m.AdditionalProps, id)
+				assert.Nil(t, m.AdditionalProps.Value, "%s: no key beyond the patterns is allowed", id)
+				assert.Len(t, m.AdditionalProps.Patterns, 1, id)
+			}
+		})
+	}
+}
+
+// TestAllOf_AClosureAfterCompositionKeepsTheCatchAll pins the other side of
+// that rule: a catch-all `additionalProperties` writes evaluates every key the
+// patterns leave, so `unevaluatedProperties: false` beside it forbids none of
+// them, and the value stays.
+func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
+      allOf: [{type: object, properties: {a: {type: string}}}]
+      additionalProperties: {type: integer}
+      unevaluatedProperties: false
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "M").(*ir.Model)
+	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
+	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
+	require.NotNil(t, m.AdditionalProps)
+	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
+	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
 }
 
 // TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf

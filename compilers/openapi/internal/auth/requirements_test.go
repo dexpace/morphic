@@ -99,10 +99,11 @@ components:
 }
 
 // TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope pins that a scope
-// is the text a list writes, whatever tag the parser gave it. A plain date is a
-// string to OpenAPI, and the model, which decodes no such item
-// (docs/parser-library.md#undecoded-scalar), would lose every scope beside it
-// with nothing reported.
+// is the text a list writes, whatever tag it is written under. The model decodes
+// no item under a tag outside YAML's JSON schema ruleset
+// (docs/parser-library.md#undecoded-scalar), and would lose every scope beside it
+// with nothing reported. A plain date, which the load phase tags a string, is a
+// scope too.
 func TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope(t *testing.T) {
 	t.Parallel()
 	for written, want := range map[string][]string{
@@ -451,7 +452,7 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	reg, _ := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
 
 	absent, absentDiags := reg.Requirements(c, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
@@ -655,7 +656,7 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	reg, _ := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
 	got, diags := reg.Requirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")

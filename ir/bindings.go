@@ -53,23 +53,6 @@ const (
 // HTTPBinding maps an Operation onto one HTTP method and path, or for a webhook
 // onto a method and the event it names (docs/ir/http-binding.md).
 type HTTPBinding struct {
-	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
-	// keys carry exact capitalization; QUERY and custom methods are legal).
-	Method string `json:"method,omitempty"`
-	// URITemplate is the RFC 6570 path template — the one true path
-	// representation. A webhook binding has none: WebhookName names its event.
-	URITemplate string `json:"uriTemplate,omitempty"`
-	// HostPrefix is the endpoint host prefix, may contain {param} labels
-	// (Smithy @endpoint).
-	HostPrefix string `json:"hostPrefix,omitempty"`
-	// SharedRoute reports that multiple operations legally share method+path,
-	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
-	// reject the duplicate, and single-route emitters must merge.
-	SharedRoute bool `json:"sharedRoute"`
-	// ParamBindings assigns each logical parameter its HTTP location.
-	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
-	// RequestContentTypes are the priority-ordered request media types.
-	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// ResponseBodyPath sets the HTTP response body to this sub-field of the
 	// response type (gRPC transcoding response_body); nil = the whole payload.
 	ResponseBodyPath *PropPath `json:"responseBodyPath,omitzero"`
@@ -79,13 +62,21 @@ type HTTPBinding struct {
 	// Compression requires the client to compress the request body
 	// (Smithy @requestCompression).
 	Compression *RequestCompression `json:"compression,omitzero"`
-	// ChecksumRequired requires the client to send a payload checksum
-	// (Smithy @httpChecksumRequired).
-	ChecksumRequired bool `json:"checksumRequired"`
 	// PatchImplicitOptionality controls PATCH implicit optionality: nil = protocol
 	// default (PATCH projections make properties optional); false = disabled
 	// (TypeSpec @patch implicitOptionality).
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
+	// Unmodeled holds source constructs the IR does not model, kept verbatim.
+	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
+	// keys carry exact capitalization; QUERY and custom methods are legal).
+	Method string `json:"method,omitempty"`
+	// URITemplate is the RFC 6570 path template — the one true path
+	// representation. A webhook binding has none: WebhookName names its event.
+	URITemplate string `json:"uriTemplate,omitempty"`
+	// HostPrefix is the endpoint host prefix, may contain {param} labels
+	// (Smithy @endpoint).
+	HostPrefix string `json:"hostPrefix,omitempty"`
 	// Inbound says the API sends this request and the client receives it: a
 	// webhook or a callback. Empty is an operation the client sends.
 	Inbound HTTPInbound `json:"inbound,omitempty"`
@@ -100,10 +91,19 @@ type HTTPBinding struct {
 	// by every operation on it (an OpenAPI Path Item's summary and description),
 	// as URITemplate is; the operation's own documentation is Operation.Docs.
 	PathDocs Docs `json:"pathDocs,omitzero"`
+	// ParamBindings assigns each logical parameter its HTTP location.
+	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
+	// RequestContentTypes are the priority-ordered request media types.
+	RequestContentTypes []string `json:"requestContentTypes,omitempty"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
-	// Unmodeled holds source constructs the IR does not model, kept verbatim.
-	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// SharedRoute reports that multiple operations legally share method+path,
+	// disambiguated by request content (TypeSpec @sharedRoute); validate must not
+	// reject the duplicate, and single-route emitters must merge.
+	SharedRoute bool `json:"sharedRoute"`
+	// ChecksumRequired requires the client to send a payload checksum
+	// (Smithy @httpChecksumRequired).
+	ChecksumRequired bool `json:"checksumRequired"`
 }
 
 // RequestCompression declares required request-body compression encodings

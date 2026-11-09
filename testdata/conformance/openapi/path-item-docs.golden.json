@@ -91,12 +91,12 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "pathDocs": {
                       "summary": "Pet collection",
                       "description": "Everything addressable at /pets."
-                    }
+                    },
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -137,8 +137,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "pathDocs": {
                       "summary": "Pet collection",
                       "description": "Everything addressable at /pets."
@@ -151,7 +149,9 @@
                           "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -192,13 +192,13 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "inbound": "callback",
                     "pathDocs": {
                       "summary": "Creation callback",
                       "description": "Delivered once the pet exists."
-                    }
+                    },
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -247,14 +247,14 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "inbound": "webhook",
                     "webhookName": "petDeleted",
                     "pathDocs": {
                       "summary": "Pet deleted",
                       "description": "Delivered when a pet is removed."
-                    }
+                    },
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

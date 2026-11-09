@@ -107,7 +107,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/whole/querystring",
@@ -119,6 +118,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -179,7 +179,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/b",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1b/get/parameters/whole/querystring",
@@ -190,6 +189,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

@@ -14,9 +14,11 @@ type OpPlan struct {
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
+    Stability       ir.Stability      // its own tier, else its nearest group's; "" = none
+                                      // states one (../operations/stability.md)
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
-    Effects         Effects           // what calling it may change: declared, else by method
-                                      // (policy.md)
+    Effects         Effects           // what calling it may change: declared, else by what its
+                                      // binding defines (policy.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
 }
@@ -66,9 +68,9 @@ Some facts oagen's plan carries are not here, by the [plan-or-refine test](plan-
 Whether there is a body and whether the operation is one-way are stated by the IR, so a refiner
 reads them there, `Operation.Request` and `Operation.OneWay`, as it reads the idempotency-token
 parameter `Operation.Idempotency` names. Whether the operation is safe or idempotent is `Effects`,
-since the IR states it for few operations and a method states it for most ([plan
-policy](policy.md#an-operations-effects-come-from-its-method)). And whether an operation's inputs
-are passed positionally or inside an options object differs by language, so it is each target's
-([request shaping](../refine/requests.md)); the neutral facts it is decided from are already here —
-`BindingView` says where each input binds, and `Parameter.Required` and `Payload.Required` which are
-required — so moving the decision out added no field.
+since the IR states it for few operations and a binding, an HTTP method or a GraphQL operation's
+kind, states it for most ([plan policy](policy.md#an-operations-effects-come-from-its-binding)).
+And whether an operation's inputs are passed positionally or inside an options object differs by
+language, so it is each target's ([request shaping](../refine/requests.md)); the neutral facts it is
+decided from are already here — `BindingView` says where each input binds, and `Parameter.Required`
+and `Payload.Required` which are required — so moving the decision out added no field.

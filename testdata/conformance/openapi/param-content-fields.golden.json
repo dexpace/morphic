@@ -236,7 +236,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/search",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1search/get/parameters/filter/query",
@@ -258,6 +257,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

@@ -30,7 +30,7 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 		h.Reason = BadPointer
 		return h
 	}
-	in, known := b.resources.holding(site, path, schema)
+	in, known := b.resources.holding(site, path, schema, b.ids.readsDialects(site.Doc))
 	if !known {
 		h.Reason = MergeBound
 		return h
@@ -80,7 +80,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
-	case in.id && !absolute(uri):
+	case in.id && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri)
@@ -123,7 +123,7 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 // waits until the pass's walks are done (Held), since a document read meanwhile
 // may declare that URI, and an identifier is not a location to fetch (goOn).
 func (b *binder) read(name string) (resource, Reason, string) {
-	if absolute(name) && b.docs.unread(name) {
+	if fragment.Absolute(name) && b.docs.unread(name) {
 		b.held[name] = true
 		return resource{}, Held, ""
 	}
@@ -152,10 +152,7 @@ func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string,
 	pointer := fragment.Pointer(ref)
 	switch {
 	case pointer != "" && !strings.HasPrefix(string(pointer), "/"):
-		if isAnchorName(string(pointer)) {
-			return b.anchored(to, string(pointer), h)
-		}
-		return reading{}, BadPointer
+		return b.anchored(to, string(pointer), h)
 	case !pointer.IsValid() || !utf8.ValidString(string(pointer)):
 		return reading{}, BadPointer
 	}
@@ -200,15 +197,24 @@ func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, 
 	return b.docs.read(doc, pointer)
 }
 
-// anchored reads the schema the resource to declares name in, as its
-// $anchor or $dynamicAnchor, whichever document holds it.
+// anchored reads the schema the resource to declares the plain name name in, as
+// its $anchor, its $dynamicAnchor or an identifier naming that fragment alone,
+// whichever document holds it: any fragment no JSON pointer spells is a plain
+// name, as every JSON Schema dialect reads one (2020-12 §5). A name no grammar
+// admits, which only draft 4's `id` can declare, is BadPointer where no schema
+// declares it and none past a merge bound may: no other dialect could, so it
+// is likelier a pointer written wrong.
 func (b *binder) anchored(to resource, name string, h *Hop) (reading, Reason) {
 	b.find.identify(to.root.Doc)
 	at, why := b.ids.lookupAnchor(to.root, name)
-	if why != NoReason {
+	switch {
+	case why == NoReason:
+		return b.pointed(to.root.Doc, at.Pointer, h)
+	case why != NoAnchor || isAnchorName(name) || isPlainName(name):
 		return reading{}, why
+	default:
+		return reading{}, BadPointer
 	}
-	return b.pointed(to.root.Doc, at.Pointer, h)
 }
 
 // beside reports whether pointer is in the fields beside a path item's $ref
@@ -264,6 +270,34 @@ func DynamicFragment(ref string) (name, why string, ok bool) {
 		return "", fmt.Sprintf("%q is not valid percent-encoded text: %s", ref, err.Error()), false
 	}
 	return name, "", true
+}
+
+// anchorNamed reports whether s is a name the anchor keyword can declare in a
+// schema read as rule says: by the plain-name grammar for `$anchor` where the
+// dialect gives it that grammar (DialectRule.PlainNames), as 2019-09 does; by
+// 2020-12's for any other, as for `$dynamicAnchor`, which 2020-12 added, and
+// for an `$anchor` in a draft defining none, read as 2020-12 reads it. An
+// identifier's name is fragmentName's.
+func anchorNamed(rule DialectRule, keyword, s string) bool {
+	if keyword == "$anchor" && rule.PlainNames {
+		return isPlainName(s)
+	}
+	return isAnchorName(s)
+}
+
+// isPlainName reports whether s is a plain name JSON Schema drafts 6, 7 and
+// 2019-09 declare an anchor by (draft-handrews-json-schema-02 §8.2.3): a
+// letter, then letters, digits, '-', '_', ':' and '.'.
+func isPlainName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '_' || c == ':' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // isAnchorName reports whether s is a name a $anchor can declare, by JSON

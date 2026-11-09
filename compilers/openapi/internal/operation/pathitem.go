@@ -174,22 +174,43 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 	var kept ir.Unmodeled
 	var docs ir.Docs
 	diags = append(diags, applyLayers(layers, owner, onOperations(&kept, &docs))...)
+	keptBytes, serverBytes := keptWeight(kept)+docsWeight(docs), serversWeight(named)
 	mounted := make([]mountedOp, 0, len(ops))
 	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op
+		// An additionalOperations entry is charged what it copies (chargeItemCopy),
+		// as the fixed methods, which bound their own copies, are not; and none
+		// lowers once the budget is crossed, whatever copy crossed it.
+		if po.additional && lowering.ExpansionCrossed(l.in) {
+			break // the document is refused, so no copy past the budget lowers
+		}
 		opCtx := route
 		opCtx.method = po.method
 		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
 		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
 		op, extra, opDiags := lowerOperation(l.in, w, po.src, opCtx)
 		diags = append(diags, opDiags...)
-		if len(op.Servers) == 0 {
+		takes := len(op.Servers) == 0
+		if takes {
 			op.Servers = slices.Clone(named)
 		}
 		diags = append(diags, keepOn(&op, kept, docs)...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
+		if po.additional {
+			// mergeParameters puts the operation's own parameters first, so what
+			// follows them is what it takes of its item's.
+			chargeItemCopy(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):])
+		}
 	}
 	return mounted, diags
+}
+
+// chosen is weight where taken holds, and nothing where it does not.
+func chosen(taken bool, weight int) int {
+	if taken {
+		return weight
+	}
+	return 0
 }
 
 // keepOn writes onto op a copy of each entry its mount's layers keep, and the

@@ -72,6 +72,12 @@ func messageCases() []messageCase {
 			return typesDoc(m)
 		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
 			"type reference is marked inferred by %q but admits no null", illFormed)},
+		{"inferred on a part carrying no filename", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Request: &ir.Payload{Contents: []ir.Content{{
+				ItemEncoding: &ir.PartEncoding{Inferred: illFormed},
+			}}}})
+		}, "ir/part-encoding-inferred-not-filename", fmt.Sprintf(
+			"part encoding is marked inferred by %q but carries no filename", illFormed)},
 		{"bigval out of range", func() *ir.Document {
 			m := namedModel("t/x/A")
 			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},

@@ -328,7 +328,7 @@ components:
 // (docs/ir/models.md#the-flattening): the later conjunct's, whichever the allOf
 // lists last, with the flags read off that declaration's type. The declarations
 // differ, a file and a list of files, so a key or a flag read off the other one
-// shows.
+// shows. Both are files, so Filename shows nothing either way.
 func TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -373,7 +373,7 @@ components:
 			require.True(t, ok, "the part is keyed on the later conjunct's declaration; got %v", enc)
 			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
 			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the declaration the key names")
-			assert.Equal(t, !tc.multi, pe.Filename)
+			assert.True(t, pe.Filename, "a file and a list of files are both files")
 		})
 	}
 }
@@ -472,7 +472,7 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		{"string and binary", `{type: string}`, binary, true, false},
 		{"untyped and binary", `{description: the file}`, binary, true, false},
 		{"untyped and a list of binary", `{description: the files}`,
-			`{type: array, items: ` + binary + `}`, false, true},
+			`{type: array, items: ` + binary + `}`, true, true},
 		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
 		{"untyped and a hoisted binary", `{description: the file}`,
 			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
@@ -507,8 +507,6 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 	}{
 		{"untyped and a binary enum", `{description: d}`,
 			`{type: string, format: binary, enum: [a, b]}`, true, false},
-		{"untyped and a union with an array", `{description: d}`,
-			`{type: [array, string], items: {type: string}}`, false, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -528,6 +526,40 @@ func TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration(t *te
 	pe := onlyPartEncoding(t, `{allOf: [{type: object, properties: {name: {type: string}, file: {description: d}}}, `+
 		`{type: object, properties: {file: {type: string, format: binary, enum: [a, b]}}}]}`)
 	assert.True(t, pe.Filename, "the second part collects its own redeclaration")
+}
+
+// TestPartEncoding_AMergedUnionReadsThroughItsVariants holds a part whose
+// merged type is a union to the flags its variants give, in either branch
+// order: it repeats where a variant is a list, and is files where every value
+// it admits is a file.
+func TestPartEncoding_AMergedUnionReadsThroughItsVariants(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		a, b     string
+		filename bool
+		multi    bool
+	}{
+		{"untyped and a type array with an array", `{description: d}`,
+			`{type: [array, string], items: {type: string}}`, false, true},
+		{"untyped and a file or a list of files", `{description: d}`,
+			`{oneOf: [{$ref: '#/components/schemas/Blob'}, {type: array, items: {$ref: '#/components/schemas/Blob'}}]}`,
+			true, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got [2]ir.PartEncoding
+			for i, branches := range [2][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				got[i] = onlyPartEncoding(t, `{allOf: [`+
+					`{type: object, properties: {file: `+branches[0]+`}}, `+
+					`{type: object, properties: {file: `+branches[1]+`}}]}`)
+			}
+			assert.Empty(t, cmp.Diff(got[0], got[1]), "the two branch orders agree")
+			assert.Equal(t, tc.filename, got[0].Filename, "filename")
+			assert.Equal(t, tc.multi, got[0].Multi, "multi")
+		})
+	}
 }
 
 // TestPartEncoding_ADecidedTypeNeverFallsBack holds a part whose merged type
@@ -560,8 +592,6 @@ func TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema(t *testing.T) {
 		filename bool
 		multi    bool
 	}{
-		{"union of binary", `{type: [string, integer], format: binary}`, true, false},
-		{"union with an array", `{type: [array, string], items: {type: string}}`, false, true},
 		{"tuple", `{type: array, prefixItems: [{type: string}]}`, false, true},
 		{"enum of binary", `{type: string, format: binary, enum: [a, b]}`, true, false},
 		{"literal of binary", `{type: string, format: binary, const: a}`, true, false},
@@ -577,17 +607,31 @@ func TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema(t *testing.T) {
 }
 
 // TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema covers the
-// schema reading, which stays for a body the IR holds no model for.
+// schema reading, which stays for a body the IR holds no model for, a union's
+// branches among it.
 func TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema(t *testing.T) {
 	t.Parallel()
 	file := onlyPartEncoding(t, `{enum: [x], properties: {file: {type: string, format: binary}}}`)
 	assert.True(t, file.Filename, "a binary part is a file")
 	assert.False(t, file.Multi)
 
+	encoded := onlyPartEncoding(t, `{enum: [x], properties: {file: {type: string, format: byte}}}`)
+	assert.True(t, encoded.Filename, "a base64 part carries a filename, as a typed one does (GitHub #1214)")
+
 	files := onlyPartEncoding(t,
 		`{enum: [x], properties: {file: {type: array, items: {type: string, format: binary}}}}`)
 	assert.True(t, files.Multi, "an array part repeats")
-	assert.False(t, files.Filename)
+	assert.True(t, files.Filename, "and an array of files is files")
+
+	texts := onlyPartEncoding(t,
+		`{enum: [x], properties: {file: {oneOf: [{type: string}, {type: array, items: {type: string}}]}}}`)
+	assert.True(t, texts.Multi, "a union with an array branch repeats")
+	assert.False(t, texts.Filename)
+
+	either := onlyPartEncoding(t, `{enum: [x], properties: {file: {oneOf: [{$ref: '#/components/schemas/Blob'}, `+
+		`{type: array, items: {$ref: '#/components/schemas/Blob'}}]}}}`)
+	assert.True(t, either.Multi, "a file or a list of files repeats")
+	assert.True(t, either.Filename, "and is files")
 }
 
 // TestPartEncodings_ReadsTheFlattenedComposition holds bodyParts to the

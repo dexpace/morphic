@@ -181,7 +181,7 @@ func TestEngine_RunReportsAPanicInACompilerAsAContractError(t *testing.T) {
 		{"SourceTable", faulty{table: func([]compilers.Source) []ir.SourceInfo { boom(); return nil }},
 			engine.RunOptions{}, "SourceTable: panic: boom"},
 		{"DecodeOptions", faulty{decode: func() (any, error) { boom(); return nil, nil }},
-			engine.RunOptions{CompilerOptions: map[string]string{"setting": "value"}}, "configure: panic: boom"},
+			engine.RunOptions{CompilerOptions: map[string]string{"setting": "value"}}, "DecodeOptions: panic: boom"},
 		{"SourceLimit", faulty{limit: func() int { boom(); return 0 }},
 			engine.RunOptions{}, "SourceLimit: panic: boom"},
 	}

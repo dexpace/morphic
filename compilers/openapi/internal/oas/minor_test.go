@@ -38,9 +38,10 @@ func TestParseMinor_ReadsTheMajorMinorPrefix(t *testing.T) {
 	}
 }
 
-// TestParseMinor_AllocatesNothing pins what the lowering's dialect check costs:
-// it asks this of every schema whose null it reads, so the prefix it compares
-// is a slice of the version rather than a string built from its parts.
+// TestParseMinor_AllocatesNothing pins what reading a minor costs: Check and
+// CheckFormat ask it of every object the load phase judges, each a reference
+// reaches included, so the prefix it compares is a slice of the version rather
+// than a string built from its parts.
 func TestParseMinor_AllocatesNothing(t *testing.T) {
 	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = oas.ParseMinor("3.1.0") }))
 }

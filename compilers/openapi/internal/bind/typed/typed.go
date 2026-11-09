@@ -30,6 +30,10 @@ type Bindings struct {
 	// was read.
 	at    map[*schemaRef]bind.Position
 	discs map[*oas3.Discriminator]bind.Position
+	// of is where each schema at knows was read, by the model it holds, which
+	// decoding builds afresh for every path to a node (SiteOf): each where a
+	// schema names a dialect, else each writing a list of items (index).
+	of map[*oas3.Schema]bind.Position
 	// held is the schema at each position: the model's own, or one built.
 	held map[bind.Position]*schemaRef
 	// unplaced is the reference object each schema and discriminator of an end
@@ -55,6 +59,20 @@ func (b *Bindings) Site(js *schemaRef) (bind.Position, bool) {
 	return p, ok
 }
 
+// SiteOf is Site for a reading that holds the model js holds and not js, as
+// one of an allOf's conjuncts does: each is decoded afresh for every path to
+// its node (docs/parser-library.md#alias-expansion), so it names one position
+// where its node may stand at several. It is false before Builder.Build, and,
+// where no schema names a dialect, for one writing no list of items (index),
+// as each node then reads one dialect and no other reading needs its place.
+func (b *Bindings) SiteOf(s *oas3.Schema) (bind.Position, bool) {
+	if b == nil || s == nil {
+		return bind.Position{}, false
+	}
+	p, ok := b.of[s]
+	return p, ok
+}
+
 // Entry returns the table's entry for the $ref js writes, and false for a
 // schema b does not know or one the table read no $ref at.
 func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
@@ -68,11 +86,19 @@ func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
 // Declared returns the schema written where js's $ref lands, or nil where it
 // does not land on one.
 func (b *Bindings) Declared(js *schemaRef) *schemaRef {
+	s, _ := b.DeclaredAt(js)
+	return s
+}
+
+// DeclaredAt returns what Declared does and the position its $ref lands at,
+// which names the document holding it; the zero position where it lands on
+// none.
+func (b *Bindings) DeclaredAt(js *schemaRef) (*schemaRef, bind.Position) {
 	e, ok := b.Entry(js)
 	if !ok || e.Hop.Status != bind.Resolved {
-		return nil
+		return nil, bind.Position{}
 	}
-	return b.held[e.Hop.Target]
+	return b.held[e.Hop.Target], e.Hop.Target
 }
 
 // End returns the schema the chain of $refs from js ends on, in whichever
@@ -130,7 +156,23 @@ type Builder struct {
 	// decode builds a schema from YAML: the parser's own decoder, which a test
 	// replaces to reach its failure.
 	decode func(ctx context.Context, n *yaml.Node, js *schemaRef) error
+	// bools are the boolean schemas recorded and not yet mended (mend).
+	bools []recorded
 }
+
+// recorded is a schema, the position it was read at, and how many mendings
+// deep it lies (MaxMends).
+type recorded struct {
+	js    *schemaRef
+	at    bind.Position
+	mends int
+}
+
+// MaxMends bounds how many schemas mend decodes again one below another. Each
+// decoding reads the whole schema, so a chain of them costs the square of its
+// depth, and one past the bound, a mapping still read as false, is the
+// lowering's to report.
+const MaxMends = 8
 
 // NewBuilder returns a Builder over table, knowing no schema yet.
 func NewBuilder(table *bind.Table) *Builder {
@@ -160,7 +202,8 @@ func (bd *Builder) decodeRecovered(ctx context.Context, n *yaml.Node, js *schema
 }
 
 // Schema records that js was read at p. The first schema recorded at a
-// position is the one held there.
+// position is the one held there. A boolean one is noted, as the parser
+// decodes some written mappings as false (mend).
 func (bd *Builder) Schema(js *schemaRef, p bind.Position) {
 	if js == nil {
 		return
@@ -168,6 +211,38 @@ func (bd *Builder) Schema(js *schemaRef, p bind.Position) {
 	bd.b.at[js] = p
 	if _, held := bd.b.held[p]; !held {
 		bd.b.held[p] = js
+	}
+	if js.IsBool() {
+		bd.bools = append(bd.bools, recorded{js: js, at: p})
+	}
+}
+
+// mend decodes again, in place, each boolean schema recorded whose node is a
+// mapping, and records what it holds: the parser decodes such a position as
+// false where a keyword beneath it fails to decode under its own name
+// (docs/parser-library.md#failure-beneath-itself), though the mapping decoded
+// on its own is the schema written. A mended schema is no boolean, so each is
+// mended once, and one a mending leaves false below it, as a chain of such
+// keywords does, deeper than it, in turn: the work ends within the document's
+// nesting. One no decoding reads stays false.
+func (bd *Builder) mend(ctx context.Context) {
+	for len(bd.bools) > 0 && ctx.Err() == nil {
+		r := bd.bools[len(bd.bools)-1]
+		bd.bools = bd.bools[:len(bd.bools)-1]
+		n := nodeview.Deref(r.js.GetCore().GetRootNode())
+		if n == nil || n.Kind != yaml.MappingNode || r.mends >= MaxMends {
+			continue
+		}
+		fresh := &schemaRef{}
+		if err := bd.decodeRecovered(ctx, n, fresh); err != nil || fresh.IsBool() {
+			continue
+		}
+		*r.js = *fresh
+		below := len(bd.bools)
+		bd.Walk(ctx, r.js, r.at)
+		for i := below; i < len(bd.bools); i++ {
+			bd.bools[i].mends = r.mends + 1
+		}
 	}
 }
 
@@ -243,9 +318,10 @@ type Built struct {
 }
 
 // Build builds a schema for each of the table's landings, in order, records
-// it and everything below it, and returns what each build found. It stops
-// between landings once ctx is done, with what it built so far, which its
-// caller must not read.
+// it and everything below it, and returns what each build found. Then each
+// schema recorded, before it or by it, that the parser read as false from a
+// mapping is mended (mend). It stops between landings once ctx is done, with
+// what it built so far, which its caller must not read.
 func (bd *Builder) Build(ctx context.Context) []Built {
 	landings := bd.b.table.Landings()
 	out := make([]Built, 0, len(landings))
@@ -255,7 +331,47 @@ func (bd *Builder) Build(ctx context.Context) []Built {
 		}
 		out = append(out, bd.build(ctx, l))
 	}
+	bd.mend(ctx)
+	bd.index()
 	return out
+}
+
+// index places each schema recorded by the model it holds (Bindings.SiteOf):
+// every one where a schema names a dialect (dialectRooted), as a node an alias
+// places twice may then stand under two, and else each writing a list of
+// items, whose entries are read where the schema is written (listsItems).
+func (bd *Builder) index() {
+	rooted := dialectRooted(bd.b.table)
+	for js, p := range bd.b.at {
+		s := js.GetSchema()
+		if s == nil || !rooted && !listsItems(s) {
+			continue
+		}
+		if bd.b.of == nil {
+			bd.b.of = map[*oas3.Schema]bind.Position{}
+		}
+		bd.b.of[s] = p
+	}
+}
+
+// listsItems reports whether s writes `items` as a list, a tuple as the
+// JSON Schema drafts before 2020-12 spell one, whose entries the parser's
+// model holds none of: the load phase builds them at their positions.
+func listsItems(s *oas3.Schema) bool {
+	n := nodeview.Child(s.GetRootNode(), "items")
+	return n != nil && n.Kind == yaml.SequenceNode
+}
+
+// dialectRooted reports whether a schema of a document t read names a
+// dialect by `$schema`, the one way a node an alias places twice stands under
+// two: with none, each node reads its own document's, which its node tells.
+func dialectRooted(t *bind.Table) bool {
+	for id := range bind.DocID(t.Documents()) {
+		if len(t.Document(id).Dialects) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // build builds the schema at l, unless one is held there already: one inside

@@ -96,8 +96,9 @@ the rule here rather than reading it across.
 `done-is-make-gate`
 
 - **Rule.** The go-styleguide skill ends on `gofmt`, `golangci-lint`, `go vet` and `go test`. Here a
-  Go change is done at `make gate`, which adds the pinned linter version, the planted findings, the
-  repository's analyzers, fuzzing and exactly 100% coverage.
+  Go change is done at `make gate`, run locally or by CI on the final head, which adds the pinned
+  linter version, the planted findings, the repository's analyzers, fuzzing and exactly 100%
+  coverage.
 - **Why.** One uncovered statement fails CI while `go test` passes, which forced follow-up commits
   and falsified a PR body (#22, #373).
 - **Probe.** `grep -n '^gate:' Makefile`.
@@ -115,19 +116,21 @@ the rule here rather than reading it across.
   `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
 - **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
-## Compare a plain value with `assert.Equal`
+## Compare a plain value with testify's `Equal`
 `assert-equal-on-plain-values`
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
-  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
-  unexported field or `Equal` method, which `cmp` alone calls. Any other value takes `cmp.Diff` with
-  a direction key (rule 6.15), and no test calls `reflect.DeepEqual` itself.
-- **Why.** Such a value lacks what the rule's reason names: the two agree on nil against empty, on
-  order and on a NaN in separate values, and `assert.Equal` labels both sides where a bare
-  `cmp.Diff` labels neither (#1206). A literal slice or map goes this way about twice as often as
-  the tree calls `cmp.Diff` (#1246).
-- **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
-  `git grep -nE '^func \([a-zA-Z]+ \*?[a-zA-Z]+\) Equal\(' -- '*.go' ':!*testdata*'` no method.
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` or `require.Equal` stands on
+  a value with no unexported field or `Equal` method, which `cmp` alone calls; any other takes
+  `cmp.Diff` with a direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
+- **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,
+  and `assert.Equal` labels both sides, a bare `cmp.Diff` neither (#1206). Literal slices and maps
+  take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed 117 calls on
+  values with unexported fields (#1533, #1534).
+- **Probe.** The program of
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-a-typed-mechanism-by-type`
+  finds no `assert.Equal` or `require.Equal` a change adds on a value holding an unexported field or
+  `Equal` method; `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`
@@ -154,13 +157,33 @@ the rule here rather than reading it across.
 ## Assert interface compliance for an exported pair alone
 `interface-assertions-stay-narrow`
 
-- **Rule.** Rule 5.26 asks for compliance to be asserted at compile time. Here an exported type
-  implementing an interface this module exports carries a `var _` beside its imports, and an
-  unexported one does not, since the call that passes it fails the build. A standard library
-  interface such as `error` takes none.
+- **Rule.** Rule 5.26 asks for compile-time compliance assertions. Here an exported type
+  implementing an exported interface its package declares or imports from this module carries a
+  `var _` beside its imports. An unexported one does not where a call's parameter is the
+  interface, since the call fails the build; an optional interface takes
+  `references/departures.md#optional-interface-converted`. A standard library one such as `error`
+  takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
-- **Probe.** `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
-  lists them.
+- **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
+  lacking its assertion. It reports only a missing assertion, so an unexported type's or a standard
+  library interface's shows in what
+  `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  lists, bar a conversion inside a `var (...)` group.
+
+## Convert a type where it is passed to an optional interface
+`optional-interface-converted`
+
+- **Rule.** An optional interface, found by a run-time assertion such as the one `ir.WalkValues`
+  makes for `ir.CycleVisitor`, is held by no build, so
+  `references/departures.md#interface-assertions-stay-narrow` exempts nothing there: a type meant
+  to satisfy one is converted where it is passed, as `ir.CycleVisitor(deepListCycles{l})` is, or
+  carries a `var _`, unless a test reads what the interface adds. Whether the walk should find them
+  otherwise is #1523.
+- **Why.** Renaming `walkCheck.Cycle` built and vetted clean, caught only by tests reading cycles,
+  and a visitor whose tests read none passed a planted defect until its call converted it (#1266,
+  #1313).
+- **Probe.** `git grep -nE '\.\(([[:alnum:]_]+\.)?[A-Z][A-Za-z]*(Visitor|er)\)' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  lists the run-time assertions to an interface of that shape.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`

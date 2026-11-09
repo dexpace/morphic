@@ -155,7 +155,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/tags/{tags}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1tags~1{tags}/get/parameters/tags/path",
@@ -167,6 +166,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

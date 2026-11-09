@@ -139,8 +139,9 @@ type aliasWeigher struct {
 	// opposed to how many times a node's weight was merely read from the
 	// memo. It exists so the memoization invariant — every distinct node is
 	// computed at most once, however many aliases point to it — is a plain
-	// equality check (computations == len(weight)) rather than something only
-	// a timing bound can observe.
+	// equality check (computations == len(weight) - len(cut), as a node a cycle
+	// cut holds a weight it never computed) rather than something only a timing
+	// bound can observe.
 	computations int
 }
 

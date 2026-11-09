@@ -227,7 +227,7 @@ func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 }
 
 // TestRegistry_DeclaredEveryEntryNilIsNil pins, for a list, the guard auth's
-// TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins for the schemes:
+// TestLowerSecuritySchemes_NoComponentsAtAll pins for the schemes:
 // when no entry survives, the list names nothing and the registry stays unset
 // rather than becoming an empty map the source never declared.
 func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
@@ -355,7 +355,7 @@ paths:
 `), load.Options{})
 	require.NoError(t, err)
 	c := lowering.New(0, loaded.Doc, loaded.Source, lowering.GroupByTags, lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
+		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
 		overlay.Origin{}).WithLoaded(loaded)
 	item, ok := loaded.Doc.GetPaths().Get("/a")
 	require.True(t, ok)

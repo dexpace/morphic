@@ -16,7 +16,7 @@ type Model struct {
     Mixins         []TypeRef       // composition without subtyping (Smithy mixins, TypeSpec spread provenance, extra allOf entries)
     AdditionalProps *AdditionalProps // catch-all beside the declared structure; a catch-all
                                      // with nothing beside it is a MapT, never a Model (docs/ir/containers.md)
-    Additional     AdditionalMode  // openness of the property set beyond declared + AdditionalProps
+    Additional     AdditionalMode  // openness beyond declared + the catch-all's patterns
     Constraints    *Constraints    // cardinality of the property set (minProperties/maxProperties);
                                    // Additional says whether undeclared properties are allowed at all,
                                    // this says how many an instance may carry
@@ -34,8 +34,8 @@ type Model struct {
 
 type AdditionalMode string
 // ""                         — unspecified (open by JSON Schema default)
-// "closed"                   — no properties beyond the declared set (additionalProperties: false,
-//                              closed-by-construction records)
+// "closed"                   — no properties beyond the declared set and the catch-all's patterns
+//                              (additionalProperties: false, closed-by-construction records)
 // "closed_after_composition" — closed once composition is resolved (unevaluatedProperties: false)
 
 type WireIDRange struct { From, To int }
@@ -114,16 +114,16 @@ no pattern matches:
   follow: an object writing `patternProperties` beside `additionalProperties: false`. The model is
   `Additional` closed as well, which says the same of every member beyond its declared ones and
   the patterns.
-- **Patterns and a value.** Both hold: an object writing `patternProperties` and no
-  `additionalProperties`, whose other keys JSON Schema admits whatever they hold, types the value
-  as the top type.
+- **Patterns and a value.** Both hold: an object writing `patternProperties` and neither
+  `additionalProperties` nor `unevaluatedProperties: false`, whose other keys JSON Schema admits
+  whatever they hold, types the value as the top type.
 
 A catch-all with neither a value nor a pattern admits nothing a closed model does not already say,
 so it is not written: `irverify` reports one (`ir/catch-all-empty`). A closed model whose catch-all
 has a value types keys its closure forbids, so a reader of the value and a reader of the closure
 would admit different payloads: `irverify` reports that too (`ir/catch-all-closed`). A model closed
-only after composition (`closed_after_composition`) may keep a value, since a catch-all is itself
-what evaluates a key in JSON Schema.
+only after composition (`closed_after_composition`) may keep a value, since a catch-all the source
+writes is itself what evaluates a key in JSON Schema.
 
 ## The flattening
 
@@ -156,9 +156,9 @@ declares and the composition entries that name no model. Its rules:
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
   slot with its own type. The member takes every facet but whether it is required and whether it
   is redacted — type, `Presence`, visibility, default, docs — from the declaration it takes, and
-  lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is reported: redeclaring
-  is how a subtype narrows, and whether two declarations agree is a question about their types,
-  which the flattening does not ask.
+  lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
+  reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
+  about their types, which the flattening does not ask.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
   the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
   requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is
@@ -187,9 +187,10 @@ declares and the composition entries that name no model. Its rules:
   quadratically down a deep hierarchy, which its cost tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
   its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
-  the walk needs no step budget and no recursion. It costs the declarations it returns plus the
-  models, entries and aliases it passes, so an `irfacts` index could answer no faster, and it stays
-  a function of `ir`.
+  the walk needs no step budget and no recursion. Each type a redaction is read through is read once
+  too, so a `Base` chain many declarations name costs one reading, and one that cycles ends where it
+  repeats. It costs the declarations it returns plus the models, entries, aliases and types it
+  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
@@ -223,12 +224,54 @@ documents and the position alone, so an outside `$ref` naming the branch pointer
 whichever lowering interns the node.
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
-`allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same
-holds for an `Enum`, a `Union`, a `MapT`, or the top type. They are typed `TypeRef` rather than
-"reference to a `Model`" for exactly that reason — narrowing them would mean dropping a branch the
-source wrote, against invariant 2. What is *shaped* like `allOf` is the composition itself: one
-referent per conjunct, resolved by reference. Emitters that can only render model inheritance are
-the ones that must lower a non-`Model` conjunct to something their target can express.
+`allOf: [{$ref: Pet}, {$ref: Tags}]` is legal and, `Tags` being a list, lowers to a `Mixin` pointing
+at a `List`, and the same holds for a `Scalar`, an `Enum`, a `Union`, a `MapT`, or the top type. They
+are typed `TypeRef` rather than "reference to a `Model`" for exactly that reason — narrowing them
+would mean dropping a branch the source wrote, against invariant 2. What is *shaped* like `allOf` is
+the composition itself: one referent per conjunct, resolved by reference. Emitters that can only
+render model inheritance are the ones that must lower a non-`Model` conjunct to something their
+target can express. An `allOf` none of whose conjuncts can make an object has nothing to compose, so
+short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of them.
+
+## An allOf no object satisfies
+
+A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
+admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
+the conjunct that decides it, short of the cases the OpenAPI compiler's rule
+[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
+on a branch among them: a reference to its `$ref`, a node at an inline branch's own pointer, and an
+alias only where the position writes what no carrier holds.
+At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
+them a single `$ref` entry.
+
+Nothing here is the flattening the [design rules](./README.md#design-rules) leave to emitters. No
+member of one node is copied into another, and no conjunct is lost: it is the reference the position
+names, an annotation read where the same keyword beside the `allOf` is read, what the position
+already says, or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose
+conjuncts can be objects composes as it always did, one sole `$ref` with nothing beside it a
+decorator ([annotations](./annotations.md#decorators)) for emitters to collapse.
+
+The designs this was weighed against:
+
+- **A `Model` for emitters to collapse**, the decorator rule alone, which is how a wrapper around a
+  non-object lowered until now, on the reasoning that collapsing one is a target's ergonomics
+  (#255). That holds for a wrapper around an object, and a `Model` over a string is more than an
+  inconvenience: every consumer reading `Kind`, the docs emitter and `pass` among them, is told an
+  object the wire never carries. It also has nothing to collapse into where no `$ref` is written, as
+  above, and a narrowed enum has no decorator form, since its value set is what the `$ref` does not
+  say.
+- **Rewriting the `Model` once the registry settles**: the census and each carrier have already
+  read the position by then, as a node of its own.
+- **An alias per branch**: `readOnly` and `default` bind a use, and an alias has no field that
+  reaches a carrier.
+- **The field merge over conjuncts**
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): `items` and a
+  component hold no `Property` to fold into, and a target's own docs would read as a conflict with
+  the use's.
+- **A schema synthesized from the conjuncts**: its `items` would hoist at pointers the source never
+  wrote (invariant 3).
+- **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowers beside a 3.1 `$ref`: the field
+  then keeps its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
 
 ## Composition beside a union
 

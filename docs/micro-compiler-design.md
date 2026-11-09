@@ -281,7 +281,7 @@ roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
 nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
 
 *Later:* the memo moved into `Ctx`, which builds it on the first ask and shares it
-with every copy, as it does the answers `TypePosition` reads (`Ctx.DynamicAnchorSites`,
+with every copy, as it did the answers `TypePosition` read (`Ctx.DynamicAnchorSites`,
 GitHub #982). It is still built on the first `$dynamicRef` and not before; what
 changed is that no lowering carries it as a parameter.
 

@@ -198,7 +198,7 @@ cmd/morphic-covergate/
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,
-             conformance, ctxtest, decls, jsonshape, keydoc, leakcheck, lintrules, testspec).
+             conformance, ctxtest, decls, exectest, jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -286,6 +286,10 @@ These all exist already — extend them rather than building a parallel mechanis
   means lowering it (#558). And it holds every function a package declares, bar the test-support
   packages `testSupport` names, to a caller outside its tests: a binary's `main`, by a whole-program
   reachability analysis, or an `apiRoots` entry naming the caller the module does not have yet.
+  The calls each production package makes into one it does not import, which only a function, an
+  interface or a type argument handed to it can make, are held to `callShapeBaseline`, pair by
+  pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
+  seam among them, and only with the table's edit (#1478).
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
   analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
@@ -349,7 +353,7 @@ departs from it, with what holds each difference.
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
   compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
   away: simplifying may remove only a check a second reader of the same concept already makes
-  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
+  (`.claude/skills/morphic-reviewing-prs/references/testing.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -419,7 +423,8 @@ departs from it, with what holds each difference.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass the gate:
+Before claiming any Go work done, run and pass the gate, locally or through CI's run on the final
+head:
 
 ```bash
 make gate
@@ -525,12 +530,16 @@ context-switch between repos.
 
 - **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
   subject automatically — never type it yourself, but do count it, at the number the PR will get,
-  on the title and on each commit subject, as a branch with one commit lands under its subject.
-  Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
-  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  on the title and on a branch's one commit, which lands under its subject. A subject the squash
+  replaces lands, if at all, in the body, where nothing is appended, so it holds to 72 without the
+  number. Measure before opening, don't eyeball: run
+  `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py "$N" "<title>"`, with `N` one
+  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. It counts
+  characters, where `wc -c` and macOS's `awk` count bytes and call a subject with a `→` long. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
   is the whole failure mode; to see that split rather than trust it, pipe the log above through
-  `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+  `perl -CS -nle 'print if length > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the
+  same `perl`.
 - **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
   or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
   or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a
@@ -544,8 +553,11 @@ context-switch between repos.
   logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
   request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
   cleanup or bug the change neither needs nor exposes is filed, not folded in.
-- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
-  and land what it finds as new commits, then rerun the passes those commits can affect.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it,
+  its second round when the first ran before the push, land what it finds as new commits, and run
+  the next round on them, until one finds no `issue:` or `nit:` and leaves no cell unreached or
+  reopened
+  (`.claude/skills/morphic-reviewing-prs/references/rounds.md#review-ends-with-nothing-left`).
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.

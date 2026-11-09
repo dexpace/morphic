@@ -79,6 +79,10 @@ shape/repeated/raw	/components/schemas/A	resolved	resolved elsewhere	duplicate-k
 suite/dynamicRef.json/2	/components/schemas/T/items	resolved	unresolved	anchor-id
 suite/items.json/3	/components/schemas/T/$defs/item/prefixItems/0	resolved	unresolved	defs-rule
 suite/items.json/3	/components/schemas/T/$defs/item/prefixItems/1	resolved	unresolved	defs-rule
+fixture/testdata/conformance/openapi/allof-inline-residue.yaml	/components/schemas/Rebased/allOf/0/allOf/0/not	resolved	unresolved	id-base
+fixture/testdata/conformance/openapi/allof-inline-residue.yaml	/components/schemas/Rebased/allOf/1/not	resolved	unresolved	id-base
+fixture/testdata/conformance/openapi/schema-drafts.yaml	/components/schemas/Named/properties/leaf	resolved	unresolved	anchor-id
+fixture/testdata/conformance/openapi/schema-drafts.yaml	/components/schemas/Named/properties/beside	resolved	unresolved	anchor-id
 fixture/testdata/conformance/openapi/schema-identifiers.yaml	/components/schemas/Pet/properties/owner	resolved	unresolved	anchor-id
 fixture/testdata/conformance/openapi/schema-identifiers.yaml	/components/schemas/Pet/properties/tag	resolved	unresolved	anchor-id
 fixture/testdata/conformance/openapi/schema-identifiers.yaml	/components/schemas/Pet/properties/address	resolved	unresolved	anchor-id
