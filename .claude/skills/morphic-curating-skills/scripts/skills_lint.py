@@ -642,10 +642,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.argv[1:] if argv is None else argv)
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
-    except subprocess.CalledProcessError:
-        # An unpacked copy has no repository, and the tree is what git lists, so say how to get one.
-        print("skills_lint: no git repository here; in a copy git archive unpacked, run git init "
-              "and git add -A first", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        # git says why it found no work tree. An unpacked copy has none, and the tree is what git
+        # lists, so the hint says how to make one there; other causes keep git's own words.
+        said = next((line.strip() for line in e.stderr.splitlines() if line.strip()),
+                    f"git rev-parse exited {e.returncode}")
+        print(f"skills_lint: {said}; in a copy git archive unpacked, run git init and git add -A "
+              "first", file=sys.stderr)
         return 2
     except OSError as e:  # no git on PATH, or a working directory since removed
         print(f"skills_lint: {e}", file=sys.stderr)

@@ -573,14 +573,30 @@ class ArgumentsTest(unittest.TestCase):
                 lint.assert_not_called()
 
     def test_a_tree_with_no_repository_is_told_how_to_make_one(self):
-        err = io.StringIO()
-        refused = subprocess.CalledProcessError(128, ["git", "rev-parse", "--show-toplevel"])
-        with mock.patch.object(skills_lint, "git", side_effect=refused), \
-                mock.patch.object(skills_lint, "findings") as lint, \
-                contextlib.redirect_stderr(err):
-            self.assertEqual(skills_lint.main([]), 2)
-        self.assertIn("run git init and git add -A first", err.getvalue())
-        lint.assert_not_called()
+        hint = "; in a copy git archive unpacked, run git init and git add -A first\n"
+        # git's own reason leads, as a refusal inside a .git directory is no missing repository.
+        cases = (("no repository",
+                  "fatal: not a git repository (or any of the parent directories): .git\n",
+                  "fatal: not a git repository (or any of the parent directories): .git"),
+                 ("inside .git", "fatal: this operation must be run in a work tree\n",
+                  "fatal: this operation must be run in a work tree"),
+                 ("a reason over lines",
+                  "fatal: detected dubious ownership in repository at '/r'\n"
+                  "To add an exception for this directory, call:\n\n"
+                  "\tgit config --global --add safe.directory /r\n",
+                  "fatal: detected dubious ownership in repository at '/r'"),
+                 ("git said nothing", "", "git rev-parse exited 128"))
+        for name, stderr, said in cases:
+            with self.subTest(name):
+                err = io.StringIO()
+                refused = subprocess.CalledProcessError(
+                    128, ["git", "rev-parse", "--show-toplevel"], "", stderr)
+                with mock.patch.object(skills_lint, "git", side_effect=refused), \
+                        mock.patch.object(skills_lint, "findings") as lint, \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(skills_lint.main([]), 2)
+                self.assertEqual(err.getvalue(), f"skills_lint: {said}{hint}")
+                lint.assert_not_called()
 
     def test_no_git_or_no_working_directory_is_one_line_not_a_traceback(self):
         with tempfile.TemporaryDirectory() as d:
