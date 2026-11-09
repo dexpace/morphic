@@ -7,7 +7,7 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
 
 1. Read the diff before the PR body (`references/correctness.md#code-before-claims`).
 2. For each output the change alters, state the result a consumer should get on real input, then
-   compile a minimal spec on `origin/main` and in the worktree and read the IR and every diagnostic
+   compile a minimal spec on `$main` and in the worktree and read the IR and every diagnostic
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#main-control`), and the
    golden spec where it holds the construct, fetched as `CLAUDE.md`'s "Priority" section shows.
    Where they differ, take `references/correctness.md#better-than-main`.
@@ -64,7 +64,7 @@ both builds' results.
 `refactor-differential-fuzz`
 
 - **Rule.** For a refactor that rewrites readers (parsers, splitters, containment tests), copy the
-  old functions from `origin/main` beside the new ones in a scratch module and fuzz that each pair
+  old functions from `$main` beside the new ones in a scratch module and fuzz that each pair
   agrees. Turn intended divergences into narrow, named exclusions. Afterwards diff the shipped
   function bodies against the copies the harness ran.
 - **Why.** A rewritten reader parts from the old one on inputs no table holds, since a table
@@ -117,7 +117,7 @@ both builds' results.
 `age-based-step-at-mains-cadence`
 
 - **Rule.** A step deciding by a file's age, such as a prune of the cache, is simulated at the gap
-  between `main`'s pushes, from `git log --first-parent -40 --format=%ct origin/main`, as well as a
+  between `main`'s pushes, from `git log --first-parent -40 --format=%ct "$main"`, as well as a
   long one, and each pull request's run reads a copy of the saved cache: a pull request never saves,
   and the go command's reads move a live cache's times.
 - **Why.** A prune by age, simulated three hours apart, kept the cache flat, and 40 minutes apart,
@@ -129,9 +129,9 @@ both builds' results.
 `job-no-pull-request-triggers`
 
 - **Rule.** A job that only `schedule` or `workflow_dispatch` starts runs from the default branch's
-  workflow, so no pull request and no simulation reaches its trigger. Say so, read a real run's log from a
-  trial branch in its place (`gh run view <id> --log`), and hold each body sentence about the job to
-  what that run predates.
+  workflow, so no pull request and no simulation reaches its trigger. Say so, read a real run's log
+  from a trial branch in its place (`gh run view <id> --log`), and hold each body sentence about the
+  job to what that run predates.
 - **Why.** A nightly job's PR cited a push run on a trial branch, and `gh run list` filtered to
   `--event schedule` printed none (#1382, #1606).
 - **Probe.** `gh run view <id> --json event,headSha,headBranch`, beside the commits the branch

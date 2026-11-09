@@ -25,8 +25,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Rule.** From the second round, one fresh agent runs the angles, or two in a split round
   (`references/readers.md#split-whole-reads-from-what-moved`), given the PR, this skill and its own
   directory holding the merged tree (`references/readers.md#reader-owns-its-directory`), nothing
-  earlier but names of cells to read and what `references/later-rounds.md#nit-round-checks-its-fixes`
-  asks. Its brief follows
+  earlier but names of cells to read and what
+  `references/later-rounds.md#nit-round-checks-its-fixes` asks. Its brief follows
   `references/readers.md#brief-a-reader-to-its-cells`. The main session disproves each returned
   finding and audits each clearance (`references/rounds.md#disprove-each-finding`,
   `references/readers.md#audit-what-a-reader-cleared`) before it counts. Where no agent can run, the
