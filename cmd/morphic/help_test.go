@@ -250,8 +250,9 @@ func TestRun_CommandHelpListsEveryFlag(t *testing.T) {
 }
 
 // flagLine matches a flag row of cobra's help: an optional "-x, " short form,
-// then "--name", then the value's name or the description's padding.
-var flagLine = regexp.MustCompile(`^\s+(?:-\w, )?--([a-z-]+)\s`)
+// then "--name", then any "[=...]" pflag adds for a value written only after
+// "=", as a bool's is, then the value's name or the description's padding.
+var flagLine = regexp.MustCompile(`^\s+(?:-\w, )?--([a-z-]+)(?:\[=[^\]]*\])?\s`)
 
 // flagNamesIn returns the flag names documented by rendered help: the long
 // names on the rows under its "Flags:" title. Every line cobra does not indent,
@@ -276,9 +277,11 @@ func TestFlagNamesIn_ReadsOnlyTheFlagsSection(t *testing.T) {
 	t.Parallel()
 
 	rendered := "Usage:\n  morphic compile --flags\n\nFlags:\n" +
-		"      --fail-on string   exit 1\n  -o, --output string    write\n\nExamples:\n  morphic --x a\n"
+		"      --fail-on string          exit 1\n  -h, --help[=true|false]       help\n" +
+		"  -o, --output string           write\n      --verify[=true|false]     check\n" +
+		"\nExamples:\n  morphic --x a\n"
 
-	assert.Equal(t, []string{"fail-on", "output"}, flagNamesIn(rendered))
+	assert.Equal(t, []string{"fail-on", "help", "output", "verify"}, flagNamesIn(rendered))
 }
 
 func TestRootHelp_ListsEveryCommand(t *testing.T) {
