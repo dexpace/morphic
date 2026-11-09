@@ -17,8 +17,9 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   and headers it declares. An enveloped response is documented as the `Type` a method returns and
   the `Envelope.Body` the wire carries, and an example of it as both: the member at `Value` of the
   response's example for the first, and that example whole for the second. An operation is
-  documented as safe or idempotent where its `Effects` say so. No runtime `Policy` is consulted —
-  proving the IR/policy split pays off.
+  documented as safe or idempotent where its `Effects` say so. Its README is returned as blocks a
+  user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)).
+  No runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and the IR `Examples` to synthesize canned responses, sending the whole `Envelope.Body` where a
   response is enveloped, `Others` to answer as each declared response does, the error taxonomy to

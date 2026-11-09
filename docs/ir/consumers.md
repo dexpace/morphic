@@ -12,10 +12,10 @@ document, read for what these consumers need.
 
 ## What a reader finds
 
-| Need | Where | |
+| Need | Where | Status |
 |---|---|---|
 | documentation shown to a person | `Docs` on every node that has any: the summary, the description as CommonMark exactly as written, the external links, and the spans of the description that name a type ([annotations](./annotations.md)) | carried |
-| examples per operation, parameter, type and media type | `Operation.Examples`, `Parameter.Examples`, `TypeCommon.Examples`, `Content.Examples` | carried |
+| examples per operation, parameter, property, type and media type | `Operation.Examples`, `Parameter.Examples`, `Property.Examples` (a header's among them), `TypeCommon.Examples`, `Content.Examples` | carried |
 | a deprecation and when it ends | `Deprecation`: its message, the version it began in, and the removal as a version and as a date, each verbatim ([annotations](./annotations.md)) | carried |
 | tags as the structure of a reference | `Document.TagDefs` with each tag's documentation, parent and kind; `Operation.Tags`, every membership; `Service.Groups`, the section tree the tags describe ([services](./services.md)) | carried |
 | documentation a path shares among its operations | `Unmodeled["openapi:pathItem/summary"]` and `["openapi:pathItem/description"]` on each operation the path item mounts | no typed home yet (#1319) |
@@ -32,15 +32,17 @@ their correlation key, and one keying stored state by ID checks the key before t
 
 ## What to pin
 
-No release is tagged yet, so the version a consumer can name is a commit, which Go resolves as a
-pseudo-version (`go get github.com/dexpace/morphic@<commit>`). What a stored document can be read
-by is the generation it is stamped with, not the commit that wrote it: `IRVersion` moves with every
-change to the document's shape, to the meaning of a member, to how a name is derived and to the
-`Unmodeled` keys a compiler writes ([IR version](./ir-version.md)), and a build reads only its own
-generation. So a consumer storing documents records the stamp each was written at, keeps the
+No release is tagged yet (#432), so the version a consumer can name is a commit, which Go resolves
+as a pseudo-version (`go get github.com/dexpace/morphic@<commit>`). What a stored document can be
+read by is the generation it is stamped with, not the commit that wrote it: `IRVersion` moves with
+every change to the document's shape, to the meaning of a member, to how a name is derived and to
+the `Unmodeled` keys a compiler spells ([IR version](./ir-version.md)), and a build reads only its
+own generation. So a consumer storing documents records the stamp each was written at, keeps the
 source each was compiled from, and recompiles that source when it moves to a build of another
 generation, which refuses the old document rather than reading it. Morphic ships no migration
-between generations. Two builds of one generation read each other's documents.
+between generations. Two builds of one generation read each other's documents, but a fix between
+them can lower one source differently, so a consumer comparing two documents compiles both with
+one build, which derives their [correlation keys](./derived-facts.md#correlation-keys) too.
 
 ## Unmodeled keys
 
@@ -52,9 +54,9 @@ promises](./unmodeled.md#what-a-key-promises)).
 
 A document is several times its source. On the golden spec the IR is 7.0 times the source written
 without whitespace, 95,803,984 bytes against 13,720,625, and 4.0 times it once both are compressed,
-5,244,918 bytes against 1,320,820 by gzip at level 6 (spec @319dc756, morphic @b206dc99). Most of it
-repeats source positions: the IDs are 23% of the type registry's bytes and the provenance 20%, an
-ID's path being the pointer its provenance records.
+5,244,918 bytes against 1,320,820 by gzip at level 6 (spec @319dc756, morphic @b206dc99). Much of
+it repeats source positions: in the type registry, the entities' own `id` values are 23% of the
+bytes and their `provenance` values 20%, an ID's path being the pointer its provenance records.
 
 The compiler has no mode that trims provenance, and slicing a document is a pass's work rather
 than the compiler's, for three reasons:
@@ -70,6 +72,9 @@ than the compiler's, for three reasons:
 - **A slice is the filter pass.** A consumer wanting one operation and what it reaches needs the
   closure of its types, which is easy to get wrong by hand: a discriminated base reaches its
   subtypes, an alias its target, an error the service's common errors. The planned filter pass
-  ([architecture](../architecture.md#22-ir-passes-ir--ir)) keeps the operations a pattern selects
-  and prunes every type none of them reaches, using the reach [usage](./derived-facts.md#usage)
-  derives, and its output is a document like any other, so it verifies and encodes as one.
+  ([architecture](../architecture.md#22-ir-passes-ir--ir)) keeps what a pattern selects and prunes
+  every type nothing it keeps reaches. That is more than the reach [usage](./derived-facts.md#usage)
+  derives, which takes a polymorphic base to its subtypes but skips each reference [the type
+  graph](./derived-facts.md#the-type-graph) draws no edge for, such as an encoding's wire type:
+  pruning by usage alone leaves those dangling. The pass's output is a document like any other, so
+  it verifies and encodes as one.

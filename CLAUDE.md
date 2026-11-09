@@ -286,6 +286,10 @@ These all exist already — extend them rather than building a parallel mechanis
   means lowering it (#558). And it holds every function a package declares, bar the test-support
   packages `testSupport` names, to a caller outside its tests: a binary's `main`, by a whole-program
   reachability analysis, or an `apiRoots` entry naming the caller the module does not have yet.
+  The calls each production package makes into one it does not import, which only a function, an
+  interface or a type argument handed to it can make, are held to `callShapeBaseline`, pair by
+  pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
+  seam among them, and only with the table's edit (#1478).
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
   analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
