@@ -112,6 +112,14 @@ components:
       type: string
       enum: [low, high]
       allOf: [{description: A level, deprecated: true}]
+    # A $ref to a principal's own pointer names the node the refinement types.
+    Raw80: {$ref: '#/components/schemas/Port80/allOf/1'}
+    # A const takes the type and format another conjunct declares, as one
+    # schema writing them all gives it.
+    Port80:
+      allOf:
+        - {type: integer, format: int32}
+        - {const: 80}
     # No value satisfies both, so the contradiction stands with its warning.
     Disjoint:
       allOf:

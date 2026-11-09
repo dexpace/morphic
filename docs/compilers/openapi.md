@@ -1343,6 +1343,17 @@ inline branch as a schema carried by the position. A branch that reduces to a sh
 written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
 `readOnly` and `writeOnly` as it keeps its schema's.
 
+The value set a refinement lowers to, the `Enum` or `Literal` of a principal or of the keywords
+beside the `allOf`, is typed by every conjunct. Each selects a primitive as
+[`enum-const`](#enum-const) reads one schema, from its `type` and `format`, else its `type`, where
+every value is of it, a `$ref` conjunct by the schema deciding what it lands on, past a chain of
+`$ref`s and refinements. The `ValueType` is the one of these, the value set's own included, that
+narrows every other, and each `type` and `format` it holds is consumed. So
+`{allOf: [{type: integer}, {const: 80.0}]}` is an `integer`, as `{type: integer, const: 80.0}` is,
+and keeps nothing. Where none narrows every other, as of two formats neither of which narrows the
+other, the value set keeps the `ValueType` its own schema gives it, and a format that reaches none
+stays with its branch.
+
 What the conjuncts say lands where the position keeps what it writes: on the carrier
 ([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes
 something ([annotations](../ir/annotations.md#one-structural-home-per-declaration)), so a position
@@ -1389,6 +1400,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
   `schema.TestRefinement_ANarrowedRefStillLowersItsTarget`,
   `schema.TestRefinement_AValueSetBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AValueSetIsTypedByEveryConjunct`,
+  `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
@@ -2338,7 +2351,8 @@ to the top type, with an `openapi/budget-exceeded` error at the schema. A `const
 value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
 so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
 verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
-`openapi/degraded-construct` warning at the schema. A
+`openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is typed by every
+conjunct ([`allof-refinement`](#allof-refinement)). A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
 
@@ -2356,8 +2370,8 @@ at that position, whichever is lowered first.
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619); and a `Literal` an `allOf` refines takes no type or format another
-  conjunct declares (#1641). Open: whether a mixed-type enum's `null` lifts out of its union (#618).
+  only an info diagnostic (#619). Open: whether a mixed-type enum's `null` lifts out of its union
+  (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 

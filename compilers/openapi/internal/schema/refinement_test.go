@@ -685,6 +685,83 @@ func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
 	}
 }
 
+// TestRefinement_AValueSetIsTypedByEveryConjunct pins GitHub #1641: the value
+// set a refinement lowers to takes its ValueType from the type and format every
+// conjunct declares, as one schema writing them all gives it, and keeps none of
+// them. Two formats neither of which narrows the other select no one primitive,
+// nor does one the value is not of or one written with no type, so each stays
+// with its branch.
+func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
+	t.Parallel()
+	const uuid = `"0b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11"`
+	for name, tc := range map[string]struct {
+		written string
+		want    ir.PrimKind
+		kept    []string
+	}{
+		"a type on a branch":   {"{allOf: [{type: integer}, {const: 80.0}]}", ir.PrimInteger, nil},
+		"in the other order":   {"{allOf: [{const: 80.0}, {type: integer}]}", ir.PrimInteger, nil},
+		"a format on a branch": {"{allOf: [{type: integer, format: int32}, {const: 80}]}", ir.PrimInt32, nil},
+		"an enum":              {"{allOf: [{type: string, format: uuid}, {enum: [" + uuid + "]}]}", ir.PrimUUID, nil},
+		"a const beside":       {"{const: 80.0, allOf: [{type: integer}]}", ir.PrimInteger, nil},
+		"a type beside":        {"{type: integer, format: int32, allOf: [{const: 80}]}", ir.PrimInt32, nil},
+		"a wider type beside":  {"{type: number, const: 80, allOf: [{type: integer}]}", ir.PrimInteger, nil},
+		"a wider format with the value": {"{allOf: [{type: integer, format: int32}, {type: integer, format: int64, const: 80}]}",
+			ir.PrimInt32, nil},
+		"a $ref": {"{allOf: [{$ref: '#/components/schemas/Int32'}, {enum: [80]}]}", ir.PrimInt32, []string{"openapi:allOf/0"}},
+		"a $ref to a refinement": {"{allOf: [{$ref: '#/components/schemas/Port'}, {enum: [80]}]}", ir.PrimInt32,
+			[]string{"openapi:allOf/0"}},
+		"two formats": {"{allOf: [{type: integer, format: int8}, {type: integer, format: uint8}, {const: 80}]}",
+			ir.PrimNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
+		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/0"}},
+		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/1"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+				"    Int32: {type: integer, format: int32}\n    Port: {allOf: [{$ref: '#/components/schemas/Int32'}]}\n"+
+					"    S: "+tc.written+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			pos := typeByName(doc, "S")
+			node := pos
+			if alias, ok := pos.(*ir.Scalar); ok {
+				node = doc.Types[alias.Base.Target]
+			}
+			switch n := node.(type) {
+			case *ir.Literal:
+				assert.Equal(t, tc.want, n.ValueType)
+			case *ir.Enum:
+				assert.Equal(t, tc.want, n.ValueType)
+			default:
+				t.Fatalf("lowered to %T", node)
+			}
+			assert.Equal(t, tc.kept, unmodeledKeys(pos.Common().Unmodeled))
+			assert.Empty(t, node.Common().Unmodeled)
+		})
+	}
+}
+
+// TestRefinement_ARefToAPrincipalNamesItsTypedNode pins what a $ref to a
+// principal's own pointer names, declared before or after the refinement: the
+// node the refinement typed, as a $ref names the node its target's owner builds.
+func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
+	t.Parallel()
+	const s = "    S: {allOf: [{type: integer, format: int32}, {const: 80}]}\n"
+	const raw = "    Raw: {$ref: '#/components/schemas/S/allOf/1'}\n"
+	var docs []*ir.Document
+	for _, order := range []string{s + raw, raw + s} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", order))
+		openapitest.RequireNoErrorDiags(t, diags)
+		lit, ok := doc.Types["t/anon/components/schemas/S/allOf/1"].(*ir.Literal)
+		require.True(t, ok)
+		assert.Equal(t, ir.PrimInt32, lit.ValueType)
+		docs = append(docs, doc)
+	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
+}
+
 // TestRefinement_AValueSetBesideTheAllOfIsAConjunct pins GitHub #1309: an enum or
 // a const beside an allOf that refines is one of its conjuncts, not its rival. It
 // lowers as if no allOf were written where it is the principal, with what the

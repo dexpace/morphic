@@ -311,8 +311,9 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 		return outcomeKeeps{keywords: keywords, shape: shape}
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
+	typed := valueSetNode(c, ts, r, pointer)
 	if r.principal != nil {
-		k.keywords = refinedUnhomed(c, r, s)
+		k.keywords = refinedUnhomed(c, r, s, typed)
 	}
 	homes := homesAt(c, ts, s, target, pointer)
 	voices := voicingOf(c, s)
@@ -329,7 +330,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 			k.branches = append(k.branches, keptBranch{entry: e})
 		case bs != nil:
 			residue := unmergedBranchKeys(bs, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, homes)) || w.holds(r.held, bs, key)
+				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, homes)) || said(&w, r, typed, bs, key)
 			})
 			if len(residue) > 0 {
 				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
@@ -375,11 +376,23 @@ func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says, where a
-// $ref site reads no target and keeps them all (GitHub #1067).
-func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema) []string {
+// $ref site reads no target and keeps them all (GitHub #1067). typed is the value
+// set the principal lowered to, if any (valueSetNode).
+func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeDef) []string {
 	w := newAdmission(c)
-	said := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !w.holds(r.held, s, key) })
-	return unhomedKeywords(s, nil, said)
+	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
+	return unhomedKeywords(s, nil, held)
+}
+
+// said reports whether the principal of r already says what s's keyword key
+// does: what it admits holds it, or it is a format the value set it lowered to,
+// typed, holds as its ValueType (typeValueSet). A type that ValueType holds, its
+// values hold too.
+func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
+	if w.holds(r.held, s, key) {
+		return true
+	}
+	return typed != nil && key == "format" && formatHome(typed, s)
 }
 
 // recordOn keeps k on the node owner names.

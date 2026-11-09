@@ -209,6 +209,25 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Port80/allOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Port80/allOf/1",
+      "name": {
+        "hint": "port_80"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80/allOf/1"
+      },
+      "value": {
+        "kind": "number",
+        "num": "80"
+      },
+      "valueType": "int32"
+    },
     "t/anon/components/schemas/Scores/items": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Scores/items",
@@ -688,6 +707,25 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/Port80": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Port80",
+      "name": {
+        "source": "Port80",
+        "canonical": "port_80"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Port80/allOf/1",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Prim": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Prim",
@@ -723,6 +761,25 @@
       },
       "base": {
         "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Raw80": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Raw80",
+      "name": {
+        "source": "Raw80",
+        "canonical": "raw_80"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Raw80"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Port80/allOf/1",
         "nullable": false
       }
     },
@@ -1302,7 +1359,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "333a08d5e32b81c178c373cbf0020a92c23c29f781f1e35eb053da7490320fee"
+      "hash": "5569e428abcc60c76b996f40ab43601babeab29830f408bac74a815ea387f82e"
     }
   ]
 }

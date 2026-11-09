@@ -250,25 +250,38 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 	return ref, append(bodyDiags, nullDiags...)
 }
 
-// lower interns the inline schema at pointer and returns its TypeID. const,
-// enum and allOf composition take precedence over the structural type, which
-// is otherwise dispatched on the effective (null-stripped) type set.
-//
-// The families are conjoined where a schema writes more than one, so electing
-// a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
-// ones passed over are kept verbatim beside it (recordSkippedFamilies), but for
-// an allOf that refines, which decides the position. A keyword the elected
-// lowering never reads goes through preserveUnhomedKeywords, which asks the
-// built node whether it has a field for it.
+// lower interns the inline schema at pointer and returns its TypeID. An allOf
+// that refines decides the position (docs/compilers/openapi.md#allof-refinement):
+// its principal, or where no branch is one, the keywords beside it as if no allOf
+// were written, an enum or a const there being one of its conjuncts rather than
+// its rival. The value set either lowers to is typed by every conjunct
+// (typeValueSet). Any other schema lowers by its election (lowerElected).
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	d := dispatchOf(s)
-	if r, refines := refinementOf(c, s, pointer); refines {
-		if r.principal != nil {
-			return lowerPrincipal(c, ts, depth, r)
-		}
-		resolveBeaten(c, ts, r)
-		d = d.besideAllOf()
+	r, refines := refinementOf(c, s, pointer)
+	if !refines {
+		return lowerElected(c, ts, depth, s, pointer, dispatchOf(s))
 	}
+	var id ir.TypeID
+	var diags []ir.Diagnostic
+	if r.principal != nil {
+		id, diags = lowerPrincipal(c, ts, depth, r)
+	} else {
+		resolveBeaten(c, ts, r)
+		id, diags = lowerElected(c, ts, depth, s, pointer, dispatchOf(s).besideAllOf())
+	}
+	typeValueSet(c, ts, s, r, pointer)
+	return id, diags
+}
+
+// lowerElected lowers s, at pointer, by the family d elects, which takes
+// precedence over the structural type, else by its effective (null-stripped)
+// type set. The families are conjoined where a schema writes more than one, so
+// electing a winner is a degradation
+// (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
+// verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
+// never reads, such as `type: string` beside an allOf, goes through
+// preserveUnhomedKeywords, which asks the built node whether it has a field for it.
+func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
 		return owner, append(diags, ownDiags...)
