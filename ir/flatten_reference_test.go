@@ -136,7 +136,8 @@ func (r *referenceWalk) result() (lines, undeclared []string, unflattened []ir.T
 		rs := reads[wire]
 		last := rs[len(rs)-1]
 		line := fmt.Sprintf("%s@%s", last.p.ID, last.owner)
-		required, secret := listed[wire], false
+		required := listed[wire]
+		var secret bool
 		shown := map[ir.PropID]bool{last.p.ID: true}
 		for _, rd := range rs {
 			required = required || rd.p.Required

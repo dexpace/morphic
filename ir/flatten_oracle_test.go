@@ -115,7 +115,7 @@ func requireRequirements(t *testing.T, f ir.Flattening, models map[ir.TypeID]*ir
 func requireRedactions(t *testing.T, types ir.TypeRegistry, f ir.Flattening, what string) {
 	t.Helper()
 	for _, fp := range f.Properties {
-		want := false
+		var want bool
 		for _, d := range append([]ir.PropertyDecl{fp.PropertyDecl}, fp.Overridden...) {
 			want = want || d.Property.Secret || reachesSensitive(types, d.Property.Type.Target)
 		}

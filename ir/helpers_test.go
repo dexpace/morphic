@@ -542,16 +542,19 @@ func flatLines(f ir.Flattening) []string {
 // withinRandom returns and makes some declared types Sensitive.
 func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
+
 	facets := rand.New(rand.NewPCG(seed, seed+13))
 	var typeOf [8]ir.TypeID
 	for i := range typeOf {
 		typeOf[i] = types[facets.IntN(len(types))]
 	}
+
 	for _, id := range types {
 		if td := doc.Types[id]; !ir.IsNilTypeDef(td) && facets.IntN(4) == 0 {
 			td.Common().Sensitive = true
 		}
 	}
+
 	for _, td := range doc.Types {
 		m, ok := td.(*ir.Model)
 		if !ok || m == nil {
@@ -585,6 +588,7 @@ func reachesSensitive(types ir.TypeRegistry, id ir.TypeID) bool {
 		if td.Common().Sensitive {
 			return true
 		}
+
 		var base *ir.TypeRef
 		switch t := td.(type) {
 		case *ir.Scalar:
@@ -599,6 +603,7 @@ func reachesSensitive(types ir.TypeRegistry, id ir.TypeID) bool {
 		}
 		id = base.Target
 	}
+
 	return false
 }
 

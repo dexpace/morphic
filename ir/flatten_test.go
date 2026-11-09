@@ -568,24 +568,27 @@ func TestFlattenedProperties_StepsCountEachTypeARedactionReads(t *testing.T) {
 		}
 		return ir.FlattenSteps(doc.Types, "m")
 	}
+
 	assert.Equal(t, steps("missing")+10, steps(scalarAt(0)), "each scalar a redaction reads through is a step")
 }
 
 // scalarAt is the ID of the i-th scalar of a chain.
 func scalarAt(i int) ir.TypeID { return ir.TypeID(fmt.Sprintf("s%04d", i)) }
 
-// redactionChain is a model of n declarations, each typed at the head of a
-// chain of n scalars leading to end.
+// redactionChain returns the registry and root of a model declaring n
+// properties, each typed at the head of a chain of n scalars leading to end.
 func redactionChain(n int, end *ir.Scalar) (ir.TypeRegistry, ir.TypeID) {
 	doc := irtest.DocOf(end)
 	for i := range n {
 		doc.Types[scalarAt(i)] = irtest.ScalarOf(scalarAt(i), scalarAt(i+1))
 	}
+
 	props := make([]ir.Property, n)
 	for i := range props {
 		props[i] = typed(ir.PropID(fmt.Sprintf("p%04d", i)), fmt.Sprintf("w%04d", i), scalarAt(0))
 	}
 	doc.Types["m"] = owning("m", nil, props...)
+
 	return doc.Types, "m"
 }
 

@@ -350,13 +350,14 @@ func (f *flattener) flat(mb member) FlatProperty {
 // chain.
 func (f *flattener) sensitive(id TypeID) bool {
 	var chain []TypeID
-	found := false
+	var found bool
 	for {
 		f.steps++
 		if known, read := f.sensitivity[id]; read {
 			found = known
 			break
 		}
+
 		td := f.types[id]
 		if IsNilTypeDef(td) {
 			break
@@ -365,6 +366,7 @@ func (f *flattener) sensitive(id TypeID) bool {
 			found = true
 			break
 		}
+
 		var base *TypeRef
 		switch t := td.(type) {
 		case *Scalar:
@@ -377,6 +379,7 @@ func (f *flattener) sensitive(id TypeID) bool {
 		if base == nil {
 			break
 		}
+
 		if f.sensitivity == nil {
 			f.sensitivity = map[TypeID]bool{}
 		}
@@ -384,8 +387,10 @@ func (f *flattener) sensitive(id TypeID) bool {
 		chain = append(chain, id)
 		id = base.Target
 	}
+
 	for _, c := range chain {
 		f.sensitivity[c] = found
 	}
+
 	return found
 }
