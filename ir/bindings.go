@@ -90,6 +90,7 @@ type HTTPBinding struct {
 	// PathDocs documents the path the binding mounts the operation on, shared
 	// by every operation on it (an OpenAPI Path Item's summary and description),
 	// as URITemplate is; the operation's own documentation is Operation.Docs.
+	// Omitted when empty, as Payload.Docs is: most paths document nothing.
 	PathDocs Docs `json:"pathDocs,omitzero"`
 	// ParamBindings assigns each logical parameter its HTTP location.
 	ParamBindings []HTTPParamBinding `json:"paramBindings,omitempty"`
