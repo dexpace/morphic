@@ -22,7 +22,7 @@ import (
 // LowerService lowers one document's service, its operations grouped per the
 // configured strategy (docs/ir/services.md), and its declared tags. It returns
 // them beside every server it registers and every scheme in schemes, which a
-// requirement naming no entry adds to.
+// requirement naming an unresolved scheme adds to.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
