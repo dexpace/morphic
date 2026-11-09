@@ -69,8 +69,8 @@ const (
 	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
 
-	// TargetUnionOpen clears ir.Union.Closed, saying a payload may hold a
-	// variant the union does not list. It names the fact for TargetEnumOpen's
+	// TargetUnionOpen clears the ir.Union.Closed of a oneOf or an anyOf, saying
+	// a payload may hold a variant the union does not list. It names the fact for TargetEnumOpen's
 	// reason: a oneOf or anyOf is closed by definition. No default key names
 	// it, since no spelling for an open union has become common; a document
 	// that writes one names its own mapping.
@@ -377,9 +377,9 @@ func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Pr
 	return p.openness(unmodeled, TargetEnumOpen, closed, prov)
 }
 
-// UnionOpenness clears *closed, a union's, when the vendor extensions kept in
-// unmodeled state the union open, and marks prov with the heuristic when they
-// do, as EnumOpenness opens an enum.
+// UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
+// when the vendor extensions kept in unmodeled state the union open, and marks
+// prov with the heuristic when they do, as EnumOpenness opens an enum.
 func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if closed == nil || prov == nil {
 		return nil

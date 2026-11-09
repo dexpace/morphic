@@ -346,6 +346,43 @@ components:
 	}
 }
 
+// TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone pins that the union a
+// mixed enum lowers to reads enum.open and not union.open, a oneOf's or an
+// anyOf's: one fact read through one target, so a union key opens nothing
+// there, the first key stated decides, and a key stating otherwise is reported
+// once, however many targets a mapping lists it under.
+func TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    UnionKey: {enum: [1, a], x-u: true}
+    Conflict: {enum: [1, a], x-a: false, x-b: [1, a]}
+`
+	doc := compileClean(t, spec, openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetEnumOpen:  {{Key: "x-a"}, {Key: "x-b"}},
+			openapi.TargetUnionOpen: {{Key: "x-u"}, {Key: "x-a"}, {Key: "x-b"}},
+		},
+	}})
+
+	for _, name := range []string{"UnionKey", "Conflict"} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+		assert.True(t, u.Closed, "%s stays closed", name)
+		assert.Empty(t, u.Provenance.Inferred, name)
+	}
+	var lost []string
+	for _, d := range doc.Diagnostics {
+		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
+			lost = append(lost, d.Message)
+		}
+	}
+	assert.Len(t, lost, 1, "x-b, losing to x-a, is reported once: %q", lost)
+}
+
 // defaultKeySpec is a document one default source fills one target of: the key,
 // writing value at its member if it has one, sits on a deprecated operation, on
 // an undeprecated one and on an enum, since the targets live on those carriers

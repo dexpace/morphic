@@ -3973,9 +3973,10 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 `anyOf` is closed by definition, so a document can only declare the open case. No default key names
 it, since no spelling for an open union has become common, so a union opens only under a mapping
 that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-const)) reads
-`enum.open` as well, as the enum would: the key describes the enum the document writes, whatever
-node holds it, so `x-extensible-enum` opens it under the default mapping, and on a `oneOf` it opens
-nothing.
+`enum.open` instead, as the enum would, since a target names what the document writes, whatever
+node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
+and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
+where one reading could override what the other reports.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
@@ -3986,6 +3987,7 @@ nothing.
   `lowering.TestPromoterEnumOpenness_WritesNothing`,
   `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
   `e2e.TestPromotion_AMappedKeyOpensAUnion`,
+  `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,

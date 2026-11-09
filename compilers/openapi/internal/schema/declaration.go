@@ -171,12 +171,14 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	case *ir.Enum:
 		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
 	case *ir.Union:
-		diags = append(diags, c.Promoter().UnionOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+		// A target names what the document writes, so the union a mixed enum
+		// lowers to reads the enum's, as the enum would, and only that one: one
+		// fact read through two targets would let either override the other.
+		openness := c.Promoter().UnionOpenness
 		if dispatchOf(s).won == "enum" {
-			// A mixed enum lowers to this union, which its key opens as it would
-			// the enum: the key describes the enum whatever node holds it.
-			diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+			openness = c.Promoter().EnumOpenness
 		}
+		diags = append(diags, openness(common.Unmodeled, &n.Closed, &common.Provenance)...)
 	default:
 		// Openness is a fact of an enum's or a union's value space alone.
 	}
