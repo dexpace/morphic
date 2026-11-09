@@ -191,7 +191,7 @@ func (c *correlator) property(key string, p *ir.Property) {
 	c.offer(child(key, "prop", p.EffectiveWireName()), string(p.ID), func(c *correlator, key string) {
 		c.ref(part(key, "type"), &p.Type)
 		c.decoded(key, p.Encoding)
-		c.headers(key, c.parts[p.ID])
+		c.headers(key, c.partHeaders[p.ID])
 		for i := range p.Args {
 			arg := &p.Args[i]
 			c.offer(child(key, "arg", arg.Name.Source), string(arg.ID), func(c *correlator, key string) {

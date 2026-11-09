@@ -62,13 +62,13 @@ type candidate struct {
 // the least key is settled before any key built on it, as a shortest-path
 // search settles the nearest vertex first.
 type correlator struct {
-	doc     *ir.Document
-	pending candidateHeap
-	settled map[string]bool // every entity decided, keyed or not
-	out     *correlations
-	inline  map[ir.TypeID]bool        // anonymous models another model composes
-	ops     map[ir.OpID]*ir.Operation // every operation the walk reaches
-	parts   map[ir.PropID][]ir.Header // each multipart part's headers, by the property it encodes
+	doc         *ir.Document
+	pending     candidateHeap
+	settled     map[string]bool // every entity decided, keyed or not
+	out         *correlations
+	inline      map[ir.TypeID]bool        // anonymous models another model composes
+	ops         map[ir.OpID]*ir.Operation // every operation the walk reaches
+	partHeaders map[ir.PropID][]ir.Header // each multipart part's headers, by the property it encodes
 }
 
 // newCorrelations derives the correlation keys of doc. A nil doc has none.

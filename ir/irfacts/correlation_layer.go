@@ -22,7 +22,7 @@ func (c *correlator) seedLayer() {
 			c.servers(key, svc.Servers)
 		})
 	}
-	c.parts = partHeaders(c.doc.Services, ops)
+	c.partHeaders = indexPartHeaders(c.doc.Services, ops)
 	callbacks := callbackOperations(c.doc)
 	routes := map[string]int{}
 	for _, op := range ops {
@@ -266,9 +266,9 @@ func (c *correlator) stream(key string, s *ir.StreamDetail) {
 	c.ref(part(key, "initial"), s.Initial)
 }
 
-// partHeaders indexes the headers each multipart part declares by the property
+// indexPartHeaders indexes the headers each multipart part declares by the property
 // the part encodes, over every payload of ops and services.
-func partHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropID][]ir.Header {
+func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropID][]ir.Header {
 	parts := map[ir.PropID][]ir.Header{}
 	add := func(p *ir.Payload) {
 		if p == nil {
