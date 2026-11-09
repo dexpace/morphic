@@ -152,8 +152,34 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 // callbacks offers each operation op declares as a callback its key: op's,
 // then the callback's name and the method, whether or not the operation has a
 // name of its own. The runtime expression is a detail of where the request
-// goes, so a rewritten expression keeps the key.
+// goes, so a rewritten one keeps the key, unless the name keys two operations
+// of one method, which only their expressions tell apart.
 func (c *correlator) callbacks(key string, op *ir.Operation) {
+	targets := c.callbackTargets(op)
+	shared := make(map[[2]string]int, len(targets))
+	for _, t := range targets {
+		shared[[2]string{t.name, t.method}]++
+	}
+	for _, t := range targets {
+		at := child(key, "callback", t.name)
+		if shared[[2]string{t.name, t.method}] > 1 {
+			at = child(at, "expression", t.expression)
+		}
+		c.offerOperation(child(at, "method", t.method), t.op)
+	}
+}
+
+// callbackTarget is an operation one of op's callbacks lists, with what keys
+// it: the callback's name, its runtime expression and the operation's method.
+type callbackTarget struct {
+	op                       *ir.Operation
+	name, expression, method string
+}
+
+// callbackTargets returns the operations op's callbacks list that the document
+// declares with an HTTP binding, in the order op lists them.
+func (c *correlator) callbackTargets(op *ir.Operation) []callbackTarget {
+	var targets []callbackTarget
 	for _, b := range op.Bindings.HTTP {
 		for _, cb := range b.Callbacks {
 			for _, id := range cb.Operations {
@@ -161,11 +187,11 @@ func (c *correlator) callbacks(key string, op *ir.Operation) {
 				if !ok || len(target.Bindings.HTTP) == 0 {
 					continue
 				}
-				method := target.Bindings.HTTP[0].Method
-				c.offerOperation(child(child(key, "callback", cb.Name), "method", method), target)
+				targets = append(targets, callbackTarget{target, cb.Name, cb.Expression, target.Bindings.HTTP[0].Method})
 			}
 		}
 	}
+	return targets
 }
 
 // params offers each parameter of op its key: op's, then where the parameter

@@ -1,9 +1,12 @@
 callbacks	g/default	group:g~1default
+callbacks	op/test/alias	route:GET ~1sub/callback:alias/method:GET
 callbacks	op/test/cb	route:GET ~1sub/callback:on~1event/method:POST
 callbacks	op/test/named	route:GET ~1sub/callback:on~1event/method:GET
 callbacks	op/test/nobinding	-
 callbacks	op/test/same	route:GET ~1sub/callback:echo/method:GET
 callbacks	op/test/sub	route:GET ~1sub
+callbacks	op/test/twiceA	route:GET ~1sub/callback:twice/expression:{$request.body#~1a}/method:PUT
+callbacks	op/test/twiceB	route:GET ~1sub/callback:twice/expression:{$request.body#~1b}/method:PUT
 callbacks	s/test/0	-
 conjuncts	p/test/n	type:N/prop:n
 conjuncts	p/test/q	type:S/prop:q

@@ -309,8 +309,9 @@ func TestCorrelation_KeysAGroupOnlyWithinTheDepthBound(t *testing.T) {
 }
 
 // callbacksFixture holds an operation declaring callbacks: one unnamed, one
-// named, one with no binding, one the document does not declare, and one to a
-// constant URL spelling the operation's own route.
+// named, one with no binding, one the document does not declare, one to a
+// constant URL spelling the operation's own route, one under another name to
+// that URL, and two of one method that one name keys by two expressions.
 func callbacksFixture() *ir.Document {
 	parent := namedOp("op/test/sub", "subscribe", "/sub")
 	parent.Bindings.HTTP[0].Callbacks = []ir.Callback{{
@@ -326,7 +327,16 @@ func callbacksFixture() *ir.Document {
 	parent.Bindings.HTTP[0].Callbacks = append(parent.Bindings.HTTP[0].Callbacks,
 		ir.Callback{Name: "echo", Expression: "/sub", Operations: []ir.OpID{"op/test/same"}})
 	same := namedOp("op/test/same", "", "/sub")
-	return opsDoc([]ir.Operation{parent, cb, named, {ID: "op/test/nobinding"}, same})
+	put := func(id ir.OpID) ir.Operation {
+		return ir.Operation{ID: id, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "PUT"}}}}
+	}
+	parent.Bindings.HTTP[0].Callbacks = append(parent.Bindings.HTTP[0].Callbacks,
+		ir.Callback{Name: "alias", Expression: "/sub", Operations: []ir.OpID{"op/test/alias"}},
+		ir.Callback{Name: "twice", Expression: "{$request.body#/a}", Operations: []ir.OpID{"op/test/twiceA"}},
+		ir.Callback{Name: "twice", Expression: "{$request.body#/b}", Operations: []ir.OpID{"op/test/twiceB"}})
+	alias := namedOp("op/test/alias", "", "/sub")
+	return opsDoc([]ir.Operation{parent, cb, named, {ID: "op/test/nobinding"}, same, alias,
+		put("op/test/twiceA"), put("op/test/twiceB")})
 }
 
 func TestCorrelation_KeysACallbackThroughTheOperationDeclaringIt(t *testing.T) {
@@ -337,6 +347,9 @@ func TestCorrelation_KeysACallbackThroughTheOperationDeclaringIt(t *testing.T) {
 		"op/test/named":     "route:GET ~1sub/callback:on~1event/method:GET",
 		"op/test/nobinding": "",
 		"op/test/same":      "route:GET ~1sub/callback:echo/method:GET",
+		"op/test/alias":     "route:GET ~1sub/callback:alias/method:GET",
+		"op/test/twiceA":    "route:GET ~1sub/callback:twice/expression:{$request.body#~1a}/method:PUT",
+		"op/test/twiceB":    "route:GET ~1sub/callback:twice/expression:{$request.body#~1b}/method:PUT",
 	})
 }
 
