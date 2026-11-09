@@ -62,13 +62,13 @@ Examples:
   morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 
 Flags:
-      --cache-dir string    keep compiled documents in this directory, and reuse one while nothing it depends on has changed
-      --disable-pass name   turn off the IR pass with this name (repeatable)
-      --explain pointer     report what compiling produced at this pointer instead of the IR; '' is the whole document
-      --fail-on threshold   exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
-  -h, --help                help for compile
-      --opt key=value       set one key=value option on the compiler the spec selects (repeatable)
-  -o, --output string       write IR JSON to this file instead of stdout
-      --pretty              indent the IR JSON --output writes; stdout is indented either way
-      --skip-validate       alias for --disable-pass validate
-      --verify              check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow
+      --cache-dir string             keep compiled documents in this directory, and reuse one while nothing it depends on has changed
+      --disable-pass name            turn off the IR pass with this name (repeatable)
+      --explain pointer              report what compiling produced at this pointer instead of the IR; '' is the whole document
+      --fail-on threshold            exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
+  -h, --help[=true|false]            help for compile
+      --opt key=value                set one key=value option on the compiler the spec selects (repeatable)
+  -o, --output string                write IR JSON to this file instead of stdout
+      --pretty[=true|false]          indent the IR JSON --output writes; stdout is indented either way
+      --skip-validate[=true|false]   alias for --disable-pass validate
+      --verify[=true|false]          check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow

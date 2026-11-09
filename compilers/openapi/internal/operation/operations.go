@@ -19,17 +19,19 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerService lowers one document into a single Service: its identity, docs
-// and servers, the declared tag registry, and every path, webhook, and callback
-// operation placed into groups per the configured grouping strategy
-// (docs/ir/services.md), registering every server it meets in reg.
+// LowerService lowers one document's service, its operations grouped per the
+// configured strategy (docs/ir/services.md), and its declared tags. It returns
+// them beside every server it registers, and every scheme in declared with each
+// unresolved one a requirement names.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *servers.Registry, schemes *auth.Registry) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
+	reg := servers.NewRegistry()
+	schemes := auth.RegistryOf(c, declared)
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -59,7 +61,21 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *s
 	// every operation the service mounts, callbacks included.
 	diags = append(diags, w.claims.report(c)...)
 	svc.Groups = groups.finalize()
-	return svc, lowerTagDefs(c), diags
+	return Lowered{
+		Service: svc,
+		TagDefs: lowerTagDefs(c),
+		Servers: reg.Servers(),
+		Auth:    schemes.Schemes(),
+	}, diags
+}
+
+// Lowered is what LowerService builds from one document. Each field is the
+// Document field of its name, bar Service, the one entry of Services.
+type Lowered struct {
+	Service ir.Service
+	TagDefs []ir.TagDef
+	Servers map[ir.ServerID]ir.Server
+	Auth    map[ir.AuthID]ir.AuthScheme
 }
 
 // walk is what lowering a service's operations accumulates across all of them,

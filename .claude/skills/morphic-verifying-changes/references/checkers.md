@@ -8,14 +8,29 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 `source-scanners-match-every-form`
 
 - **Rule.** An AST or grep check over Go source must match every form the language and codebase use:
-  value and pointer receivers, method values, functions passed as values, aliases, every selector
-  base, go statements and .Go calls, every write form (a `range` clause's `=` too), every
-  constructor of an identity type, and every import of a path.
-- **Why.** Recursion and dependency pins went blind to value receivers and method values, and a grep
-  audit reported clean while missing both planted writes (#332, #837). A blank `os/exec` import hid
-  a named one, and a `range` clause assigned past a check of assignments (#1233, #1252).
-- **Probe.** Plant each form in a scratch package, and one inside another, as a walk can stop early:
-  each must redden. Prefer keying on go/types over selectors.
+  value and pointer receivers, method values and expressions, instantiated callees (`f[T]()`,
+  `v.M[T]()`), functions passed as values, aliases, every selector base, go statements and .Go
+  calls, every write form (a `range` clause's `=` too), every constructor of an identity type, and
+  every import of a path, blank, named or dotted, bar a spelling `gofmt` rewrites, which `make fmt`
+  refuses. Plant them by `references/checkers.md#plant-each-form-by-each-route`.
+- **Why.** Pins missed value receivers and method values, a grep audit both planted writes (#332,
+  #837), a blank `os/exec` import hid a named one, a `range` clause passed a check of assignments
+  (#1233, #1252), and an analyzer meeting every form then listed missed `(*T).Add(v)` and read
+  `v.G[int]()` as a method value (#1447, #1549).
+
+## Plant each form by each route a check follows to it
+`plant-each-form-by-each-route`
+
+- **Rule.** Cross each form `references/checkers.md#source-scanners-match-every-form` lists with
+  each route the check follows to it: directly, through an alias, and inside another form, as a
+  walk can stop early. Plant every sibling a branch lists, not one standing for the rest. Key on
+  go/types over selectors. Where the plants may stop is
+  `references/mutation.md#plants-stop-at-a-held-grid`.
+- **Why.** A fixture planted `delete`, `clear`, `copy` and `append` directly and only `delete`
+  through an alias, so a mutant stopping the other three through an alias passed it, as did one
+  dropping arrays from the ranged types (#1447, #1586).
+- **Probe.** In a scratch package each cell's plant draws a finding, and removing the check's
+  handling of one route reddens that route's plants.
 
 ## A guard on how a value is built must see what undoes the build
 `build-guards-see-later-writes`
@@ -85,9 +100,13 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 
 - **Rule.** A new check that reads the source (a shape description, a declaration scan) is run,
   built from the branch, at each past commit that changed what it reads: its working directory in a
-  detached worktree at that commit. It must change exactly where history did.
+  detached worktree at that commit. It must change exactly where history did. For a check reading
+  all production source, which nearly every commit changes, run it where a diff holds the construct
+  it reads (`git log --first-parent -G '<construct>' --format=%h origin/main -- '*.go'`), plus a
+  sample the report calls one.
 - **Why.** The IR shape describer changed at every version bump and at no refactor, and found one
-  unbumped shape change (#985).
+  unbumped shape change (#985). A lint rule over every package met 398 first-parent commits, and
+  its review sampled five with no rule saying how to choose (#1447, #1550).
 
 ## A new gate target draws a finding planted for it
 `gate-target-draws-a-plant`
