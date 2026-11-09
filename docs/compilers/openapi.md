@@ -1428,29 +1428,33 @@ JSON Schema conjoins an `allOf`'s keywords with those beside it, so what a branc
 position reads as written beside the `allOf`, in a composition and in a refinement
 ([`allof-refinement`](#allof-refinement)) alike: its `title`, `description`, `externalDocs`,
 `deprecated`, `example`, `examples`, `xml`, `default`, `readOnly`, `writeOnly`, value constraints,
-`format: password` ([`password`](#password)), vendor extensions and validation-only keywords
-([`validation-only`](#validation-only)) land where the same keyword beside the `allOf` lands, each
-read at the branch's own pointer and reported as that keyword is there, which for most is not at
-all. A `nullable` folds only from a branch writing no `properties`, under the nullable-widening
-policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not fold, being a composing
-model's openness; a value bound does not where the position owns a node with no field for one; and a
-composition distributed across a union keeps every branch on each variant
-([`union-beside-structure`](#union-beside-structure)).
+collection bounds, `format: password` ([`password`](#password)), vendor extensions and
+validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
+the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
+which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
+the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
+fold, being a composing model's openness; a bound does not where the position has no field for it,
+as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
+no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
+of a type list holding either where a variant does; a collection bound `Constraints` cannot state, a
+`uniqueItems` of `false` or a count past 64 bits, never folds; and a composition distributed across
+a union keeps every branch on each variant ([`union-beside-structure`](#union-beside-structure)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value bounds
-agree where they meet, as a redeclared field's do
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
-folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
-written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
-`exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently. A branch whose folding keywords write a relative `$ref` it reads against
-another base than the position does, an `$id` at or above it naming another URI, folds nothing
-either, since that `$ref` would name another schema read at the position; it stays whole, with its
-report, and is no conjunct the others are compared with. One writing none there, or only absolute
-ones, reads the same at the position, so an `$id` alone keeps nothing it writes from folding.
+folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
+to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
+have no one value, and neither has a 3.0 `exclusiveMinimum` with no bound beside it, which fills no
+field, so each disagrees with another written differently. A branch whose folding keywords write a
+relative `$ref` it reads against another base than the position does, an `$id` at or above it naming
+another URI, folds nothing either, since that `$ref` would name another schema read at the position;
+it stays whole, with its report, and is no conjunct the others are compared with. One writing none
+there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
+writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1496,11 +1500,11 @@ every entry reads that one twice.
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
-  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
-- Status: partly built: a collection bound on an inline branch of a refinement stays with its
-  branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
-  principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that
-  has the field, as one over a `$ref` does (#1312).
+  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestCollectionBound_OnABranchLandsAsItsFlatSpelling`,
+  `schema.TestCollectionBound_OnABranchMeetsInEveryOrder`,
+  `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
+  `schema.TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList`
 
 ### `allof-redeclared-property`
 
@@ -2702,7 +2706,8 @@ of the node or carrier the position owns (a `Scalar`, a `Property` or a `Paramet
 `maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
 carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
 union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
-the target is; and
+the target is, as does one on an inline `allOf` branch
+([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
@@ -2745,12 +2750,11 @@ which a bool cannot tell from one never written, and a count that does not fit i
   `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
   `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
-  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
+  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
+  `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
+  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`
 - Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference (#1050); and a collection bound on an
-  inline branch of a refinement ([`allof-refinement`](#allof-refinement)), whatever its principal,
-  stays verbatim with its branch, which folds no collection bound, where one beside the `allOf`
-  reaches `Constraints` (#1312).
+  everywhere but the collection bounds beside a reference or on an inline `allOf` branch (#1050).
 
 ### `validation-only`
 

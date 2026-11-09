@@ -390,7 +390,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	}
 	speaks := comp.branchSpeaks(i)
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, true))
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true}))
 	})
 	if len(residue) == 0 {
 		return nil

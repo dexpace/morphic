@@ -72,8 +72,7 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
-			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
+		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -230,6 +229,11 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	default:
 		return false
 	}
+}
+
+// holdsCollectionBounds reports whether td is a node collectionConstraints fills.
+func holdsCollectionBounds(td ir.TypeDef) bool {
+	return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 }
 
 // constraintsHome reports whether the value constraints a position declared

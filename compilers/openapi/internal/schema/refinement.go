@@ -306,7 +306,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	if r.principal != nil {
 		k.keywords = refinedUnhomed(c, r, s)
 	}
-	bounds := boundsFold(c, ts, target, pointer)
+	homes := homesAt(c, ts, s, target, pointer)
 	voices := voicingOf(c, s)
 	w := newAdmission(c)
 	for i, e := range r.comp.branches {
@@ -321,7 +321,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 			k.branches = append(k.branches, keptBranch{entry: e})
 		case bs != nil:
 			residue := unmergedBranchKeys(bs, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, bounds)) || w.holds(r.held, bs, key)
+				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, homes)) || w.holds(r.held, bs, key)
 			})
 			if len(residue) > 0 {
 				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
@@ -332,14 +332,37 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	return k
 }
 
-// boundsFold reports whether the position has a field for the value bounds its
-// voices write: a carrier and an alias do, and a node it owns says for itself.
-func boundsFold(c lowering.Ctx, ts *compile.Types, target ir.TypeRef, pointer jsontext.Pointer) bool {
+// homesAt returns which bounds the position s is written at, lowered to target,
+// holds for its voices, as the census asks of those written beside its allOf. A
+// carrier or an alias holds value bounds, and collection bounds where it is a
+// use of the principal, a reference (keywordHome). A node the position owns
+// holds what its kind does, and the Union a type list lowers to what any variant
+// does (preserveVariantsUnhomed).
+func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
-		return true
+		r, refined := refinementOf(c, s, pointer)
+		return boundHomes{value: true, collection: refined && r.principal != nil}
 	}
 	td, ok := ts.Node(target.Target)
-	return ok && constraintsHome(td)
+	if !ok {
+		return boundHomes{}
+	}
+	nodes := []ir.TypeDef{td}
+	if u, isUnion := td.(*ir.Union); isUnion {
+		nodes = variantNodes(ts, u)
+	}
+	return boundHomes{value: slices.ContainsFunc(nodes, constraintsHome), collection: slices.ContainsFunc(nodes, holdsCollectionBounds)}
+}
+
+// variantNodes returns the registered nodes of u's variants.
+func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
+	nodes := make([]ir.TypeDef, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		if td, ok := ts.Node(v.Type.Target); ok {
+			nodes = append(nodes, td)
+		}
+	}
+	return nodes
 }
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that

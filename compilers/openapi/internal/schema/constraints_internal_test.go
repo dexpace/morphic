@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
@@ -43,7 +44,7 @@ func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, nil, "/p")
+	cons, diags := referenceConstraintsOf(l.Ctx, compile.NewTypes(), &kept, nil, nil, ir.TypeRef{}, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

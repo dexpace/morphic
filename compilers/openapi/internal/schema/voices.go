@@ -20,10 +20,8 @@ import (
 
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
-// (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the value
-// constraints, the extensions and the keywords that fold together. A collection
-// bound folds nowhere yet, so a branch writing one stays whole whatever the
-// position lowers to, a List with the field included (GitHub #1312).
+// (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the bounds,
+// the extensions and the keywords that fold together.
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
@@ -49,6 +47,9 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
+	case "minItems", "maxItems", "uniqueItems":
+		// A collection bound ir.Constraints cannot state keeps its branch whole.
+		return keyword, referenceHolds(s, keyword)
 	}
 	twin := TwinKeyword(c, s, keyword)
 	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, twin) ||
@@ -254,18 +255,28 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 	})
 }
 
-// folds reports whether a branch that folds consumes keyword: bounds says the
-// position has a field for value bounds, and a `nullable` folds where
+// folds reports whether a branch that folds consumes keyword: homes says which
+// bounds the position has a field for, and a `nullable` folds where
 // foldsNullable says so.
-func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, bounds bool) bool {
+func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
 		return c.NullableWidening.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
-		return bounds
+		return homes.value
 	}
 	_, fold := foldEntry(c, bs, keyword)
+	if slices.Contains(collectionBoundKeywords, keyword) {
+		return fold && homes.collection
+	}
 	return fold
+}
+
+// boundHomes says which bounds the position an allOf is written at has a field
+// for, so that a branch writing one folds there.
+type boundHomes struct {
+	value      bool
+	collection bool
 }
 
 // foldsNullable reports whether `nullable` on the branch bs speaks for the whole

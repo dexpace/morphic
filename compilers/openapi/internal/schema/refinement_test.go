@@ -307,6 +307,41 @@ func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 	}
 }
 
+// TestRefinement_ACollectionBoundLandsAtEveryPosition pins where a refinement's
+// collection bound lands, beside the allOf or in a branch: on the carrier that
+// holds the position, else on the alias it hoists, as one beside a $ref does.
+func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	const names = "{$ref: '#/components/schemas/Names'}"
+	want := &ir.Constraints{MinItems: new(int64(1)), UniqueItems: true}
+	for name, written := range map[string]string{
+		"beside": "{allOf: [" + names + "], minItems: 1, uniqueItems: true}",
+		"branch": "{allOf: [" + names + ", {minItems: 1, uniqueItems: true}]}",
+		"split":  "{allOf: [" + names + ", {minItems: 1}], uniqueItems: true}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, positionsDoc(refinementTargets, written))
+			noDegradation(t, diags)
+			op := openapitest.FindOp(t, doc, "op")
+			param, ok := openapitest.ParamBySource(op, "id")
+			require.True(t, ok)
+			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints, "property")
+			assert.Equal(t, want, param.Constraints, "parameter")
+			assert.Equal(t, want, op.Responses[0].Headers[0].Constraints, "header")
+			_, nodes := positionRefs(t, doc)
+			for position, ref := range nodes {
+				alias := aliasAt(t, doc, ref)
+				assert.Equal(t, componentID("Names"), alias.Base.Target, position)
+				assert.Equal(t, want, alias.Constraints, position)
+			}
+			named, ok := typeByName(doc, "Named").(*ir.Scalar)
+			require.True(t, ok)
+			assert.Equal(t, want, named.Constraints)
+		})
+	}
+}
+
 // TestRefinement_KeptKeywordsLandAtEveryPosition pins what no reference can
 // hold: a narrower keyword beside the allOf or in a branch, kept verbatim where
 // the position keeps what it writes, with one report.
@@ -333,9 +368,9 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 			"{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
 			"openapi:allOf/1", "the branch (items)",
 		},
-		"a collection bound": {
-			"{allOf: [{$ref: '#/components/schemas/Names'}, {minItems: 1}]}",
-			"openapi:allOf/1", "the branch (minItems)",
+		"a collection bound no field states": {
+			"{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
+			"openapi:allOf/1", "the branch (uniqueItems)",
 		},
 		"an overlapping enum": {
 			"{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
@@ -1497,6 +1532,28 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	require.True(t, ok, "got %T", typeByName(doc, "Beside"))
 	assert.Contains(t, beside.Unmodeled, "openapi:minLength")
 	assert.Equal(t, "d", beside.Docs.Description)
+}
+
+// TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList pins a bound on a
+// branch of an allOf beside a type list: it lands on the variants that hold the
+// same bound written flat, and its branch is not also kept.
+func TestRefinement_ABranchBoundLandsOnTheVariantsOfATypeList(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    Flat: {type: [string, integer], format: x-mine, maxLength: 2}\n"+
+			"    OnBranch: {type: [string, integer], format: x-mine, allOf: [{maxLength: 2}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
+	for _, name := range []string{"Flat", "OnBranch"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, "%s: got %T", name, typeByName(doc, name))
+		assert.Empty(t, u.Unmodeled, name)
+		for _, v := range u.Variants {
+			sc, ok := doc.Types[v.Type.Target].(*ir.Scalar)
+			require.True(t, ok, "%s: got %T", name, doc.Types[v.Type.Target])
+			assert.Equal(t, &ir.Constraints{MaxLength: new(int64(2))}, sc.Constraints, name)
+		}
+	}
 }
 
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
