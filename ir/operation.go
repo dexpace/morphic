@@ -204,6 +204,14 @@ type Content struct {
 // item (docs/ir/payloads.md). TypeSpec tuple-form multipart lowers to a
 // synthesized model whose properties are the parts.
 type PartEncoding struct {
+	// Explode overrides the default explode behavior; nil = default.
+	Explode *bool `json:"explode,omitzero"`
+	// Style is the form-style serialization for non-file parts.
+	Style string `json:"style,omitempty"`
+	// Inferred lists the heuristics that read Filename in, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares the part a file. It is set only where Filename is.
+	Inferred Inferred `json:"inferred,omitempty"`
 	// ContentTypes are the media type(s) of this part.
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
@@ -212,10 +220,6 @@ type PartEncoding struct {
 	Multi bool `json:"multi"`
 	// Filename reports that the part carries a filename (file part).
 	Filename bool `json:"filename"`
-	// Style is the form-style serialization for non-file parts.
-	Style string `json:"style,omitempty"`
-	// Explode overrides the default explode behavior; nil = default.
-	Explode *bool `json:"explode,omitzero"`
 	// AllowReserved permits reserved characters unescaped in the part's value,
 	// as HTTPParamBinding.AllowReserved does in a parameter's.
 	AllowReserved bool `json:"allowReserved"`
@@ -238,6 +242,10 @@ type FileInfo struct {
 	FilenameLocation string `json:"filenameLocation,omitempty"`
 	// FilenameWireName is the wire name when FilenameLocation is path/header.
 	FilenameWireName string `json:"filenameWireName,omitempty"`
+	// Inferred lists the heuristics that read the body as a file, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares it one.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // Response is one declared output of an Operation (docs/ir/responses.md). All

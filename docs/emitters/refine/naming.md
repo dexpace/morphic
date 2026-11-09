@@ -38,12 +38,72 @@ there is no lossy runtime re-splitting of a cased string (oagen's `splitWords` c
 `EscapeReservedWords` runs after casing and **never touches `WireName`/`WireID`** — struct tags are
 built from the wire channel, so wire correctness never depends on the rendered identifier
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
-which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
-collision-cascade counterexample; INV3). Anonymous hoisted types get an emitter-chosen name from
-`Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
-`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
-alike are two entries to disambiguate, and reordering members of distinct values renames none.
+which is keyed by IR ID, and against the names the prior generation shipped, so adding one endpoint
+never renames an existing method (the oagen collision-cascade counterexample; INV3;
+[collisions](#collisions-and-the-names-a-generation-shipped)). Those any target may meet, neutral
+names one scope shares, the `names` pass reports to the document's author
+([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
+hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames
+(`Service.Renames`) change how a shape is presented in a service without changing its `TypeID` or
+its own `Naming`. Enum members are keyed by `EnumMember.ID`, which is derived from the value a
+member holds, so two members whose names render alike are two entries to disambiguate, and
+reordering members of distinct values renames none.
+
+## Collisions, and the names a generation shipped
+
+Names that render alike in one scope collide, and `Ctx.Syms` tells them apart. Keying by ID and
+being deterministic are both needed and neither is enough: no rule reading only the current document
+can tell which of two colliding operations shipped first, so any such rule can rename the incumbent
+when a newcomer joins. A renamer that renames every member of a collision from its own identity is
+deterministic and order-independent, and still renames `get` to `zonesGetZone` the day
+`zonesGetZoneSettings` joins its group, a breaking SDK change. Only the prior generation knows the
+incumbent, so the prior manifest ([write /
+integrate](../write-integrate.md#what-the-manifest-records)) is an input to the rule. An entity's
+prior entry is the one under its ID or, where its ID is new, the one entity entry recording its
+correlation key under an ID the document no longer has, where exactly one does and no other new
+entity has that key, since a guess between two entries could hand one entity another's name. A
+symbol derived from an entity takes the entry derived the same way from its entity's, since it
+records the entity's key, so matching it by key alone would find the entity's entry beside its
+own. An entity with no correlation key, or whose
+entry has none, has no prior entry, so rule 2 names it as on a first generation and nothing that
+follows an entity by its prior entry follows it: its ID alone is what #678 shows can name another
+entity, and two keyless entities would otherwise be taken for one. Taking two revisions' entities
+for one because their keys agree is inferred, not declared, so the engine takes an option turning it
+off (INV6). Every generation is then named as a first one, and the engine reports that once as a
+warning where a prior manifest is given, since names it shipped may change. A prior manifest whose
+`Keys` is not the running build's `irfacts.CorrelationVersion` is read the same way, its keys
+coming from another derivation and agreeing with none ([correlation
+keys](../../ir/derived-facts.md#correlation-keys)).
+
+1. **A shipped name keeps its symbol.** An entity or symbol whose prior entry has the same
+   correlation key, scope and `Base` takes the entry's `Symbol` again, a suffix it was given
+   included, unless the scope now reserves it. Two such symbols were apart in that scope in the
+   prior generation and stay apart. The scope, not the unit, is what is compared: by default every
+   group's client is in the root unit, so an operation moved to another group would otherwise keep
+   `get` beside the `get` that group's client already shipped.
+2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
+   else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
+   reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units
+   reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+
+A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
+the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's
+Objective-C name, resolved in the namespace every unit shares ([Swift](../targets/kotlin/swift.md)),
+which Swift callers depend on as Kotlin callers depend on its Kotlin name.
+
+Only the choice is pinned, never the name: an entity whose own rendered name changed, as a renamed
+`operationId` does, gets a new `Base`, so rule 1 does not hold for it and it is named afresh. An ID
+alone pins nothing, since an ID built from an array index can name another entity in the next
+revision (#678): the correlation key must agree too. On a first generation, or one run without its
+prior manifest, rule 2 decides alone; ID order is independent of declaration order, so the two-order
+oracle holds it. What the promise rests on is stated with it: a name stays only while its entity's
+correlation key survives the revision, under its ID or in place of it. An ID derived from a pointer
+changes when the pointer does ([across revisions](../../ir/identity.md#across-revisions)), and the
+key carries it across where the key's own source holds, as an operation's route does when a path
+variable is renamed ([correlation keys](../../ir/derived-facts.md#correlation-keys)).
+
+The prior manifest is an input like any other, so a generation is still a pure function of its
+inputs ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
 
 ## The source spelling, for letter case only
 

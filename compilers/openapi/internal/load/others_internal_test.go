@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -164,4 +166,27 @@ func TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy(t *testing.T
 	} {
 		assert.Equal(t, tc.want, labelOf(tc.self, tc.key, tc.abs), "%s from %s", tc.key, tc.self)
 	}
+}
+
+// TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead pins what leaves
+// Document.Sources: a document the table holds nothing of, unless the parser's
+// resolver read it too, whose reference objects the table need not see.
+func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"/a.yaml": "$defs: {T: {type: integer}}\n",
+		"/z.yaml": "S: {$id: '/a.yaml', $defs: {T: {type: string}}}\n",
+	}
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("components:\n  schemas:\n"+
+		"    A: {$ref: 'a.yaml#/$defs/T'}\n    Z: {$ref: 'z.yaml#/S'}\n"), &root))
+	table := bind.Bind(t.Context(), &root, bind.Config{Self: "/spec.yaml",
+		Locate: func(uri, _ string) (string, bool) { return "/" + strings.TrimPrefix(uri, "/"), true },
+		Open: func(name string) (*yaml.Node, error) {
+			var n yaml.Node
+			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
+		}})
+
+	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table, nil))
+	assert.Empty(t, unreachedKeys(table, map[string]bool{"/a.yaml": true}))
 }

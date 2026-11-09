@@ -160,7 +160,7 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		"contains: {type: string}\nminContains: 1\n"+
 		"unevaluatedProperties: {type: string}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), false)
 
 	for _, key := range []string{
 		"openapi:not", "openapi:if-then-else", "openapi:dependentSchemas",
@@ -187,6 +187,23 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 	assert.Len(t, got, len(announced), "no entry goes unannounced")
 }
 
+// TestValidationOnlyAt_KeepsADraftsDependenciesWhereItsDialectDefinesThem pins
+// `dependencies`, which the drafts before 2019-09 define and 2019-09 split in
+// two: kept and announced as a validation-only keyword where the flag says the
+// schema's dialect defines it, and left to the unknown keywords otherwise.
+func TestValidationOnlyAt_KeepsADraftsDependenciesWhereItsDialectDefinesThem(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "type: object\ndependencies: {a: [b], c: {required: [d]}}\n")
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), true)
+	require.Contains(t, got, "openapi:dependencies")
+	assert.Equal(t, ir.ReasonValidationOnly, got["openapi:dependencies"].Reason)
+	require.Len(t, diags, 1)
+	assert.Equal(t, `validation-only keyword "dependencies" kept verbatim under Unmodeled`, diags[0].Message)
+	got, diags = validationOnlyAt(s, "/components/schemas/S", sourced(0), false)
+	assert.Empty(t, got)
+	assert.Empty(t, diags)
+}
+
 // TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept pins the error
 // route through the combining readers: the keyword yields an error diagnostic
 // and no entry, rather than an entry announcing a preservation that failed.
@@ -194,7 +211,7 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\ncontains: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0))
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), false)
 
 	assert.NotContains(t, got, "openapi:not")
 	assert.NotContains(t, got, "openapi:contains")
@@ -214,7 +231,7 @@ func TestValidationOnlyAt_AttributesTheEntryAtItsKeyword(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {type: integer}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"))
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), false)
 
 	entry, ok := got["openapi:not"]
 	require.True(t, ok)
@@ -234,7 +251,7 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"))
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), false)
 
 	assert.NotContains(t, got, "openapi:not", "a keyword that will not render is not kept")
 	require.Len(t, diags, 1)
@@ -257,7 +274,7 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 		"unevaluatedProperties: false\nunevaluatedItems: {type: string}\n")
 	var calls []recordedCall
 
-	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+	got, diags := validationOnlyAt(s, "/S", recording(&calls), false)
 
 	assert.ElementsMatch(t, []recordedCall{
 		{pointer: "/S/not"},
@@ -294,7 +311,7 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 		"contains: {const: .nan}\nminContains: 1\n")
 	var calls []recordedCall
 
-	got, diags := validationOnlyAt(s, "/S", recording(&calls))
+	got, diags := validationOnlyAt(s, "/S", recording(&calls), false)
 
 	assert.Empty(t, got, "an entry that will not render is not kept")
 	assert.ElementsMatch(t, []recordedCall{
@@ -318,7 +335,7 @@ func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
 	t.Parallel()
 	built := &oas3.Schema{Not: oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})}
 
-	got, diags := validationOnlyAt(built, "/p", sourced(0))
+	got, diags := validationOnlyAt(built, "/p", sourced(0), false)
 
 	assert.Nil(t, got, "no raw bytes to keep, so nothing is kept")
 	assert.Empty(t, diags, "and nothing is announced for a keyword that was not kept")
@@ -332,7 +349,7 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7))
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7), false)
 
 	entry, ok := got["openapi:dependentRequired"]
 	require.True(t, ok, "dependentRequired must be kept verbatim")
@@ -370,4 +387,19 @@ func recording(calls *[]recordedCall) Locator {
 		*calls = append(*calls, call)
 		return ir.Provenance{Source: source, Pointer: pointer}
 	}
+}
+
+// TestExamplesRaw_CombinesTheTwoKeywords pins the object two schemas' examples are
+// compared by: the keywords written, and none where neither is.
+func TestExamplesRaw_CombinesTheTwoKeywords(t *testing.T) {
+	t.Parallel()
+	raw, keys, err := ExamplesRaw(schemaFromYAML(t, "example: 1\nexamples: [2]\n"))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"example":1,"examples":[2]}`, string(raw))
+	assert.Equal(t, []string{"example", "examples"}, keys)
+
+	raw, keys, err = ExamplesRaw(schemaFromYAML(t, "type: string\n"))
+	require.NoError(t, err)
+	assert.Nil(t, raw)
+	assert.Empty(t, keys)
 }

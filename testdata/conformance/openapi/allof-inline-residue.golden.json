@@ -132,12 +132,74 @@
         "pointer": "/components/schemas/Contradicted"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "t/openapi/components/schemas/Untyped",
         "nullable": false
+      },
+      "constraints": {
+        "maxLength": 3,
+        "uniqueItems": false
       },
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/ItemA": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ItemA",
+      "name": {
+        "source": "ItemA",
+        "canonical": "item_a"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://ex.test/a/item.json",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemA/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemA"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/ItemB": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ItemB",
+      "name": {
+        "source": "ItemB",
+        "canonical": "item_b"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://ex.test/b/item.json",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemB/$id"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemB"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/Narrowed": {
       "kind": "model",
@@ -147,12 +209,16 @@
         "canonical": "narrowed"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "description": "A narrowed base."
+      },
       "sensitive": false,
       "unmodeled": {
         "openapi:allOf/1": {
           "reason": "degraded_lowering",
           "value": {
+            "additionalProperties": false,
+            "description": "A narrowed base.",
             "maxProperties": 3,
             "properties": {
               "name": {
@@ -204,9 +270,141 @@
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
+      "constraints": {
+        "uniqueItems": false,
+        "maxProps": 3
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/Rebased": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Rebased",
+      "name": {
+        "source": "Rebased",
+        "canonical": "rebased"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$id": {
+          "reason": "out_of_scope",
+          "value": "https://ex.test/b/rebased.json",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Rebased/$id"
+          }
+        },
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$id": "https://ex.test/a/wrapper.json",
+            "allOf": [
+              {
+                "not": {
+                  "$ref": "item.json"
+                },
+                "type": "object"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Rebased/allOf/0"
+          }
+        },
+        "openapi:allOf/0/allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "not": {
+              "$ref": "item.json"
+            },
+            "type": "object"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"
+          }
+        },
+        "openapi:not": {
+          "reason": "validation_only",
+          "value": {
+            "$ref": "item.json"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Rebased/allOf/1/not"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Rebased"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Untyped": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Untyped",
+      "name": {
+        "source": "Untyped",
+        "canonical": "untyped"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Untyped"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Untyped/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Untyped/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -238,7 +436,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, so only its properties and required list compose; the branch (maxProperties) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (additionalProperties) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Narrowed/allOf/1"
@@ -247,10 +445,64 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type, maxLength) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Contradicted/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemA/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemB/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this inline allOf branch reads its $refs against another base than the position does, as an identifier at or above it names another URI, so nothing it writes folds; the branch (not) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Rebased/allOf/0/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch ($id) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Rebased/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Rebased/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Rebased/allOf/1"
       }
     }
   ],
@@ -258,7 +510,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inline-residue.yaml",
-      "hash": "e239cc77c43b685e2354919999edb066392b9412d90c2c2e9c049d8671fb66c4"
+      "hash": "b6cea8de9f6660e43b6d6cfee543a954e832f9c0c800dcb527922e908bea49bd"
     }
   ]
 }

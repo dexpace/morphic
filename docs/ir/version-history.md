@@ -263,3 +263,35 @@ it sees. Changes made together in one bump are listed together under it.
   to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
   an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
   replace.
+- **0.31.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.30.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.30.0 refuses the document as another generation's.
+- **0.32.0** — `FileInfo` and `PartEncoding` gained `Inferred`, the heuristics that read a body or a
+  multipart part as a file ([payloads](./payloads.md)), held to `Filename` on a part
+  (`ir/part-encoding-inferred-not-filename`). The OpenAPI compiler reads more of the specification's
+  file idioms ([`file-bodies`](../compilers/openapi.md#file-bodies),
+  [`multipart-encoding`](../compilers/openapi.md#multipart-encoding),
+  [`item-schema`](../compilers/openapi.md#item-schema)). As declared files: a body on
+  `application/octet-stream` whose schema says no more than that it is a string, or a union of such
+  schemas and raw bytes; a schema declaring `format: binary` with no `type`; a multipart part, or
+  each element of an array part (its `prefixItems` and the `items` after them), declaring raw bytes,
+  writing no `type` from 3.1, or saying no more than that it is a string while its encoding entry
+  names `application/octet-stream` alone; a union part whose every value is one of those, read off
+  its variants, or each branch of its declaration, an array branch through its elements; and each
+  item of a multipart sequential body read so off `itemSchema` and `itemEncoding`, with an
+  `ItemEncoding` saying so where none is written. A union part with a list or tuple among its
+  variants, file or not, has `Multi`. Marked
+  `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
+  a media type the compiler's binary policy names
+  ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
+  `application/octet-stream` is no longer a file, nor is `format: binary` beside a
+  `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.

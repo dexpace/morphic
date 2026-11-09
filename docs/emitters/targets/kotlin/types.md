@@ -25,4 +25,32 @@ the root's type, and its serializer, in every signature.
 ## Enums
 
 An enum's forms are in the [lowering table](lowering.md). A Kotlin entry lives in its enum class and
-takes the member's name alone (`ACTIVE`, as the naming policy cases it).
+takes the member's name alone (`ACTIVE`, as the naming policy cases it), which need not be the
+member's wire text, so a parameter or a header writes an entry's wire form and not its `name` or
+`toString()` ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)).
+
+`kotlinx.serialization` writes an `enum class` as a string, its entry's `@SerialName`, which is a
+member's wire form only for a `string` enum ([a member on the
+wire](../../refine/enums.md#a-member-on-the-wire)). Of two entries sharing a `@SerialName` it
+decodes the last, where the first is canonical; it throws on a name no entry has, which a
+`FallbackMember` decodes; and it refuses `1.0` as a `Long`, which an `integer` admits. So a closed
+enum keeps `@SerialName` only where it is a `string` one holding each value once and declaring no
+`FallbackMember`, and every other one but a flags one and an open `string` one, a value class over
+`String`, codes through a generated `KSerializer`. It writes each member's wire form, the value
+type's JSON kind where it has no `WireName`, and decodes by comparing as JSON does, members holding
+one value taking the first's form both ways. A closed one is an `enum class` whose entry holds its
+wire text, `val wire: String`, and the member as the row's type, `val value: LocalDate`, decoded
+from that text through the row's codec when first read wherever Kotlin can write no `const val` of
+the type, as of a `LocalDate`. A member the codec refuses, such as a leap second `java.time` cannot
+hold, then fails where it is read, as Go's `Value` returns its error, and not wherever the class
+loads. A member a row's width cannot hold has no entry ([a member on the
+wire](../../refine/enums.md#a-member-on-the-wire)), as a `Long` literal past its range does not
+compile.
+
+An open one is a value class, which equals as its underlying value does, since Kotlin reserves
+`equals` and `hashCode` on a value class, so it holds the member's wire text, `val wire: String`,
+wherever Kotlin can write no `const val` of the row's type, and its `value` is decoded through the
+row's codec when read, as a closed entry's is. A value class over the row's type would tell members
+apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
+`ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
+in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.

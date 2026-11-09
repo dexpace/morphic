@@ -29,8 +29,9 @@ operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]
 a caller that stops early must do. What `T` is follows from `Recv`:
 
 - an `Element` is what its type lowers to. A union's is its struct
-  ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after a variant whose
-  `Variant.Event.Terminal` is true, so an event union needs nothing of its own beyond that.
+  ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
+  variant whose `Variant.Event.Terminal` is true, so an event union needs nothing of its own beyond
+  that.
 - no `Element` is `Stream[string]`, each frame's text, unread.
 - a `bytes` side has no frames and no `Stream`: `Recv` lowers as a file does, to `*RawBody` ([return
   shapes](returns.md)), and `Send` to an `io.Reader` field of the request type.
@@ -68,4 +69,6 @@ package's API by tag, every test then building twice, so Go gates nothing.
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —
-`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`.
+`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`. A [client
+setting](../../operations/client.md#client-settings) is one more, `WithAccountID("…")`, and the
+request type's field for it a pointer, `AccountID *string`, nil taking the client's.

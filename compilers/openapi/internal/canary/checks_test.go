@@ -173,7 +173,7 @@ func TestDocOf_ReportsWhatItCannotFind(t *testing.T) {
 	require.NoError(t, err)
 	pkgs := map[string]*decls.Package{importPath("load"): pkg}
 
-	doc, err := docOf(pkgs, "load.releaseAnchors")
+	doc, err := docOf(pkgs, "load.readyForModel")
 	require.NoError(t, err)
 	assert.True(t, citesEntry(doc, "anchored-entry-dropped"), "the control finds a real declaration")
 	for _, symbol := range []string{"scan.Cycles", "load.noSuchName", "load.reach.noSuchMember", "load", "a.b.c.d"} {

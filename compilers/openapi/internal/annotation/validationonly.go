@@ -29,6 +29,12 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	return combine(s, "contains", "minContains", "maxContains")
 }
 
+// ExamplesRaw combines example and examples into one raw JSON object, and names
+// the keywords it combines: Set.Examples holds the two as one list.
+func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+	return combine(s, "example", "examples")
+}
+
 // UnevaluatedRaw combines a non-false unevaluatedProperties and any
 // unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
 // structural mode, handled in fillAdditional), and names the keywords it
@@ -123,10 +129,11 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
-// IR does not model, keeping each verbatim and announcing it.
+// IR does not model, keeping each verbatim and announcing it, `dependencies`
+// among them where dependencies says the schema's dialect defines it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, dependencies bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -172,6 +179,11 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	// silently dropped where its sibling dependentSchemas was kept. Its raw node
 	// is the only reading, and an absent one keeps nothing.
 	keepKeyword("dependentRequired")
+	if dependencies {
+		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
+		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
+		keepKeyword("dependencies")
+	}
 	if Written(s.GetPropertyNames()) {
 		keepKeyword("propertyNames")
 	}

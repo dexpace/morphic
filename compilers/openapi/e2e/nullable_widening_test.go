@@ -108,8 +108,9 @@ func assertNullableKeyword30(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 }
 
 // assertSchemaRefSiblings30 pins GitHub #871's example: the keys beside a 3.0
-// schema's $ref are read as 3.1 reads them and each is reported, and the
-// nullable among them is read by the policy, which says so once more.
+// schema's $ref are applied as 3.1 applies them and each is reported, and the
+// nullable among them, which no type beside it gives an effect, is read by the
+// policy, which says so once more.
 func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 	require.True(t, ok)
@@ -134,10 +135,12 @@ func assertSchemaRefSiblings30(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		openapitest.PointersOf(diags, diag.InferredNullable))
 }
 
-// TestSchemaRefSiblings_LowerAsIn31 is GitHub #871's rule as a test: the case
+// TestSchemaRefSiblings_ApplyAsIn31 is GitHub #871's rule as a test: the case
 // declared 3.0.3 lowers to the document it lowers to declared 3.1.0, and the
-// diagnostics differ only by a warning at each key beside a $ref.
-func TestSchemaRefSiblings_LowerAsIn31(t *testing.T) {
+// diagnostics differ only by a warning at each key beside a $ref. Each keyword
+// is read in its own document's dialect, and the case's keywords mean the same
+// in both, which is why the two lower alike.
+func TestSchemaRefSiblings_ApplyAsIn31(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile(filepath.Join(conformanceDir, "schema-ref-siblings-30.yaml"))
 	require.NoError(t, err)
@@ -165,6 +168,61 @@ func TestSchemaRefSiblings_LowerAsIn31(t *testing.T) {
 	assert.Equal(t, others31, others30, "and reports what it does")
 	assert.Empty(t, later31)
 	assert.Len(t, later30, 5, "one warning at each key beside a $ref")
+}
+
+// TestSchemaRefSiblings_ReadInTheDeclaredDialect pins that a keyword beside a
+// 3.0 $ref, applied as 3.1 applies it, is read as 3.0 defines it: its nullable
+// adds null to the type beside it, under either policy, and its
+// exclusiveMinimum is a boolean modifying the bound beside it, which the
+// warning says. The 3.1 control reads its nullable as no keyword at all.
+func TestSchemaRefSiblings_ReadInTheDeclaredDialect(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/p"
+	maybe := ir.TypeRef{Target: componentID("Maybe"), Nullable: true}
+	for _, tc := range []struct {
+		name, version, p, rest string
+		off                    bool
+		want                   ir.TypeRef
+		unknown                []jsontext.Pointer
+	}{
+		{"3.0 off", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
+			"    Maybe: {type: object, nullable: true}\n", true, maybe, nil},
+		{"3.0 on", "3.0.3", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
+			"    Maybe: {type: object, nullable: true}\n", false, maybe, nil},
+		{"3.1 off", "3.1.0", "{$ref: '#/components/schemas/Maybe', type: object, nullable: true}",
+			"    Maybe: {type: [object, \"null\"]}\n", true, ir.TypeRef{Target: componentID("Maybe")},
+			[]jsontext.Pointer{at + "/nullable"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileNullable(t, openapitest.HolderSpec(tc.version, tc.p, tc.rest), tc.off)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, tc.want, holderProps(t, doc)["p"].Type)
+			assert.Equal(t, tc.unknown, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword))
+			assert.Empty(t, openapitest.PointersOf(diags, diag.InferredNullable))
+		})
+	}
+
+	t.Run("3.0 exclusiveMinimum", func(t *testing.T) {
+		t.Parallel()
+		src := openapitest.HolderSpec("3.0.3", "{$ref: '#/components/schemas/Int', minimum: 5, exclusiveMinimum: true}",
+			"    Int: {type: integer}\n")
+		doc, diags := compileNullable(t, src, false)
+		openapitest.RequireNoErrorDiags(t, diags)
+		cons := holderProps(t, doc)["p"].Constraints
+		require.NotNil(t, cons)
+		require.NotNil(t, cons.ExclusiveMin)
+		assert.Equal(t, ir.BigVal("5"), *cons.ExclusiveMin)
+		var said string
+		for _, d := range diags {
+			if d.Code == diag.LaterVersionConstruct && d.Provenance.Pointer == at+"/exclusiveMinimum" {
+				said = d.Message
+			}
+		}
+		assert.Equal(t, `keyword "exclusiveMinimum" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 `+
+			`and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 `+
+			`document and read as in an OpenAPI 3.0 one`, said)
+	})
 }
 
 // compileNullable compiles src, a whole document, with the nullable-widening
@@ -247,11 +305,11 @@ func TestNullableWidening_AKeywordIsReportedOnceAtItself(t *testing.T) {
 }
 
 // TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine pins the policy
-// off: a `nullable` in a schema read as JSON Schema 2020-12, which is every 3.1
-// one and one beside a 3.0 $ref, is a keyword that dialect does not define,
+// off: a `nullable` in a 3.1 schema is a keyword that dialect does not define,
 // kept verbatim where any unknown keyword is and reported as one. A 3.0
-// schema's own nullable is read by its declared effect instead, and the policy
-// on reads every one, so neither keeps anything.
+// schema's nullable, one beside its $ref included, is read by its declared
+// effect instead, and the policy on reads every one, so neither keeps anything.
+// The one beside a 3.0 $ref is still a later minor's construct.
 func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T) {
 	t.Parallel()
 	const rest = "    N: {type: string, nullable: false}\n"
@@ -264,7 +322,7 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 			"/components/schemas/Holder/properties/p/nullable", "/components/schemas/Holder/properties/r/nullable",
 			"/components/schemas/N/nullable",
 		}},
-		{"3.0 off", "3.0.3", true, []jsontext.Pointer{"/components/schemas/Holder/properties/r/nullable"}},
+		{"3.0 off", "3.0.3", true, nil},
 		{"3.1 on", "3.1.0", false, nil},
 		{"3.0 on", "3.0.3", false, nil},
 	} {
@@ -274,6 +332,10 @@ func TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine(t *testing.T)
 				"        r: {$ref: '#/components/schemas/Plain', nullable: true}\n"+rest)
 			doc, diags := compileNullable(t, src, tc.off)
 			assert.Equal(t, tc.kept, openapitest.PointersOf(diags, diag.UnknownSchemaKeyword))
+			assert.Equal(t, tc.version == "3.0.3",
+				slices.Contains(openapitest.PointersOf(diags, diag.LaterVersionConstruct),
+					"/components/schemas/Holder/properties/r/nullable"),
+				"the nullable beside a 3.0 $ref is a later minor's construct")
 			props := holderProps(t, doc)
 			for name, prop := range props {
 				entry, ok := prop.Unmodeled["openapi:nullable"]

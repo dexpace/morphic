@@ -13,17 +13,58 @@ package plan
 func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagnostic)
 
 type Plan struct {
-    Ops     map[ir.OpID]OpPlan          // one entry per operation
-    Types   map[ir.TypeID]TypePlan      // one entry per registry type
-    Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
+    Ops       map[ir.OpID]OpPlan        // one entry per operation
+    Types     map[ir.TypeID]TypePlan    // one entry per registry type
+    Examples  map[string][]Example      // by the ID of each type, property, parameter, enum
+                                        // member and operation: its declared examples, else
+                                        // its type's where it adds no constraint, else one
+                                        // synthesized, an operation's assembled; read by the
+                                        // docs, the samples, SDK tests and the mock
+                                        // (../docs-and-mock.md#one-set-of-examples)
+    Policy    Policy                    // the policy Build ran under, whose Examples Shown and
+                                        // MessageExamples read
+    Version   string                    // hashes the document and policy it was built from (below)
 }
+
+type Example struct {
+    Example  ir.Example                 // the example, as the IR spells one
+    Inferred ir.Inferred                // the steps that made it under Policy.Examples:
+                                        // synthesized, assembled or filled by Shown; "" =
+                                        // declared as it stands
+}
+
+// MaxExampleValues bounds the values one synthesized example holds; a larger one is reported
+// and left out.
+const MaxExampleValues = 10_000
+
+// The sets of the positions Examples has no key for: a content's and a variant's declared
+// examples that Build's check admits, else their type's set, and a message's, else those of its
+// payload's contents paired with its headers' set. Build reports what it refuses, so these report
+// nothing
+// (../docs-and-mock.md#one-set-of-examples).
+func ContentExamples(p *Plan, doc *ir.Document, c ir.Content) []Example
+func VariantExamples(p *Plan, doc *ir.Document, v ir.Variant) []Example
+func MessageExamples(p *Plan, doc *ir.Document, m ir.MessageID) []Example
+
+// Shown is ex, a value of t, as the shape in shows it, nil being unprojected: the members in does
+// not hold dropped, a key a catch-all admits kept, and each member in requires that ex lacks taken
+// from that member's set, which marks the result Inferred. A union value several variants admit
+// keeps each member one of them holds, Build having refused it for a Strict union. It is false for
+// a Strict union several variants admit in shape in and where a required member's set is empty,
+// so the caller takes the next.
+func Shown(p *Plan, doc *ir.Document, ex Example, t ir.TypeRef, in *ModelShape) (Example, bool)
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
-fragility, prior-art §1). A spec rename never orphans a plan entry: it is "same ID, new symbol",
-a lookup. Every inferred field carries `Inferred` provenance, propagated into diagnostics so it is
-auditable and disable-able (INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported
-once for every target rather than once by each.
+fragility, prior-art §1). A rename of anything an ID is not built from, such as an `operationId` or
+a `title`, never orphans a plan entry: it is "same ID, new symbol", a lookup. A rename of what an ID
+is built from, a path or a component name, gives the entity a new ID, and only its [correlation
+key](../../ir/derived-facts.md#correlation-keys) carries it across the revision, where the key's
+own source holds, as an operation's route does when a path variable is renamed; a path or a
+component renamed changes its key too ([open question 5](../../ir/open-questions.md)). Every
+inferred field carries `Inferred` provenance, propagated into diagnostics so it is auditable and
+disable-able (INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported once for every
+target rather than once by each.
 
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
@@ -37,3 +78,28 @@ derivation reads a type's contents, such as the property a page's items are foun
 them through `TypePlan.Alias` ([decorators](../refine/decorators.md)), and every consumer lowers a
 reference it reads through `Alias`, the plan's as the IR's, so no field holds a reference already
 lowered beside others that are not.
+
+## The plan's version
+
+`Version` is a SHA-256 hash of two things: the document's digest and the policy's encoding under
+the options the document's own codec pins (INV7). The digest is SHA-256 over the document's
+canonical JSON (`MarshalJSONTo`) with `sources` and `diagnostics` left out, which `Build` never
+reads, so a spec reformatted, which moves only where its reports point, keeps its plan's version,
+as does a build that words a report anew. Two plans therefore share a `Version` exactly when they
+were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
+the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
+plan's policy alone: `naming.Policy` and the runtime policy shape no plan
+([plan or refine](plan-or-refine.md)), and the manifest records them in its configuration digest
+([what the manifest records](../write-integrate.md#what-the-manifest-records)).
+
+- **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
+  says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its
+  printed form is an address that changes every run, and leaving it out gives two policies that pick
+  different responses one version.
+- **The code is the build's.** `Version` names no code, so the plan cache keys on it and on the
+  build, as the IR cache does ([architecture](../../architecture.md#26-ir-cache)): `cache.BuildID`
+  hashes the executable. A revision bumped by hand would name neither a dirty tree nor a fix to
+  `Build` that no plan golden reaches, and either would then serve a stale plan. The plan holds no
+  build, as the document holds none, so a plan golden is the same from build to build, and is what
+  shows a new toolchain left those bytes alone, as an IR golden is for a document's: json/v2
+  promises them only within one build.

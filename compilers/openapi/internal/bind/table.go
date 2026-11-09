@@ -19,10 +19,11 @@ import (
 )
 
 // MaxSteps bounds the work the load phase lets one table cost: each node
-// read, token walked, hop followed and document opened is a step. The source
-// and every document it names are each held to the compiler's node budget
-// before they get here, so this is far above what any admitted document costs,
-// and only a document built to multiply that work meets it.
+// read, token walked, hop followed and document opened, read for what it
+// declares or counted at a drain is a step. The source and every document it
+// names are each held to the compiler's node budget before they get here, so
+// this is far above what any admitted document costs, and only a document built
+// to multiply that work meets it.
 const MaxSteps = 1 << 26
 
 // Config is what a table needs from the compile reading it.
@@ -57,6 +58,34 @@ type Config struct {
 	// Limit bounds the work, in steps (see MaxSteps). Unset, it is unbounded,
 	// as the zero budget.Limit is.
 	Limit budget.Limit
+	// Dialect returns how a schema of document name read in dialect, the URI
+	// a `$schema` or a jsonSchemaDialect names, or "" for none, names its
+	// resource and holds its subschemas (DialectRule). Nil, or the zero rule,
+	// reads it as JSON Schema 2020-12 does.
+	Dialect func(name, dialect string) DialectRule
+}
+
+// DialectRule is what the table reads otherwise in a dialect than in 2020-12.
+// Keyword is the identifier's keyword, `$id` where empty, or draft 4's `id`.
+// With Fragments one naming a fragment alone declares that name: any no JSON
+// pointer spells, as in draft 4, or with PlainFragments one of the plain-name
+// grammar, as in drafts 6 and 7. With Definitions `definitions` holds schemas,
+// with Dependencies a schema in `dependencies` is one, as before 2019-09, with
+// PlainNames `$anchor` takes that grammar, as in 2019-09, and with Tuples an
+// `items` list is a tuple, as before 2020-12. With NamesNone the value names no
+// dialect, so its `$schema` chooses none.
+type DialectRule struct {
+	Keyword        string
+	Fragments      bool
+	PlainFragments bool
+	Definitions    bool
+	Dependencies   bool
+	PlainNames     bool
+	Tuples         bool
+	// IgnoresRefFields has a schema writing a `$ref` write no identifier, as
+	// the drafts before 2019-09 ignore every keyword beside one.
+	IgnoresRefFields bool
+	NamesNone        bool
 }
 
 // ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,
@@ -121,7 +150,12 @@ func (w *work) over() bool { return w.steps.Exhausted() || w.cancelled() }
 // its context stopped reports nothing, the budget included.
 func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
-// binder is the state of one table's building.
+// binder is the state of one pass of a table's building: every reference read
+// once against the URIs its identifiers hold (identifiers.commit). held is each
+// document an absolute URI named that the pass has not read, and wait what
+// waits for those documents. committed reports that a drain of the pass has
+// committed what it reached, and stale that the declarations of a URI it asked
+// for changed, so the pass is read again (reread).
 type binder struct {
 	cfg       Config
 	docs      *docs
@@ -130,27 +164,122 @@ type binder struct {
 	resources resources
 	find      *finder
 	ids       *identifiers
+	held      map[string]bool
+	wait      *waits
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	loops     []Loop
+	committed bool
+	stale     bool
 }
 
 // Bind reads every schema reference the source tree src holds, and every
 // position a reference reaches through it, into a table, within the budget. It
 // stops once ctx is done, leaving a table its caller must not read.
+//
+// It reads in passes, as whether a URI is an identifier turns on which
+// documents are read, and which are read on what the URIs name. A pass reruns
+// only when what it reached changes a URI it asked for, and only the last
+// stands, so no declaration order reaches an answer (reread); each reads what
+// none before it did (identifiers.commit).
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
-	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
+	ids := newIdentifiers(resources{d}.document(Source))
+	for {
+		b := newBinder(cfg, d, w, ids)
+		t := run(b)
+		if !reread(b) {
+			return b.table(t)
+		}
+	}
+}
+
+// newBinder returns a pass over d, knowing what ids holds and nothing else.
+func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
+	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
+	return &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
+		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, wait: newWaits(), hops: map[Position]Hop{},
+		chains: map[Position]Chain{}}
+}
+
+// run answers every reference the pass b reaches, going on past what it held
+// for as long as that changes no answer it gave (goOn). A site still waiting
+// when the pass ends, as the budget or a change stopped it, has no entry: the
+// table says why (Table.Unread), or the pass is read again.
+func run(b *binder) *Table {
 	b.find.walk(rootOf(Source, sDocument), false)
-	b.ids = b.find.ids
+	b.ids.begin()
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
-	for more := true; more && !w.over(); more = b.find.walkPending() {
-		b.settle(t)
+	for {
+		for more := true; more && !b.work.over(); more = b.find.walkPending() {
+			b.settle(t)
+		}
+		if b.work.over() || !goOn(b) {
+			break
+		}
 	}
 	b.placeLoops()
-	return b.table(t)
+	return t
+}
+
+// goOn reports whether the pass b, its walks done, goes on. It does while
+// what the documents it reached declare changes no URI it asked for (settled):
+// to read the documents it held and the hops that waited for them, which the
+// next drain holds to the same test, or, once nothing is held, to settle what
+// waited. A change ends it, to be read again.
+func goOn(b *binder) bool {
+	if !settled(b) {
+		b.stale = true
+		return false
+	}
+	if len(b.held) == 0 {
+		return b.wait.release(b.find)
+	}
+	readHeld(b)
+	b.wait.requeue(b.find, b.hops)
+	return true
+}
+
+// settled reports whether what the documents the pass b reached declare leaves
+// the declarations of every URI it asked for as it read them. Its first drain
+// commits what it reached whole, as a document an earlier pass reached may no
+// longer be. A pass only adds to what it reaches, so a later drain grows by
+// what it reached since (identifiers.grow), and commits only to judge a change.
+// Each document a drain counts is a step.
+func settled(b *binder) bool {
+	b.find.identifyAll()
+	fresh := b.docs.takeFresh()
+	b.work.spend(len(fresh))
+	if b.committed && !b.ids.grow(fresh) {
+		return true
+	}
+	b.committed = true
+	b.work.spend(len(b.docs.reached))
+	return !b.ids.commit(b.docs.reached)
+}
+
+// reread reports whether the pass b, ended, must be run again: what the
+// documents it reached declare changed a URI it asked for, so an answer it gave
+// is not theirs (goOn). A document only an earlier pass reached declares
+// nothing. The pass the budget runs out in, wherever in it, is the last, and
+// its answers stand, so no pass begins with nothing to spend. A chain of
+// documents each declaring the URI the one before it asked for, held or not,
+// so costs a pass per link (GitHub #1372).
+func reread(b *binder) bool {
+	return b.stale && !b.work.over()
+}
+
+// readHeld reads the documents the pass b held back, as no document it read
+// answers for their URIs (OAS 3.1 §4.3.1). They are read together, a round for
+// all rather than one each, so one may declare another's URI, read then for
+// nothing: the next drain sees the change, and the next pass reads against it.
+func readHeld(b *binder) {
+	for _, name := range slices.Sorted(maps.Keys(b.held)) {
+		// Its failure is kept for the hop that asks for it again (docs.open).
+		_, _ = b.docs.open(name)
+	}
+	clear(b.held)
 }
 
 // rootOf is the root at the root of document id, read at s.
@@ -171,20 +300,34 @@ func (b *binder) settle(t *Table) {
 		if b.work.cancelled() {
 			return
 		}
-		c := b.chain(site)
-		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
-	}
-	slices.SortFunc(keys, func(x, y mappingKey) int {
-		if c := b.docs.compare(x.at, y.at); c != 0 {
-			return c
+		if c, waits := b.chain(site); waits {
+			b.wait.sites[site] = true
+		} else {
+			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 		}
-		return cmp.Compare(x.value, y.value)
-	})
+	}
+	slices.SortFunc(keys, mappingOrder(b.docs))
 	for _, k := range keys {
 		if b.work.cancelled() {
 			return
 		}
-		t.mappings[k] = b.mapping(k)
+		if m, waits := b.mapping(k); waits {
+			b.wait.mappings[k] = true
+		} else {
+			t.mappings[k] = m
+		}
+	}
+	b.find.landOnAnchors()
+}
+
+// mappingOrder orders mapping values by their discriminator's position in d,
+// then by value.
+func mappingOrder(d *docs) func(x, y mappingKey) int {
+	return func(x, y mappingKey) int {
+		if c := d.compare(x.at, y.at); c != 0 {
+			return c
+		}
+		return cmp.Compare(x.value, y.value)
 	}
 }
 
@@ -198,25 +341,32 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots = b.find.ends, b.find.roots
-	for _, d := range b.docs.list {
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
-		t.truncated = t.truncated || d.view.Exhausted()
+	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources, b.ids), b.ids
+	dialects := dialectsByDocument(b.ids.dialects)
+	for id, d := range b.docs.list {
+		reached := b.docs.reached[DocID(id)]
+		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached, Dialects: dialects[DocID(id)]})
+		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
 	reach := b.attribute(t)
 	for at := range b.find.landings {
 		site, reached := reach[at]
 		t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: site, Reached: reached})
 	}
+	for at, holder := range b.find.tupled {
+		if !b.find.landings[at] {
+			t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: holder, Reached: true})
+		}
+	}
 	slices.SortFunc(t.landings, func(x, y Landing) int { return t.compare(x.At, y.At) })
 	return t
 }
 
-// attribute returns, for each position some $ref's or mapping value's chain
-// reaches, the least such position, in whichever document. Starting from each
-// in order, a chain is followed until it meets a position a lesser start
-// reached, whose chain on from there that start has marked, so each position
-// is marked once.
+// attribute returns, for each position some $ref's, mapping value's or
+// expanding $dynamicRef's chain reaches, the least such position, in whichever
+// document. Starting from each in order, a chain is followed until it meets a
+// position a lesser start reached, whose chain on from there that start has
+// marked, so each position is marked once.
 func (b *binder) attribute(t *Table) map[Position]Position {
 	type start struct {
 		from, first Position
@@ -232,6 +382,9 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	}
 	for _, m := range t.mappings {
 		add(m.At, m.Hop)
+	}
+	for _, e := range b.find.expansions {
+		add(e.from, Hop{Status: Resolved, Target: e.to})
 	}
 	slices.SortFunc(starts, func(x, y start) int {
 		if c := b.docs.compare(x.from, y.from); c != 0 {
@@ -256,15 +409,22 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	return reach
 }
 
-// Document is a document a table read: its name and its root node.
+// Document is a document a table read: its name and its root node. Unreached
+// reports that only a pass that did not stand asked for it, so that nothing the
+// table holds is in it: a reference read it as a location before a later
+// document declared that URI. Dialects is each schema resource root in it
+// that names its dialect, in pointer order.
 type Document struct {
-	Name string
-	Root *yaml.Node
+	Name      string
+	Root      *yaml.Node
+	Dialects  []DialectRoot
+	Unreached bool
 }
 
 // Table is every schema reference a source holds, where each lands and where
 // its chain ends, the loops among them, and what the reading cost. It is built
-// once and never written after.
+// once, and no answer it gives changes after: only its base lookups write, to
+// remember the walks they make (bases), so one is not safe for concurrent use.
 type Table struct {
 	entries   map[Position]Entry
 	roots     map[Position]state
@@ -277,6 +437,11 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
+	// bases remembers each walk Base and InOwnResource make, filled as they
+	// ask. It changes no answer, each being what a walk from the root gives,
+	// and nothing guards it, as only the lowering asks, on one goroutine.
+	bases *bases
+	ids   *identifiers
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -336,6 +501,43 @@ func (t *Table) Through(site Position) (Position, bool) {
 	return at, ok
 }
 
+// DynamicAnchors returns the positions of document id declaring the
+// $dynamicAnchor name, and whether that is every one: false where the budget or
+// a merge past the bound may have hidden one, so a count of one proves nothing.
+// A nil table knows of none.
+func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
+	if t == nil {
+		return nil, true
+	}
+	sites := slices.SortedFunc(slices.Values(t.ids.dynamic[dynamicKey{doc: id, name: name}]), comparePositions)
+	return sites, !t.exhausted && !t.ids.truncated[id]
+}
+
+// InOwnResource reports whether the schema at p, its own identifier counted,
+// lies in a resource an identifier names rather than in its document's, and
+// whether that is known: false where a schema on the way may hide one past the
+// merge bound.
+func (t *Table) InOwnResource(p Position) (own, known bool) {
+	if t == nil {
+		return false, true
+	}
+	res, known := t.bases.holding(p)
+	return res.id, known
+}
+
+// Base returns the URI a reference written in the schema at p resolves
+// against, its own identifier counted: its document's, or the resource's an
+// identifier at or above it names. Two schemas with one base read every
+// reference they write alike. It is false where a schema on the way may hide
+// one past the merge bound, and a nil table knows none.
+func (t *Table) Base(p Position) (string, bool) {
+	if t == nil {
+		return "", false
+	}
+	res, known := t.bases.holding(p)
+	return res.uri, known
+}
+
 // Steps reports the work the table cost.
 func (t *Table) Steps() int { return t.steps }
 
@@ -346,9 +548,10 @@ func (t *Table) Limit() budget.Limit { return t.limit }
 // or answered OverBudget.
 func (t *Table) Exhausted() bool { return t.exhausted }
 
-// Truncated reports whether a mapping the table read merges through `<<`
-// deeper than the view expands (nodeview.MergeDepthLimit), so that a site past
-// the bound may be missing, and a position past it read as holding nothing.
+// Truncated reports whether a mapping of a document the table reached merges
+// through `<<` deeper than the view expands (nodeview.MergeDepthLimit), so that
+// a site past the bound may be missing, and a position past it read as holding
+// nothing.
 func (t *Table) Truncated() bool { return t.truncated }
 
 // Unread returns why a schema $ref the table holds no entry for went unread:

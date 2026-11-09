@@ -383,8 +383,8 @@ func TestMediaTypes_AdoptLeavesAnEndItHoldsNoModelOf(t *testing.T) {
 	var source any = &soa.OpenAPI{}
 	var other any = &yaml.Node{}
 	assert.False(t, m.adopt(chain{stopped: "#/x"}))
-	assert.False(t, m.adopt(chain{records: []record{{document: &other, node: &yaml.Node{}}}}))
-	assert.False(t, m.adopt(chain{records: []record{{document: &source, node: &yaml.Node{}}}}))
+	assert.False(t, m.adopt(chain{records: []record{{document: &other}}, end: &yaml.Node{}}))
+	assert.False(t, m.adopt(chain{records: []record{{document: &source}}, end: &yaml.Node{}}))
 	assert.False(t, m.adopt(chain{records: []record{{document: &source}}}))
 }
 
