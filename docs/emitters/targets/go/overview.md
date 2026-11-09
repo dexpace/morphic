@@ -31,7 +31,7 @@ exist, so 1.26 leaves support when 1.28 ships; from then on every supported rele
 A Go [unit](../../refine/output-units.md) is a package, and a group's is `<root>/<group>`. Go's
 default [limit](../../refine/output-units.md#the-size-check) is 10,000 declarations. A synthetic
 package of that many models, each with its codec and a `Validate`, peaked at about 1.6 GB of memory
-to build with Go 1.27.2 on darwin/arm64, and one of 30,000 at about 4.6 GB.
+to build with Go 1.27.3 on darwin/arm64, and one of 30,000 at about 4.6 GB.
 
 Go has no cap on a method or a class, as the JVM has, but one package of tens of thousands of types
 builds slowly and in gigabytes of memory, which the [size
@@ -63,18 +63,4 @@ pinned exactly, `emitters/golang` alone may import it ([package layout](../../pa
 upgrade reruns the spike's cases as tests of the adapter.
 
 Go's extractor ([surface verification](../../surface-verification.md)) reads the existing package's
-exported API with `go/types`, and each record it builds carries the IR ID its declaration's
-`Origin` names, which no Go tool records.
-
-`golang.org/x/exp/apidiff` compares two Go packages and labels each change compatible or not, which
-is the Go half of the structural channel's question. It is the test oracle for Go's severity, not
-the differ and not the severity function: over the surface corpus, a differential test holds each
-structural verdict Go's `verify.Severity` gives to apidiff's on the same two generated packages, and
-a disagreement is either a severity bug or a divergence the severity's documentation states. It
-cannot be the differ, since its records carry no IR ID, nor the severity, since it answers only
-whether a caller's Go code builds: given an enum gaining a constant it says compatible, which it is
-for a caller's code, while the behavioral channel still reports what a deployed SDK reading a closed
-response enum meets ([surface
-verification](../../surface-verification.md#what-a-change-record-carries)). As a test-only
-dependency it needs no compatibility promise from `x/exp`, which gives none; it was under active
-development, BSD-3-Clause, at the October 2026 revision measured.
+exported API, as `apidiff` does.

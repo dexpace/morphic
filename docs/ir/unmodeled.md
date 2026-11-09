@@ -93,14 +93,19 @@ document's contract, and who chose it decides what holds it still:
 
 - **A vendor extension's name is the source's.** `openapi:x-rate-limit` changes when the document
   renames `x-rate-limit`, and its entry's reason is `vendor_extension` for as long as it is kept.
-  So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`.
+  So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
+  is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
+- **An array index in a key is the source's position.** A key passing through an array, as a
+  branch's `openapi:allOf/1` and a tag's `openapi:tags/0/x-mark` do, moves when the array is
+  reordered, and can then name another construct's entry, as an ID through an index does ([across
+  revisions](./identity.md#across-revisions)).
 - **Everything else in a key is the compiler's spelling**: the prefix, every keyword and every
   scope, including the scope a vendor extension sits beneath (`openapi:info/contact/x-id`).
-  Renaming one, moving an entry under another scope or reason, or changing the form its value takes
-  changes what a consumer reads with the document's shape unmoved, so it moves `IRVersion` as a
-  change to a name does ([IR version](./ir-version.md)). A consumer built against one generation
-  therefore reads one vocabulary, which each compiler's specification states rule by rule
-  ([`docs/compilers/openapi.md`](../compilers/openapi.md)).
+  Renaming one, retiring one, moving an entry under another scope or reason, or changing the form
+  its value takes changes what a consumer reads with the document's shape unmoved, so it moves
+  `IRVersion` as a change to a name does ([IR version](./ir-version.md)). A consumer built against
+  one generation therefore reads one vocabulary, which each compiler's specification states rule by
+  rule ([`docs/compilers/openapi.md`](../compilers/openapi.md)).
 - **A `no_ir_home` entry is promised to leave**, and a `degraded_lowering` one leaves when the IR
   gains a faithful home for its shape. The change that adds the field stops writing the entry, and
   its generation's entry in the [version history](./version-history.md) names the key retired with
@@ -253,8 +258,8 @@ What the OpenAPI compiler's default mapping reads, and what it does with a value
 hold, is its rule [`extension-promotion`](../compilers/openapi.md#extension-promotion). Others of
 its rules decide what reaches the IR from a document of a given minor —
 [`unmodeled-dialect-fields`](../compilers/openapi.md#unmodeled-dialect-fields),
-[`later-version-construct`](../compilers/openapi.md#later-version-construct), which reads the keys
-beside a 3.0 schema's `$ref` as 3.1 does,
+[`later-version-construct`](../compilers/openapi.md#later-version-construct), which applies the keys
+beside a 3.0 schema's `$ref` as 3.1 does, each read as 3.0 defines it,
 [`minor-required-fields`](../compilers/openapi.md#minor-required-fields), and
 [`nullable`](../compilers/openapi.md#nullable), whose policy reads `nullable` wherever it is
 written, though 3.0 confines it to a `type` beside it and 3.1 removed it, and keywords beside a

@@ -140,6 +140,11 @@
                         "filename": true,
                         "allowReserved": false
                       },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+                        "multi": true,
+                        "filename": false,
+                        "allowReserved": false
+                      },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
                         "multi": true,
                         "filename": false,
@@ -175,10 +180,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -256,10 +261,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload-composed",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -291,7 +296,7 @@
                           "image/png"
                         ],
                         "multi": true,
-                        "filename": false,
+                        "filename": true,
                         "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {
@@ -329,10 +334,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload-redeclared",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -360,10 +365,10 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+                        "explode": true,
+                        "style": "form",
                         "multi": true,
                         "filename": false,
-                        "style": "form",
-                        "explode": true,
                         "allowReserved": true
                       }
                     }
@@ -396,10 +401,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/submit",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-www-form-urlencoded"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -666,11 +671,96 @@
             "source": 0,
             "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags"
           }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+          "name": {
+            "source": "labels",
+            "canonical": "labels"
+          },
+          "wireName": "labels",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels"
+          }
         }
       ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels": {
+      "kind": "union",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels",
+      "name": {
+        "hint": "labels"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {
+      "kind": "list",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
     },
     "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
       "kind": "list",
@@ -888,7 +978,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "06432fc0bfb41f6f72cdb275d8a27c5ecfe4ebab931993bb841ec537382bfc8f"
+      "hash": "ea6b54bea5e143ceb2549bd78e6fed34be41b39e93daa3a1da450462943adb64"
     }
   ]
 }

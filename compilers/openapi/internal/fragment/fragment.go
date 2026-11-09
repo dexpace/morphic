@@ -20,6 +20,13 @@ func Pointer(ref string) jsontext.Pointer {
 	return jsontext.Pointer(references.Reference(ForResolver(ref)).GetJSONPointer())
 }
 
+// Absolute reports whether ref is an absolute URI, which no base moves: one
+// with a scheme of more than one letter, as a drive's is a path's.
+func Absolute(ref string) bool {
+	u, err := url.Parse(ref)
+	return err == nil && len(u.Scheme) > 1
+}
+
 // ForResolver returns ref spelled so the resolver reads Pointer(ref) from it.
 //
 // The resolver query-unescapes a fragment (references.Reference.GetJSONPointer),

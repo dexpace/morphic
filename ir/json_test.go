@@ -432,16 +432,17 @@ func TestDocument_UnmarshalRefusesInvalidUTF8(t *testing.T) {
 
 // unsortedTypesDoc returns a Document for the encode tests below: Types entries
 // inserted out of sorted order, a Name that HTML and JS escaping would rewrite, a
-// channel binding holding a nil RawConfig, and an Unmodeled payload spelled the
-// way each raw-value option would respell it — an integer past float64's
-// precision, a float with a trailing zero, members out of order, and an escape
-// the canonical form drops.
+// channel binding holding a nil RawConfig, an IDSpaces kind holding a nil list,
+// and an Unmodeled payload spelled the way each raw-value option would respell
+// it — an integer past float64's precision, a float with a trailing zero,
+// members out of order, and an escape the canonical form drops.
 func unsortedTypesDoc() ir.Document {
 	types := ir.TypeRegistry{}
 	for _, id := range []ir.TypeID{"t/z", "t/a", "t/m"} {
 		types[id] = &ir.Primitive{ID: id, Prim: ir.PrimString}
 	}
 	return ir.Document{IRVersion: ir.IRVersion, Name: "a<b>c&d\u2028e", Types: types,
+		IDSpaces: map[string][]string{ir.IDKindType: nil},
 		Channels: map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Bindings: map[string]ir.RawConfig{"kafka": nil}}},
 		Unmodeled: ir.Unmodeled{"openapi:x-probe": {
 			Reason: ir.ReasonVendorExtension,
@@ -454,9 +455,7 @@ func unsortedTypesDoc() ir.Document {
 // could change Document's encoded bytes is overridden by canonicalOptions
 // (json.go). Each option changes the bytes of unsortedTypesDoc when it is not
 // pinned; each case must still produce bytes identical to a plain
-// json.Marshal(doc) with no options at all. FormatNilSliceAsNull is pinned too
-// but has no case: no IR type holds a nil slice the encoder reaches without an
-// omission option, so no document can show it.
+// json.Marshal(doc) with no options at all.
 func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 	t.Parallel()
 	doc := unsortedTypesDoc()
@@ -469,6 +468,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 		"\"name\":\"a<b>c&d\u2028e\"",                           // no HTML or JS escaping
 		`"value":{"z":12345678901234567890,"a":1.50,"s":"a/b"}`, // raw spellings and order kept, escapes minimal
 		`"bindings":{"kafka":{}}`,                               // a nil map is {}, never null
+		`"idSpaces":{"t":[]}`,                                   // a nil slice is [], never null
 		`"source":0`,                                            // numbers are not stringified
 		`"docs":{}`,                                             // a zero struct is not dropped
 	} {
@@ -482,6 +482,7 @@ func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
 		{"EscapeForHTML", jsontext.EscapeForHTML(true)},
 		{"EscapeForJS", jsontext.EscapeForJS(true)},
 		{"FormatNilMapAsNull", json.FormatNilMapAsNull(true)},
+		{"FormatNilSliceAsNull", json.FormatNilSliceAsNull(true)},
 		{"StringifyNumbers", json.StringifyNumbers(true)},
 		{"OmitZeroStructFields", json.OmitZeroStructFields(true)},
 		{"WithMarshalers", json.WithMarshalers(json.MarshalFunc(func(ir.TypeID) ([]byte, error) {

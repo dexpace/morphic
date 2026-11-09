@@ -13,12 +13,15 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // childEnv names the child a re-run of this test binary runs in place of its
@@ -96,6 +99,7 @@ func children() map[string]child {
 		"alive":       goroutinesAlive,
 		"orders":      unknownKeyOrders,
 		"allocations": allocations,
+		"chain-root":  chainRootAllocations,
 		"overlay":     applyOverlay,
 		// The binding oracle's library side.
 		"binding-oracle": libraryAnswers,
@@ -128,8 +132,7 @@ func probe(t *testing.T, name, input string, env ...string) result {
 
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(append(os.Environ(), env...), childEnv+"="+name, inputEnv+"="+path)
+	cmd := exectest.Command(ctx, t, append(slices.Clone(env), childEnv+"="+name, inputEnv+"="+path), os.Args[0])
 	out, err := cmd.CombinedOutput()
 
 	code := 0

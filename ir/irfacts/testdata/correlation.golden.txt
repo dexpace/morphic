@@ -1,0 +1,152 @@
+callbacks	g/default	group:g~1default
+callbacks	op/test/cb	route:GET ~1sub/callback:POST {$request.body#~1url}
+callbacks	op/test/named	route:GET ~1sub/callback:GET {$request.body#~1url}
+callbacks	op/test/nobinding	-
+callbacks	op/test/same	route:GET ~1sub/callback:GET ~1sub
+callbacks	op/test/sub	route:GET ~1sub
+callbacks	s/test/0	-
+conjuncts	p/test/n	type:N/prop:n
+conjuncts	p/test/q	type:S/prop:q
+conjuncts	p/test/x	type:M/prop:x
+conjuncts	p/test/y1	-
+conjuncts	p/test/y2	type:M/prop:y
+conjuncts	p/test/z	type:M/prop:z
+conjuncts	t/anon/c1	-
+conjuncts	t/anon/c2	-
+conjuncts	t/anon/c3	-
+conjuncts	t/anon/extra	type:M/additional
+conjuncts	t/anon/solo	type:S/allOf
+conjuncts	t/test/M	type:M
+conjuncts	t/test/N	type:N
+conjuncts	t/test/S	type:S
+enum	Shade	type:Shade
+enum	e/Shade/s:dark	-
+enum	e/other/Color/s:blue	-
+enum	e/test/Color/s:red	type:Color/member:s:red
+enum	e/test/Color/s:red/2	type:Color/member:s:red~12
+enum	t/test/Color	type:Color
+layer	auth/test/anon	-
+layer	auth/test/key	auth:api_key
+layer	g/default	group:g~1default
+layer	op/test/a	route:GET ~1a
+layer	op/test/b	route:GET ~1b
+layer	s/test/0	service:Svc
+layer	s/test/1	-
+layer	server/test/path	route:GET ~1a/server:https:~1~1{region}.example.com
+layer	server/test/root	service:Svc/server:https:~1~1api.example.com~1v1
+layer	t/anon/common	service:Svc/error:/content:application~1json
+layer	t/anon/cred	auth:api_key/credentials
+leastFirst	g/default	group:g~1default
+leastFirst	op/test/a	route:GET ~1a
+leastFirst	op/test/b	route:GET ~1b
+leastFirst	param/test/a	route:GET ~1a/arg:p
+leastFirst	param/test/b	route:GET ~1b/arg:p
+leastFirst	s/test/0	-
+leastFirst	t/anon/kv	type:Pair/key
+leastFirst	t/anon/shared	route:GET ~1a/arg:p/schema
+leastFirst	t/anon/twice	route:GET ~1a/request/content:application~1json
+leastFirst	t/test/Pair	type:Pair
+params	g/default	group:g~1default
+params	op/test/a	route:GET ~1a~1{}
+params	param/test/f	route:GET ~1a~1{}/param:path Fallback
+params	param/test/h	route:GET ~1a~1{}/param:header x-trace
+params	param/test/host	route:GET ~1a~1{}/arg:region
+params	param/test/none	-
+params	param/test/q	route:GET ~1a~1{}/param:query q
+params	s/test/0	-
+params	t/anon/q	route:GET ~1a~1{}/param:query q/schema
+parts	common	type:Common/prop:part/header:x-part
+parts	def	type:Def/prop:part/header:x-part
+parts	err	type:Err/prop:part/header:x-part
+parts	g/default	group:g~1default
+parts	op/test/a	route:GET ~1a
+parts	p/test/Common	type:Common/prop:part
+parts	p/test/Def	type:Def/prop:part
+parts	p/test/Err	type:Err/prop:part
+parts	p/test/Req	type:Req/prop:part
+parts	p/test/Res	type:Res/prop:part
+parts	p/test/Twice	type:Twice/prop:part
+parts	req	type:Req/prop:part/header:x-part
+parts	res	type:Res/prop:part/header:x-part
+parts	s/test/0	-
+parts	t/anon/req	type:Req/prop:part/header:x-part/type
+parts	t/test/Common	type:Common
+parts	t/test/Def	type:Def
+parts	t/test/Err	type:Err
+parts	t/test/Req	type:Req
+parts	t/test/Res	type:Res
+parts	t/test/Twice	type:Twice
+parts	twice1	-
+parts	twice2	-
+positions	g/default	group:g~1default
+positions	op/test/a	route:GET ~1a
+positions	p/test/dh	route:GET ~1a/default/header:x-d
+positions	p/test/ih	route:GET ~1a/request/content:application~1json/item/header:x-i
+positions	p/test/rh	route:GET ~1a/response:200,400-499/header:retry-after
+positions	s/test/0	-
+positions	t/anon/def	route:GET ~1a/default/content:application~1json
+positions	t/anon/err	route:GET ~1a/error:500-599/content:application~1json
+positions	t/anon/file	route:GET ~1a/request/content:application~1json/file
+positions	t/anon/final	route:GET ~1a/final
+positions	t/anon/in	route:GET ~1a/requestStream/events
+positions	t/anon/init	route:GET ~1a/responseStream/initial
+positions	t/anon/item	route:GET ~1a/request/content:application~1json/item
+positions	t/anon/ok	route:GET ~1a/response:200,400-499/content:application~1json
+positions	t/anon/poll	route:GET ~1a/polling
+positions	t/anon/req	route:GET ~1a/request/content:application~1json
+positions	t/anon/rh	route:GET ~1a/response:200,400-499/header:retry-after/type
+positions	t/anon/rhd	route:GET ~1a/response:200,400-499/header:retry-after/decoded
+positions	t/anon/rpc	route:GET ~1a/input
+positions	t/anon/text	route:GET ~1a/request/content:text~1plain
+routes	g/default	group:g~1default
+routes	op/test/a	route:GET ~1a
+routes	op/test/b	route:GET ~1b~1{}~1c{}
+routes	op/test/bare	-
+routes	op/test/hook	webhook:POST created
+routes	op/test/open	route:GET ~1x~1{y
+routes	op/test/rpc	op:list
+routes	op/test/s1	op:first
+routes	op/test/s2	-
+routes	s/test/0	-
+shared	p/one/id	-
+shared	p/two/tag	-
+shared	t/anon/one	-
+shared	t/anon/two	-
+shared	t/one/Pet	-
+shared	t/test/Anon	-
+shared	t/two/Pet	-
+types	p/test/a	ns:acme/ns:v1/type:Holder/prop:A
+types	p/test/gone	ns:acme/ns:v1/type:Holder/prop:gone
+types	p/test/l	ns:acme/ns:v1/type:Holder/prop:l
+types	p/test/nil	ns:acme/ns:v1/type:Holder/prop:nil
+types	param/test/arg	ns:acme/ns:v1/type:Holder/prop:A/arg:first
+types	t/anon/a	ns:acme/ns:v1/type:Holder/prop:A/type
+types	t/anon/ad	ns:acme/ns:v1/type:Holder/prop:A/decoded
+types	t/anon/ak	ns:acme/ns:v1/type:Holder/additionalKey
+types	t/anon/arg	ns:acme/ns:v1/type:Holder/prop:A/arg:first/schema
+types	t/anon/av	ns:acme/ns:v1/type:Holder/additional
+types	t/anon/base	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value/elem:1/base
+types	t/anon/e0	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value/elem:0
+types	t/anon/ld	ns:acme/ns:v1/type:Holder/prop:l/type/decoded
+types	t/anon/list	ns:acme/ns:v1/type:Holder/prop:l/type
+types	t/anon/map	ns:acme/ns:v1/type:Holder/prop:l/type/elem
+types	t/anon/mk	ns:acme/ns:v1/type:Holder/prop:l/type/elem/key
+types	t/anon/pv	ns:acme/ns:v1/type:Holder/pattern:^x-~1
+types	t/anon/rest	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value/rest
+types	t/anon/scalar	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value/elem:1
+types	t/anon/sd	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value/elem:1/decoded
+types	t/anon/tuple	ns:acme/ns:v1/type:Holder/prop:l/type/elem/value
+types	t/prim/string	prim:string
+types	t/test/Holder	ns:acme/ns:v1/type:Holder
+variants	t/anon/a	type:Mapped/tag:a
+variants	t/anon/b	type:Mapped/tag:b
+variants	t/anon/bare	-
+variants	t/anon/c	type:Mapped/variant:c
+variants	t/anon/n	type:Keyed/tag:n
+variants	t/anon/none	-
+variants	t/anon/v	type:Plain/variant:v
+variants	t/anon/w	type:Keyed/tag:w
+variants	t/test/Keyed	type:Keyed
+variants	t/test/Mapped	type:Mapped
+variants	t/test/Named	type:Named
+variants	t/test/Plain	type:Plain

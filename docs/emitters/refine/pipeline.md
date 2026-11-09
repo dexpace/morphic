@@ -21,9 +21,6 @@ type Refiner interface {
 
 type Step interface {
     Name() string               // stable, for diagnostics + golden step-trace tests
-    Version() int               // bumped with every change to what it builds for some input;
-                                // the manifest records it
-                                // (../verification.md#during-steps-carry-versions)
     Apply(*Ctx) []ir.Diagnostic // appends typed nodes to the target AST under construction; idempotent
 }
 
@@ -39,8 +36,10 @@ type Ctx struct {
     Hints   map[emitter.EntityID]emitter.ShapeHint
     Prior   *emitter.PriorState  // read-only prior generation, whose shipped names naming keeps
                                  // (naming.md); nil on a first run
-    Samples map[emitter.TargetKey]map[ir.OpID]emitter.Sample // read-only, a docs target's: each
-                                 // SDK target's samples (../docs-and-mock.md)
+    Snapshot string              // read-only: the version label of the snapshot Doc is;
+                                 // "" = unsliced
+    Samples map[emitter.TargetKey]map[ir.OpID][]emitter.Sample // read-only, a docs target's: the
+                                 // samples of the targets its options name (../docs-and-mock.md)
     Routes  map[string]emitter.RouteTable // read-only, a cross-version target's: every
                                  // snapshot's routes (../docs-and-mock.md#routes-and-links)
     Options emitter.TargetOptions // decoded options (../contract/options.md); a step asserts its own target's type

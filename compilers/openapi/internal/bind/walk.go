@@ -22,22 +22,23 @@ type root struct {
 
 // frame is one position a walk has yet to read. In the source's own walk,
 // which reads the identifiers its schemas declare, res indexes the resource
-// its parent's content is in (identifiers.resources), and inert marks the
-// fields beside a reference object's $ref, which the model ignores, so no
-// identifier is read there.
+// its parent's content is in (identifiers.resources), dialect is the one its
+// parent is read in, and inert marks the fields beside a reference object's
+// $ref, which the model ignores, so no identifier is read there.
 type frame struct {
-	node  *yaml.Node
-	at    Position
-	state state
-	res   int32
-	inert bool
+	node    *yaml.Node
+	at      Position
+	dialect string
+	res     int32
+	state   state
+	inert   bool
 }
 
 // finder finds the positions a table answers for: the schema sites, the
 // discriminator mapping values, the landings, and where each reference object
-// resolves to, walking each root as it is noted, and, in the source's own
-// walk, the identifiers its schemas declare. It keeps what it has found, and
-// which of that is new since the table last settled.
+// resolves to, walking each root as it is noted, and the identifiers each
+// document's schemas declare. It keeps what it has found, and which of that is
+// new since the table last settled.
 type finder struct {
 	docs          *docs
 	ids           *identifiers
@@ -47,16 +48,23 @@ type finder struct {
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
 	freshMappings []mappingKey
+	freshDynamic  []dynamicSite
+	expansions    []expansion
 	landings      map[Position]bool
-	pending       []root
-	covered       map[root]bool
-	roots         map[Position]state
+	// tupled is each schema the parser's model cannot hold, by the schema
+	// writing it (tupleOf).
+	tupled  map[Position]Position
+	pending []root
+	covered map[root]bool
+	roots   map[Position]state
 }
 
-// newFinder returns a finder over docs that has found nothing.
-func newFinder(d *docs, w *work) *finder {
-	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: w, ends: map[Position]Position{},
+// newFinder returns a finder over docs that has found nothing, noting what the
+// documents declare in ids.
+func newFinder(d *docs, w *work, ids *identifiers) *finder {
+	return &finder{docs: d, ids: ids, work: w, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
+		tupled:  map[Position]Position{},
 		covered: map[root]bool{}, roots: map[Position]state{}}
 }
 
@@ -66,12 +74,18 @@ func newFinder(d *docs, w *work) *finder {
 // walk in turn). A node an alias places at several positions is read at each,
 // as the parser reads it. With mark, each position read at a state is noted, so
 // a later root inside one already read is not read again; the source's own walk
-// from its root, which reads identifiers, notes none.
+// from its root notes none, and reads its identifiers the first time it runs.
 func (w *finder) walk(r root, mark bool) {
 	if prev, seen := w.roots[r.at]; !seen || r.state < prev {
 		w.roots[r.at] = r.state
 	}
-	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state}}
+	declaring := !mark && !w.ids.read[r.at.Doc]
+	if !declaring {
+		// The dialect roots a walk reads are those its document declares.
+		w.identify(r.at.Doc)
+	}
+	w.ids.read[r.at.Doc] = w.ids.read[r.at.Doc] || declaring
+	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state, dialect: dialectAbove(w.docs, w.ids, r.at)}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -86,22 +100,60 @@ func (w *finder) walk(r root, mark bool) {
 			w.covered[root{f.at, f.state}] = true
 		}
 		w.visit(n, f)
-		if !mark {
+		if declaring {
 			f = w.declared(n, f)
+		} else if len(w.ids.dialects) > 0 {
+			f.dialect = rootDialect(w.ids, f.at, f.dialect)
 		}
-		stack = append(stack, w.children(n, f)...)
+		w.tupleOf(n, f)
+		stack = w.pushChildren(stack, n, f)
 	}
 }
 
-// declared notes the identifiers the source's schema at f, holding n,
-// declares, and returns f as its children read it: in the resource its
-// content is in, and inert below a reference object's $ref other than a path
-// item's, whose fields beside it are read (Config.Beside).
+// identify reads what the schemas of document id declare, the first time it is
+// asked, whole: OAS 3.1 §4.3.1 has a document parsed complete before a reference
+// to it is deemed unresolvable, so what a reference names of it depends on
+// nothing read before. It notes no site, as a position of another document
+// answers only for what a reference reaches.
+func (w *finder) identify(id DocID) {
+	if w.ids.read[id] {
+		return
+	}
+	w.ids.read[id] = true
+	res := w.ids.document(id, resources{w.docs}.document(id))
+	stack := []frame{{node: w.docs.list[id].root, at: Position{Doc: id}, state: w.docs.identityState(id), res: res,
+		dialect: defaultDialect(w.docs, id)}}
+	for len(stack) > 0 && w.work.spend(1) {
+		f := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n := nodeview.Deref(f.node)
+		if n == nil || !modelled(f.state) {
+			continue
+		}
+		stack = w.pushChildren(stack, n, w.declared(n, f))
+	}
+}
+
+// identifyAll reads what each document opened so far declares, starting past
+// those an earlier call read, so a pass that drains many times reads each once.
+func (w *finder) identifyAll() {
+	for ; w.ids.scanned < DocID(len(w.docs.list)); w.ids.scanned++ {
+		if !w.work.spend(1) {
+			return
+		}
+		w.identify(w.ids.scanned)
+	}
+}
+
+// declared notes the identifiers the schema at f, holding n, declares, and
+// returns f as its children read it: in the resource its content is in, and
+// inert below a reference object's $ref other than a path item's, whose fields
+// beside it are read (Config.Beside).
 func (w *finder) declared(n *yaml.Node, f frame) frame {
 	switch {
 	case f.inert:
-	case f.state == sSchema:
-		f.res = w.ids.declare(resources{w.docs}, f.res, f.at, n)
+	case f.state == sSchema || f.state == sLoose:
+		f.res, f.dialect = w.ids.declare(resources{w.docs}, f.res, f.at, n, f.dialect)
 	case referenceKinds[f.state] && f.state != sPathItem:
 		_, f.inert = w.docs.refOf(f.at.Doc, n)
 	}
@@ -117,10 +169,76 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.fresh = append(w.fresh, f.at)
 		}
 		w.mappingsOf(n, f.at)
+		w.dynamicOf(n, f.at)
 	case referenceKinds[f.state]:
 		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
 			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
+		}
+	}
+}
+
+// tupleOf notes each schema the schema at f, holding n and read in f's
+// dialect, writes where the parser's model has no member to hold one: each
+// entry of an `items` written as a list the dialect reads as a tuple, and the
+// `additionalItems` beside it, its rest. The table builds a schema for each,
+// as for a landing, held by the schema writing it.
+func (w *finder) tupleOf(n *yaml.Node, f frame) {
+	schema := f.state == sSchema || f.state == sLoose
+	if !schema || !dialectRule(w.docs, f.at.Doc, f.dialect).Tuples || !listsItems(w.docs, f.at.Doc, n) {
+		return
+	}
+	view := w.docs.list[f.at.Doc].view
+	items := f.at.below("items")
+	for i := range nodeview.Deref(view.ChildByToken(n, "items")).Content {
+		w.tupled[items.below(strconv.Itoa(i))] = f.at
+	}
+	if nodeview.Deref(view.ChildByToken(n, "additionalItems")) != nil {
+		w.tupled[f.at.below("additionalItems")] = f.at
+	}
+}
+
+// dynamicSite is a $dynamicRef of another document and the anchor it names.
+type dynamicSite struct {
+	at  Position
+	key dynamicKey
+}
+
+// expansion is a $dynamicRef written at from and the schema at to declaring the
+// one anchor of its name, which it reaches as a $ref reaches what it names.
+type expansion struct {
+	from, to Position
+}
+
+// dynamicOf notes the anchor the $dynamicRef the schema at at, holding n, names,
+// where another document holds it. Nothing but a reference builds a schema of
+// another document (landed), and an expansion is one, so settle lands on the
+// anchor. The source's are the model's own.
+func (w *finder) dynamicOf(n *yaml.Node, at Position) {
+	if at.Doc == Source {
+		return
+	}
+	ref, ok := scalarOf(w.docs.list[at.Doc].view.ChildByToken(n, "$dynamicRef"))
+	if !ok {
+		return
+	}
+	if name, _, ok := DynamicFragment(ref); ok {
+		w.freshDynamic = append(w.freshDynamic, dynamicSite{at: at, key: dynamicKey{doc: at.Doc, name: name}})
+	}
+}
+
+// landOnAnchors lands on the one schema declaring each anchor a $dynamicRef in
+// another document names, as a reference would, for the schema an expansion
+// takes to be built and read. It waits for no later pass: a name is only asked
+// of a document open, whose identifiers it reads whole.
+func (w *finder) landOnAnchors() {
+	dynamic := w.freshDynamic
+	w.freshDynamic = nil
+	for _, d := range dynamic {
+		w.identify(d.key.doc)
+		if at := w.ids.dynamic[d.key]; len(at) == 1 {
+			w.landed(Hop{Target: at[0], Role: Raw})
+			w.expansions = append(w.expansions, expansion{from: d.at, to: at[0]})
 		}
 	}
 }
@@ -159,23 +277,24 @@ func containsHash(value string) bool {
 	return slices.Contains([]byte(value), '#')
 }
 
-// children are the positions directly below f, whose node is n.
-func (w *finder) children(n *yaml.Node, f frame) []frame {
-	var out []frame
+// pushChildren returns stack with the positions directly below f, whose node is
+// n, appended in order, so a walk reads its children with no slice of their
+// own.
+func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
-			out = append(out, frame{node: p.Val, at: f.at.below(p.Key), state: step(f.state, p.Key), res: f.res,
-				inert: f.inert})
+			stack = append(stack, frame{node: p.Val, at: f.at.below(p.Key),
+				state: stepIn(w.docs, f.at.Doc, n, f.state, p.Key, f.dialect), res: f.res, inert: f.inert, dialect: f.dialect})
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
 			token := strconv.Itoa(i)
-			out = append(out, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
-				inert: f.inert})
+			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
+				inert: f.inert, dialect: f.dialect})
 		}
 	}
-	return out
+	return stack
 }
 
 // below is the position token names under p.
@@ -224,8 +343,9 @@ type mappingKey struct {
 }
 
 // mapping is where the mapping value k names, read as a $ref written at the
-// discriminator: a hop, and the chain on from where it lands.
-func (b *binder) mapping(k mappingKey) Mapping {
+// discriminator: a hop, and the chain on from where it lands. It reports waits
+// where either waits for a document the pass has yet to read (waits).
+func (b *binder) mapping(k mappingKey) (Mapping, bool) {
 	// A discriminator is a position its document holds, so the path reaches it.
 	path, _ := b.docs.path(k.at)
 	m := Mapping{At: k.at, Hop: b.resolve(k.at, path, k.value, false)}
@@ -234,16 +354,21 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	if m.Hop.Status != Resolved {
 		m.Chain = Chain{Status: m.Hop.Status}
-		return m
+		if m.Hop.Reason == Held {
+			b.wait.heldMappings = append(b.wait.heldMappings, k)
+			return m, true
+		}
+		return m, false
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
 		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Hops: 1}
-		return m
+		return m, false
 	}
-	m.Chain = b.chain(m.Hop.Target)
-	if m.Chain.Status == Resolved {
-		m.Chain.Hops++
+	c, waits := b.chain(m.Hop.Target)
+	if c.Status == Resolved {
+		c.Hops++
 	}
-	return m
+	m.Chain = c
+	return m, waits
 }

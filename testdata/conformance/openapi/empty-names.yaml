@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.2.0
 info: {title: Empty Names, version: "1.0.0"}
 paths:
   /widgets:
@@ -68,3 +68,71 @@ components:
         "":
           allOf: [{$ref: '#/components/schemas/Base'}]
           oneOf: [{$ref: '#/components/schemas/Alt'}]
+    Blob:
+      type: object
+      properties:
+        "":
+          type: string
+          contentMediaType: application/json
+          contentSchema:
+            type: object
+            properties:
+              a: {type: string}
+    # A draft schema spells a tuple slot as list-form items and its rest as
+    # additionalItems, and both compose from the empty name as prefixItems and
+    # items do.
+    Old:
+      $schema: http://json-schema.org/draft-07/schema#
+      type: object
+      properties:
+        "":
+          type: array
+          items: [{type: object, properties: {d: {type: string}}}]
+          additionalItems: {type: object, properties: {e: {type: string}}}
+    # Only a reference reaches the itemSchema of a header's or a parameter's
+    # content, and no operation mounts these components, so a reference is also
+    # what lowers each one's items; the key or the name is what its hint
+    # composes from.
+    Frame: {$ref: '#/components/responses/Framed/headers//content/application~1jsonl/itemSchema'}
+    Line: {$ref: '#/components/parameters/Unnamed/content/application~1jsonl/itemSchema'}
+    HeaderItem: {$ref: '#/components/responses/Listed/headers//schema/items'}
+    ParamItem: {$ref: '#/components/parameters/UnnamedList/schema/items'}
+    HeaderContentItem: {$ref: '#/components/responses/Carried/headers//content/application~1json/schema/items'}
+    ParamContentItem: {$ref: '#/components/parameters/UnnamedContent/content/application~1json/schema/items'}
+  responses:
+    Framed:
+      description: ok
+      headers:
+        "":
+          content:
+            application/jsonl:
+              itemSchema: {type: object, properties: {f: {type: string}}}
+    Listed:
+      description: ok
+      headers:
+        "":
+          schema: {type: array, items: {type: object, properties: {h: {type: string}}}}
+    Carried:
+      description: ok
+      headers:
+        "":
+          content:
+            application/json:
+              schema: {type: array, items: {type: object, properties: {i: {type: string}}}}
+  parameters:
+    UnnamedContent:
+      name: ""
+      in: query
+      content:
+        application/json:
+          schema: {type: array, items: {type: object, properties: {j: {type: string}}}}
+    UnnamedList:
+      name: ""
+      in: query
+      schema: {type: array, items: {type: object, properties: {p: {type: string}}}}
+    Unnamed:
+      name: ""
+      in: query
+      content:
+        application/jsonl:
+          itemSchema: {type: object, properties: {g: {type: string}}}

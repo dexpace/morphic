@@ -146,7 +146,7 @@ func (p *resolution) ends() map[refSite]referenceEnd {
 		if last.inSource() {
 			name = p.selfPath
 		}
-		ends[v.site] = referenceEnd{name: name, pointer: last.pointer, object: last.object, node: last.node,
+		ends[v.site] = referenceEnd{name: name, pointer: last.pointer, object: last.object, node: c.end,
 			walk: last.walk}
 	}
 	return ends

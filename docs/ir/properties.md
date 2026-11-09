@@ -85,7 +85,7 @@ type Visibility struct {
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to
 `Only: [create, update]`; GraphQL input-vs-output types to `create/update` vs `read`; TypeSpec
 `@visibility` maps directly. One logical model therefore produces N wire shapes; the projection
-(`ModelShape(model, lifecycle)`, with PATCH additionally making properties optional *unless the
+(`ModelShape(model, shape)`, with PATCH additionally making properties optional *unless the
 binding disables it* — [http-binding](./http-binding.md) `PatchImplicitOptionality`) is a computed
 traversal in emitters' plan layer — the IR stores the single logical model plus the visibility
 facts, never the projected variants. Operations can override which filter applies to their

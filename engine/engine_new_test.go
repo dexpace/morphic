@@ -4,6 +4,7 @@
 package engine_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -106,6 +107,7 @@ func TestNew_WithNoPassesRunsNone(t *testing.T) {
 func TestNew_RefusesWhatARunCouldNotAddress(t *testing.T) {
 	t.Parallel()
 	stub := engine.WithCompilers(splitDiagCompiler{})
+	last := len(engine.Passes()) - 1 // validate's place, which TestPasses_ValidateRunsLast holds
 	tests := []struct {
 		name string
 		opts []engine.Option
@@ -121,7 +123,7 @@ func TestNew_RefusesWhatARunCouldNotAddress(t *testing.T) {
 			engine.WithPasses(notePass("x"), notePass("a"), notePass("b"), notePass("a"))},
 			`engine: passes 1 and 3 are both named "a"; turning one off would turn off both`},
 		{"a default pass twice", []engine.Option{engine.WithPasses(append(engine.Passes(), pass.Validator{})...)},
-			`engine: passes 0 and 1 are both named "validate"`},
+			fmt.Sprintf(`engine: passes %d and %d are both named "validate"`, last, last+1)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
