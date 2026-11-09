@@ -49,7 +49,8 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	got := commonFor(lowering.New(5, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}), "t/x", "/components/schemas/User")
+	c := lowering.New(5, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
+	got := commonFor(c, "t/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)

@@ -34,7 +34,8 @@ func TestLeastOf_StopsAtOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reads := 0
-			got := leastOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), tc.items, func(_ lowering.Ctx, r fileReading) fileReading {
+			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+			got := leastOf(c, tc.items, func(_ lowering.Ctx, r fileReading) fileReading {
 				reads++
 				return r
 			})

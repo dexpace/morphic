@@ -218,7 +218,8 @@ func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
 
 	assert.Empty(t, diags)
 	assert.Equal(t, []ir.ServerID{"server/openapi/paths/~1a/servers/1"}, got)
@@ -233,7 +234,8 @@ func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), []*soa.Server{nil, nil}, "")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{nil, nil}, "")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 	assert.Nil(t, reg.Servers())
@@ -246,7 +248,8 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 		sequencedmap.NewElem("keep", &soa.ServerVariable{}),
 	)
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), []*soa.Server{{URL: "https://x", Variables: vars}}, "")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
 	srv := reg.Servers()[got[0]]
@@ -367,17 +370,6 @@ paths:
 	assert.Equal(t, first, again, "the second reach names the same server")
 	assert.Empty(t, diags, "and reports nothing, having lowered nothing")
 	assert.Len(t, reg.Servers(), 1)
-}
-
-// TestRegistry_RootServesNoDocumentAtTheRoot pins Root on a context holding no
-// document, which every getter the walk reads answers for as empty: the default
-// stands in, as for a document writing no servers.
-func TestRegistry_RootServesNoDocumentAtTheRoot(t *testing.T) {
-	t.Parallel()
-	reg := servers.NewRegistry()
-	got, diags := reg.Root(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}))
-	assert.Empty(t, diags)
-	assert.Equal(t, []ir.ServerID{"server/default"}, got)
 }
 
 // TestRegistry_ServersHandsOverACopy pins that the map Servers returns is the

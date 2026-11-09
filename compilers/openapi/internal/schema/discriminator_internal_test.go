@@ -326,7 +326,8 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			d := besideUnionDiscriminator{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
+			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
 
 			diags := d.Settle(reg)
 
@@ -344,7 +345,8 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
 	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
 	reg := ir.TypeRegistry{"t/owner": &ir.Union{ID: "t/owner"}, "t/pet": mt}
-	d := besideUnionDiscriminator{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
 
 	assert.Empty(t, d.Settle(reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")

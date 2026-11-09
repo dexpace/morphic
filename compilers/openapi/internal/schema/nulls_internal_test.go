@@ -49,10 +49,11 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	require.Equal(t, alike(nullAdmitted), (&nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(1))}).schema(nullable, nullSite{}),
+	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	require.Equal(t, alike(nullAdmitted), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(1))}).schema(nullable, nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, alike(nullSilent), (&nulls{c: NewRawLowerer(&soa.OpenAPI{}).Ctx, conjuncts: budget.New(budget.AtMost(0))}).schema(nullable, nullSite{}),
+	assert.Equal(t, alike(nullSilent), (&nulls{c: c, conjuncts: budget.New(budget.AtMost(0))}).schema(nullable, nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
 }
