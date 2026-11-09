@@ -180,16 +180,42 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `trial-merge-open-prs`
 
 - **Rule.** A change that removes or renames a target, file or identifier other open PRs may name,
-  or alters what every file of a kind must hold, such as a golden, trial-merges each, before and
-  after. Search each merged tree for the removed names and run the kind's tests there:
-  `git merge-tree` reports conflicts, not failures, and GitHub's flag does not say which merge
-  caused one.
+  alters what every file of a kind must hold, such as a golden, or adds a package or a whole-tree
+  check, trial-merges each, before and after, runs on each merged tree what
+  `references/merging-main.md#trial-merge-runs-its-checks` names, and reads its conflicts by
+  `references/merging-main.md#trial-merge-reads-what-the-head-adds`. `git merge-tree` reports
+  conflicts, not failures, and GitHub's flag names no culprit.
 - **Why.** Resolving a conflict over a removed make target would have kept the gate pointing at it
   (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
-  and failed on each (#1181, #1191, #1192).
-- **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` for each open PR, then on
-  the merge (`references/merging-main.md#trial-merge-happened`) `git grep` each removed name and,
-  for goldens, `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
+  and failed on each (#1181, #1191, #1192), as an archtest rule over every package did with a PR
+  adding two (#1556).
+- **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` per open PR.
+
+## Run each kind's checks in the trial merge's own tree
+`trial-merge-runs-its-checks`
+
+- **Rule.** On each merged tree `references/merging-main.md#trial-merge-happened` confirms, build
+  and run there, never a binary built from another tree: `git grep` each removed name; for goldens,
+  `go test ./compilers/openapi/e2e ./cmd/morphic-census`; for an added package or archtest rule,
+  `go test ./internal/archtest`; for an analyzer, `go vet -vettool=<tool> <changed packages>`; for
+  a skill edit, `references/merging-main.md#trial-merge-lints-the-skills`.
+- **Why.** A test binary built from one head flagged three open PRs for a package one of them
+  exempts, and rebuilt in that PR's merged tree its test passed (#1311, #1556).
+- **Probe.** Each result names the merged commit and the command run in it.
+
+## Read a trial merge's conflicts against the open PR's own with main
+`trial-merge-reads-what-the-head-adds`
+
+- **Rule.** A PR drifted from `main` conflicts with any head, so only the files a head adds to the
+  PR's conflicts with `main` are the change's. Where a conflict leaves no merged tree, search the
+  PR's added lines for each removed name,
+  `git diff "$(git merge-base origin/main <pr head>)" <pr head> | grep '^+'`, and report that no
+  test ran on that merge.
+- **Why.** Twelve of 26 open PRs conflicted with a head, each conflict their own with `main`, and
+  none left a tree to test (#1583).
+- **Probe.** With
+  `c() { git merge-tree --write-tree --name-only "$1" "$2" | sed '1d;/^$/,$d' | sort; }`,
+  `comm -23 <(c <head> <pr head>) <(c origin/main <pr head>)` prints what the head adds.
 
 ## Run the skills lint on each trial merge of a skill edit
 `trial-merge-lints-the-skills`

@@ -15,7 +15,7 @@ Take the first that fits.
    check keeps a rule naming its issue until it lands.
 2. **A script**, only to hold an invariant through a crash, count or compare exactly, or check
    every member of a large set no one command lists, printing facts, not verdicts parsed from tool
-   output. Short of that, the command goes in the rule's Probe, since nothing runs a script's tests.
+   output. Otherwise its command goes in a Probe: nothing runs a script's tests.
 3. **A rule in a skill.** Add it to a reference of the narrowest skill whose trigger fires when
    the lesson applies. If none does, widen a description or add a skill: a rule no trigger
    reaches is never read.
@@ -36,10 +36,11 @@ List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md`, not a 
 - **Probe.** The command or planted defect that shows whether it holds, unless the Rule is one.
 ```
 
-A rule stays within 150 words, or becomes two, the first citing the second. No narrative, dates or
-first person, and no count a command beside it does not derive, bar a Why's evidence, measured as
-the Probe asks and pinned by an issue, a merged PR or a revision, never an open PR. Cite a rule as
-`references/<file>.md#<key>`, from another skill by its full path.
+A rule stays within 150 words by `wc -w`, heading and key included, or becomes two, the first
+citing the second. No narrative, dates or first person, and no count a command beside it does not
+derive, bar a Why's evidence, measured as the Probe asks and pinned by an issue, a merged PR or a
+revision, never an open PR. Cite a rule as `references/<file>.md#<key>`, from another skill by its
+full path.
 
 ## Limits
 
@@ -50,7 +51,7 @@ the Probe asks and pinned by an issue, a merged PR or a revision, never an open 
 - A reference file stays within 4,000 words. A full file takes a rule only by merging or removing
   one.
 - Everything works from a fresh clone's root, where paths start, bar those inside the skill's
-  folder. Write paths in code spans, where the lint holds each to the tree.
+  folder, and paths sit in code spans the lint holds to the tree.
 - Scripts are executable Python 3.14, standard library only, each with a `test_<name>.py` beside it.
   Run a skill's tests with `python3.14 -m unittest discover -s .claude/skills/<skill>/scripts`.
 

@@ -22,8 +22,10 @@ how each kind of cost claim is measured; a cost read off the code is a `question
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#clear-never-shrinks`),
    never taking a resident set read with the collector off for a peak
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#resident-set-without-collector`).
-5. Hold each cost the change states to the measure its kind takes, and find where a small difference
-   comes from
+5. Hold each cost the change states or weighs to the measure its kind takes, on an input where it
+   can occur
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#cost-measured-where-it-occurs`),
+   and find where a small difference comes from
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#attribute-by-statement-counts`).
 
 A finding gives the gap measured on both builds and the correct alternative closing it. The matrix
