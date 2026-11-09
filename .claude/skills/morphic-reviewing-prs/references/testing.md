@@ -22,7 +22,8 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#kill-reaches-the-plant`),
    and a Python plant run without stale bytecode
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#python-plant-without-bytecode`).
-3. Hold each test the change adds or edits to what its name claims
+3. Hold each test the change adds or edits, and each whose claim it widens
+   (`references/testing.md#claim-the-change-widens`), to what its name claims
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#assertion-targets-what-the-name-names`),
    to the stage it must reach
    (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#fixture-still-reaches-its-stage`)
@@ -34,8 +35,6 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#limit-outcome-through-a-seam`)
    and each table row setting up the state it can change
    (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#row-owns-its-state`).
-   A test the change leaves alone is not yet held to a claim the change widens, such as every
-   method of a type it adds one to (#1623).
 4. For a check, lint or archtest rule or a gate target the change adds, plant what it must catch and
    what it must pass, by `.claude/skills/morphic-verifying-changes/references/checkers.md`, among
    them `.claude/skills/morphic-verifying-changes/references/checkers.md#gate-target-draws-a-plant`,
@@ -100,6 +99,22 @@ function-by-class cells and the mutants planted, killed and judged equivalent, e
   test, while its table held a union only beside structural keywords; a plant skipping `oneOf` and
   `anyOf` pointers drew the report and passed (#1514, #1594).
 - **Probe.** Each class with no row names its plant and the test that reddened.
+
+## Hold a test the change leaves alone to a claim it widens
+`claim-the-change-widens`
+
+- **Rule.** Where the change adds a member to a set, such as a method to a type, hold to it each
+  test name and each doc comment on the set that claims something of every member, though the
+  change leaves them alone: plant in the new member a defect the claim covers
+  (`references/testing.md#plant-each-class-a-claim-covers`) and see a test redden.
+- **Why.** #1354 added two methods to `irfacts.Index`, documented as safe for concurrent use, and
+  its first round, holding only tests it edited, never met
+  `TestIndex_EveryMethodIsSafeForConcurrentUse`, which asked neither: an unsynchronized build
+  behind them passed `go test -race` until it asked both (#1623, #1354 at aa62909a2 and
+  cf810cca9).
+- **Probe.** For the set's package, `go doc <package> <Type>` and
+  `git grep -nE 'func Test[[:alnum:]_]*(Every|Each|All|No|Never|Only|Always)[A-Z]' -- '<directory>/*_test.go'`
+  list candidates.
 
 ## Cross a function holding a path with each spelling of the working directory
 `path-by-working-directory-spelling`
