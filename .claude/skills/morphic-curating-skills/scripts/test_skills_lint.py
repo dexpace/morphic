@@ -283,6 +283,16 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
+    def test_a_word_opening_with_a_variable_names_no_path_bar_goroot(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each expands to a place outside the tree, so none is held to it; $GOROOT alone still is.
+        spans = ("Then `ls \"$PWD/ir\"`, `ls $PWD/gone`, `ls $D/ir`, `cat $OUT/x.log`, "
+                 "`ls \"$HOME/x\"`, `ls ${PWD}/ir`, `ls '$TMP/y'` and `$WORK/z`, but not "
+                 "`cat $GOROOT/src/gone.go`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: GOROOT/src/gone.go does not exist"])
+
     def test_a_go_name_placed_in_a_file_is_held_to_its_declarations(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, "ir/b.go", "package ir\n\n// Mentioned is named, as is type Buried.\n"
@@ -560,6 +570,16 @@ class ArgumentsTest(unittest.TestCase):
                     skills_lint.main(argv)
                 self.assertEqual(e.exception.code, 2)
                 lint.assert_not_called()
+
+    def test_a_tree_with_no_repository_is_told_how_to_make_one(self):
+        err = io.StringIO()
+        refused = subprocess.CalledProcessError(128, ["git", "rev-parse", "--show-toplevel"])
+        with mock.patch.object(skills_lint, "git", side_effect=refused), \
+                mock.patch.object(skills_lint, "findings") as lint, \
+                contextlib.redirect_stderr(err):
+            self.assertEqual(skills_lint.main([]), 2)
+        self.assertIn("run git init and git add -A first", err.getvalue())
+        lint.assert_not_called()
 
     def test_help_prints_the_usage_and_lints_nothing(self):
         out = io.StringIO()

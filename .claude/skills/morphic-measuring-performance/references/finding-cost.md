@@ -93,6 +93,56 @@ how to measure so the number means what the claim says.
 - **Why.** A Linux host with no `perf` left a review of a cost claim no instrument (#1162).
 - **Probe.** `command -v perf`, then each side's range from the alternated runs against the gap.
 
+## Profile a fuzz worker alone, over a window past its warm-up
+`profile-a-fuzz-worker-alone`
+
+- **Rule.** `-test.cpuprofile` profiles the parent process, never a fuzz worker alone. Profile one
+  from an `init` in a scratch copy of the target's package that, when `os.Args` holds
+  `-test.fuzzworker`, sleeps past warm-up and runs `pprof.StartCPUProfile` over a fixed window, and
+  quote the window with the figure. Run it with `-test.fuzzminimizetime=0x`, as a worker the
+  minimization bound restarts starts its window again. The whole search's CPU time is
+  `references/finding-cost.md#cpu-time-without-a-counter`'s, over the test binary.
+- **Why.** Coverage bookkeeping read 41% of `FuzzCompile`'s worker over 20 s past 15 s of warm-up,
+  and 1.8% over its first 10 s (#1381, #1552).
+- **Probe.** `go tool pprof -top <profile>` prints a `Duration` of the window.
+
+## Read minimization out of a fuzz cost, and count its cut runs
+`minimization-in-a-fuzz-cost`
+
+- **Rule.** Compare CPU per execution with `-test.fuzzminimizetime=0x`. A share of time spent
+  minimizing, read from `GODEBUG=fuzzdebug=1`, adds each `minimizing took: 0s` line times the bound
+  to the lines' sum: a minimization the bound cuts logs `0s` and restarts its worker.
+- **Why.** `FuzzCanonicalWords` read 340 µs an execution with default minimization and 145 µs
+  without it, and a plain sum of the log read minimizing as 13% of worker time where the bound
+  put it near 84% (#1385, #1552).
+- **Probe.** The count of `0s` lines comes close to the worker starts past each worker's first,
+  counted by a line a scratch `init` writes when `-test.fuzzworker` starts.
+
+## Sum a share of named functions over pprof's `cum`, never `flat`
+`share-of-named-functions`
+
+- **Rule.** A share of time spent in named functions names its pprof column, and sums `cum` over
+  functions none of which calls another, read from
+  `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 <profile>`: `flat` leaves
+  out what pprof books to a callee inlined into the function.
+- **Why.** Three coverage functions of one fuzz worker summed 47.0% `flat` and 54.4% `cum`, and a
+  body quoted such a share with no column (#1381, #1592).
+- **Probe.** Each share quoted names its column, and `go tool pprof -peek '<name>' <profile>` shows
+  none of its functions calling another.
+
+## Measure a claimed cost on an input that can show it
+`cost-measured-where-it-occurs`
+
+- **Rule.** A cost a change weighs, or claims absent, is measured on an input where it can occur,
+  named beside the figure: a "no cost" read on an input that cannot show one is unmeasured. For a
+  fuzz bound, plant a crash only a valid document reaches, behind a clock so that both bounds meet
+  it.
+- **Why.** A minimization bound cut to 1 s was weighed against a less minimal reproducer on a crash
+  a 3-byte input reaches. Planted past a clean compile, the crash's reproducer was 91 and 92 bytes
+  at a 10 s bound and 313 and 3176 at 1 s (#1290, #1385, #1608).
+- **Probe.** The figure on the named input differs between bounds or builds wherever the claimed
+  cost exists.
+
 ## Price a stage after the compile from a saved document
 `cost-of-a-later-stage`
 

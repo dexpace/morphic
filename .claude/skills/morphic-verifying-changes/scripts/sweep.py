@@ -9,9 +9,11 @@ Usage: python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py [-b 
        [-j JOBS] [-o OUTDIR] [CORPUS...] [-- COMPILE-FLAGS...]
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
-warning says the differences also count what BASE gained since. A compile running past SECONDS
-(default 60) is killed and recorded as 137, and one ended by a signal, such as the kill that ends
-a compile out of memory, as minus the signal's number. JOBS compiles run at once (default half the
+warning says the differences also count what BASE gained since. COMPILE-FLAGS go to each compile on
+both sides, and a plain compile runs no irverify, so a change under ir/irverify sweeps with
+-- --verify. A compile running past SECONDS (default 60) is killed and recorded as 137, and one
+ended by a signal, such as the kill that ends a compile out of memory, as minus the signal's number.
+JOBS compiles run at once (default half the
 CPUs), each holding its output in memory until it is compared. OUTDIR defaults to a new temporary
 directory, and a run replaces its runs/ directory: a spec that differs keeps both sides' outputs
 under OUTDIR/runs/<n>/ for diffing, and when they cannot be written the sweep goes on and says so,

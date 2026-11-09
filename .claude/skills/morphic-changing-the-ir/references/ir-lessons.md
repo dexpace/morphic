@@ -255,16 +255,16 @@ verifier and codecs must reach.
 ## Witness each character class a text predicate decides
 `character-predicate-witness-per-class`
 
-- **Rule.** A predicate over text (cased, blank, invisible) must be tested against the producer's
-  exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable,
-  Zs, caseless letters), not a hand-picked sample. A change that redefines one rechecks it at each
-  call site, since two rules sharing it can ask different questions.
+- **Rule.** A predicate over text (cased, blank, invisible) is tested against the producer's exact
+  transformation, with a witness per general category each set it claims spans, never a sample:
+  white space's Zs, Zl, Zp and Cc, default-ignorable's Cf, Mn, Lo and Cn, and caseless letters.
+  Redefining one rechecks it at each call site, as two rules sharing it can ask different questions.
 - **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
   filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
-  (#189).
-- **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each, at each call site; a property Unicode publishes also takes
+  (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
+- **Probe.** Assert its verdict on each witness and producer output at each call site; a
+  property Unicode publishes also takes
   `references/ir-lessons.md#sweep-a-published-property`.
 
 ## Sweep a predicate over every code point where Unicode publishes its property

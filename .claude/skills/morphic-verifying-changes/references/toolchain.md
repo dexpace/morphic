@@ -41,11 +41,38 @@
   a cache probe compares share one `PATH`, `GODEBUG`, `GOFLAGS` and `TMPDIR`. A logging wrapper put
   on `PATH` for one run alone reruns every test that starts a child. When the measurement needs
   `GODEBUG`, run it twice with `go clean -testcache` between and cite the second. For a cold cache,
-  point `GOCACHE` at a fresh `mktemp -d`.
+  point `GOCACHE` at a fresh `mktemp -d`; around a plant, take
+  `references/toolchain.md#test-cache-keys-on-stat-and-log-order`.
 - **Why.** A trace cited as a reproduction worked only because the command had run before (#381),
   and a dated re-clone reran three packages only because the priming run's `PATH` differed (#1387).
 - **Probe.** A test reading `PATH`, run twice under one `PATH` and once under another: the third
   run is not `(cached)`.
+
+## The test cache keys on an input's stat and the log's order, not its bytes
+`test-cache-keys-on-stat-and-log-order`
+
+- **Rule.** A cached test result is looked up by each input file's modification time and size, in
+  the order the last run's log listed them, so a file restored by `git checkout` reruns the next
+  run, as does any run after one whose parallel tests reordered the log. Prime immediately before
+  each plant, read the run after a restore's rerun, and explain a surprising rerun with
+  `GODEBUG=gocachetest=1`.
+- **Why.** A package reran on its first run after a planted comment was checked out, content as
+  primed, and was `(cached)` next; three runs of one binary logged one file set in three
+  orders (#1373, #1560).
+- **Probe.** Prime, plant a comment in a file the package's `-test.testlogfile` lists, and
+  `git checkout` it: the next run is not `(cached)`, the one after is.
+
+## A script started with `&` ignores an interrupt
+`background-start-ignores-sigint`
+
+- **Rule.** A script a non-interactive shell starts with `&` inherits SIGINT ignored, and bash
+  cannot trap a signal it started ignoring, so an interrupt probe built that way reads alike with
+  the script's `trap ... INT` removed. Start the target through GNU `env --default-signal=INT`, or a
+  launcher resetting the signal, and show the probe bites by the same run with the trap removed.
+- **Why.** Under `bash -c '... & wait'`, an `INT` trap never ran and a script without one survived
+  the interrupt (#1382, #1604).
+- **Probe.** `bash -c 'env --default-signal=INT bash -c "trap \"echo trapped\" INT; kill -INT \$\$" & wait'`
+  prints `trapped`; without `env --default-signal=INT` it prints nothing.
 
 ## A test's go children never reach a go wrapper on PATH
 `test-go-children-ignore-path`

@@ -2,7 +2,10 @@
 
 How a round runs and when the loop ends: where the review reads the change, what a decision rests
 on, how a finding is ranked, a fix designed and checked, and what is posted. The angle references
-say what a round attacks, and `references/readers.md` who reads it.
+say what a round attacks, and `references/readers.md` who reads it. The rules are read from `main`,
+by `git show origin/main:<path>` or `git archive origin/main .claude/skills | tar -x -C <dir>`,
+whatever the head holds, unless the change under review edits them, when its copy is what is
+reviewed.
 
 Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
 `references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
@@ -19,23 +22,27 @@ Each round reviews the tree as it will land, in a throwaway worktree
 
 ```bash
 base=$(gh pr view <N> --json baseRefName --jq .baseRefName)
-git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>"
+git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>" && main=$(git rev-parse origin/main)
 git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
-git merge --no-edit "origin/$base" && git merge --no-edit origin/main
+git merge --no-edit "origin/$base" && git merge --no-edit "$main"
+git merge-base --is-ancestor refs/rv<session>/<N> HEAD && git merge-base --is-ancestor "$main" HEAD
 ```
 
 A conflict the review can resolve mechanically is resolved in that worktree and reported as the
 review's own resolution, so every angle reads `main`'s new commits beside the branch; one whose
 resolution is a design choice is aborted and reported with what could not be checked. Either way
-the conflict is an `issue:`. Probe only in that worktree. A round's report names what it reviewed,
-the merged commit among it, each delegated reader's minutes and tool calls from its hand-back,
-each angle's matrix, then the findings ranked:
+the conflict is an `issue:`. Read and run only against that tree or a copy of it: a plant, a trial
+merge or a sweep takes a worktree or copy of its own, and nothing writes to the checkout you started
+from. Every later read of `main` is `$main` (`references/rounds.md#pin-main-for-the-round`). A
+round's report names what it reviewed, the merged commit among it, each delegated reader's minutes
+and tool calls from its hand-back, each angle's matrix, then the findings ranked:
 
 ```text
 Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
 reader <minutes> minutes, <tool calls> tool calls
 <angle>: <cells run> run, <cells settled> settled (<reason each>), findings <refs>
 unreached <cells>; reopened <cells>, each with what its clearance lacked
+narrowed: <round before>, <its findings>, <commits since>
 <rank> <angle> <file>:<line> <rule broken> <command> <output> <smallest fix>
 ```
 
@@ -44,26 +51,55 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 
 - **Rule.** Fetch the PR's head into a ref only your session names and add the worktree from it,
   never from `FETCH_HEAD`, which every session in a checkout shares and another's fetch replaces.
-  The worktree's `HEAD` is the PR's `headRefOid` before any merge.
+  The worktree's `HEAD` is the PR's `headRefOid` before any merge, and after the merges both of the
+  setup's `--is-ancestor` checks exit 0. "Already up to date" from both merges marks a wrong fetch
+  only when the first check fails, as a head already holding `main` prints it too.
 - **Why.** A worktree added at `FETCH_HEAD` after the PR's fetch held `main`'s head, and the merge
-  of `main` printed "Already up to date" (#1464).
+  of `main` printed "Already up to date" (#1464); a correct no-op printed the same and failed a
+  check by both parents (#1605).
 - **Probe.** `git rev-parse HEAD` in the worktree, beside
   `gh pr view <N> --json headRefOid --jq .headRefOid`.
+
+## Pin main's commit for the round, as every worktree shares its ref
+`pin-main-for-the-round`
+
+- **Rule.** `refs/remotes/origin/main` is one ref across a repository's worktrees, so another
+  session's fetch moves it mid-round and its deletion fails a read. The setup pins what it fetched
+  as `$main`, which each later merge, diff and log of the round reads, and the report's first line
+  names. Where other sessions share the repository and a tool reads `origin/main` itself, as
+  `subjects.py` does, review in the clone `references/rounds.md#review-without-origin` makes.
+- **Why.** In two worktrees of one clone, a fetch in one moved `origin/main` in the other, and a
+  deletion there failed its merge (#1590); `subjects.py` exits 2 on `main` under another name
+  (#1403).
+- **Probe.** `git reflog show refs/remotes/origin/main` lists no fetch after the setup's.
 
 ## Review with no `origin`, or in a repository you must not write to
 `review-without-origin`
 
 - **Rule.** With no `origin`, fetch `main` by URL as the remote-tracking branch `origin/main`, the
-  name the setup, push checklist and scripts read, and `pull/<N>/head` into a ref of your own, and
+  name the setup, checklist and scripts read, and `pull/<N>/head` into a ref of your own, and
   set `GH_REPO=<owner>/<repo>`, which `gh` and its placeholders read without a remote. Where the
   repository must stay unwritten, review in a local clone, which holds the history and writes only
-  its directory: `git clone <repo> <dir>`,
+  its directory: `git clone -n <repo> <dir>`,
   `git -C <dir> update-ref refs/remotes/origin/main <base>`, then
   `git -C <dir> switch --detach <head>`.
 - **Why.** #1233's, #1235's and #1238's reviews improvised these, one writing metadata its round
   ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name (#1403). With no
   remote, `gh` found no repository; an unpacked copy, no history (#1537).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
+
+## Clone with no checkout a switch would keep
+`clone-with-no-checkout`
+
+- **Rule.** A clone that goes on to another commit, for a review or a simulated run, is made with
+  `git clone -n`: a first checkout converts line endings by the attributes of the branch it starts
+  on, and a switch to a commit holding the same blob keeps the conversion, which `git status` does
+  not show.
+- **Why.** With `eol=crlf` asked for a golden on the starting branch alone, a clone switched to
+  `main` held the golden converted, `git status` empty and `TestGolden_HintPositions` failing,
+  where a `-n` clone passed (#1599).
+- **Probe.** After a switch, `cmp` a file the starting branch's attributes convert against the same
+  file in a `-n` clone.
 
 ## Check that no other checkout holds work on the PR's branch
 `branch-held-elsewhere`
@@ -80,14 +116,15 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Read the gate from CI, and run locally only what CI cannot
 `ci-is-the-gate`
 
-- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with the commit it ran on.
+- **Rule.** The gate is CI's run of `.github/workflows/gate.yml`, read with its commit.
   Never rerun it locally, suites included, nor re-check by eye what it enforces. For a head behind
   `main`, list `main`'s commits touching its files, run `go build ./...` on the merged tree, and
   name merging `main` the next step. Locally, run only what CI cannot: probes, mutants,
-  differentials, measurements, and the skills lint and scripts' tests, which no CI runs. A run
-  still going is reported as running, never waited on; a conflicting PR has none, nor an unpushed
-  branch.
-- **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then was stopped in
+  differentials, measurements, and the skills lint and scripts' tests, run by no CI. A run still
+  going is reported running, never waited on; a conflicting PR has none, nor an unpushed
+  branch (`references/claims-and-process.md#gate-claim-without-a-run`). Read job logs by
+  `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#read-a-ci-jobs-log`.
+- **Why.** A local `make gate` on #1278's merged tree failed on a stale linter, then stalled in
   coverage (#1286); a conflicting PR's empty check list read as pending (#1285).
 - **Probe.** `gh pr view <N> --json headRefOid,mergeable,statusCheckRollup`.
 
@@ -248,15 +285,17 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 ## Review the tree as it will merge
 `recheck-against-final-tree`
 
-- **Rule.** After review fixes land, short of `references/rounds.md#nit-round-checks-its-fixes`, or
+- **Rule.** After review fixes land, short of `references/later-rounds.md#nit-round-checks-its-fixes`, or
   `main` or the base is merged in, review the branch as it will merge: rerun the probes the body
   and comments cite and every sweep the branch relies on over the merged tree, re-diff each change
   `main` made to files the branch touches, and look for helpers `main` renamed, features on both
   sides that interact, and normative text `main` moved.
 - **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
-  `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382).
-- **Probe.** `git diff <merge-base>..origin/main -- <files the branch touches>` and confirm each
-  hunk survives; rerun each command the body quotes and diff its output.
+  `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382); a
+  merge base read after the merge was `main` itself (#1613).
+- **Probe.** `git diff "$(git merge-base <merge>^1 "$main")" "$main" -- <files the branch touches>`,
+  `<merge>` the merge of `main`: each hunk survives; rerun each command the body quotes,
+  diffing its output.
 
 ## Find everything in the first round, and confirm the fixes in the second
 `first-round-finds-everything`
@@ -280,57 +319,12 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
   ends on a round with no `issue:` or `nit:` and no cell unreached or reopened
   (`references/readers.md#audit-what-a-reader-cleared`); after any other, the next round runs from
   the setup, and from the third round reads what
-  `references/rounds.md#later-rounds-read-what-moved` or
-  `references/rounds.md#nit-round-checks-its-fixes` says.
+  `references/later-rounds.md#later-rounds-read-what-moved` or
+  `references/later-rounds.md#nit-round-checks-its-fixes` says.
 - **Why.** A round of #1522 listed beside its findings the prescribed commands it had not run;
   under a bar of no `issue:` or `nit:` alone, that list beside no findings would have ended the
   review (#1522).
 - **Probe.** The last round's report names no cell unreached or reopened.
-
-## Read what moved, from the third round on
-`later-rounds-read-what-moved`
-
-- **Rule.** From the third round, short of `references/rounds.md#nit-round-checks-its-fixes`, a
-  round's fresh readers run every angle over each file both
-  `git diff --name-only <merged> HEAD` and `git diff --name-only origin/<base>...HEAD` list,
-  `<merged>` the commit the round before reviewed, and each line citing a rule changed there
-  (`git grep -n '#<key>'`); over each fix since, wording included, read by
-  `references/rounds.md#deep-and-broad`; over each cell left unreached or reopened, named without
-  findings; and over the PR body, not the whole change
-  (`references/rounds.md#missed-cell-widens-the-round`).
-- **Why.** #1522's later rounds each reread the whole change, though 12 of the 13 `issue:` and
-  `nit:` findings of its rounds 3 to 5 sat in what the round before changed, the body, a clearance
-  its rule refuses or a member no report lists (#1522, #1530).
-- **Probe.** The reader's brief lists those cells; the report runs or settles each.
-
-## After a nit-only round, check fixes
-`nit-round-checks-its-fixes`
-
-- **Rule.** From the third round, after a nit-only round, where each commit of the change since
-  fixes a finding, leaving unchanged what production code, a script, rule or normative text does,
-  and no merge touched the change's files, its brief says so. Without angles, its reader reads CI's
-  run, each fix against the tree, each body sentence against them, and runs each open cell, planting
-  otherwise only for a fix's test; a merge adds `references/rounds.md#recheck-against-final-tree`.
-  An `issue:` sends the next round to `references/rounds.md#later-rounds-read-what-moved`; a wrong
-  brief, this round.
-- **Why.** Whatever their fixes, such rounds took 34% of reviewer CPU for 17% of `issue:` findings
-  (#1611).
-- **Probe.** Its brief names that round's `<merged>`, findings, all `nit:`, each fix and open
-  cell; since then, no commit breaks the Rule, `main` and the base changed no file
-  `git diff --name-only origin/<base>...<head>` lists.
-
-## Run the whole change again when a filled cell proves missed
-`missed-cell-widens-the-round`
-
-- **Rule.** A defect a round finds in a cell an earlier round filled and no audit reopened, nothing
-  having changed there since, sends the next round over the whole change, as the earlier reads
-  missed it, bar a `nit:` found in or just before a round under
-  `references/rounds.md#nit-round-checks-its-fixes`. Short of such a defect, a miss in a filled cell
-  nothing changes stays until a reader meets it.
-- **Why.** The 13th of #1522's findings in rounds 3 to 5 was an ask in #1506's comments, which
-  round 2's report says it read in full, and only a round rereading the whole change met it
-  (#1522).
-- **Probe.** For each finding, the report says whether its cell was filled and unchanged.
 
 ## Post a finding so that acting on it is safe
 `posted-findings`

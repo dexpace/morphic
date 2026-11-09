@@ -24,7 +24,8 @@ yourself. These rules are the ways that reading still lies.
 - **Rule.** `git worktree add` writes metadata into the repository. Where that is ruled out, unpack
   a copy with `git archive <head> | tar -x -C <dir>`, then `git init`, `git add -A` and a commit
   there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare. The copy holds
-  no history, so it serves a plant alone; a review reading the branch's commits takes the clone
+  no history, so it serves a plant alone; a review reading the branch's commits takes the clone,
+  made with `git clone -n`, that
   `.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin` names.
 - **Why.** Reviews improvised this, and one wrote the metadata its round had ruled out (#1233,
   #1235, #1238). In a copy, `subjects.py` read only the copy's own commit, and the merge of `main`
@@ -48,12 +49,26 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** A mutant is killed only where the output names a failing test (`--- FAIL: <test>`, or
   unittest's `FAIL:` or `ERROR:`) and the mutant compiled. A `[build failed]` or `[setup failed]`
-  line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`, a
-  timeout), `[no tests to run]`, `Ran 0 tests` and an `ERROR` naming
-  `unittest.loader._FailedTest`, a module that did not load, are no verdict. Adjust a mutant
-  until it compiles (`_ = x` for an unused variable).
-- **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
-  (#321, #322) and as "killed" with an empty failure list (#1100).
+  line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`),
+  `[no tests to run]`, `Ran 0 tests`, an `ERROR` naming `unittest.loader._FailedTest`, a module
+  that did not load, and what `references/mutation.md#run-a-limit-or-a-stray-panic-ended` names are
+  no verdict. Adjust a mutant until it compiles (`_ = x`). A test binary's flag, such as `-update`,
+  follows the package, or `go` ends its own flags there and tests `.`.
+- **Why.** Unused variables and imports turned mutants into build failures read as "not caught"
+  (#321, #322) and as "killed" with no failure listed (#1100); `-update` before the package failed
+  setup (#1555).
+
+## A run a limit or a stray panic ended is read by what it printed
+`run-a-limit-or-a-stray-panic-ended`
+
+- **Rule.** A run that exits 124 or 137, the codes `timeout` and a `KILL` give, or prints fewer
+  package lines than it was given packages, is no verdict: an outer limit ended it before any
+  `FAIL`. A panic with no `--- FAIL` above it, as one off the test goroutine prints, is a kill only
+  where its stack passes through the plant, and is reported as one whose test goes unnamed.
+- **Why.** In a scratch module, `timeout 5 go test` over a hanging test exited 124 with no
+  `--- FAIL` and no package `FAIL`, and a panic on another goroutine printed a package `FAIL` alone
+  (#1585).
+- **Probe.** `timeout 5 go test -count=1 ./<hanging package>; echo $?` prints 124 and no `FAIL`.
 
 ## Count a table row's kill only from the row run alone
 `a-kill-in-a-row-run-alone`
@@ -78,6 +93,18 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** 57 mutants grew a cache to 30 GB, leaving 250 MiB free (#1229), and 16 of 20 mutants
   read as build failures while other work cleared the shared cache (#1333).
 - **Probe.** `df -h` and `du -sh "$GOCACHE"` before and after a batch.
+
+## Stop a plant run by each `timeout`'s own pid
+`stop-a-plant-run`
+
+- **Rule.** To stop a plant run before the next restore, signal each `timeout` in it by its own pid:
+  `timeout` moves itself and its command into a process group of their own, so a kill of the run's
+  group leaves `go test` building or testing the tree the restore is about to change. Then see the
+  session empty (`ps -o pid= -s <sid>` prints nothing) before `git reset`.
+- **Why.** A run's group killed, `timeout` and its `sleep` lived on; a kill of `timeout` itself
+  ended both (#1603).
+- **Probe.** `setsid bash -c 'timeout 25 sleep 24 & wait' &`, then a kill of that session's group:
+  `ps -o pid=,comm= -s <sid>` still lists `timeout` and `sleep`.
 
 ## A kill counts only from a test that reaches the plant
 `kill-reaches-the-plant`
@@ -107,13 +134,28 @@ yourself. These rules are the ways that reading still lies.
 `plant-past-the-included-callers`
 
 - **Rule.** To test what a check leaves out, such as a list claimed to hold every package whose
-  code runs concurrently, plant on a branch only the excluded callers take: the included set's run
-  stays green while the excluded set's reports the plant. A plant at a function's entry measures
+  code runs concurrently, plant on a branch only the excluded callers take, found by
+  `references/mutation.md#find-what-only-excluded-callers-reach`: the included set's run stays
+  green while the excluded set's reports the plant. A plant at a function's entry measures
   its busiest caller, and is the control, not the evidence.
 - **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
   listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
   drew none from the listed packages and 14 from those two (#1380).
 - **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
+
+## Find what only the excluded callers reach from a coverage profile
+`find-what-only-excluded-callers-reach`
+
+- **Rule.** For `references/mutation.md#plant-past-the-included-callers`, profile the included set's
+  run (`go test -coverprofile=<f> <included>`) and read it with `go run ./cmd/morphic-covergate <f>`,
+  which lists each statement that run leaves uncovered: as the whole suite covers every statement,
+  each is one only the excluded callers reach. A candidate is no result until its plant is measured
+  both ways.
+- **Why.** On a change excluding tests from the race run, a listed statement's plant drew race
+  reports in every run of the excluded test alone and none under the exclusion, while another
+  listed statement's drew none either way (#1311, #1551).
+- **Probe.** Each candidate's plant, run with the excluded test alone and with the included set,
+  each at `references/mutation.md#kill-rate-for-a-scheduled-detector`'s count.
 
 ## A plant a run's schedule decides needs a measured kill rate
 `kill-rate-for-a-scheduled-detector`
@@ -233,6 +275,20 @@ yourself. These rules are the ways that reading still lies.
   flagged sibling first and a clean one after it, at every level the loop runs.
 - **Why.** The arm where normalisation differed had no test (#731). Four OR-accumulator mutants
   survived 100% coverage because every fixture had one sibling (#814).
+
+## Stop planting a check once each form, route and limit holds
+`plants-stop-at-a-held-grid`
+
+- **Rule.** Plants across a check's forms, routes and limits may stop once every form and every
+  route has a plant a test holds, each form only one branch reads has its own, and each limit its
+  comments or PR state has a plant widening the check past it, one per member the limit names
+  (`references/claims.md#comment-claims-held-by-test`). A cell past that is reported unplanted with
+  its reason, not ranked.
+- **Why.** A fixture of 109 planted lines left its reviews no rule for enough, so one spent a pass
+  on plants its author called possibly contrived, while a commit titled for what its check cannot
+  see held only some of its stated limits (#1447, #1563, #1593).
+- **Probe.** The report lists each form, route and limit beside the plant holding it, and each
+  unplanted cell beside its reason.
 
 ## A guard moved to N callers needs N tests
 `split-guard-per-site`

@@ -21,6 +21,9 @@ busy machine measures the machine.
 | allocation-free | `testing.AllocsPerRun` under `-race -covermode=atomic`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`); a map reused to get there, timed on one huge collection before many small ones (`references/finding-cost.md#clear-never-shrinks`) |
 | an optimization holds | a counting seam the test reads, since an optimization changes no output (`references/cost-tests.md#counting-seam-for-optimizations`) |
 | bounded on any input | generated shapes, deep and wide, on both builds (`references/finding-cost.md#deep-generated-shapes`) |
+| a cost weighed, or claimed absent | an input where it can occur (`references/finding-cost.md#cost-measured-where-it-occurs`) |
+| a fuzz worker's cost | the worker profiled alone past warm-up, minimization off and its cut runs counted (`references/finding-cost.md#profile-a-fuzz-worker-alone`, `references/finding-cost.md#minimization-in-a-fuzz-cost`) |
+| a share of named functions | pprof's `cum`, over functions none of which calls another (`references/finding-cost.md#share-of-named-functions`) |
 
 ## Habits
 
@@ -35,6 +38,6 @@ busy machine measures the machine.
 
 - `references/cost-tests.md`: tests that pin a cost: counting work, marginal growth, allocation
   counts under instrumentation, seams, renders, process-wide counters, write boundaries.
-- `references/finding-cost.md`: where cost hides and how to quote it: claims, later stages,
-  callers, switch arms, generated shapes, quadratic appends and escapes, escape sites, reflect
-  iterators, reused maps.
+- `references/finding-cost.md`: where cost hides and how to quote it: claims, later stages, fuzz
+  workers, profile shares, callers, switch arms, generated shapes, quadratic appends and escapes,
+  escape sites, reflect iterators, reused maps.

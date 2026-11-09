@@ -101,10 +101,10 @@ TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE = r"[0-9]+(?::[0-9]+|-[0-9]+)?$"
 LINE_SUFFIX = re.compile(":" + LINE)
 # A code span holding a "/" names a repository path unless its form marks it as something else:
-# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a placeholder (<spec>,
-# {owner}), or a colon before anything but a line suffix, as a URL, a refspec (main:refs/x) and a
-# pathspec's magic (:/, :(top)) hold, which no path here does.
-NOT_A_PATH = re.compile(r"^(?:/|-|\+)|:(?!" + LINE + r")|[\[<>{}|^\\]")
+# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a shell variable's value
+# ($), a placeholder (<spec>, {owner}), or a colon before anything but a line suffix, as a URL, a
+# refspec (main:refs/x) and a pathspec's magic (:/, :(top)) hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|\+|\$)|:(?!" + LINE + r")|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.
@@ -123,6 +123,8 @@ BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 # before it reads a command's words.
 GOROOT_SRC = re.compile(r"^GOROOT/src(?:/|$)")
 GO_ENV_GOROOT = "$(go env GOROOT)"
+# The one variable a word may start with and still name a path, the toolchain's own root.
+GOROOT_VAR = re.compile(r"^\$GOROOT(?:/|$)")
 
 
 def git(root: Path, *args: str) -> str:
@@ -172,8 +174,10 @@ def path_word(word: str) -> str:
     """Return what a word of a code span spells, for the checks a one-word span and a command's
     words share. A double quote, which leaves $GOROOT to expand, is no part of a path wherever it
     stands, so "$(go env GOROOT)"/src/... names the toolchain's src; a single quote and a shell's
-    punctuation around the word are none either."""
-    return word.replace('"', "").strip("'$();,")
+    punctuation around the word are none either. Any other variable keeps its $, which
+    NOT_A_PATH reads: $PWD/ir names no path in the tree."""
+    word = word.replace('"', "").strip("'();,")
+    return word if word.startswith("$") and not GOROOT_VAR.match(word) else word.strip("$")
 
 
 def declares(source: str, name: str) -> bool:
@@ -638,6 +642,12 @@ def main(argv: list[str] | None = None) -> int:
         sys.argv[1:] if argv is None else argv)
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+    except subprocess.CalledProcessError:
+        # An unpacked copy has no repository, and the tree is what git lists, so say how to get one.
+        print("skills_lint: no git repository here; in a copy git archive unpacked, run git init "
+              "and git add -A first", file=sys.stderr)
+        return 2
+    try:
         n, found = findings(root)
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)

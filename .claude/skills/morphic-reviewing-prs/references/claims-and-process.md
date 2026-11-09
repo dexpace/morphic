@@ -5,8 +5,10 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
 
 1. **Claims.** Check every member of each claim class
    (`references/claims-and-process.md#sweep-each-claim-class`), counts by
-   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, and run each
-   command an edited rule prescribes (`references/claims-and-process.md#run-prescribed-commands`).
+   `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`, a gate sentence
+   at a head with no run by `references/claims-and-process.md#gate-claim-without-a-run`, and run
+   each command an edited rule prescribes
+   (`references/claims-and-process.md#run-prescribed-commands`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
@@ -106,3 +108,16 @@ The matrix is each claim class with the members checked, and each closed issue w
   #1351 closed #429 with the rule that such a rename moves the version, and the two merged without
   a conflict (#1327, #1351).
 - **Probe.** The search above, for each issue the change cites as open.
+
+## A gate sentence at a head with no CI run is unverified
+`gate-claim-without-a-run`
+
+- **Rule.** A body sentence saying a gate target passes, at a head with no CI run yet, as before the
+  first push or a fix's push, is reported unverified with the commit it names, and read against
+  CI's run once a push makes one. Its author runs it before writing it; a review does not rerun the
+  gate (`references/rounds.md#ci-is-the-gate`), but may run a package's `go test` or one `make`
+  target a sentence's claim turns on, as a probe.
+- **Why.** `references/rounds.md#ci-is-the-gate` forbade the run that executing every body
+  sentence on the final tree asked for, at a review planned before any push (#1596).
+- **Probe.** `gh pr view <N> --json headRefOid,statusCheckRollup`, beside the commit each such
+  sentence names.

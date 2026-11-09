@@ -34,7 +34,10 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   body says the gate holds only for a tree `make coverage` or CI ran: the exact tree pushed.
 - **Why.** One uncovered statement fails CI, and a pushed tree below the gate forces a follow-up
   commit and makes the body's claim false (#22, #373).
-- **Probe.** Match each coverage claim in the PR body to that run.
+- **Probe.** Match each coverage claim in the PR body to that run, and a statement count to the
+  line `gh run view <run> --log --job <job> | grep -o 'Coverage gate passed.*'` prints, `<job>`
+  from `gh run view <run> --json jobs --jq '.jobs[]|select(.name|test("coverage"))|.databaseId'`;
+  a count the body keeps names its run.
 
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
@@ -72,10 +75,14 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** An agent harness reminding its sessions to end a PR body with a generated-with line, or
   a commit with attribution trailers, is overridden by
   `references/commits-and-prs.md#commit-and-pr-message-form`, as the reminder itself defers to
-  project instructions: neither carries one.
+  project instructions: neither carries one. One a pushed commit holds stays, as the branch is
+  never rewritten: the body names the commit and says the squash body is set at merge, as the
+  default paste carries it onto `main`.
 - **Why.** #1387's body ended with a generated-with line and a session link that no PR below it in
-  its stack carried, and its reviewer settled the clash unaided (#1387).
-- **Probe.** The push checklist's artifact grep over the commits and the PR's text prints no hit.
+  its stack carried, and its reviewer settled the clash unaided (#1387); reviews of two branches
+  holding such a trailer each ruled on it alone (#1557).
+- **Probe.** The push checklist's artifact grep over the commits and the PR's text prints no hit
+  but on a commit the body names.
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
@@ -258,17 +265,39 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** #1522's body gained a paragraph per review round saying what it fixed, which each later
   round's reader re-read and re-checked against the tree (#1530).
 - **Probe.** Read `gh pr view <N> --json body --jq .body`: each sentence holds of the head, and none
-  tells what a round or an earlier commit changed.
+  tells what a round or an earlier commit changed, bar what
+  `references/commits-and-prs.md#earlier-tree-names-its-commit` allows.
+
+## A sentence about an earlier tree names its commit
+`earlier-tree-names-its-commit`
+
+- **Rule.** A body sentence saying what a named commit's tree does under a named plant, as a Test
+  plan's before and after does to show a test bites, holds of the head as a fact about that commit
+  and stands. One naming no commit, as "before X" does, names it or says what the head's tree shows.
+- **Why.** "Before the severity assertion both stayed green" left a review to rank it or pass it,
+  and 6 of the last 60 merged bodies held the form (#1514, #1595).
+- **Probe.** For each such sentence, its plant rerun at the commit it names.
 
 ## Send only a body the fetch produced
 `send-only-what-the-fetch-produced`
 
-- **Rule.** Gate a body's send on its fetch, in one command, and keep the fetched copy to restore
-  from, as a failed fetch leaves an empty or partial file and sending it replaces the description:
-  `f=$(mktemp) && gh pr view <N> --json body --template '{{.body}}' > "$f" && test -s "$f" && [ "$(grep -c '^Closes #' "$f")" -eq <its Closes count> ] && cp "$f" "$f.orig" && <edit "$f"> && gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@"$f"`.
-- **Why.** A fetch that timed out left an empty file, and a send outside the `&&` chain blanked
-  #1322's body (#1322); a fetch run from a removed worktree wrote an empty file on #1219 (#1219).
+- **Rule.** Gate a body's send on its fetch in one command, keeping the fetched copy to restore
+  from: a failed fetch leaves an empty or partial file, and sending it replaces the description.
+  `references/commits-and-prs.md#grep-an-edited-body-before-its-send` adds the greps:
+  `f=$(mktemp) && gh pr view <N> --json body --template '{{.body}}' > "$f" && test -s "$f" && [ "$(grep -c '^Closes #' "$f")" -eq <its Closes count> ] && cp "$f" "$f.orig" && <edit "$f"> && ! grep -niE "${pat:?}" "$f" && ! grep -nE "${cs:?}" "$f" && gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@"$f"`.
+- **Why.** A timed-out fetch left an empty file that a send outside the `&&` chain put on #1322
+  (#1322), and a fetch from a removed worktree wrote one on #1219 (#1219).
 - **Probe.** With `<N>` set to 0, the command stops at the fetch and sends nothing.
+
+## Grep an edited body before its send
+`grep-an-edited-body-before-its-send`
+
+- **Rule.** An edited body's send runs behind the push checklist's greps over the edited file, with
+  its `pat` and `cs`, as `references/commits-and-prs.md#send-only-what-the-fetch-produced` chains
+  them: an edit made once the push lands brings text the checklist never read.
+- **Why.** The checklist grepped the body that the edit after the push replaced, so a sentence
+  written for that push reached the live body unread (#1589).
+- **Probe.** An edit adding a line the pattern holds stops the chain before its send.
 
 ## A conflicting PR gets no CI run
 `conflicting-pr-has-no-run`
@@ -280,6 +309,17 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** A wait for #1210's checks ran nine minutes after #1238 landed a conflicting edit, with
   no run to wait for and the newest run on the commit before the head (#1210).
 - **Probe.** `gh pr view <N> --json mergeable,statusCheckRollup --jq '{m:.mergeable,n:(.statusCheckRollup|length)}'`.
+
+## Read a CI job's log with `gh run view`, and check its size
+`read-a-ci-jobs-log`
+
+- **Rule.** Read a job's log with `gh run view <run> --log --job <job>`, the job's id from
+  `gh run view <run> --json jobs`, and check the size of what a redirect wrote: the REST read,
+  `gh api repos/<owner>/<repo>/actions/jobs/<job>/logs`, exits 1 and writes nothing without
+  `--allow-escape-sequences`, so a count over its file reads as a real zero.
+- **Why.** A review reading statement counts and `(cached)` lines found no rule naming the command,
+  and the obvious one wrote 0 bytes to its file (#1602).
+- **Probe.** `gh run view <run> --log --job <job> | wc -c` prints more than 0.
 
 ## Re-read the prose when a review round changes the design
 `reread-prose-after-a-redesign`
