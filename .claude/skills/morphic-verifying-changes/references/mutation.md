@@ -281,9 +281,9 @@ yourself. These rules are the ways that reading still lies.
 ## Stop planting a check once each form, route and limit holds
 `plants-stop-at-a-held-grid`
 
-- **Rule.** Plants across a check's forms, routes and limits may stop once every form and every
-  route has a plant a test holds, each form only one branch reads has its own, and each limit its
-  comments or PR state has a plant widening the check past it, one per member the limit names
+- **Rule.** Plants across a check's forms, routes and limits may stop once every form and route
+  has a plant a test holds, each form only one branch reads has its own, and each limit stated in
+  its comments or PR has a plant widening the check past it, one per member the limit names
   (`references/claims.md#comment-claims-held-by-test`). A cell past that is reported unplanted with
   its reason, not ranked.
 - **Why.** A fixture of 109 planted lines left its reviews no rule for enough, so one spent a pass

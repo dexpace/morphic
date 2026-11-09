@@ -181,10 +181,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** A change that removes or renames a target, file or identifier other open PRs may name,
   alters what every file of a kind must hold, such as a golden, or adds a package or a whole-tree
-  check trial-merges each, before and after, runs on each merged tree what
+  check, trial-merges each, before and after, runs on each merged tree what
   `references/merging-main.md#trial-merge-runs-its-checks` names, and reads its conflicts by
-  `references/merging-main.md#trial-merge-reads-what-the-head-adds`. A clean `git merge-tree`
-  shows no failure, and GitHub's flag names no culprit.
+  `references/merging-main.md#trial-merge-reads-what-the-head-adds`. `git merge-tree` reports
+  conflicts, not failures, and GitHub's flag names no culprit.
 - **Why.** Resolving a conflict over a removed make target would have kept the gate pointing at it
   (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
   and failed on each (#1181, #1191, #1192), as an archtest rule over every package did with a PR

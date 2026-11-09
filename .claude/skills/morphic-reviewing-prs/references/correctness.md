@@ -128,10 +128,10 @@ both builds' results.
 ## Read a real run for a job no pull request triggers
 `job-no-pull-request-triggers`
 
-- **Rule.** A job that only `schedule` or `workflow_dispatch` starts runs from the default branch's
-  workflow, so no pull request and no simulation reaches its trigger. Say so, read a real run's log
-  from a trial branch in its place (`gh run view <id> --log`), and hold each body sentence about the
-  job to what that run predates.
+- **Rule.** No pull request or simulation reaches a job only `schedule` or `workflow_dispatch`
+  starts: a schedule runs the default branch's workflow, and a dispatch only a workflow the default
+  branch holds. Say so, read a real run's log from a trial branch in its place
+  (`gh run view <id> --log`), and hold each body sentence about the job to what that run predates.
 - **Why.** A nightly job's PR cited a push run on a trial branch, and `gh run list` filtered to
   `--event schedule` printed none (#1382, #1606).
 - **Probe.** `gh run view <id> --json event,headSha,headBranch`, beside the commits the branch

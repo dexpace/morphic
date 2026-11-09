@@ -67,12 +67,11 @@ the whole change again. `references/rounds.md` says how a round runs and when th
 `missed-cell-widens-the-round`
 
 - **Rule.** A defect in a cell an earlier round filled and no audit reopened, unchanged since,
-  sends the next round over the whole change only when it is a wrong result in code or a test unable
-  to catch a real failure. Any other, such as a false sentence in a body or comment, is fixed and
-  the next round reads what moved.
+  sends the next round over the whole change only when it is a wrong result of code, a script, a
+  rule or normative text, or a test unable to catch a real failure. Any other, such as a false
+  sentence in a body or comment, is fixed and the next round reads what moved.
 - **Why.** Only a whole-change round met an ask in #1506's comments round 2 reported reading
   (#1522), while a body's clause sent a PR over its whole change for plants its reader called
   contrived (#1563).
-- **Probe.** For a code or test finding, the main session says from the earlier reports and
-  `git log` whether its cell was filled and unchanged; a body sentence needs no date, as it widens
-  nothing (#1588).
+- **Probe.** For such a finding, the main session says from earlier reports and `git log` whether
+  its cell was filled and unchanged; a body sentence needs no date (#1588).
