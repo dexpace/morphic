@@ -21,6 +21,14 @@ How each [return shape](../../operations/returns.md) lowers in Go.
 - **Another declared response.** With no body, `DeleteMethod` returns a nil `*Deleted` and a nil
   error, and a stream's `Recv` returns `io.EOF`.
 
+The runtime's `Response`, `EnvelopedResponse`, `OtherResponse` and `APIError`
+([failures](errors.md)) hold `RawHeader` and a body, so each takes from its response decoder the
+wire names of the headers its entry redacts, whose values it shows as `[REDACTED]`, and shows `Body`
+and `Headers` through their own forms ([redaction](../../refine/redaction.md#a-redacted-value)).
+`Response` and `EnvelopedResponse` declare `String`, `GoString` and `LogValue`. The two failures'
+`Error` quotes neither, and `fmt`'s `%v` and `log/slog` read it, so they declare `GoString` alone,
+which `%#v` reads instead of dumping `RawHeader` and `RawBody`.
+
 ## `OtherResponse`
 
 ```go
