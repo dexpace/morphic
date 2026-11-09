@@ -49,15 +49,16 @@ func registryOf(t *testing.T, cs ...compilers.Compiler) *compilers.Registry {
 
 // TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions pins that recognition
 // runs under the options the compiler would compile with, each decoding the
-// settings for itself beside the one Reader, and that the ones the taker was
-// configured with are the ones handed back for the compile.
+// settings for itself beside the one Reader, FormatOptions unread beside them,
+// and that the ones the taker was configured with are the ones handed back for
+// the compile.
 func TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 	t.Parallel()
 	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha", decoded: "for alpha"}
 	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta", decoded: "for beta"}
 	reg := registryOf(t, a, b)
 	cfg := settings()
-	cfg.Reader = failingReader{}
+	cfg.FormatOptions, cfg.Reader = "unread beside settings", failingReader{}
 
 	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")}, cfg)
 

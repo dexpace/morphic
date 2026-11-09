@@ -270,8 +270,8 @@ type Detection struct {
 	// Recognition is what recognizing the source found. Its Format is the zero
 	// format when nothing recognized it; see Registry.Detect.
 	Recognition Recognition
-	// Options is what Compiler compiles the source with, as the Configuration
-	// Detect was handed resolves it, which the caller hands on rather than
+	// Options is what Compiler compiles the source with, resolved from the
+	// Configuration Detect was handed, which the caller hands on rather than
 	// resolving again.
 	Options Options
 	// Declined collects what the compilers that declined the source had to say,
@@ -280,9 +280,9 @@ type Detection struct {
 }
 
 // Detect asks each registered compiler, in registration order, to recognize src
-// under the options cfg resolves for it. The first format named decides: its
-// owner is Detection.Compiler, configured for itself, and a recognizer not
-// owning it loses its parse.
+// under the options it resolves for that compiler from cfg. The first format
+// named decides: its owner is Detection.Compiler, configured for itself, and a
+// recognizer not owning it loses its parse.
 //
 // The bool reports whether a compiler takes src. Unrecognized src, empty Data
 // included, has the zero format, unlike src recognized but unsupported.
@@ -336,11 +336,11 @@ func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (D
 }
 
 // SourceLimit is the most bytes of a source any registered compiler reads,
-// each under the options cfg resolves for it (Compiler.SourceLimit), and zero
-// when one reads any size or none is registered: how far a caller need read a
-// source it hands to Detect. A compiler whose options fail to decode is asked
-// under its defaults, as Detect asks it. It fails, wrapping ErrContract, on a
-// DecodeOptions or SourceLimit that panics.
+// each under the options resolved for it from cfg (Compiler.SourceLimit), and
+// zero when one reads any size or none is registered: how far a caller need
+// read a source it hands to Detect. A compiler whose options fail to decode is
+// asked under its defaults, as Detect asks it. It fails, wrapping ErrContract,
+// on a DecodeOptions or SourceLimit that panics.
 func (r *Registry) SourceLimit(cfg Configuration) (int, error) {
 	most := 0
 	for _, e := range r.ordered {
