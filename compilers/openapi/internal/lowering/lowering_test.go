@@ -426,13 +426,19 @@ func TestScoped_KeysAPositionByTheScopeItIsReadIn(t *testing.T) {
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
 	at := bind.Position{Pointer: "/x"}
 
-	assert.Equal(t, lowering.Scoped(c, at), lowering.Scoped(c.InScope(c.RefScope()), at), "a copy in c's scope")
-	assert.NotEqual(t, lowering.Scoped(c, at), lowering.Scoped(c, bind.Position{Pointer: "/y"}), "another position")
+	if lowering.Scoped(c, at) != lowering.Scoped(c.InScope(c.RefScope()), at) {
+		t.Error("a copy in c's scope keys the position apart from c")
+	}
+	if lowering.Scoped(c, at) == lowering.Scoped(c, bind.Position{Pointer: "/y"}) {
+		t.Error("another position shares the key")
+	}
 	ext, ok := doc.Doc.Paths.Get("/ext")
 	require.True(t, ok)
 	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
-	assert.NotEqual(t, lowering.Scoped(c, at), lowering.Scoped(foreign, at), "another document's scope")
+	if lowering.Scoped(c, at) == lowering.Scoped(foreign, at) {
+		t.Error("another document's scope shares the key")
+	}
 
 	const cycle = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
 		"paths:\n  /a: {$ref: '#/paths/~1b'}\n  /b: {$ref: '#/paths/~1a'}\n"
@@ -446,7 +452,9 @@ func TestScoped_KeysAPositionByTheScopeItIsReadIn(t *testing.T) {
 	cut := lowering.Within[soa.PathItem](inCycle, a)
 	require.True(t, cut.RefScope().Foreign)
 	require.Empty(t, cut.RefScope().Holder, "a cut chain is no document's")
-	assert.NotEqual(t, lowering.Scoped(inCycle, at), lowering.Scoped(cut, at), "a cut chain's scope")
+	if lowering.Scoped(inCycle, at) == lowering.Scoped(cut, at) {
+		t.Error("a cut chain's scope shares the key")
+	}
 }
 
 // referenceKinds is a source declaring one component of each kind the library

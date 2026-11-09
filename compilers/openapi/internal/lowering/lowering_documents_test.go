@@ -145,9 +145,12 @@ func TestScoped_KeysAPositionByTheDocumentItIsRead(t *testing.T) {
 	require.True(t, atSource.RefScope().Foreign && elsewhereAtSource.RefScope().Foreign, "two documents' scopes")
 	at := bind.Position{Pointer: "/X"}
 
-	assert.NotEqual(t, lowering.Scoped(there, at), lowering.Scoped(atSource, at), "placed in ext.yaml and in the source")
-	assert.NotEqual(t, lowering.Scoped(atSource, at), lowering.Scoped(elsewhereAtSource, at),
-		"read in ext.yaml's scope and in other.yaml's")
+	if lowering.Scoped(there, at) == lowering.Scoped(atSource, at) {
+		t.Error("placed in ext.yaml and in the source, the position shares one key")
+	}
+	if lowering.Scoped(atSource, at) == lowering.Scoped(elsewhereAtSource, at) {
+		t.Error("read in ext.yaml's scope and in other.yaml's, the position shares one key")
+	}
 }
 
 // TestSchemaRules_FollowTheDocumentTheScopeReads pins which document's rows a
