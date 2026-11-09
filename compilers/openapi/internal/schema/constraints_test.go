@@ -578,7 +578,7 @@ func statedBounds(t *testing.T, doc *ir.Document, wire string) bounds {
 func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
 	t.Parallel()
 	const ref = "{$ref: '#/components/schemas/Tags'}"
-	a, b := "{minItems: 1, maxItems: 5, uniqueItems: true}", "{minItems: 3, maxItems: 4, uniqueItems: true}"
+	a, b := "{minItems: 1, maxItems: 5}", "{minItems: 3, maxItems: 4, uniqueItems: true}"
 	want := &ir.Constraints{MinItems: new(int64(3)), MaxItems: new(int64(4)), UniqueItems: true}
 	for _, written := range []string{
 		"{allOf: [" + ref + ", " + a + ", " + b + "]}",

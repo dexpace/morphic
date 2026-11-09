@@ -98,8 +98,9 @@ func allOfConjoins(s *oas3.Schema) bool {
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
 // election of competing keywords made the value, or one refining, whose rival
-// there, an enum or a const beside it, is one of its conjuncts. One such a value
-// set beats otherwise stays verbatim (docs/compilers/openapi.md#competing-keywords).
+// there, an enum or a const beside it, is one of its conjuncts. An allOf that
+// value set beats otherwise stays verbatim
+// (docs/compilers/openapi.md#competing-keywords).
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfConjoins(s) {
 		return false
@@ -324,8 +325,8 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 // reading what s lends it, but those writing only what s or such a branch before
 // them writes: the writers of an entry a use reads agree (voicesAmong), so a
 // reader taking the nearest takes the same value from any of them, and a use of s
-// pays for each entry once, not for each branch repeating it. Value bounds, which
-// agree by meeting, are no such entry: a use never reads them through its $ref.
+// pays for each entry once, not for each branch repeating it. Bounds, which agree
+// by meeting, are no such entry: a use never reads them through its $ref.
 func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
 	if !allOfDecides(c, s) {
 		return nil
