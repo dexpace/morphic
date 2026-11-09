@@ -157,8 +157,9 @@ variant too and fails only its pattern. Validation reports every set variant's f
 passes, and refuses a union with no variant set.
 
 The set variants hold one value, so a member any of them redacts is redacted in all: where an SDK
-renders or logs an inclusive union, a position is redacted when a set variant holding it marks it
-`Secret` or types it `Sensitive`. Rendering one variant alone follows that variant's own type.
+renders or logs an inclusive union, a position is redacted when a set variant holding it redacts it
+([redaction](redaction.md#a-redacted-value)). Rendering one variant alone follows that variant's
+own type.
 
 This is not the optional-field merge [the rule above](#variant-identity-and-recognition) forbids.
 That merge pools the variants' properties into one bag, losing which variant a member belongs to and
