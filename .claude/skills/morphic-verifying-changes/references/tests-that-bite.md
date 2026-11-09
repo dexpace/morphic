@@ -153,13 +153,13 @@ is not behaviour held.
 ## Give each table row the state it can change
 `row-owns-its-state`
 
-- **Rule.** A row's verdict depends on its input alone, so state the parent test sets up and a row
-  can change, such as a working directory, a file or a registry, is set up in the row: a failure
-  then names the row that broke, not every row after it (styleguide rules 6.6 and 6.15). A review
-  meeting rows that fail on what another left reports the test, beside counting kills by
-  `references/mutation.md#a-kill-in-a-row-run-alone`.
+- **Rule.** State the parent test sets up and a row can change, such as a working directory or a
+  file, is set up in the row, so a failure names the row that broke, not every row after it
+  (styleguide rules 6.6 and 6.15). A review meeting that fallout reports the test, beside counting
+  kills by `references/mutation.md#a-kill-in-a-row-run-alone`.
 - **Why.** `TestRun_SingleDashLongFlagsAreRefused` shared one `t.TempDir()` across its 21 rows, and
   a plant only one row reaches failed 15, 14 only on the file that row wrote; with a directory per
   row, it failed one (#1622).
-- **Probe.** Plant a defect one row alone reaches and run the whole test:
-  `go test -count=1 -run '^<Test>$' ./<package> | grep -c -- '--- FAIL: <Test>/'` prints 1.
+- **Probe.** Plant a defect only the first row reaches, making it change that state, and run the
+  whole test: `go test -count=1 -run '^<Test>$' ./<package> | grep -cE -- '--- FAIL: <Test>/[^/]+ \('`
+  prints 1. A last-row plant leaves no later row to fail.
