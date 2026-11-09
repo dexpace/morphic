@@ -161,6 +161,6 @@ is not behaviour held.
   a plant only its first row reaches failed all 21; with a directory per row, it failed one (#1622,
   #1516 at 698197b8).
 - **Probe.** Plant a defect only the first row reaches, making it change what the Rule names, and
-  run the whole test:
-  `go test -count=1 -run '^<Test>$' ./<package> | grep -cE -- '--- FAIL: <Test>/[^/]+ \('` prints 1.
+  count the failing rows by their indent:
+  `go test -count=1 -run '^<Test>$' ./<package> | grep -cE '^ {4}--- FAIL: <Test>/'` prints 1.
   A last-row plant leaves no later row to fail.
