@@ -354,7 +354,8 @@ type plan struct {
 // says, and reporting the input first would send them to look at it;
 // unchecked, the nil registry panics during detection. A run configured two
 // ways is wrong whatever the source, and refusing it here names the fields the
-// caller set, where the registry, which refuses it too, would name its own.
+// caller set, where a compile's detection, which refuses it too, would name the
+// registry's.
 func (e *Engine) prepare(opts RunOptions) (plan, error) {
 	if e == nil || e.registry == nil {
 		return plan{}, errors.New("engine: uninitialized; build one with New")
