@@ -10,6 +10,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// CorrelationVersion is the version of the derivation Correlation's keys come
+// from (docs/ir/derived-facts.md#correlation-keys). It moves with every change
+// to how a key is derived, so a consumer storing keys records it beside them: a
+// key another version derived agrees with none of this one's.
+// TestCorrelationVersion_PinsTheDerivation holds it to the keys derived.
+const CorrelationVersion = 1
+
 // Correlation returns the correlation key of the entity id names, of any class
 // of ID (docs/ir/derived-facts.md#correlation-keys): a key built from what the
 // document names the entity by, so it survives a reordered array or a moved
@@ -61,6 +68,7 @@ type correlator struct {
 	out     *correlations
 	inline  map[ir.TypeID]bool        // anonymous models another model composes
 	ops     map[ir.OpID]*ir.Operation // every operation the walk reaches
+	parts   map[ir.PropID][]ir.Header // each multipart part's headers, by the property it encodes
 }
 
 // newCorrelations derives the correlation keys of doc. A nil doc has none.
