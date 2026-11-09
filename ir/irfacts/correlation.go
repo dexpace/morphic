@@ -57,10 +57,10 @@ type candidate struct {
 }
 
 // correlator settles every entity's key in key order. An entity takes the
-// least key any position offers it, unless another entity is offered that key
-// too, and then neither takes one. A key only grows as a child extends it, so
-// the least key is settled before any key built on it, as a shortest-path
-// search settles the nearest vertex first.
+// least key any position offers it, unless that key is also the least another
+// entity is offered, and then neither takes one. A key only grows as a child
+// extends it, so the least key is settled before any key built on it, as a
+// shortest-path search settles the nearest vertex first.
 type correlator struct {
 	doc         *ir.Document
 	pending     candidateHeap

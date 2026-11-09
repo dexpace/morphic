@@ -309,7 +309,8 @@ func TestCorrelation_KeysAGroupOnlyWithinTheDepthBound(t *testing.T) {
 }
 
 // callbacksFixture holds an operation declaring callbacks: one unnamed, one
-// named, one with no binding and one the document does not declare.
+// named, one with no binding, one the document does not declare, and one to a
+// constant URL spelling the operation's own route.
 func callbacksFixture() *ir.Document {
 	parent := namedOp("op/test/sub", "subscribe", "/sub")
 	parent.Bindings.HTTP[0].Callbacks = []ir.Callback{{
@@ -391,8 +392,9 @@ func TestCorrelation_KeysWhatATypeHolds(t *testing.T) {
 	})
 }
 
-// enumFixture holds an enum with a member beneath it and one outside its
-// namespace, and an enum whose ID has no kind of its own.
+// enumFixture holds an enum with a member beneath it, a repeat of that
+// member's value and a member outside its namespace, and an enum whose ID has
+// no kind of its own.
 func enumFixture() *ir.Document {
 	return irtest.DocOf(&ir.Enum{ID: "t/test/Color", Name: ir.Naming{Source: "Color"},
 		Members: []ir.EnumMember{{ID: "e/test/Color/s:red"}, {ID: "e/test/Color/s:red/2"}, {ID: "e/other/Color/s:blue"}}},
