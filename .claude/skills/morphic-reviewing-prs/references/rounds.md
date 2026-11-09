@@ -42,7 +42,7 @@ Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
 reader <minutes> minutes, <tool calls> tool calls
 <angle>: <cells run> run, <cells settled> settled (<reason each>), findings <refs>
 unreached <cells>; reopened <cells>, each with what its clearance lacked
-narrowed: <round before>, <its findings>, <commits since>
+narrowed: <round before>, <its findings>, <each commit since, its finding, why it acts as before>
 <rank> <angle> <file>:<line> <rule broken> <command> <output> <smallest fix>
 ```
 

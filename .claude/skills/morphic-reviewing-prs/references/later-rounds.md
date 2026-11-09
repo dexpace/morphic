@@ -25,14 +25,30 @@ the whole change again. `references/rounds.md` says how a round runs and when th
 - **Rule.** A nit-only round finds a `nit:` and no `issue:` or `question:`, or nothing but an
   unreached or reopened cell. From the third round, the round after one reads only what
   `references/later-rounds.md#narrowed-round-reads-the-fixes` lists, where each commit since fixes
-  a finding, leaving unchanged what production code, a script, rule or normative text does, and no
-  merge touched the change's files. Its brief records that, or its report's `narrowed:` line where
-  no agent runs. An `issue:` sends the next round to
-  `references/later-rounds.md#later-rounds-read-what-moved`; a wrong record, this one.
+  a finding, leaving unchanged what production code, a script, rule or normative text does
+  (`references/later-rounds.md#narrowing-reads-each-commit`), and no merge touched the change's
+  files. Its brief records that, or its report's `narrowed:` line where no agent runs. An `issue:`
+  sends the next round to `references/later-rounds.md#later-rounds-read-what-moved`; a wrong
+  record, this one.
 - **Why.** Whatever their fixes, such rounds took 34% of reviewer CPU for 17% of `issue:` findings
   (#1611); a `question:` beside a `nit:` read either way (#1617).
-- **Probe.** `git diff --name-only <main the previous report records> "$main"`, and the same for
-  the base, share no file with `git diff --name-only origin/<base>...<head>`.
+- **Probe.** `git diff --name-only <main the previous report records> "$main"`, and the base's,
+  share no file with `git diff --name-only origin/<base>...<head>`.
+
+## Narrow a round only on a record of each commit since
+`narrowing-reads-each-commit`
+
+- **Rule.** Before narrowing by `references/later-rounds.md#nit-round-checks-its-fixes`, read each
+  commit since in `git log -p <merged>..<head>` and record beside it the finding it fixes and why
+  it changes no command, condition, output or claim of what it touches: a rewording or a refill
+  alone. A commit with no such record sends the round to
+  `references/later-rounds.md#later-rounds-read-what-moved`.
+- **Why.** Of eight recorded rounds from the third on after a nit-only round, one met the
+  conditions, and its `issue:` sat in its fix. The one round read narrowed followed a commit
+  changing rules' commands, and the next round, read whole, found an `issue:` outside its fixes
+  (#1618).
+- **Probe.** The record names every commit `git log --format=%h <merged>..<head>` lists, each with
+  its finding and reason.
 
 ## A narrowed round reads the fixes, the body and the open cells
 `narrowed-round-reads-the-fixes`
