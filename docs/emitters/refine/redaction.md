@@ -23,22 +23,21 @@ type is sensitive. So the plan reads both once:
   `Secret` stays redacted, which a reader of the one declaration a member takes would miss.
 
 A value is redacted where its position is `Secret` or `Redacted`, or its type sensitive. A list's
-and a tuple's elements and a map's keys and values are redacted each on its own when their type is,
-so a map whose values alone are redacted shows its keys. A union variant is redacted when its type
-is. The docs and a command-line target read what is redacted here as an SDK does, so none shows a
-value another hides.
+and a tuple's elements, and the keys and values of a map or of a model's catch-all, are redacted
+each on its own when their type is, so a map whose values alone are redacted shows its keys. A union
+variant is redacted when its type is. The docs and a command-line target read what is redacted here
+as an SDK does, so none shows a value another hides.
 
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
-text, other than its wire form, shows a redacted one as `[REDACTED]`: the string form, in each
-form the target's printing and logging read, of every type the SDK or its runtime declares that
-holds one, a model, a request type, a union, each variant's wrapper and a response's headers type
-among them; the lifecycle events the logging hooks emit ([runtime
-policy](../contract/runtime-policy.md)); a URL's path segment or query value from a redacted
-parameter; a header's value; and every error message. A value a caller takes out of every holder,
-as a string or a list of its own, renders as the target renders it. A redacted collection shows the
-marker alone, not its length, since how many tokens or keys a value holds can be what a reader must
-not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the
-wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted
-position, showing its decoded, redacted form instead. The docs emitter marks a redacted parameter
-or property secret and shows a placeholder for its example
+text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's
+printing and logging read of every type the SDK or its runtime declares that holds one, a model, a
+request type, a union, each variant's wrapper and a response's headers type among them; the
+lifecycle events the logging hooks emit ([runtime policy](../contract/runtime-policy.md)); a URL's
+path segment or query value from a redacted parameter; a header's value; and every error message. A
+value a caller takes out of every holder, as a string or a list of its own, renders as the target
+renders it. A redacted collection shows the marker alone, not its length, since how many tokens or
+keys a value holds can be what a reader must not learn. A body kept as it arrived, a failure's
+`RawBody` or a fallback's untyped JSON, holds the wire's bytes, so no rendering above prints a raw
+body whose declared type holds a redacted position, showing its decoded, redacted form instead. The
+docs emitter marks a redacted parameter or property secret and shows a placeholder for its example
 ([docs](../docs-and-mock.md#what-the-docs-render)).
