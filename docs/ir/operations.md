@@ -125,7 +125,7 @@ Designs this replaced, each with the fact it fails on:
 
 `irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
 sits. What a target does with a tier is in [the emitter
-design](../emitters/refine/redaction.md#a-stability-tier).
+design](../emitters/operations/stability.md).
 
 ## Design notes
 

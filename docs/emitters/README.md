@@ -61,8 +61,8 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - Types: [models](refine/models.md), [unions and discriminators](refine/unions.md),
   [enums](refine/enums.md), [containers, scalars and external types](refine/scalars.md),
   [decorators](refine/decorators.md).
-- Values: [values](refine/values.md), [constraints](refine/constraints.md), [redaction and
-  stability](refine/redaction.md), [unmodeled entries](refine/unmodeled.md).
+- Values: [values](refine/values.md), [constraints](refine/constraints.md),
+  [redaction](refine/redaction.md), [unmodeled entries](refine/unmodeled.md).
 - Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md), [output
   units](refine/output-units.md).
 - [Interface extraction and request shaping](refine/requests.md).
@@ -72,7 +72,7 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - [Return shapes](operations/returns.md), [failures](operations/errors.md),
   [pagination](operations/pagination.md), [streaming](operations/streaming.md), [long-running and
   one-way operations](operations/long-running.md), [auth](operations/auth.md), [the client and its
-  base URL](operations/client.md).
+  base URL](operations/client.md), [stability tiers](operations/stability.md).
 
 **Emit**
 

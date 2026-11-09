@@ -29,7 +29,7 @@ IR bug (INV9), not a compiler change.
 | `Literal` | — |
 | `External` | — |
 | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](redaction.md)) | the value on the wire, untouched |
-| `Operation.Stability`, `OperationGroup.Stability` ([stability](redaction.md#a-stability-tier)) | — |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../operations/stability.md)) | — |
 | `Visibility` sets | — |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | — |
 | `Constraints` | numeric bounds as decimal |

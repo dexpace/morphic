@@ -496,5 +496,6 @@ throughout these documents.
 44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
     none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a
     `beta` operation's documentation names its tier on every target, an unstated one names none and
-    no badge reads it as `stable`, and each target's opt-in requirement is held where it has one
-    ([stability](../refine/redaction.md#a-stability-tier)).
+    no badge reads it as `stable`, and each target's opt-in requirement is held where it has one, on
+    each method the operation lowers to, its `WithResponse` method among them
+    ([stability](../operations/stability.md)).

@@ -18,7 +18,9 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
     `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
     `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-    `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
+    `Authenticator`, `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
+    ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
+    `OffsetDateTime`.
     Which unit the runtime renders into is #1489's to decide.
   - Each name Kotlin's default imports give that any refine step or template can write, such as
     `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and `Result`, since a top-level declaration

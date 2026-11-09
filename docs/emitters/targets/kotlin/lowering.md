@@ -25,7 +25,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `Literal` | `const val`, or an `object` for a non-primitive value |
 | `External` | the type-table row for its `Identity`, each platform's own; no row → diagnostic |
 | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](../../refine/redaction.md)) | `[REDACTED]` in the holder's `toString`, in logging hooks and in exception messages |
-| `Operation.Stability`, `OperationGroup.Stability` ([stability](../../refine/redaction.md#a-stability-tier)) | KDoc naming the tier, and an opt-in annotation per tier ([stability](operations.md#stability)) |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../../operations/stability.md)) | KDoc naming the tier, and an opt-in annotation per tier ([stability](operations.md#stability)) |
 | `Visibility` sets | N classes from `ModelShape`; PATCH → optional |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic |
 | `Constraints` | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic |

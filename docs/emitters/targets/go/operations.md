@@ -60,11 +60,12 @@ operations](../../operations/long-running.md).
 
 ## Stability
 
-An `alpha` or `beta` operation's method opens a paragraph of its doc comment with its tier
-([stability](../../refine/redaction.md#a-stability-tier)), `Beta: breaking changes are possible but
-not expected.`, which `go doc` and an editor show at the call. Go has no annotation a caller must
-acknowledge, and a build tag compiling an `alpha` method only under `-tags alpha` would split the
-package's API by tag, every test then building twice, so Go gates nothing.
+Each method an `alpha` or `beta` operation lowers to, its `WithResponse` method among them, opens
+a paragraph of its doc comment with its tier ([stability](../../operations/stability.md)), such as
+`Beta: breaking changes are possible but not expected.`, which `go doc` and an editor show at the
+call. Go has no annotation a caller must acknowledge, and a build tag compiling an `alpha` method
+only under `-tags alpha` would split the package's API by tag, every test then building twice, so
+Go gates nothing.
 
 ## The client
 
