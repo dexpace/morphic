@@ -168,10 +168,10 @@ func assertEmptyNamedProperty(t *testing.T, doc *ir.Document) {
 // composedHints is every node in the corpus spec whose hint is built out of an
 // enclosing node's. Each pairs an unnamed position with the role or index that
 // distinguishes the child from its siblings — a list element, a map value, a
-// pattern group, a tuple slot or rest, an enum branch, a composed union
-// variant, a contentSchema, a media type's itemSchema, and the items of a
-// schema a header or a parameter holds, directly or under its content. A slice
-// rather than a map so a failure names them in a fixed order.
+// pattern group, a tuple slot or rest (a draft's spelling too), an enum branch,
+// a composed union variant, a contentSchema, a media type's itemSchema, and the
+// items of a schema a header or a parameter holds, directly or under its
+// content. A slice rather than a map so a failure names them in a fixed order.
 var composedHints = []struct {
 	id   ir.TypeID
 	hint string
@@ -181,6 +181,8 @@ var composedHints = []struct {
 	{"t/anon/components/schemas/Patterns/properties//patternProperties/^x", "empty_pattern"},
 	{"t/anon/components/schemas/Tuple/properties//prefixItems/0", "empty_0"},
 	{"t/anon/components/schemas/Tuple/properties//items", "empty_item"},
+	{"t/anon/components/schemas/Old/properties//items/0", "empty_0"},
+	{"t/anon/components/schemas/Old/properties//additionalItems", "empty_item"},
 	{"t/anon/components/schemas/Mixed/properties//enum/0", "empty_0"},
 	{"t/anon/components/schemas/Mixed/properties//enum/1", "empty_1"},
 	{"t/composed/components/schemas/Host/properties//oneOf/0", "empty_alt"},

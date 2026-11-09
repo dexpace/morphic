@@ -708,6 +708,122 @@
         "str": "a"
       }
     },
+    "t/anon/components/schemas/Old/properties/": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/Old/properties/",
+      "name": {
+        "hint": "empty"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old/properties/"
+      },
+      "elems": [
+        {
+          "target": "t/anon/components/schemas/Old/properties//items/0",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/anon/components/schemas/Old/properties//additionalItems",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Old/properties//additionalItems": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Old/properties//additionalItems",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old/properties//additionalItems"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Old/properties//additionalItems/properties/e",
+          "name": {
+            "source": "e",
+            "canonical": "e"
+          },
+          "wireName": "e",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/properties//additionalItems/properties/e"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Old/properties//items/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Old/properties//items/0",
+      "name": {
+        "hint": "empty_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old/properties//items/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Old/properties//items/0/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/properties//items/0/properties/d"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Patterns/properties/": {
       "kind": "model",
       "id": "t/anon/components/schemas/Patterns/properties/",
@@ -1370,6 +1486,61 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Old": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Old",
+      "name": {
+        "source": "Old",
+        "canonical": "old"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:$schema": {
+          "reason": "out_of_scope",
+          "value": "http://json-schema.org/draft-07/schema#",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/$schema"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Old/properties/",
+          "name": {
+            "hint": "empty"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Old/properties/",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Old/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/ParamContentItem": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/ParamContentItem",
@@ -1806,7 +1977,7 @@
     {
       "severity": "warning",
       "code": "openapi/validation/validation-invalid-syntax",
-      "message": "Components Object field \"schemas\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.1 (Components Object)",
+      "message": "Components Object field \"schemas\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.2 (Components Object)",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/",
@@ -1818,34 +1989,8 @@
     },
     {
       "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
-        "position": {
-          "line": 96,
-          "column": 27
-        }
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/later-version-construct",
-      "message": "field \"itemSchema\" of the Media Type Object was added in OpenAPI 3.2, and this document declares 3.1.0; it is lowered as in an OpenAPI 3.2 document",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/parameters/Unnamed/content/application~1jsonl/itemSchema",
-        "position": {
-          "line": 125,
-          "column": 23
-        }
-      }
-    },
-    {
-      "severity": "warning",
       "code": "openapi/validation/validation-invalid-syntax",
-      "message": "Components Object field \"securitySchemes\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.1 (Components Object)",
+      "message": "Components Object field \"securitySchemes\" has the key \"\", which must be a name of letters, digits, '.', '-' and '_' in OpenAPI 3.2 (Components Object)",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/",
@@ -1872,13 +2017,22 @@
         "source": 0,
         "pointer": "/components/schemas/Host/properties/"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Old/$schema"
+      }
     }
   ],
   "sources": [
     {
-      "format": "openapi@3.1",
+      "format": "openapi@3.2",
       "path": "empty-names.yaml",
-      "hash": "4c06db929a82dfe8d35d92281d5af81b4ff80455cb911d96953fe2316065e9ef"
+      "hash": "9a0d89f699f4e35b15bcdf23e81d9749bb58efbd1b1887dc0bbbc8d46098bfc2"
     }
   ]
 }

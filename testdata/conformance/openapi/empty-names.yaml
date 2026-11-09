@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.2.0
 info: {title: Empty Names, version: "1.0.0"}
 paths:
   /widgets:
@@ -78,8 +78,21 @@ components:
             type: object
             properties:
               a: {type: string}
+    # A draft schema spells a tuple slot as list-form items and its rest as
+    # additionalItems, and both compose from the empty name as prefixItems and
+    # items do.
+    Old:
+      $schema: http://json-schema.org/draft-07/schema#
+      type: object
+      properties:
+        "":
+          type: array
+          items: [{type: object, properties: {d: {type: string}}}]
+          additionalItems: {type: object, properties: {e: {type: string}}}
     # Only a reference reaches the itemSchema of a header's or a parameter's
-    # content; the key or the name is what its hint composes from.
+    # content, and no operation mounts these components, so a reference is also
+    # what lowers each one's items; the key or the name is what its hint
+    # composes from.
     Frame: {$ref: '#/components/responses/Framed/headers//content/application~1jsonl/itemSchema'}
     Line: {$ref: '#/components/parameters/Unnamed/content/application~1jsonl/itemSchema'}
     HeaderItem: {$ref: '#/components/responses/Listed/headers//schema/items'}
