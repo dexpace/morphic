@@ -86,10 +86,11 @@ var apiRoots = map[string]string{
 // what they serve, so the reachability check spares what only tests reach in
 // it. An entry sparing nothing fails, so the list cannot outlive its reasons.
 var testSupport = map[string]string{
-	"ir/irtest":                              "the golden and fixture helpers the IR's tests share",
-	"compilers/openapi/internal/openapitest": "the scaffolding the compiler's test packages share",
-	"compilers/openapi/internal/ynode":       "the YAML node builders the compiler's internal tests share",
-	"internal/ctxtest":                       "the context decorators the tests of cancellation share",
+	"ir/irtest":                                        "the golden and fixture helpers the IR's tests share",
+	"compilers/openapi/internal/openapitest":           "the scaffolding the compiler's test packages share",
+	"compilers/openapi/internal/lowering/loweringtest": "the lowering context the compiler's tests lower under",
+	"compilers/openapi/internal/ynode":                 "the YAML node builders the compiler's internal tests share",
+	"internal/ctxtest":                                 "the context decorators the tests of cancellation share",
 	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
 		"and the uses of a name share; the census binary reads one load of it",
 	"internal/exectest": "the child command every test that starts a process builds",

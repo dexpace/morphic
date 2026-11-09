@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -39,9 +38,7 @@ webhooks:
 	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)
+	c := lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})
 
 	declared, _ := auth.LowerSecuritySchemes(c)
 
@@ -61,9 +58,7 @@ func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, 
 	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{MaxReferenceExpansion: limit}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
+	c := lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags, Limits: lowering.Limits{MaxReferenceExpansion: limit}})
 	declared, _ := auth.LowerSecuritySchemes(c)
 	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
 	ops := make([]ir.Operation, 0, 3)

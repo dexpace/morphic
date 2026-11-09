@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // TestLeastOf_StopsAtOther holds leastOf to the least of its items and to the
@@ -32,7 +34,7 @@ func TestLeastOf_StopsAtOther(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			reads := 0
-			got := leastOf(lowering.Ctx{}, tc.items, func(_ lowering.Ctx, r fileReading) fileReading {
+			got := leastOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), tc.items, func(_ lowering.Ctx, r fileReading) fileReading {
 				reads++
 				return r
 			})

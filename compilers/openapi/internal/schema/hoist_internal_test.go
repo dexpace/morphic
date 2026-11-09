@@ -8,13 +8,16 @@ import (
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -27,7 +30,7 @@ import (
 // one it did declare.
 func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{SrcIndex: 2}
+	c := lowering.New(2, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 
 	named := commonFor(c, "t/x", "/components/schemas/User")
 	assert.False(t, named.Anonymous, "a component schema is a declaration")
@@ -46,7 +49,7 @@ func TestCommonFor_NamesOnlyAComponent(t *testing.T) {
 // traces a type back through.
 func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 	t.Parallel()
-	got := commonFor(lowering.Ctx{SrcIndex: 5}, "t/x", "/components/schemas/User")
+	got := commonFor(lowering.New(5, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{}), "t/x", "/components/schemas/User")
 
 	assert.Equal(t, ir.TypeID("t/x"), got.ID)
 	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components/schemas/User"}, got.Provenance)
@@ -58,7 +61,7 @@ func TestCommonFor_StampsTheDeclaringPointer(t *testing.T) {
 // schema would do forever.
 func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{SrcIndex: 0}
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 
@@ -86,7 +89,7 @@ func TestInternNode_DerivesTheIDAndInternsOnce(t *testing.T) {
 // or preserved constructs to that node, which would vanish without a word.
 func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{SrcIndex: 4}
+	c := lowering.New(4, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 	ts := compile.NewTypes()
 
 	_, ok, diags := registeredNode(c, ts, "t/absent", "/components/schemas/Ghost")
@@ -112,7 +115,7 @@ func TestRegisteredNode_ReportsAMissRatherThanDroppingIt(t *testing.T) {
 // revisit hands back nothing and reports nothing (GitHub #749).
 func TestRegisteredNode_LeavesANodeStillBeingBuiltToItsBuilder(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{}
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 	ts := compile.NewTypes()
 	const at = "/components/schemas/User"
 

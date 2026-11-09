@@ -103,7 +103,7 @@ func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
 		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
 			"the other document's position, in its own IDs")
 
-		unlisted := l.ctx.WithLoaded(&load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()})
+		unlisted := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
 		assert.Equal(t, local, keyedAt(unlisted, js),
 			"a landing in a document the compile did not list keeps the local pointer")
 	})

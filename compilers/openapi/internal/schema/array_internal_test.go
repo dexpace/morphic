@@ -13,6 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
@@ -22,7 +24,7 @@ import (
 // source's at the same pointer.
 func TestHeldAt_AContextPlacingNoPositionHoldsNothing(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{}.InScope(resolve.Scope{Foreign: true, Holder: "o.yaml"})
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}).InScope(resolve.Scope{Foreign: true, Holder: "o.yaml"})
 	_, placed := c.Position("/items/0")
 	assert.False(t, placed, "sanity: the context places no position")
 	assert.Nil(t, heldAt(c, "/items/0"))

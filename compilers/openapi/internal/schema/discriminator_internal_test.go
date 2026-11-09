@@ -16,9 +16,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -70,7 +71,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	empty := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring("")}, lowering.Policy{})
 	id, ok = mappingTargetID(empty, empty.RefScope(), &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -325,7 +326,7 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
+			d := besideUnionDiscriminator{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
 
 			diags := d.Settle(reg)
 
@@ -343,7 +344,7 @@ func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
 	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
 	reg := ir.TypeRegistry{"t/owner": &ir.Union{ID: "t/owner"}, "t/pet": mt}
-	d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
+	d := besideUnionDiscriminator{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
 
 	assert.Empty(t, d.Settle(reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")
