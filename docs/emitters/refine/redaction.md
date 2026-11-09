@@ -39,9 +39,10 @@ included. An HTTP library can write the URL it was sent into its own failures, a
 and Ktor's timeouts do, so the runtime quotes a request's URL only in its redacted form, in a
 failure as in a log line. The wire form is written from the value, never through those forms. A
 value a caller takes out of every holder, as a string or a list of its own, renders as the target
-renders it. A redacted collection shows the marker alone, not its length, since how many tokens or
-keys a value holds can be what a reader must not learn. A body kept as it arrived, a failure's
-`RawBody` or a fallback's untyped JSON, holds the wire's bytes, so no rendering above prints a raw
-body whose declared type holds a redacted position, showing its decoded, redacted form instead. The
-docs emitter marks a redacted parameter or property secret and shows a placeholder for its example
-([docs](../docs-and-mock.md#what-the-docs-render)).
+renders it. A credential an auth injector writes is no IR fact this reads, so keeping it out of the
+logging hooks' events is #1633's. A redacted collection shows the marker alone, not its length,
+since how many tokens or keys a value holds can be what a reader must not learn. A body kept as it
+arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the wire's bytes, so no rendering
+above prints a raw body whose declared type holds a redacted position, showing its decoded, redacted
+form instead. The docs emitter marks a redacted parameter or property secret and shows a placeholder
+for its example ([docs](../docs-and-mock.md#what-the-docs-render)).
