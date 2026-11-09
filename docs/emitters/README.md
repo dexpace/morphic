@@ -231,8 +231,8 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 - **Credential values / token acquisition.** Auth *schemes* are structural IR; secrets and refresh
   behavior are runtime configuration.
 - **Name-keyed manifests or `"METHOD /path"` keys.** Everything cross-run correlates by IR stable
-  ID, and where a rename gives an entity a new ID, by the correlation key (#679) the manifest
-  records beside it.
+  ID, and where a rename gives an entity a new ID, by the [correlation
+  key](../ir/derived-facts.md#correlation-keys) the manifest records beside it.
 
 ## Invariant compliance
 

@@ -154,13 +154,15 @@ any change to how a key is derived; across a change of it a stored key matches n
 changed derivation costs matches rather than handing one entity another's state. `IRVersion` is
 not that version: it refuses a document, and a change to the derivation changes none.
 
-On the golden spec (spec @319dc756, compiled by morphic @b206dc99), every operation, parameter,
-group, server and auth scheme has a key, as do 37,971 of its 41,697 types, 47,367 of 49,390
-properties and 29,633 of 32,291 enum members. All but two of the entities without one lie beneath a
-union variant nothing in the document names, untagged or a discriminator maps no tag to; the two are
-anonymous models one model composes in place. Against the spec's revision b7e65ddd, 41 entities
-whose IDs moved are matched by their keys, and one ID stays while naming another entity:
+On the golden spec (spec @319dc756, compiled by morphic @fb5ae802f), every operation, parameter,
+group, server, service and auth scheme has a key, every operation by its route, as do 37,510 of its
+41,234 types, 47,367 of 49,390 properties and 29,637 of 32,312 enum members. All but two of the
+entities without one lie beneath a union variant nothing in the document names, untagged or a
+discriminator maps no tag to; the two are anonymous models one model composes in place. Against the
+spec's revision b7e65ddd, 44 entities whose IDs moved are matched by their keys, and one ID stays
+while naming another entity:
 `t/anon/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
 `direction` parameter's schema at b7e65ddd and the `status` parameter's at 319dc756, and their keys
-tell them apart. Deriving every key of the golden spec takes about 200 ms, against a compile of
-about 8 s.
+tell them apart. Against c92b9b0f, each of the nineteen operations that kept its route and ID under
+a renamed `operationId` is matched to itself. Deriving every key of the golden spec takes about
+150 ms, against a compile of about 6 s.
