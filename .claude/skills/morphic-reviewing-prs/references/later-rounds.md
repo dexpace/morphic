@@ -8,7 +8,7 @@ the whole change again. `references/rounds.md` says how a round runs and when th
 
 - **Rule.** From the third round, short of `references/later-rounds.md#nit-round-checks-its-fixes`,
   readers run every angle over each file both `git diff --name-only <merged> HEAD` and
-  `git diff --name-only origin/<base>...<head>` list, `<merged>` the round before's commit and
+  `git diff --name-only "$b"...<head>` list, `<merged>` the round before's commit and
   `<head>` the PR's unmerged head, and each line citing a rule changed there
   (`git grep -n '#<key>'`); over each fix since, wording included, read by
   `references/rounds.md#deep-and-broad`; over each unreached or reopened cell, named without
@@ -33,7 +33,7 @@ the whole change again. `references/rounds.md` says how a round runs and when th
 - **Why.** Whatever their fixes, such rounds took 34% of reviewer CPU for 17% of `issue:` findings
   (#1611); a `question:` beside a `nit:` read either way (#1617).
 - **Probe.** `git diff --name-only <main the previous report records> "$main"`, and the base's,
-  share no file with `git diff --name-only origin/<base>...<head>`.
+  share no file with `git diff --name-only "$b"...<head>`.
 
 ## Narrow a round only on a record of each commit since
 `narrowing-reads-each-commit`

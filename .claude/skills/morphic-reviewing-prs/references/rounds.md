@@ -2,10 +2,10 @@
 
 How a round runs and when the loop ends: where the review reads the change, what a decision rests
 on, how a finding is ranked, a fix designed and checked, and what is posted. The angle references
-say what a round attacks, and `references/readers.md` who reads it. The rules are read from `main`,
-by `git show origin/main:<path>` or `git archive origin/main .claude/skills | tar -x -C <dir>`,
-whatever the head holds, unless the change under review edits them, when its copy is what is
-reviewed.
+say what a round attacks, and `references/readers.md` who reads it. The rules are read from `main`
+at the commit the setup below pins, by `git show "$main":<path>` or
+`git archive "$main" .claude/skills | tar -x -C <dir>`, whatever the head holds, unless the change
+under review edits them, when its copy is what is reviewed.
 
 Before any fetch: with no `origin`, or in a repository that must stay unwritten, take
 `references/rounds.md#review-without-origin`; check that no other checkout holds work on the PR's
@@ -22,9 +22,10 @@ Each round reviews the tree as it will land, in a throwaway worktree
 
 ```bash
 base=$(gh pr view <N> --json baseRefName --jq .baseRefName)
-git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>" && main=$(git rev-parse origin/main)
+git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>" &&
+  main=$(git rev-parse origin/main) && b=$(git rev-parse "origin/$base")
 git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
-git merge --no-edit "origin/$base" && git merge --no-edit "$main"
+git merge --no-edit "$b" && git merge --no-edit "$main"
 git merge-base --is-ancestor refs/rv<session>/<N> HEAD && git merge-base --is-ancestor "$main" HEAD
 ```
 
@@ -33,7 +34,8 @@ review's own resolution, so every angle reads `main`'s new commits beside the br
 resolution is a design choice is aborted and reported with what could not be checked. Either way
 the conflict is an `issue:`. Read and run only against that tree or a copy of it: a plant, a trial
 merge or a sweep takes a worktree or copy of its own, and nothing writes to the checkout you started
-from. Every later read of `main` is `$main` (`references/rounds.md#pin-main-for-the-round`). A
+from. Every later read of `main` is `$main`, and of the base `$b`
+(`references/rounds.md#pin-main-for-the-round`). A
 round's report names what it reviewed, the merged commit among it, each delegated reader's minutes
 and tool calls from its hand-back, each angle's matrix, then the findings ranked:
 
@@ -60,18 +62,20 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 - **Probe.** `git rev-parse HEAD` in the worktree, beside
   `gh pr view <N> --json headRefOid --jq .headRefOid`.
 
-## Pin main's commit for the round, as every worktree shares its ref
+## Pin main's and the base's commits, as every worktree shares their refs
 `pin-main-for-the-round`
 
-- **Rule.** `refs/remotes/origin/main` is one ref across a repository's worktrees, so another
-  session's fetch moves it mid-round and its deletion fails a read. The setup pins what it fetched
-  as `$main`, which each later merge, diff and log of the round reads, and the report's first line
-  names. Where other sessions share the repository and a tool reads `origin/main` itself, as
-  `subjects.py` does, review in the clone `references/rounds.md#review-without-origin` makes.
-- **Why.** In two worktrees of one clone, a fetch in one moved `origin/main` in the other, and a
-  deletion there failed its merge (#1590); `subjects.py` exits 2 on `main` under another name
-  (#1403).
-- **Probe.** `git reflog show refs/remotes/origin/main` lists no fetch after the setup's.
+- **Rule.** A remote-tracking ref, as `refs/remotes/origin/main`, is one across a repository's
+  worktrees, so another session's fetch moves it and its deletion fails a read. The setup pins what
+  it fetched, `main` as `$main` and the base as `$b`, which every later read of the round takes and
+  the report's first line names. Where other sessions share the repository and a tool reads
+  `origin/main` itself, as `subjects.py` does, review in the clone
+  `references/rounds.md#review-without-origin` makes.
+- **Why.** A fetch in one worktree of a clone moved `origin/main` in another, and a deletion there
+  failed its merge, as it did a setup's merge of `origin/$base` with `main` the base (#1590);
+  `subjects.py` exits 2 on `main` under another name (#1403).
+- **Probe.** After the setup's fetch, delete `refs/remotes/origin/main` from a second worktree: its
+  merges and checks still exit 0.
 
 ## Review with no `origin`, or in a repository you must not write to
 `review-without-origin`
