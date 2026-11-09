@@ -109,22 +109,6 @@ func argModel(id ir.TypeID) *ir.Model {
 	}
 }
 
-// TestValidate_ArgsOutsideGraphQLDiagnosticsAreDeterministic pins invariant 7 for
-// the type registry as liveTypeIDs ranges it, whose keys Go ranges in randomized
-// order: the IDs are sorted before checkArgsOutsideGraphQL builds a diagnostic.
-func TestValidate_ArgsOutsideGraphQLDiagnosticsAreDeterministic(t *testing.T) {
-	t.Parallel()
-	doc := validDoc()
-	for _, id := range []ir.TypeID{"t/z", "t/b", "t/q", "t/c", "t/m2"} {
-		doc.Types[id] = argModel(id)
-	}
-	want := pointers(withCode(validated(t, doc), "pass/args-outside-graphql"))
-	require.Equal(t, []string{"t/b", "t/c", "t/m2", "t/q", "t/z"}, want)
-	for range 8 {
-		assert.Equal(t, want, pointers(withCode(validated(t, doc), "pass/args-outside-graphql")))
-	}
-}
-
 // TestValidate_GraphQLReachabilityFollowsEveryReference drives the three sites a
 // GraphQL-legal model can hang off that an operation does not name directly:
 // the event type of a subscription's response stream, the type of another

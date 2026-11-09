@@ -13,9 +13,9 @@ import (
 )
 
 // TestValidate_TypeRegistryDiagnosticsAreDeterministic pins invariant 7 at each
-// other check that ranges the type registry through liveTypeIDs, whose keys Go
-// ranges in randomized order: each reads the sorted IDs, so a check that ranged
-// the registry itself would redden its row.
+// check that ranges the type registry through liveTypeIDs. Go ranges the
+// registry's keys in randomized order: each check reads the sorted IDs, so one
+// that ranged the registry itself would redden its row.
 func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 	t.Parallel()
 	str := ir.TypeRef{Target: "t/prim/string"}
@@ -64,6 +64,11 @@ func TestValidate_TypeRegistryDiagnosticsAreDeterministic(t *testing.T) {
 				}}
 			},
 			at: func(id ir.TypeID) string { return string(id) + "/properties/0" },
+		},
+		{
+			name: "checkArgsOutsideGraphQL", code: "pass/args-outside-graphql",
+			typeOf: func(id ir.TypeID) ir.TypeDef { return argModel(id) },
+			at:     func(id ir.TypeID) string { return string(id) },
 		},
 	}
 	for _, tc := range cases {
