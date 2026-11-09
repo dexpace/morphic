@@ -71,6 +71,7 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"nul":           "\x00",
 		"hangul filler": "\u3164",
 		"jamo filler":   "\u115f",
+		"invisible mix": "\u200b\t\ufeff\u3164",
 		// Variation_Selector: Mn, so neither Cf nor Other_Default_Ignorable.
 		"variation selector":            "\ufe0f",
 		"variation selector supplement": "\U000e0100",
@@ -78,7 +79,6 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"mongolian selector four":       "\u180f",
 		// Other_Default_Ignorable, directly below the excluded U+FFF9.
 		"reserved before annotation": "\ufff8",
-		"invisible mix":              "\u200b\t\ufeff\u3164",
 		// White_Space, though it renders a line.
 		"ogham space mark": "\u1680",
 		// White_Space in neither Zs nor Cc.
@@ -114,14 +114,14 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 }
 
 // TestVerify_VisibleAliasIsNotBlank holds the other side. U+2800
-// BRAILLE PATTERN BLANK renders as whitespace but Unicode does not classify it
-// as invisible, so the rule leaves it alone rather than deciding on its own
-// account what looks empty. It leaves alone, too, the format characters Unicode
-// takes out of Default_Ignorable_Code_Point because they render: a prepended
-// concatenation mark, an interlinear annotation character and an Egyptian
-// hieroglyph format control. The rows beside those ranges and the private use one
-// hold a term from widening over them: U+13440 from Mn, U+E000 from C, U+FFFC
-// from So, U+1342F from Lo.
+// BRAILLE PATTERN BLANK renders as whitespace but is outside the set the blank
+// rules take as invisible, so the rule leaves it alone rather than deciding on
+// its own account what looks empty. It leaves alone, too, the format characters
+// Unicode takes out of Default_Ignorable_Code_Point because they render: a
+// prepended concatenation mark, an interlinear annotation character and an
+// Egyptian hieroglyph format control. The rows beside those ranges and the
+// private use one hold a term from widening over them: U+13440 from Mn, U+E000
+// from C, U+FFFC from So, U+1342F from Lo.
 func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
 	visible := map[string]string{
