@@ -19,12 +19,10 @@ import (
 // dash, as morphic's earlier flag package accepted, is refused with the
 // spelling to use. pflag would read "-opt=a=1" on compile as "-o pt=a=1",
 // dropping the option and writing a file named "pt=a=1" with exit 0. Not run
-// in parallel: it moves into an empty directory, which a misread must not
-// write to.
+// in parallel: each row moves into an empty directory of its own, which a
+// misread must not write to.
 func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
-	dir := t.TempDir()
-	t.Chdir(dir)
 
 	tests := []struct {
 		name   string
@@ -34,12 +32,18 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 	}{
 		{"an option and its value joined", []string{"compile", spec, "-opt=a=1"},
 			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
-		{"an option and its value apart", []string{"compile", "-opt", "a=1", spec},
+		{"an option and its separate value", []string{"compile", "-opt", "a=1", spec},
 			`write "--opt", not "-opt"`, "morphic compile"},
 		{"before the command it belongs to", []string{"-opt=a=1", "compile", spec},
 			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
 		{"the output file", []string{"compile", spec, "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
+		{"after a flag and then an operand", []string{"compile", "--pretty", spec, "-output=ir.json"},
+			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
+		// The rows from here put the one-dash flag after each spelling pflag
+		// reads a flag ahead of it in: a long flag with no, a separate or a joined
+		// value; a short flag or a cluster with no, a separate, an attached or a
+		// joined value; and a "--" taken as a separate value.
 		{"after a long flag and its separate value", []string{"compile", spec, "--fail-on", "error", "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"after a short flag and its separate value", []string{"compile", spec, "-o", "out.json", "-output=ir.json"},
@@ -77,6 +81,8 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Chdir(dir)
 			var stdout, stderr bytes.Buffer
 
 			assert.Equal(t, 2, run(t.Context(), tt.args, &stdout, &stderr))
