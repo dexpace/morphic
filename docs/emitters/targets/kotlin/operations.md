@@ -24,7 +24,7 @@ builder. A [client setting](../../operations/client.md#client-settings) is one m
 
 The runtime declares `@AlphaApi` and `@BetaApi`, each a `@RequiresOptIn` annotation, at level
 `ERROR` for `alpha` and `WARNING` for `beta`, and each method an operation lowers to, its
-`WithResponse` method among them, carries its tier's ([stability](../../operations/stability.md)).
-A caller acknowledges an `alpha` call with `@OptIn(AlphaApi::class)`, and a `beta` one compiles
-with a warning until it does. The KDoc says the tier and what it means as well, since Swift sees no
-Kotlin annotation and reads the framework header's comment.
+`WithResponse` method among them, carries its tier's ([stability](../../operations/stability.md)). A
+caller acknowledges an `alpha` call with `@OptIn(AlphaApi::class)`, and a `beta` one compiles with a
+warning until it does. The KDoc says the tier and what it means as well, in a paragraph after its
+summary, since Swift sees no Kotlin annotation and reads the framework header's comment.
