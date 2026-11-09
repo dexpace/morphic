@@ -16,21 +16,19 @@ import (
 // declaring operation instead.
 func (c *correlator) seedLayer() {
 	callbacks := callbackOperations(c.doc)
-	ir.ForEachOperation(c.doc, func(op ir.Operation) { c.ops[op.ID] = &op })
+	ops := c.seedGroups()
 	for i := range c.doc.Services {
 		svc := &c.doc.Services[i]
 		c.offer(named("service", svc.Name), string(svc.ID), func(c *correlator, key string) {
 			c.errorCases(key, svc.CommonErrors)
 			c.servers(key, svc.Servers)
 		})
-		c.seedGroups(svc.Groups)
 	}
-	ir.ForEachOperation(c.doc, func(op ir.Operation) {
-		if callbacks[op.ID] && op.Name.Source == "" {
-			return
+	for _, op := range ops {
+		if !callbacks[op.ID] || op.Name.Source != "" {
+			c.offerOperation(operationKey(op), op)
 		}
-		c.offerOperation(operationKey(&op), c.ops[op.ID])
-	})
+	}
 	for id, scheme := range c.doc.Auth {
 		credentials := scheme.Credentials
 		c.offer(named("auth", scheme.Name), string(id), func(c *correlator, key string) {
@@ -49,25 +47,21 @@ func named(kind string, n ir.Naming) string {
 }
 
 // seedGroups offers each group's key, its ID, which a rule mints from a name
-// and never from a position. It walks no deeper than ir.MaxGroupDepth.
-func (c *correlator) seedGroups(groups []ir.OperationGroup) {
-	type level struct {
-		groups []ir.OperationGroup
-		depth  int
-	}
-	stack := []level{{groups: groups}}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
+// and never from a position, and returns the operations the groups hold, each
+// once, in declaration order. It walks the groups ir.ForEachGroup reaches.
+func (c *correlator) seedGroups() []*ir.Operation {
+	var ops []*ir.Operation
+	ir.ForEachGroup(c.doc, func(g ir.OperationGroup) {
+		c.offer(segment("group", string(g.ID)), string(g.ID), nil)
+		for i := range g.Operations {
+			op := &g.Operations[i]
+			if _, seen := c.ops[op.ID]; !seen {
+				c.ops[op.ID] = op
+				ops = append(ops, op)
+			}
 		}
-		for i := range top.groups {
-			g := &top.groups[i]
-			c.offer(segment("group", string(g.ID)), string(g.ID), nil)
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
-		}
-	}
+	})
+	return ops
 }
 
 // operationKey is an operation's own key: its declared name, else its method

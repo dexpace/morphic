@@ -173,6 +173,21 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 	assert.Empty(t, cmp.Diff(want, got))
 }
 
+func TestCorrelation_WalksGroupsThatShareASliceAsTheIRWalkDoes(t *testing.T) {
+	t.Parallel()
+	looped := []ir.OperationGroup{{ID: "g/test/a"}, {ID: "g/test/b"}}
+	looped[0].Groups, looped[1].Groups = looped, looped
+	shared := []ir.OperationGroup{{ID: "g/test/c", Operations: []ir.Operation{namedOp("op/test/c", "", "/c")}}}
+	doc := irtest.DocOf()
+	doc.Services = []ir.Service{{Groups: looped}, {Groups: []ir.OperationGroup{{Groups: shared}, {Groups: shared}}}}
+	got := keysOf(irfacts.New(doc), "g/test/a", "g/test/b", "g/test/c", "op/test/c")
+	want := map[string]string{
+		"g/test/a": "group:g~1test~1a", "g/test/b": "group:g~1test~1b", "g/test/c": "group:g~1test~1c",
+		"op/test/c": "route:GET ~1c",
+	}
+	assert.Empty(t, cmp.Diff(want, got))
+}
+
 func TestCorrelation_KeysTheServiceLayerByName(t *testing.T) {
 	t.Parallel()
 	doc := opsDoc([]ir.Operation{namedOp("op/test/b", "b", "/b"), namedOp("op/test/a", "a", "/a")},
