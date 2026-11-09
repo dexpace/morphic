@@ -147,13 +147,14 @@ yourself. These rules are the ways that reading still lies.
 `find-what-only-excluded-callers-reach`
 
 - **Rule.** For `references/mutation.md#plant-past-the-included-callers`, profile the included set's
-  run (`go test -coverprofile=<f> <included>`) and read it with `go run ./cmd/morphic-covergate <f>`,
-  which lists each statement that run leaves uncovered: as the whole suite covers every statement,
-  each is one only the excluded callers reach. A candidate is no result until its plant is measured
-  both ways.
+  run over the packages it plants in, `go test -coverpkg=<those> -coverprofile=<f> <included>`,
+  and read it with `go run ./cmd/morphic-covergate <f>`, which lists each statement that run leaves
+  uncovered: as each package's own tests cover all of it, each is one only the excluded callers
+  reach; without `-coverpkg`, a package the excluded tests own is not in the profile. A candidate
+  is no result until its plant is measured both ways.
 - **Why.** On a change excluding tests from the race run, a listed statement's plant drew race
-  reports in every run of the excluded test alone and none under the exclusion, while another
-  listed statement's drew none either way (#1311, #1551).
+  reports in every run of the excluded test alone and none under the exclusion, and another's drew
+  none either way (#1311, #1551).
 - **Probe.** Each candidate's plant, run with the excluded test alone and with the included set,
   each at `references/mutation.md#kill-rate-for-a-scheduled-detector`'s count.
 
