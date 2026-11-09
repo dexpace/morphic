@@ -232,17 +232,29 @@ func reported(c Compiler) ([]SourceFormat, error) {
 // Configuration is what a registry resolves each compiler's options from,
 // compiler by compiler: textual settings are one compiler's vocabulary, which
 // only it can decode, and which compiler a source belongs to is what detection
-// is still finding out. The zero Configuration gives every compiler its
-// defaults.
+// is still finding out. It sets FormatOptions or Settings, not both, and Detect
+// and SourceLimit refuse one setting both. The zero Configuration gives every
+// compiler its defaults.
 type Configuration struct {
 	// FormatOptions is what each compiler is handed when Settings holds none.
 	FormatOptions any
 	// Settings, when it holds any, is decoded by each compiler asked
-	// (Compiler.DecodeOptions), and FormatOptions is not read.
+	// (Compiler.DecodeOptions).
 	Settings OptionSet
 	// Reader reads, for every compiler alike, each document a compile reads
 	// beyond its sources (Options.Reader).
 	Reader DocumentReader
+}
+
+// errOptionChannels reports a Configuration setting both FormatOptions and
+// Settings. Which one a compiler is handed would be a precedence no caller can
+// see the effect of, and a configuration made two ways is a mistake in the
+// caller rather than a case to resolve.
+var errOptionChannels = errors.New("compilers: set FormatOptions or Settings, not both")
+
+// valid reports whether cfg sets at most one of FormatOptions and Settings.
+func (cfg Configuration) valid() bool {
+	return cfg.FormatOptions == nil || len(cfg.Settings.Settings) == 0
 }
 
 // optionsFor resolves the options c would compile a source with under cfg:
@@ -280,17 +292,21 @@ type Detection struct {
 }
 
 // Detect asks each registered compiler, in registration order, to recognize src
-// under the options it resolves for that compiler from cfg. The first format
-// named decides: its owner is Detection.Compiler, configured for itself, and a
-// recognizer not owning it loses its parse.
+// under its own options from cfg. The first format named decides: its owner is
+// Detection.Compiler, configured for itself, and a recognizer not owning it
+// loses its parse.
 //
 // The bool reports whether a compiler takes src. Unrecognized src, empty Data
 // included, has the zero format, unlike src recognized but unsupported.
 //
-// It fails on a canceled ctx; on undecodable options for the compiler taking
-// src; and, wrapping ErrContract, on a claim or decline Compiler.Detect does
-// not admit and a Detect, DecodeOptions or SourceLimit that panics.
+// It fails on a cfg setting FormatOptions and Settings, a canceled ctx, or
+// undecodable options for the compiler taking src; and, wrapping ErrContract,
+// on a claim or decline Compiler.Detect does not admit and a Detect,
+// DecodeOptions or SourceLimit that panics.
 func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (Detection, bool, error) {
+	if !cfg.valid() {
+		return Detection{}, false, errOptionChannels
+	}
 	if len(src.Data) == 0 {
 		return Detection{Source: src}, false, nil
 	}
@@ -339,9 +355,13 @@ func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (D
 // each under the options resolved for it from cfg (Compiler.SourceLimit), and
 // zero when one reads any size or none is registered: how far a caller need
 // read a source it hands to Detect. A compiler whose options fail to decode is
-// asked under its defaults, as Detect asks it. It fails, wrapping ErrContract,
-// on a DecodeOptions or SourceLimit that panics.
+// asked under its defaults, as Detect asks it. It fails on a cfg setting
+// FormatOptions and Settings, and, wrapping ErrContract, on a DecodeOptions or
+// SourceLimit that panics.
 func (r *Registry) SourceLimit(cfg Configuration) (int, error) {
+	if !cfg.valid() {
+		return 0, errOptionChannels
+	}
 	most := 0
 	for _, e := range r.ordered {
 		opts, _, err := e.configured(cfg)

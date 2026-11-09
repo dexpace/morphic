@@ -49,16 +49,15 @@ func registryOf(t *testing.T, cs ...compilers.Compiler) *compilers.Registry {
 
 // TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions pins that recognition
 // runs under the options the compiler would compile with, each decoding the
-// settings for itself beside the one Reader, FormatOptions unread beside them,
-// and that the ones the taker was configured with are the ones handed back for
-// the compile.
+// settings for itself beside the one Reader, and that the ones the taker was
+// configured with are the ones handed back for the compile.
 func TestRegistry_DetectAsksEachCompilerUnderItsOwnOptions(t *testing.T) {
 	t.Parallel()
 	a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha", decoded: "for alpha"}
 	b := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "beta", decoded: "for beta"}
 	reg := registryOf(t, a, b)
 	cfg := settings()
-	cfg.FormatOptions, cfg.Reader = "unread beside settings", failingReader{}
+	cfg.Reader = failingReader{}
 
 	det, ok, err := reg.Detect(t.Context(), compilers.Source{Data: []byte("beta")}, cfg)
 
@@ -180,6 +179,49 @@ func TestRegistry_DetectHandsEachCompilerTheFormatOptionsWithoutSettings(t *test
 	assert.Equal(t, want, det.Options)
 	assert.Equal(t, []compilers.Options{want}, a.saw)
 	assert.Equal(t, []compilers.Options{want}, b.saw)
+}
+
+// TestRegistry_RefusesAConfigurationSettingBothChannels pins that Detect and
+// SourceLimit refuse a Configuration setting both FormatOptions and Settings,
+// whatever the source, before asking any compiler anything.
+func TestRegistry_RefusesAConfigurationSettingBothChannels(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		ask  func(*testing.T, *compilers.Registry, compilers.Configuration) error
+	}{
+		{"Detect", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
+			det, ok, err := r.Detect(t.Context(), compilers.Source{Data: []byte("alpha")}, cfg)
+			assert.False(t, ok)
+			assert.Equal(t, compilers.Detection{}, det)
+			return err
+		}},
+		{"Detect of an empty source", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
+			det, ok, err := r.Detect(t.Context(), compilers.Source{Path: "empty.yaml"}, cfg)
+			assert.False(t, ok)
+			assert.Equal(t, compilers.Detection{}, det)
+			return err
+		}},
+		{"SourceLimit", func(t *testing.T, r *compilers.Registry, cfg compilers.Configuration) error {
+			limit, err := r.SourceLimit(cfg)
+			assert.Zero(t, limit)
+			return err
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			a := &stubCompiler{formats: []compilers.SourceFormat{alpha}, marker: "alpha", limit: 5, decoded: "for alpha"}
+			cfg := settings()
+			cfg.FormatOptions = "typed"
+
+			err := tt.ask(t, registryOf(t, a), cfg)
+
+			require.EqualError(t, err, "compilers: set FormatOptions or Settings, not both")
+			assert.Empty(t, a.saw, "no compiler is asked to recognize the source")
+			assert.Empty(t, a.limitsAsked, "nor for its limit")
+		})
+	}
 }
 
 // failingReader is a DocumentReader these tests hand on and never read
