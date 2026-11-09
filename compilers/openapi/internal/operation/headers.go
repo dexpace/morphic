@@ -103,7 +103,8 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 	}
 	diags = append(diags, schema.FillPropertyDetail(elected.ctx, ts, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	diags = append(diags, schema.PromoteUse(dc, elected.js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+	diags = append(diags, schema.PromoteUse(dc, schema.KeysLentTo(dc, ts, elected.js, p.Type, elected.pointer), p.Unmodeled,
+		&p.Deprecation, &p.Secret, &p.Provenance)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {
 		lowered.Style = string(*h.Style)

@@ -44,8 +44,8 @@ type generation struct {
 // A bump appends a row for the new IRVersion, and a change to jsonshape.Format
 // appends one describing the current generation anew. A row on main is never
 // edited: two changes claiming one version each append a row in the same
-// place, so whichever merges second meets the other's in a conflict and takes
-// the next version.
+// place, which can conflict or merge clean into two rows of one version, so
+// whichever merges second checks for a repeated version and takes the next.
 var generations = []generation{
 	{version: "0.14.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9"},
 	{version: "0.15.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9",
@@ -77,6 +77,11 @@ var generations = []generation{
 	{version: "0.30.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "an operation keeps its path item's summary and description beneath the path item's key scope"},
+	{version: "0.31.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf no conjunct can make an object is a use of the conjunct deciding it, not a Model, and a node at an inline allOf branch is named as the schema holding it"},
+	{version: "0.32.0", format: 1, shape: "694a668c2583e6e7ef04f15195448dc7b011725bec72a5f1535b2260a5e4b1a0",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

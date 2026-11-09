@@ -24,11 +24,11 @@ import (
 // would invert the dependency.
 const maxAliasChain = 10000
 
-// maxPointerSegments bounds how many tokens one JSON pointer walk follows. A
+// MaxPointerSegments bounds how many tokens one JSON pointer walk follows. A
 // pointer names a position in the document, so a real one is a handful of
 // segments deep; the bound is what keeps the walk terminating on a pointer built
 // to be long rather than to name anything, per the bounded-recursion rule.
-const maxPointerSegments = 1024
+const MaxPointerSegments = 1024
 
 // MergeDepthLimit bounds how deep a chain of `<<` merge keys the mapping view
 // expands. It is far tighter than maxAliasChain: each merge level
@@ -484,7 +484,7 @@ func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*
 	segments := 0
 	for token := range pointer.Tokens() {
 		segments++
-		if segments > maxPointerSegments {
+		if segments > MaxPointerSegments {
 			return path, false
 		}
 		cur = Deref(v.ChildByToken(cur, token))
@@ -559,9 +559,9 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // where the costs roughly meet; BenchmarkDocumentPath_IntoAWideMapping carries
 // the widths that show it.
 //
-// Width says nothing about reuse: declaresResourceIDAbove builds a view per
-// call and reads each node once, so indexing there cost time and allocations
-// for nothing. keyIndex adds a reuse condition.
+// Width says nothing about reuse: a view built for one path reads each node once,
+// so indexing there costs time and allocations for nothing. keyIndex adds a
+// reuse condition.
 const minIndexedPairs = 16
 
 // keyIndex returns n's expansion as a key map, built on the second read of a

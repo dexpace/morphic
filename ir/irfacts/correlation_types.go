@@ -169,9 +169,13 @@ func inlineConjuncts(types ir.TypeRegistry) map[ir.TypeID]bool {
 }
 
 // members offers each member of e its key, key then the member's key, which
-// its ID holds after the enum's own path.
+// its ID holds beneath the enum's namespace and path (docs/ir/identity.md#enum-members).
 func (c *correlator) members(key string, e *ir.Enum) {
-	prefix := "e/" + strings.TrimPrefix(string(e.ID), "t/") + "/"
+	scope, ok := strings.CutPrefix(string(e.ID), ir.IDKindType+ir.IDSeparator)
+	if !ok {
+		return
+	}
+	prefix := ir.IDKindEnumMember + ir.IDSeparator + scope + ir.IDSeparator
 	for i := range e.Members {
 		id := string(e.Members[i].ID)
 		if rest, ok := strings.CutPrefix(id, prefix); ok {
@@ -181,11 +185,13 @@ func (c *correlator) members(key string, e *ir.Enum) {
 }
 
 // property offers p its key, and, when p takes it, keys p's type, what its
-// encoding decodes to and its field arguments.
+// encoding decodes to, the headers of a multipart part encoding it and its
+// field arguments.
 func (c *correlator) property(key string, p *ir.Property) {
 	c.offer(child(key, "prop", p.EffectiveWireName()), string(p.ID), func(c *correlator, key string) {
 		c.ref(part(key, "type"), &p.Type)
 		c.decoded(key, p.Encoding)
+		c.headers(key, c.partHeaders[p.ID])
 		for i := range p.Args {
 			arg := &p.Args[i]
 			c.offer(child(key, "arg", arg.Name.Source), string(arg.ID), func(c *correlator, key string) {

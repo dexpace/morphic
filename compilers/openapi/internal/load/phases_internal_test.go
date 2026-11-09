@@ -260,7 +260,7 @@ func TestLoad_DoesNextToNothingOnceItRefusesACancel(t *testing.T) {
 // once for each stage the busiest phase runs in sequence, each leaving at its
 // first ask. It is a constant, where a loop asking on for every item it has
 // left would ask as often as the document has items.
-const asksAfterRefusal = 8
+const asksAfterRefusal = 9
 
 // TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly cancels a load at every check
 // of its context a whole load makes, one load per check, and requires the

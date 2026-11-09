@@ -69,7 +69,7 @@ const MaxUnknownKeys = 64
 //
 //   - $comment: 2020-12 §8.3 forbids presenting it to end users, so it is
 //     dropped on purpose.
-//   - $dynamicAnchor: read by the anchor index as a reference target, so a
+//   - $dynamicAnchor: read by internal/bind as a reference target, so a
 //     $dynamicRef can expand.
 //   - $dynamicRef: carried by the dynamic-reference lowering, which expands it
 //     or keeps it under its own reason. A census entry beside an expanded one
@@ -81,19 +81,18 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 
 // UnknownKeywordsIn records on p the keywords s writes that no field of the
-// JSON Schema model names, and announces each.
-//
-// OpenAPI 3.1 schemas are JSON Schema 2020-12, where an unrecognized keyword is
-// legal input that an implementation must ignore. So this reports a decision,
-// not a fault (diag.UnknownSchemaKeyword grades it). The model keeps only its
-// name, so the value is read from the raw node
+// JSON Schema model names, and announces each: legal JSON Schema 2020-12 an
+// implementation must ignore, so a decision rather than a fault. The model
+// keeps only a keyword's name, so its value is read from the raw node
 // (docs/parser-library.md#unmodeled-keywords).
 //
-// It keeps only what no other reader kept, so it runs after all of them:
-// readers with more to say take `$vocabulary` and `dependentRequired`. A
-// keyword no reader leaves a trace of needs naming in DecidedKeywords.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
+// It runs after every other reader and keeps what none kept: `$vocabulary`
+// and `dependentRequired` have readers of their own. A keyword no reader
+// leaves a trace of is named in DecidedKeywords, or in taken where only the
+// caller knows a reader took it.
+func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator, taken ...string) []ir.Diagnostic {
 	keys, root := unknownSchemaKeys(s)
+	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })
 	return census(p, keys, root, locate, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,

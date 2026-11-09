@@ -1,9 +1,11 @@
 # Decorators collapse into their references
 
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
-wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. The compiler keeps
-that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carries the description
-([models](../../ir/models.md#composition-entries)). 3.1's spelling of the same use,
+wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. Where `Status` can
+be an object the compiler keeps that losslessly, as an anonymous `Model` whose `Base` is `Status` and
+which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
+the position is a use of `Status` as the 3.1 spelling is
+([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
 `{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
 property or parameter holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
@@ -56,8 +58,9 @@ for does:
   stay in the IR, where the docs emitter reads them, and the plan reports each decorator some
   reference reaches whose `Docs` or `Deprecation` reach no carrier, once rather than once per
   target, as an info `emitters/plan/decorator-annotations-unplaced` at the decorator. A decorator
-  nothing references generates nothing and is not reported, and neither is an unplaced example: no
-  SDK renders a schema example.
+  nothing references generates nothing and is not reported, and neither is an unplaced example,
+  which the plan's shared examples read wherever it sits
+  ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
 
 The fold is a shared refine helper in `emitters/refine`, reading only the IR facts `Alias` points
 along. T-16 holds it to the compiler's merge: a 3.0 decorator and the 3.1 `$ref` carrying the same
