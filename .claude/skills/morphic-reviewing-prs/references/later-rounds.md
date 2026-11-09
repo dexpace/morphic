@@ -39,16 +39,17 @@ the whole change again. `references/rounds.md` says how a round runs and when th
 `narrowing-reads-each-commit`
 
 - **Rule.** Before narrowing by `references/later-rounds.md#nit-round-checks-its-fixes`, read each
-  commit since in `git log -p <merged>..<head>` and record beside it the finding it fixes and why
-  it changes no command, condition, output or claim of what it touches: a rewording or a refill
-  alone. A commit with no such record sends the round to
-  `references/later-rounds.md#later-rounds-read-what-moved`.
+  commit since in `git log --first-parent --no-merges -p <merged>..<head>`, as that rule's own
+  condition holds a merge, and record beside it the finding it fixes and why it changes no
+  command, condition, output or claim of what it touches: a rewording or a refill alone. A commit
+  with no such record sends the round to `references/later-rounds.md#later-rounds-read-what-moved`.
 - **Why.** Of eight recorded rounds from the third on after a nit-only round, one met the
   conditions, and its `issue:` sat in its fix. The one round read narrowed followed a commit
   changing rules' commands, and the next round, read whole, found an `issue:` outside its fixes
   (#1618).
-- **Probe.** The record names every commit `git log --format=%h <merged>..<head>` lists, each with
-  its finding and reason.
+- **Probe.** The record names every commit
+  `git log --first-parent --no-merges --format=%h <merged>..<head>` lists, each with its finding
+  and reason.
 
 ## A narrowed round reads the fixes, the body and the open cells
 `narrowed-round-reads-the-fixes`
