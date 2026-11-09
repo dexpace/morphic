@@ -81,10 +81,10 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
-	schemes, authDiags := auth.LowerSecuritySchemes(l.ctx)
+	declared, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.diags.AppendAll(authDiags)
 
-	lowered, svcDiags := LowerService(t.Context(), l.ctx, l.types, schemes)
+	lowered, svcDiags := LowerService(t.Context(), l.ctx, l.types, declared)
 	l.diags.AppendAll(svcDiags)
 	_, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)

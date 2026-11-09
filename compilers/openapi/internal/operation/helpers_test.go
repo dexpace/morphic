@@ -97,9 +97,9 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	report(schema.LowerComponentSchemas(t.Context(), c, types))
 
-	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
+	declared, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
-	lowered, svcDiags := operation.LowerService(t.Context(), c, types, schemes)
+	lowered, svcDiags := operation.LowerService(t.Context(), c, types, declared)
 	report(svcDiags)
 	_, finished := types.Finish(t.Context())
 	report(finished)

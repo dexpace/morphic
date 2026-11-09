@@ -189,10 +189,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 
-	schemes, authDiags := auth.LowerSecuritySchemes(c)
+	declared, authDiags := auth.LowerSecuritySchemes(c)
 	acc.AppendAll(authDiags)
 
-	lowered, svcDiags := operation.LowerService(ctx, c, ts, schemes)
+	lowered, svcDiags := operation.LowerService(ctx, c, ts, declared)
 	out.Auth = lowered.Auth
 	out.Services = []ir.Service{lowered.Service}
 	out.Servers = lowered.Servers

@@ -43,11 +43,11 @@ webhooks:
 		lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)
 
-	schemes, _ := auth.LowerSecuritySchemes(c)
+	declared, _ := auth.LowerSecuritySchemes(c)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), schemes)
+	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), declared)
 
 	assert.Empty(t, diags)
 	assert.Empty(t, lowered.Service.Groups, "neither the path loop nor the webhook loop lowered an operation")
@@ -64,8 +64,8 @@ func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, 
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
 		lowering.Limits{MaxReferenceExpansion: limit}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
-	schemes, _ := auth.LowerSecuritySchemes(c)
-	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), schemes)
+	declared, _ := auth.LowerSecuritySchemes(c)
+	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
 	ops := make([]ir.Operation, 0, 3)
 	for _, g := range lowered.Service.Groups {
 		ops = append(ops, g.Operations...)
