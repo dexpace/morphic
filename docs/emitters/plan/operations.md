@@ -14,6 +14,8 @@ type OpPlan struct {
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
+    Stability       ir.Stability      // its own tier, else its nearest group's; "" = none
+                                      // states one (../operations/stability.md)
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
