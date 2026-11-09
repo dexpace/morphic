@@ -21,16 +21,17 @@ import (
 
 // LowerService lowers one document's service, its operations grouped per the
 // configured strategy (docs/ir/services.md), and its declared tags. It returns
-// them beside every server it registers and every scheme in schemes, which a
-// requirement naming an unresolved scheme adds to.
+// them beside every server it registers, and every scheme in declared with each
+// unresolved one a requirement names.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, schemes *auth.Registry) (Lowered, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
 	reg := servers.NewRegistry()
+	schemes := auth.NewRegistry(c, declared)
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
