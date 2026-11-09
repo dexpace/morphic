@@ -103,9 +103,9 @@ examples of the position they decorate.
 
 An example is shown through the shape it is shown in, so a response's example holds no write-only
 member and a request's no read-only one, and a member that shape requires and the example lacks is
-filled ([below](#one-set-of-examples)). A value `Property.Secret`, `Parameter.Secret` or
-`TypeCommon.Sensitive` marks is redacted in docs ([properties](../ir/properties.md)), so pages,
-agent documents and samples show a placeholder in its place, whether the value was declared or
+filled ([below](#one-set-of-examples)). A value an SDK redacts
+([redaction](refine/redaction.md#a-redacted-value)) is redacted in docs too, so pages, agent
+documents and samples show a placeholder in its place, whether the value was declared or
 synthesized; an SDK's tests and the mock still send it. A sample's placeholder is the SDK target's
 to write, since the call is its code and the docs never edit it.
 
@@ -326,8 +326,8 @@ with no body does. Its values are shown through the shape the operation sends th
 declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan
 assembles. An operation with neither has no sample: where `Assemble` is off it draws no diagnostic,
 whatever its inputs hold, since the policy chose it, and where `Assemble` is on and a required input
-holding no example kept one from being assembled, it draws the warning above. A value `Secret` or
-`Sensitive` marks is written as the target's placeholder for it (above).
+holding no example kept one from being assembled, it draws the warning above. A redacted value is
+written as the target's placeholder for it (above).
 
 ## One set of examples
 
@@ -475,7 +475,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
 | Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all |
 | Flags that exclude or require each other | the branches of a request body's `Union` |
-| A flag whose value is never echoed | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` |
+| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)) |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
 A CLI's help reads a description as the pages do, through the same tokenizer and link rule, and

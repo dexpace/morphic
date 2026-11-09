@@ -12,26 +12,33 @@ only the first would print in the clear every value the IR marks through its typ
 type is a sensitive component, a list of `format: password` strings, a parameter or a header whose
 type is sensitive. So the plan reads both once:
 
-- `TypePlan.Sensitive` is true of a type that is `Sensitive` or whose `Base` chain reaches one, read
-  through `TypePlan.Alias` ([decorators](decorators.md)).
+- `TypePlan.Sensitive` is true of a type that is `Sensitive` or whose `Base`, a scalar's or a
+  model's, reaches one, read as the IR's flattening reads it for `FlatProperty.Secret`: a `Base`
+  cycle the IR permits ends at a type already on the chain. Collapsing a decorator never hides one,
+  as a `Sensitive` node is no decorator ([decorators](decorators.md)).
 - `TypePlan.Redacted` lists the flattened members of a model a value is redacted at: each whose
   `FlatProperty.Secret` is set, which the IR accumulates over every declaration of the member, an
   `Overridden` one included, as it does requiredness ([the
   flattening](../../ir/models.md#the-flattening)). A member a later conjunct redeclares without
   `Secret` stays redacted, which a reader of the one declaration a member takes would miss.
 
-A value is redacted where its position is `Secret` or `Redacted`, or its type sensitive. A list's,
-a tuple's and a map's contents are redacted each on its own when their type is, and a map's keys
-only when the map's own position or type is. A union variant is redacted when its type is.
+A value is redacted where its position is `Secret` or `Redacted`, or its type sensitive. A list's
+and a tuple's elements and a map's keys and values are redacted each on its own when their type is,
+so a map whose values alone are redacted shows its keys. A union variant is redacted when its type
+is. The docs and a command-line target read what is redacted here as an SDK does, so none shows a
+value another hides.
 
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
-text, other than its wire form, shows a redacted one as `[REDACTED]`: a model's and a request
-type's string form, the lifecycle events the logging hooks emit ([runtime
-policy](../contract/runtime-policy.md)), a URL's path segment or query value from a redacted
-parameter, a header's value, and every error message. A redacted collection shows the marker
-alone, not its length, since how many tokens or keys a value holds can be what a reader must not
-learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the
-wire's bytes, so the logging hooks never print a raw body whose declared type holds a redacted
-position, printing its decoded, redacted form instead. The docs emitter marks a redacted parameter
-or property secret and shows its example as the marker.
-
+text, other than its wire form, shows a redacted one as `[REDACTED]`: the string form, in each
+form the target's printing and logging read, of every type the SDK or its runtime declares that
+holds one, a model, a request type, a union, each variant's wrapper and a response's headers type
+among them; the lifecycle events the logging hooks emit ([runtime
+policy](../contract/runtime-policy.md)); a URL's path segment or query value from a redacted
+parameter; a header's value; and every error message. A value a caller takes out of every holder,
+as a string or a list of its own, renders as the target renders it. A redacted collection shows the
+marker alone, not its length, since how many tokens or keys a value holds can be what a reader must
+not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the
+wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted
+position, showing its decoded, redacted form instead. The docs emitter marks a redacted parameter
+or property secret and shows a placeholder for its example
+([docs](../docs-and-mock.md#what-the-docs-render)).

@@ -35,9 +35,12 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   ([optionality](#optionality)), so an absent email stays apart from an empty one. `RenderCasing`
   turns `["email"]`→`Email`, and the tag is `Tag:json:"email,omitzero"`: the name from `WireName`,
   never the identifier, and `omitzero` because an unset box written without it would send
-  `"email":null`. `password` is `Secret`, so `User`'s `String()` and `GoString()` show it as
-  `[REDACTED]`, as they would a member whose type is `Sensitive`
-  ([redaction](../../refine/redaction.md)), and it is excluded from the read shape.
+  `"email":null`. `password` is `Secret`, so `User`'s `String()`, `GoString()` and `LogValue()`
+  show it as `[REDACTED]`, as they would a member whose type is `Sensitive`
+  ([redaction](../../refine/redaction.md)), and it is excluded from the read shape. `LogValue` is
+  what `log/slog` reads: its JSON handler writes any other value as JSON, the wire form, and
+  resolves a `slog.LogValuer` only on the value it is handed, never on a list's elements, so
+  `LogValue` writes each redacted position as the marker itself.
   `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
   `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
   rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
