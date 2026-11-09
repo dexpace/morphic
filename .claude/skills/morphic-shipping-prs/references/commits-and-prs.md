@@ -167,12 +167,27 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `closing-issue-met-at-its-site`
 
 - **Rule.** Before a report says a PR closes an issue, read its title against the site it names on
-  the head, where a defect it states must now be false, an imperative done and a question answered,
-  and match each step of its Direction to the line meeting it, or say in the body why none does.
+  the head, where a defect it states must now be false, shown by its reproduction where it gives
+  one (`references/commits-and-prs.md#closing-issue-reproduction-reruns`), an imperative done and a
+  question answered, and match each step of its Direction to the line meeting it, or say in the
+  body why none does.
 - **Why.** At 78c30a744, #1522 closed #1294, #1326, #1348, #1362, #1461 and #1495 while the rule
   each named, in its title or its Direction, read as before, the fix sitting in a new rule the old
   one never cited, and dropped #1347's step running the gate steps after a failure (#1522).
 - **Probe.** For each closing issue, quote the site its title names, as it reads at the head.
+
+## Rerun a closing issue's reproduction on the base and on the head
+`closing-issue-reproduction-reruns`
+
+- **Rule.** Where an issue a PR closes reproduces its defect, by a script, an input or a command
+  with its output, run it on the PR's base and on its head: the defect shows on the base and not
+  on the head, or the report says why not. Reading the site its title names clears a fix
+  made at one site of the mechanism while another beside it keeps the defect.
+- **Why.** At #1619's 51bcb107, the review setup pinned `main=$(git rev-parse origin/main)` and
+  merged `"$main"`, which read as meeting #1590's title, while its first merge still read
+  `origin/$base`, `origin/main` itself for a PR on `main`, and #1590's reproduction failed that
+  merge as it failed `main`'s (#1627).
+- **Probe.** The report quotes each reproduction's output on the base and on the head.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`
