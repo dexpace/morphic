@@ -435,6 +435,8 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 		"an unnamed one":            {[]ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook}}, inbound},
 		"one binding among several": {[]ir.HTTPBinding{{Method: "POST", URITemplate: "/pets"}, {Inbound: ir.HTTPInboundWebhook}}, inbound},
 		"a path operation":          {[]ir.HTTPBinding{{Method: "POST", URITemplate: "/pets"}}, outbound},
+		// Marked though no binding lists it, so the mark alone decides.
+		"a marked callback": {[]ir.HTTPBinding{{Method: "POST", URITemplate: "{$url}", Inbound: ir.HTTPInboundCallback}}, inbound},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
