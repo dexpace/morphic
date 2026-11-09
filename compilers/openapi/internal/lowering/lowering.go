@@ -5,6 +5,7 @@ package lowering
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	yaml "go.yaml.in/yaml/v3"
@@ -72,23 +73,16 @@ type Ctx struct {
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
-	// map. It sits behind one pointer for the reason loaded does: RefScope copies
-	// the whole context into a closure.
+	// map. It sits behind one pointer for the reason loaded does.
 	promoter *Promoter
 
-	// schemas is the set of component-schema names the document declares.
-	//
-	// It is unexported and read through DeclaresSchema because a struct copy
-	// shares a map rather than copying it: as an exported field it would be the
-	// one part of a by-value context a callee could write to, and the write would
-	// be visible to its caller's caller. An accessor makes that unrepresentable
-	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
-	// holds the struct to.
-	schemas map[string]bool
+	// schemas is the set of component-schema names the document declares, read
+	// through DeclaresSchema and handed to each scope RefScope builds. Every copy
+	// shares it, and a resolve.Names lets none write to it.
+	schemas resolve.Names
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
-	// the two share a word: RefScope copies the whole context into a closure,
-	// whose size class a field more would move.
+	// the two share a word.
 	NullableWidening NullableWidening
 
 	// foreign marks a lowering of content another document holds, read in that
@@ -110,23 +104,17 @@ type Ctx struct {
 	// where one was applied. Its zero value answers for every compile without an
 	// overlay, so nothing below has to ask whether there was one.
 	//
-	// It is unexported for the reason schemas is — it holds a map, which a struct
-	// copy would share — and it is read only through ProvenanceAt, which keeps
-	// "provenance is built in exactly one place" true of the source index as well
-	// as of the pointer.
+	// It is unexported for the reason streaming is — it holds a map, which a
+	// struct copy would share — and it is read only through ProvenanceAt, which
+	// keeps "provenance is built in exactly one place" true of the source index
+	// as well as of the pointer.
 	overlay overlay.Origin
 
 	// loaded is what the load phase resolved with the document, set only by
 	// WithLoaded and nil in a context given none. It sits behind one pointer
-	// because RefScope copies the whole context into a closure for every
-	// reference a lowering reads, and with it every word the context holds.
+	// because every lowering takes a copy of the context, and a closure over one
+	// that escapes moves it to the heap, with every word the context holds.
 	loaded *loadResult
-
-	// typePositions remembers each answer TypePosition read. Copies share it on
-	// purpose: an answer reads only the document and its bindings, which no
-	// lowering changes, so what one copy remembers is what another would read.
-	// Nil in a zero context.
-	typePositions map[scopedPosition]bind.Position
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
@@ -178,14 +166,18 @@ type loadResult struct {
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
-	// readings remembers each answer Remembered read. It sits here for the
-	// reason loaded is a pointer, and copies share it as they do typePositions.
+	// readings remembers each answer Remembered read, in a map per type of key
+	// and answer (memo). Copies share it on purpose: an answer reads only the
+	// documents and their bindings, which no lowering changes, so what one copy
+	// remembers is what another would read.
 	readings map[any]any
 }
 
-// scopedPosition is a position, the document it is in, and the scope it is
-// read in (see Within), which a TypePosition answer is kept under.
-type scopedPosition struct {
+// ScopedPosition is a position as a context reads it: with the scope it is read
+// in (see Within) and the document the context places positions in. It keys a
+// reading that turns on where a position is read (Remembered), and only Scoped
+// builds one, as the scope is the context's own and unexported.
+type ScopedPosition struct {
 	foreign bool
 	holder  string
 	home    int
@@ -213,10 +205,9 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		NullableWidening: nullable,
 		overlay:          origin,
 
-		typePositions: map[scopedPosition]bind.Position{},
-		reached:       resolve.NewReached(),
-		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
-		expansion:     newExpansion(limits.MaxReferenceExpansion),
+		reached:   resolve.NewReached(),
+		Kept:      &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion: newExpansion(limits.MaxReferenceExpansion),
 	}
 }
 
@@ -273,13 +264,13 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // being derived from it, since resolving either reads every document the
 // source names, which only the load phase may (GitHub #757). One call sets
 // both, so no context carries one without the other. The copy remembers no
-// TypePosition answer or name of c's, which read c's bindings and documents.
+// answer Remembered read for c, nor a name of c's, which read c's bindings and
+// documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
-	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
 
@@ -292,42 +283,41 @@ func (c Ctx) Bindings() *typed.Bindings {
 	return c.loaded.reads.Bindings
 }
 
-// TypePosition returns read's answer for at in c's scope, read once and
-// remembered for every copy of c. read is where a discriminator mapping target
-// naming at names a type, which must follow from the documents and the
-// mapping targets alone. Each subtype asks it of every entry of its base's
-// mapping, so n subtypes read each n times. A zero context reads it every time.
-func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Position {
-	if c.typePositions == nil {
-		return read()
-	}
-	key := scopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
-	if named, seen := c.typePositions[key]; seen {
-		return named
-	}
-	named := read()
-	c.typePositions[key] = named
-	return named
+// Scoped returns at as c reads it: in c's scope, and in the coordinates of the
+// document c places its positions in.
+func Scoped(c Ctx, at bind.Position) ScopedPosition {
+	return ScopedPosition{foreign: c.foreign, holder: c.holder, home: c.home, at: at}
 }
 
 // Remembered returns read's answer for key, read once and remembered for every
 // copy of c. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
-// keeps its readings from another's. A key holding another type of answer reads
-// again, and a context given no load phase reads every time.
-func Remembered[V any](c Ctx, key any, read func() V) V {
+// keeps its readings from another's. Each type of key and answer has a map of
+// its own, so neither is boxed to be found or kept, and a key read for two
+// types of answer is read once for each. A context given no load phase reads
+// every time.
+func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 	if c.loaded == nil {
 		return read()
 	}
-	if held, seen := c.loaded.readings[key]; seen {
-		if answer, ok := held.(V); ok {
-			return answer
-		}
+	answers, ok := c.loaded.readings[memo[K, V]{}].(map[K]V)
+	if !ok {
+		// Kept before read runs, so a reading that asks Remembered for answers of
+		// the same types keeps them here rather than in a map this one replaces.
+		answers = map[K]V{}
+		c.loaded.readings[memo[K, V]{}] = answers
+	}
+	if answer, seen := answers[key]; seen {
+		return answer
 	}
 	answer := read()
-	c.loaded.readings[key] = answer
+	answers[key] = answer
 	return answer
 }
+
+// memo is what the map of Remembered's answers of type V, to keys of type K, is
+// kept under. It holds nothing, so it is boxed without allocating.
+type memo[K comparable, V any] struct{}
 
 // Siblings returns the fields the load phase modelled beside the document's
 // path item $refs (see WithLoaded). A load.Siblings only answers questions, so
@@ -426,26 +416,18 @@ func (c Ctx) InScope(scope resolve.Scope) Ctx {
 	return c
 }
 
-// declaredSchemaNames collects the names under components/schemas, or nil when
+// declaredSchemaNames collects the names under components/schemas, none when
 // the document declares none.
-func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
-	if doc == nil || doc.Components == nil {
-		return nil
+func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
+	if doc == nil {
+		return resolve.Names{}
 	}
-	schemas := doc.Components.GetSchemas()
-	if schemas == nil {
-		return nil
-	}
-	names := make(map[string]bool, schemas.Len())
-	for name := range schemas.Keys() {
-		names[name] = true
-	}
-	return names
+	return resolve.NewNames(slices.Collect(doc.Components.GetSchemas().Keys())...)
 }
 
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
-func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
+func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
 // reads (rowsOf). A reading only a minor decides, such as a required `items` or
@@ -532,7 +514,7 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.DeclaresSchema, Foreign: c.foreign, Holder: c.holder,
+	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign, Holder: c.holder,
 		Ends: resolve.ReferenceEnd, Reached: c.reached}
 	if l := c.loaded; l != nil {
 		r := l.reads

@@ -234,9 +234,8 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	scope := c.RefScope()
 
 	assert.Equal(t, "spec.yaml", scope.SelfPath)
-	require.NotNil(t, scope.Declares, "a scope with no predicate would resolve nothing")
-	assert.True(t, scope.Declares("User"))
-	assert.False(t, scope.Declares("Missing"))
+	assert.True(t, scope.Declares.Has("User"))
+	assert.False(t, scope.Declares.Has("Missing"))
 }
 
 // TestRefScope_NoDocumentResolvesNoRef pins that a context with no document
@@ -367,22 +366,54 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 	assert.Equal(t, 5, lowering.Remembered(zero, "k", read), "a context with nothing loaded remembers nothing")
 }
 
-// TestRemembered_AKeyHoldsOneTypeOfAnswer pins a key misused by two kinds of
-// reading: the answer is read again rather than taken for the wrong type.
-func TestRemembered_AKeyHoldsOneTypeOfAnswer(t *testing.T) {
+// TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two
+// types of answer: each is read once, and neither is taken for the other.
+func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
 	t.Parallel()
 	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+	reads := 0
+	number := func() int {
+		reads++
+		return 1
+	}
+	text := func() string {
+		reads++
+		return "s"
+	}
 
-	assert.Equal(t, 1, lowering.Remembered(c, "k", func() int { return 1 }))
-	assert.Equal(t, "s", lowering.Remembered(c, "k", func() string { return "s" }))
+	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
+	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
+	assert.Equal(t, 2, reads, "each type of answer is read once")
 }
 
-// TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
-// shares: a position is read once in each scope it is read in, and a copy
-// reads what another remembered. A copy carrying other
-// bindings starts afresh, since an answer reads them, and a zero context
-// remembers nothing.
-func TestTypePosition_IsReadOncePerScope(t *testing.T) {
+// TestRemembered_KeepsWhatAReadingRemembers pins a reading that asks Remembered
+// for another key of its own types: the answer it remembered is kept beside
+// its own.
+func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
+	t.Parallel()
+	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+	reads := 0
+	inner := func() int {
+		reads++
+		return 1
+	}
+	outer := func() int {
+		reads++
+		return lowering.Remembered(c, "inner", inner) + 1
+	}
+
+	assert.Equal(t, 2, lowering.Remembered(c, "outer", outer))
+	assert.Equal(t, 1, lowering.Remembered(c, "inner", inner))
+	assert.Equal(t, 2, reads, "inner was read once, within outer")
+}
+
+// TestScoped_KeysAPositionByTheScopeItIsReadIn pins the key a position is
+// remembered under: one for every copy of a context in its scope, and another
+// for another position, for another document's scope, and for the scope of a
+// chain cut short, which is no document's.
+func TestScoped_KeysAPositionByTheScopeItIsReadIn(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
@@ -392,34 +423,38 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	reads := 0
-	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
-		t.Helper()
-		at := c.TypePosition(bind.Position{Pointer: pointer}, func() bind.Position {
-			reads++
-			return bind.Position{Doc: 1, Pointer: pointer + "/there"}
-		})
-		assert.Equal(t, bind.Position{Doc: 1, Pointer: pointer + "/there"}, at)
-	}
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	at := bind.Position{Pointer: "/x"}
 
-	ask(c, "/x")
-	ask(c.InScope(c.RefScope()), "/x")
-	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
-	ask(c, "/y")
-	ask(c, "/y")
-	assert.Equal(t, 2, reads, "another position is read once too")
+	if lowering.Scoped(c, at) != lowering.Scoped(c.InScope(c.RefScope()), at) {
+		t.Error("a copy in c's scope keys the position apart from c")
+	}
+	if lowering.Scoped(c, at) == lowering.Scoped(c, bind.Position{Pointer: "/y"}) {
+		t.Error("another position shares the key")
+	}
 	ext, ok := doc.Doc.Paths.Get("/ext")
 	require.True(t, ok)
 	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
-	ask(foreign, "/x")
-	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
-	ask(c.WithLoaded(&load.Document{}), "/x")
-	assert.Equal(t, 4, reads, "a copy carrying other bindings remembers nothing of c's")
-	ask(lowering.Ctx{}, "/x")
-	ask(lowering.Ctx{}, "/x")
-	assert.Equal(t, 6, reads, "a zero context remembers nothing")
+	if lowering.Scoped(c, at) == lowering.Scoped(foreign, at) {
+		t.Error("another document's scope shares the key")
+	}
+
+	const cycle = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"paths:\n  /a: {$ref: '#/paths/~1b'}\n  /b: {$ref: '#/paths/~1a'}\n"
+	cyclic, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(cycle), load.Options{})
+	require.NoError(t, err)
+	inCycle := lowering.New(0, cyclic.Doc, cyclic.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
+		WithLoaded(cyclic)
+	a, ok := cyclic.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	cut := lowering.Within[soa.PathItem](inCycle, a)
+	require.True(t, cut.RefScope().Foreign)
+	require.Empty(t, cut.RefScope().Holder, "a cut chain is no document's")
+	if lowering.Scoped(inCycle, at) == lowering.Scoped(cut, at) {
+		t.Error("a cut chain's scope shares the key")
+	}
 }
 
 // referenceKinds is a source declaring one component of each kind the library

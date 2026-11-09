@@ -34,12 +34,9 @@ import (
 // added. Each entry says what its calls are.
 var callShapeBaseline = map[string]map[string]int{
 	"compilers": {
-		// The registry calls the methods of each compiler it holds: a designed seam.
-		"compilers/openapi": 5,
-		// Detection's configuration, which the engine and the harness hand the
-		// registry as a callback until #1482 makes it data.
-		"engine":           1,
-		"internal/harness": 1,
+		// The registry calls the methods of each compiler it holds, DecodeOptions
+		// among them as it resolves a compiler's options: a designed seam.
+		"compilers/openapi": 6,
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
@@ -70,9 +67,8 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// KeptOnce.Once, Promoter.Referent, Ctx.TypePosition and Remembered each
-		// call the function they are handed before they return: immediate
-		// callbacks.
+		// KeptOnce.Once, Promoter.Referent and Remembered each call the function
+		// they are handed before they return: immediate callbacks.
 		"compilers/openapi/internal/operation": 1,
 		"compilers/openapi/internal/schema":    17,
 	},
@@ -101,9 +97,6 @@ var callShapeBaseline = map[string]map[string]int{
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
-		// Scope.Declares, filled with lowering.Ctx.DeclaresSchema until #1481 hands
-		// it the names as a value.
-		"compilers/openapi/internal/lowering": 1,
 	},
 	"compilers/openapi/internal/scan": {
 		// Placement through scan.Locator and its pointers, which #1487 replaces
