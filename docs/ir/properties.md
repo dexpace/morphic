@@ -79,7 +79,8 @@ type Visibility struct {
 ```
 
 `Only`, like an operation's `ParameterVisibility` and `ReturnTypeVisibility`
-([operations](./operations.md)), is a set: no entry is blank and none repeats (`ir/set-entry-blank`,
+([operations](./operations.md)), is a set: no entry is blank
+([what blank means](./naming.md#aliases)) and none repeats (`ir/set-entry-blank`,
 `ir/set-entry-duplicate`), since a blank names no class and a repeat admits nothing more.
 
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
@@ -48,10 +49,10 @@ func TestVerify_NoAliasesIsClean(t *testing.T) {
 }
 
 // TestVerify_BlankAliasIsAViolation covers the whole of what "names nothing"
-// means. An entry made only of runes Unicode calls invisible is as blank as "",
-// and testing emptiness alone — or trimming only what unicode.IsSpace reports —
-// would let most of these through the one rule that exists to catch an entry
-// matching nothing.
+// means. An entry made only of runes the rule takes as invisible is as blank as
+// "", and testing emptiness alone — or trimming only what unicode.IsSpace
+// reports — would let most of these through the one rule that exists to catch
+// an entry matching nothing.
 func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 	t.Parallel()
 	blanks := map[string]string{
@@ -71,6 +72,26 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"hangul filler": "\u3164",
 		"jamo filler":   "\u115f",
 		"invisible mix": "\u200b\t\ufeff\u3164",
+		// Variation_Selector: Mn, so neither Cf nor Other_Default_Ignorable.
+		"variation selector":            "\ufe0f",
+		"variation selector supplement": "\U000e0100",
+		"mongolian selector":            "\u180b",
+		"mongolian selector four":       "\u180f",
+		// Other_Default_Ignorable, directly below the excluded U+FFF9.
+		"reserved before annotation": "\ufff8",
+		// White_Space, though it renders a line.
+		"ogham space mark": "\u1680",
+		// White_Space in neither Zs nor Cc.
+		"line separator":      "\u2028",
+		"paragraph separator": "\u2029",
+		// Controls past C0, which only their own term holds.
+		"delete":     "\x7f",
+		"c1 control": "\u0080",
+		// Other_Default_Ignorable in Mn, which no other term holds.
+		"combining grapheme joiner": "\u034f",
+		// Cf and Other_Default_Ignorable past the BMP, which no other row holds.
+		"tag character": "\U000e0041",
+		"reserved tag":  "\U000e0000",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
@@ -92,13 +113,53 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded "))
 }
 
-// TestVerify_BlankLookingGraphicAliasIsNotBlank holds the other side. U+2800
-// BRAILLE PATTERN BLANK renders as whitespace but is a graphic character
-// Unicode does not classify as invisible, so the rule leaves it alone rather
-// than deciding on its own account what looks empty.
-func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
+// TestVerify_VisibleAliasIsNotBlank holds the other side. U+2800
+// BRAILLE PATTERN BLANK renders as whitespace but is outside the set the blank
+// rules take as invisible, so the rule leaves it alone rather than deciding on
+// its own account what looks empty. It leaves alone, too, the format characters
+// Unicode takes out of Default_Ignorable_Code_Point because they render: a
+// prepended concatenation mark, an interlinear annotation character and an
+// Egyptian hieroglyph format control. The rows beside those ranges and the
+// private use one hold a term from widening over them: U+13440 from Mn, U+E000
+// from C, U+FFFC from So, U+1342F from Lo.
+func TestVerify_VisibleAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, aliasViolations(t, "\u2800"))
+	visible := map[string]string{
+		"braille blank":       "\u2800",
+		"arabic number sign":  "\u0600",
+		"arabic end of ayah":  "\u06dd",
+		"syriac abbreviation": "\u070f",
+		"arabic pound mark":   "\u0890",
+		"arabic disputed end": "\u08e2",
+		"kaithi number sign":  "\U000110bd",
+		"annotation anchor":   "\ufff9",
+		"annotation end":      "\ufffb",
+		"egyptian format":     "\U00013430",
+		"egyptian last":       "\U0001343f",
+		"object replacement":  "\ufffc",
+		"egyptian before":     "\U0001342f",
+		"egyptian mirror":     "\U00013440",
+		"private use":         "\ue000",
+	}
+	for name, alias := range visible {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, aliasViolations(t, alias))
+		})
+	}
+}
+
+// TestIsInvisible_RangesWereCheckedAgainstThisUnicode fails when a Go release moves
+// unicode.Version, since isInvisible holds two ranges no table of package unicode
+// carries, and Unicode has changed the derivation itself between releases, not
+// only those ranges. Rebuild isInvisible from DerivedCoreProperties.txt's
+// Default_Ignorable_Code_Point derivation and sweep every code point against it,
+// then move the version here.
+func TestIsInvisible_RangesWereCheckedAgainstThisUnicode(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "17.0.0", unicode.Version,
+		"rebuild isInvisible from DerivedCoreProperties.txt's Default_Ignorable_Code_Point "+
+			"derivation and sweep every code point against it, then move this version")
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,
