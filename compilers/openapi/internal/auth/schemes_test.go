@@ -142,12 +142,18 @@ B: {$ref}
 // unset.
 func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	t.Parallel()
-	for _, doc := range []*soa.OpenAPI{{}, {Components: &soa.Components{}}} {
-		c := lowering.Ctx{Doc: doc}
-		got, diags := auth.LowerSecuritySchemes(c)
-		assert.Empty(t, got)
-		assert.Empty(t, diags)
-		assert.Nil(t, auth.NewRegistry(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+	for name, doc := range map[string]*soa.OpenAPI{
+		"no components":            {},
+		"components but no scheme": {Components: &soa.Components{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.Ctx{Doc: doc}
+			got, diags := auth.LowerSecuritySchemes(c)
+			assert.Empty(t, got)
+			assert.Empty(t, diags)
+			assert.Nil(t, auth.NewRegistry(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+		})
 	}
 }
 
