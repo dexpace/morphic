@@ -263,8 +263,21 @@ verifier and codecs must reach.
   filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
   (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
-- **Probe.** Assert its verdict on each witness and producer output at each call site; a property
-  Unicode publishes also takes `references/ir-lessons.md#sweep-a-published-property`.
+- **Probe.** Assert its verdict on each witness and producer output at each call site, taking
+  `references/ir-lessons.md#witness-past-the-bmp` and
+  `references/ir-lessons.md#sweep-a-published-property` where they apply.
+
+## Witness past the BMP each term whose set reaches there
+`witness-past-the-bmp`
+
+- **Rule.** Each term of a text predicate whose set reaches past the Basic Multilingual Plane, such
+  as `unicode.Cf` or `unicode.Other_Default_Ignorable_Code_Point`, has a committed witness above
+  U+FFFF that it alone decides. A row an earlier term answers first, such as an exclusion or
+  `unicode.Variation_Selector`, witnesses nothing of a later one.
+- **Why.** `isInvisible`'s tests passed with its `Cf` term, and separately its
+  `Other_Default_Ignorable_Code_Point` term, held below U+10000, and still did with a row per class
+  and per range bound, as its rows past the BMP reached earlier terms (#1621).
+- **Probe.** Narrow each such term alone with `&& r < 0x10000`: a committed row reddens.
 
 ## Sweep a predicate over every code point where Unicode publishes its property
 `sweep-a-published-property`
