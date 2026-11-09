@@ -49,11 +49,12 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** A mutant is killed only where the output names a failing test (`--- FAIL: <test>`, or
   unittest's `FAIL:` or `ERROR:`) and the mutant compiled. A `[build failed]` or `[setup failed]`
-  line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`),
-  `[no tests to run]`, `Ran 0 tests`, an `ERROR` naming `unittest.loader._FailedTest`, a module
-  that did not load, and what `references/mutation.md#run-a-limit-or-a-stray-panic-ended` names are
-  no verdict. Adjust a mutant until it compiles (`_ = x`). A test binary's flag, such as `-update`,
-  follows the package, or `go` ends its own flags there and tests `.`.
+  line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`, a
+  `-timeout`), `[no tests to run]`, `Ran 0 tests`, an `ERROR` naming
+  `unittest.loader._FailedTest`, a module that did not load, and what
+  `references/mutation.md#run-a-limit-or-a-stray-panic-ended` names are no verdict. Adjust a mutant
+  until it compiles (`_ = x`). A test binary's flag, such as `-update`, follows the package, or `go`
+  ends its own flags there and tests `.`.
 - **Why.** Unused variables and imports turned mutants into build failures read as "not caught"
   (#321, #322) and as "killed" with no failure listed (#1100); `-update` before the package failed
   setup (#1555).
@@ -62,12 +63,13 @@ yourself. These rules are the ways that reading still lies.
 `run-a-limit-or-a-stray-panic-ended`
 
 - **Rule.** A run that exits 124 or 137, the codes `timeout` and a `KILL` give, or prints fewer
-  package lines than it was given packages, is no verdict: an outer limit ended it before any
-  `FAIL`. A panic with no `--- FAIL` above it, as one off the test goroutine prints, is a kill only
-  where its stack passes through the plant, and is reported as one whose test goes unnamed.
-- **Why.** In a scratch module, `timeout 5 go test` over a hanging test exited 124 with no
-  `--- FAIL` and no package `FAIL`, and a panic on another goroutine printed a package `FAIL` alone
-  (#1585).
+  package lines than its packages, is no verdict: an outer limit ended it before any `FAIL`. A panic
+  with no `--- FAIL` above it, as one off the test goroutine prints, bar `-timeout`'s
+  `test timed out`, is a kill only where its stack passes through the plant, reported with its test
+  unnamed.
+- **Why.** In a scratch module, `timeout 5 go test` over a hanging test exited 124 with no `FAIL`
+  line, a panic on another goroutine printed a package `FAIL` alone (#1585), and `-timeout`'s
+  panic held in its stack a function a plant only slowed (go1.27.3).
 - **Probe.** `timeout 5 go test -count=1 ./<hanging package>; echo $?` prints 124 and no `FAIL`.
 
 ## Count a table row's kill only from the row run alone

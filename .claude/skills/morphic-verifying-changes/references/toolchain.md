@@ -51,16 +51,31 @@
 ## The test cache keys on an input's stat and the log's order, not its bytes
 `test-cache-keys-on-stat-and-log-order`
 
-- **Rule.** A cached test result is looked up by each input file's modification time and size, in
-  the order the last run's log listed them, so a file restored by `git checkout` reruns the next
-  run, as does any run after one whose parallel tests reordered the log. Prime immediately before
-  each plant, read the run after a restore's rerun, and explain a surprising rerun with
+- **Rule.** A test result is keyed on each input file's modification time and size, in the order
+  the last run's log listed them, so a file `git checkout` restored reruns the next run, as
+  does any run after one whose parallel tests reordered the log. Prime immediately before each
+  plant, read the run after a restore's rerun by
+  `references/toolchain.md#test-cache-skips-fresh-inputs`, and explain a rerun with
   `GODEBUG=gocachetest=1`.
 - **Why.** A package reran on its first run after a planted comment was checked out, content as
   primed, and was `(cached)` next; three runs of one binary logged one file set in three
   orders (#1373, #1560).
-- **Probe.** Prime, plant a comment in a file the package's `-test.testlogfile` lists, and
-  `git checkout` it: the next run is not `(cached)`, the one after is.
+- **Probe.** Prime, plant a comment in a file the package's `-test.testlogfile` lists,
+  `git checkout` it, then wait 2 s: the next run is not `(cached)`, the one after is.
+
+## The test cache saves no result while an input is under 2 s old
+`test-cache-skips-fresh-inputs`
+
+- **Rule.** `go test` saves no result from a run reading an input modified under 2 s before it, so
+  after a restore each run reruns until one starts 2 s on, and the run after that one is the first
+  `(cached)`. Wait 2 s after a restore before reading a cache probe.
+- **Why.** Run back to back after a `git checkout`, as
+  `references/toolchain.md#test-cache-keys-on-stat-and-log-order`'s Probe read at #1619's
+  ef0739abe, three runs each reran, and after a 3 s wait one reran and the next was `(cached)`:
+  `modTimeCutoff` in `cmd/go/internal/test/test.go` holds an input under 2 s old too new to cache
+  (go1.27.3).
+- **Probe.** For a fast test, `git checkout` an input its `-test.testlogfile` lists, run twice,
+  `sleep 2` and run twice more: only the last is `(cached)`.
 
 ## A script started with `&` ignores an interrupt
 `background-start-ignores-sigint`
