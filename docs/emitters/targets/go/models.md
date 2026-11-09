@@ -40,7 +40,9 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   ([redaction](../../refine/redaction.md)), and it is excluded from the read shape. `LogValue` is
   what `log/slog` reads: its JSON handler writes any other value as JSON, the wire form, and
   resolves a `slog.LogValuer` only on the value it is handed, never on a list's elements, so
-  `LogValue` writes each redacted position as the marker itself.
+  `LogValue` writes each redacted position as the marker itself. All three take a value receiver: a
+  pointer receiver's methods are not in a `User`'s method set, so `fmt` and `log/slog` would print
+  field by field a `User` held by value, as `ListUsers` yields one and a slice holds one.
   `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
   `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
   rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
