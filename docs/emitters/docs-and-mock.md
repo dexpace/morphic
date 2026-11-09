@@ -476,6 +476,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all |
 | Flags that exclude or require each other | the branches of a request body's `Union` |
 | A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)) |
+| A command's help naming its tier and what it means, and an `alpha` command run only with a flag acknowledging it | `OpPlan.Stability` ([stability](operations/stability.md)) |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
 A CLI's help reads a description as the pages do, through the same tokenizer and link rule, and
