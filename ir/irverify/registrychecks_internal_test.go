@@ -21,8 +21,8 @@ import (
 // tables themselves rather than through the walk.
 var registryChecks = []func(*ir.Document) []Violation{
 	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds,
-	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkRequires,
-	checkVersion, checkDocument,
+	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkCatchAlls,
+	checkRequires, checkVersion, checkDocument,
 }
 
 // registryCheckName is a registryChecks entry's function name, without its
@@ -114,7 +114,7 @@ func cleanRegistry(n int) *ir.Document {
 			model.Requires = append(model.Requires, fmt.Sprintf("inherited%d", j))
 		}
 		enumPath := "components/schemas/Enumeration" + suffix
-		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), Members: []ir.EnumMember{
+		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), ValueType: ir.PrimString, Members: []ir.EnumMember{
 			{ID: ir.EnumMemberID("e/x/" + enumPath + "/a")}, {ID: ir.EnumMemberID("e/x/" + enumPath + "/b")},
 		}}
 		for _, td := range []ir.TypeDef{

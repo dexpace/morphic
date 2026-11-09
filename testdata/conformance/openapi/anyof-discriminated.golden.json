@@ -268,7 +268,9 @@
           "named": "t/openapi/components/schemas/Named"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",

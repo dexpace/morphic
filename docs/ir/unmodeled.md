@@ -223,6 +223,7 @@ a row.
 | `Operation.Deprecation`, `Parameter.Deprecation`, `Property.Deprecation`, `AuthScheme.Deprecation`, `Message.Deprecation`, `TypeCommon.Deprecation` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Deprecation.Message`, `Deprecation.Since`, `Deprecation.RemovalVersion`, `Deprecation.RemovalDate` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
+| `Union.Closed` | `Union` | `Provenance.Inferred` |
 | `Operation.Stability`, `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
 | `TypeCommon.Sensitive` | `TypeCommon` | `Provenance.Inferred` |
 | `Property.Secret`, `Parameter.Secret` | `Property`, `Parameter`, `TypeCommon` | `Provenance.Inferred` |

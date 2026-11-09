@@ -207,7 +207,7 @@ func (c *correlator) additional(key string, extra *ir.AdditionalProps) {
 	if extra == nil {
 		return
 	}
-	c.ref(part(key, "additional"), &extra.Value)
+	c.ref(part(key, "additional"), extra.Value)
 	c.ref(part(key, "additionalKey"), extra.Key)
 	for i := range extra.Patterns {
 		c.ref(child(key, "pattern", extra.Patterns[i].Pattern), &extra.Patterns[i].Value)

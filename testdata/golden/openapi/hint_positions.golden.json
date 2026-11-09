@@ -2331,7 +2331,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/decorated/oneOf/0": {
       "kind": "model",
@@ -2456,7 +2458,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/embedded": {
       "kind": "scalar",
@@ -2616,7 +2620,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/exclusive/oneOf/1": {
       "kind": "model",
@@ -2700,7 +2706,9 @@
         }
       ],
       "exclusive": false,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/inclusive/anyOf/1": {
       "kind": "model",
@@ -2940,7 +2948,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/0": {
       "kind": "literal",
@@ -2958,7 +2968,8 @@
       "value": {
         "kind": "string",
         "str": "a"
-      }
+      },
+      "valueType": "string"
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/1": {
       "kind": "literal",
@@ -2976,7 +2987,8 @@
       "value": {
         "kind": "number",
         "num": "1"
-      }
+      },
+      "valueType": "number"
     },
     "t/anon/components/schemas/Positions/properties/mixedEnum/enum/2": {
       "kind": "literal",
@@ -2994,7 +3006,8 @@
       "value": {
         "kind": "bool",
         "bool": true
-      }
+      },
+      "valueType": "bool"
     },
     "t/anon/components/schemas/Positions/properties/multiTyped": {
       "kind": "union",
@@ -3032,7 +3045,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/multiTypedObject": {
       "kind": "union",
@@ -3070,7 +3085,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/multiTypedObject/type/0": {
       "kind": "model",
@@ -3378,7 +3395,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0": {
       "kind": "scalar",
@@ -3522,7 +3541,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/unionOfUnions/oneOf/0": {
       "kind": "union",
@@ -3560,7 +3581,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/unionOfUnions/oneOf/0/oneOf/0": {
       "kind": "model",
@@ -3680,7 +3703,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Positions/properties/wrapped/oneOf/0": {
       "kind": "model",
@@ -4512,7 +4537,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0": {
       "kind": "model",

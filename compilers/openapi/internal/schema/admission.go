@@ -89,7 +89,9 @@ func kindOfValue(v ir.Value) kindSet {
 		return kindObject
 	case ir.ValueNumber:
 		return kindOfNumber(string(v.Num))
-	case ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		// A reference, a constructor and a non-finite number are no JSON
+		// instance's value.
 		return 0
 	default:
 		return 0

@@ -150,7 +150,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	variants := make([]ir.Variant, 0, len(nodes))
 	for i, node := range nodes {
 		lptr := pointer + ids.Ptr("enum", strconv.Itoa(i))
-		litID, litDiags := hoistLiteral(c, ts, node, lptr)
+		litID, litDiags := hoistLiteral(c, ts, s, node, lptr)
 		diags = append(diags, litDiags...)
 		variants = append(variants, ir.Variant{
 			Name: compile.NamingHint(lowering.NameAt(c, lptr)),
@@ -161,6 +161,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  distinct,
+		Closed:     true,
 	}, diags
 }
 
@@ -174,7 +175,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 //
 // It returns the interned ID, plus the diagnostic an unconvertible node
 // produces — none when the node converts.
-func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer jsontext.Pointer,
+func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, node values.Value, pointer jsontext.Pointer,
 ) (ir.TypeID, []ir.Diagnostic) {
 	// Captured from inside the build rather than reported around it, which keeps
 	// the report tied to the node actually being constructed. Reporting eagerly
@@ -189,9 +190,34 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer 
 				"unconvertible value lowered as the top type: %s", err.Error()))
 			return &ir.Any{TypeCommon: common}
 		}
-		return &ir.Literal{TypeCommon: common, Value: val}
+		return &ir.Literal{TypeCommon: common, Value: val, ValueType: literalValueType(s, val)}
 	})
 	return id, diags
+}
+
+// literalValueType picks a Literal's ValueType as enumValueType picks an
+// Enum's, for its one value: the primitive the declared type and format
+// select, else the declared type's, where the value is one of it; else the
+// primitive the value's own kind declares, and none for a null, a list or an
+// object, which no primitive types. It reads s alone, so a type another allOf
+// conjunct declares does not reach it (GitHub #1641).
+func literalValueType(s *oas3.Schema, val ir.Value) ir.PrimKind {
+	if prim, paired := formatPrimitive(s); paired && merge.Admits(prim, val) {
+		return prim
+	}
+
+	if types := effectiveTypes(s); len(types) == 1 {
+		if prim, known := spelling.Lookup(string(types[0])); known && merge.Admits(prim, val) {
+			return prim
+		}
+	}
+
+	prim, _, scalar := enumMemberForm(val)
+	if !scalar {
+		return ""
+	}
+
+	return prim
 }
 
 // enumValueType picks an Enum's ValueType: the primitive the schema's declared
@@ -246,9 +272,11 @@ func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 		return ir.PrimBool, strconv.FormatBool(v.Bool), true
 	case ir.ValueBytes:
 		return ir.PrimBytes, base64.StdEncoding.EncodeToString(v.Bytes), true
-	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		// Composite, reference and null values are not enum members: none has a
-		// primitive to declare or a literal text form to name a member by.
+		// primitive to declare or a literal text form to name a member by. Nor
+		// is a non-finite number, which no OpenAPI value is.
 		return "", "", false
 	default:
 		return "", "", false
@@ -278,7 +306,7 @@ func enumMemberKey(v ir.Value) (key string, ok bool) {
 		tag, payload = "x", base64.RawURLEncoding.EncodeToString(v.Bytes)
 	case ir.ValueNull:
 		tag = "z"
-	case ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false
@@ -361,7 +389,7 @@ func valueKey(v ir.Value, depth int) (key string, ok bool) {
 		return listKey(v.List, depth)
 	case ir.ValueObject:
 		return objectKey(v.Object, depth)
-	case ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false

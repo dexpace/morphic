@@ -57,6 +57,10 @@ witnessing it.
 
 - Witnesses: `extension-promotion`
 
+### `open-unions`
+
+- Witnesses: `extension-promotion`
+
 ### `custom-scalars`
 
 - Witnesses: `scalar-format`

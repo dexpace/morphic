@@ -740,7 +740,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels/oneOf/1": {
       "kind": "list",

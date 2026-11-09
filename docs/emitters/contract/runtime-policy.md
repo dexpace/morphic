@@ -88,9 +88,11 @@ type or a decoder rather than the boilerplate around them, and docs and mocks ha
 A union a client reads keeps an unknown variant and an enum an unknown value under `plan.Policy`,
 and a `oneOf` two variants admit decodes as `plan.Policy` says ([plan policy](../plan/policy.md)).
 Unknown members follow each model's `Additional`, a declared fact, so no setting widens a model the
-spec closes or closes one it leaves open. An enum differs because an OpenAPI `enum` can only be
-closed, so its `Closed` records no choice, where `additionalProperties: false` is one its author
-writes ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open)).
+spec closes or closes one it leaves open. An enum and a union differ because an OpenAPI `enum`,
+`oneOf` or `anyOf` can only be closed, so their `Closed` records no choice, where
+`additionalProperties: false` is one its author writes
+([unions](../plan/policy.md#a-union-a-client-reads-is-open),
+[enums](../plan/policy.md#an-enum-a-client-reads-is-open)).
 
 ## Delivery
 

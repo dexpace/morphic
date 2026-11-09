@@ -50,7 +50,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		diags = append(diags, applyFalseBranches(c, m, comp)...)
+		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
@@ -338,7 +338,8 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
 // the branch verbatim under Unmodeled. It runs after fillAdditional, whose
-// result it overrides.
+// result it overrides, the catch-all included
+// (docs/compilers/openapi.md#allof-false-branch).
 //
 // A `false` branch admits nothing, so m must not stay open; the rule
 // docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
@@ -346,7 +347,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 // would trade one silent loss for another. The verbatim branch tells this from
 // a plain `additionalProperties: false`; a diagnostic does not, being no part
 // of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
 		if !annotation.IsFalseSchema(e.schema) {
@@ -360,6 +361,13 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
+
+	if m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
+		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, s, "additionalProperties",
+			ir.ReasonDegradedLowering, comp.pointer, c.ProvenanceAt)
+		diags = append(diags, keptDiags...)
+	}
+	forbidRest(m)
 	return diags
 }
 

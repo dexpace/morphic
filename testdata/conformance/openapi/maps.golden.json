@@ -148,6 +148,36 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/ClosedPatternMap": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ClosedPatternMap",
+      "name": {
+        "source": "ClosedPatternMap",
+        "canonical": "closed_pattern_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ClosedPatternMap"
+      },
+      "additionalProps": {
+        "patterns": [
+          {
+            "pattern": "^x-",
+            "value": {
+              "target": "t/prim/string",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "additional": "closed",
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/ClosedRecord": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ClosedRecord",
@@ -355,7 +385,7 @@
     {
       "format": "openapi@3.1",
       "path": "maps.yaml",
-      "hash": "80b768b595ead6337557f683bce1b9755ab21f093822456a793a8a5e5819f9a7"
+      "hash": "839156eab47153b381e01449fc07dd1bd1d6628bff2d8b7d7d9e34a31a10c794"
     }
   ]
 }

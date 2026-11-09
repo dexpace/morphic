@@ -23,7 +23,7 @@ func mapModel() *ir.Model {
 		Docs: ir.Docs{Description: "labels"},
 		AdditionalProps: &ir.AdditionalProps{
 			Key:   &ir.TypeRef{Target: "t/prim/int64"},
-			Value: ir.TypeRef{Target: "t/prim/string", Nullable: true},
+			Value: &ir.TypeRef{Target: "t/prim/string", Nullable: true},
 		},
 		Constraints: &ir.Constraints{MinProps: &minProps},
 	}
@@ -42,22 +42,27 @@ func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 	want := &ir.MapT{
 		TypeCommon:  m.TypeCommon,
 		Key:         m.AdditionalProps.Key,
-		Value:       m.AdditionalProps.Value,
+		Value:       *m.AdditionalProps.Value,
 		Constraints: m.Constraints,
 	}
 	assert.Empty(t, cmp.Diff(want, mt))
 }
 
 // TestAsMap_RefusesWhatIsNoMap pins the shapes with no catch-all to convert: a
-// nil model, a model with no catch-all, and one whose catch-all scopes a value
-// to a key pattern, which a MapT has no field for.
+// nil model, a model with no catch-all, one whose catch-all scopes a value to a
+// key pattern, which a MapT has no field for, and one whose catch-all types no
+// key, which ir/catch-all-empty reports and a MapT has no value for.
 func TestAsMap_RefusesWhatIsNoMap(t *testing.T) {
 	t.Parallel()
 	patterned := mapModel()
 	patterned.AdditionalProps.Patterns = []ir.PatternProps{{Pattern: "^x-", Value: ir.TypeRef{Target: "t/prim/string"}}}
 	noCatchAll := mapModel()
 	noCatchAll.AdditionalProps = nil
-	for name, m := range map[string]*ir.Model{"nil": nil, "no catch-all": noCatchAll, "patterned": patterned} {
+	noValue := mapModel()
+	noValue.AdditionalProps.Value = nil
+	for name, m := range map[string]*ir.Model{
+		"nil": nil, "no catch-all": noCatchAll, "patterned": patterned, "no value": noValue,
+	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			mt, ok := ir.AsMap(m)

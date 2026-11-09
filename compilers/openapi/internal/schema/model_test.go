@@ -156,7 +156,7 @@ func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 			require.True(t, ok, "got %T", doc.Types[componentID("S")])
 			assert.Equal(t, []string{"a"}, m.Requires)
 			require.NotNil(t, m.AdditionalProps)
-			assert.Equal(t, ir.TypeRef{Target: "t/prim/string"}, m.AdditionalProps.Value)
+			assert.Equal(t, &ir.TypeRef{Target: "t/prim/string"}, m.AdditionalProps.Value)
 			assert.NotContains(t, m.Unmodeled, "openapi:required")
 			assert.Empty(t, diags)
 		})
@@ -171,7 +171,7 @@ func TestObject_ACatchAllBesideARequiredNameStaysAModel(t *testing.T) {
 func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	t.Parallel()
 	const base = "    B: {type: object, properties: {b: {type: string}}}\n"
-	anyRef := &ir.AdditionalProps{Value: ir.TypeRef{Target: "t/prim/any"}}
+	anyRef := &ir.AdditionalProps{Value: &ir.TypeRef{Target: "t/prim/any"}}
 	strRef := ir.TypeRef{Target: "t/prim/string"}
 	for _, tc := range []struct {
 		name, schema string
@@ -179,14 +179,19 @@ func TestObject_CatchAllBesideAnotherFactStaysModel(t *testing.T) {
 	}{
 		{"properties", `{type: object, properties: {a: {type: string}}, additionalProperties: true}`, anyRef},
 		{"patterns", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: {type: string}}`,
-			&ir.AdditionalProps{Value: strRef, Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
+			&ir.AdditionalProps{Value: &strRef, Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
+		{"patterns beside no catch-all", `{type: object, patternProperties: {"^x-": {type: string}}}`,
+			&ir.AdditionalProps{Value: anyRef.Value, Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
+		// A closed object admits no key the patterns miss, so nothing types one (#987).
+		{"patterns beside a closure", `{type: object, patternProperties: {"^x-": {type: string}}, additionalProperties: false}`,
+			&ir.AdditionalProps{Patterns: []ir.PatternProps{{Pattern: "^x-", Value: strRef}}}},
 		// Inert beside a catch-all in JSON Schema, but still read as a closure (#862).
 		{"closed after composition", `{type: object, additionalProperties: {type: string}, unevaluatedProperties: false}`,
-			&ir.AdditionalProps{Value: strRef}},
+			&ir.AdditionalProps{Value: &strRef}},
 		{"discriminator", `{type: object, additionalProperties: {type: string}, discriminator: {propertyName: kind}}`,
-			&ir.AdditionalProps{Value: strRef}},
+			&ir.AdditionalProps{Value: &strRef}},
 		{"base", `{allOf: [{$ref: '#/components/schemas/B'}], additionalProperties: {type: string}}`,
-			&ir.AdditionalProps{Value: strRef}},
+			&ir.AdditionalProps{Value: &strRef}},
 		{"unwritten", `{type: object}`, nil},
 		{"closed", `{type: object, additionalProperties: false}`, nil},
 	} {

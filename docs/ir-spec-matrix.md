@@ -33,12 +33,13 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `enums-string` | Enums (string) | ✅ | ✅ | ✅ named members | ✅ enum | ✅ | ✅ | ⚠ | ⚠ atom unions |
 | `enums-numeric` | Enums (numeric, valued) | ✅ | ✅ | ✅ | ✅ intEnum | — | ✅ | ✅ | ⚠ int unions |
 | `open-enums` | Open enums (unknown values allowed) | ⚠ anyOf trick, x-extensible-enum | — | ⚠ union w/ string | ✅ (enums are open by default) | — | ⚠ | ✅ open (proto3/editions) / closed (proto2, per-enum feature) | ⚠ atom() fallback |
+| `open-unions` | Open unions (unknown variants allowed) | ⚠ an x-* key a promotion mapping names | — | — | ✅ (unions are open) | ⚠ output unions gain members as a schema evolves | ⚠ an x-* key a promotion mapping names | ✅ oneof (an unknown field leaves no case set) | — |
 | `custom-scalars` | Custom scalars | ⚠ type+format | ⚠ | ✅ scalar extends | ⚠ traits | ✅ scalar | ⚠ | — | ✅ -type/-opaque |
 | `encoding-hints` | Wire encoding hints (@encode / format) | ✅ format | ✅ format | ✅ @encode | ✅ timestampFormat | — | ✅ | ✅ fixed/zigzag/packed/delimited | — (ETF fixed) |
 | `field-wire-ids` | Field wire IDs (numeric tags) | — | — | — | — | — | — | ✅ field numbers | ⚠ tuple positions |
 | `wire-name-distinct` | Wire name ≠ model name | ✅ (property key) | ✅ | ✅ @encodedName | ✅ jsonName (incl. union members) | — | ✅ | ✅ json_name | — |
 | `optionality-vs-nullability` | Optionality vs nullability distinct | ✅ (3.1) | ⚠ | ✅ | ⚠ presence only (null via @sparse collections) | ✅ | ✅ | ⚠ presence (3-state: implicit/explicit/required) | ⚠ :=/=> + 'undefined' |
-| `defaults` | Defaults | ✅ | ✅ | ✅ | ✅ | ✅ args + input fields | ✅ | ✅ proto2 | ⚠ record fields |
+| `defaults` | Defaults | ✅ | ✅ | ✅ | ✅ | ✅ args + input fields | ✅ | ✅ proto2, non-finite floats included | ⚠ record fields |
 | `constraints` | Constraints (min/max/pattern…) | ✅ | ✅ | ✅ decorators | ✅ traits | ⚠ directives (convention only) | ✅ | ⚠ protovalidate | ⚠ ranges, bit sizes |
 | `visibility` | readOnly/writeOnly / visibility | ✅ | ✅ readOnly | ✅ @visibility classes | — | ✅ input vs output types | ⚠ (JSON Schema readOnly) | — | — |
 | `redaction` | Redaction of sensitive values | ✅ format: password | ✅ format: password | ✅ @secret | ✅ @sensitive | — | ⚠ format: password (OpenAPI's; AsyncAPI defines none) | ✅ debug_redact | — |

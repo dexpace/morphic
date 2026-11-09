@@ -206,8 +206,8 @@ func requireMembers(m *ir.Model, required []string) {
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
 // beyond the declared ones are allowed. Only an absent keyword writes no
-// catch-all. Neither spelling touches Additional, which this sets only for
-// `false` and `unevaluatedProperties: false`.
+// catch-all, unless patterns need one. Neither spelling touches Additional,
+// which this sets only for `false` and `unevaluatedProperties: false`.
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
@@ -219,20 +219,41 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 	default:
 		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
-		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
+		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: ts.PrimRef(ir.PrimAny)}
+			// A key no pattern matches is unconstrained unless a closure says
+			// otherwise. Beside `unevaluatedProperties: false` it stays the top
+			// type, though JSON Schema then admits such a key only where
+			// composition evaluates it (GitHub #862).
+			top := ts.PrimRef(ir.PrimAny)
+			m.AdditionalProps = &ir.AdditionalProps{Value: &top}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
+	forbidRest(m)
 	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags
+}
+
+// forbidRest drops from a closed model's catch-all the value typing the keys no
+// pattern matches, which the closure allows none of, and the catch-all itself
+// when no pattern is left (docs/ir/models.md#catch-alls). Each writer of a
+// closure beside a catch-all calls it once the closure is decided.
+func forbidRest(m *ir.Model) {
+	if m.Additional != ir.AdditionalClosed || m.AdditionalProps == nil {
+		return
+	}
+
+	m.AdditionalProps.Value = nil
+	if len(m.AdditionalProps.Patterns) == 0 {
+		m.AdditionalProps = nil
+	}
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source

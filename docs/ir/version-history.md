@@ -295,3 +295,21 @@ it sees. Changes made together in one bump are listed together under it.
   ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
   `application/octet-stream` is no longer a file, nor is `format: binary` beside a
   `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.
+- **0.33.0** — four changes to the type nodes, made together:
+  - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
+    hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
+    `oneOf` or `anyOf` is, unless a promoted extension opens it, as `x-extensible-enum` does under
+    the default mapping on the union of literals a mixed enum lowers to. `InputOnly` marks a union
+    only a request carries, as `Model.InputOnly` marks an input object. Both are always written. A
+    consumer pinned to 0.32.0 refuses the document for its unknown members.
+  - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
+    number of one value, or a string and a date, are told apart where they were one `Value`, with
+    the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
+    the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
+  - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
+    `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
+    catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
+    which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
+    A consumer pinned to 0.32.0 decoding the value as required fails on the missing member.
+  - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
+    payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.

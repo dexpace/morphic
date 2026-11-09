@@ -9,6 +9,7 @@ negation	Negation
 enums-string	Enums (string)
 enums-numeric	Enums (numeric, valued)
 open-enums	Open enums (unknown values allowed)
+open-unions	Open unions (unknown variants allowed)
 custom-scalars	Custom scalars
 encoding-hints	Wire encoding hints (@encode / format)
 field-wire-ids	Field wire IDs (numeric tags)

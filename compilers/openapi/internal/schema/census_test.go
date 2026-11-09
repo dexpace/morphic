@@ -101,9 +101,8 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 // TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
 // the winning lowering never reads (GitHub #268). lower() elects one keyword
 // family per position, and what the elected form has no field for must be kept:
-// a Model has no type token, a Literal no encoding or Constraints, none of
-// which a keyword list shows, only the node that was built, which is what the
-// census asks.
+// a Model has no type token, a Literal no Constraints and no type or format its
+// value does not fit. Only the built node shows it, which the census asks.
 //
 // The kept set is asserted whole, so a census that keeps too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a
@@ -119,12 +118,15 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindModel, []string{"openapi:type"}},
 		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
 			ir.KindModel, nil},
+		// The value fits the type and format, so the literal's ValueType holds both.
 		{"format beside const", "{const: 5, type: integer, format: int32}",
-			ir.KindLiteral, []string{"openapi:format", "openapi:type"}},
+			ir.KindLiteral, nil},
 		{"contradictory type beside const", "{const: 5, type: string}",
 			ir.KindLiteral, []string{"openapi:type"}},
+		// The literal's ValueType holds the type its value fits; no bound reaches
+		// a field.
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
-			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
+			ir.KindLiteral, []string{"openapi:maxLength"}},
 		// A collection bound is homed by the Constraints of a List or a Tuple and
 		// by nothing else, so an object keeps it here and the tuple, its control,
 		// keeps nothing.

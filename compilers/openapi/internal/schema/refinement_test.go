@@ -87,6 +87,7 @@ func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir
 	bag, ok := typeByName(doc, "Bag").(*ir.Model)
 	require.True(t, ok, "Bag lowers to a model")
 	require.NotNil(t, bag.AdditionalProps)
+	require.NotNil(t, bag.AdditionalProps.Value, "Bag types every key")
 	carriers = map[string]ir.TypeRef{
 		"property":  propertyOf(t, doc, "Holder", "f").Type,
 		"parameter": param.Type,
@@ -95,7 +96,7 @@ func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir
 	nodes = map[string]ir.TypeRef{
 		"request":  op.Request.Contents[0].Type,
 		"response": op.Responses[0].Payload.Contents[0].Type,
-		"map":      bag.AdditionalProps.Value,
+		"map":      *bag.AdditionalProps.Value,
 		"items":    items.Elem,
 		"variant":  union.Variants[0].Type,
 	}

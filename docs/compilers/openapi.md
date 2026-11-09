@@ -1900,15 +1900,20 @@ it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) ke
 (`degraded_lowering`), which is what distinguishes it from a model that merely wrote
 `additionalProperties: false`, and reported as an info `openapi/false-schema` at the branch. What
 the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
-model would trade one silent loss for another. A `true` conjunct admits everything, so contributing
-nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is
-distributed ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed
-and keeps the branch, and the branch is reported once.
+model would trade one silent loss for another. The model's catch-all keeps only its patterns, as
+beside `additionalProperties: false` ([catch-alls](../ir/models.md#catch-alls)), since the closure
+forbids every key they leave: its value goes, an `additionalProperties` the schema writes being kept
+verbatim under `openapi:additionalProperties` (`degraded_lowering`), and a catch-all left no pattern
+goes whole. A `true` conjunct admits everything, so contributing nothing from it is exact and
+nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is distributed
+([`union-beside-structure`](#union-beside-structure)), every composed variant is closed and keeps
+the branch, and the branch is reported once.
 
 - Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
-  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
+  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`,
+  `schema.TestAllOf_FalseBranchClosesTheCatchAllItForbids`
 
 ### `allof-disjoint-conjuncts`
 
@@ -1972,7 +1977,9 @@ the branch's lowering — a `$ref` branch to its target, an inline one to its ow
 ([`inline-hoisting`](#inline-hoisting)) — and never collapsed into optional fields. The union is
 untagged, `WireTagged` false, unless a `discriminator` beside it routes it
 ([`discriminator`](#discriminator)): the tag property's value then names the variant, so the union
-is `WireTagged`, an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). A branch set of
+is `WireTagged`, an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). Every union is
+`Closed`, since JSON Schema admits only what matches a listed branch; an extension a promotion
+mapping names may open one ([`extension-promotion`](#extension-promotion)). A branch set of
 one schema and `null` ([`union-null-variant`](#union-null-variant)), of `null` alone
 ([`union-null-only`](#union-null-only)), and one written beside structure, a `$ref` or the other
 combinator ([`union-beside-structure`](#union-beside-structure),
@@ -2315,7 +2322,10 @@ An entry repeating an earlier entry's value, compared as JSON Schema compares in
 each occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
 `openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
 to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
-`Literal` of its value, and one that cannot convert to the top type, with an
+`Literal` of its value, whose `ValueType` is read as an enum's is, from the type and format the
+value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
+so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
+verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
 `openapi/degraded-construct` warning at the schema. A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
@@ -2327,14 +2337,15 @@ at that position, whichever is lowered first.
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
+  `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619); and a `Literal` carries no value type or format (#668). Open:
-  whether a mixed-type enum's `null` lifts out of its union (#618).
+  only an info diagnostic (#619); and a `Literal` an `allOf` refines takes no type or format another
+  conjunct declares (#1641). Open: whether a mixed-type enum's `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -2353,19 +2364,21 @@ is the empty schema, so it types the catch-all as the top type exactly as `{}` d
 `MapT` of the top type, and beside properties an `AdditionalProps` of the top type. An absent
 `additionalProperties` states nothing, so `{type: object}` stays a `Model` with no properties and
 `Additional` unspecified; whether such an object is a free-form map is a target's policy, not a fact
-the source declared. The one catch-all the source does not write is beside `patternProperties`:
-`AdditionalProps.Value` is not optional, and a key no pattern matches is unconstrained, so it is the
-top type, and beside patterns the IR does not tell an absent `additionalProperties` from `true`.
-That object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
+the source declared. Beside `patternProperties` the catch-all's `Value` types a key no pattern
+matches ([catch-alls](../ir/models.md#catch-alls)): absent, such a key is unconstrained, so it is
+the top type, and the IR does not tell an absent `additionalProperties` from `true`; `false` admits
+no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. That
+object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
 
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
-  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`
-- Status: partly built: `additionalProperties: false` beside `patternProperties` also carries a
-  catch-all typed as the top type, which the closure contradicts (#987), and an
-  `unevaluatedProperties: false` that a catch-all beside it makes inert in JSON Schema still lowers
-  to a closure, which keeps the object a `Model` (#862).
+  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
+  `schema.TestAllOf_AClosureAfterCompositionKeepsTheCatchAll`
+- Status: partly built: an `unevaluatedProperties: false` that a catch-all beside it makes inert
+  in JSON Schema still lowers to a closure, which keeps the object a `Model`, and one beside
+  `patternProperties` alone leaves the catch-all typing a key no pattern matches as the top type,
+  where JSON Schema admits such a key only if composition evaluates it (#862).
 
 ### `required-members`
 
@@ -3956,6 +3969,15 @@ polarity. A document that writes `x-extensible-enum` *instead* of `enum` lowers 
 and there is no node to open — minting one from a vendor key would be a compiler reading a member
 list out of an extension, not a promotion, so the entry is left for a consumer that wants to.
 
+`Union.Closed` is read the same way, by presence, through the target `union.open`: a `oneOf` or
+`anyOf` is closed by definition, so a document can only declare the open case. No default key names
+it, since no spelling for an open union has become common, so a union opens only under a mapping
+that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-const)) reads
+`enum.open` instead, as the enum would, since a target names what the document writes, whatever
+node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
+and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
+where one reading could override what the other reports.
+
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
@@ -3963,6 +3985,9 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `lowering.TestPromoterStability_ReadsEachWord`,
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
   `lowering.TestPromoterEnumOpenness_WritesNothing`,
+  `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `e2e.TestPromotion_AMappedKeyOpensAUnion`,
+  `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,

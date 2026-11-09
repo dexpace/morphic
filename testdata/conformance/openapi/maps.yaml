@@ -23,6 +23,13 @@ components:
       type: object
       patternProperties:
         "^x-": {type: string}
+    # Closed beside its patterns: a key no pattern matches is refused, so the
+    # catch-all holds the patterns and types no other key.
+    ClosedPatternMap:
+      type: object
+      patternProperties:
+        "^x-": {type: string}
+      additionalProperties: false
     OpenRecord:
       type: object
       properties:

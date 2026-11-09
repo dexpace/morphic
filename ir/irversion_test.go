@@ -82,6 +82,8 @@ var generations = []generation{
 		meaning: "an allOf no conjunct can make an object is a use of the conjunct deciding it, not a Model, and a node at an inline allOf branch is named as the schema holding it"},
 	{version: "0.32.0", format: 1, shape: "694a668c2583e6e7ef04f15195448dc7b011725bec72a5f1535b2260a5e4b1a0",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.33.0", format: 1, shape: "0adcd68b4066926aebce88cfba6729c8be8bc8a559bdef084429021ca5628dfa",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

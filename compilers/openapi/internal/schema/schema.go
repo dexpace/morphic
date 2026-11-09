@@ -268,7 +268,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	}
 	switch d.won {
 	case "const":
-		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer))
+		return unhomed(hoistLiteral(c, ts, s, s.GetConst(), pointer))
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":

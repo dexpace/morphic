@@ -354,7 +354,7 @@ func typesFixture() *ir.Document {
 			{ID: "p/test/gone", Name: ir.Naming{Source: "gone"}, Type: ir.TypeRef{Target: "t/missing"}},
 			{ID: "p/test/nil", Name: ir.Naming{Source: "nil"}, Type: ir.TypeRef{Target: "t/test/nil"}}}
 		m.AdditionalProps = &ir.AdditionalProps{
-			Value: ir.TypeRef{Target: "t/anon/av"}, Key: &ir.TypeRef{Target: "t/anon/ak"},
+			Value: &ir.TypeRef{Target: "t/anon/av"}, Key: &ir.TypeRef{Target: "t/anon/ak"},
 			Patterns: []ir.PatternProps{{Pattern: "^x-/", Value: ir.TypeRef{Target: "t/anon/pv"}}},
 		}
 	})
@@ -428,7 +428,7 @@ func conjunctsFixture() *ir.Document {
 	c2 := irtest.ModelOf("t/anon/c2", func(m *ir.Model) {
 		m.Anonymous = true
 		m.Mixins = irtest.RefsTo("t/anon/c3", "t/missing", "t/anon/c3")
-		m.AdditionalProps = &ir.AdditionalProps{Value: ir.TypeRef{Target: "t/anon/extra"}}
+		m.AdditionalProps = &ir.AdditionalProps{Value: &ir.TypeRef{Target: "t/anon/extra"}}
 	})
 	solo := irtest.ModelOf("t/anon/solo", func(m *ir.Model) {
 		m.Anonymous = true

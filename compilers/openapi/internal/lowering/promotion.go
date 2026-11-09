@@ -56,8 +56,8 @@ const (
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate ExtensionTarget = "deprecation.removalDate"
 
-	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
-	// the document does not list.
+	// TargetEnumOpen clears ir.Enum.Closed, or a mixed enum's ir.Union.Closed,
+	// saying the member set admits values the document does not list.
 	//
 	// It names the fact rather than the field, unlike the rest of this
 	// vocabulary: a schema's `enum` is closed by definition, so openness is the
@@ -68,6 +68,13 @@ const (
 	// established spelling, writes the member list as its value. An explicit
 	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
+
+	// TargetUnionOpen clears the ir.Union.Closed of a oneOf or an anyOf, saying
+	// a payload may hold a variant the union does not list. It names the fact
+	// for TargetEnumOpen's reason: a oneOf or anyOf is closed by definition. No
+	// default key names it, since no spelling for an open union has become
+	// common; a document that writes one names its own mapping.
+	TargetUnionOpen ExtensionTarget = "union.open"
 
 	// TargetStability fills ir.Operation.Stability. The words a value may use
 	// are stabilityTier's.
@@ -352,8 +359,9 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 	return diags
 }
 
-// EnumOpenness clears e.Closed when the vendor extensions kept in unmodeled
-// state the set open, and marks prov with the heuristic when they do.
+// EnumOpenness clears *closed, an enum's or that of the union a mixed enum
+// lowers to, when the vendor extensions kept in unmodeled state the set open,
+// and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -362,16 +370,32 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Provenance) []ir.Diagnostic {
-	if e == nil || prov == nil {
+func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	open, _, diags := firstStated(unmodeled, p.targets[TargetEnumOpen], reading[bool]{
-		target: TargetEnumOpen,
+	return p.openness(unmodeled, TargetEnumOpen, closed, prov)
+}
+
+// UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
+// when the vendor extensions kept in unmodeled state the union open, and marks
+// prov with the heuristic when they do, as EnumOpenness opens an enum.
+func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
+		return nil
+	}
+	return p.openness(unmodeled, TargetUnionOpen, closed, prov)
+}
+
+// openness clears *closed and marks prov when a source of target in unmodeled
+// states openness (extensionOpenness).
+func (p Promoter) openness(unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	open, _, diags := firstStated(unmodeled, p.targets[target], reading[bool]{
+		target: target,
 		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return extensionOpenness(raw), states },
 	})
 	if open {
-		e.Closed = false
+		*closed = false
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags

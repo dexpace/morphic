@@ -746,6 +746,82 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Mixed/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/enum/0",
+      "name": {
+        "hint": "mixed_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/enum/0"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1"
+      },
+      "valueType": "number"
+    },
+    "t/anon/components/schemas/Mixed/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Mixed/enum/1",
+      "name": {
+        "hint": "mixed_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed/enum/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "small"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/MixedFixed/enum/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/MixedFixed/enum/0",
+      "name": {
+        "hint": "mixed_fixed_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedFixed/enum/0"
+      },
+      "value": {
+        "kind": "number",
+        "num": "1"
+      },
+      "valueType": "number"
+    },
+    "t/anon/components/schemas/MixedFixed/enum/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/MixedFixed/enum/1",
+      "name": {
+        "hint": "mixed_fixed_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedFixed/enum/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "small"
+      },
+      "valueType": "string"
+    },
     "t/openapi/components/schemas/ByKey": {
       "kind": "model",
       "id": "t/openapi/components/schemas/ByKey",
@@ -860,6 +936,155 @@
       ],
       "closed": true,
       "flags": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": [
+            1,
+            "small"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Mixed/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed",
+        "inferred": "extension-promotion"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "mixed_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "mixed_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Mixed/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MixedFixed": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/MixedFixed",
+      "name": {
+        "source": "MixedFixed",
+        "canonical": "mixed_fixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedFixed"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "mixed_fixed_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/MixedFixed/enum/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "mixed_fixed_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/MixedFixed/enum/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NotAnEnum": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/NotAnEnum",
+      "name": {
+        "source": "NotAnEnum",
+        "canonical": "not_an_enum"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:x-extensible-enum": {
+          "reason": "vendor_extension",
+          "value": [
+            "small"
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NotAnEnum/x-extensible-enum"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NotAnEnum"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Old": {
       "kind": "model",
@@ -1131,6 +1356,18 @@
       "closed": false,
       "flags": false
     },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -1224,7 +1461,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/k/deprecated",
         "position": {
-          "line": 125,
+          "line": 136,
           "column": 19
         }
       }
@@ -1236,6 +1473,24 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Old/properties/n/x-deprecated-reason"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "heterogeneous or non-scalar enum lowered as a union of literals",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedFixed"
       }
     },
     {
@@ -1270,7 +1525,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "f2c3465a60fdebcfa03eed57eb31f9cc3341c7f93be4c4b0003f52bfedad975b"
+      "hash": "c6a605ecfe7c13d6a3ea7ed588a9a7ae9e65ec3afea2b961fb867b678600d5dd"
     }
   ]
 }
