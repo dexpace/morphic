@@ -48,6 +48,9 @@ type reached struct {
 	// and others one about another document's (see locatorFor).
 	tree   sourceTree
 	others Others
+	// dialects gives the rows each schema checked is read with, which judge
+	// the values the check leaves to the load phase (ownedFindings).
+	dialects Dialects
 	// seen holds the objects the source's own check read as their kind.
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
@@ -83,12 +86,14 @@ func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.
 // reported once, where it is placed (see locatorFor), and none the source's
 // own check made.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
-	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef,
+	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef, dialects Dialects,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree, self.judged)
-	checks.esc, checks.others = self.escapes, b.others
+	checks.esc, checks.others, checks.dialects = self.escapes, b.others, dialects
 	table := b.bindings.Table()
-	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
+	view := nodeview.New()
+	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name },
+		func(p bind.Position) *yaml.Node { return writtenIn(view, table, p) })
 	for _, a := range away {
 		if t, ok := targetOf(a.site.pointer, a.r, checks.esc, checks.ends); ok {
 			t.siteDoc, t.place = a.site.doc, a.place
@@ -101,16 +106,26 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 // builtTargets returns the targets the schemas built for landings make, each
 // placed at the least position whose chain reaches it, in whichever document
 // (place), as name names it. One no position reaches, which only a budget
-// cutting the reading leaves, is no target.
+// cutting the reading leaves, is no target, and nor is a boolean schema, which
+// holds nothing to check. A tuple's entry the parser read as false though what
+// is written there, which written returns, is no schema, such as a number, is
+// one, so the check reports it as it does a prefixItems entry; its rest is
+// judged beside its `items` instead (oas.SchemaRules.TupleRestFinding).
 func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, name func(bind.DocID) string,
+	written func(bind.Position) *yaml.Node,
 ) []reachedTarget {
 	var out []reachedTarget
 	for _, b := range built {
-		if b.Schema == nil || !b.Landing.Reached || b.Schema.GetSchema() == nil {
+		if b.Schema == nil || !b.Landing.Reached {
 			continue
 		}
-		node := nodeview.Deref(b.Schema.GetSchema().GetRootNode())
 		at := b.Landing.At
+		var node *yaml.Node
+		if s := b.Schema.GetSchema(); s != nil {
+			node = nodeview.Deref(s.GetRootNode())
+		} else if node = written(at); node == nil || isBoolean(node) || isTupleRest(b.Landing) {
+			continue
+		}
 		t := reachedTarget{site: b.Landing.Site.Pointer, kind: oas.Schema, node: node,
 			doc: b.Landing.Name, inSource: at.Doc == bind.Source, home: refSite{doc: name(at.Doc), pointer: at.Pointer}}
 		if site := b.Landing.Site; site.Doc != bind.Source {
@@ -120,6 +135,28 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 		out = append(out, t)
 	}
 	return out
+}
+
+// writtenIn returns the node the documents of table write at p, read through
+// view, and nil where none is there.
+func writtenIn(view *nodeview.View, table *bind.Table, p bind.Position) *yaml.Node {
+	path, complete := view.DocumentPath(table.Document(p.Doc).Root, p.Pointer)
+	if !complete || len(path) == 0 {
+		return nil
+	}
+	return nodeview.Deref(path[len(path)-1])
+}
+
+// isTupleRest reports whether l is the `additionalItems` of the tuple its site
+// writes (bind.Landing), the one landing a schema holds as its own field.
+func isTupleRest(l bind.Landing) bool {
+	return l.At.Doc == l.Site.Doc && l.At.Pointer == l.Site.Pointer.AppendToken("additionalItems")
+}
+
+// isBoolean reports whether n is a boolean scalar, a schema JSON Schema reads
+// as true or false.
+func isBoolean(n *yaml.Node) bool {
+	return n.Kind == yaml.ScalarNode && n.Tag == "!!bool"
 }
 
 // checkReached is validateReached over a walk the caller supplies, so a test
@@ -273,10 +310,15 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 	if d, over := v.charge(ctx, site, t.doc, t.node); over {
 		return d
 	}
-	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer}
+	var owned []oas.Owned
+	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer,
+		Owned: func(o oas.Owned) { owned = append(owned, o) }}
 	version := v.versionOf(t)
 	found := append(v.checker.Check(ctx, t.node, version, opts),
 		oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
+	found = append(found, ownedFindings(owned, func(o oas.Owned) oas.SchemaRules {
+		return v.dialects.rowsAt(v.positionOf(t, o.Schema))
+	})...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -285,6 +327,15 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 		}
 	}
 	return diags
+}
+
+// positionOf returns where pointer of the document holding t's object is in
+// the bindings' table, the source's for one no document of it names.
+func (v *reached) positionOf(t reachedTarget, pointer jsontext.Pointer) bind.Position {
+	if id, named := v.dialects.byName[t.home.doc]; named && !t.inSource {
+		return bind.Position{Doc: id, Pointer: pointer}
+	}
+	return bind.Position{Doc: bind.Source, Pointer: pointer}
 }
 
 // versionOf returns the version t's object is held to: that of the document

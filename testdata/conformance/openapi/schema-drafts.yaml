@@ -1,0 +1,41 @@
+openapi: 3.1.0
+info: {title: SchemaDrafts, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    Count: {type: integer}
+    Pair:
+      $schema: 'http://json-schema.org/draft-04/schema#'
+      type: array
+      items: [{type: string}, {$ref: '#/components/schemas/Count'}]
+      additionalItems: false
+    Pairs:
+      $schema: 'http://json-schema.org/draft-07/schema#'
+      type: array
+      items: {type: array, items: [{type: string}, {type: integer}], additionalItems: false}
+    Open:
+      $schema: 'http://json-schema.org/draft-07/schema#'
+      type: array
+      items: [{type: boolean}]
+      additionalItems: {type: integer, minimum: 0, exclusiveMinimum: 0}
+    Paired:
+      $schema: 'http://json-schema.org/draft-06/schema#'
+      type: object
+      dependencies: {a: [b]}
+    Labelled:
+      $schema: 'http://json-schema.org/draft-07/schema#'
+      $ref: '#/components/schemas/Count'
+      description: draft 7 ignores this
+    Applied:
+      $schema: 'https://json-schema.org/draft/2019-09/schema'
+      $ref: '#/components/schemas/Count'
+      description: 2019-09 applies this
+    Named:
+      $schema: 'http://json-schema.org/draft-04/schema#'
+      id: 'https://example.com/named'
+      type: object
+      definitions:
+        Leaf: {id: '#leaf', type: string}
+      properties:
+        leaf: {$ref: '#leaf'}
+        beside: {id: 'https://example.com/elsewhere', $ref: '#leaf'}

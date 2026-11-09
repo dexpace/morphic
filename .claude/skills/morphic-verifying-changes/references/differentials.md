@@ -40,6 +40,17 @@ whether the answer means anything.
   Grids writing no plain date left two defects for a later probe (#1226).
 - **Probe.** Count the positions passed and the answers given, not only the inputs.
 
+## Hold each shape a generator leaves out to what admits the input
+`generator-exclusions-are-claims`
+
+- **Rule.** Each shape a generator leaves out claims that no valid input takes it. Check that claim
+  against what admits the input, the format's grammar or the parser, never against a comment in
+  the code under test, which shares the blind spot the generator would then inherit.
+- **Why.** A review's generator wrote no alias to an ancestor because a comment said none could
+  reach the code, and #1508's input did (#1538).
+- **Probe.** The report lists each shape left out beside the grammar or parser behaviour that rules
+  it out.
+
 ## Probe the join, not only the output
 `invariant-probe`
 

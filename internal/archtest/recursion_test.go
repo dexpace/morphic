@@ -88,7 +88,7 @@ var loweringRecursions = [][]string{
 // re-enters the walk from a scalar position. Discriminator lowering is one
 // because resolving a mapping target can hoist the position it names.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildListedTuple", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "fillRefBranch", "hoistScalar", "hoistSubSchema", "lower",

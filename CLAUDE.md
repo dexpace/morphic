@@ -353,7 +353,7 @@ departs from it, with what holds each difference.
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
   compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
   away: simplifying may remove only a check a second reader of the same concept already makes
-  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
+  (`.claude/skills/morphic-reviewing-prs/references/testing.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -423,7 +423,8 @@ departs from it, with what holds each difference.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass the gate:
+Before claiming any Go work done, run and pass the gate, locally or through CI's run on the final
+head:
 
 ```bash
 make gate
@@ -552,8 +553,11 @@ context-switch between repos.
   logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
   request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
   cleanup or bug the change neither needs nor exposes is filed, not folded in.
-- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
-  and land what it finds as new commits, then rerun the passes those commits can affect.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it,
+  its second round when the first ran before the push, land what it finds as new commits, and run
+  the next round on them, until one finds no `issue:` or `nit:` and leaves no cell unreached or
+  reopened
+  (`.claude/skills/morphic-reviewing-prs/references/rounds.md#review-ends-with-nothing-left`).
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.

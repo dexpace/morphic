@@ -1,6 +1,6 @@
 ---
 name: morphic-checking-style
-description: Use when checking Go in this repository against the org styleguide, in a review's written-rules pass, or when a styleguide rule or the org's go-styleguide skill seems to disagree with this repository.
+description: Use when checking Go in this repository against the org styleguide, in a review's Developer experience or Consistency angle, or when a styleguide rule or the org's go-styleguide skill seems to disagree with this repository.
 ---
 
 # Checking morphic Go against the styleguide
@@ -23,11 +23,12 @@ places (`references/departures.md`).
    gh api -H 'Accept: application/vnd.github.raw' repos/dexpace/styleguide/contents/go/<file> | grep '^### '
    ```
 
-2. Hold each line the change adds to each rule, and to `CLAUDE.md`'s Go style section and
-   `CONTRIBUTING.md`, which add rules of their own. Skip what `.golangci.yml` or `internal/archtest`
-   states, which `make gate` holds.
-3. Where a line looks like a breach, read that rule to its **Enforcement** line: a rule's exception
-   is in its body, never its heading.
+2. Read each listed rule to its **Enforcement** line, as a heading only finds a rule and its body
+   can name lines the heading does not. Then hold each line the change adds to it, and to
+   `CLAUDE.md`'s Go style section and `CONTRIBUTING.md`, which add rules of their own. Skip what
+   `.golangci.yml` or `internal/archtest` states, which `make gate` holds.
+3. Where a line looks like a breach, read the rule's exceptions, which are in its body, never its
+   heading.
 4. Look the rule up in `references/departures.md`. A departure is followed, not reported.
 5. A finding names the rule's number, the file and line, and what the rule says, ranked as
    `morphic-reviewing-prs` ranks one.

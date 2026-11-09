@@ -29,10 +29,11 @@ var foldKeywords = []string{
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
 }
 
-// foldEntry returns the one entry a position keeps keyword in once s folds, and
-// false for a keyword no fold reads. Keywords one entry holds fold as one, so a
-// branch's `then` and another's `if` cannot overwrite each other.
-func foldEntry(s *oas3.Schema, keyword string) (string, bool) {
+// foldEntry returns the one entry a position keeps keyword in once s, a schema
+// of c, folds, and false for a keyword no fold reads. Keywords one entry holds
+// fold as one, so a branch's `then` and another's `if` cannot overwrite each
+// other, and a draft's spelling folds as its twin does (TwinKeyword).
+func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 	switch keyword {
 	case "example", "examples":
 		return "examples", true
@@ -49,8 +50,9 @@ func foldEntry(s *oas3.Schema, keyword string) (string, bool) {
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
 	}
-	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, keyword) ||
-		slices.Contains(valueConstraintKeywords, keyword)
+	twin := TwinKeyword(c, s, keyword)
+	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, twin) ||
+		slices.Contains(valueConstraintKeywords, twin)
 	return keyword, fold
 }
 
@@ -139,7 +141,7 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			if out.rebased[i] = underID(e, bs, ids) && foldsReference(bs) && !readsAtPosition(c, e); !out.rebased[i] {
+			if out.rebased[i] = underID(e, bs, ids) && foldsReference(c, bs) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(bs)
 			}
 		}
@@ -157,12 +159,13 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	return out
 }
 
-// idWrappers returns where the flattened wrappers of comp writing an $id are,
-// each an $id that may give what it holds another base than the position's.
+// idWrappers returns where the flattened wrappers of comp writing an
+// identifier are (writesIdentifier), each one that may give what it holds
+// another base than the position's.
 func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 	out := map[jsontext.Pointer]bool{}
 	for _, e := range comp.branches {
-		if e.wrapper && annotation.RawPropertyNode(e.schema.GetSchema(), "$id") != nil {
+		if e.wrapper && writesIdentifier(e.schema.GetSchema()) {
 			out[e.pointer] = true
 		}
 	}
@@ -170,12 +173,12 @@ func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 }
 
 // underID reports whether bs, the inline allOf branch e, or a wrapper holding
-// it writes an $id. Only such an $id can give the branch another base than the
+// it writes an identifier. Only one can give the branch another base than the
 // position holding the allOf, so a branch under none reads at the position
 // without a base being looked up. The wrappers holding e are the prefixes of
 // its pointer, as many as MaxAllOfFlattenDepth allows, so each is looked up.
 func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool) bool {
-	if annotation.RawPropertyNode(bs, "$id") != nil {
+	if writesIdentifier(bs) {
 		return true
 	}
 	p := string(e.pointer)
@@ -187,21 +190,28 @@ func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool)
 	return false
 }
 
+// writesIdentifier reports whether s writes `$id`, or `id`, draft 4's
+// spelling of it. Either may name a resource, and the base a lookup returns
+// says whether it does, so one that names none costs that lookup alone.
+func writesIdentifier(s *oas3.Schema) bool {
+	return annotation.RawPropertyNode(s, "$id") != nil || annotation.RawPropertyNode(s, "id") != nil
+}
+
 // foldsReference reports whether what bs folds writes a relative $ref, the one
 // text a base changes: a branch writing none in it says the same at any base.
-func foldsReference(bs *oas3.Schema) bool {
+func foldsReference(c lowering.Ctx, bs *oas3.Schema) bool {
 	return slices.ContainsFunc(rawMappingKeys(bs.GetRootNode()), func(keyword string) bool {
-		entry, fold := foldEntry(bs, keyword)
+		entry, fold := foldEntry(c, bs, keyword)
 		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
 	})
 }
 
 // readsAtPosition reports whether the inline allOf branch e reads its $refs
 // against the base the position holding the allOf does, so what it writes means
-// there what it means where it is written: an $id at or above it naming another
-// URI gives the same spelling another schema. The position is e's site less e's
-// path from it, as the allOf may be read where a $ref landed. A base the
-// bindings cannot tell is no match.
+// there what it means where it is written: an identifier at or above it naming
+// another URI gives the same spelling another schema. The position is e's site
+// less e's path from it, as the allOf may be read where a $ref landed. A base
+// the bindings cannot tell is no match.
 func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	site, placed := c.Bindings().Site(e.schema)
 	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
@@ -214,13 +224,13 @@ func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 // what it keeps, and is "" where the branch spoke or writes nothing folding
 // reads: what it folds writes a relative $ref it reads against another base
 // than the position, or the conjuncts disagree on an entry it writes.
-func unfoldedWhy(speaks, rebased bool, bs *oas3.Schema, residue []string) string {
+func unfoldedWhy(c lowering.Ctx, speaks, rebased bool, bs *oas3.Schema, residue []string) string {
 	switch {
-	case speaks || !disagreed(bs, residue):
+	case speaks || !disagreed(c, bs, residue):
 		return ""
 	case rebased:
-		return "this inline allOf branch reads its $refs against another base than the position does, as an $id " +
-			"at or above it names another URI, so nothing it writes folds; the branch (" +
+		return "this inline allOf branch reads its $refs against another base than the position does, as an " +
+			"identifier at or above it names another URI, so nothing it writes folds; the branch (" +
 			strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 	default:
 		return disagreedWhy(residue)
@@ -237,9 +247,9 @@ func disagreedWhy(residue []string) string {
 // disagreed reports whether residue, what a branch that did not fold keeps of bs,
 // holds a keyword folding reads: voicesAmong passes over a branch for writing none
 // or for a disagreement, and this tells them apart.
-func disagreed(bs *oas3.Schema, residue []string) bool {
+func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
-		_, fold := foldEntry(bs, keyword)
+		_, fold := foldEntry(c, bs, keyword)
 		return fold
 	})
 }
@@ -254,7 +264,7 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, bounds bool) bool {
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return bounds
 	}
-	_, fold := foldEntry(bs, keyword)
+	_, fold := foldEntry(c, bs, keyword)
 	return fold
 }
 
