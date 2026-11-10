@@ -181,8 +181,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   first and unsafe for the second, the reader reports that it fell back, as `Budget.Exhausted`
   reports a cut, and the caller takes that as its own safe answer.
 - **Why.** `conjunctTypes` answers `anyInstance` for what it does not read, which keeps
-  `allof-disjoint-conjuncts` silent. #1656 reused it as `Merger.Untyped`, where `anyInstance` let a
-  kind replace the structure: `{allOf: [{$ref: NotStr}], properties: …}` beside `{type: string}`
+  `allof-disjoint-conjuncts` silent. #1656 reused it as `Merger.Untyped` (now `Walk.Untyped`), where
+  `anyInstance` let a kind replace the structure: `{allOf: [{$ref: NotStr}], properties: …}` beside `{type: string}`
   lowered to a bare string, unreported through three review rounds (#1673).
 - **Probe.** Through the new caller, compile one input per construct the reader does not read, and
   check each verdict against the source.
