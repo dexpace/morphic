@@ -20,11 +20,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -424,7 +423,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	var c lowering.Ctx
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 	var acc compile.Diags
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
@@ -802,12 +801,7 @@ components:
   securitySchemes:
     key: {type: apiKey, in: header, name: X-Key}
 `
-	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags})
 	declared, _ := auth.LowerSecuritySchemes(c)
 
 	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)

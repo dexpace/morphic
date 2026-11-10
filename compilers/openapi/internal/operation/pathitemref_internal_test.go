@@ -59,7 +59,7 @@ paths:
 	const usePtr = jsontext.Pointer("/paths/~1a")
 
 	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
-		use := l.ctx.WithLoaded(&load.Document{})
+		use := lowering.New(0, &load.Document{Doc: l.ctx.Doc}, lowering.Policy{})
 		if foreign {
 			scope := use.RefScope()
 			scope.Foreign, scope.Holder = true, "other.yaml"

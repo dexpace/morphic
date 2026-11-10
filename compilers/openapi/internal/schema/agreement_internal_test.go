@@ -9,10 +9,10 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,7 +49,8 @@ func TestAgreement_ReadsABoundInTheDialectOfItsSchemas(t *testing.T) {
 		return js.GetSchema()
 	}
 	for version, apart := range map[string]bool{"3.0.3": true, "3.1.0": false} {
-		a := newAgreement(NewRawLowerer(&soa.OpenAPI{OpenAPI: version}).Ctx)
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(version, "    A: {type: string}\n"))
+		a := newAgreement(l.Ctx)
 		a.write(conjunct("{exclusiveMinimum: 5}"))
 		a.write(conjunct("{exclusiveMinimum: 6}"))
 		assert.Equal(t, apart, a.apart("exclusiveMinimum"), version)

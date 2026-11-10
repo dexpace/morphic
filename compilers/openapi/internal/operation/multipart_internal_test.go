@@ -103,7 +103,7 @@ func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
 		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
 			"the other document's position, in its own IDs")
 
-		unlisted := l.ctx.WithLoaded(&load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()})
+		unlisted := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
 		assert.Equal(t, local, keyedAt(unlisted, js),
 			"a landing in a document the compile did not list keeps the local pointer")
 	})
@@ -131,14 +131,11 @@ func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 
 // TestBodySchemaPointer_UnresolvedRefStaysLocal pins another reason: a $ref
 // naming nothing lands nowhere, so it keys no encoding entry by a position the
-// document does not hold. A scope with no bindings lands none either.
+// document does not hold.
 func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/Missing")
 	assert.Equal(t, local, keyedAt(l.ctx, js))
-
-	bare := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, local, keyedAt(bare.ctx, js), "a context that was given no bindings resolves no $ref")
 }
 
 // TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another

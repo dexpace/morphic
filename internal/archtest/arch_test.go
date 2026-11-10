@@ -292,6 +292,14 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
+	// The lowering context the compiler's tests lower under, over a document the
+	// load phase read. It is apart from openapitest, which internal tests of load
+	// and of packages beneath it import, and so could not import a package that
+	// reaches load.
+	"compilers/openapi/internal/lowering/loweringtest": {module + "/compilers",
+		module + "/compilers/openapi/internal/load",
+		module + "/compilers/openapi/internal/lowering",
+		"github.com/stretchr/testify/require"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
 	// the compiler's run lowers the schemes, and the service and operation walks

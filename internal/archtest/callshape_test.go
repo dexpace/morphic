@@ -70,7 +70,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// KeptOnce.Once, Promoter.Referent and Remembered each call the function
 		// they are handed before they return: immediate callbacks.
 		"compilers/openapi/internal/operation": 1,
-		"compilers/openapi/internal/schema":    17,
+		"compilers/openapi/internal/schema":    9,
 	},
 	"compilers/openapi/internal/merge": {
 		// The allOf merge relay, which #1486 lowers to the fold's calls back into

@@ -47,7 +47,9 @@ func NewRegistry() *Registry {
 // which is minted at ids.DefaultServer with no pointer, since nothing in the
 // source writes it (GitHub #672).
 func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
-	if declared := documentServers(c.Doc); len(declared) > 0 {
+	// The field, not GetServers, which stands in a "/" server for an empty list:
+	// the default below is minted as no declaration.
+	if declared := c.Doc.Servers; len(declared) > 0 {
 		return r.Declared(c, declared, "")
 	}
 	id := ids.DefaultServer()
@@ -102,16 +104,6 @@ func (r *Registry) Servers() map[ir.ServerID]ir.Server {
 		return nil
 	}
 	return maps.Clone(r.byID)
-}
-
-// documentServers returns the servers list doc writes, nil for no document. It
-// reads the field rather than GetServers, which stands in a "/" server for an
-// empty list, so Root can mint that default as no declaration.
-func documentServers(doc *soa.OpenAPI) []*soa.Server {
-	if doc == nil {
-		return nil
-	}
-	return doc.Servers
 }
 
 // lowerServer lowers one server declared at sptr as id, keeping its x-* and

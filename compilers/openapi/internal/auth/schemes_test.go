@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -37,7 +38,7 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
 
-	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
+	got, diags := auth.LowerSecuritySchemes(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 
 	assert.Contains(t, got, ids.UnresolvedAuth("ghost"))
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
@@ -148,7 +149,7 @@ func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.Ctx{Doc: doc}
+			c := lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{})
 			got, diags := auth.LowerSecuritySchemes(c)
 			assert.Empty(t, got)
 			assert.Empty(t, diags)

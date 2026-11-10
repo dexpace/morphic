@@ -412,17 +412,6 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// RowsOf returns what the table says at the minor doc declares, in the dialect
-// its jsonSchemaDialect names (rowsAt), and the zero rows for a nil doc or one
-// declaring a version the table does not cover. It builds the table, so it
-// serves a lowering given no load phase, which has no Document.Rows to read: it
-// is where that lowering's questions meet the version, so no lowering reads the
-// version itself.
-func RowsOf(doc *soa.OpenAPI) Rows {
-	rows, _ := rowsAt(oas.Table(), doc.GetOpenAPI(), doc.GetJSONSchemaDialect())
-	return rows
-}
-
 // rowsAt returns what spec says at the minor version names, in dialect, and
 // whether dialect is one spec has no Schema Object rows for
 // (oas.Spec.SchemaRules).

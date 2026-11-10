@@ -22,7 +22,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -194,8 +193,7 @@ components:
 	unlisted := *loaded
 	unlisted.Others = load.Others{}
 
-	l := schema.LowererOver(lowering.New(0, unlisted.Doc, unlisted.Source, lowering.GroupByTags, lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&unlisted))
+	l := schema.LowererOver(lowering.New(0, &unlisted, lowering.Policy{Grouping: lowering.GroupByTags}))
 	l.Diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types))
 	doc := l.Document(t)
 

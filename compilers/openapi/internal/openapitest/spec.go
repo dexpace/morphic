@@ -23,6 +23,10 @@ func SourceOf(src string) compilers.Source {
 	return compilers.Source{Path: "spec.yaml", Data: []byte(src)}
 }
 
+// EmptySpec is a minimal 3.1 document that declares nothing, for a test that
+// needs a loaded document and reads nothing of it.
+const EmptySpec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
+
 // ComponentSpec wraps a components/schemas block in a minimal 3.1 document.
 func ComponentSpec(schemas string) string {
 	return ComponentSpecVer("3.1.0", schemas)
