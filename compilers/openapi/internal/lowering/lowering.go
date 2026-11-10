@@ -575,9 +575,9 @@ func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
 // own Document.Sources entry, for one InDocument reads, and otherwise in the
 // source's, or the overlay's for a position the overlay introduced or rewrote.
 //
-// It is the one place this compiler spells the source index into a Provenance,
-// for entities as well as diagnostics (GitHub #86), which also traces an
-// overlay's contribution without touching any lowering.
+// Every lowering places a pointer through it, entities and diagnostics alike
+// (GitHub #86), so no lowering spells a source index, and an overlay's
+// contribution is traced without touching any of them.
 func (c Ctx) Place() provenance.Doc {
 	if o, ok := homeOf(c); ok {
 		return provenance.Doc{Source: o.Index}

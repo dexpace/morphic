@@ -157,8 +157,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The pre-lowering refusals. They read the source through nodeview and the
 	// index built over it, weigh it against its budgets through budget, report
-	// through diag, and reach no part of the lowering — nothing here has a
-	// document to lower yet.
+	// through diag at the place provenance gives a node, and reach no part of
+	// the lowering — nothing here has a document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
@@ -172,8 +172,9 @@ var rules = map[string][]string{
 	// opinion about lowering — so it sits below the schema lowering that asks it
 	// questions and above nothing that asks it any. It reaches the library's yml
 	// package for the tags its decoder accepts as a string, so a field read off
-	// a raw node decodes as the parser decodes the fields it models, and budget
-	// for the nodes a kept construct may render.
+	// a raw node decodes as the parser decodes the fields it models, budget for
+	// the nodes a kept construct may render, and provenance for where what it
+	// keeps and reports is placed.
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
@@ -188,9 +189,9 @@ var rules = map[string][]string{
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
 	// reports through diag, reaching ids for the pointer that names a position,
-	// nodeview for the document root and budget for the node budget it builds
-	// within — and nothing that lowers, because it runs before there is anything
-	// to lower.
+	// nodeview for the document root, budget for the node budget it builds
+	// within and provenance for the attribution it hands out — and nothing that
+	// lowers, because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
@@ -200,9 +201,10 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
-	// through scan, applies the caller's overlay through overlay, and holds the
-	// tree, and what its references reach, to the specification's rules through
-	// oas, each within its budget through budget. It reaches resolve to read
+	// through scan, applies the caller's overlay through overlay, places what it
+	// finds through provenance, and holds the tree, and what its references
+	// reach, to the specification's rules through oas, each within its budget
+	// through budget. It reaches resolve to read
 	// which mapping values name a position in the source as the lowering will,
 	// and the library's pointer walk, directly and through navigation, to tell a
 	// hop that walked a document's bytes and to walk a document as it does, and
@@ -288,8 +290,8 @@ var rules = map[string][]string{
 	// one. It reaches load for the schema bindings the load phase built, which its
 	// scope reads, and for the rows a document's schemas are read with, which oas
 	// states: the dialect question is asked of the table, never of the version.
-	// It reaches naming for what each position is called, and budget for the
-	// limits it holds. It reaches nodeview and yaml to weigh the declaration a
+	// It reaches naming for what each position is called, budget for the limits
+	// it holds, and provenance for where a position of its document is placed. It reaches nodeview and yaml to weigh the declaration a
 	// $ref names, which a reference's lowering copies, and yaml for the node a
 	// schema's rows are found by.
 	"compilers/openapi/internal/lowering": {module + "/ir",
