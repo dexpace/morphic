@@ -555,6 +555,11 @@ combinator. Two lossless representations, in preference order:
 > shape. Half-distributing was rejected outright: it yields a `Union` whose variants disagree about
 > whether they carry the body, with nothing in the IR recording which.
 >
+> That constraint has since lifted. A composed variant takes an ID in a namespace of its own
+> ([identity](./ir/identity.md#the-id-grammar)), so the branch pointer is free for the branch's own
+> node, and an inline branch is conjoined by the node hoisted there, as a `$ref` branch is by its
+> target. Nothing is merged keyword by keyword, and a bare `null` branch alone still declines.
+>
 > The general lesson is about this document rather than this section: it was written from studying
 > four reference implementations, which is exactly the kind of source that gets trusted without
 > re-derivation. It was right in direction and wrong in one of its two prescriptions, and only
