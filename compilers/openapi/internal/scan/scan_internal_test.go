@@ -464,7 +464,7 @@ func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 // refuses.
 func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	t.Parallel()
-	panicking := provenance.Tree{Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { panic("locator fault") }}
+	panicking := provenance.Tree{Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { panic("pointers fault") }}
 	whole := ir.Provenance{Source: 6}
 
 	got := Aliases(t.Context(), panicking, whole, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus))
@@ -473,14 +473,14 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
 	assert.Equal(t, whole, got[0].Provenance)
-	assert.Equal(t, "alias pre-scan aborted (locator fault); alias-cycle protection is incomplete for this source",
+	assert.Equal(t, "alias pre-scan aborted (pointers fault); alias-cycle protection is incomplete for this source",
 		got[0].Message)
 }
 
-// inTreeFixture holds each shape of node whose pointer Pointers answers: keys that
-// need escaping, a sequence, an anchor with an alias to it, and a `<<` merge
-// spelled inline and through an alias.
-const inTreeFixture = `plain: 1
+// pointersFixture holds each shape of node whose pointer Pointers answers:
+// keys that need escaping, a sequence, an anchor with an alias to it, and a
+// `<<` merge spelled inline and through an alias.
+const pointersFixture = `plain: 1
 a/b: 2
 c~d: 3
 ~1: 4
@@ -502,12 +502,12 @@ named: &nm renamed
 !!merge tagged: 7
 `
 
-// decodeTree decodes inTreeFixture afresh into the document node a parse gives
-// the compiler, so no case shares nodes with another.
+// decodeTree decodes pointersFixture afresh into the document node a parse
+// gives the compiler, so no case shares nodes with another.
 func decodeTree(t *testing.T) *yaml.Node {
 	t.Helper()
 	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(inTreeFixture), &doc), "the fixture must decode")
+	require.NoError(t, yaml.Unmarshal([]byte(pointersFixture), &doc), "the fixture must decode")
 	return &doc
 }
 
@@ -826,11 +826,11 @@ func TestStepsIn_StopsAtItsLimit(t *testing.T) {
 
 // TestPointers_AllocateInTheTreesSizeNotItsPointers pins the cost of locating a
 // node: one long key over many children allocates in proportion to the nodes,
-// not to the key once per node. It builds the locator, asks about one deep
-// node, and holds the bytes allocated to 32 MiB. The index holds a holder and
-// a token per node and the one pointer asked for spells the key once, while a
-// pointer stored per node spells it for every node beneath the key: a copy
-// per child alone is 256 MiB.
+// not to the key once per node. It builds the pointer index, asks about one
+// deep node, and holds the bytes allocated to 32 MiB. The index holds a holder
+// and a token per node and the one pointer asked for spells the key once,
+// while a pointer stored per node spells it for every node beneath the key: a
+// copy per child alone is 256 MiB.
 //
 // It is not parallel: a parallel test would allocate during the measurement.
 func TestPointers_AllocateInTheTreesSizeNotItsPointers(t *testing.T) {
@@ -866,9 +866,9 @@ func TestPointers_AllocateInTheTreesSizeNotItsPointers(t *testing.T) {
 }
 
 // TestPointers_SaysWhetherTheTreeHoldsTheNode pins the answer a caller other
-// than provenance.Tree.Node reads: the node's pointer and that the tree holds it, the
-// document's own content included at "", and no pointer, held by nothing, for
-// a node another tree holds or for a nil node or root.
+// than provenance.Tree.Node reads: the node's pointer and that the tree holds
+// it, the document's own content included at "", and no pointer, held by
+// nothing, for a node another tree holds or for a nil node or root.
 func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 	t.Parallel()
 	value := ynode.Scalar("v")
