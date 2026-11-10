@@ -388,8 +388,15 @@ it sees. Changes made together in one bump are listed together under it.
   union or a `$dynamicRef` kept verbatim they reach the `Model`, as in a composition with neither
   beside it. A consumer pinned to 0.37.0 that read the branch under that key no longer finds it, and
   refuses the document as another generation's.
-- **0.39.0** — `Content.Encoding` on a body that is a union, as one a composition is distributed
-  across is, keys each part by the property of the first variant declaring it, where its keys were
-  defined only against a body model and `pass.Validate` refused them. The shape is unchanged. A
-  consumer pinned to 0.38.0 that looks such a key up among the union's own members finds none and
-  renders no part.
+- **0.39.0** — no shape change. The OpenAPI compiler lowers four spellings of a union it had kept
+  verbatim under `Unmodeled`: one on an inline branch of a composing `allOf`, distributed across the
+  rest of the composition as one beside the `allOf` is, and one on a branch of an `allOf` no object
+  satisfies, read as a conjunct, where it kept the branch under `openapi:allOf/<n>`; one beside a
+  model with inline branches, each conjoined by the node it lowers to at its own pointer, and one
+  beside keywords its every branch already says, lowered as the union alone, where it kept the
+  branches under `openapi:oneOf` or `openapi:anyOf`
+  ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). `Content.Encoding`
+  on a body that is a union, as a distributed one is, keys each part by the property of the first
+  variant declaring it, where its keys were defined only against a body model and `pass.Validate`
+  refused them. A consumer pinned to 0.38.0 that read such a union under those keys no longer finds
+  it there, and one looking such an encoding key up among the union's own members finds none.
