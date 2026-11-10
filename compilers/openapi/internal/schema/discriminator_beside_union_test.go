@@ -515,7 +515,7 @@ var degradedShapes = []struct {
 	name     string
 	branches string
 }{
-	{"inline branch", "      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: object, properties: {kind: {type: string}}}]\n"},
+	{"null branch", "      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: 'null'}]\n"},
 	{"oneOf beside anyOf", "      oneOf: [{$ref: '#/components/schemas/Cat'}]\n      anyOf: [{$ref: '#/components/schemas/Dog'}]\n"},
 	{"validation-only branches", "      oneOf: [{required: [kind]}, {required: [x]}]\n"},
 }

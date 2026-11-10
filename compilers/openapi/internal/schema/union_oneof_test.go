@@ -466,9 +466,10 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	}
 }
 
-// TestOneOf_CoDeclaredNotDistributedReasons pins the five shapes distribution
-// declines, each kept verbatim under ReasonDegradedLowering with its own reason
-// in the diagnostic (docs/compilers/openapi.md#union-beside-structure).
+// TestOneOf_CoDeclaredNotDistributedReasons pins four of the five shapes
+// distribution declines, each kept verbatim under ReasonDegradedLowering with
+// its own reason in the diagnostic (docs/compilers/openapi.md#union-beside-structure);
+// TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed pins the fifth.
 // Half-distributing any of them would leave a Union whose variants disagree
 // about whether they carry the body. The messages are asserted, not just the
 // code: the reasons are the only thing telling the otherwise identical
@@ -479,10 +480,6 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
     NotAModel:
       const: fixed
       oneOf: [{$ref: '#/components/schemas/A'}]
-    InlineBranch:
-      type: object
-      properties: {kind: {type: string}}
-      oneOf: [{$ref: '#/components/schemas/A'}, {type: string}]
     NullBranch:
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}]
@@ -502,8 +499,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 
 	for name, reason := range map[string]string{
 		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
-		"InlineBranch":    "a branch is written inline, so it names no referent to conjoin the body with",
-		"NullBranch":      "a branch is written inline, so it names no referent to conjoin the body with",
+		"NullBranch":      "a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it",
 		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
 		"Discriminated":   "a declared discriminator binds the branches by name, which distributing them would break",
 	} {
@@ -519,7 +515,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	assert.True(t, ok, "the second combinator is kept too, which is why neither is distributed")
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
-		"a null branch is written inline, so it blocks distribution rather than lifting to Nullable")
+		"a bare null branch blocks distribution rather than lifting to Nullable")
 	// The sixth is settling's, once the registry is whole: Discriminated's
 	// discriminator routes to no subtype of its model, so it stays beside the
 	// union it was written for.
@@ -527,7 +523,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 			"/components/schemas/Discriminated/discriminator"),
 		"not a subtype of the model holding it")
-	assert.Equal(t, 6, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+	assert.Equal(t, 5, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"each declined shape is reported once, and the kept discriminator once; got %+v", diags)
 }
 
@@ -982,7 +978,7 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 }
 
 // TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape holds a branch that says
-// something of shape the body does not to the degraded lowering, and pins each
+// something of shape the body does not to distribution, and pins each
 // way of doing so a looser comparison would read as a restatement: a type, a
 // value set, a format, an element or a referent the body's declarations do not
 // hold, a property none of them declares, or a keyword declaring shape, such as
@@ -1182,20 +1178,17 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			entry, ok := typeByName(doc, "S").Common().Unmodeled[tc.keyword]
-			require.True(t, ok, "the union is kept verbatim")
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-				"a branch is written inline")
+			assert.Equal(t, readDistributed, unionReading(doc, "S"))
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.ValidationOnlyKeyword, "/components/schemas/S"),
+				"%+v", diags)
 		})
 	}
 }
 
 // TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase holds a
 // property written alike to a declaration the body composes from under another
-// $id to the degraded lowering: `node.json` there names another schema, so S's
-// branch says what Spelled's spells out.
+// $id to distribution: `node.json` there names another schema, so S's branch
+// says what Spelled's spells out.
 func TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/node.json', type: string}
@@ -1214,17 +1207,20 @@ func TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase(t *testing.T
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"S", "Spelled"} {
-		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
-		require.True(t, ok, "%s: the union is kept verbatim", name)
-		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, name)
+		assert.Equal(t, readDistributed, unionReading(doc, name), name)
 	}
 }
 
 // TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel holds a branch that
-// writes a keyword declaring shape the body does not hold to the degraded
-// lowering, where the body is no model to distribute into.
+// writes a keyword declaring shape the body does not hold, where the body is no
+// model to distribute into, to the union alone where every branch says the
+// body's `type` and to the degraded lowering where a bare branch does not.
 func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 	t.Parallel()
+	alone := map[string]bool{
+		"ItemsBesideTheType": true, "FormatBesideTheType": true, "ItemsBesideANot": true,
+		"FormatBesideANot": true, "ConstBesideANot": true,
+	}
 	for name, schemaText := range map[string]string{
 		"ItemsBesideTheType": `      type: array
       oneOf:
@@ -1263,9 +1259,11 @@ func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			entry, ok := typeByName(doc, "S").Common().Unmodeled["openapi:oneOf"]
-			require.True(t, ok, "the union is kept verbatim")
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+			if alone[name] {
+				assert.Equal(t, readAlone, unionReading(doc, "S"))
+				return
+			}
+			assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "S"))
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 				"the body is not a model")
@@ -1296,7 +1294,7 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 		{keyword: "x-note", write: "x-note: n", schemas: objectSchema},
 		{keyword: "unknownKeyword", write: "unknownKeyword: 1", schemas: objectSchema},
 	}
-	reasons := map[bool]ir.UnmodeledReason{false: ir.ReasonValidationOnly, true: ir.ReasonDegradedLowering}
+	readings := map[bool]string{false: string(ir.ReasonValidationOnly), true: readDistributed}
 	keywords := slices.DeleteFunc(append(vocabularyCases(), cases...), func(tc vocabCase) bool {
 		return tc.keyword == "type" // what a branch repeats the body with
 	})
@@ -1304,16 +1302,14 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
 			_, others, _ := strings.Cut(tc.schemas, "\n")
-			want := reasons[slices.Contains(declaresShape, tc.keyword)]
+			want := readings[slices.Contains(declaresShape, tc.keyword)]
 			for _, branch := range []string{"{" + tc.write + "}", "{type: object, " + tc.write + "}"} {
 				spec := openapitest.ComponentSpecVer("3.1.0", others+"    S:\n"+
 					"      type: object\n      properties: {p: {type: string}}\n"+
 					"      oneOf: ["+branch+", {required: [p]}]\n")
 				doc, diags := schema.LowerSpec(t, spec)
 				openapitest.RequireNoErrorDiags(t, diags)
-				entry, ok := typeByName(doc, "S").Common().Unmodeled["openapi:oneOf"]
-				require.True(t, ok, "%s: the union is kept verbatim", branch)
-				assert.Equal(t, want, entry.Reason, "%s", branch)
+				assert.Equal(t, want, unionReading(doc, "S"), "%s", branch)
 			}
 		})
 	}
@@ -1348,63 +1344,64 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	for i := range 18 {
 		elsewhere += fmt.Sprintf("{properties: {z%d: {type: string}}}, ", i)
 	}
+	validation := string(ir.ReasonValidationOnly)
 	for name, tc := range map[string]struct {
 		schema string
-		reason ir.UnmodeledReason
+		want   string
 		why    string
 	}{
 		"ConjunctsPastTheReadBudget": {
 			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
 				"      oneOf: [{type: object, required: [a]}]\n",
-			ir.ReasonDegradedLowering, "a branch is written inline",
+			readDistributed, "",
 		},
 		"TypeAgainstAValueSetPastTheMemberBudget": {
 			"      type: string\n      enum: [" + strings.Join(members, ", ") + "]\n" +
 				"      oneOf: [{type: integer}]\n",
-			ir.ReasonDegradedLowering, "the body is not a model",
+			string(ir.ReasonDegradedLowering), "the body is not a model",
 		},
 		"PropertyNestingNothingReadsNoNestedDeclarations": {
 			"      type: object\n      properties: {a: {type: string}}\n      allOf: [" + elsewhere +
 				strings.Repeat("{properties: {a: {type: string}}}, ", 61) + "{properties: {a: {type: string}}}]\n" +
 				"      oneOf: [{required: [a], properties: {a: {type: string, minLength: 1}}}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"TypeReadsNoDeclarations": {
 			"      type: object\n      properties: {a: {type: string}}\n      allOf: [" +
 				strings.Repeat("{description: c}, ", 199) + "{description: c}]\n" +
 				"      oneOf: [{type: object, required: [a]}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"BareBranchLeavesTheBodyUnread": {
 			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
 				"      oneOf: [{required: [a]}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"BranchesRestatingOnePropertyReadItOnce": {
 			"      type: object\n      properties: {a: {type: string}}\n" +
 				"      oneOf: [" + onePlace + "{required: [a]}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"BranchesRestatingOneNestedPropertyReadItOnce": {
 			"      type: object\n      properties: {o: {type: object, properties: {b: {type: string}}}}\n" +
 				"      oneOf: [" + oneNestedPlace + "{required: [o]}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"BooleanPropertiesReadNoDeclarations": {
 			"      type: object\n      properties: {" + declared + "a: {type: string}}\n" +
 				"      oneOf: [{properties: {" + booleans + "a: true}}, {required: [a]}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"ABranchValueSetWithinTheMemberBudget": {
 			"      type: object\n      properties: {a: {enum: [m0]}}\n" +
 				"      oneOf: [{required: [a], properties: {a: {enum: [" + halfMembers + "]}}}]\n",
-			ir.ReasonValidationOnly, "",
+			validation, "",
 		},
 		"BranchValueSetsPastTheMemberBudgetTogether": {
 			"      type: object\n      properties: {a: {enum: [m0]}}\n" +
 				"      oneOf: [{required: [a], properties: {a: {enum: [" + halfMembers + "]}}}, " +
 				"{properties: {a: {enum: [" + halfMembers + "]}}}]\n",
-			ir.ReasonDegradedLowering, "a branch is written inline",
+			readDistributed, "",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -1412,9 +1409,7 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", "    S:\n"+tc.schema))
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			entry, ok := typeByName(doc, "S").Common().Unmodeled["openapi:oneOf"]
-			require.True(t, ok, "the union is kept verbatim")
-			assert.Equal(t, tc.reason, entry.Reason)
+			assert.Equal(t, tc.want, unionReading(doc, "S"))
 			if tc.why != "" {
 				assert.Contains(t,
 					openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
@@ -1447,7 +1442,7 @@ func TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition(t *te
 			"{required: [a], properties: {a: {type: string}}}, " +
 			"{required: [b], properties: {b: {type: string, description: d}}}]}", diag.ValidationOnlyKeyword},
 		"Items": {"{" + body + "oneOf: [{required: [a], items: {type: string}}, {required: [b]}]}",
-			diag.DegradedConstruct},
+			diag.CompositionLowering},
 	}
 	for name, u := range unions {
 		for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {

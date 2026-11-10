@@ -31,7 +31,8 @@ witnessing it.
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`, `union-restated-type`,
+  `union-inline-branches`
 
 ### `intersection`
 

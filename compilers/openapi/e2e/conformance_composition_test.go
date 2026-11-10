@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"slices"
 	"testing"
 
@@ -183,12 +184,11 @@ func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
 // rule: docs/ir/models.md#composition-beside-a-union distributes a union whose
-// branches all name referents, and the rule
-// docs/compilers/openapi.md#union-beside-structure keeps one with an inline
-// branch verbatim rather than distributing it halfway. The verbatim half is
-// covered over a model body, which owns a node already, and over a scalar one,
-// which does not — there the alias hoisted for the union carries what the
-// position wrote beside it too. The outside reference to a branch pointer pins
+// branches all name referents, an inline one by the node at its own pointer,
+// and the rule docs/compilers/openapi.md#union-beside-structure keeps one beside
+// a body that is no model verbatim. That half is covered over a scalar body,
+// which owns no node: the alias hoisted for the union carries what the position
+// wrote beside it too. The outside reference to a branch pointer pins
 // the third thing: a composed variant is Morphic's own node, so it cannot be
 // taken by, or take from, a $ref.
 func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
@@ -207,15 +207,20 @@ func assertAllOfOneOfCooccurrence(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 		assert.Equal(t, int64(2), *v.Constraints.MinProps)
 	}
 
-	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Model)
-	require.True(t, ok, "the structural body survives")
-	entry, ok := mixed.Unmodeled["openapi:oneOf"]
-	require.True(t, ok, "and the union it could not absorb survives beside it")
-	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	mixed, ok := doc.Types[componentID("MixedKinds")].(*ir.Union)
+	require.True(t, ok, "an inline branch distributes the body as a $ref branch does")
+	require.Len(t, mixed.Variants, 2)
+	for i, branch := range []ir.TypeID{componentID("A"), "t/prim/string"} {
+		v, ok := doc.Types[mixed.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d composes as a model", i)
+		require.Len(t, v.Properties, 1, "the body rides on every variant")
+		require.NotNil(t, v.Base)
+		assert.Equal(t, branch, v.Base.Target, "the branch is carried as written")
+	}
 
 	bounded, ok := doc.Types[componentID("BoundedKinds")].(*ir.Scalar)
 	require.True(t, ok, "a body that is not a model reduces to a shared primitive and hoists an alias")
-	entry, ok = bounded.Unmodeled["openapi:oneOf"]
+	entry, ok := bounded.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "which is the node the kept union sits on")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	require.NotNil(t, bounded.Constraints, "and the bounds written beside the union sit on it too")
@@ -721,9 +726,9 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 // assertUnionRestatedBranches holds a union whose branches repeat the body to
 // the one that writes only `required`: one Model with the union kept under
-// validation_only, reported as that and not as a degradation. A branch saying
-// more than the body stays degraded
-// (docs/compilers/openapi.md#union-beside-structure).
+// validation_only, reported as that and not as a degradation. Branches saying
+// more than a model body distribute it, and more than one that is no model
+// degrade (docs/compilers/openapi.md#union-beside-structure).
 func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
@@ -743,17 +748,89 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	require.NotNil(t, composed.Base)
 	assert.Equal(t, componentID("RenderBase"), composed.Base.Target)
 	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, composed.Unmodeled, "openapi:oneOf").Reason)
-	for _, name := range []string{"RenderTagged", "RenderSizes"} {
-		td, ok := doc.Types[componentID(name)]
-		require.True(t, ok, "%s lowers", name)
-		assert.Equal(t, ir.ReasonDegradedLowering,
-			unmodeledEntry(t, td.Common().Unmodeled, "openapi:oneOf").Reason, "%s", name)
-	}
+	_, tagged := doc.Types[componentID("RenderTagged")].(*ir.Union)
+	assert.True(t, tagged, "RenderTagged distributes its body across its branches")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/RenderTagged"))
+	sizes, ok := doc.Types[componentID("RenderSizes")]
+	require.True(t, ok, "RenderSizes lowers")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, sizes.Common().Unmodeled, "openapi:oneOf").Reason)
 	var degraded []string
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct {
 			degraded = append(degraded, string(d.Provenance.Pointer))
 		}
 	}
-	assert.ElementsMatch(t, []string{"/components/schemas/RenderTagged", "/components/schemas/RenderSizes"}, degraded)
+	assert.ElementsMatch(t, []string{"/components/schemas/RenderSizes"}, degraded)
+}
+
+// assertUnionRestatedType pins a union beside keywords its branches all say,
+// which is the union alone, and one beside a `type` a branch does not say,
+// which keeps the body (docs/compilers/openapi.md#union-beside-structure). A
+// bare `required` beside object branches composes each.
+func assertUnionRestatedType(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, variants := range map[string][]ir.TypeID{
+		"Address": {componentID("V4"), componentID("V6")},
+		"Ttl":     {"t/anon/components/schemas/Ttl/anyOf/0", "t/anon/components/schemas/Ttl/anyOf/1"},
+		"Entry":   {componentID("Item"), "t/anon/components/schemas/Entry/oneOf/1"},
+	} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is the union alone; got %T", name, doc.Types[componentID(name)])
+		require.Len(t, u.Variants, len(variants), name)
+		for i, v := range variants {
+			assert.Equal(t, ir.TypeRef{Target: v}, u.Variants[i].Type, "%s variant %d", name, i)
+		}
+		assert.Empty(t, u.Unmodeled, "%s keeps nothing", name)
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name), name)
+	}
+
+	maybe, ok := doc.Types[componentID("MaybeAddress")].(*ir.Scalar)
+	require.True(t, ok, "the union alone collapses to its other branch")
+	assert.Equal(t, &ir.TypeRef{Target: componentID("V4"), Nullable: true}, maybe.Base)
+
+	target, ok := doc.Types[componentID("Target")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, target.Variants, 1)
+	composed, ok := doc.Types[target.Variants[0].Type.Target].(*ir.Model)
+	require.True(t, ok, "the bare required composes with its branch")
+	assert.Equal(t, []string{"name"}, composed.Requires)
+	require.NotNil(t, composed.Base)
+	assert.Equal(t, componentID("Item"), composed.Base.Target)
+
+	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Scalar)
+	require.True(t, ok, "a branch the type does not say keeps the body")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, mixed.Unmodeled, "openapi:oneOf").Reason)
+}
+
+// assertUnionInlineBranches pins a union beside a model body distributed
+// across inline branches, each conjoined by the node at its own pointer, which
+// an outside $ref finds too, and a bare null branch declining it
+// (docs/compilers/openapi.md#union-beside-structure).
+func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
+
+	for _, name := range []string{"Placement", "Check"} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is the union, the body distributed across it", name)
+		require.Len(t, u.Variants, 2)
+		for i := range u.Variants {
+			v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+			require.True(t, ok, "%s variant %d is a composed model", name, i)
+			require.Len(t, v.Properties, 1, "the body rides on %s variant %d", name, i)
+			require.NotNil(t, v.Base)
+			branch := ir.TypeID(fmt.Sprintf("t/anon/components/schemas/%s/oneOf/%d", name, i))
+			assert.Equal(t, branch, v.Base.Target, "%s variant %d conjoins its branch's node", name, i)
+		}
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
+	}
+
+	region, ok := doc.Types[componentID("Region")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/Placement/oneOf/0"), region.Base.Target,
+		"the reference gets the branch schema, never the variant composed for it")
+
+	maybe, ok := doc.Types[componentID("MaybePlacement")].(*ir.Model)
+	require.True(t, ok, "a bare null branch keeps the body")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, maybe.Unmodeled, "openapi:oneOf").Reason)
 }

@@ -2185,18 +2185,25 @@ rule: the body is composed into each variant, and the result is an ordinary `Uni
 `Model`s, reported as an info `openapi/composition-lowering` at the schema, since nothing is lost
 but the IR's shape no longer mirrors the source's, bar one thing: a `false` in the `allOf` states
 that the composition admits nothing, which every composed variant then holds only as the closed
-model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept on each. Five
-shapes distribution cannot reach:
+model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept on each. A
+variant conjoins its branch by reference: a `$ref` branch's target, through the alias what is
+written beside the `$ref` hoists, and an inline branch's own node, hoisted at its pointer as any
+inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref` to that pointer
+finds too. The referent is carried as written, a branch admitting no object among them
+([models](../ir/models.md#composition-entries)). A bare `required` is a body too where every
+branch admits only an object or null, the values it constrains or leaves alone: each variant
+requires the names of its branch. Five shapes distribution cannot reach:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
-   `required`/`items`/`prefixItems`/`additionalProperties`/`patternProperties` with neither
-   `properties` nor a `type`), so there are no composition fields for the variants to carry;
-2. a branch is written inline rather than as a `$ref`, so it names no node for `Base`/`Mixins` to
-   point at — a `type: null` branch included;
-3. a branch *is* a `$ref` but names no referent the compilation resolves — a cross-document target
-   it does not intern, an undeclared component, a pointer addressing no schema. The branch is
-   unusable for the same reason an inline one is, so it declines the same way rather than composing
-   a variant whose branch quietly went missing;
+   `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
+   that may be no object, with neither `properties` nor a `type`), so there are no composition
+   fields for the variants to carry;
+2. a branch is a bare `type: null`, which a union lifts onto the position's `Nullable` rather than
+   conjoining it ([`union-null-variant`](#union-null-variant)), so no variant could say whether the
+   body admits the null;
+3. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
+   it does not intern, an undeclared component, a pointer addressing no schema — so it declines
+   rather than composing a variant whose branch quietly went missing;
 4. a `discriminator` is declared, binding the branch schemas by name;
 5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
 
@@ -2212,6 +2219,20 @@ union it belongs to is no longer structural, so lifting one branch out of it wou
 the lowered type does not say. The degradation is that the generated SDK is *under-constrained* — it
 admits values the union would reject — which is why the branches must survive for a validating
 emitter to reach.
+
+A keyword beside the union that every branch already says adds nothing to it: a `type` naming each
+kind a branch admits, null included, and a `format`, an `enum`, a `const` or an `items` each branch
+is held to, read as [`allof-refinement`](#allof-refinement) reads what a conjunct admits and within
+its bounds, a read cut short saying none. Where the branches declare shape (below) and say every
+keyword that makes a body, the schema means the union alone, and it lowers as if those keywords
+were not written: `{type: string, anyOf: [{$ref: V4}, {$ref: V6}]}` as `{anyOf: [{$ref: V4},
+{$ref: V6}]}`, and `{type: object, oneOf: [{$ref: A}, {$ref: B}]}` as the union of `A` and `B`, not
+a union of models composed over each. A `nullable` beside such a union reads as it reads beside
+any union ([`nullable`](#nullable)), and a keyword the branches do not all say, a bound or a
+`format` among them, is kept as the census keeps it beside a union
+([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body, which
+stays validation logic beside it whatever they repeat, and a `discriminator` beside the union keeps
+the body, whose routes may be its subtypes.
 
 A `discriminator` beside any of the five whose body lowers to a `Model` stays on that `Model` only
 when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
@@ -2291,10 +2312,14 @@ however many branches restate it. A read that does not finish says nothing, so i
 as one whose branches declare shape.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
-  `keywords-at-every-outcome`, `union-restated-branches`
+  `keywords-at-every-outcome`, `union-restated-branches`, `union-restated-type`,
+  `union-inline-branches`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
+  `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
+  `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
+  `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
@@ -2307,8 +2332,7 @@ as one whose branches declare shape.
 - Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
   body itself writes (#1423). Open: keeping a discriminated `oneOf` a union when structural keywords
-  sit beside it (#594), and distributing a union's inline branches when properties sit beside it
-  (#661).
+  sit beside it (#594).
 
 ### `union-beside-ref`
 
@@ -4136,7 +4160,8 @@ where one reading could override what the other reports.
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
-  `oneOf` kept verbatim beside structure waits for those branches to lower (#661); and a mapping
+  `oneOf` kept verbatim beside a discriminated body waits for those branches to lower (#594); and a
+  mapping
   naming a target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`

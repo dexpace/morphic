@@ -294,9 +294,14 @@ Giving them the branch pointer's own ID would put two different types on one poi
 pointer from the other. That makes the IR depend on declaration order and can produce exactly the
 `Union` the next paragraph forbids.
 
-Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference — a branch
-must be a `$ref`, and that `$ref` must resolve. A union that cannot supply a referent for every
-branch is not distributed *at all* — never halfway, which would leave a `Union` whose variants
-disagree about whether they carry `S` with nothing in the IR saying which. Those cases degrade
-instead, enumerated by the OpenAPI compiler's rule
+Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference: a `$ref`
+branch's target, which must resolve, or the node an inline branch lowers to at its own pointer,
+which is no synthesized node and so takes that pointer's ID. A union that cannot supply a referent
+for every branch is not distributed *at all* — never halfway, which would leave a `Union` whose
+variants disagree about whether they carry `S` with nothing in the IR saying which. Those cases
+degrade instead, enumerated by the OpenAPI compiler's rule
 [`union-beside-structure`](../compilers/openapi.md#union-beside-structure).
+
+Where `S` only restates what every branch already is, a `type: object` beside branches that are
+all objects among it, the conjunction is the union itself, so the node is a `Union` of the
+branches with nothing composed over them.

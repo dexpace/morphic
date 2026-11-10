@@ -45,7 +45,7 @@ components:
           properties: {html: {type: string}, url: {type: string}}
           not: {required: [url], type: object, properties: {url: {type: string}}}
     # A const says more than the type beside it, so these branches pick
-    # variants and the union degrades as any inline branch does.
+    # variants, and the body is distributed across them.
     RenderTagged:
       type: object
       properties: {kind: {type: string}}

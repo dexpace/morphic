@@ -329,13 +329,13 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
 		return unhomedKeywords(s, nil, nil), expandedShape
 	}
-	if hasUnionSiblings(s) {
+	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
 	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
 		return nil, ""
 	}
-	return unhomedKeywords(s, nil, nil), collapsedShape
+	return unhomedKeywords(s, nil, branchesSay(c, s)), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -357,7 +357,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
-	unhomed := unhomedKeywords(s, td, d.skipped)
+	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.

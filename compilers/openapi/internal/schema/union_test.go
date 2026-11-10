@@ -641,12 +641,16 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
-	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
-	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = m.Unmodeled["openapi:oneOf"]
-	assert.True(t, ok, "the oneOf is kept verbatim under Unmodeled")
+	u, ok := doc.Types[componentID("Combo")].(*ir.Union)
+	require.True(t, ok, "the oneOf is the value, the composition distributed across it")
+	require.Len(t, u.Variants, 2)
+	for i, prim := range []ir.TypeID{"t/prim/string", "t/prim/integer"} {
+		m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d is a composed model", i)
+		require.NotNil(t, m.Base, "the allOf $ref becomes Base")
+		assert.Equal(t, componentID("Base"), m.Base.Target)
+		assert.Equal(t, []ir.TypeRef{{Target: prim}}, m.Mixins, "the branch is carried as written")
+	}
 }
 
 func TestLower_MultiTypeUnion(t *testing.T) {
@@ -730,7 +734,10 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, name := range []string{"A", "B", "C", "D"} {
+	// A's body is a model, so its union is distributed across it; the others'
+	// is none, so each keeps its union verbatim.
+	assert.Equal(t, readDistributed, unionReading(doc, "A"))
+	for _, name := range []string{"B", "C", "D"} {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
 		c := td.Common()

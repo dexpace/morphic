@@ -448,7 +448,7 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyUnionSiblings":     "isInlineBranch",
+		"classifyUnionSiblings":     "isNullSchema",
 		"unionBranchesDeclareShape": "branchDeclaresShape",
 		"oneOfAnyOfHasNull":         "isNullSchema",
 	}

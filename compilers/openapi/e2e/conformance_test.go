@@ -176,6 +176,8 @@ func conformanceCases() []conformanceCase {
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"union-beside-ref", assertUnionBesideRef},
 		{"union-restated-branches", assertUnionRestatedBranches},
+		{"union-restated-type", assertUnionRestatedType},
+		{"union-inline-branches", assertUnionInlineBranches},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
 		{"content-several-entries", assertContentSeveralEntries},
