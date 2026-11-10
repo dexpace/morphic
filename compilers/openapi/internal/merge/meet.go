@@ -100,10 +100,7 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 // built from all the tuples' (settle), which meet only at one length and one
 // presence of what follows (typeJudge.tuples).
 func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer jsontext.Pointer, depth int) (ir.TypeDef, bool) {
-	if !sameKind[*ir.Tuple](nodes) || slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
-		t, _ := td.(*ir.Tuple)
-		return len(t.Elems) != len(n.Elems) || (t.Rest == nil) != (n.Rest == nil)
-	}) {
+	if !shapedAs(n, nodes) {
 		return nil, false
 	}
 	out := *n
@@ -117,6 +114,18 @@ func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer j
 		out.Rest = &rest
 	}
 	return &out, true
+}
+
+// shapedAs reports whether every node is a tuple of n's length, and admits what
+// follows its last position where n does.
+func shapedAs(n *ir.Tuple, nodes []ir.TypeDef) bool {
+	for _, td := range nodes {
+		t, ok := td.(*ir.Tuple)
+		if !ok || len(t.Elems) != len(n.Elems) || (t.Rest == nil) != (n.Rest == nil) {
+			return false
+		}
+	}
+	return true
 }
 
 // sameKind reports whether every node is a T.

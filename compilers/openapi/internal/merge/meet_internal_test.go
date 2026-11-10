@@ -429,6 +429,8 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 	reg := meetRegistry()
 	reg["t/A-pair-tuple"] = &ir.Tuple{ID: "t/A-pair-tuple", Anonymous: true, Provenance: ptrAt(declaredAt(1)),
 		Elems: []ir.TypeRef{ref("t/A"), ref("t/A")}}
+	reg["t/A-rest-tuple"] = &ir.Tuple{ID: "t/A-rest-tuple", Anonymous: true, Provenance: ptrAt(declaredAt(1)),
+		Elems: []ir.TypeRef{ref("t/A")}, Rest: new(ref("t/A"))}
 	g, _ := stubMerger(reg)
 	f := newFolding(g, declsOf("t/A", "t/B"), declaredAt(1))
 	m := func(id ir.TypeID, decl int) member { return member{ref: ref(id), decl: decl} }
@@ -439,6 +441,8 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 		{"a partner the registry does not hold", m("t/A", 0), m("t/absent", 1)},
 		{"two models", m("t/A", 0), m("t/B", 1)},
 		{"tuples of different lengths", m("t/A-tuple", 0), m("t/A-pair-tuple", 1)},
+		{"a tuple beside one admitting more", m("t/A-tuple", 0), m("t/A-rest-tuple", 1)},
+		{"a tuple admitting more beside one that does not", m("t/A-rest-tuple", 0), m("t/A-tuple", 1)},
 		{"an enum beside a list", m("t/ab", 0), m("t/i32s", 1)},
 	} {
 		b := builder{f: f, dry: true}

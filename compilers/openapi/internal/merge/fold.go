@@ -48,7 +48,7 @@ type Merger struct {
 }
 
 // judgeAt is the judgment over g's registry of two declarations written at a
-// and b, or of types no declaration's site decides where both are zero.
+// and b.
 func (g *Merger) judgeAt(a, b ir.Provenance) typeJudge {
 	return typeJudge{Resolve: g.Resolve, untyped: g.Untyped,
 		sites: declarationSites{alike: g.Alike, written: [2]ir.Provenance{a, b}}}

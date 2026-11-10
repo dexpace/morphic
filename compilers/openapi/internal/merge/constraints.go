@@ -26,7 +26,7 @@ func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 	if src == nil {
 		return dst
 	}
-	for _, kw := range constraintKeywords() {
+	for _, kw := range constraintKeywords {
 		kw.meet(dst, src)
 	}
 	dst.UniqueItems = dst.UniqueItems || src.UniqueItems
@@ -56,12 +56,9 @@ type constraintKeyword struct {
 // deterministic. A bound takes its tighter value, a step the common multiple of
 // both (commonStep), and a keyword with no order keeps one value and conflicts
 // with any other. UniqueItems is absent: a plain bool cannot tell false from
-// unset, and under intersection a true from either side always holds.
-func constraintKeywords() []constraintKeyword { return keywordTable }
-
-// keywordTable is constraintKeywords' list, built once: every judgment of two
-// nodes' bounds reads it, several times over.
-var keywordTable = []constraintKeyword{
+// unset, and under intersection a true from either side always holds. It is
+// built once, as every judgment of two nodes' bounds reads it several times.
+var constraintKeywords = []constraintKeyword{
 	numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
 	numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
 	numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
@@ -164,7 +161,7 @@ func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conf
 	if a == nil || b == nil {
 		return 0, "", false
 	}
-	for i, kw := range constraintKeywords() {
+	for i, kw := range constraintKeywords {
 		if detail, conflict := kw.differ(a, b); conflict {
 			return i, detail, true
 		}

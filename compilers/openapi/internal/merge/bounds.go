@@ -48,14 +48,14 @@ func sameBounds(a, b *ir.Constraints) bool {
 		b = &none
 	}
 	return a.UniqueItems == b.UniqueItems &&
-		!slices.ContainsFunc(constraintKeywords(), func(kw constraintKeyword) bool { return !kw.same(a, b) })
+		!slices.ContainsFunc(constraintKeywords, func(kw constraintKeyword) bool { return !kw.same(a, b) })
 }
 
 // boundsBeyond returns what c says that own does not: c without each keyword own
 // states at the value c holds. It writes to neither.
 func boundsBeyond(c, own *ir.Constraints) *ir.Constraints {
 	beyond := *c
-	for _, kw := range constraintKeywords() {
+	for _, kw := range constraintKeywords {
 		if kw.same(c, own) {
 			kw.clear(&beyond)
 		}
@@ -113,8 +113,7 @@ func withBounds(td ir.TypeDef, c *ir.Constraints) ir.TypeDef {
 // hears of each later set pinning it otherwise: that set's index, the index the
 // value was kept from, and the difference. No set is written to.
 func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail string)) *ir.Constraints {
-	keywords := constraintKeywords()
-	setBy := make([]int, len(keywords))
+	setBy := make([]int, len(constraintKeywords))
 	var kept *ir.Constraints
 	for i, c := range sets {
 		if c == nil {
@@ -123,7 +122,7 @@ func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail s
 		if k, detail, conflict := constraintsConflict(kept, c); conflict {
 			disagree(i, setBy[k], detail)
 		}
-		for k, kw := range keywords {
+		for k, kw := range constraintKeywords {
 			if kw.set(c) && (kept == nil || !kw.set(kept)) {
 				setBy[k] = i
 			}

@@ -21,9 +21,9 @@ const (
 	// relUnrelated is a pair nothing relates, such as two composites of one
 	// kind neither says it is, a union or an opaque scalar against a kind or a
 	// structure, an alias of the top type saying something of its values, a
-	// degraded node, nesting past
-	// maxJudgeDepth, or a type the registry does not hold. The fold composes two
-	// models (composition), and otherwise drops the second and says it does not
+	// degraded node, nesting past maxJudgeDepth, or a type the registry does
+	// not hold. The fold composes two models, or a model and a map or a union
+	// (composition), and otherwise drops the second and says it does not
 	// compare.
 	relUnrelated relation = iota
 	// relDisjoint is a pair no value satisfies together, but a null both sides
