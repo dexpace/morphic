@@ -396,11 +396,11 @@ func (d dispatch) besideAllOf() dispatch {
 // dispatchOf elects the family lower() lowers and collects the rest. A schema
 // declaring none leaves won empty and skipped nil.
 //
-// familyOrder, declaresFamily and lower()'s switch must name the same families.
-// A name declaresFamily does not know is never elected, and a loser reaches
-// recordSkippedFamilies whether or not lower() can lower it, but a winner
-// lower() has no arm for is neither lowered nor skipped: the switch falls
-// through to the type-set arms and drops the keyword in silence (GitHub #35).
+// familyOrder, declaresFamily and lowerElected's switch must name the same
+// families. A name declaresFamily does not know is never elected, and a loser
+// reaches recordSkippedFamilies whether or not lowerElected can lower it, but a
+// winner lowerElected has no arm for is neither lowered nor skipped: the switch
+// falls through to the type-set arms and drops the keyword in silence (GitHub #35).
 // Adding a family means adding all three.
 func dispatchOf(s *oas3.Schema) dispatch {
 	var d dispatch
@@ -420,15 +420,16 @@ func dispatchOf(s *oas3.Schema) dispatch {
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
 // passed over, and reports them once.
 //
-// JSON Schema conjoins keywords, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a
-// narrowing of Base, not a malformed document. The IR has no intersection
-// combinator (docs/ir/boundaries.md#deliberate-exclusions), so only one family
-// can be the value; keeping the loser beside it is what the rule
+// JSON Schema conjoins keywords, so `{const: a, enum: [a, b]}` admits a alone and
+// is no malformed document. The IR has no intersection combinator
+// (docs/ir/boundaries.md#deliberate-exclusions), so only one family can be the
+// value; keeping the loser beside it is what the rule
 // docs/compilers/openapi.md#competing-keywords asks of an unrepresentable
 // conjunction.
 //
 // It reports the keywords it stored, never the ones it was handed, so the
-// message cannot claim one that failed to convert.
+// message cannot claim one that failed to convert. An allOf whose conjuncts
+// share no value draws its warning, stored or not.
 func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(d.skipped) == 0 {
 		return nil

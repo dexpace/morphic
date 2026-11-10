@@ -2228,8 +2228,8 @@ reported as an info `openapi/degraded-construct` at the position.
 
 ### `competing-keywords`
 
-Keywords conjoin, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a narrowing of `Base` rather than a
-malformed document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
+Keywords conjoin, so `{const: a, enum: [a, b]}` admits `a` alone rather than being a malformed
+document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
 Three families compete for it: the value keywords `const`, `enum` and `allOf`, elected in that
 order; the two union combinators, where `oneOf` wins; and a parameter's or header's `schema` beside
 its `content`, where `content` wins, since a media-type entry names both a schema and the media type
