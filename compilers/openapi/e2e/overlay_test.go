@@ -429,8 +429,8 @@ components:
 `
 
 // addBirthProperty overlays a property of another primitive kind, date, onto
-// Widget, at a position whose own Provenance.Source is the overlay's index (1)
-// rather than the spec's (0). No position the spec declares reaches that kind.
+// Widget, at a position whose own Provenance names the overlay (1) as its
+// WrittenBy. No position the spec declares reaches that kind.
 const addBirthProperty = `overlay: 1.0.0
 info: {title: Patch, version: "1"}
 actions:

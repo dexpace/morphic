@@ -80,8 +80,8 @@ const header = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"
 // downwards), and a new path whose key holds a `/` needing RFC 6901 escaping.
 //
 // Introduced positions are asserted as introduced, not declared: a declared
-// assertion is satisfied by the fallback, so it passes on a wrongly built
-// pointer as readily as a right one.
+// one reads 0, as any pointer the attribution lacks does, so it passes on a
+// wrongly built pointer too.
 func TestApply_AttributesIntroducedPositions(t *testing.T) {
 	t.Parallel()
 	origin, _ := applyTo(t, header+`  - target: $.components.schemas.Pet.properties

@@ -133,8 +133,8 @@ func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
 }
 
 // TestJudgeSource_AnOverlayOwnsWhatItWrote pins the attribution of a finding
-// about a node an overlay introduced: the overlay's index, and the node's
-// pointer, where a node the overlay left alone keeps the source's.
+// about a node an overlay introduced: the node's pointer, with the overlay as
+// its writer, where a node the overlay left alone names no writer.
 func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T}\npaths: {}\n"
