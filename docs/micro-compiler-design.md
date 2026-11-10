@@ -313,8 +313,9 @@ homes — or threading a return value through every lowering.
 `$ref` that `lowering.Declared` resolves what the declarations its chain names weigh, and
 each `additionalOperations` entry what it copies of its path item. Once the run's budget
 is crossed, no copy of `Ctx` lowers another such `$ref` or entry, and the compiler refuses
-the document rather than assemble one from whichever copies came first (GitHub #1430). Of
-what copies of `Ctx` share, it is the one that changes what another lowering reads.
+the document rather than assemble one from whichever copies came first
+(GitHub #1430, #1470). Of what copies of `Ctx` share, it is the one that changes what
+another lowering reads.
 
 *Later:* the `operationIDs` row did not survive either. The operation walk recurses
 through callbacks, each a path item with operations of its own, and whether an
@@ -326,12 +327,14 @@ security-scheme registries the service's servers and security requirements go in
 each holding an entry once by ID (GitHub #1144, #1226, #1479), and the content entries a
 parameter or header passes over, read once per declaration however many references reach
 it (GitHub #1240, #1484). They are effect handles beside `ts`, which §4 admits none of.
-Each spans the operations: a claim is judged against every other, a server and a
-passed-over entry are lowered once, and a scheme no entry declares is minted once, however
-many operations reach them, which values an operation returns after lowering could not
-settle. They are the walk's and not the run's: `LowerService` judges or returns each
-before it returns, so no lowering outside the service walk reaches them, and `Ctx` holds
-none.
+A server and a passed-over entry are lowered once however many operations reach them,
+which values each operation returned could not settle without lowering them at every
+reach. The claims and the schemes no entry declares could be such values, since a claim
+is judged once every operation has lowered and such a scheme is a function of its name
+and the source; they sit in `walk` beside the rest, which spares returning them up
+through every path item and callback that mounts an operation. They are the walk's and
+not the run's: `LowerService` judges or returns each before it returns, so no lowering
+outside the service walk reaches them, and `Ctx` holds none.
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.
