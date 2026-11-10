@@ -215,6 +215,8 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
     Patterned: {allOf: [{anyOf: [{type: string, pattern: '^a'}, {type: integer}]}, {type: string, maxLength: 1000}]}
     Described: {allOf: [{anyOf: [{type: string, description: a word}, {type: integer}]}, {type: string, maxLength: 1000}]}
     BesideDecides: {type: string, maxLength: 1000, allOf: [{anyOf: [{type: string}, {type: integer}]}]}
+    SameText: {allOf: [{oneOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 5}]}
+    SameRef: {allOf: [{oneOf: [{$ref: '#/components/schemas/Str'}, {type: integer}]}, {$ref: '#/components/schemas/Str'}]}
     Holder:
       type: object
       properties:
@@ -246,6 +248,11 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	require.True(t, ok, "BesideDecides is a scalar, not %T", typeByName(doc, "BesideDecides"))
 	assert.Equal(t, ir.TypeID("t/prim/string"), beside.Base.Target, "the keywords beside the allOf decide it")
 	assert.Empty(t, beside.Unmodeled, "with no principal branch, the anyOf is said all the same")
+
+	for _, name := range []string{"SameText", "SameRef"} {
+		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, "%s: a branch written as the principal says nothing more", name)
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/allOf/0"), name)
+	}
 
 	byRef, ok := typeByName(doc, "ByRef").(*ir.Scalar)
 	require.True(t, ok, "ByRef is a use of Str, not %T", typeByName(doc, "ByRef"))
