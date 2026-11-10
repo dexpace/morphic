@@ -235,8 +235,8 @@ func TestFold_AMeetingNoNodeHoldsKeepsTheWinner(t *testing.T) {
 
 // TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept pins a detail two
 // declarations meeting the winner each add, differently: the minted node takes
-// the first's, and the second is reported and kept, its narrower element still
-// adopted.
+// the first's, and the second is reported, naming the detail as a document
+// spells it, and kept, its narrower element still adopted.
 func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	t.Parallel()
 	reg := meetRegistry()
@@ -253,6 +253,7 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
+	assert.Contains(t, (*recorded)[0].Message, "give the docs of a type", "the detail is named as a document spells it")
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
 }
 

@@ -7,6 +7,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -133,8 +134,8 @@ func unmodeledHolding(a, b ir.Unmodeled, alike func(a, b ir.Provenance) bool) (h
 // adopt returns base holding, beside all it says, each field of others that
 // base leaves empty, as a reference to each would read it: the first of others
 // to set it gives it, and differ hears of each later one setting it otherwise,
-// by its index and the field's name. Base keeps its site and its examples,
-// which nothing adopts (detailOf).
+// by its index and the name a document spells the field with. Base keeps its
+// site and its examples, which nothing adopts (detailOf).
 func adopt(base ir.TypeCommon, others []ir.TypeCommon, alike func(a, b ir.Provenance) bool,
 	differ func(k int, field string),
 ) ir.TypeCommon {
@@ -161,12 +162,18 @@ func adopt(base ir.TypeCommon, others []ir.TypeCommon, alike func(a, b ir.Proven
 				out.Field(i).Set(v)
 				set = true
 			case !reflect.DeepEqual(v.Interface(), out.Field(i).Interface()):
-				differ(k, out.Type().Field(i).Name)
+				differ(k, jsonName(out.Type().Field(i)))
 			}
 		}
 	}
 	base.Unmodeled = adoptUnmodeled(base.Unmodeled, others, alike, differ)
 	return base
+}
+
+// jsonName is the name a document spells f with, its JSON member's.
+func jsonName(f reflect.StructField) string {
+	name, _, _ := strings.Cut(f.Tag.Get("json"), ",")
+	return name
 }
 
 // adoptUnmodeled returns own with each key of others' Unmodeled it lacks, the
