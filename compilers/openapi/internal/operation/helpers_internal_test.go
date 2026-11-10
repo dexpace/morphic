@@ -25,8 +25,8 @@ import (
 // there would reach these.
 
 // lowerer is test scaffolding, not a compiler type: every lowering is a
-// function of the context and the registry (#177), and this holds what a
-// single-lowering test wants in one place.
+// function of the context and the registry, or the walk holding it (#177), and
+// this holds what a single-lowering test wants in one place.
 type lowerer struct {
 	ctx   lowering.Ctx
 	types *compile.Types
@@ -44,9 +44,9 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	}
 }
 
-// serviceWalk is the walk LowerService hands the lowerings beneath it, over l's
-// registry. It holds no operationId claims, servers or schemes: no lowering a test
-// here hands it to reads them.
+// serviceWalk stands in for the walk LowerService hands the lowerings beneath it:
+// l's registry, and a kept set of its own. It holds no operationId claims, servers
+// or schemes: no lowering a test here hands it to reads them.
 func (l *lowerer) serviceWalk() walk {
 	return walk{types: l.types, kept: newKeptOnce()}
 }

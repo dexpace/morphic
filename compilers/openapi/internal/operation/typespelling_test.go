@@ -325,10 +325,7 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 // entry, and the walk warns once at each.
 func TestPassedOverEntries_KeepsOneAtEveryPosition(t *testing.T) {
 	t.Parallel()
-	src := fmt.Sprintf(`openapi: 3.2.0
-info: {title: T, version: "1"}
-paths:
-  /x:
+	src := openapitest.PathsSpecVer("3.2.0", fmt.Sprintf(`  /x:
     parameters:
       - {name: i, in: query, content: %[1]s}
     get:
@@ -376,7 +373,7 @@ webhooks:
       parameters:
         - {name: w, in: query, content: %[1]s}
       responses: {"200": {description: ok}}
-`, "{application/json: {schema: {type: integer}}, text/plain: {schema: {type: string}}}")
+`, "{application/json: {schema: {type: integer}}, text/plain: {schema: {type: string}}}"))
 	contentMaps := []jsontext.Pointer{
 		"/paths/~1x/parameters/0/content",
 		"/paths/~1x/get/parameters/0/content",
