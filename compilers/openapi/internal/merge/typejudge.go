@@ -63,10 +63,19 @@ const maxJudgeDepth = 8
 // of a type's. It is a type of its own, not methods on Merger, so that the
 // conflict lattice's size stays the lattice's.
 type typeJudge struct {
-	// Resolve looks a type up in the registry.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	registry
+	// untyped is Merger.Untyped; nil reads every node as stating its type.
+	untyped func(ir.Provenance) bool
 	// sites is where the declarations a and b were written.
 	sites declarationSites
+}
+
+// registry reads what the registry says of one type, whichever declarations a
+// judgment compares: what an alias stands for, the kind its values are read as,
+// what it composes, and which values it admits.
+type registry struct {
+	// Resolve looks a type up in the registry.
+	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 }
 
 // declarationSites is where the two declarations a judgment compares were written,
@@ -85,10 +94,10 @@ type declarationSites struct {
 // swapping the arguments, and written's two pointers with them, flips a
 // narrowing and leaves any other verdict as it was. The arms, in order: the
 // same target; a degraded Any node, which is unrelated to every type; the top
-// type, spelled bare or as an alias saying nothing of its values (topAt), which
-// loses to anything else; then arms, and classify for a pair arms
-// leaves unrelated. Every pair gets its verdict here, a field's types and two
-// containers' members alike, bar the exceptions boundedNodes and contained name.
+// type, or an alias read as it (topAt), which loses to anything else; then
+// arms, and classify for a pair arms leaves unrelated. Every pair gets its
+// verdict here, a field's types and two containers' members alike, bar the
+// exceptions boundedNodes and contained name.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 // relateAt is relate at a nesting depth.
@@ -117,7 +126,7 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if rel := j.arms(a, at, b, bt, depth); rel != relUnrelated {
 		return rel
 	}
-	return j.classify(a, at, b, bt)
+	return j.classify(a, at, b, bt, depth)
 }
 
 // arms relates two resolved types, neither the top type nor degraded, that it
@@ -187,11 +196,11 @@ const maxComposedParts = 64
 // Base and Mixins leads from one to the other, and every value of the first is
 // a value of what it composes. A folded field names no such link, so the answer
 // follows no fold. The walk reads at most maxComposedParts types.
-func (j typeJudge) composes(id, target ir.TypeID) bool {
+func (r registry) composes(id, target ir.TypeID) bool {
 	seen := map[ir.TypeID]bool{id: true}
 	queue := []ir.TypeID{id}
 	for len(queue) > 0 && len(seen) <= maxComposedParts {
-		td, ok := j.Resolve(queue[len(queue)-1])
+		td, ok := r.Resolve(queue[len(queue)-1])
 		queue = queue[:len(queue)-1]
 		if !ok {
 			continue
@@ -249,10 +258,10 @@ func saysOnlyObject(td ir.TypeDef) bool {
 // disjoint kinds, or an enum none of whose members the other kind admits, are
 // disjoint, and any other pair overlaps. A literal against a type that ends in a
 // kind is judged by againstKind, and against another literal overlaps. A value
-// type against a structure is disjoint, and so are two structures of different
-// instance types (saysItsValues). Anything else stays unrelated: nothing says
-// what the intersection holds.
-func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
+// type against a structure, or two structures of different instance types
+// (saysItsValues), are judged by what each structure's source states (anyKind).
+// Anything else stays unrelated: nothing says what the intersection holds.
+func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ak, aok := j.kindOf(a)
 	bk, bok := j.kindOf(b)
 	au, bu := j.unaliased(at), j.unaliased(bt)
@@ -264,14 +273,85 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 			return relDisjoint
 		}
 		return relOverlap
+	case aok && isStructural(bu):
+		return j.anyKind(bt, depth).flipped()
+	case bok && isStructural(au):
+		return j.anyKind(at, depth)
 	case aok:
 		return j.againstKind(bu, a, at, ak).flipped()
 	case bok:
 		return j.againstKind(au, b, bt, bk)
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
+	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
+		return acrossKinds(j.anyKind(at, depth), j.anyKind(bt, depth))
 	default:
-		return disjointIf(saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu))
+		return relUnrelated
+	}
+}
+
+// anyKind is the verdict on td, a structure through any aliases, against a type
+// of another instance type, from td's side. Where td's source and each alias's
+// state no instance type (Merger.Untyped), td admits every value of another, so
+// the other type is narrower: `properties` alone constrains objects and admits a
+// string. A node saying more than that, such as a title, overlaps instead, as
+// topAt reads an alias of `{}`, since a type replacing it would lose it. Any
+// other structure is disjoint from the other type.
+func (j typeJudge) anyKind(td ir.TypeDef, depth int) relation {
+	if j.untyped == nil || !isStructural(j.unaliased(td)) {
+		return relDisjoint
+	}
+	carried, saysNothing := depth == 0, true
+	for range maxTypeResolveDepth {
+		if !j.untyped(td.Common().Provenance) {
+			return relDisjoint
+		}
+		s, alias := td.(*ir.Scalar)
+		if !alias {
+			if !saysNothing || !structureSaysNothing(td, carried) {
+				return relOverlap
+			}
+			return relBNarrower
+		}
+		if s.Base == nil {
+			return relDisjoint
+		}
+		next, ok := j.Resolve(s.Base.Target)
+		if !ok {
+			return relDisjoint
+		}
+		saysNothing = saysNothing && aliasSaysNothing(s, carried)
+		td, carried = next, false
+	}
+	return relDisjoint
+}
+
+// structureSaysNothing reports whether td holds nothing in its TypeCommon but
+// where it was declared, and, where carried, what a reference carries down to
+// its use, as aliasSaysNothing reads an alias. What else a structure holds
+// constrains only values of its own instance type.
+func structureSaysNothing(td ir.TypeDef, carried bool) bool {
+	c := siteless(*td.Common())
+	if carried {
+		c.Docs, c.Deprecation, c.Sensitive = ir.Docs{}, nil, false
+	}
+	return reflect.DeepEqual(c, ir.TypeCommon{})
+}
+
+// acrossKinds joins the verdicts anyKind gives two structures of different
+// instance types, a's against b and b's against a, each from its own side.
+// Where both admit every value of the other's type they share every value of a
+// third, so they overlap.
+func acrossKinds(a, b relation) relation {
+	switch {
+	case a == relDisjoint && b == relDisjoint:
+		return relDisjoint
+	case a == relDisjoint:
+		return b.flipped()
+	case b == relDisjoint:
+		return a
+	default:
+		return relOverlap
 	}
 }
 
@@ -283,13 +363,13 @@ func saysItsValues(td ir.TypeDef) bool { return isLiteral(td) || isStructural(td
 // unaliased returns the type td stands for: td itself, or what a chain of alias
 // scalars ends in (docs/ir/scalars.md#aliases). The chain is bounded against a
 // malformed registry, as kindOf's is.
-func (j typeJudge) unaliased(td ir.TypeDef) ir.TypeDef {
+func (r registry) unaliased(td ir.TypeDef) ir.TypeDef {
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
 		if !alias || s.Base == nil {
 			return td
 		}
-		next, ok := j.Resolve(s.Base.Target)
+		next, ok := r.Resolve(s.Base.Target)
 		if !ok {
 			return td
 		}
@@ -395,11 +475,11 @@ func instanceKind(td ir.TypeDef) ir.TypeKind {
 // schemaless top type, bare or an alias over it, or an Any node a degraded
 // lowering minted. It follows the Base chain, since a position writing
 // something only a node can hold gets an alias over the top type.
-func (j typeJudge) isAnyType(ref ir.TypeRef) bool {
-	if k, ok := j.kindOf(ref); ok {
+func (r registry) isAnyType(ref ir.TypeRef) bool {
+	if k, ok := r.kindOf(ref); ok {
 		return k.prim == ir.PrimAny
 	}
-	td, ok := j.Resolve(ref.Target)
+	td, ok := r.Resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
 }
 
@@ -557,7 +637,7 @@ func isTop(td ir.TypeDef) bool {
 // carries those down to the property using it
 // (docs/ir/annotations.md#what-a-reference-carries-down); any other alias holds
 // nothing but where it was declared, so no type replacing it loses anything.
-func (j typeJudge) topAt(td ir.TypeDef, depth int) bool {
+func (r registry) topAt(td ir.TypeDef, depth int) bool {
 	carried := depth == 0
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
@@ -567,7 +647,7 @@ func (j typeJudge) topAt(td ir.TypeDef, depth int) bool {
 		if s.Base == nil || !aliasSaysNothing(s, carried) {
 			return false
 		}
-		next, ok := j.Resolve(s.Base.Target)
+		next, ok := r.Resolve(s.Base.Target)
 		if !ok {
 			return false
 		}
@@ -882,11 +962,11 @@ func formatAgainst(f string, k valueKind) relation {
 // An Enum resolves via its already-computed ValueType (docs/ir/enums.md). A
 // Literal is deliberately left unresolved: a ValueNumber literal spans integer,
 // number, float and decimal, so no one kind stands for it.
-func (j typeJudge) kindOf(ref ir.TypeRef) (valueKind, bool) {
+func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
 	for range maxTypeResolveDepth {
-		td, ok := j.Resolve(id)
+		td, ok := r.Resolve(id)
 		if !ok {
 			return valueKind{}, false
 		}
@@ -920,10 +1000,10 @@ func (j typeJudge) kindOf(ref ir.TypeRef) (valueKind, bool) {
 // Scalar by its base and its Encoding (encodingAdmits), and a list or map by
 // each member. A Scalar, list or map also holds v to its Constraints
 // (admitsConstraints). Nesting past maxJudgeDepth is refused.
-func (j typeJudge) admits(ref ir.TypeRef, v ir.Value) bool { return j.admitsAt(ref, v, 0) }
+func (r registry) admits(ref ir.TypeRef, v ir.Value) bool { return r.admitsAt(ref, v, 0) }
 
-func (j typeJudge) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
-	td, ok := j.Resolve(ref.Target)
+func (r registry) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
+	td, ok := r.Resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {
 		return false
 	}
@@ -946,12 +1026,12 @@ func (j typeJudge) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
 		return sameValue(t.Value, v)
 	case *ir.Scalar:
 		return t.Base != nil && encodingAdmits(t.Encoding, v) && admitsConstraints(t.Constraints, v, depth) &&
-			j.admitsAt(*t.Base, v, depth+1)
+			r.admitsAt(*t.Base, v, depth+1)
 	case *ir.List:
-		return v.Kind == ir.ValueList && admitsConstraints(t.Constraints, v, depth) && j.admitsAll(t.Elem, v.List, depth)
+		return v.Kind == ir.ValueList && admitsConstraints(t.Constraints, v, depth) && r.admitsAll(t.Elem, v.List, depth)
 	case *ir.MapT:
 		return v.Kind == ir.ValueObject && admitsConstraints(t.Constraints, v, depth) &&
-			j.admitsFields(t.Value, v.Object, depth)
+			r.admitsFields(t.Value, v.Object, depth)
 	default:
 		return false
 	}
@@ -971,9 +1051,9 @@ func encodingAdmits(enc *ir.Encoding, v ir.Value) bool {
 }
 
 // admitsAll reports whether every element of vs is a value of elem.
-func (j typeJudge) admitsAll(elem ir.TypeRef, vs []ir.Value, depth int) bool {
+func (r registry) admitsAll(elem ir.TypeRef, vs []ir.Value, depth int) bool {
 	for _, e := range vs {
-		if !j.admitsAt(elem, e, depth+1) {
+		if !r.admitsAt(elem, e, depth+1) {
 			return false
 		}
 	}
@@ -981,9 +1061,9 @@ func (j typeJudge) admitsAll(elem ir.TypeRef, vs []ir.Value, depth int) bool {
 }
 
 // admitsFields reports whether every member of fs is a value of elem.
-func (j typeJudge) admitsFields(elem ir.TypeRef, fs []ir.Field, depth int) bool {
+func (r registry) admitsFields(elem ir.TypeRef, fs []ir.Field, depth int) bool {
 	for _, f := range fs {
-		if !j.admitsAt(elem, f.Value, depth+1) {
+		if !r.admitsAt(elem, f.Value, depth+1) {
 			return false
 		}
 	}

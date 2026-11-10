@@ -39,6 +39,19 @@ type Merger struct {
 	// $id naming another URI, a $ref spelled alike names another schema. The
 	// fold asks it only of text writing one (annotation.WritesReference).
 	Alike func(a, b ir.Provenance) bool
+	// Untyped reports whether the schema written at a node's provenance states
+	// no instance type, so the structure it lowered to admits every value of
+	// another: `properties` alone constrains objects and admits a string
+	// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A node it cannot
+	// place reads as stating one.
+	Untyped func(at ir.Provenance) bool
+}
+
+// judgeAt is the judgment over g's registry of two declarations written at a
+// and b, or of types no declaration's site decides where both are zero.
+func (g *Merger) judgeAt(a, b ir.Provenance) typeJudge {
+	return typeJudge{registry: registry{Resolve: g.Resolve}, untyped: g.Untyped,
+		sites: declarationSites{alike: g.Alike, written: [2]ir.Provenance{a, b}}}
 }
 
 // declaration is one declaration of a field, as the walk lowered it, and how
@@ -156,8 +169,7 @@ func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding
 	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
-			judge := typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: g.Alike,
-				written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}}
+			judge := g.judgeAt(decls[i].prop.Provenance, decls[j].prop.Provenance)
 			rel := judge.relate(decls[i].prop.Type, decls[j].prop.Type)
 			f.rel[i][j], f.rel[j][i] = rel, rel.flipped()
 		}
@@ -232,7 +244,7 @@ func (f *folding) foldType() {
 // top type as the judgment reads one (typeJudge.topAt).
 func (f *folding) targetsTop(ref ir.TypeRef) bool {
 	td, ok := f.g.Resolve(ref.Target)
-	return ok && typeJudge{Resolve: f.g.Resolve}.topAt(td, 0)
+	return ok && registry{f.g.Resolve}.topAt(td, 0)
 }
 
 // drop reports how decls[i]'s type, which the field does not hold, relates to
@@ -300,7 +312,7 @@ func (f *folding) foldConstraints() {
 // writing another is reported and kept. Refusing first means a value the field
 // takes is kept whichever order the declarations come in.
 func (f *folding) foldValues() {
-	nullable := f.merged.Type.Nullable || typeJudge{Resolve: f.g.Resolve}.isAnyType(f.merged.Type)
+	nullable := f.merged.Type.Nullable || registry{f.g.Resolve}.isAnyType(f.merged.Type)
 	takesDefault := make([]bool, len(f.decls))
 	takesExamples := make([]bool, len(f.decls))
 	for i, d := range f.decls {
@@ -359,7 +371,7 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 		return nullable
 	}
 	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}}
+	judge := f.g.judgeAt(winner.Provenance, own.Provenance)
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}

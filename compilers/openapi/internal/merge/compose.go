@@ -23,13 +23,13 @@ type conjunct struct {
 // that remains is no model, such as an alias of `{}` holding examples, which
 // leaves the type to the winner.
 func (f *folding) composition() []conjunct {
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike}}
+	reg := registry{f.g.Resolve}
 	var conjuncts []conjunct
 	for i, d := range f.decls {
 		if f.heldByAnother(i) {
 			continue
 		}
-		m, ok := judge.model(d.prop.Type)
+		m, ok := reg.model(d.prop.Type)
 		if !ok {
 			return nil
 		}
@@ -94,11 +94,11 @@ func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
 
 // model returns the Model ref names, directly or through aliases, and false
 // where it names anything else.
-func (j typeJudge) model(ref ir.TypeRef) (*ir.Model, bool) {
-	td, ok := j.Resolve(ref.Target)
+func (r registry) model(ref ir.TypeRef) (*ir.Model, bool) {
+	td, ok := r.Resolve(ref.Target)
 	if !ok {
 		return nil, false
 	}
-	m, ok := j.unaliased(td).(*ir.Model)
+	m, ok := r.unaliased(td).(*ir.Model)
 	return m, ok
 }

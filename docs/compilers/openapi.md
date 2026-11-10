@@ -1601,7 +1601,16 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind, but for the `time` node above, or another `const`; and unrelated where nothing says
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
-and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
+and a kind, or a union or an external and anything else. A structure whose source states no
+instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
+every value of another instance type, as `properties` alone constrains objects and admits a string.
+A value type or a structure of another instance type is narrower than it, in either order, where
+it and each alias naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps
+it otherwise, since a type replacing it would lose what it holds; two such structures of different
+instance types overlap, sharing every value of a third. The source is read in the document holding
+the composing model, so a structure another document declares, and one whose `allOf` runs past the
+256 schemas that read spends, reads as stating its type. A pair gets the same verdict as a field's
 types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
@@ -1735,7 +1744,8 @@ whose say the field kept. A dropped declaration is reported against the winner a
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
 admits, a scalar against a
-structure, two structures of different instance types, or two lists or maps whose members share no
+structure stating its instance type, two structures of different instance types each stating
+theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
 two enums of one kind, each with members, a `const` against a kind with no judge, against a node
@@ -1793,6 +1803,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
   `schema.TestAllOf_AnObjectSayingMoreThanItsTypeComposes`,
   `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
+  `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
+  `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,

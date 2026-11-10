@@ -4,6 +4,7 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -59,6 +60,25 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/alias-doc-scalar-any"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/scalar-any"},
 		TypeCommon: ir.TypeCommon{ID: "t/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}}
 	reg["t/list-scalar-any"] = &ir.List{ID: "t/list-scalar-any", Elem: ir.TypeRef{Target: "t/scalar-any"}}
+	untyped := func(id ir.TypeID, td ir.TypeDef) {
+		c := td.Common()
+		c.ID, c.Provenance = id, ir.Provenance{Pointer: "/untyped/" + jsontext.Pointer(id)}
+		reg[id] = td
+	}
+	untyped("t/model-untyped", &ir.Model{Properties: []ir.Property{{WireName: "own"}}})
+	untyped("t/model-untyped-doc", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		TypeCommon: ir.TypeCommon{Docs: ir.Docs{Description: "d"}}})
+	untyped("t/model-untyped-ex", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		TypeCommon: ir.TypeCommon{Examples: []ir.Example{{}}}})
+	untyped("t/alias-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped"}})
+	untyped("t/alias-doc-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/alias-untyped"},
+		TypeCommon: ir.TypeCommon{Docs: ir.Docs{Description: "d"}}})
+	untyped("t/alias-of-untyped-doc", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped-doc"}})
+	untyped("t/list-untyped", &ir.List{Elem: i32})
+	untyped("t/map-untyped", &ir.MapT{Value: i32})
+	reg["t/alias-typed-untyped"] = &ir.Scalar{ID: "t/alias-typed-untyped", Base: &ir.TypeRef{Target: "t/model-untyped"}}
+	reg["t/list-model-untyped"] = &ir.List{ID: "t/list-model-untyped", Elem: ir.TypeRef{Target: "t/model-untyped"}}
+	reg["t/list-model-untyped-doc"] = &ir.List{ID: "t/list-model-untyped-doc", Elem: ir.TypeRef{Target: "t/model-untyped-doc"}}
 	reg["t/list-scalar-any-doc"] = &ir.List{ID: "t/list-scalar-any-doc", Elem: ir.TypeRef{Target: "t/scalar-any-doc"}}
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
@@ -165,7 +185,7 @@ func ref(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{registry: registry{Resolve: stubResolve(judgeRegistry())}, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -233,6 +253,21 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time scalar against a format with no grammar here", "t/scalar-time", "t/scalar-email", relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
+		{"a model stating no instance type against a bare kind", "t/model-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"one holding docs a reference carries down", "t/model-untyped-doc", prim(ir.PrimInteger), relBNarrower},
+		{"one holding examples", "t/model-untyped-ex", prim(ir.PrimInteger), relOverlap},
+		{"an enum against a model stating no instance type", "t/enum-str", "t/model-untyped", relANarrower},
+		{"a literal against a model stating no instance type", "t/lit-a", "t/model-untyped", relANarrower},
+		{"a list against a model stating no instance type", "t/list-i32", "t/model-untyped", relANarrower},
+		{"an alias stating none of a model stating none", "t/alias-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"an alias holding docs a reference carries down of one", "t/alias-doc-untyped", prim(ir.PrimInteger), relBNarrower},
+		{"an alias of one holding docs", "t/alias-of-untyped-doc", prim(ir.PrimInteger), relOverlap},
+		{"an alias stating a type of a model stating none", "t/alias-typed-untyped", prim(ir.PrimInteger), relDisjoint},
+		{"two structures each stating no instance type", "t/list-untyped", "t/model-untyped", relOverlap},
+		{"a list stating none against a model", "t/list-untyped", "t/model", relBNarrower},
+		{"a map stating none against a list", "t/map-untyped", "t/list-i32", relBNarrower},
+		{"a list of a model stating none against a list of strings", "t/list-model-untyped", "t/list-str", relBNarrower},
+		{"a list of one holding docs against a list of strings", "t/list-model-untyped-doc", "t/list-str", relOverlap},
 		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relBNarrower},
 		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", relBNarrower},
 		{"an alias over the top type holding examples against a model", "t/scalar-any-ex", "t/model", relUnrelated},
@@ -345,7 +380,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{registry: registry{Resolve: stubResolve(judgeRegistry())}, sites: declarationSites{alike: alwaysAlike}}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -378,7 +413,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{alike: alwaysAlike}}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -429,7 +464,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{Resolve: stubResolve(narrowingRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{registry: registry{Resolve: stubResolve(narrowingRegistry())}, sites: declarationSites{alike: alwaysAlike}}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -736,7 +771,7 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
 	}
 	never := func(ir.Provenance, ir.Provenance) bool { return false }
-	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: never}}
+	j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{alike: never}}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")

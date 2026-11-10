@@ -1394,3 +1394,92 @@ func TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct(t *testing.T) {
 	assert.Len(t, diags, 2, "an alias holding examples keeps the models apart, each drop reported")
 	assert.Equal(t, componentID("M"), propertyOf(t, doc, "T", "f").Type.Target)
 }
+
+// TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind pins GitHub #1391 in
+// both branch orders: a schema writing `properties` and no `type` constrains
+// objects and admits a string, so a scalar or an array declared beside it is
+// the narrower, and the field takes it with nothing kept or reported. A schema
+// stating `object`, directly or through its allOf, still conflicts with one,
+// and so does one whose allOf cycles past what the read of its source spends,
+// which keeps the verdict a structure had before that read. One holding examples
+// would lose them, so the two overlap.
+func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
+	t.Parallel()
+	const spec = `    Str: {type: string}
+    Int: {type: integer}
+    List: {type: array, items: {type: string}}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/Str'}]}
+    Props: {properties: {a: {type: string}}}
+    Obj: {type: object, properties: {a: {type: string}}}
+    ObjByAllOf: {allOf: [{type: object}], properties: {a: {type: string}}}
+    Sampled: {properties: {a: {type: string}}, examples: [{a: x}]}
+    Loop: {allOf: [{$ref: '#/components/schemas/Loop2'}], properties: {a: {type: string}}}
+    Loop2: {allOf: [{$ref: '#/components/schemas/Loop'}], properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: %s}}
+        - {properties: {f: %s}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		narrow, untyped string
+		want            ir.TypeID
+	}{
+		{ref("Str"), ref("Props"), componentID("Str")},
+		{ref("Wrapped"), ref("Props"), componentID("Wrapped")},
+		{ref("Int"), ref("Props"), componentID("Int")},
+		{ref("List"), ref("Props"), componentID("List")},
+		{"{type: string}", "{properties: {a: {type: string}}}", "t/prim/string"},
+	} {
+		for _, order := range [][2]string{{tc.narrow, tc.untyped}, {tc.untyped, tc.narrow}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := order[0] + " then " + order[1]
+			assert.Empty(t, diags, name)
+			p := propertyOf(t, doc, "T", "f")
+			assert.Equal(t, tc.want, p.Type.Target, name)
+			assert.Empty(t, p.Unmodeled, name)
+		}
+	}
+
+	for _, tc := range []struct {
+		other, code string
+	}{
+		{ref("Obj"), diag.ConflictingRedecl},
+		{ref("ObjByAllOf"), diag.ConflictingRedecl},
+		{ref("Loop"), diag.ConflictingRedecl},
+		{ref("Sampled"), diag.DegradedConstruct},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref("Int"), tc.other)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Len(t, withCode(diags, tc.code), 1, tc.other)
+		assert.Equal(t, componentID("Int"), propertyOf(t, doc, "T", "f").Type.Target, tc.other)
+	}
+}
+
+// TestAllOf_ASourceIsReadOnlyInItsOwnDocument pins that what a structure's
+// source states is read where the structure was declared, never at the same
+// pointer in the composing model's document: another document's object here
+// states its type, and the composing document's own schema at that pointer
+// states none. The merge reads a site in another document as stating one, so
+// the pair stays the conflict it was.
+func TestAllOf_ASourceIsReadOnlyInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"other.yaml": `components:
+  schemas:
+    Props: {type: object, properties: {a: {type: string}}}
+`}, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Props: {properties: {a: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: {type: integer}}}
+        - {properties: {f: {$ref: 'other.yaml#/components/schemas/Props'}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Len(t, withCode(diags, diag.ConflictingRedecl), 1, "the other document's object conflicts with an integer")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target)
+}

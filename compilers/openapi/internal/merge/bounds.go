@@ -169,7 +169,7 @@ func (f *folding) foldNodeBounds() ir.TypeID {
 	if !ok {
 		return target
 	}
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike}}
+	judge := f.g.judgeAt(ir.Provenance{}, ir.Provenance{})
 	sets := make([]*ir.Constraints, len(f.decls))
 	for i, d := range f.decls {
 		if i == f.winner || f.rel[f.winner][i] == relMeet {

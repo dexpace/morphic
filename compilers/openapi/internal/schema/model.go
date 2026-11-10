@@ -11,6 +11,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -92,24 +94,50 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 		},
-		Alike: s.alike,
+		Alike:   s.alike,
+		Untyped: s.untyped,
 	})
 	return diags
 }
 
-// alike is merge.Merger.Alike. Each site is read at s.c's position for its
-// pointer, as the model's own document holds it; a site in another document,
-// such as a component a $ref there reached, one c does not place, or one whose
-// base the bindings cannot tell, is no match.
+// place returns where p is in the bindings' table, read at s.c's position for
+// its pointer, as the model's own document holds it, and false for a site in
+// another document, such as a component a $ref there reached, or one c does not
+// place.
+func (s settledMerge) place(p ir.Provenance) (bind.Position, bool) {
+	at, placed := s.c.Position(p.Pointer)
+	return at, placed && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+}
+
+// alike is merge.Merger.Alike. A site place does not place, or one whose base
+// the bindings cannot tell, is no match.
 func (s settledMerge) alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
-		at, placed := s.c.Position(p.Pointer)
+		at, placed := s.place(p)
 		uri, known := s.c.Bindings().Table().Base(at)
-		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+		return uri, placed && known
 	}
 	ua, okA := base(a)
 	ub, okB := base(b)
 	return okA && okB && ua == ub
+}
+
+// untyped is merge.Merger.Untyped: the schema written at p states no instance
+// type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
+// conjunct (conjunctTypes). A site place does not place, and a read that runs
+// out of its budget, state one, which keeps the verdict a structure had before
+// its source was read.
+func (s settledMerge) untyped(p ir.Provenance) bool {
+	at, placed := s.place(p)
+	if !placed {
+		return false
+	}
+	js := s.c.Bindings().At(at)
+	if js == nil {
+		return false
+	}
+	r := conjunctTypes{refs: s.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
+	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted()
 }
 
 // mint registers node, the type of the field the declaration at pointer names.
