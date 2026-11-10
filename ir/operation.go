@@ -60,7 +60,8 @@ type Operation struct {
 	Servers []ServerID `json:"servers,omitempty"`
 	// Auth overrides the service default; an empty slice differs from nil (empty
 	// = explicitly public). omitzero keeps the two apart on the wire: nil is an
-	// absent key and inherits, an empty slice is written as [].
+	// absent key and inherits, save on an inbound operation, which inherits none
+	// (docs/ir/auth.md#inbound-operations); an empty slice is written as [].
 	Auth []AuthRequirement `json:"auth,omitzero"`
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`

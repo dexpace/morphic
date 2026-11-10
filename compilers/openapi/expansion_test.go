@@ -360,13 +360,14 @@ func itemWith(item string, ops [3]string, components string) string {
 // path item's additionalOperations entries, here LINK and UNLINK beside a get,
 // are charged for what the item declares itself, each copying it (GitHub
 // #1428): its inline parameter, which weighs 25 as paramP does, unless the
-// entry writes its own; its kept summary and extension, the keyword and its raw
-// value with a byte between, 7+1+3 and 3+1+3; and its server's ID, unless the
-// entry names its own. A $ref'd parameter is charged at every operation, the
-// first among them.
+// entry writes its own; its summary, which every copy's PathDocs holds, the
+// keyword and its text with a byte between, 7+1+1; its kept extension, the
+// keyword and its raw value with a byte between, 3+1+3; and its server's ID,
+// unless the entry names its own. A $ref'd parameter is charged at every
+// operation, the first among them.
 func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing.T) {
 	t.Parallel()
-	const kept = 7 + 1 + 3 + 3 + 1 + 3
+	const kept = 7 + 1 + 1 + 3 + 1 + 3
 	own := ", parameters: [{name: q, in: query, schema: {type: integer}}], servers: [{url: 'https://b.test'}]"
 	fields := "    summary: s\n    x-k: v\n    servers: [{url: 'https://a.test'}]\n"
 	for name, tc := range map[string]struct {

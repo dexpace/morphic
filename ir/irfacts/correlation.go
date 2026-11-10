@@ -15,7 +15,7 @@ import (
 // to how a key is derived, so a consumer storing keys records it beside them: a
 // key another version derived agrees with none of this one's.
 // TestCorrelationVersion_PinsTheDerivation holds it to the keys derived.
-const CorrelationVersion = 1
+const CorrelationVersion = 2
 
 // Correlation returns the correlation key of the entity id names, of any class
 // of ID (docs/ir/derived-facts.md#correlation-keys): a key built from what the

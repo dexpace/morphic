@@ -95,8 +95,7 @@
                     "method": "GET",
                     "uriTemplate": "/pets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

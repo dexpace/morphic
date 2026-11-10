@@ -212,8 +212,7 @@
                           }
                         ],
                         "sharedRoute": false,
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -258,8 +257,7 @@
                         "method": "QUERY",
                         "uriTemplate": "/books",
                         "sharedRoute": false,
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -422,8 +420,7 @@
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -465,8 +462,7 @@
                     "method": "PURGE",
                     "uriTemplate": "/books",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -515,10 +511,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "webhookName": "bookAdded",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },

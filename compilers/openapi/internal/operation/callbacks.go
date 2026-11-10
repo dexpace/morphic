@@ -55,7 +55,7 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointer
 			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(w, layers, mount, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
-			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
+			callbacks = append(callbacks, ir.Callback{Name: cbName, Expression: exprStr, Operations: opIDs})
 			ops = append(ops, cbOps...)
 		}
 	}
@@ -74,7 +74,8 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointer
 // parent's HTTP binding.
 func lowerCallbackOps(w walk, layers []layer, mount jsontext.Pointer, expr string, inferred ir.Inferred) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
-	mounted, diags := mountPathItem(w, layers, mount, opContext{key: expr, inferred: inferred}, &orphan)
+	route := opContext{key: expr, inbound: ir.HTTPInboundCallback, inferred: inferred}
+	mounted, diags := mountPathItem(w, layers, mount, route, &orphan)
 	opIDs := make([]ir.OpID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
 	for _, m := range mounted {
@@ -85,7 +86,7 @@ func lowerCallbackOps(w walk, layers []layer, mount jsontext.Pointer, expr strin
 }
 
 // lowerWebhooks lowers webhook path items into the dedicated "webhooks" group;
-// each webhook operation carries IsWebhook on its HTTP binding, and its
+// each webhook operation is marked an inbound webhook on its HTTP binding, and its
 // webhooks-map key, an event's name rather than a path, as WebhookName. It
 // stops between webhooks when ctx is done, as lowerPaths does, and svc holds
 // what a webhook item mounting no operation writes.
@@ -105,7 +106,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceG
 			continue
 		}
 		diags = append(diags, found...)
-		route := opContext{key: name, isWebhook: true, withCallbacks: true}
+		route := opContext{key: name, inbound: ir.HTTPInboundWebhook, withCallbacks: true}
 		mounted, hookDiags := mountPathItem(w, layers, hookPtr, route, &svc.Unmodeled)
 		diags = append(diags, hookDiags...)
 		for _, m := range mounted {

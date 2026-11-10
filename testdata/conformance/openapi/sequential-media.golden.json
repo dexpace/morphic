@@ -120,8 +120,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -210,8 +209,7 @@
                     "method": "GET",
                     "uriTemplate": "/parts",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

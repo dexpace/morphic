@@ -73,9 +73,9 @@ what role, so a type in an error payload carries the side it travels on beside `
 | the messages a messaging binding sends, or receives; its reply's travel the other way | `Input`, or `Output`; both for a direction neither send nor receive |
 | each channel's parameters, each auth scheme's credentials | `Input` |
 
-A payload names its contents' types, stream items and file contents, and the headers of their
-parts; a header names its type and what its encoding decodes to. An operation the API starts — a
-webhook, or an operation an HTTP binding names among its callbacks — swaps `Input` and `Output`,
+A payload names its contents' types, stream items and file contents, and the headers of their parts;
+a header names its type and what its encoding decodes to. An operation the API starts — one its HTTP
+binding marks `Inbound`, or one a binding names among its callbacks — swaps `Input` and `Output`,
 its errors included. A flag spreads from a root's vertex along every edge, and a property's field
 arguments (`Property.Args`) make the types they name `Input`, since a client writes them to select
 the field whatever it reads back. `Multipart` marks only a multipart body's own type and the types
@@ -134,7 +134,7 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case |
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
 | server | the service or operation naming it, and its URL template |
-| callback operation | the operation declaring it, the method and the runtime expression keying it |
+| callback operation | the operation declaring it, the callback's name and the method; the runtime expression is a detail of where the request goes, so a rewritten one keeps the key, unless the name keys two operations of one method, which only their expressions tell apart |
 | anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type; what the encoding of a property, a header, a list or a scalar decodes to (an OpenAPI `contentSchema`); a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
 
 An entity several positions name takes the least of their keys, so its key is the same whatever

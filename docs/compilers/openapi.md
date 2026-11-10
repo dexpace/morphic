@@ -158,9 +158,10 @@ link's is kept as written, so neither is charged. A path item's operations copy 
 declares itself. Its fixed methods bound those copies, and OpenAPI 3.2's `additionalOperations` does
 not, so each operation that field declares is charged too, the first among them, which charges an
 item the same in any order of its entries: an inline parameter of the item that it takes, weighed in
-the document writing it as a `$ref`'s declaration is, the entries it keeps of the item
-([`path-item-docs`](#path-item-docs)), a byte for each byte of their keywords and raw values and one
-between, and the IDs of the item's servers where it names none of its own
+the document writing it as a `$ref`'s declaration is, the entries it keeps of the item, a byte for
+each byte of their keywords and raw values and one between, the item's summary and description its
+`PathDocs` holds ([`path-item-docs`](#path-item-docs)), a byte for each byte of their keywords and
+text and one between, and the IDs of the item's servers where it names none of its own
 ([`path-item-servers`](#path-item-servers)). Past the budget no `$ref` lowers, nor such an
 operation, and the compile is refused as one `openapi/budget-exceeded` error at the source and no
 position in it, compiling to no Document, beside what the load phase found and nothing the lowering
@@ -3061,29 +3062,25 @@ such item, and a component item two paths mount is kept once per mount. It is re
 
 ### `path-item-docs`
 
-A path item's own `summary` and `description`, at the same three mounts, are kept verbatim on each
-operation it mounts, under `openapi:pathItem/summary` and `openapi:pathItem/description`
-(`no_ir_home`), reported as an info `openapi/degraded-construct` at the operation, rather than
-merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
-documents the path, so merging would need a precedence rule and would attach documentation the
-operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering. The keys sit beneath the item's scope, as its extensions and undeclared keys do, so no
-key the operation's own census writes can spell one: the census escapes a `/` in the key it keeps.
-A path item that mounts no operation keeps the pair where it keeps what else it writes
+A path item's own `summary` and `description`, at the same three mounts, lower to the `PathDocs`
+of each HTTP binding of each operation it mounts ([http-binding](../ir/http-binding.md#path-documentation)),
+with nothing reported, rather than merged into the operation's `Docs`: `ir.Docs` holds the
+operation's own pair, and a path item's documents the path, so merging would need a precedence rule
+and would attach documentation the operation's author never wrote, an inference invariant 6 places
+in policy. Each keyword is read where the nearest layer of a `$ref`'d path item declares it
+([`path-item-ref-fields`](#path-item-ref-fields)). A path item that mounts no operation has no
+binding to hold the pair, so it keeps it where it keeps what else it writes
 ([`path-item-servers`](#path-item-servers)), with the item's pointer in the scope, under
 `openapi:pathItem/<item pointer>/summary` and `openapi:pathItem/<item pointer>/description`, since
 one carrier holds every such item; the warning announcing that item covers them, so they draw no
-info of their own.
+finding of their own.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`,
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`, `operation.TestPathItem_DocsAddNoMarker`,
   `operation.TestPathItem_DocsKeepApartFromAnOperationsOwnKeys`,
   `operation.TestPathItem_KeepsWhatItDeclaresOncePerMount`,
   `operation.TestPathItem_WithNoOperationKeepsItsDocs`,
   `operation.TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite`
-- Status: open: whether a path's documentation gets a typed home in the IR, rather than `Unmodeled`,
-  is undecided (#1319).
 
 ### `path-item-ref-fields`
 
@@ -3693,20 +3690,24 @@ status code. The gap is one the IR can close, so a promotion pass may read the e
 ### `webhooks`
 
 Each operation of a `webhooks` entry's path item lowers to an `Operation` mounted at its own
-pointer, in the synthesized `webhooks` group, its HTTP binding marked `IsWebhook`, with the entry's
-key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a webhook, with the
+entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
+`security` describes requests clients send, and a webhook is one the API sends
+([auth](../ir/auth.md#inbound-operations)).
 
 - Cases: `webhooks`
-- Status: open: whether a webhook operation inherits the service's auth (#626).
 
 ### `callbacks`
 
 An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each runtime expression of
-each named callback, a `Callback` holding the expression as written and the `OpID`s of the
-operations its path item declares. Each of those lowers to an `Operation` of its own, mounted at its
-own pointer below the declaring operation's (`…/callbacks/<name>/<expression>/<method>`, the name
-escaped as one token), grouped as any other operation is, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md)). A key is a runtime expression, by the grammar each
+each named callback, a `Callback` holding the callback's name and the expression as written and the
+`OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
+mounted at its own pointer below the declaring operation's
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
+operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
+webhook does. A key is a runtime expression, by the grammar each
 minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
 constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
 error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
@@ -3717,8 +3718,7 @@ lowers as written.
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858); and a callback operation is not marked inbound, and a callback has no name (#625). Open:
-  whether a callback operation inherits the service's auth (#626).
+  (#858).
 
 ## 13. Security
 
@@ -3728,7 +3728,8 @@ lowers as written.
 its pointer, and a `security` list — the document's to the Service's, an operation's to the
 Operation's — to an OR of ANDs: each requirement object one alternative, naming its schemes, each
 with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `security`
-inherits the document's, and one writing `security: []` is public; the two stay apart, absent
+inherits the document's, save a webhook or a callback, which inherits none
+([`webhooks`](#webhooks)), and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
 spellings apart in `Service.Auth`.
 
