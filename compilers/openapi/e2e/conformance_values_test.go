@@ -73,8 +73,8 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // assertYAMLTimestampScalars covers a YAML 1.1 quirk: an unquoted date like
 // 2021-01-01 resolves to tag !!timestamp, not !!str. It must survive as the
 // literal string everywhere OpenAPI's JSON data model can carry one — enum,
-// const, a property default, a schema-level example, and a media-type example —
-// with nothing dropped or degraded to null.
+// const, a property default, a schema-level example, a media-type example, and
+// a string field (GitHub #1280) — with nothing dropped or degraded to null.
 //
 // "Everywhere" spans both channels a date can land in. It used to mean only the
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
@@ -120,6 +120,9 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	require.Len(t, mediaExamples, 1, "the media-type example is preserved")
 	require.NotNil(t, mediaExamples[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, *mediaExamples[0].Value)
+
+	assert.Equal(t, "2021-01-01", doc.Version, "a string field holds the date as its text")
+	assert.Equal(t, "2021-01-01", op.Docs.Summary, "a string field holds the date as its text")
 
 	assertRawPreservedDates(t, doc)
 }

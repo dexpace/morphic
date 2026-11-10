@@ -91,37 +91,38 @@ the types whose shapes share its strongly connected component. A reference to a 
 counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
 cycle through composition alone, which the IR permits, is reported too.
 
-## Capability rows
-
-`Rows()` answers which rows of the [capability matrix](../ir-spec-matrix.md) a document exercises:
-for each row's stable key, the locations of the nodes that exercise it, sorted, such as every
-operation whose `Pagination` is set for `pagination`. One detector per row reads the facts the row
-names, and a test holds the detectors to the matrix's keys, as the conformance corpus is held to
-them: a row added to the matrix has a detector, or a reason no IR fact shows it. The engine reads
-`Rows` to tell a user, before generation, which rows a target does not honor
-([verification](../emitters/verification.md#before-what-a-target-honors)).
-
-
 ## Correlation keys
 
 `Correlation(id)` answers what an entity of any class is called across revisions of its document,
 and `Correlated(key)` answers the reverse: a key built from what the document names the entity by,
-never from an array position or a file's location, so it survives the edits that move an ID
+never from a file's location or an array position, save a tuple element's, which is its identity
+on the wire, so it survives the edits that move an ID
 ([across revisions](./identity.md#across-revisions)). An entity keeps its key through a reordered
 array, a schema moved within its file or to another file, and an `allOf` branch inserted before
-the one declaring a property; an operation keeps its own through a renamed path variable, and
-through a renamed path where it names itself. A rename of the name the key is built from moves the
-key too, and nothing derived from a document alone follows it; that is the structural tier [open
+the one declaring a property; an operation keeps its own through a renamed path variable and a
+renamed `operationId`. A rename of the name the key is built from moves the key too, and nothing
+derived from a document alone follows it; that is the structural tier [open
 question 5](./open-questions.md) leaves open.
 
 An entity named for itself takes a key of its own:
 
 | Entity | Key |
 |---|---|
-| operation | `op:` and its declared name (`Naming.Source`, an OpenAPI `operationId`); one the source leaves unnamed takes its method and route instead, each path variable written `{}`, a webhook's event name standing for the route |
-| named type | its namespace, then `type:` and its declared name; a primitive, its kind |
+| operation, other than a callback | its method and route, each path variable written `{}`, a webhook's event name standing for the route; one no HTTP binding places, or that shares its route with another operation, its declared name (`Naming.Source`, an OpenAPI `operationId`) |
+| named type | its declared namespace (`TypeCommon.Namespace`) and its declared name; a primitive, its kind |
 | service, auth scheme | its declared name |
 | group | its ID, which a rule mints from a name and never from a position ([groups](./identity.md#operation-groups)) |
+
+An operation is keyed by its route rather than its `operationId` because the route is what a client
+calls and OpenAPI holds unique, while a later revision can hand an `operationId` to another
+endpoint. Between the golden spec's revisions c92b9b0f and 319dc756, three months apart and
+compiled by morphic @4ac3031d, nine `operationId`s moved to a new endpoint while the old one kept
+its route and its ID under a new name, so a key built from them matched each old endpoint to
+another; nineteen operations, those nine among them, kept their route and ID under a renamed
+`operationId`, so such a key never matched them to themselves; and one route moved under an
+unchanged `operationId`, the one case it carried that the route misses. In the three months before,
+from ef715956, 48 operations gained their first `operationId` on an unchanged route, which moves
+such a key too.
 
 Every other entity is keyed by a position that names it, its holder's key extended by one segment:
 
@@ -130,11 +131,11 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | parameter | its operation, where the parameter travels and its wire name, a header's in lower case; one no binding places, its name |
 | property | the model declaring it, and its wire name. The anonymous models a model composes in place are part of it: their properties are keyed as its own, each wire name keying the declaration the model's [flattening](./models.md#the-flattening) takes and none it overrides |
 | field argument | its property, and its name |
-| header | the response, error, default or stream item declaring it, and its name in lower case |
+| header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case |
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
 | server | the service or operation naming it, and its URL template |
-| callback operation with no name of its own | the operation declaring it, the callback's name and the method; the runtime expression is a detail of where the request goes, so a rewritten one keeps the key |
-| anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type, and what its encoding decodes to; a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
+| callback operation | the operation declaring it, the callback's name and the method; the runtime expression is a detail of where the request goes, so a rewritten one keeps the key, unless the name keys two operations of one method, which only their expressions tell apart |
+| anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type; what the encoding of a property, a header, a list or a scalar decodes to (an OpenAPI `contentSchema`); a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
 
 An entity several positions name takes the least of their keys, so its key is the same whatever
 order the document declares them in. A key no two entities of a document share identifies one. Where
@@ -146,13 +147,22 @@ other. The key is derived and never stored, as every fact here is: it needs only
 already holds, and a stored copy would add to every node a document that is already several times
 its source ([consumers](./consumers.md#size)).
 
-On the golden spec (spec @319dc756, compiled by morphic @b206dc99), every operation, parameter,
-group, server and auth scheme has a key, as do 37,971 of its 41,697 types, 47,367 of 49,390
-properties and 29,633 of 32,291 enum members. All but two of the entities without one lie beneath a
-union variant nothing in the document names, untagged or a discriminator maps no tag to; the two are
-anonymous models one model composes in place. Against the spec's revision b7e65ddd, 41 entities
-whose IDs moved are matched by their keys, and one ID stays while naming another entity:
+A key is opaque, compared only for equality, and only with one the same derivation produced. A
+consumer comparing two revisions derives both sides' keys in one build. One that stores keys
+records `irfacts.CorrelationVersion` beside them, the version of the derivation, which moves with
+any change to how a key is derived; across a change of it a stored key matches nothing, so a
+changed derivation costs matches rather than handing one entity another's state. `IRVersion` is
+not that version: it refuses a document, and a change to the derivation changes none.
+
+On the golden spec (spec @319dc756, compiled by morphic @fb5ae802f), every operation, parameter,
+group, server, service and auth scheme has a key, every operation by its route, as do 37,510 of its
+41,234 types, 47,367 of 49,390 properties and 29,637 of 32,312 enum members. All but two of the
+entities without one lie beneath a union variant nothing in the document names, untagged or a
+discriminator maps no tag to; the two are anonymous models one model composes in place. Against the
+spec's revision b7e65ddd, 44 entities whose IDs moved are matched by their keys, and one ID stays
+while naming another entity:
 `t/anon/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
 `direction` parameter's schema at b7e65ddd and the `status` parameter's at 319dc756, and their keys
-tell them apart. Deriving every key of the golden spec takes about 200 ms, against a compile of
-about 8 s.
+tell them apart. Against c92b9b0f, each of the nineteen operations that kept its route and ID under
+a renamed `operationId` is matched to itself. Deriving every key of the golden spec takes about
+150 ms, against a compile of about 6 s.

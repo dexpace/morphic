@@ -5,10 +5,12 @@ Much of what an SDK does shows only against a live server: honoring `Retry-After
 split across chunk boundaries or carrying one very large event, JSON Lines framing, each pagination
 strategy, status-monitor polling, OAuth token acquisition and refresh, an error body and a success
 body that do not parse, a union variant the SDK does not know, a declared response a method cannot
-return, a success status the document does not list, and the four combinations of required and
-nullable in a response ([optionality](../refine/models.md#optionality--nullability--presence-inv8)).
-Writing those tests once per target does not scale, and nothing would notice a target that left one
-out.
+return, a success status the document does not list, the four combinations of required and
+nullable in a response ([optionality](../refine/models.md#optionality--nullability--presence-inv8)),
+whether a status or a dropped connection is retried, and a redirect followed or returned, one to a
+second origin the server also answers on among them ([runtime
+policy](../contract/runtime-policy.md)). Writing those tests once per target does not scale, and
+nothing would notice a target that left one out.
 
 - **One server, shared by every target.** It has one route per behavior and is written by hand,
   together with the OpenAPI document that describes it, from which each target generates the SDK

@@ -4,6 +4,8 @@
 package ir_test
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 
@@ -345,7 +347,9 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a","allowReserved":false}`)
+	var members map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal([]byte(got), &members))
+	assert.JSONEq(t, `{"multi":true,"filename":false,"style":"a","allowReserved":false}`, string(members["itemEncoding"]))
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,

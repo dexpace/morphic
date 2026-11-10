@@ -161,7 +161,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets/get/parameters/limit/query",
@@ -173,6 +172,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -273,10 +273,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -351,7 +351,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets/{petId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
@@ -363,6 +362,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

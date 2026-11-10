@@ -16,7 +16,9 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -173,4 +175,24 @@ func compileSpecText(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 	require.NoError(t, err)
 	assertNoErrorDiags(t, diags)
 	return doc, diags
+}
+
+// TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut pins a null
+// written for a keyword beneath one of its own name, which the parser decodes
+// as false (docs/parser-library.md#failure-beneath-itself): the schema around
+// it lowers as written, the inner keyword read as left out, and the load
+// phase's warning at the null is the only report.
+func TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Tags: {type: array, items: {type: string, items: null}}\n"+
+			"    Labels: {type: object, additionalProperties: {type: string, additionalProperties: null}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "nothing reads the schema as false")
+	tags, ok := doc.Types[componentID("Tags")].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), tags.Elem.Target)
+	labels, ok := doc.Types[componentID("Labels")].(*ir.MapT)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/string"), labels.Value.Target)
 }

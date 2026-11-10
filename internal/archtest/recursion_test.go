@@ -48,15 +48,31 @@ var loweringRecursions = [][]string{
 	// self-referential allOf rather than anything in this shape. A $ref's hops
 	// are walked in a loop its chain's length bounds, and a loop of $refs has no
 	// end to walk to.
-	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage"},
+	{
+		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
+		"nulls.widenByBranch",
+	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
 	// lowering reaches itself through them.
 	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
+	// Whether one conjunct restates another. Two lists compare by their elements,
+	// each read the same way, down what `items` nests. Each step reads a schema,
+	// which spends the budget maxAdmissionReads holds it to.
+	{"admission.holds", "admission.itemsWithin", "admission.restates"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
+	// What a schema admits. A union's branches and an allOf's conjuncts, and what
+	// a $ref lands on, are schemas read the same way, and one may name its own
+	// schema. Bounded by the budget maxAdmissionReads, which a cycle exhausts.
+	{"admission.union", "admission.whole"},
+	// The instance types a schema states. Like nullability it is a predicate over
+	// allOf conjuncts and what a $ref lands on, not a lowering, and it is bounded
+	// the same way, by a budget of its own (maxConjunctTypeReads), which is what
+	// stops a self-referential allOf.
+	{"conjunctTypes.branch", "conjunctTypes.schema"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
@@ -72,14 +88,14 @@ var loweringRecursions = [][]string{
 // re-enters the walk from a scalar position. Discriminator lowering is one
 // because resolving a mapping target can hoist the position it names.
 var schemaRecursion = []string{
-	"CarriedRef", "Ref", "buildComposedVariant", "buildTuple", "buildUnion",
+	"CarriedRef", "Ref", "buildComposedVariant", "buildListedTuple", "buildTuple", "buildUnion",
 	"composedVariant", "contentSchemaRef", "discriminatorDefault",
 	"discriminatorMapping", "fillAdditional", "fillAllOf",
 	"fillModelProperties", "fillRefBranch", "hoistScalar", "hoistSubSchema", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
-	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTyped", "lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
 	"resolveAt", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",

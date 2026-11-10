@@ -488,6 +488,42 @@ func TestAliasWeigher_MemoizesSharedTarget(t *testing.T) {
 	assert.Equal(t, 31, w.computations)
 }
 
+// TestAliasWeigher_PopsRepeatedFrame weighs an anchor and its own alias in both
+// sibling orders. pushChildren pushes both before either is weighed, and an
+// alias popped before the anchor pushes the anchor again, so the stack holds it
+// twice. Under either positional order, forward or backward, one row reaches
+// the check at the top of weigh's loop, which alone keeps the second frame from
+// computing the anchor again. An order keyed on a child's kind, such as aliases
+// first, can leave both rows short of it.
+func TestAliasWeigher_PopsRepeatedFrame(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		siblings func(base *yaml.Node) *yaml.Node
+	}{
+		{"anchor then alias", func(base *yaml.Node) *yaml.Node { return ynode.Seq(base, ynode.Alias(base)) }},
+		{"alias then anchor", func(base *yaml.Node) *yaml.Node { return ynode.Seq(ynode.Alias(base), base) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+			root := ynode.Map(ynode.Scalar("a"), tt.siblings(base))
+
+			w := newAliasWeigher(budget.AtMost(1_000_000))
+			require.Empty(t, w.weigh(t.Context(), root))
+
+			assert.Equal(t, len(w.weight), w.computations,
+				"the anchor is computed once, however many frames hold it")
+			assert.Empty(t, w.inFlight,
+				"a weighed node's frame pops unexpanded, so nothing is left in flight")
+			// Distinct nodes: root, its key "a", the sequence, the alias node,
+			// base, and base's own key and value: 7.
+			assert.Equal(t, 7, w.computations)
+		})
+	}
+}
+
 func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	t.Parallel()
 	root := aliasFanOutNode(40)
@@ -542,6 +578,8 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	require.NotEmpty(t, culprits, "a cyclic alias graph expands without bound and must be refused")
 	culprit := culprits[0]
 	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "the cycle saturates rather than looping")
+	assert.Equal(t, len(w.weight)-1, w.computations,
+		"the node the cycle cut holds a weight, and its frame pops uncomputed")
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias

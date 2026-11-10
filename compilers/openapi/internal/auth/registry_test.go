@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/ir"
 )
 
 // TestRegistrySchemes_SharesNothingWithTheRegistry pins the copy: what a caller
@@ -23,9 +24,26 @@ func TestRegistrySchemes_SharesNothingWithTheRegistry(t *testing.T) {
 		SecuritySchemes: sequencedmap.New(
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
-	reg, _ := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
+	c := lowering.Ctx{Doc: doc}
+	declared, _ := auth.LowerSecuritySchemes(c)
+	reg := auth.RegistryOf(c, declared)
 
 	clear(reg.Schemes())
 
 	assert.Contains(t, reg.Schemes(), ids.UnresolvedAuth("ghost"))
+}
+
+// TestRegistryOf_SharesNothingWithTheDeclaredSchemes pins RegistryOf's copy:
+// what a caller does to the map it handed over reaches no reading of the
+// registry, as what a requirement adds to the registry never reaches the map
+// (operation.TestLowerService_LeavesTheDeclaredSchemesAsTheyWere).
+func TestRegistryOf_SharesNothingWithTheDeclaredSchemes(t *testing.T) {
+	t.Parallel()
+	id := ids.Auth("key")
+	declared := map[ir.AuthID]ir.AuthScheme{id: {ID: id}}
+	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, declared)
+
+	clear(declared)
+
+	assert.Contains(t, reg.Schemes(), id)
 }

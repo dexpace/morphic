@@ -70,7 +70,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	id, ok = mappingTargetID(empty, empty.RefScope(), &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -217,7 +217,7 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 }
 
 // TestMappingTargetID_ReadsEachPositionOnce pins that the position whose type a
-// mapping target names is read once a compile (lowering.Ctx.TypePosition), not
+// mapping target names is read once a compile (lowering.Remembered), not
 // once for each subtype asking: each reads its base's whole mapping, so a base
 // with n subtypes read each of its positions n times.
 func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
@@ -230,7 +230,8 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")
-	at := l.Ctx.TypePosition(bind.Position{Pointer: "/components/schemas/Hold/properties/p"}, func() bind.Position {
+	held := bind.Position{Pointer: "/components/schemas/Hold/properties/p"}
+	at := lowering.Remembered(l.Ctx, typeAt{lowering.Scoped(l.Ctx, held)}, func() bind.Position {
 		t.Error("the position was read again")
 		return bind.Position{}
 	})

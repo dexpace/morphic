@@ -19,7 +19,7 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "onNewPet")
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
-	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound, "webhook operation carries IsWebhook")
+	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound, "a webhook operation is marked inbound as one")
 	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 	assertOwnServersOverrideThePathItems(t, doc, op, "https://hooks-override.example.com",

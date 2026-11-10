@@ -21,8 +21,9 @@ import (
 
 // censusKeywords are the keywords whose IR home depends on what the position
 // lowered to: a Model's properties, a Model's or MapT's catch-all, a List's
-// element type and bounds, a Literal's value, an Enum's members, a Model's or
-// Union's discriminator. keywordHome asks the built node which a position kept.
+// element type and bounds, a Tuple's rest, a Literal's value, an Enum's
+// members, a Model's or Union's discriminator. keywordHome asks the built node
+// which a position kept.
 //
 // Annotations, validation-only and use-site keywords, content vocabulary and
 // value constraints have their own keepers.
@@ -32,7 +33,7 @@ import (
 // is dropped in silence (GitHub #268, #283).
 // oneOf/anyOf/allOf stay out; see refSiteUnhomedKeywords (GitHub #406).
 var censusKeywords = []string{
-	"additionalProperties", "const", "discriminator", "enum", "format", "items",
+	"additionalItems", "additionalProperties", "const", "discriminator", "enum", "format", "items",
 	"maxItems", "minItems", "patternProperties", "prefixItems", "properties",
 	"required", "type", "uniqueItems",
 }
@@ -60,6 +61,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(s.GetRequired()) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+	case "additionalItems":
+		// The rest of a tuple a list of items writes, as the drafts spell one, so
+		// a Tuple homes it as `items` beside `prefixItems`. Beside an `items` that
+		// is no list it is the rest of nothing, which the unknown keywords' keeper
+		// keeps (PreserveUnknownKeywords).
+		_, listed := listedItems(s)
+		return isKind(td, ir.KindTuple) || !listed
 	case "maxItems", "minItems", "uniqueItems":
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
@@ -173,9 +181,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	if len(types) == 0 {
 		return true
 	}
+
 	if len(types) > 1 {
 		return false
 	}
+
 	switch lit.Value.Kind {
 	case ir.ValueObject:
 		return types[0] == oas3.SchemaTypeObject
@@ -187,9 +197,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	default:
 		return false
 	}
+
 	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
 		return true
 	}
+
 	prim, known := spelling.Lookup(string(types[0]))
 	return known && prim == lit.ValueType
 }

@@ -156,7 +156,7 @@ func TestCompile_RegistersInRegistry(t *testing.T) {
 	assert.Equal(t, c.Formats(), reg.Formats())
 
 	src := compilers.Source{Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n")}
-	det, ok, err := reg.Detect(t.Context(), src, nil)
+	det, ok, err := reg.Detect(t.Context(), src, compilers.Configuration{})
 	require.NoError(t, err)
 	require.True(t, ok, "the registry hands it the documents it reads")
 	assert.Same(t, compilers.Compiler(c), det.Compiler)

@@ -70,6 +70,7 @@ func TestVerify_UndeclaredInboundKindIsAViolation(t *testing.T) {
 		{"an invented kind", "push", []string{at + ".Inbound"}},
 		{"a re-cased kind", "Webhook", []string{at + ".Inbound"}},
 		{"a webhook", ir.HTTPInboundWebhook, nil},
+		{"a callback", ir.HTTPInboundCallback, nil},
 		{"none", "", nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -83,8 +84,8 @@ func TestVerify_UndeclaredInboundKindIsAViolation(t *testing.T) {
 // TestVerify_ACallbacksTwoHalvesAgree pins ir/callback-unlisted and
 // ir/callback-unmarked: an operation marked a callback that no binding lists,
 // and one listed that is not marked, are reported at the marked operation's
-// bindings and at the entry listing it, while a listed and marked callback, a
-// webhook and a listed ID naming no operation are not.
+// bindings and at the entry listing it, alone or side by side, while a listed
+// and marked callback, a webhook and a listed ID naming no operation are not.
 func TestVerify_ACallbacksTwoHalvesAgree(t *testing.T) {
 	t.Parallel()
 	parent := func(listed ...ir.OpID) ir.Operation {
@@ -96,6 +97,7 @@ func TestVerify_ACallbacksTwoHalvesAgree(t *testing.T) {
 		return ir.Operation{ID: id, Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Inbound: inbound, URITemplate: "{$url}"}}}}
 	}
 	const second = "doc.Services[0].Groups[0].Operations[1].Bindings.HTTP"
+	const third = "doc.Services[0].Groups[0].Operations[2].Bindings.HTTP"
 	const entry = "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[0]"
 	for _, tc := range []struct {
 		name               string
@@ -110,6 +112,10 @@ func TestVerify_ACallbacksTwoHalvesAgree(t *testing.T) {
 			nil, []string{entry}},
 		{"a webhook nobody lists", []ir.Operation{parent(), callback("op/x/S/hook", ir.HTTPInboundWebhook)}, nil, nil},
 		{"listed and reached by no walk", []ir.Operation{parent("op/x/S/ghost")}, nil, nil},
+		// As many marked as listed, though neither is the other.
+		{"one marked and unlisted beside one listed and unmarked",
+			[]ir.Operation{parent("op/x/S/cb"), callback("op/x/S/cb", ""), callback("op/x/S/other", ir.HTTPInboundCallback)},
+			[]string{third}, []string{entry}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

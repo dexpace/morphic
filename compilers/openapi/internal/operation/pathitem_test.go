@@ -666,6 +666,9 @@ paths:
   /c:
     description: the path at length
     get: {responses: {"200": {description: ok}}}
+  /d:
+    $ref: '#/components/pathItems/Q'
+    description: the use site at length
 components:
   pathItems:
     P:
@@ -673,6 +676,9 @@ components:
       bogus4: true
       get: {responses: {"200": {description: ok}}}
       delete: {responses: {"200": {description: ok}}}
+    Q:
+      summary: the other shared item
+      get: {responses: {"200": {description: ok}}}
 `
 
 // TestPathItem_KeepsWhatItDeclaresOncePerMount pins that what a path item keeps
@@ -680,7 +686,8 @@ components:
 // recomputed for each with compile.Diags left to drop the repeated findings
 // (GitHub #414). /b holds each layer of a $ref'd mount to it. Its
 // documentation reaches each operation's PathDocs whichever keywords the layers
-// write, /a a summary, /c a description and /b one at each layer, and draws no
+// write, /a a summary, /c a description, and /b and /d one at each layer, each
+// keyword of a layer that leaves it out kept from the other layer, and draws no
 // finding.
 func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	t.Parallel()
@@ -715,6 +722,8 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 		{"/paths/~1b", []string{"get", "delete"}, []string{"pathItem/bogus3", "pathItem/bogus4"},
 			ir.Docs{Summary: "the use site", Description: "the shared item"}},
 		{"/paths/~1c", []string{"get"}, nil, ir.Docs{Description: "the path at length"}},
+		{"/paths/~1d", []string{"get"}, nil,
+			ir.Docs{Summary: "the other shared item", Description: "the use site at length"}},
 	} {
 		for _, method := range tc.methods {
 			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
