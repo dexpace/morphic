@@ -142,7 +142,7 @@ verifier and codecs must reach.
   `assertTypeDefRoundTrip` there call, naming each field it leaves zero with the reason.
 - **Why.** #1367's four fields went unset in two values their contract tests called fully
   populated, so a `json:"-"` tag on any of them passed both (#1670).
-- **Probe.** Each test whose comment `git grep -nE 'fully( populated|$)' -- 'ir/*_test.go'` hits
+- **Probe.** Each test whose comment `git grep -niE 'fully( populated|$)' -- 'ir/*_test.go'` hits
   calls one of those three.
 
 ## Read what the documents assume of a field before widening its values
