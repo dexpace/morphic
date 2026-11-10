@@ -111,9 +111,9 @@ The matrix is each claim class with the members checked, and each closed issue w
 `command-keeps-its-neighbours-flags`
 
 - **Rule.** For each tool a command in an edited rule runs, list the other rules running it
-  (`git grep -nF '<tool>' -- .claude/skills`) and compare the flags. Each flag a neighbour passes
-  for the same reading, such as one lifting a default cutoff, is passed too, or the edited rule
-  says why not.
+  (`git grep -nF '<tool>' -- .claude/skills CLAUDE.md CONTRIBUTING.md`) and compare the flags.
+  Each flag a neighbour passes for the same reading, such as one lifting a default cutoff, is
+  passed too, or the edited rule says why not.
 - **Why.** The Probe of
   `.claude/skills/morphic-measuring-performance/references/finding-cost.md#share-no-module-frame-holds`
   read a total off pprof's `-top` without the `-nodefraction=0` the rule before it passes. On a
