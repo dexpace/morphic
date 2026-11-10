@@ -42,8 +42,7 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the caller policies the context carries (Policy); everything else here
-	// is a fact about the document.
+	// of the caller policies the context carries (Policy).
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
