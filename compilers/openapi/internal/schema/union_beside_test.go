@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"slices"
 	"strings"
@@ -141,7 +142,8 @@ func TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode(t *testing.T) {
 // TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches pins a body writing
 // only `required` beside branches that admit only an object or null: each
 // variant requires the names of its branch, which keeps its null, and a branch
-// that may be no object leaves the body nothing to compose
+// that may be no object, a keyword beside `required` or a branch read past its
+// bounds leaves the body nothing to compose
 // (docs/compilers/openapi.md#union-beside-structure).
 func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	t.Parallel()
@@ -151,7 +153,9 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
       required: [a]
       anyOf: [{$ref: '#/components/schemas/A'}, {type: [object, 'null'], properties: {c: {type: string}}}]
     BesideString: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: string}]}
-`))
+    BesideItems: {required: [a], items: {type: string}, oneOf: [{$ref: '#/components/schemas/A'}]}
+    CutShort: {required: [a], oneOf: [{$ref: '#/components/schemas/A'}, {type: object, allOf: [{$ref: '#/components/schemas/D0'}]}]}
+`+deepChain(300)))
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	required, ok := typeByName(doc, "Required").(*ir.Union)
@@ -169,10 +173,24 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	assert.False(t, nullable.Variants[0].Type.Nullable)
 	assert.True(t, nullable.Variants[1].Type.Nullable, "a required list leaves the branch's null alone")
 
-	assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "BesideString"))
-	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
-		return d.Provenance.Pointer == "/components/schemas/BesideString" && strings.Contains(d.Message, "the body is not a model")
-	}), "%+v", diags)
+	for _, name := range []string{"BesideString", "BesideItems", "CutShort"} {
+		assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, name), name)
+		assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+			return d.Provenance.Pointer == jsontext.Pointer("/components/schemas/"+name) &&
+				strings.Contains(d.Message, "the body is not a model")
+		}), "%s: %+v", name, diags)
+	}
+}
+
+// deepChain declares D0 to Dn, each an allOf naming the next and Dn an object,
+// a chain whose read runs past what one reading of a schema may read.
+func deepChain(n int) string {
+	var b strings.Builder
+	for i := range n {
+		fmt.Fprintf(&b, "    D%d: {allOf: [{$ref: '#/components/schemas/D%d'}]}\n", i, i+1)
+	}
+	fmt.Fprintf(&b, "    D%d: {type: object}\n", n)
+	return b.String()
 }
 
 // TestAllOf_AUnionBranchDistributesAsBesideTheAllOf pins a oneOf or anyOf
@@ -181,8 +199,9 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 // variants match the beside spelling's, inline branches conjoined by their own
 // nodes, the branch keeps nothing, and another branch folds nothing, kept whole
 // on each variant. A union declaring no shape, one of two that do, one beside
-// the schema's own union and one distribution declines stay with their branch,
-// and the composition stays a model where nothing distributes.
+// the schema's own union, one distribution declines and one beside a branch's
+// $ref, which conjoins with that $ref, stay with their branch, and the
+// composition stays a model where nothing distributes.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -228,6 +247,10 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
         - {description: mine, properties: {c: {type: string}}}
+    RefBranch:
+      allOf:
+        - {$ref: '#/components/schemas/A', oneOf: [{$ref: '#/components/schemas/B'}]}
+        - {type: object, properties: {c: {type: string}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc), "the document must validate")
@@ -265,6 +288,7 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		"Shapeless":  {"openapi:allOf/0"},
 		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
 		"NullBranch": {"openapi:allOf/0"},
+		"RefBranch":  nil,
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
@@ -367,6 +391,30 @@ func TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype(t *testing.T) {
 	hamster, ok := doc.Types["t/anon/components/schemas/Holder/properties/hamster"].(*ir.Model)
 	require.True(t, ok, "one a mapping key routes to stays a model, the key \"\" among them")
 	assert.Contains(t, hamster.Unmodeled, "openapi:oneOf")
+}
+
+// TestOneOf_CoDeclaredTypeReadsNullableByItsDialect pins the null a `type`
+// beside a union is compared with (docs/compilers/openapi.md#union-beside-structure):
+// a `nullable: true` beside it adds null where the dialect defines the keyword,
+// so in 3.0 the type says a branch admitting null and the union is the schema,
+// and in 3.1 it adds nothing, so the body is kept beside the union.
+func TestOneOf_CoDeclaredTypeReadsNullableByItsDialect(t *testing.T) {
+	t.Parallel()
+	for version, tc := range map[string]struct {
+		nullString string
+		alone      bool
+	}{
+		"3.0.3": {"{type: string, nullable: true}", true},
+		"3.1.0": {"{type: [string, 'null']}", false},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer(version, `    V4: {type: string, format: ipv4}
+    N: `+tc.nullString+`
+    S: {type: string, nullable: true, oneOf: [{$ref: '#/components/schemas/V4'}, {$ref: '#/components/schemas/N'}]}
+`))
+		openapitest.RequireNoErrorDiags(t, diags)
+		_, alone := typeByName(doc, "S").(*ir.Union)
+		assert.Equal(t, tc.alone, alone, "%s: S lowers to the union alone", version)
+	}
 }
 
 // variantModels returns the composed models the component name's Union

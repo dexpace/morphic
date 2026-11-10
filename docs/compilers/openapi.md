@@ -2348,6 +2348,7 @@ as one whose branches declare shape.
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
+  `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
   `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
