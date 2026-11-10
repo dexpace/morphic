@@ -80,6 +80,9 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 		m.Implements, m.Base = []ir.TypeRef{ref("t/Addr")}, new(ref("t/Addr"))
 		reg[id] = &m
 	}
+	byAddr := *reg["t/copy1"].(*ir.Model)
+	byAddr.Discriminator = &ir.Discriminator{Property: byAddr.Properties[1].ID}
+	reg["t/copy1-tagged-addr"] = &byAddr
 	stray := *reg["t/copy1"].(*ir.Model)
 	stray.Discriminator = &ir.Discriminator{Property: "p/elsewhere"}
 	reg["t/copy1-stray-tag"] = &stray
@@ -114,6 +117,7 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		{"a copy whose member is disjoint", "t/copy0", "t/copy1-int", relUnrelated},
 		{"two copies tagged by the same property", "t/copy0-tagged", "t/copy1-tagged", relSame},
 		{"a tag naming no property of its model", "t/copy0", "t/copy1-stray-tag", relUnrelated},
+		{"two copies tagged by different properties", "t/copy0-tagged", "t/copy1-tagged-addr", relUnrelated},
 		{"two copies with one catch-all and composition", "t/copy0-open", "t/copy1-open", relSame},
 		{"two copies whose catch-alls differ", "t/copy0-open", "t/copy1-open-other", relUnrelated},
 	} {

@@ -6,7 +6,6 @@ package merge
 import (
 	"reflect"
 	"slices"
-	"strconv"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/ir"
@@ -35,17 +34,17 @@ func (j typeJudge) models(a ir.TypeRef, am *ir.Model, b ir.TypeRef, bm *ir.Model
 	if j.modelPairs == nil || !j.modelPairs.Spend(1) {
 		return relUnrelated
 	}
-	as, arefs, aok := modelSkeleton(am)
-	bs, brefs, bok := modelSkeleton(bm)
-	if !aok || !bok || len(arefs) != len(brefs) || !reflect.DeepEqual(as, bs) {
+	as, aok := modelSkeleton(am)
+	bs, bok := modelSkeleton(bm)
+	if !aok || !bok || as.tag != bs.tag || len(as.refs) != len(bs.refs) || !reflect.DeepEqual(as.model, bs.model) {
 		return relUnrelated
 	}
 	if (membersKeepReference(am) || membersKeepReference(bm)) && !j.sites.alike(am.Provenance, bm.Provenance) {
 		return relUnrelated
 	}
 	outer := j.sites.copies(a, am, b, bm)
-	for i := range arefs {
-		rel := j.relateAt(arefs[i], brefs[i], depth+1)
+	for i := range as.refs {
+		rel := j.relateAt(as.refs[i], bs.refs[i], depth+1)
 		if rel != relSame && (rel != outer || outer == relOverlap) {
 			return relUnrelated
 		}
@@ -53,45 +52,52 @@ func (j typeJudge) models(a ir.TypeRef, am *ir.Model, b ir.TypeRef, bm *ir.Model
 	return outer
 }
 
-// modelSkeleton returns m with what names where it and its members were
-// declared cleared, as siteless clears a node's: its own site, each property's
-// ID and provenance and those of what it keeps under Unmodeled, and the
-// discriminator's property, read as that property's position. Each type m names
-// is set apart, in order, with only its target cleared in the skeleton. It is
-// false where the discriminator names no property of m.
-func modelSkeleton(m *ir.Model) (ir.Model, []ir.TypeRef, bool) {
-	var refs []ir.TypeRef
+// skeleton is a model with what names where it and its members were declared
+// cleared, as siteless clears a node's: its own site, each property's ID and
+// provenance and those of what it keeps under Unmodeled. Each type it names is
+// set apart in refs, in order, with only its target cleared in model, and the
+// discriminator's property is read as its position, tag, or -1 where it has
+// none.
+type skeleton struct {
+	model ir.Model
+	refs  []ir.TypeRef
+	tag   int
+}
+
+// modelSkeleton returns m's skeleton, and false where its discriminator names
+// no property of m.
+func modelSkeleton(m *ir.Model) (skeleton, bool) {
+	sk := skeleton{model: *m, tag: -1}
 	take := func(r ir.TypeRef) ir.TypeRef {
-		refs = append(refs, r)
+		sk.refs = append(sk.refs, r)
 		r.Target = ""
 		return r
 	}
-	sk := *m
-	sk.TypeCommon = siteless(m.TypeCommon)
-	sk.Properties = make([]ir.Property, len(m.Properties))
+	sk.model.TypeCommon = siteless(m.TypeCommon)
+	sk.model.Properties = make([]ir.Property, len(m.Properties))
 	for i, p := range m.Properties {
 		p.ID, p.Provenance, p.Unmodeled = "", ir.Provenance{}, sitelessUnmodeled(p.Unmodeled)
 		p.Type = take(p.Type)
-		sk.Properties[i] = p
+		sk.model.Properties[i] = p
 	}
 	if m.Base != nil {
-		sk.Base = new(take(*m.Base))
+		sk.model.Base = new(take(*m.Base))
 	}
-	sk.Implements = takeAll(m.Implements, take)
-	sk.Mixins = takeAll(m.Mixins, take)
+	sk.model.Implements = takeAll(m.Implements, take)
+	sk.model.Mixins = takeAll(m.Mixins, take)
 	if m.AdditionalProps != nil {
-		sk.AdditionalProps = additionalSkeleton(*m.AdditionalProps, take)
+		sk.model.AdditionalProps = additionalSkeleton(*m.AdditionalProps, take)
 	}
 	if d := m.Discriminator; d != nil && d.Property != "" {
-		at := slices.IndexFunc(m.Properties, func(p ir.Property) bool { return p.ID == d.Property })
-		if at < 0 {
-			return ir.Model{}, nil, false
+		sk.tag = slices.IndexFunc(m.Properties, func(p ir.Property) bool { return p.ID == d.Property })
+		if sk.tag < 0 {
+			return skeleton{}, false
 		}
 		own := *d
-		own.Property = ir.PropID(strconv.Itoa(at))
-		sk.Discriminator = &own
+		own.Property = ""
+		sk.model.Discriminator = &own
 	}
-	return sk, refs, true
+	return sk, true
 }
 
 // takeAll applies take to each of refs, in order, into a new slice.
