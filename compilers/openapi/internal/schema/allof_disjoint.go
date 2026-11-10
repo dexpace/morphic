@@ -117,7 +117,9 @@ func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 // the schema it lands on. A keyword beside a $ref says nothing: 3.0 ignores it,
 // and reading it from 3.1 on, where it applies, is left open (GitHub #1390).
 // A boolean entry has no schema, so its `false` is applyFalseBranches' to report.
-// Each of these, and a $ref landing on no schema, is passed over.
+// A keyword beside a $ref that could refuse a value of some instance type is
+// passed over (besideChain), as are a `false` entry and a $ref landing on no
+// schema.
 func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	if isRefBranch(b) {
 		target := refBranchTarget(r.refs, b)
