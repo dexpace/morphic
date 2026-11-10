@@ -48,16 +48,20 @@ func TestVerify_AnInputPathNamesARequestValue(t *testing.T) {
 }
 
 // TestVerify_APaginationStopIsOneIRDeclares holds Pagination.Stop to the
-// declared conditions, each undeclared one at its own index.
+// declared conditions, each undeclared one at its own index, a lone one too.
 func TestVerify_APaginationStopIsOneIRDeclares(t *testing.T) {
 	t.Parallel()
-	o := ir.Operation{ID: "op/x/S/op", Pagination: &ir.Pagination{
+	doc := opDoc(ir.Operation{ID: "op/x/S/a", Pagination: &ir.Pagination{
 		Stop: []ir.PageStop{ir.PageStopEmpty, "Empty", ir.PageStopNoNext, ir.PageStopShort, ir.PageStopTotal, "never"},
-	}}
-	vs := irverify.Verify(opDoc(o))
+	}})
+	ops := &doc.Services[0].Groups[0].Operations
+	*ops = append(*ops, ir.Operation{ID: "op/x/S/b", Pagination: &ir.Pagination{Stop: []ir.PageStop{"never"}}})
+
+	vs := irverify.Verify(doc)
 	assert.Equal(t, []string{
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[1]",
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[5]",
+		"doc.Services[0].Groups[0].Operations[1].Pagination.Stop[0]",
 	}, violationPaths(vs, "ir/unknown-page-stop"))
 	assert.Empty(t, violationPaths(vs, "ir/set-entry-duplicate"), "no declared stop repeats")
 }
