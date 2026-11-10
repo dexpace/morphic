@@ -388,13 +388,13 @@ func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 // TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed covers the branches
 // that are $ref-shaped but name nothing this compilation can resolve. Each
 // would otherwise half-distribute — the variant carrying the body while its
-// branch vanished — so all of them keep the verbatim lowering, which loses
-// nothing, and each still reports the broken reference.
+// branch vanished — so all of them keep the verbatim lowering, and each still
+// reports the broken reference, an inline branch beside it reporting none. On
+// an allOf branch, such a union stays with its branch.
 //
 // It drives the lowering alone (lowerSpecOnly), so the report checked is the
 // lowering's own, at the branch pointer, with the reason the bindings give. A
-// full compile
-// keeps the load phase's report of the same $ref instead; see
+// full compile keeps the load phase's report of the same $ref instead; see
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef.
 func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	t.Parallel()
@@ -415,14 +415,24 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
       type: object
       properties: {kind: {type: string}}
       oneOf: [{$ref: '#/components/schemas/A/properties/missing'}]
+    BesideInline:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [{$ref: '#/components/schemas/Ghost'}, {type: object, properties: {b: {type: string}}}]
+    OnABranch:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/Ghost'}, {$ref: '#/components/schemas/A'}]
+        - {type: object, properties: {kind: {type: string}}}
 `)
 	doc, diags := lowerSpecOnly(t, spec)
 
+	ghost := `"#/components/schemas/Ghost" is unresolved: it names nothing in the document it points into`
 	for name, why := range map[string]string{
-		"Undeclared":    `"#/components/schemas/Ghost" is unresolved: it names nothing in the document it points into`,
+		"Undeclared":    ghost,
 		"CrossDocument": `"other.yaml#/components/schemas/A" is unresolved: it names another document, and external references are not read`,
 		"EmptyRef":      `"" is unresolved: it names a position that holds no schema`,
 		"NoSuchPointer": `"#/components/schemas/A/properties/missing" is unresolved: it names nothing in the document it points into`,
+		"BesideInline":  ghost,
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s keeps its structural body rather than becoming a union", name)
@@ -437,10 +447,15 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 			openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/"+name+"/oneOf/0"),
 			name)
 	}
+	beside := []jsontext.Pointer{"/components/schemas/Undeclared/oneOf/1", "/components/schemas/BesideInline/oneOf/1"}
 	for _, d := range diags {
-		assert.NotEqual(t, jsontext.Pointer("/components/schemas/Undeclared/oneOf/1"), d.Provenance.Pointer,
-			"the branch beside the broken one resolves, so nothing is reported against it")
+		assert.NotContains(t, beside, d.Provenance.Pointer,
+			"the branch beside the broken one is no broken reference, so nothing is reported against it")
 	}
+
+	onABranch, ok := typeByName(doc, "OnABranch").(*ir.Model)
+	require.True(t, ok, "a branch's union naming nothing distributes nowhere; got %T", typeByName(doc, "OnABranch"))
+	assert.Contains(t, onABranch.Unmodeled, "openapi:allOf/0", "the union stays whole with its branch")
 }
 
 // TestOneOf_CoDeclaredNotDistributedReasons pins the shapes distribution

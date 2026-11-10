@@ -198,10 +198,10 @@ func deepChain(n int) string {
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
 // nodes, the branch keeps nothing, and another branch folds nothing, kept whole
-// on each variant. A union declaring no shape, one of two that do, one beside
-// the schema's own union, one distribution declines and one beside a branch's
-// $ref, which conjoins with that $ref, stay with their branch, and the
-// composition stays a model where nothing distributes.
+// on each variant. One declaring no shape, one of two that do, one beside the
+// schema's own union or discriminator, one distribution declines, one past the
+// flattening depth and one beside a branch's $ref, which it conjoins with, stay
+// with their branch; an enum beside the allOf decides the position.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -251,6 +251,26 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - {$ref: '#/components/schemas/A', oneOf: [{$ref: '#/components/schemas/B'}]}
         - {type: object, properties: {c: {type: string}}}
+    DiscriminatedBranch:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+          discriminator: {propertyName: a}
+        - {type: object, properties: {c: {type: string}}}
+    OwnDiscriminator:
+      discriminator: {propertyName: c}
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+        - {type: object, properties: {c: {type: string}}}
+    EnumBeside:
+      type: string
+      enum: [x, y]
+      allOf: [{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}]
+    Capped:
+      allOf:
+        - `+strings.Repeat("{allOf: [", schema.MaxAllOfFlattenDepth)+
+		`{allOf: [{type: object}], oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}`+
+		strings.Repeat("]}", schema.MaxAllOfFlattenDepth)+`
+        - {type: object, properties: {c: {type: string}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc), "the document must validate")
@@ -284,11 +304,15 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 		assert.NotContains(t, v.Unmodeled, "openapi:allOf/0")
 	}
 
+	capped := "openapi:" + strings.TrimPrefix(strings.Repeat("/allOf/0", schema.MaxAllOfFlattenDepth+1), "/")
 	for name, kept := range map[string][]string{
-		"Shapeless":  {"openapi:allOf/0"},
-		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
-		"NullBranch": {"openapi:allOf/0"},
-		"RefBranch":  nil,
+		"Shapeless":           {"openapi:allOf/0"},
+		"Two":                 {"openapi:allOf/0", "openapi:allOf/1"},
+		"NullBranch":          {"openapi:allOf/0"},
+		"RefBranch":           nil,
+		"DiscriminatedBranch": {"openapi:allOf/0"},
+		"OwnDiscriminator":    {"openapi:allOf/0"},
+		"Capped":              {capped},
 	} {
 		m, ok := typeByName(doc, name).(*ir.Model)
 		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
@@ -296,6 +320,9 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 			assert.Contains(t, m.Unmodeled, key, "%s keeps its union with its branch", name)
 		}
 	}
+	enum, ok := typeByName(doc, "EnumBeside").(*ir.Enum)
+	require.True(t, ok, "the enum beside the allOf decides it; got %T", typeByName(doc, "EnumBeside"))
+	assert.Contains(t, enum.Unmodeled, "openapi:allOf")
 	annotated, ok := typeByName(doc, "Annotated").(*ir.Union)
 	require.True(t, ok)
 	assert.Empty(t, annotated.Docs.Description, "a distributed branch folds nothing, as beside the allOf")

@@ -205,6 +205,7 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
     ValueString: {type: string, maxLength: 1000}
     ByRef: {allOf: [{oneOf: [{type: integer}, {$ref: '#/components/schemas/Owner'}, {type: string}]}, {$ref: '#/components/schemas/Str'}]}
     TwoMatch: {allOf: [{oneOf: [{type: string}, {type: string, maxLength: 3}]}, {type: string, format: uuid}]}
+    BothWithin: {allOf: [{oneOf: [{type: string}, {type: string, format: uuid}]}, {type: string, format: uuid}]}
     FormatNotHeld: {allOf: [{anyOf: [{type: string, format: uuid}, {type: integer}]}, {type: string}]}
     Overlapping: {allOf: [{oneOf: [{type: string}, {type: string, format: date}]}, {$ref: '#/components/schemas/Str'}]}
     Disjoint: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {type: boolean}]}
@@ -252,9 +253,9 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	assert.Empty(t, byRef.Unmodeled, "Str lies within one branch and shares no kind with another")
 
 	for name, key := range map[string]string{
-		"TwoMatch": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0", "Overlapping": "openapi:allOf/0",
-		"Bounded": "openapi:allOf/0", "BoundedOne": "openapi:allOf/0", "Patterned": "openapi:allOf/0",
-		"Described": "openapi:allOf/0",
+		"TwoMatch": "openapi:allOf/0", "BothWithin": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0",
+		"Overlapping": "openapi:allOf/0", "Bounded": "openapi:allOf/0", "BoundedOne": "openapi:allOf/0",
+		"Patterned": "openapi:allOf/0", "Described": "openapi:allOf/0",
 	} {
 		kept := typeByName(doc, name).Common().Unmodeled[key]
 		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s keeps the union, which says more", name)
