@@ -22,8 +22,9 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 	if !reflect.DeepEqual(as, bs) {
 		return relUnrelated
 	}
-	aWithin, shared, aok := sharedMembers(a.Members, b.Members)
-	bWithin, _, bok := sharedMembers(b.Members, a.Members)
+	ai, bi := indexMembers(a.Members), indexMembers(b.Members)
+	aWithin, shared, aok := sharedMembers(a.Members, bi)
+	bWithin, _, bok := sharedMembers(b.Members, ai)
 	switch {
 	case !aok || !bok:
 		return relUnrelated
@@ -39,14 +40,15 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 // sharedMembers counts the members of xs whose value ys holds, and reports
 // whether ys holds every one. It is false where a member of ys holding one of
 // those values says anything else of it otherwise, its ID aside.
-func sharedMembers(xs, ys []ir.EnumMember) (within bool, shared int, ok bool) {
+func sharedMembers(xs []ir.EnumMember, ys memberIndex) (within bool, shared int, ok bool) {
 	within = true
 	for _, x := range xs {
-		y, found := memberOf(ys, x.Value)
+		k, found := ys.find(x.Value)
 		if !found {
 			within = false
 			continue
 		}
+		y := ys.members[k]
 		x.ID, y.ID, y.Value = "", "", x.Value
 		if !reflect.DeepEqual(x, y) {
 			return false, 0, false
@@ -56,14 +58,48 @@ func sharedMembers(xs, ys []ir.EnumMember) (within bool, shared int, ok bool) {
 	return within, shared, true
 }
 
-// memberOf returns the member of ms holding v (sameValue).
-func memberOf(ms []ir.EnumMember, v ir.Value) (ir.EnumMember, bool) {
-	for _, m := range ms {
-		if sameValue(m.Value, v) {
-			return m, true
+// memberIndex finds an enum's first member holding a value (sameValue) without
+// scanning them all, so comparing two enums costs their width, not its square.
+// A value with a canonical spelling equals only one spelled alike, so such
+// members are found by it, and only the rest, which sameValue compares deeply,
+// are scanned.
+type memberIndex struct {
+	members []ir.EnumMember
+	// byValue maps each canonical spelling to its first member's position.
+	byValue map[string]int
+	// rest lists, in order, the positions of members no canonical spelling names.
+	rest []int
+}
+
+// indexMembers indexes ms by value.
+func indexMembers(ms []ir.EnumMember) memberIndex {
+	x := memberIndex{members: ms, byValue: make(map[string]int, len(ms))}
+	for i, m := range ms {
+		key, ok := canonicalValue(m.Value, 0)
+		if !ok {
+			x.rest = append(x.rest, i)
+			continue
+		}
+		if _, seen := x.byValue[key]; !seen {
+			x.byValue[key] = i
 		}
 	}
-	return ir.EnumMember{}, false
+	return x
+}
+
+// find returns the position of the first member holding v, and false where
+// none does.
+func (x memberIndex) find(v ir.Value) (int, bool) {
+	if key, ok := canonicalValue(v, 0); ok {
+		i, found := x.byValue[key]
+		return i, found
+	}
+	for _, i := range x.rest {
+		if reflect.DeepEqual(x.members[i].Value, v) {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // literalBesideDetail relates lit, a literal a Scalar node admits, against

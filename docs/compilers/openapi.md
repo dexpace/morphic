@@ -1856,6 +1856,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
+  `merge.TestFold_TwoEnumsCostTheirWidth`,
   `merge.TestFold_ANarrowerListAdoptsTheBroadersDetail`,
   `merge.TestFold_ANarrowerListAdoptsTheBroadersEncoding`,
   `merge.TestFold_ContainersOfModelsComposeTheirMembers`,

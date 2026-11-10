@@ -137,18 +137,20 @@ func membersOf[T ir.TypeDef](all []member, nodes []ir.TypeDef, of func(T) ir.Typ
 }
 
 // sharedBy returns the members of ms whose value every enum of others holds,
-// in ms's order: the values of all the enums at once.
+// in ms's order: the values of all the enums at once. A node of others that is
+// no enum holds none of them.
 func sharedBy(ms []ir.EnumMember, others []ir.TypeDef) []ir.EnumMember {
+	indexes := make([]memberIndex, len(others))
+	for k, td := range others {
+		e, ok := td.(*ir.Enum)
+		if !ok {
+			return nil
+		}
+		indexes[k] = indexMembers(e.Members)
+	}
 	out := make([]ir.EnumMember, 0, len(ms))
 	for _, m := range ms {
-		if !slices.ContainsFunc(others, func(td ir.TypeDef) bool {
-			e, ok := td.(*ir.Enum)
-			if !ok {
-				return true
-			}
-			_, held := memberOf(e.Members, m.Value)
-			return !held
-		}) {
+		if heldByAll(indexes, m.Value) {
 			out = append(out, m)
 		}
 	}
@@ -156,6 +158,16 @@ func sharedBy(ms []ir.EnumMember, others []ir.TypeDef) []ir.EnumMember {
 		return ms
 	}
 	return out
+}
+
+// heldByAll reports whether each enum indexes indexed holds v.
+func heldByAll(indexes []memberIndex, v ir.Value) bool {
+	for _, x := range indexes {
+		if _, held := x.find(v); !held {
+			return false
+		}
+	}
+	return true
 }
 
 // settle returns the type of one position of the nodes built at depth, its
