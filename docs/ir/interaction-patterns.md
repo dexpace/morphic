@@ -38,11 +38,12 @@ type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the re
 // (pass/param-binding-mismatch).
 ```
 
-An input the pagination reads is an `InputPath`: a parameter and, for a member of one, the path
-into it, or, with no parameter, a path into the request body, since a search endpoint taking its
-cursor or page size as body fields is as common as one taking them as query parameters. A path into
-the body names a member, so it has a segment at least (`ir/input-path-empty`). `TotalCount` counts
-items and `TotalPages` pages, the two totals an API returns.
+An input the pagination reads is an `InputPath`: a parameter and, for a member of one, the path into
+it, or, with no parameter, a path into the request body, since a search endpoint taking its cursor
+or page size as body fields is as common as one taking them as query parameters. A path into the
+body names a member of a body its operation sends, so it has a segment at least
+(`ir/input-path-empty`) and an operation with a `Request` (`ir/input-body-absent`). `TotalCount`
+counts items and `TotalPages` pages, the two totals an API returns.
 
 `Stop` is when iteration ends, which the source states and no consumer can recover from the other
 fields: the same cursor shape ends at an empty page on one API and at an empty next cursor on
@@ -120,8 +121,10 @@ be a union, and `Variant.Event` applies only where it is one.
 **A sentinel that ends a stream** is `Terminator`, the frame's data verbatim: many event-stream APIs
 end with a frame such as `data: [DONE]` that is no event and must not be decoded as one, and
 without the field every emitter hard-codes or guesses it. It is the data, compared whole, not an
-element type, since the sentinel sits outside the element's schema; an event a union lists that
-ends the stream is `Variant.Event.Terminal`, which is a variant and is decoded as one.
+element type, since the sentinel sits outside the element's schema; an event a union lists that ends
+the stream is `Variant.Event.Terminal`, which is a variant and is decoded as one. It is never empty,
+as an empty one would match a frame holding no data, a keep-alive among them
+(`ir/stream-terminator-empty`).
 
 **A stream sent only when asked** carries a `Condition`: the request input and the value that ask
 for it, as a body's `stream: true` does, the operation otherwise sending or returning that side's

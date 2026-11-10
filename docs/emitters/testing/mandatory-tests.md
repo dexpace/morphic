@@ -115,17 +115,18 @@ throughout these documents.
 24. **T-24 · Streams** — each framing, under an `Item` and by media type where the framing admits
     both, with an element of each kind, decodes on every target. An operation offering a value and a
     stream gets a method for each, each sending its own `Accept`, and so does one whose stream a
-    `Condition` selects, each method setting the input itself; a frame whose data is the
-    `Terminator` of a side the client reads ends the stream undecoded, and a side it writes sends it
-    last; a line under a content with no `Item` and a `string` root reaches the caller as text,
-    where a declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its
-    `Elem`, one frame at a time, a `string` `Elem` decoding as JSON on a line and arriving as `data`
-    on an SSE frame; an SSE element, a union of event shapes among them, reads the frame's fields
-    under `FrameMembers` and the frame's `data` otherwise; a stream under a binding other than HTTP
-    draws no `unframed-stream`; a media type only a compiler option names gets the one stream
-    method, as `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a
-    `Send`; a `bytes` side lowers as a file, and a request's file body is a byte source whatever its
-    `Type`; and each operation of the golden spec that streams gets a `StreamPlan`
+    `Condition` selects, the stream's method sending the condition's value and the other never
+    sending it; a frame whose data is the `Terminator` of a side the client reads ends the stream
+    undecoded, a side it writes sends it last, and a `bytes` side draws `terminator-unframed`; a
+    line under a content with no `Item` and a `string` root reaches the caller as text, where a
+    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `Elem`, one
+    frame at a time, a `string` `Elem` decoding as JSON on a line and arriving as `data` on an SSE
+    frame; an SSE element, a union of event shapes among them, reads the frame's fields under
+    `FrameMembers` and the frame's `data` otherwise; a stream under a binding other than HTTP draws
+    no `unframed-stream`; a media type only a compiler option names gets the one stream method, as
+    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
+    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
+    and each operation of the golden spec that streams gets a `StreamPlan`
     ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
     shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
@@ -511,6 +512,7 @@ throughout these documents.
 45. **T-45 · Page walks** — on every target, a pager ends at the first page meeting each condition
     `PagePlan.Stop` lists, alone and together, `short` against the limit the call sent and `total`
     against both totals; a condition the page gives nothing to read for ends nothing; and whatever
-    `Stop` lists, the walk ends at a page giving no continuation where `CursorOut` is set, and at a
-    page holding no items under `offset` or `page`, which is where an empty `Stop` ends it
+    `Stop` lists, the walk ends at a page giving no continuation under each strategy reading one,
+    `link_header` among them, and at a page holding no items under `offset` or `page`, which is
+    where an empty `Stop` ends it
     ([pagination](../operations/pagination.md#where-a-page-walk-ends)).

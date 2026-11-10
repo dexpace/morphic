@@ -30,14 +30,15 @@ legitimate boilerplate seam ([structure and boilerplate](../emit/templates.md)).
 
 A pager fetches no page after one meeting a condition `Page.Stop` lists, each read as the IR states
 it ([pagination](../../ir/interaction-patterns.md#pagination)): `empty` and `short` count the items
-`ItemPath` reads, `short` against the limit the call sent through `LimitIn`, `no_next` reads
-`CursorOut`, and `total` compares the items or pages read so far with what `TotalCount` or
+`ItemPath` reads, `short` against the limit the call sent through `LimitIn`, `no_next` reads the
+page's continuation, and `total` compares the items or pages read so far with what `TotalCount` or
 `TotalPages` reads. A condition a page gives nothing to read for, `short` on a call sending no limit
 or `total` on a page stating no total, ends nothing there.
 
-Whatever `Stop` lists, the walk also ends at the last page any condition could end it at: where
-`CursorOut` is set, a page from which it reads no continuation, absent or null, since no next
-request can be built from it, and otherwise, as under `offset` or `page`, a page holding no items.
-Every condition a source can state ends the walk there or sooner, so the pager reads no item fewer
-than the source's own rule would, and an empty `Stop`, which states no rule, ends there alone: the
-pager reads none into the shape.
+Whatever `Stop` lists, the walk also ends at the last page any condition could end it at. Under a
+strategy reading its continuation from a page, every one but `offset` and `page`, that is a page
+giving none, absent or null, since no next request can be built from it: `CursorOut` reads it, and
+under `link_header` the `Link` header's `next` link is it. Under `offset` or `page` it is a page
+holding no items. Every condition a source can state ends the walk there or sooner, so the pager
+reads no item fewer than the source's own rule would, and an empty `Stop`, which states no rule,
+ends there alone: the pager reads none into the shape.

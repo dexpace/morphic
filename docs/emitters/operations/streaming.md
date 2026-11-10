@@ -40,7 +40,8 @@ client stream ends by reading what `Return` reads, a bidi operation has both sid
 own element and framing, and a gRPC binding of the same core would reuse the same stream shape over
 length-prefixed frames. A frame whose data is a side's `Terminator` ends that stream and is no
 element, and a stream a request input selects is a method of its own beside one for the
-non-streaming content, each setting that input itself ([streams](../plan/streams.md)).
+non-streaming content, which never sends the value asking for the stream
+([streams](../plan/streams.md)).
 
 The stream *runtime* is boilerplate behind the `Transport` interface: one template, and one per
 framing the document uses, which refine picks rather than a template branching on it ([structure and
