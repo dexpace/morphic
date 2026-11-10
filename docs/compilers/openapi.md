@@ -1574,12 +1574,12 @@ gives way to it, only where what the two keep under `Unmodeled` writes no relati
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
 Two `const`s of different values share none, so they are disjoint. Two enums of one value type,
-closedness and fallback, whose members holding one value say the same of it, are judged by the values
-they hold: sharing none, they are disjoint; one whose values the other holds every one of is narrower
-where it also says all the other does beside its members, and otherwise the two meet, as do two each
-holding a value the other lacks, in an enum of the values they share (below). Two holding one set of
-values in another order or saying the rest differently, and any other pair of enums, are judged by
-their kind.
+closedness, bit-flag reading and fallback, whose members holding one value say the same of it, are
+judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
+every one of is narrower where it also says all the other does beside its members, and otherwise the
+two meet, as do two each holding a value the other lacks, in an enum of the values they share
+(below). Two holding one set of values in another order or saying the rest differently, and any other
+pair of enums, are judged by their kind.
 Two models alike in every member but where they and what they name were declared (the same
 properties in the same order, each with the same wire name, required flag, visibility, docs,
 constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
