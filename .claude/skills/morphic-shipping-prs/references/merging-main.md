@@ -47,9 +47,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `merge-a-landed-bases-final-head`
 
 - **Rule.** Once a stacked PR's base squash-merges and the PR retargets to `main`, merging `main`
-  conflicts wherever the branch holds the base's text from an older merge. Merge the base PR's final
-  head first (`git fetch origin +pull/<base PR>/head:<own ref>`), then `origin/main`; where that
-  still conflicts at the base's text, take the branch's side outside the files
+  conflicts wherever the branch holds the base's text merged earlier. Merge the base PR's final
+  head (`git fetch origin +pull/<base PR>/head:<own ref>`), then `origin/main`, titled by
+  `references/merging-main.md#merge-titled-for-the-branch`; where that still conflicts at the
+  base's text, take the branch's side outside the files
   `git diff --name-only <squash> origin/main` lists and `main`'s inside them, so
   `git diff HEAD^1 HEAD` holds only that diff. With no base head, take
   `references/merging-main.md#replay-own-diff-onto-main`. Then read each concept it adds by
@@ -58,6 +59,20 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   real overlaps (#1332); on another stack, `main` past the squash drew 24 more (#1427).
 - **Probe.** `git merge-tree --write-tree --name-only <head> <squash>` beside it against the base's
   final head.
+
+## Title each merge a branch carries for that branch
+`merge-titled-for-the-branch`
+
+- **Rule.** A merge a pushed branch carries is titled for what it merges and the branch's name, as
+  `Merge branch 'main' into <branch>` or `Merge the final head of #<base PR> into <branch>`. A
+  merge by commit, by a ref of one's own or in a detached worktree takes `-m`: untitled, it names
+  that ref, or `HEAD` for the branch.
+- **Why.** A review of #1355 set up by `references/merging-main.md#merge-a-landed-bases-final-head`
+  made merges titled `Merge commit 'refs/rv<session>/1354' into HEAD` and
+  `Merge remote-tracking branch 'origin/main' into HEAD`, which its fixes would have pushed and a
+  squash pasting every commit's message would land (#1629).
+- **Probe.** `git log --merges --format=%s "origin/<base>"..HEAD | grep -E "into HEAD$|'refs/"`
+  prints nothing; the push checklist's `cs` grep matches `into HEAD`.
 
 ## Replay a branch's own diff onto main to leave a stack
 `replay-own-diff-onto-main`

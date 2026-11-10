@@ -274,6 +274,7 @@ var rules = map[string][]string{
 	// what keeps the conflict lattice drivable without a walk.
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/provenance",

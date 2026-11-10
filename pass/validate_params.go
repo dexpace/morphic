@@ -15,9 +15,9 @@ import (
 var paramIDType = reflect.TypeFor[ir.ParamID]()
 
 // checkParams holds every reference an operation makes to a parameter — its
-// HTTP bindings, its pagination inputs and its idempotency token — to the
-// parameters it declares. refs holds what the one walk of the document
-// declared, which the dangling check resolves against too.
+// HTTP bindings, its pagination inputs, the inputs selecting a stream and its
+// idempotency token — to the parameters it declares. refs holds what the one
+// walk of the document declared, which the dangling check resolves against too.
 func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	return append(checkParamBindings(doc, refs), checkParamReferences(doc, refs)...)
 }
@@ -133,18 +133,20 @@ type paramRef struct {
 }
 
 // appendParamRefs appends to dst the parameter references op carries besides
-// its bindings: the pagination inputs and the idempotency token. An absent
-// input is no reference, and neither is an empty token, which is how an
-// operation that is not token-keyed spells having none. An input with an empty
-// ID is one.
+// its bindings: the pagination inputs, the inputs that select a stream and the
+// idempotency token. An absent input is no reference, and neither is one into
+// the request body, nor an empty token, which is how an operation that is not
+// token-keyed spells having none. An input with an empty ID is one.
 func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	if pg := op.Pagination; pg != nil {
-		if pg.InputCursor != nil {
-			dst = append(dst, paramRef{pg.InputCursor.Param, "pagination/inputCursor"})
-		}
-		if pg.InputLimit != nil {
-			dst = append(dst, paramRef{pg.InputLimit.Param, "pagination/inputLimit"})
-		}
+		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
+		dst = appendInputRef(dst, pg.InputLimit, "pagination/inputLimit")
+	}
+	if s := op.RequestStream; s != nil && s.Condition != nil {
+		dst = appendInputRef(dst, &s.Condition.Input, "requestStream/condition")
+	}
+	if s := op.ResponseStream; s != nil && s.Condition != nil {
+		dst = appendInputRef(dst, &s.Condition.Input, "responseStream/condition")
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{token, "idempotency/tokenParam"})
@@ -152,8 +154,18 @@ func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	return dst
 }
 
-// checkParamReferences holds an operation's pagination inputs and idempotency
-// token to the parameters that operation declares.
+// appendInputRef appends the parameter in names, under field, when in roots in
+// a parameter.
+func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
+	if in == nil || in.Param == nil {
+		return dst
+	}
+	return append(dst, paramRef{*in.Param, field})
+}
+
+// checkParamReferences holds an operation's pagination inputs, the inputs
+// selecting its streams and its idempotency token to the parameters that
+// operation declares.
 //
 // Another operation's parameter is a well-formed reference, so the registry walk
 // has nothing to say about it, while an emitter reads the pagination cursor off

@@ -1,7 +1,24 @@
 # Later rounds
 
 What a round reads from the third on, when it narrows to the fixes, and when a miss sends it over
-the whole change again. `references/rounds.md` says how a round runs and when the loop ends.
+the whole change again, each from the reports
+`references/later-rounds.md#keep-each-rounds-report` keeps. `references/rounds.md` says how a
+round runs and when the loop ends.
+
+## Keep each round's report where the next round reads it
+`keep-each-rounds-report`
+
+- **Rule.** Each round appends its report, first line included, to
+  `"$(git rev-parse --path-format=absolute --git-common-dir)/morphic-review/<N>.md"`, which every
+  worktree of the clone shares and no commit carries. A later round's main session reads it before
+  choosing what the round reads, its reader getting only what
+  `references/readers.md#fresh-reader-for-the-second-round` allows. A round finding no report there,
+  as in another clone, reads the whole change as the first two rounds do, and its report says why.
+- **Why.** A round of #1647 at 894da789c, after rounds whose fixes were on the branch, found no
+  comment, review, body line, ref or file holding their reports, so neither `<merged>` nor whether
+  its `issue:` sat in a filled cell could be told (#1649).
+- **Probe.** The file's last `Round` line names the round before, its `merged` commit one
+  `git cat-file -t` finds.
 
 ## Read what moved, from the third round on
 `later-rounds-read-what-moved`

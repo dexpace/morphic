@@ -79,6 +79,8 @@ member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
 member 0 0 Idempotency.kind
 member 0 0 Idempotency.tokenParam
+member 0 0 InputPath.param
+member 0 0 InputPath.segments
 member 0 0 List.encoding
 member 0 0 LongRunning.finalOperation
 member 0 0 LongRunning.finalStateVia
@@ -145,10 +147,10 @@ member 0 0 Pagination.lastLink
 member 0 0 Pagination.nextCursor
 member 0 0 Pagination.nextLink
 member 0 0 Pagination.prevLink
+member 0 0 Pagination.stop
 member 0 0 Pagination.strategy
 member 0 0 Pagination.totalCount
-member 0 0 ParamPath.param
-member 0 0 ParamPath.segments
+member 0 0 Pagination.totalPages
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
 member 0 0 PropPath.in
@@ -198,8 +200,12 @@ member 0 0 Service.protocols
 member 0 0 Service.provenance
 member 0 0 Service.renames
 member 0 0 Service.version
+member 0 0 StreamCondition.input
+member 0 0 StreamCondition.value
+member 0 0 StreamDetail.condition
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength
+member 0 0 StreamDetail.terminator
 member 0 0 TemplateArg.type
 member 0 0 TemplateArg.value
 member 0 0 TemplateInstantiation.args
@@ -249,6 +255,10 @@ value 0 0 IdempotencyKind "idempotent"
 value 0 0 IdempotencyKind "safe"
 value 0 0 MsgDirection "receive"
 value 0 0 MsgDirection "send"
+value 0 0 PageStop "empty"
+value 0 0 PageStop "no_next"
+value 0 0 PageStop "short"
+value 0 0 PageStop "total"
 value 0 0 PageStrategy "cursor"
 value 0 0 PageStrategy "link_header"
 value 0 0 PageStrategy "next_link"

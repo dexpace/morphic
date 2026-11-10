@@ -46,9 +46,9 @@ cannot be turned off.
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Goldens.** A version bump rewrites none, but a new namespace in a compiler's `Namespaces`
   rewrites the `idSpaces` of every one (`references/ir-lessons.md#new-id-namespace`).
-- **Values.** A lowering writing a value a field never held changes no shape, so no test sees it:
-  bump for its meaning, and read what documents assume of the old values
-  (`references/ir-lessons.md#widened-field-values`).
+- **Values.** A lowering writing a value a field never held, one a consumer switches on, changes no
+  shape, so no test sees it: bump for its meaning (`references/ir-lessons.md#widened-field-values`).
+  A field naming another node bumps nothing (`references/ir-lessons.md#verdict-on-another-node`).
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
 - **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title
   carries `!`, and the commit and PR bodies say what an older consumer sees

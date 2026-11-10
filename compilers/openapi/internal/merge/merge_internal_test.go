@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,11 +39,12 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
-// declaring returns a model declaring one property, which a test takes where
-// any model will do: a model declaring nothing says nothing but object
-// (saysOnlyObject).
+// declaring returns a model declaring one property, named for it, which a test
+// takes where any model will do: a model declaring nothing says nothing but
+// object (saysOnlyObject), and two declaring the same are alike
+// (typeJudge.models).
 func declaring(id ir.TypeID) *ir.Model {
-	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: "own"}}}
+	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: string(id)}}}
 }
 
 // judge is the type judgment over the registry g reads, its declarations read
@@ -50,6 +52,10 @@ func declaring(id ir.TypeID) *ir.Model {
 func judge(g *stubbed) typeJudge {
 	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.walk}}
 }
+
+// untypedAt is Walk.Untyped for a registry whose nodes written under /untyped
+// state no instance type.
+func untypedAt(p ir.Provenance) bool { return strings.HasPrefix(string(p.Pointer), "/untyped/") }
 
 // stubbed is a Merger over a plain map and a stub walk, which records what its
 // folds report, so the conflict lattice can be driven with no lowerer, parser
@@ -76,8 +82,8 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stubbed, *[]ir.Diagnostic) {
 
 // stubWalk is the walk a test folds under. Mint registers a node in reg under
 // composedAt's ID and counts it in minted, Interned answers for the schemas
-// interned lists, and Alike reads every two sites against one base unless
-// apart says they are read apart.
+// interned lists, Alike reads every two sites against one base unless apart
+// says they are read apart, and Untyped is untypedAt.
 type stubWalk struct {
 	reg      map[ir.TypeID]ir.TypeDef
 	interned []jsontext.Pointer
@@ -101,6 +107,9 @@ func (w *stubWalk) Interned(pointer jsontext.Pointer) bool {
 
 // Alike is Walk.Alike.
 func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
+
+// Untyped is Walk.Untyped.
+func (w *stubWalk) Untyped(at ir.Provenance) bool { return untypedAt(at) }
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.

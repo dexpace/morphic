@@ -349,3 +349,14 @@ it sees. Changes made together in one bump are listed together under it.
 
   A consumer pinned to 0.34.0 that read those `Unmodeled` entries no longer finds them, and refuses
   the document as another generation's.
+- **0.36.0** — pagination and streaming gained the facts declared pagination and conditional
+  streams state:
+  - `ParamPath` became `InputPath`, whose `Param` is optional: nil roots the path in the request
+    body, so a search endpoint's body cursor or page size is an input. `Pagination` gained
+    `TotalPages`, counting pages where `TotalCount` counts items, and `Stop`, the closed
+    `empty | no_next | short | total` conditions that end iteration, where each consumer guessed.
+  - `StreamDetail` gained `Terminator`, the frame data that ends a stream and is no element (an
+    SSE `data: [DONE]`), and `Condition`, the request input and value that ask for a stream an
+    operation sends only when asked.
+  - No compiler fills these yet. A consumer pinned to 0.35.0 refuses a document that sets one, and
+    finds a body input's `param` absent where it required one.

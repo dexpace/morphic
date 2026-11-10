@@ -4,76 +4,84 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
+
 	"github.com/dexpace/morphic/ir"
 )
 
-// conjunct is one model a field composes: the index of the declaration naming
-// it, and the model that declaration's type stands for.
+// conjunct is one type a position composes: the member naming it, and the node
+// that member's type stands for.
 type conjunct struct {
-	decl  int
-	model *ir.Model
+	member
+	node ir.TypeDef
 }
 
-// composition returns the models the field composes
-// (docs/compilers/openapi.md#allof-redeclared-property): those of the declarations
-// no other declaration's type holds, each type once, in declaration order. Two
-// models say nothing of what they share, but an instance satisfies both, so
-// the field's type is the composition of them all. It returns nothing where
-// fewer than two remain, since one type then holds every other, or where one
-// that remains is no model, such as an alias of `{}` (#1194), which leaves the
-// type to the winner.
-func (f *folding) composition() []conjunct {
-	judge := typeJudge{resolve: f.g.resolve, sites: declarationSites{walk: f.g.Walk}}
+// composition returns the types the position composes
+// (docs/compilers/openapi.md#allof-redeclared-property): those of the members
+// no other member's type holds, each once, in declaration order. Two models,
+// or a model and a map or a union, say nothing of what they share, but an
+// instance satisfies both, so the type there is a model composing them all.
+// It returns nothing where fewer than two remain, since one type then holds
+// every other, where none is a model, or where one is no model, map or union,
+// such as a kind, which leaves the type to the winner.
+func (p position) composition(reg registry) []conjunct {
 	var conjuncts []conjunct
-	for i, d := range f.decls {
-		if f.heldByAnother(i) {
+	model := false
+	for i, m := range p.members {
+		if p.heldByAnother(i) {
 			continue
 		}
-		m, ok := judge.model(d.prop.Type)
+		node, ok := reg.composable(m.ref)
 		if !ok {
 			return nil
 		}
-		conjuncts = append(conjuncts, conjunct{decl: i, model: m})
+		_, isModel := node.(*ir.Model)
+		model = model || isModel
+		conjuncts = append(conjuncts, conjunct{member: m, node: node})
 	}
-	if len(conjuncts) < 2 {
+	if len(conjuncts) < 2 || !model {
 		return nil
 	}
 	return conjuncts
 }
 
-// heldByAnother reports whether some other declaration's type already says all
-// decls[i]'s does: one narrower, or the same one written first.
-func (f *folding) heldByAnother(i int) bool {
-	for j := range f.decls {
-		if f.rel[j][i] == relANarrower || (f.rel[j][i] == relSame && j < i) {
+// heldByAnother reports whether some other member's type already says all
+// member i's does: one narrower, or the same one written first.
+func (p position) heldByAnother(i int) bool {
+	for j := range p.members {
+		if p.rel[j][i] == relANarrower || (p.rel[j][i] == relSame && j < i) {
 			return true
 		}
 	}
 	return false
 }
 
-// compose mints the model that composes f.conjuncts, as a written allOf of them
-// composes: SelectBase picks its Base among those written as a $ref, and the
-// rest are Mixins in declaration order. Only the target is carried. A conjunct
-// says nothing of null, which is the field's reference's to say (foldType).
-func (f *folding) compose() ir.TypeID {
+// compose returns the model that composes cs, minted at pointer, as a written
+// allOf of them composes: SelectBase picks its Base among those written as a
+// $ref, and the rest are Mixins in declaration order. Only the target is
+// carried. A conjunct says nothing of null, which the reference to the model
+// says (position.null).
+func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 	var refs []int
-	for k, c := range f.conjuncts {
-		if !hoistedAt(c.model, f.decls[c.decl].prop.Provenance) {
+	for k, c := range cs {
+		if !hoistedAt(c.node, b.f.decls[c.decl].prop.Provenance) {
 			refs = append(refs, k)
 		}
 	}
-	base, hasBase := SelectBase(refs, func(k int) bool { return f.conjuncts[k].model.Discriminator != nil })
+	base, hasBase := SelectBase(refs, func(k int) bool {
+		m, ok := cs[k].node.(*ir.Model)
+		return ok && m.Discriminator != nil
+	})
 	composed := &ir.Model{}
-	for k, c := range f.conjuncts {
-		ref := ir.TypeRef{Target: f.decls[c.decl].prop.Type.Target}
+	for k, c := range cs {
+		ref := ir.TypeRef{Target: c.ref.Target}
 		if hasBase && k == base {
 			composed.Base = &ref
 			continue
 		}
 		composed.Mixins = append(composed.Mixins, ref)
 	}
-	return f.g.Walk.Mint(f.field, composed)
+	return b.mint(pointer, composed)
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given
@@ -92,13 +100,17 @@ func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
 	return 0, false
 }
 
-// model returns the Model ref names, directly or through aliases, and false
-// where it names anything else.
-func (j typeJudge) model(ref ir.TypeRef) (*ir.Model, bool) {
-	td, ok := j.resolve(ref.Target)
+// composable returns the node ref names, directly or through aliases, where
+// it is a Model, a MapT or a Union, and false where it names anything else.
+func (r registry) composable(ref ir.TypeRef) (ir.TypeDef, bool) {
+	td, ok := r.resolve(ref.Target)
 	if !ok {
 		return nil, false
 	}
-	m, ok := j.unaliased(td).(*ir.Model)
-	return m, ok
+	switch node := r.unaliased(td).(type) {
+	case *ir.Model, *ir.MapT, *ir.Union:
+		return node, true
+	default:
+		return nil, false
+	}
 }
