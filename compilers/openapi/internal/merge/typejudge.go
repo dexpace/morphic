@@ -62,8 +62,9 @@ const maxJudgeDepth = 8
 // of a type's. It is a type of its own, not methods on Merger, so that the
 // conflict lattice's size stays the lattice's.
 type typeJudge struct {
-	// Resolve looks a type up in the registry.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// resolve looks a type up in the registry: Merger.resolve, which a test
+	// counts the reads of.
+	resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// sites is where the declarations a and b were written.
 	sites declarationSites
 }
@@ -75,9 +76,9 @@ type declarationSites struct {
 	// copy only where it was written at or under its declaration's pointer, in
 	// the same document; one a $ref reached elsewhere was declared apart.
 	written [2]ir.Provenance
-	// alike is Merger.Alike: two nodes held alike keeping a reference are one
-	// type only where they read it against one base.
-	alike func(a, b ir.Provenance) bool
+	// walk is Merger.Walk, whose Alike says two nodes held alike keeping a
+	// reference are one type only where they read it against one base.
+	walk Walk
 }
 
 // relate compares a with b. The winner never depends on which is which:
@@ -97,8 +98,8 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if depth > maxJudgeDepth {
 		return relUnrelated
 	}
-	at, aok := j.Resolve(a.Target)
-	bt, bok := j.Resolve(b.Target)
+	at, aok := j.resolve(a.Target)
+	bt, bok := j.resolve(b.Target)
 	if !aok || !bok {
 		return relUnrelated
 	}
@@ -189,7 +190,7 @@ func (j typeJudge) composes(id, target ir.TypeID) bool {
 	seen := map[ir.TypeID]bool{id: true}
 	queue := []ir.TypeID{id}
 	for len(queue) > 0 && len(seen) <= maxComposedParts {
-		td, ok := j.Resolve(queue[len(queue)-1])
+		td, ok := j.resolve(queue[len(queue)-1])
 		queue = queue[:len(queue)-1]
 		if !ok {
 			continue
@@ -287,7 +288,7 @@ func (j typeJudge) unaliased(td ir.TypeDef) ir.TypeDef {
 		if !alias || s.Base == nil {
 			return td
 		}
-		next, ok := j.Resolve(s.Base.Target)
+		next, ok := j.resolve(s.Base.Target)
 		if !ok {
 			return td
 		}
@@ -397,7 +398,7 @@ func (j typeJudge) isAnyType(ref ir.TypeRef) bool {
 	if k, ok := j.kindOf(ref); ok {
 		return k.prim == ir.PrimAny
 	}
-	td, ok := j.Resolve(ref.Target)
+	td, ok := j.resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
 }
 
@@ -422,7 +423,7 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
 	keeps := (aHoisted || bHoisted) && (keepsReference(at) || keepsReference(bt))
-	if keeps && !d.alike(at.Common().Provenance, bt.Common().Provenance) {
+	if keeps && !d.walk.Alike(at.Common().Provenance, bt.Common().Provenance) {
 		return relOverlap
 	}
 	return sameNodes(a, b, aHoisted, bHoisted)
@@ -846,7 +847,7 @@ func (j typeJudge) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
 	for range maxTypeResolveDepth {
-		td, ok := j.Resolve(id)
+		td, ok := j.resolve(id)
 		if !ok {
 			return valueKind{}, false
 		}
@@ -883,7 +884,7 @@ func (j typeJudge) kindOf(ref ir.TypeRef) (valueKind, bool) {
 func (j typeJudge) admits(ref ir.TypeRef, v ir.Value) bool { return j.admitsAt(ref, v, 0) }
 
 func (j typeJudge) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
-	td, ok := j.Resolve(ref.Target)
+	td, ok := j.resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {
 		return false
 	}

@@ -14,31 +14,48 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Merger folds the declarations of one field into the property they make
-// together. It reads the registry through Resolve, adds to it through Mint and
-// reports through Report, so a fold can be driven against a map and a recorder
-// rather than a document.
-// PropIndex runs it once every node exists.
+// Merger is what folding the declarations of one field reads besides them, as
+// values, so a test drives a fold with a map and a stub walk rather than a
+// document. PropIndex.Fold runs it once every node exists.
 type Merger struct {
-	// Resolve looks a type up in the registry. The judgment compares what two
-	// references point at, not the references themselves.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Mint registers the node a field's declarations compose or meet to.
-	Mint Mint
-	// Interned reports whether a node stands at a pointer.
-	Interned func(jsontext.Pointer) bool
-	// PropAt returns the identity a field named for a pointer takes (identify).
-	PropAt func(jsontext.Pointer) ir.PropID
-	// Report records one diagnostic a fold draws.
-	Report Reporter
+	// Reg is the registry every lowering left. The judgment compares what two
+	// references point at there, not the references themselves.
+	Reg ir.TypeRegistry
+	// IDs derives, for the model's document, the identity a field named for a
+	// pointer takes (identify).
+	IDs ids.Document
+	// Doc places what a fold reports.
+	Doc provenance.Doc
+	// Walk is the walk that declared the field.
+	Walk Walk
+}
+
+// Walk is what a fold asks of the walk that declared the field.
+type Walk interface {
+	// Mint registers node, which stands for the declarations of the field
+	// pointer names (fieldSpan), and returns the ID it is registered under. It
+	// fills what in node's TypeCommon names the node, and keeps the rest. The
+	// fold reads what it mints, so it registers at once.
+	Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID
+	// Interned reports whether a node stands at pointer, which only the
+	// finished registry can answer.
+	Interned(pointer jsontext.Pointer) bool
 	// Alike reports whether what is written at a and at b reads each $ref it
 	// writes against one base, so the same text there says the same: under an
 	// $id naming another URI, a $ref spelled alike names another schema. The
 	// fold asks it only of text writing one (annotation.WritesReference).
-	Alike func(a, b ir.Provenance) bool
+	Alike(a, b ir.Provenance) bool
+}
+
+// resolve looks the type id names up in the registry.
+func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
+	td, ok := g.Reg[id]
+	return td, ok
 }
 
 // declaration is one declaration of a field, as the walk lowered it, and how
@@ -54,17 +71,17 @@ type declaration struct {
 
 // fold returns the property decls make together under allOf intersection
 // (docs/ir/models.md#the-flattening,
-// docs/compilers/openapi.md#allof-redeclared-property). decls is every
-// declaration of one wire name, at least two, in declaration order; the field
-// keeps the first one's identity unless another model carries that declaration
-// (identify). Every fact is decided from the whole set, so
-// declaration order decides only a tie, and the merge reports each one. What a
-// declaration says that the field does not carry is reported at that
-// declaration, which is kept verbatim beside the field.
+// docs/compilers/openapi.md#allof-redeclared-property), and what it reports.
+// decls is every declaration of one wire name, at least two, in declaration
+// order; the field keeps the first one's identity unless another model carries
+// that declaration (identify). Every fact is decided from the whole set, so
+// declaration order decides only a tie, which is reported. What a declaration
+// says that the field does not carry is reported at that declaration, which is
+// kept verbatim beside the field.
 //
 // A fold judges every pair of declarations, so it judges at most
 // maxFoldDeclarations of them (keepUnjudged).
-func (g *Merger) fold(decls []declaration) ir.Property {
+func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 	judged, past := decls, []declaration(nil)
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
@@ -78,10 +95,9 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	f.foldDocs()
 	f.foldAnnotations()
 	f.foldUnmodeled()
-	merged := f.finish()
+	merged, diags := f.finish()
 	g.identify(&merged, schema, field)
-	g.keepUnjudged(&merged, past)
-	return merged
+	return merged, append(diags, g.keepUnjudged(&merged, past)...)
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -94,17 +110,19 @@ const maxFoldDeclarations = 64
 // keepUnjudged keeps each declaration past the bound verbatim beside merged,
 // and reports at the first of them that the fold judged none: what they say is
 // kept, not folded.
-func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) {
+func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) []ir.Diagnostic {
 	if len(past) == 0 {
-		return
+		return nil
 	}
-	g.Report(ir.SeverityError, diag.BudgetExceeded, past[0].prop.Provenance.Pointer,
+	at := g.Doc.At(past[0].prop.Provenance.Pointer)
+	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
 			"kept verbatim under Unmodeled, unjudged",
-		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))
+		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))}
 	for _, d := range past {
-		g.keepLosingDeclaration(merged, d.prop.Provenance, d.source)
+		diags = append(diags, g.keepLosingDeclaration(merged, d.prop.Provenance, d.source)...)
 	}
+	return diags
 }
 
 // folding is one fold in progress.
@@ -156,7 +174,7 @@ func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding
 	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
-			judge := typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: g.Alike,
+			judge := typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.Walk,
 				written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}}
 			rel := judge.relate(decls[i].prop.Type, decls[j].prop.Type)
 			f.rel[i][j], f.rel[j][i] = rel, rel.flipped()
@@ -231,7 +249,7 @@ func (f *folding) foldType() {
 // targetsTop reports whether ref targets the schemaless top type, a bare
 // PrimAny (isTop).
 func (f *folding) targetsTop(ref ir.TypeRef) bool {
-	td, ok := f.g.Resolve(ref.Target)
+	td, ok := f.g.resolve(ref.Target)
 	return ok && isTop(td)
 }
 
@@ -300,7 +318,7 @@ func (f *folding) foldConstraints() {
 // writing another is reported and kept. Refusing first means a value the field
 // takes is kept whichever order the declarations come in.
 func (f *folding) foldValues() {
-	nullable := f.merged.Type.Nullable || typeJudge{Resolve: f.g.Resolve}.isAnyType(f.merged.Type)
+	nullable := f.merged.Type.Nullable || typeJudge{resolve: f.g.resolve}.isAnyType(f.merged.Type)
 	takesDefault := make([]bool, len(f.decls))
 	takesExamples := make([]bool, len(f.decls))
 	for i, d := range f.decls {
@@ -359,7 +377,8 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 		return nullable
 	}
 	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}}
+	judge := typeJudge{resolve: f.g.resolve, sites: declarationSites{walk: f.g.Walk,
+		written: [2]ir.Provenance{winner.Provenance, own.Provenance}}}
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}
@@ -481,7 +500,7 @@ func (f *folding) foldUnmodeled() {
 					merged = make(ir.Unmodeled, len(d.prop.Unmodeled))
 				}
 				merged[key], from[key] = entry, i
-			case !sameEntry(f.g.Alike, merged[key], entry):
+			case !sameEntry(f.g.Walk, merged[key], entry):
 				f.lost[i] = true
 				f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 					"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
@@ -495,23 +514,24 @@ func (f *folding) foldUnmodeled() {
 
 // sameEntry reports whether a and b, the entry two declarations give one key,
 // are one: written alike, and read against one base where they write a
-// reference (alike, Merger.Alike), which the same text under another base may
-// read as another schema.
-func sameEntry(alike func(a, b ir.Provenance) bool, a, b ir.UnmodeledEntry) bool {
-	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || alike(a.Provenance, b.Provenance))
+// reference (Walk.Alike), which the same text under another base may read as
+// another schema.
+func sameEntry(walk Walk, a, b ir.UnmodeledEntry) bool {
+	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || walk.Alike(a.Provenance, b.Provenance))
 }
 
-// finish reports, declaration by declaration, what the fold noted there,
-// keeping each declaration it lost something of verbatim
+// finish returns the field and, declaration by declaration, what the fold
+// noted there, keeping each declaration it lost something of verbatim
 // (keepLosingDeclaration).
-func (f *folding) finish() ir.Property {
+func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			f.g.Report(n.sev, n.code, f.at(i), "%s", n.msg)
+			diags = append(diags, diag.Newf(n.sev, n.code, f.g.Doc.At(f.at(i)), "%s", n.msg))
 		}
 		if f.lost[i] {
-			f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)
+			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)
 		}
 	}
-	return f.merged
+	return f.merged, diags
 }

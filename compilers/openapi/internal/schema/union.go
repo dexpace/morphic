@@ -699,9 +699,9 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
-	idx := propIndex(c, ts, m)
-	diags = append(diags, fillAllOf(c, ts, depth, m, idx, body.comp)...)
-	diags = append(diags, fillModelProperties(c, ts, depth, idx, body.schema, body.comp.pointer)...)
+	fields := newModelFields(c, ts, m)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
+	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.GetRequired(), body.comp))
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
 	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)

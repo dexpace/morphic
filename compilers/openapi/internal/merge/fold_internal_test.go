@@ -387,7 +387,7 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	g, _ := stubMerger(narrowingRegistry())
 	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
 	_, field := fieldSpan(decls)
-	f := newFolding(g, decls, field)
+	f := newFolding(&g.Merger, decls, field)
 	f.rel[f.winner][1] = relBNarrower
 
 	f.drop(1)
@@ -483,7 +483,7 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 }
 
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
-// declarations write alike, writing a reference, is one only where Merger.Alike
+// declarations write alike, writing a reference, is one only where Walk.Alike
 // says they read it against one base: elsewhere the same text may name another
 // schema, so the later one is reported and kept as one given differently is.
 // An entry writing no reference is one under any base.
@@ -503,7 +503,7 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 		first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
 		second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
 		g, recorded := stubMerger(narrowingRegistry())
-		g.Alike = func(ir.Provenance, ir.Provenance) bool { return false }
+		g.walk.apart = true
 
 		got := g.fold([]declaration{first, second})
 

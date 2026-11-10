@@ -33,7 +33,7 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
@@ -60,75 +60,84 @@ func objectNode(m *ir.Model) ir.TypeDef {
 	return m
 }
 
-// propIndex returns the index the walk fills m's properties through. A field
-// declared more than once folds once every lowering has returned
-// (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
-// that reads the merged field, such as a form part's flags, finds it folded.
-func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
-	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, ts: ts, fold: fold}) })
+// modelFields is how the walk fills one model's properties: the context the
+// model is lowered in, the types its nodes are registered with, and the index of
+// the properties it declares (merge.PropIndex). A field declared more than once
+// folds once every lowering has returned, as a completion
+// (compile.Types.Complete), queued at the model's first redeclaration: a
+// settlement that reads the merged field, such as a form part's flags, finds it
+// folded, and a fold mid-walk would follow the order the declarations lower in
+// (GitHub #898). It is the walk the fold asks (merge.Walk).
+type modelFields struct {
+	c   lowering.Ctx
+	ts  *compile.Types
+	idx *merge.PropIndex
 }
 
-// settledMerge is the folds of one model's redeclared fields, taken once every
-// node exists (compile.Settlement): a fold compares the nodes the declarations
-// name, so mid-walk it would follow the order they lower in (GitHub #898).
-type settledMerge struct {
-	c    lowering.Ctx
-	ts   *compile.Types
-	fold merge.Settle
+// newModelFields returns the fields of m, which holds no property yet, lowered
+// in c and registered with ts.
+func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
+	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m)}
 }
 
-// Settle takes the fold against reg and returns what it reports. The fold
-// rewrites the model's property, and adds a node only through mint.
-func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	s.fold(&merge.Merger{
-		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Mint:    s.mint,
-		Interned: func(pointer jsontext.Pointer) bool {
-			_, ok := s.ts.Lookup(s.c.IDs().Coordinate(pointer))
-			return ok
-		},
-		PropAt: s.c.IDs().ComposedProp,
-		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
-		},
-		Alike: s.alike,
-	})
-	return diags
+// merge lands p on the model, or records it as one more declaration of the
+// field its wire name names (merge.PropIndex.MergeProperty), queueing the
+// model's folds at its first redeclaration.
+func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Inferred) {
+	if f.idx.MergeProperty(p, source, secretBy) {
+		f.ts.Complete(f)
+	}
 }
 
-// alike is merge.Merger.Alike. Each site is read at s.c's position for its
+// Settle folds the model's redeclared fields against reg, the registry every
+// lowering left, and returns what the folds report (compile.Settlement). A
+// fold rewrites the model's property, and adds a node only through Mint.
+func (f modelFields) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	return f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+}
+
+// Interned reports whether a node stands at pointer of the model's document
+// (merge.Walk.Interned).
+func (f modelFields) Interned(pointer jsontext.Pointer) bool {
+	_, ok := f.ts.Lookup(f.c.IDs().Coordinate(pointer))
+	return ok
+}
+
+// Alike is merge.Walk.Alike. Each site is read at f.c's position for its
 // pointer, as the model's own document holds it; a site in another document,
 // such as a component a $ref there reached, one c does not place, or one whose
 // base the bindings cannot tell, is no match.
-func (s settledMerge) alike(a, b ir.Provenance) bool {
+func (f modelFields) Alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
-		at, placed := s.c.Position(p.Pointer)
-		uri, known := s.c.Bindings().Table().Base(at)
-		return uri, placed && known && p.Source == s.c.Place().At(p.Pointer).Source
+		at, placed := f.c.Position(p.Pointer)
+		uri, known := f.c.Bindings().Table().Base(at)
+		return uri, placed && known && p.Source == f.c.Place().At(p.Pointer).Source
 	}
 	ua, okA := base(a)
 	ub, okB := base(b)
 	return okA && okB && ua == ub
 }
 
-// mint registers node, the type of the field the declaration at pointer names.
-// That pointer denotes the declaration's own schema, so node takes the ID of a
-// node no schema occupies (ids.ComposedType) and points back at it, as a
-// distributed variant points at its branch. The variants of one distributed
-// union fold the same declarations, so each mints this one node, alike.
-func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
-	id := s.c.IDs().ComposedType(pointer)
-	site, common := commonFor(s.c, id, pointer), node.Common()
+// Mint registers node, the type of the field the declaration at pointer names
+// (merge.Walk.Mint). That pointer denotes the declaration's own schema, so node
+// takes the ID of a node no schema occupies (ids.ComposedType) and points back
+// at it, as a distributed variant points at its branch. The variants of one
+// distributed union fold the same declarations, so each mints this one node,
+// alike.
+func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+	id := f.c.IDs().ComposedType(pointer)
+	site, common := commonFor(f.c, id, pointer), node.Common()
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
-	s.ts.Register(id, node)
+	f.ts.Register(id, node)
 	return id
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields modelFields, s *oas3.Schema,
+	pointer jsontext.Pointer,
+) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
@@ -152,7 +161,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 		if p.Secret && !declared {
 			secretBy = lowering.ExtensionPromotionHeuristic
 		}
-		idx.MergeProperty(p, redeclarationSource(js), secretBy)
+		fields.merge(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }

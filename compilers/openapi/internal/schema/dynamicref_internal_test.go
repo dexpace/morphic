@@ -181,12 +181,12 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
 	w := newAdmission(l.Ctx)
-	merge := settledMerge{c: l.Ctx}
+	fields := modelFields{c: l.Ctx}
 
 	assert.True(t, w.sameText(at("Plain"), at("Twin")))
 	assert.False(t, w.sameText(at("Plain"), at("Deep")))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
-	assert.True(t, merge.alike(prov("Plain"), prov("Twin")))
-	assert.False(t, merge.alike(prov("Plain"), prov("Deep")))
+	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
+	assert.False(t, fields.Alike(prov("Plain"), prov("Deep")))
 }

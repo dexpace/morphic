@@ -23,7 +23,7 @@ type conjunct struct {
 // that remains is no model, such as an alias of `{}` (#1194), which leaves the
 // type to the winner.
 func (f *folding) composition() []conjunct {
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike}}
+	judge := typeJudge{resolve: f.g.resolve, sites: declarationSites{walk: f.g.Walk}}
 	var conjuncts []conjunct
 	for i, d := range f.decls {
 		if f.heldByAnother(i) {
@@ -73,7 +73,7 @@ func (f *folding) compose() ir.TypeID {
 		}
 		composed.Mixins = append(composed.Mixins, ref)
 	}
-	return f.g.Mint(f.field, composed)
+	return f.g.Walk.Mint(f.field, composed)
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given
@@ -95,7 +95,7 @@ func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
 // model returns the Model ref names, directly or through aliases, and false
 // where it names anything else.
 func (j typeJudge) model(ref ir.TypeRef) (*ir.Model, bool) {
-	td, ok := j.Resolve(ref.Target)
+	td, ok := j.resolve(ref.Target)
 	if !ok {
 		return nil, false
 	}

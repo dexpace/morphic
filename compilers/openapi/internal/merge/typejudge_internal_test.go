@@ -156,7 +156,7 @@ func ref(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -328,7 +328,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{Resolve: stubResolve(judgeRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{resolve: stubResolve(judgeRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -361,7 +361,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{}}}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -412,7 +412,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{Resolve: stubResolve(narrowingRegistry()), sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{resolve: stubResolve(narrowingRegistry()), sites: declarationSites{walk: &stubWalk{}}}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -525,7 +525,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		assert.Equal(t, tc.want.flipped(), judge(g).relate(ir.TypeRef{Target: tc.b}, ir.TypeRef{Target: tc.a}), "%s, flipped", tc.name)
 	}
 
-	gone, ok := g.Resolve("t/alias-gone")
+	gone, ok := g.resolve("t/alias-gone")
 	require.True(t, ok)
 	assert.Equal(t, gone, judge(g).unaliased(gone), "an alias with nothing at its end stands for itself, never for no type")
 }
@@ -703,7 +703,7 @@ func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 
 // TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that a hoisted copy keeping
 // a reference is one type with a node held alike only where the two read it
-// against one base (Merger.Alike): elsewhere they are two types declared apart,
+// against one base (Walk.Alike): elsewhere they are two types declared apart,
 // which overlap, whether the other is a copy or a node declared elsewhere.
 // Copies keeping none say the same under any base.
 func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
@@ -718,8 +718,7 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	for _, id := range []ir.TypeID{"t/lit-a-abs1", "t/lit-a-abs2"} {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
 	}
-	never := func(ir.Provenance, ir.Provenance) bool { return false }
-	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: never}}
+	j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{walk: &stubWalk{apart: true}}}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")

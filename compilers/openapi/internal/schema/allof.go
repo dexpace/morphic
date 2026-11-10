@@ -45,9 +45,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 			v := voicingOf(c, s)
 			comp.speaks, comp.rebased = v.speaks, v.rebased
 		}
-		idx := propIndex(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
+		fields := newModelFields(c, ts, m)
+		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
@@ -291,12 +291,13 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // #143). The census every $ref site runs keeps what the alias cannot model,
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
-func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
-			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
+			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
 			continue
 		}

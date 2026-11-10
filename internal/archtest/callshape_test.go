@@ -66,9 +66,11 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema": 9,
 	},
 	"compilers/openapi/internal/merge": {
-		// The allOf merge relay, which #1486 lowers to the fold's calls back into
-		// the walk that declared the field.
-		"compilers/openapi/internal/schema": 24,
+		// What a fold asks the walk that declared the field, through merge.Walk:
+		// Mint twice, Alike twice and Interned once. merge.Source, a lazy render of
+		// a declaration nobody may keep. And the predicate SelectBase calls before
+		// it returns, an immediate callback.
+		"compilers/openapi/internal/schema": 7,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal

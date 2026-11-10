@@ -165,11 +165,11 @@ func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail s
 // where that keyword is all they differ in.
 func (f *folding) foldNodeBounds() ir.TypeID {
 	target := f.decls[f.winner].prop.Type.Target
-	node, ok := f.g.Resolve(target)
+	node, ok := f.g.resolve(target)
 	if !ok {
 		return target
 	}
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike}}
+	judge := typeJudge{resolve: f.g.resolve, sites: declarationSites{walk: f.g.Walk}}
 	sets := make([]*ir.Constraints, len(f.decls))
 	for i, d := range f.decls {
 		if i == f.winner || f.rel[f.winner][i] == relMeet {
@@ -180,12 +180,12 @@ func (f *folding) foldNodeBounds() ir.TypeID {
 	if sameBounds(met, boundsOf(node)) {
 		return target
 	}
-	return f.g.Mint(f.field, withBounds(node, met))
+	return f.g.Walk.Mint(f.field, withBounds(node, met))
 }
 
 // nodeBounds returns the constraints on the node ref names.
 func nodeBounds(j typeJudge, ref ir.TypeRef) *ir.Constraints {
-	td, ok := j.Resolve(ref.Target)
+	td, ok := j.resolve(ref.Target)
 	if !ok {
 		return nil
 	}
@@ -201,7 +201,7 @@ func allBounds(j typeJudge, p *ir.Property) *ir.Constraints {
 // alike reports whether a and b are one type but for the bounds their nodes hold:
 // the judgment on the two with those bounds set aside.
 func alike(j typeJudge, a, b ir.TypeRef) bool {
-	at, aok := j.Resolve(a.Target)
-	bt, bok := j.Resolve(b.Target)
+	at, aok := j.resolve(a.Target)
+	bt, bok := j.resolve(b.Target)
 	return aok && bok && j.boundedNodes(withBounds(at, nil), withBounds(bt, nil), 0) == relSame
 }
