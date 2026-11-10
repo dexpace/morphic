@@ -149,8 +149,7 @@
                       "application/octet-stream"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -213,8 +212,7 @@
                       "application/octet-stream"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -303,8 +301,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

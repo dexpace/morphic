@@ -175,6 +175,7 @@
                     ],
                     "callbacks": [
                       {
+                        "name": "onProgress",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
                           "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
@@ -182,8 +183,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -236,12 +236,12 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
+                    "inbound": "callback",
                     "requestContentTypes": [
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -302,13 +302,13 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "webhookName": "onShipped",
                     "requestContentTypes": [
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },

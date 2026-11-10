@@ -270,6 +270,7 @@
                     ],
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/u}",
                         "operations": [
                           "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
@@ -277,8 +278,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -353,9 +353,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/u}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -518,8 +518,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

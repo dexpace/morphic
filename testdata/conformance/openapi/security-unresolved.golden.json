@@ -105,8 +105,7 @@
                     "method": "GET",
                     "uriTemplate": "/both",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -158,6 +157,7 @@
                     "uriTemplate": "/sole",
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/url}",
                         "operations": [
                           "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
@@ -165,8 +165,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -216,9 +215,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/url}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -269,8 +268,7 @@
                     "method": "GET",
                     "uriTemplate": "/sole-again",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -312,8 +310,7 @@
                     "method": "GET",
                     "uriTemplate": "/inherits",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -356,8 +353,7 @@
                     "method": "GET",
                     "uriTemplate": "/public",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -408,8 +404,7 @@
                     "method": "GET",
                     "uriTemplate": "/no-mechanism",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -460,8 +455,7 @@
                     "method": "GET",
                     "uriTemplate": "/broken-ref",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -515,8 +509,7 @@
                     "method": "GET",
                     "uriTemplate": "/no-scopes",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -574,10 +567,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "webhookName": "created",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },

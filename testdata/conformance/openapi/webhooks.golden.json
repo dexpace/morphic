@@ -102,13 +102,13 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "webhookName": "newPet",
                     "requestContentTypes": [
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -147,10 +147,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "webhookName": "{tenant}.created",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -189,9 +189,9 @@
                 "http": [
                   {
                     "method": "POST",
+                    "inbound": "webhook",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },

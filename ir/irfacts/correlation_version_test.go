@@ -28,6 +28,7 @@ import (
 // never this table.
 var derivations = map[int]string{
 	1: "f0fa7169f5c829a4dfdcb15118cad84987f0dd4c102868a4fcd4a3d989a2558c",
+	2: "5323f633c155c54b465d5a7948acc33423d9e50963b90b9ce1bd5b2217fd581f",
 }
 
 // derivationGolden lists every key correlationFixtures derive, so a change to

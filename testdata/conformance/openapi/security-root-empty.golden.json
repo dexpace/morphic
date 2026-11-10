@@ -89,8 +89,7 @@
                     "method": "GET",
                     "uriTemplate": "/open",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -141,8 +140,7 @@
                     "method": "GET",
                     "uriTemplate": "/guarded",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

@@ -40,6 +40,7 @@ type Operation struct {
     Servers    []ServerID         // the servers it is sent to, most preferred first, in place
                                   // of its service's; empty = its service's (docs/ir/servers.md)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
+                                  // an inbound operation inherits none (auth.md)
     Tags       []string
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
                                      // (TypeSpec @parameterVisibility); nil = protocol default

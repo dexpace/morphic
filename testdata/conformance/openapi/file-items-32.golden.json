@@ -121,8 +121,7 @@
                     "method": "GET",
                     "uriTemplate": "/photos",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -192,8 +191,7 @@
                     "method": "GET",
                     "uriTemplate": "/attachments",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -267,8 +265,7 @@
                     "method": "GET",
                     "uriTemplate": "/thumbnails",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

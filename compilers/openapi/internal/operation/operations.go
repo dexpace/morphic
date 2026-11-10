@@ -119,7 +119,7 @@ type opContext struct {
 	// declares no operationId, whichever route mounted it; keyFields places it
 	// in the binding.
 	key           string
-	isWebhook     bool
+	inbound       ir.HTTPInbound
 	withCallbacks bool
 	inferred      ir.Inferred
 	params        []sourcedParam
@@ -131,7 +131,7 @@ type opContext struct {
 // template; any other key, a path or a callback expression, is the
 // URITemplate.
 func (o opContext) keyFields() (uriTemplate, webhookName string) {
-	if o.isWebhook {
+	if o.inbound == ir.HTTPInboundWebhook {
 		return "", o.key
 	}
 	return o.key, ""
@@ -180,7 +180,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 		Method:        opCtx.method,
 		URITemplate:   uriTemplate,
 		WebhookName:   webhookName,
-		IsWebhook:     opCtx.isWebhook,
+		Inbound:       opCtx.inbound,
 		ParamBindings: bindings,
 	}
 	diags = append(diags, lowerRequestBody(c, w.types, &op, &hb, src, decl)...)
@@ -230,15 +230,6 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
 		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
-}
-
-// withoutInferred returns p with no Inferred marker, for a finding about what an
-// operation declares. op.Provenance names the heuristics that shaped the
-// operation, such as path-prefix grouping or inferred streaming, and a finding
-// about its declared servers or documentation owes nothing to any of them.
-func withoutInferred(p ir.Provenance) ir.Provenance {
-	p.Inferred = ""
-	return p
 }
 
 // operationName builds an operation's neutral naming: the operationId when

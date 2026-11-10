@@ -227,8 +227,7 @@
                     "method": "GET",
                     "uriTemplate": "/reports",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

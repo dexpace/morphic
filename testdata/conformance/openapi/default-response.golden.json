@@ -98,8 +98,7 @@
                     "method": "POST",
                     "uriTemplate": "/purge",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -179,8 +178,7 @@
                     "method": "GET",
                     "uriTemplate": "/item",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -220,8 +218,7 @@
                     "method": "GET",
                     "uriTemplate": "/ping",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
