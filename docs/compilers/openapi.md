@@ -3486,9 +3486,9 @@ its entries separated by commas, and refuses one that is neither a media type no
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
   `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
 - Status: partly built: a response
-  offering a plain body and an event stream does not record which content streams (#601); and an
-  event stream's terminator, and a response that streams only when a request field asks it to, have
-  no IR home (#666, #667).
+  offering a plain body and an event stream does not record which content streams (#601); and no
+  promotion reads an extension stating a stream's `Terminator`, or the input whose `Condition`
+  selects it, into either field (#1668).
 
 ### `multipart-encoding`
 
@@ -4056,8 +4056,8 @@ field bound through `HTTPParamBinding.ParamPath`.
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
 the compiler reads no pagination out of a document's parameter or response names by itself.
 
-- Status: not built: no policy infers pagination yet, so the compiler sets no `Pagination` (#989),
-  and the IR cannot address a request-body input, a page count or a stop condition (#665).
+- Status: not built: no policy infers pagination yet, and no promotion reads it from an extension,
+  so the compiler sets no `Pagination` (#989, #656).
 
 ## 16. Swagger 2.0
 

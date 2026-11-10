@@ -46,8 +46,8 @@ items and `TotalPages` pages, the two totals an API returns.
 
 `Stop` is when iteration ends, which the source states and no consumer can recover from the other
 fields: the same cursor shape ends at an empty page on one API and at an empty next cursor on
-another. The conditions are a closed set, any one ending the loop (`ir/unknown-page-stop` for one
-outside it):
+another. The conditions are a closed set, each listed once and any one ending the loop
+(`ir/unknown-page-stop` for one outside it, `ir/set-entry-duplicate` for a repeat):
 
 | Stop | Iteration ends at a page |
 |---|---|
@@ -56,9 +56,8 @@ outside it):
 | `short` | holding fewer items than the limit asked for |
 | `total` | after which the items read reach `TotalCount`, or the pages read reach `TotalPages` |
 
-An empty `Stop` states no rule, and a consumer applies its own policy rather than reading one into
-the shape ([pagination policy](../emitters/plan/operations.md)).
-
+An empty `Stop` states no rule, and a consumer reads none into the shape: where a pager then ends is
+the emitter's ([pagination](../emitters/operations/pagination.md#where-a-page-walk-ends)).
 
 ## Long-running operations
 
@@ -125,9 +124,9 @@ element type, since the sentinel sits outside the element's schema; an event a u
 ends the stream is `Variant.Event.Terminal`, which is a variant and is decoded as one.
 
 **A stream sent only when asked** carries a `Condition`: the request input and the value that ask
-for it, as a body's `stream: true` does, the operation otherwise returning its non-streaming
-contents. The response then lists both contents, and the plan offers the typed pair of methods such
-an API calls for ([streams](../emitters/plan/streams.md)). Lowering such an operation to two
-operations sharing one route (`SharedRoute`), each with a literal-typed selector, was weighed and
-declined: the source declares one operation, so two would mint an operation no position names, and
-the selector would be a type the document never wrote.
+for it, as a body's `stream: true` does, the operation otherwise sending or returning that side's
+non-streaming contents. That side's payload then lists both contents, and the plan offers the typed
+pair of methods such an API calls for ([streams](../emitters/plan/streams.md)). Lowering such an
+operation to two operations sharing one route (`SharedRoute`), each with a literal-typed selector,
+was weighed and declined: the source declares one operation, so two would mint an operation no
+position names, and the selector would be a type the document never wrote.

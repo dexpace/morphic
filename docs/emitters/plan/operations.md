@@ -32,7 +32,10 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
     CursorIn   *ir.InputPath          // a parameter, or a member of the request body
     CursorOut  *ir.PropPath
-    Stop       []ir.PageStop          // the source's stop rules; empty = none stated or guessed
+    LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
+    TotalCount *ir.PropPath           // the items in all, which "total" reads
+    TotalPages *ir.PropPath           // the pages in all, which "total" reads
+    Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 
