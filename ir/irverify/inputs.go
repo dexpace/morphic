@@ -65,10 +65,10 @@ func checkInputs(*ir.Document) walkCheck {
 	}
 }
 
-// appendStopViolations reports each stop in the pagination at at that ir does
-// not declare, and each repeat of one at its later index, as a set's repeat is
-// (ir/set-entry-duplicate): it ends nothing more.
-func appendStopViolations(vs []Violation, stops []ir.PageStop, at ir.WalkPath,
+// appendStopViolations reports each of stops, the Stop of the pagination at
+// owner, that ir does not declare, and each repeat of one at its later index, as
+// a set's repeat is (ir/set-entry-duplicate): it ends nothing more.
+func appendStopViolations(vs []Violation, stops []ir.PageStop, owner ir.WalkPath,
 	entries *reusedMap[ir.PageStop, int],
 ) []Violation {
 	if len(stops) == 0 {
@@ -76,7 +76,7 @@ func appendStopViolations(vs []Violation, stops []ir.PageStop, at ir.WalkPath,
 	}
 	first := entries.emptied()
 	for i, stop := range stops {
-		where := at.String() + ".Stop[" + strconv.Itoa(i) + "]"
+		where := owner.String() + ".Stop[" + strconv.Itoa(i) + "]"
 		switch earlier, repeated := first[stop]; {
 		case !stop.Valid():
 			vs = append(vs, Violation{

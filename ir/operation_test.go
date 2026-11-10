@@ -496,6 +496,11 @@ func TestStreamDetail_JSONContract(t *testing.T) {
 		Events:         &ir.TypeRef{Target: "t/events", Nullable: true},
 		Initial:        &ir.TypeRef{Target: "t/initial"},
 		RequiresLength: true,
+		Terminator:     new("[DONE]"),
+		Condition: &ir.StreamCondition{
+			Input: ir.InputPath{Segments: []ir.PropID{"p/stream"}},
+			Value: ir.Value{Kind: ir.ValueBool, Bool: true},
+		},
 	})
 }
 
@@ -542,6 +547,8 @@ func TestPagination_JSONContract(t *testing.T) {
 		FirstLink:   &ir.PropPath{Segments: []ir.PropID{"p/firstLink"}},
 		LastLink:    &ir.PropPath{Segments: []ir.PropID{"p/lastLink"}},
 		TotalCount:  &ir.PropPath{Segments: []ir.PropID{"p/totalCount"}},
+		TotalPages:  &ir.PropPath{Segments: []ir.PropID{"p/totalPages"}},
+		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort},
 	})
 }
 
