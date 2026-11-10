@@ -21,20 +21,21 @@ import (
 // composeRegistry holds the types the composition tests declare fields as. A
 // component sits under no declaration, so it reads as written by a $ref, and a
 // node hoisted at or under declaredAt(n) reads as written inline by the nth
-// declaration.
+// declaration. Each model declares a property of its own, so no two are copies
+// of one another (typeJudge.models).
 func composeRegistry() map[ir.TypeID]ir.TypeDef {
-	own := []ir.Property{{WireName: "own"}}
+	own := func(id ir.TypeID) []ir.Property { return []ir.Property{{WireName: string(id)}} }
 	inline := func(id ir.TypeID, pointer jsontext.Pointer) *ir.Model {
-		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer), Properties: own}
+		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer), Properties: own(id)}
 	}
 	return map[ir.TypeID]ir.TypeDef{
-		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A"), Properties: own},
-		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B"), Properties: own},
+		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A"), Properties: own("t/A")},
+		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B"), Properties: own("t/B")},
 		"t/sub":    &ir.Model{ID: "t/sub", Provenance: ptrAt("/components/schemas/Sub"), Base: &ir.TypeRef{Target: "t/A"}},
 		"t/bare":   &ir.Model{ID: "t/bare", Anonymous: true, Provenance: ptrAt(declaredAt(0))},
 		"t/bare1":  &ir.Model{ID: "t/bare1", Anonymous: true, Provenance: ptrAt(declaredAt(1))},
-		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own, Discriminator: &ir.Discriminator{}},
-		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own, Discriminator: &ir.Discriminator{}},
+		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own("t/Pet"), Discriminator: &ir.Discriminator{}},
+		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own("t/Dog"), Discriminator: &ir.Discriminator{}},
 		"t/alias":  &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/B"}},
 		"t/in0":    inline("t/in0", declaredAt(0)),
 		"t/in1":    inline("t/in1", declaredAt(1)),

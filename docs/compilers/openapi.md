@@ -1571,6 +1571,17 @@ are two types the source declared apart, which overlap. A copy is one type with 
 gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
+Two models alike in every member but where they and what they name were declared (the same
+properties in the same order, each with the same wire name, required flag, visibility, docs,
+constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
+read by position) are judged the same way where every type they name relates to the other's as the
+same type, or as that rule relates the two models: a component wins over an inline copy of itself,
+a nested object included, in either order, and two inline copies are one type. A property keeping a
+relative `$ref` makes them one only under one base, as above. Two components alike were declared
+apart, and models alike in all but a type that relates otherwise are no copies, so either pair
+composes as two models do (below). One judgment compares at most 64 pairs of models member by
+member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
+two are unrelated and compose, which loses nothing.
 Two lists,
 or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
@@ -1805,6 +1816,12 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
   `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
+  `merge.TestTypeJudge_ModelsAlikeAreCopies`,
+  `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,
+  `merge.TestFold_ModelsAlikeAreOneType`,
+  `merge.TestTypeJudge_ModelPairsStopAtTheirBudget`,
+  `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
+  `schema.TestAllOf_ModelsAlikeAreOneType`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -1907,8 +1924,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
   description or other detail of its own against a `const` it admits, a node adding a bound beside
   one adding other detail, and a list or map whose members meet, are reported as an overlap and
-  never narrowed (#1042); two models alike in every property compose rather than collapse to one
-  type (#1083); a model and a map or a union are reported as types the merge does not compare
+  never narrowed (#1042); a model and a map or a union are reported as types the merge does not compare
   (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a
   model and the wrapper it flattens that fold different sets only because the model stops at the
   flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration

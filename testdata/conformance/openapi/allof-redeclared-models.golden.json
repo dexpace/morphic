@@ -74,6 +74,125 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -113,6 +232,171 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/address/properties/street"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street"
           }
         }
       ],
@@ -365,6 +649,98 @@
         "source": 0,
         "pointer": "/components/schemas/TitledAndModel/allOf/0/properties/data"
       },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name"
+          }
+        }
+      ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -1225,6 +1601,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/CopyThenOwner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/CopyThenOwner",
+      "name": {
+        "source": "CopyThenOwner",
+        "canonical": "copy_then_owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/DiscriminatedBase": {
       "kind": "model",
       "id": "t/openapi/components/schemas/DiscriminatedBase",
@@ -1641,6 +2064,127 @@
         "target": "t/openapi/components/schemas/Meeting",
         "nullable": false
       }
+    },
+    "t/openapi/components/schemas/Owner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/Owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/OwnerThenCopy": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OwnerThenCopy",
+      "name": {
+        "source": "OwnerThenCopy",
+        "canonical": "owner_then_copy"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/0/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Pet": {
       "kind": "model",
@@ -2167,6 +2711,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/TwoCopies": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TwoCopies",
+      "name": {
+        "source": "TwoCopies",
+        "canonical": "two_copies"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoInline": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoInline",
@@ -2279,7 +2870,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "9bdfcbddaea53a7c368ee46215f4d10558b9c4ac5229f23428567a654c0dd4a7"
+      "hash": "8f1debcb19785bbaf8a8f06c8d4bb07bd46006aa12ede00d7192d2ac1fb918b2"
     }
   ]
 }

@@ -1483,3 +1483,47 @@ components:
 	assert.Len(t, withCode(diags, diag.ConflictingRedecl), 1, "the other document's object conflicts with an integer")
 	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target)
 }
+
+// TestAllOf_ModelsAlikeAreOneType pins GitHub #1083: a field declared as a
+// component model and as an inline object written the same way, a nested
+// object included, names the component in either order, and two inline copies
+// name one type, with nothing kept or reported. An inline object differing in a
+// member still composes with the component.
+func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
+	t.Parallel()
+	const spec = `    Owner:
+      type: object
+      properties:
+        name: {type: string}
+        address: {type: object, properties: {street: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {owner: %s}}
+        - {type: object, properties: {owner: %s}}
+`
+	owner := "{$ref: '#/components/schemas/Owner'}"
+	inline := "{type: object, properties: {name: {type: string}, address: {type: object, properties: {street: {type: string}}}}}"
+	for _, tc := range []struct {
+		a, b string
+		want ir.TypeID
+	}{
+		{owner, inline, componentID("Owner")},
+		{inline, owner, componentID("Owner")},
+		{inline, inline, "t/anon/components/schemas/T/allOf/0/properties/owner"},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, tc.a, tc.b)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, diags)
+		p := propertyOf(t, doc, "T", "owner")
+		assert.Equal(t, tc.want, p.Type.Target)
+		assert.Empty(t, p.Unmodeled)
+	}
+
+	other := "{type: object, properties: {name: {type: string}, address: {type: object, properties: {city: {type: string}}}}}"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, owner, other)))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags)
+	m := composedField(t, doc, "T", "owner")
+	require.NotNil(t, m.Base)
+	assert.Equal(t, componentID("Owner"), m.Base.Target, "a copy differing in a nested member composes")
+}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
@@ -66,6 +67,10 @@ type typeJudge struct {
 	registry
 	// untyped is Merger.Untyped; nil reads every node as stating its type.
 	untyped func(ir.Provenance) bool
+	// modelPairs is what remains of the model pairs a judgment compares
+	// (maxModelPairs), shared by its every depth; relate starts it, and nil
+	// compares none.
+	modelPairs *budget.Budget
 	// sites is where the declarations a and b were written.
 	sites declarationSites
 }
@@ -98,7 +103,10 @@ type declarationSites struct {
 // arms, and classify for a pair arms leaves unrelated. Every pair gets its
 // verdict here, a field's types and two containers' members alike, bar the
 // exceptions boundedNodes and contained name.
-func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
+func (j typeJudge) relate(a, b ir.TypeRef) relation {
+	j.modelPairs = modelPairs()
+	return j.relateAt(a, b, 0)
+}
 
 // relateAt is relate at a nesting depth.
 func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
@@ -131,10 +139,11 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
-// against a bare primitive; two identical such nodes; two nodes that hold bounds
-// (boundedNodes), two alike in every member and detail taking the copy rule
-// identical nodes take (sameNodes); and a structure against one it says it is
-// (structures). Any other pair is unrelated here.
+// against a bare primitive; two identical such nodes; two models alike in every
+// member (models); two nodes that hold bounds (boundedNodes), two alike in every
+// member and detail taking the copy rule identical nodes take (sameNodes); and a
+// structure against one it says it is (structures). Any other pair is
+// unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
@@ -147,6 +156,11 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	case sameNode(at, bt):
 		return j.sites.copies(a, at, b, bt)
+	}
+	if am, bm, ok := bothModels(at, bt); ok {
+		if rel := j.models(a, am, b, bm, depth); rel != relUnrelated {
+			return rel
+		}
 	}
 	rel := j.boundedNodes(at, bt, depth)
 	if rel == relSame {
@@ -236,6 +250,13 @@ func composedOf(td ir.TypeDef) []ir.TypeID {
 	default:
 	}
 	return parts
+}
+
+// bothModels returns a and b as models, and false where either is not one.
+func bothModels(a, b ir.TypeDef) (*ir.Model, *ir.Model, bool) {
+	am, aok := a.(*ir.Model)
+	bm, bok := b.(*ir.Model)
+	return am, bm, aok && bok
 }
 
 // saysOnlyObject reports whether td is a model saying nothing but that its

@@ -251,6 +251,61 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Anything'}
+    # An inline object written the same way as a component, a nested object
+    # included, is a copy of it: the component wins in either order, and two
+    # inline copies are one type.
+    Owner:
+      type: object
+      properties:
+        name: {type: string}
+        address:
+          type: object
+          properties:
+            street: {type: string}
+    OwnerThenCopy:
+      allOf:
+        - type: object
+          properties:
+            owner: {$ref: '#/components/schemas/Owner'}
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+                address:
+                  type: object
+                  properties:
+                    street: {type: string}
+    CopyThenOwner:
+      allOf:
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+                address:
+                  type: object
+                  properties:
+                    street: {type: string}
+        - type: object
+          properties:
+            owner: {$ref: '#/components/schemas/Owner'}
+    TwoCopies:
+      allOf:
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name: {type: string}
     AnyObject:
       type: object
     AtLeastTwoMembers:
