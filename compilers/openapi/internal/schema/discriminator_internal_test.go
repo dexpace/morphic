@@ -193,15 +193,16 @@ func TestResolveMappingTarget_RefusesWhatTheDocumentDoesNotDeclare(t *testing.T)
 // is unresolved.
 func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	t.Parallel()
-	const sub = "#/components/schemas/Pet/properties/kind"
-
-	empty := NewRawLowerer(openapitest.DocDeclaring("Pet"))
-	_, ok := mappingTargetID(empty.Ctx, empty.Ctx.RefScope(), &oas3.Discriminator{}, sub)
-	assert.False(t, ok, "with no bindings the target lands nowhere, so it does not resolve")
+	const (
+		sub     = "#/components/schemas/Pet/properties/kind"
+		missing = "#/components/schemas/Pet/properties/missing"
+	)
 
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"+
-		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"'}}\n"))
+		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"', m: '"+missing+"'}}\n"))
+	_, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), missing)
+	assert.False(t, ok, "the bindings land the target nowhere, so it does not resolve")
 	want := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
 	before, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), sub)
 	require.True(t, ok, "nothing is interned yet, and the position is named all the same")

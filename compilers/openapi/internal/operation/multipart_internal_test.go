@@ -131,14 +131,11 @@ func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 
 // TestBodySchemaPointer_UnresolvedRefStaysLocal pins another reason: a $ref
 // naming nothing lands nowhere, so it keys no encoding entry by a position the
-// document does not hold. A scope with no bindings lands none either.
+// document does not hold.
 func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/Missing")
 	assert.Equal(t, local, keyedAt(l.ctx, js))
-
-	bare := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, local, keyedAt(bare.ctx, js), "a context that was given no bindings resolves no $ref")
 }
 
 // TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another

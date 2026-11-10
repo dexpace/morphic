@@ -18,15 +18,16 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved pins the reasons refTypeRef
-// gives for a $ref the bindings hold no answer of their own for: none where
-// there are no bindings, why the table never read one past the merge bound,
-// none for one landing where the bindings hold no schema, as when building one
-// failed, which the load phase reports, and why the table could not place what
-// a reference object resolved to.
+// gives for a $ref the bindings hold no answer of their own for: none for one
+// they never read where nothing stopped the reading, why the table never read
+// one past the merge bound, none for one landing where the bindings hold no
+// schema, as when building one failed, which the load phase reports, and why
+// the table could not place what a reference object resolved to.
 func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	t.Parallel()
 	message := func(t *testing.T, l *Lowerer, js *oas3.JSONSchema[oas3.Referenceable]) string {
@@ -37,8 +38,8 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 		return diags[0].Message
 	}
 
-	bare := NewRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, `unresolved $ref "#/x"`, message(t, bare, oas3.NewJSONSchemaFromReference("#/x")))
+	loaded, _ := LoweredFor(t, openapitest.EmptySpec)
+	assert.Equal(t, `unresolved $ref "#/x"`, message(t, loaded, oas3.NewJSONSchemaFromReference("#/x")))
 
 	var deep strings.Builder
 	deep.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-c0: &c0 {$ref: '#/components/schemas/T'}\n")
