@@ -7,7 +7,9 @@ and machine, with IDs from source pointers and never from names or order (`CLAUD
 1. Diff the two declaration orders of each construct the change lowers, its diagnostics as a sorted
    multiset
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#two-order-diagnostics`),
-   and declare a fixture meant to guard an order fix in the order that was wrong.
+   and declare a fixture meant to guard an order fix in the order that was wrong, with each sequence
+   the change builds holding two elements
+   (`references/determinism.md#ordered-result-needs-two-elements`).
 2. Diff by hand each fact the change places outside what the order oracle compares
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#order-oracle-reads-what-it-compares`),
    and each verdict a limit decides (`references/determinism.md#two-orders-at-every-limit`).
@@ -31,3 +33,17 @@ The matrix is each construct and fact by order and limit, with the diff each pro
 - **Why.** A 3.2 path item's first `additionalOperations` entry went uncharged, so the order of two
   entries decided the total, and the oracle passed it on every committed spec (#1470, #1519).
 - **Probe.** Plant a first-is-free exemption, and confirm the sweep reports the two orders apart.
+
+## Give a sequence the change builds two elements in a two-order fixture
+`ordered-result-needs-two-elements`
+
+- **Rule.** Where a change builds a sequence from more than one input, such as an enum's members, a
+  model's mixins or a union's variants, a two-order fixture gives that sequence at least two
+  elements, ordered differently in the inputs, and the probe reads the result's order in both
+  declaration orders.
+- **Why.** #1656 builds the enum two meeting enums share, in the order the winner lists its
+  members. Its two-order checks met `[a, b]` beside `[b, c]`, which give `[b]` either way, so
+  `[a, b, c]` beside `[c, b, d]` giving `[b, c]` or `[c, b]` by branch order passed those checks
+  and the order oracle, which reverses mappings only (#1666, #1674).
+- **Probe.** Plant a result taking the first input's order: the fixture's two declaration orders
+  give two results.

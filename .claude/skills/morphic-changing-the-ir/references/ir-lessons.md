@@ -126,11 +126,24 @@ verifier and codecs must reach.
 
 - **Rule.** When an `ir` struct gains a field, find the code that names its siblings one by one (an
   emptiness test, an equality, a comparison with the zero literal) and give each such predicate a
-  reflection test that sets every field alone, so the next field added fails there.
+  reflection test that sets every field alone, so the next field added fails there. A value a test
+  calls fully populated takes `references/ir-lessons.md#populated-value-sets-every-field`.
 - **Why.** A part-encoding emptiness check named each field, so an encoding declaring only the new
   `allowReserved` would have been dropped, with every golden and conformance test green (#1144).
 - **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
   field's name and `<Struct>` the struct's.
+
+## Hold a value a test calls fully populated to every field
+`populated-value-sets-every-field`
+
+- **Rule.** A value a test calls populated in full names a struct's fields by hand, so a field the
+  struct gains is left zero there with every round trip green. Hold it with `assertNoFieldZero` in
+  `ir/helpers_test.go`, which `assertJSONContract` and `assertTypeDefRoundTrip` there call, naming
+  each field it leaves zero with the reason.
+- **Why.** #1367's four fields went unset in two values their contract tests called fully
+  populated, so a `json:"-"` tag on any of them passed both (#1670).
+- **Probe.** Each test whose comment `git grep -nE 'fully( populated|$)' -- 'ir/*_test.go'` hits
+  calls one of those three.
 
 ## Read what the documents assume of a field before widening its values
 `widened-field-values`
