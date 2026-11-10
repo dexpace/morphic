@@ -331,3 +331,39 @@ components:
             p: {type: array, items: {type: string}}
         - properties:
             p: {properties: {a: {type: string}}}
+    # Two enums: the one whose values the other holds every one of is the
+    # narrower, in either order, and two sharing only some meet in an enum of
+    # those, which the merge mints.
+    EnumWideFirst:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a, b]}
+        - properties:
+            p: {type: string, enum: [a]}
+    EnumNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a]}
+        - properties:
+            p: {type: string, enum: [a, b]}
+    EnumsMeet:
+      allOf:
+        - properties:
+            p: {type: string, enum: [a, b]}
+        - properties:
+            p: {type: string, enum: [b, c]}
+    # A list narrower in its element meets a broader one holding a description:
+    # the field takes a list of the narrower element holding the description,
+    # in either order.
+    ListWideFirst:
+      allOf:
+        - properties:
+            p: {type: array, description: Counts, items: {type: integer}}
+        - properties:
+            p: {type: array, items: {type: integer, format: int32}}
+    ListNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: array, items: {type: integer, format: int32}}
+        - properties:
+            p: {type: array, description: Counts, items: {type: integer}}

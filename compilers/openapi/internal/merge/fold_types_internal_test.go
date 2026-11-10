@@ -180,7 +180,7 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 	}{
 		{"a literal against a kind it is disjoint from", "t/lit-x", "t/prim/integer", nil,
 			ir.SeverityWarning, diag.ConflictingRedecl, true},
-		{"lists whose elements overlap", "t/list-int", "t/list-i32-null", nil,
+		{"lists whose elements overlap", "t/list-i32", "t/list-u32", nil,
 			ir.SeverityInfo, diag.DegradedConstruct, true},
 		{"one target declared twice", "t/prim/integer", "t/prim/integer", &d, "", "", false},
 	} {
@@ -302,7 +302,7 @@ func enumRegistry() map[ir.TypeID]ir.TypeDef {
 // narrows wins; a bare kind or a Scalar node that admits one of its members
 // overlaps it, which is info and keeps the first declaration, as does a kind
 // with no judge; a kind that admits none of them warns, as does another
-// family; and two enums of one kind, each with members, overlap.
+// family, and another enum sharing none of them.
 func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
@@ -319,7 +319,7 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"enum of string and a uuid scalar", enum("t/enum/a"), enum("t/scalar/uuid"), ir.SeverityWarning, ""},
 		{"enum of string and a bytes scalar", enum("t/enum/a"), enum("t/scalar/bytes"), ir.SeverityInfo, ""},
 		{"enum of string and integer", enum("t/enum/a"), primRef(ir.PrimInteger), ir.SeverityWarning, ""},
-		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityInfo, ""},
+		{"enum of string and another sharing no member", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityWarning, ""},
 		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), "", "t/enum/a"},
 		{"enum of integer and number", enum("t/enum/big"), primRef(ir.PrimNumber), "", "t/enum/big"},
 	}

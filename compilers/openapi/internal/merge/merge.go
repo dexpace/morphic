@@ -20,9 +20,10 @@ type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, forma
 type Source func() (ir.RawValue, error)
 
 // Mint registers node, which stands for the declarations of the field pointer
-// names (fieldSpan), and returns the ID it is registered under. It fills what in
-// node's TypeCommon names the node, which is the lowering's to derive, and keeps
-// the rest.
+// names (fieldSpan), or for what their types hold at a position below it, and
+// returns the ID it is registered under. It fills what in node's TypeCommon
+// names the node, and an enum's member IDs, which live beneath it: the
+// lowering's to derive. It keeps the rest.
 type Mint func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID
 
 // Settle folds what a PropIndex queued through g, whose Resolve reads the

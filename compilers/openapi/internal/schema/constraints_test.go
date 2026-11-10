@@ -748,12 +748,11 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 	}
 	for _, tc := range []struct {
 		name, a, b string
-		kept       string
-		reported   bool
+		kept       ir.TypeID
 	}{
-		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "1", false},
-		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "0", false},
-		{"meeting", list("minItems: 1"), list("maxItems: 3"), "0", true},
+		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "t/anon/components/schemas/T/allOf/1/properties/v"},
+		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "t/anon/components/schemas/T/allOf/0/properties/v"},
+		{"meeting", list("minItems: 1"), list("maxItems: 3"), "t/composed/components/schemas/T/allOf/1/properties/v"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -761,11 +760,17 @@ func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testin
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			p := propertyOf(t, doc, "T", "v")
-			assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/"+tc.kept+"/properties/v"), p.Type.Target)
-			assert.Equal(t, tc.reported, len(p.Unmodeled) > 0, "%v", p.Unmodeled)
-			assert.Equal(t, tc.reported, len(diags) > 0, "%+v", diags)
+			assert.Equal(t, tc.kept, p.Type.Target)
+			assert.Empty(t, p.Unmodeled)
+			assert.Empty(t, diags)
 		})
 	}
+	doc, _ := settledSpec(t, tagsSchema, list("minItems: 1"), list("maxItems: 3"))
+	l, ok := doc.Types["t/composed/components/schemas/T/allOf/1/properties/v"].(*ir.List)
+	require.True(t, ok, "two lists whose elements meet stand on a list built of both")
+	elem, ok := doc.Types[l.Elem.Target].(*ir.Scalar)
+	require.True(t, ok, "whose element is built of both elements")
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3))}, elem.Constraints)
 }
 
 // TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt pins the merge's

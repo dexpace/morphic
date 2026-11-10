@@ -76,7 +76,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// The allOf merge relay, which #1486 lowers to the fold's calls back into
 		// the walk that declared the field, the read of what a structure's
 		// source states among them.
-		"compilers/openapi/internal/schema": 28,
+		"compilers/openapi/internal/schema": 27,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal

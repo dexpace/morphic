@@ -134,6 +134,6 @@ func sitelessUnmodeled(um ir.Unmodeled) ir.Unmodeled {
 // base.
 func membersKeepReference(m *ir.Model) bool {
 	return slices.ContainsFunc(m.Properties, func(p ir.Property) bool {
-		return keepsReference(&ir.Scalar{TypeCommon: ir.TypeCommon{Unmodeled: p.Unmodeled}})
+		return keepsReference(&ir.Scalar{Unmodeled: p.Unmodeled})
 	})
 }

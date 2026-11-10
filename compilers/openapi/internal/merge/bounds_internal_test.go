@@ -572,11 +572,11 @@ func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T
 	}
 	reads := 0
 	j := typeJudge{
-		registry: registry{Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			reads++
 			td, ok := reg[id]
 			return td, ok
-		}},
+		},
 		sites: declarationSites{written: [2]ir.Provenance{ptrAt("/a"), ptrAt("/b")}, alike: alwaysAlike},
 	}
 
@@ -594,7 +594,7 @@ func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	reg := judgeRegistry()
 	reg["t/held-min"] = &ir.List{ID: "t/held-min", Elem: ref("t/tuple-min")}
 	reg["t/held-bare"] = &ir.List{ID: "t/held-bare", Elem: ref("t/tuple")}
-	j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: alwaysAlike}}
 
 	assert.Equal(t, relANarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
 	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")

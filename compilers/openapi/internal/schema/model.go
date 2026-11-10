@@ -5,7 +5,9 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -148,9 +150,31 @@ func (s settledMerge) untyped(p ir.Provenance) bool {
 func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 	id := s.c.IDs().ComposedType(pointer)
 	site, common := commonFor(s.c, id, pointer), node.Common()
+	from := common.ID
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
+	if e, ok := node.(*ir.Enum); ok {
+		e.Members = membersBeneath(e.Members, from, func(tail string) ir.EnumMemberID {
+			return s.c.IDs().ComposedMember(pointer, tail)
+		})
+	}
 	s.ts.Register(id, node)
 	return id
+}
+
+// membersBeneath returns a copy of ms, the members of the enum identified by
+// from, each identified beneath the enum a mint registers instead (idAt), by the
+// tail its ID adds to from's path. A member ID outside from's path keeps it, for
+// irverify to report (docs/ir/identity.md#enum-members).
+func membersBeneath(ms []ir.EnumMember, from ir.TypeID, idAt func(tail string) ir.EnumMemberID) []ir.EnumMember {
+	enumPath, ok := ir.IDPath(ir.IDKindType, string(from))
+	out := slices.Clone(ms)
+	for i, m := range out {
+		path, hasPath := ir.IDPath(ir.IDKindEnumMember, string(m.ID))
+		if ok && hasPath && strings.HasPrefix(path, enumPath+"/") {
+			out[i].ID = idAt(strings.TrimPrefix(path, enumPath))
+		}
+	}
+	return out
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with

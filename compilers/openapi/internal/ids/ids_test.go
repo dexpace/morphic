@@ -235,6 +235,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"op":         string(ids.Op(pointer)),
 		"prop":       string(ids.Document{}.Prop(pointer)),
 		"minted":     string(ids.Document{}.ComposedProp(pointer)),
+		"member":     string(ids.Document{}.ComposedMember(pointer, "/s:a")),
 		"auth":       string(ids.Auth("apiKey")),
 		"unresolved": string(ids.UnresolvedAuth("apiKey")),
 		"service":    string(ids.Service(0)),
@@ -246,6 +247,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"op":         "op/openapi/components/schemas/User",
 		"prop":       "p/openapi/components/schemas/User",
 		"minted":     "p/composed/components/schemas/User",
+		"member":     "e/composed/components/schemas/User/s:a",
 		"auth":       "auth/openapi/components/securitySchemes/apiKey",
 		"unresolved": "auth/unresolved/components/securitySchemes/apiKey",
 		"service":    "s/openapi/0",
@@ -278,6 +280,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"prop":       "p/openapi@dir~1a~0b.yaml/components/schemas/User",
 		"minted":     "p/composed@dir~1a~0b.yaml/components/schemas/User",
 		"member":     "e/openapi@dir~1a~0b.yaml/components/schemas/User/s:a",
+		"composite":  "e/composed@dir~1a~0b.yaml/components/schemas/User/s:a",
 		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
 	}, map[string]string{
 		"named":      string(other.NamedType(pointer)),
@@ -287,6 +290,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"prop":       string(other.Prop(pointer)),
 		"minted":     string(other.ComposedProp(pointer)),
 		"member":     string(other.EnumMember(pointer, "s:a", 1)),
+		"composite":  string(other.ComposedMember(pointer, "/s:a")),
 		"coordinate": other.Coordinate(pointer),
 	})
 
@@ -427,7 +431,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
-		ir.IDKindEnumMember: {"anon", "openapi"},
+		ir.IDKindEnumMember: {"anon", "composed", "openapi"},
 		ir.IDKindServer:     {"default", "openapi"},
 	}, ids.Namespaces().Declaration())
 }
@@ -441,14 +445,15 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindAuth:       {"openapi", "unresolved"},
-		ir.IDKindService:    {"openapi"},
-		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
-		ir.IDKindParam:      {"openapi"},
-		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindServer:     {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindOp:      {"openapi"},
+		ir.IDKindProp:    {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindAuth:    {"openapi", "unresolved"},
+		ir.IDKindService: {"openapi"},
+		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:   {"openapi"},
+		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml", "composed@b~1c.yaml",
+			"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindServer: {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 	}, ids.Namespaces(ids.In("a.yaml"), ids.In("b/c.yaml")).Declaration())
 }
 

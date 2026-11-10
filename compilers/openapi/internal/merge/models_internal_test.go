@@ -23,14 +23,14 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 	str := primRef(ir.PrimString)
 	reg := narrowingRegistry()
 	owner := func(id ir.TypeID, at jsontext.Pointer, anonymous bool, name ir.TypeRef, addr ir.TypeID) *ir.Model {
-		return &ir.Model{TypeCommon: ir.TypeCommon{ID: id, Anonymous: anonymous, Provenance: ptrAt(at)},
+		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
 			Properties: []ir.Property{
 				{ID: ir.PropID("p" + at + "/name"), WireName: "name", Type: name},
 				{ID: ir.PropID("p" + at + "/addr"), WireName: "addr", Type: ref(addr)},
 			}}
 	}
 	addr := func(id ir.TypeID, at jsontext.Pointer, anonymous bool) *ir.Model {
-		return &ir.Model{TypeCommon: ir.TypeCommon{ID: id, Anonymous: anonymous, Provenance: ptrAt(at)},
+		return &ir.Model{ID: id, Anonymous: anonymous, Provenance: ptrAt(at),
 			Properties: []ir.Property{{ID: ir.PropID("p" + at + "/street"), WireName: "street", Type: str}}}
 	}
 	for _, m := range []*ir.Model{
@@ -105,7 +105,7 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		{"a tag naming no property of its model", "t/copy0", "t/copy1-stray-tag", relUnrelated},
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-			j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{
+			j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
 				alike: alwaysAlike, written: [2]ir.Provenance{ptrAt(declaredAt(i)), ptrAt(declaredAt(1 - i))}}}
 			want := tc.want
 			if i == 1 {
@@ -130,7 +130,7 @@ func TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase(t *testing.T) {
 		{alwaysAlike, relSame},
 		{func(ir.Provenance, ir.Provenance) bool { return false }, relUnrelated},
 	} {
-		j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{
+		j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
 			alike: tc.alike, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
 		assert.Equal(t, tc.want, j.relate(ref("t/copy0-ref"), ref("t/copy1-ref")))
 	}
@@ -175,18 +175,18 @@ func TestTypeJudge_ModelPairsStopAtTheirBudget(t *testing.T) {
 	for _, nested := range []int{maxModelPairs - 1, maxModelPairs} {
 		reg := map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}}
 		for n := range 2 {
-			outer := &ir.Model{TypeCommon: ir.TypeCommon{ID: ir.TypeID(fmt.Sprintf("t/%d", n)), Anonymous: true,
-				Provenance: ptrAt(declaredAt(n))}}
+			outer := &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/%d", n)), Anonymous: true,
+				Provenance: ptrAt(declaredAt(n))}
 			for k := range nested {
 				at := declaredAt(n) + jsontext.Pointer(fmt.Sprintf("/properties/f%d", k))
 				id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, k))
-				reg[id] = &ir.Model{TypeCommon: ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(at)},
+				reg[id] = &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(at),
 					Properties: []ir.Property{{WireName: "x", Type: primRef(ir.PrimString)}}}
 				outer.Properties = append(outer.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: ref(id)})
 			}
 			reg[outer.ID] = outer
 		}
-		j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{
+		j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
 			alike: alwaysAlike, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
 
 		want := relSame
@@ -209,7 +209,7 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 		for level := range depth {
 			id := ir.TypeID(fmt.Sprintf("t/%d/%d", n, level))
 			next := ref(ir.TypeID(fmt.Sprintf("t/%d/%d", n, level+1)))
-			m := &ir.Model{TypeCommon: ir.TypeCommon{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n))}}
+			m := &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n))}
 			for k := range width {
 				m.Properties = append(m.Properties, ir.Property{WireName: fmt.Sprintf("f%d", k), Type: next})
 			}
@@ -220,11 +220,11 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 	}
 	reads := 0
 	j := typeJudge{
-		registry: registry{Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			reads++
 			td, ok := reg[id]
 			return td, ok
-		}},
+		},
 		sites: declarationSites{written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}, alike: alwaysAlike},
 	}
 

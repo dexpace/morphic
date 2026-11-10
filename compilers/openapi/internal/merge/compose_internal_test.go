@@ -47,8 +47,8 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/map":    &ir.MapT{ID: "t/map"},
 		"t/union":  &ir.Union{ID: "t/union", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/A"}}, {Type: ir.TypeRef{Target: "t/B"}}}},
 		"t/list":   &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
-		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topDoc", Docs: ir.Docs{Description: "d"}}},
-		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topEx", Examples: []ir.Example{{}}}},
+		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topDoc", Docs: ir.Docs{Description: "d"}},
+		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, ID: "t/topEx", Examples: []ir.Example{{}}},
 	}
 }
 

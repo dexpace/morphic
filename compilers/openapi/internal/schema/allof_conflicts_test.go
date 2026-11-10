@@ -289,8 +289,8 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 // TestAllOf_EnumPairsAreJudgedByKind pins what an enum side draws at the schema
 // level, in either order: an enum over a bare kind it equals or narrows wins
 // with no diagnostic; a bare kind that admits one of its members overlaps it,
-// which is info; a kind that admits none of them warns, as does another family;
-// and two enums of one kind, each with members, overlap. A Scalar node of a
+// which is info; a kind that admits none of them warns, as does another family
+// and another enum sharing none of them. A Scalar node of a
 // judged kind is judged by member too, and one with no judge refuses nothing.
 func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
@@ -306,7 +306,7 @@ func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"empty enum against byte", "{type: string, enum: []}", "{type: string, format: byte}", false, true},
 		{"enum against byte", "{type: string, enum: [a]}", "{type: string, format: byte}", true, false},
 		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
-		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
+		{"enum against an enum sharing no member", "{type: string, enum: [a]}", "{type: string, enum: [b]}", false, true},
 		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},
 	}
 	for _, tc := range cases {
@@ -1555,6 +1555,50 @@ func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
 			require.Len(t, m.Mixins, 1, name)
 			inline := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
 			assert.Equal(t, ir.TypeID(inline), m.Mixins[0].Target, name)
+		}
+	}
+}
+
+// TestAllOf_ContainersOfDifferentModelsComposeTheirMembers pins GitHub #1180 in
+// both branch orders: lists, maps or tuples of two different models stand on
+// one container whose member is a model composing both, each minted at a
+// position of its own, so both models' properties are reached, with nothing
+// kept or reported.
+func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
+	t.Parallel()
+	const spec = `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	field := "t/composed/components/schemas/T/allOf/1/properties/v"
+	for _, tc := range []struct {
+		shape  string
+		member func(ir.TypeDef) ir.TypeRef
+		at     string
+	}{
+		{"{type: array, items: {$ref: '#/components/schemas/%s'}}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.List).Elem }, "/items"},
+		{"{type: object, additionalProperties: {$ref: '#/components/schemas/%s'}}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.MapT).Value }, "/additionalProperties"},
+		{"{type: array, prefixItems: [{$ref: '#/components/schemas/%s'}]}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.Tuple).Elems[0] }, "/prefixItems/0"},
+	} {
+		a, b := fmt.Sprintf(tc.shape, "A"), fmt.Sprintf(tc.shape, "B")
+		for _, order := range [][2]string{{a, b}, {b, a}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, order[0])
+			p := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, p.Unmodeled, order[0])
+			require.Equal(t, ir.TypeID(field), p.Type.Target, order[0])
+			member := tc.member(doc.Types[p.Type.Target])
+			require.Equal(t, ir.TypeID(field+tc.at), member.Target, order[0])
+			m, ok := doc.Types[member.Target].(*ir.Model)
+			require.True(t, ok, order[0])
+			assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")}, refTargets(m.Mixins), order[0])
 		}
 	}
 }

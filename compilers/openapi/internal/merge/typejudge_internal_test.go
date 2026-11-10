@@ -52,13 +52,13 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-str"] = &ir.Scalar{ID: "t/scalar-str", Base: &ir.TypeRef{Target: "t/prim/string"}}
 	reg["t/scalar-int"] = &ir.Scalar{ID: "t/scalar-int", Base: &integer}
 	reg["t/scalar-any"] = &ir.Scalar{ID: "t/scalar-any", Base: &ir.TypeRef{Target: "t/prim/any"}}
-	reg["t/scalar-any-doc"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"}, TypeCommon: ir.TypeCommon{
-		ID: "t/scalar-any-doc", Docs: ir.Docs{Description: "d"}, Deprecation: &ir.Deprecation{}, Sensitive: true}}
-	reg["t/scalar-any-ex"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"}, TypeCommon: ir.TypeCommon{
-		ID: "t/scalar-any-ex", Examples: []ir.Example{{Value: new(num("1"))}}}}
+	reg["t/scalar-any-doc"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"},
+		ID: "t/scalar-any-doc", Docs: ir.Docs{Description: "d"}, Deprecation: &ir.Deprecation{}, Sensitive: true}
+	reg["t/scalar-any-ex"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"},
+		ID: "t/scalar-any-ex", Examples: []ir.Example{{Value: new(num("1"))}}}
 	reg["t/alias-scalar-any-doc"] = &ir.Scalar{ID: "t/alias-scalar-any-doc", Base: &ir.TypeRef{Target: "t/scalar-any-doc"}}
 	reg["t/alias-doc-scalar-any"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/scalar-any"},
-		TypeCommon: ir.TypeCommon{ID: "t/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}}
+		ID: "t/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}
 	reg["t/list-scalar-any"] = &ir.List{ID: "t/list-scalar-any", Elem: ir.TypeRef{Target: "t/scalar-any"}}
 	untyped := func(id ir.TypeID, td ir.TypeDef) {
 		c := td.Common()
@@ -67,12 +67,12 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	}
 	untyped("t/model-untyped", &ir.Model{Properties: []ir.Property{{WireName: "own"}}})
 	untyped("t/model-untyped-doc", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
-		TypeCommon: ir.TypeCommon{Docs: ir.Docs{Description: "d"}}})
+		Docs: ir.Docs{Description: "d"}})
 	untyped("t/model-untyped-ex", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
-		TypeCommon: ir.TypeCommon{Examples: []ir.Example{{}}}})
+		Examples: []ir.Example{{}}})
 	untyped("t/alias-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped"}})
 	untyped("t/alias-doc-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/alias-untyped"},
-		TypeCommon: ir.TypeCommon{Docs: ir.Docs{Description: "d"}}})
+		Docs: ir.Docs{Description: "d"}})
 	untyped("t/alias-of-untyped-doc", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped-doc"}})
 	untyped("t/list-untyped", &ir.List{Elem: i32})
 	untyped("t/map-untyped", &ir.MapT{Value: i32})
@@ -112,6 +112,18 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-int"] = &ir.List{ID: "t/list-int", Elem: integer}
 	reg["t/list-i32"] = &ir.List{ID: "t/list-i32", Elem: i32}
 	reg["t/list-i32-null"] = &ir.List{ID: "t/list-i32-null", Elem: nullable(i32)}
+	reg["t/list-u32"] = &ir.List{ID: "t/list-u32", Elem: primRef(ir.PrimUint32)}
+	reg["t/list-int-kept"] = &ir.List{ID: "t/list-int-kept",
+		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("1")}}, Elem: integer}
+	reg["t/list-i32-h-described"] = &ir.List{ID: "t/list-i32-h-described", Anonymous: true,
+		Docs: ir.Docs{Description: "d"}, Elem: i32}
+	reg["t/scalar-opaque-doc"] = &ir.Scalar{ID: "t/scalar-opaque-doc", Docs: ir.Docs{Description: "d"}}
+	reg["t/enum-ab-doc"] = &ir.Enum{ID: "t/enum-ab-doc", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("a"), Docs: ir.Docs{Description: "x"}}, {Value: str("b")}}}
+	reg["t/enum-ab"] = &ir.Enum{ID: "t/enum-ab", ValueType: ir.PrimString,
+		Members: []ir.EnumMember{{Value: str("a")}, {Value: str("b")}}}
+	reg["t/list-int-exampled"] = &ir.List{ID: "t/list-int-exampled",
+		Examples: []ir.Example{{Value: &ir.Value{Kind: ir.ValueList}}}, Elem: integer}
 	bound := func(lo, hi int64) *ir.Constraints {
 		c := &ir.Constraints{}
 		if lo > 0 {
@@ -183,9 +195,12 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 
 func ref(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
 
+// relate is relateFrom for a field's own types.
+func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateFrom(a, b, 0) }
+
 func TestTypeJudge_RelateArms(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{registry: registry{Resolve: stubResolve(judgeRegistry())}, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{Resolve: stubResolve(judgeRegistry()), untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
 	prim := func(k ir.PrimKind) ir.TypeID { return primRef(k).Target }
 
 	for _, tc := range []struct {
@@ -243,7 +258,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time a time scalar's bound refuses", "t/lit-time", "t/scalar-time-max", relDisjoint},
 		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", relANarrower},
 		{"a literal against an alias of a kind it is not", "t/lit-a", "t/scalar-int", relOverlap},
-		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relOverlap},
+		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relMeet},
 		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relOverlap},
 		{"a time against a format with no grammar here", "t/lit-time", "t/scalar-email", relOverlap},
 		{"an enum no member of which is a time", "t/enum-str", "t/scalar-time", relDisjoint},
@@ -271,7 +286,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relBNarrower},
 		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", relBNarrower},
 		{"an alias over the top type holding examples against a model", "t/scalar-any-ex", "t/model", relUnrelated},
-		{"two literals", "t/lit-a", "t/lit-x", relOverlap},
+		{"two different literals", "t/lit-a", "t/lit-x", relDisjoint},
 		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
 		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},
 		{"two identical named literals", "t/lit-a", "t/lit-a-twin", relOverlap},
@@ -282,9 +297,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a scalar against a literal", "t/scalar-str", "t/lit-a", relOverlap},
 		{"a narrower element", "t/list-int-null", "t/list-i32", relBNarrower},
 		{"a narrower element, the other way", "t/list-i32", "t/list-int-null", relANarrower},
-		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relOverlap},
+		{"a narrower element that admits null the broader does not", "t/list-int", "t/list-i32-null", relMeet},
 		{"one element admitting null and the other not", "t/list-i32-null", "t/list-i32", relBNarrower},
-		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relOverlap},
+		{"a loser-only constraint", "t/list-int-min", "t/list-i32", relMeet},
 		{"a winner-only constraint", "t/list-int", "t/list-i32-min", relBNarrower},
 		{"the same constraint on both", "t/list-int-min", "t/list-i32-min", relBNarrower},
 		{"two lists alike, declared apart", "t/list-i32", "t/list-i32-twin", relOverlap},
@@ -296,13 +311,20 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two lists of one element, one bound tighter", "t/list-i32-min2", "t/list-i32-min", relANarrower},
 		{"two lists of one element, each adding a bound", "t/list-i32-min", "t/list-i32-max", relMeet},
 		{"a narrower element and bounds that say all the other's do", "t/list-i32-min2", "t/list-int-min1", relANarrower},
-		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relOverlap},
-		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relOverlap},
-		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relOverlap},
+		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relMeet},
+		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relMeet},
+		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relMeet},
 		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", relANarrower},
 		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", relANarrower},
-		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relOverlap},
-		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relOverlap},
+		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relMeet},
+		{"a narrower element lacking examples the broader gives", "t/list-i32", "t/list-int-exampled", relOverlap},
+		{"two lists of one element, one described", "t/list-i32", "t/list-i32-described", relOverlap},
+		{"two hoisted lists of one element, one described", "t/list-i32-h1", "t/list-i32-h-described", relOverlap},
+		{"a narrower element lacking what the broader keeps", "t/list-i32", "t/list-int-kept", relMeet},
+		{"two opaque scalars, one described", "t/scalar-opaque", "t/scalar-opaque-doc", relUnrelated},
+		{"an enum within another", "t/enum-str", "t/enum-ab", relANarrower},
+		{"an enum within another saying its shared member otherwise", "t/enum-str", "t/enum-ab-doc", relOverlap},
+		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relMeet},
 		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", relANarrower},
 		{"two maps of one value, each adding a bound", "t/map-min", "t/map-max", relMeet},
 		{"two maps of one value, one constrained", "t/map-min", "t/map-bare", relANarrower},
@@ -313,10 +335,10 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two tuples, each adding a bound", "t/tuple-min", "t/tuple-max", relMeet},
 		{"two tuples, one constrained", "t/tuple-min", "t/tuple", relANarrower},
 		{"two tuples of different lengths", "t/tuple", "t/tuple-long", relUnrelated},
-		{"two tuples whose positions differ", "t/tuple", "t/tuple-int", relUnrelated},
-		{"two tuples whose positions admit null apart", "t/tuple", "t/tuple-null", relUnrelated},
+		{"two tuples, one position narrower", "t/tuple", "t/tuple-int", relANarrower},
+		{"two tuples, one position admitting null", "t/tuple", "t/tuple-null", relANarrower},
 		{"a tuple with a rest against one with none", "t/tuple", "t/tuple-rest", relUnrelated},
-		{"two tuples whose rests differ", "t/tuple-rest", "t/tuple-rest-int", relUnrelated},
+		{"two tuples, one rest narrower", "t/tuple-rest", "t/tuple-rest-int", relANarrower},
 		{"a tuple against a list", "t/tuple", "t/list-i32", relUnrelated},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
@@ -380,7 +402,7 @@ func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
 // kind, holds none.
 func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	t.Parallel()
-	j := typeJudge{registry: registry{Resolve: stubResolve(judgeRegistry())}, sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{Resolve: stubResolve(judgeRegistry()), sites: declarationSites{alike: alwaysAlike}}
 	for _, tc := range []struct {
 		id   ir.TypeID
 		want valueKind
@@ -413,7 +435,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 		Constraints: &ir.Constraints{MaxLength: &short}}
 	reg["t/list-pair"] = &ir.List{ID: "t/list-pair", Elem: ref("t/enum-1"), Constraints: &ir.Constraints{MaxItems: &two}}
 	reg["t/map-pair"] = &ir.MapT{ID: "t/map-pair", Value: ref("t/enum-1"), Constraints: &ir.Constraints{MaxProps: &two}}
-	j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: alwaysAlike}}
 	list := func(vs ...ir.Value) ir.Value { return ir.Value{Kind: ir.ValueList, List: vs} }
 	obj := func(v ir.Value) ir.Value {
 		return ir.Value{Kind: ir.ValueObject, Object: []ir.Field{{Name: "k", Value: v}}}
@@ -464,7 +486,7 @@ func TestRelation_Flipped(t *testing.T) {
 func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 	t.Parallel()
 	null := ir.Value{Kind: ir.ValueNull}
-	j := typeJudge{registry: registry{Resolve: stubResolve(narrowingRegistry())}, sites: declarationSites{alike: alwaysAlike}}
+	j := typeJudge{Resolve: stubResolve(narrowingRegistry()), sites: declarationSites{alike: alwaysAlike}}
 	nullable := func(k ir.PrimKind) ir.TypeRef { r := primRef(k); r.Nullable = true; return r }
 
 	assert.True(t, j.admits(nullable(ir.PrimInteger), null))
@@ -771,7 +793,7 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
 	}
 	never := func(ir.Provenance, ir.Provenance) bool { return false }
-	j := typeJudge{registry: registry{Resolve: stubResolve(reg)}, sites: declarationSites{alike: never}}
+	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: never}}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")

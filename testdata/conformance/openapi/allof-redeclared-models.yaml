@@ -350,6 +350,46 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Meeting'}
+    # Lists, maps or tuples of two different models hold a member composing
+    # both, as the field itself would.
+    ListsOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: '#/components/schemas/Recording'}
+    MapsOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {$ref: '#/components/schemas/Recording'}
+    TuplesOfModels:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: array
+              prefixItems:
+                - {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: array
+              prefixItems:
+                - {$ref: '#/components/schemas/Recording'}
     AnyObject:
       type: object
     AtLeastTwoMembers:

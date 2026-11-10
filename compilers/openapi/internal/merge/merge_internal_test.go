@@ -48,7 +48,7 @@ func declaring(id ir.TypeID) *ir.Model {
 
 // judge is the type judgment over the registry g reads.
 func judge(g *Merger) typeJudge {
-	return typeJudge{registry: registry{Resolve: g.Resolve}, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
+	return typeJudge{Resolve: g.Resolve, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
 }
 
 // untypedAt is Merger.Untyped for a registry whose nodes written under

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -239,6 +240,42 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Recording",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/MapThenModel/allOf/0/properties/data": {
       "kind": "map",
       "id": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
@@ -254,6 +291,42 @@
       },
       "value": {
         "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
+      },
+      "value": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/openapi/components/schemas/Recording",
         "nullable": false
       }
     },
@@ -729,6 +802,54 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner": {
       "kind": "model",
       "id": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
@@ -1088,6 +1209,51 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
+      },
+      "elem": {
+        "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+      "name": {
+        "hint": "data_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data/items"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
       "kind": "model",
       "id": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
@@ -1108,6 +1274,51 @@
       "mixins": [
         {
           "target": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+      "name": {
+        "hint": "data_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
           "nullable": false
         }
       ],
@@ -1405,6 +1616,57 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/TopAliasLast/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+      "kind": "tuple",
+      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+      "name": {
+        "hint": "data_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0"
       },
       "mixins": [
         {
@@ -2221,6 +2483,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/ListsOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ListsOfModels",
+      "name": {
+        "source": "ListsOfModels",
+        "canonical": "lists_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ListsOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/MapThenModel": {
       "kind": "model",
       "id": "t/openapi/components/schemas/MapThenModel",
@@ -2261,6 +2570,53 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MapsOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/MapsOfModels",
+      "name": {
+        "source": "MapsOfModels",
+        "canonical": "maps_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MapsOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
           }
         }
       ],
@@ -3029,6 +3385,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/TuplesOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TuplesOfModels",
+      "name": {
+        "source": "TuplesOfModels",
+        "canonical": "tuples_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TuplesOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoComponents": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoComponents",
@@ -3282,7 +3685,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "bac44442fb9b2a779edc649e372c8f0d0f2948a6008dc728898659a25fcf2121"
+      "hash": "a9d2ef465ae9ce52e0d34a19b2cbf3fe4b51b216faa3292a6949323d21937938"
     }
   ]
 }
