@@ -338,7 +338,7 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 // it (routedSubtype): every reader of s shares this reading, which has no
 // position to tell an inline s no route names (GitHub #1695).
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
-	if !allOfConjoins(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
+	if !allOfMayRefine(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(s, "").branches
@@ -806,7 +806,8 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, comp: readAllOf(c, s, pointer)}
+		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
+			voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
 		if u.holder != s {
 			body.comp.distributes = u.at
 		}
@@ -833,7 +834,8 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 // schema and where it is written.
 type composedBody struct {
 	schema *oas3.Schema
-	comp   allOfComposition // schema's flattened allOf, built once for every variant
+	comp   allOfComposition   // schema's flattened allOf, built once for every variant
+	voices []annotation.Voice // what comp's folding branches say of the position, read once too
 }
 
 // composedVariant synthesizes the Model for one distributed variant: the
@@ -887,11 +889,11 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // declared, named after the enclosing schema, not after whichever branch built
 // them first.
 //
-// The enclosing schema's value constraints are read as lowerAllOf reads them
-// (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction.
+// The enclosing schema's value constraints, its folding branches' among them,
+// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
+// since a bound on the schema constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)

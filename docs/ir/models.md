@@ -287,6 +287,14 @@ one or dropped, so nothing degrades and no `allOf` branch is flattened. A proper
 appears on each variant under its single source-derived `PropID`, since the source declares it
 once.
 
+What `S` says of the position rather than of its shape, its docs, deprecation, examples and what a
+use binds, is said once, on the `Union` that stands there and the carriers using it, and a value
+bound, which constrains both sides of the disjunction, on each variant. That holds whether `S`
+writes it beside the `allOf` or on an inline branch of it, which conjoins the same way. Keeping such
+a branch whole on each variant instead would let the source be rebuilt from any one variant, but it
+would copy one fact onto as many nodes as there are variants, none of them where a reader of the
+position looks, and tell apart two spellings that mean the same.
+
 The variant models are anonymous and **synthesized**: no schema in the source occupies them, so
 each takes an ID in a namespace of its own, derived from — but not equal to — the ID the branch
 pointer would yield. Provenance still points at the branch, the nearest thing the source wrote.

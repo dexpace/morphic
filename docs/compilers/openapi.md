@@ -1465,9 +1465,15 @@ fold, being a composing model's openness; a bound does not where the position ha
 as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
 no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
 of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
-a `uniqueItems` of `false` or a count past 64 bits, never folds; and a composition distributed
-across a union keeps every branch on each variant
-([`union-beside-structure`](#union-beside-structure)).
+a `uniqueItems` of `false` or a count past 64 bits, never folds. A `oneOf`, an `anyOf` or a
+`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement))
+and changes nothing else here: where the `allOf` composes, its branches fold into the composition
+as they do with none of them there, beside a `$dynamicRef` it keeps from expanding
+([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
+([`union-beside-structure`](#union-beside-structure)). Where the union distributes, a branch's
+annotations and what a use binds reach the `Union` and its carriers, and a value bound each variant,
+as the same keyword beside the `allOf` does, and a branch with no residue is kept on no variant
+([models](../ir/models.md#composition-beside-a-union)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
@@ -1526,7 +1532,9 @@ every entry reads that one twice.
   `schema.TestVoices_BoundsMeetInEveryOrder`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
-  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
+  `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
+  `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
+  `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
   `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`,

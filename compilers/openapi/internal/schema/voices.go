@@ -88,21 +88,30 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 	return r
 }
 
-// allOfConjoins reports whether s's allOf conjoins with what its position
-// lowers: it is no keyword beside a $ref, a $dynamicRef or a union, whose
-// branches keep what they write on each variant
-// (docs/compilers/openapi.md#union-beside-structure).
-func allOfConjoins(s *oas3.Schema) bool {
-	return len(s.GetAllOf()) > 0 && s.Ref == nil && !declaresUnion(s) && !declaresDynamicRef(s)
+// allOfBesideNoRef reports whether s writes an allOf with no $ref beside it,
+// which would make the position a $ref site, whose alias keeps the allOf
+// verbatim (docs/compilers/openapi.md#allof-beside-ref).
+func allOfBesideNoRef(s *oas3.Schema) bool {
+	return len(s.GetAllOf()) > 0 && s.Ref == nil
+}
+
+// allOfMayRefine reports whether s's allOf may refine: no $ref, union or
+// $dynamicRef stands beside it, the last two keeping it the composition it would
+// otherwise be (docs/compilers/openapi.md#allof-refinement).
+func allOfMayRefine(s *oas3.Schema) bool {
+	return allOfBesideNoRef(s) && !declaresUnion(s) && !declaresDynamicRef(s)
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
 // election of competing keywords made the value, or one refining, whose rival
 // there, an enum or a const beside it, is one of its conjuncts. An allOf that
 // value set beats otherwise stays verbatim
-// (docs/compilers/openapi.md#competing-keywords).
+// (docs/compilers/openapi.md#competing-keywords). A union beside the composing
+// allOf leaves it deciding, composed into each variant the union distributes
+// across or into the Model keeping the union verbatim, and so does a $dynamicRef
+// it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
-	if !allOfConjoins(s) {
+	if !allOfBesideNoRef(s) {
 		return false
 	}
 	if _, distributes := branchUnion(c, s, ""); distributes {
