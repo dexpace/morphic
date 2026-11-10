@@ -277,17 +277,15 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 }
 
 // TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
-// allOf branch and a union branch on a loop of $refs from being reported twice.
-// Load reports the loop once as cyclic-ref, so the lowering reports no
-// unresolved-ref for a branch on it: removing the gate in fillRefBranch,
-// diagUnresolvedBranches or refTypeRef adds that error. Each case reaches one
-// gate, an anyOf case the same gate under the union's other keyword. A union
-// beside structural keywords reaches diagUnresolvedBranches only as case 3 of
-// docs/compilers/openapi.md#union-beside-structure, which why holds; one with
-// no keyword beside it reaches refTypeRef.
+// allOf branch and a union branch on a loop of $refs from being reported twice:
+// removing the gate in fillRefBranch, diagUnresolvedBranches or refTypeRef adds
+// an unresolved-ref beside the loop's cyclic-ref. A loop reported at the branch
+// itself hides that from withoutRereported, so each gate has a row for a loop
+// closing through a component too. A union beside structural keywords reaches
+// diagUnresolvedBranches only as case 3 of
+// docs/compilers/openapi.md#union-beside-structure, which the why field checks.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
-	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
 	const namesNoReferent = "a branch's $ref names no referent this compilation resolves"
 	type report struct {
 		Code     string
@@ -337,12 +335,36 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
         - $ref: '#/components/schemas/Z/anyOf/1'
         - $ref: '#/components/schemas/Z/anyOf/0'
 `, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"}}},
+		{"allOf branch on a loop through a component", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/L'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
+		{"union branch beside structural keywords on a loop through a component", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - $ref: '#/components/schemas/A'
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"union branch with no keyword beside it on a loop through a component", `    Z:
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - {type: string}
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: "branches.yaml", Data: []byte(head + tc.body)}}, compilers.Options{})
+				[]compilers.Source{{Path: "branches.yaml", Data: []byte(openapitest.ComponentSpec(tc.body))}}, compilers.Options{})
 			require.NoError(t, err, "a loop is a spec problem, not a Go error")
 			require.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
 
@@ -351,7 +373,6 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
 			}
 			assert.Equal(t, tc.diags, got, "the whole report, in order; got %+v", diags)
-			assert.False(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the loop is not also unresolved: %+v", diags)
 			if tc.why != "" {
 				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"),
 					tc.why, "the union reaches its gate only as this case")

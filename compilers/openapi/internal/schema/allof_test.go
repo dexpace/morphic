@@ -114,33 +114,36 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	assert.Equal(t, "Dog", dog.DiscriminatorValue, "falls back to schema name")
 }
 
-func TestAllOf_UnresolvedRefBranch(t *testing.T) {
-	t.Parallel()
-	spec := openapitest.ComponentSpec(`    Bad:
-      allOf:
-        - {$ref: '#'}
-        - {type: object, properties: {a: {type: string}}}
-`)
-	doc, diags := schema.LowerSpec(t, spec)
-	require.NotNil(t, doc)
-	assert.True(t, openapitest.HasDiag(diags, diag.UnresolvedRef))
-}
-
 // TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering pins the other side
-// of fillRefBranch's gate: a $ref off any loop that resolves to nothing is
-// reported, at the branch. Load reports this fixture's $ref at that pointer too,
-// so a full compile drops the lowering's report (withoutRereported), and only
-// the lowering's own list can show it gone here.
+// of fillRefBranch's gate: a $ref off any loop that resolves to nothing, whether
+// it names an absent component or the whole document, is reported at the branch
+// and adds neither the Base nor a Mixin. Load reports these $refs at that
+// pointer too, so a full compile drops the lowering's report (withoutRereported),
+// and only the lowering's own list can show it gone here.
 func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 	t.Parallel()
-	_, diags := lowerSpecOnly(t, openapitest.ComponentSpec(`    Y:
-      allOf:
-        - $ref: '#/components/schemas/Ghost'
-`))
-	require.Len(t, diags, 1, "got %+v", diags)
-	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, jsontext.Pointer("/components/schemas/Y/allOf/0"), diags[0].Provenance.Pointer)
+	tests := []struct{ name, branches string }{
+		{"a component that is absent", `        - $ref: '#/components/schemas/Ghost'
+`},
+		{"the whole document beside an inline branch", `        - {$ref: '#'}
+        - {type: object, properties: {a: {type: string}}}
+`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    Y:\n      allOf:\n"+tc.branches))
+			require.Len(t, diags, 1, "got %+v", diags)
+			assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+			assert.Equal(t, jsontext.Pointer("/components/schemas/Y/allOf/0"), diags[0].Provenance.Pointer)
+
+			y, ok := typeByName(doc, "Y").(*ir.Model)
+			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
+			assert.Nil(t, y.Base, "the branch naming nothing is not the base")
+			assert.Empty(t, y.Mixins, "the branch naming nothing is not a mixin")
+		})
+	}
 }
 
 func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {

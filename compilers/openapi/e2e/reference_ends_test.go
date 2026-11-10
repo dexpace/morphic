@@ -147,21 +147,33 @@ components:
 // the first copy of a key written twice, which a reference object resolved to
 // and the binder cannot place (docs/parser-library.md#duplicate-key), is never
 // read, so a full compile keeps the lowering's report (withoutRereported), and
-// removing it loses the error.
+// removing that report loses the error. Each row holds the whole list, and the
+// messages of the unresolved-ref reports.
 func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 	t.Parallel()
 	const unplaced = ": it is in what the reference at /paths/~1a/get/parameters/0 resolved to, which the " +
 		"compiler cannot read where the parser placed it"
 	const kept = `" is unresolved` + unplaced + "; the branch is kept verbatim"
+	const schemaAt = "/x-params/q/schema"
+	type report struct {
+		Code     string
+		Severity ir.Severity
+		Pointer  string
+	}
+	// The root warning is the extension this document's x-params cannot be
+	// serialized as; the info is the union kept verbatim beside its body.
+	rootWarning := report{diag.DegradedConstruct, ir.SeverityWarning, ""}
 	tests := []struct {
 		name, schema string
 		want         map[jsontext.Pointer]string
+		list         []report
 	}{
 		{
 			"allOf", "{allOf: [{$ref: '#/components/schemas/A'}]}",
 			map[jsontext.Pointer]string{
 				"/x-params/q/schema/allOf/0": `unresolved allOf $ref "#/components/schemas/A"` + unplaced,
 			},
+			[]report{{diag.UnresolvedRef, ir.SeverityError, schemaAt + "/allOf/0"}, rootWarning},
 		},
 		{
 			"union beside structural keywords",
@@ -171,12 +183,21 @@ func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 				"/x-params/q/schema/oneOf/0": `union branch $ref "#/components/schemas/A` + kept,
 				"/x-params/q/schema/oneOf/1": `union branch $ref "#/components/schemas/B` + kept,
 			},
+			[]report{
+				{diag.UnresolvedRef, ir.SeverityError, schemaAt + "/oneOf/0"},
+				{diag.UnresolvedRef, ir.SeverityError, schemaAt + "/oneOf/1"},
+				{diag.DegradedConstruct, ir.SeverityInfo, schemaAt}, rootWarning,
+			},
 		},
 		{
 			"anyOf beside structural keywords",
 			"{type: object, properties: {id: {type: string}}, anyOf: [{$ref: '#/components/schemas/A'}]}",
 			map[jsontext.Pointer]string{
 				"/x-params/q/schema/anyOf/0": `union branch $ref "#/components/schemas/A` + kept,
+			},
+			[]report{
+				{diag.UnresolvedRef, ir.SeverityError, schemaAt + "/anyOf/0"},
+				{diag.DegradedConstruct, ir.SeverityInfo, schemaAt}, rootWarning,
 			},
 		},
 	}
@@ -201,14 +222,17 @@ components:
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: "spec.yaml", Data: []byte(src)}}, compilers.Options{})
 			require.NoError(t, err)
+			list := make([]report, 0, len(diags))
 			got := map[jsontext.Pointer]string{}
 			for _, d := range diags {
+				list = append(list, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
 				if d.Code == diag.UnresolvedRef {
 					got[d.Provenance.Pointer] = d.Message
-					assert.Equal(t, ir.SeverityError, d.Severity, "severity of %q", d.Message)
 				}
 			}
+			assert.Equal(t, tc.list, list, "the whole report, in order; got %+v", diags)
 			assert.Equal(t, tc.want, got, "got %+v", diags)
+			assert.Equal(t, `extension "x-params" could not be serialized`, diags[len(diags)-1].Message, "the root warning")
 		})
 	}
 }

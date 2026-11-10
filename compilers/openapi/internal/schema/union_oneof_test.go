@@ -469,9 +469,19 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 // TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported pins that a branch
 // diagUnresolvedBranches skips, for naming a referent or lying on a loop of
 // $refs, leaves the branches after it reported: the skip moves to the next
-// branch rather than ending the walk.
+// branch rather than ending the walk. Each row holds the lowering's whole list:
+// the skipped branch draws nothing of its own.
 func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
 	t.Parallel()
+	type report struct {
+		Code     string
+		Severity ir.Severity
+		Pointer  jsontext.Pointer
+	}
+	want := []report{
+		{diag.UnresolvedRef, ir.SeverityError, "/components/schemas/Z/oneOf/1"},
+		{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+	}
 	tests := []struct{ name, skipped string }{
 		{"after one naming a referent", "#/components/schemas/A"},
 		{"after one on a loop", "#/components/schemas/Z/oneOf/0"},
@@ -485,6 +495,11 @@ func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
       properties: {kind: {type: string}}
       oneOf: [{$ref: '`+tc.skipped+`'}, {$ref: '#/components/schemas/Ghost'}]
 `))
+			got := make([]report, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, report{d.Code, d.Severity, d.Provenance.Pointer})
+			}
+			assert.Equal(t, want, got, "the whole list, in order; got %+v", diags)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/Z/oneOf/1"),
 				"Ghost", "the branch after the skipped one")
 		})
