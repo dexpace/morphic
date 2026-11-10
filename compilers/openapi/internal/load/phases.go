@@ -83,8 +83,8 @@ type loading struct {
 	early  []ir.Diagnostic
 	origin overlay.Origin
 	// place places a pointer of the source, and tree a node of its patched
-	// tree, as the lowering places them: in the overlay where it wrote the
-	// position.
+	// tree, as the lowering places them: in the source, the overlay named as
+	// the writer of a position it wrote.
 	place  provenance.Doc
 	tree   provenance.Tree
 	judged judgment

@@ -40,5 +40,5 @@ func TestEncoding_JSONContract(t *testing.T) {
 // fully populated XMLHints round-trips.
 func TestXMLHints_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.XMLHints{}, `{"wrapped":false}`, *populatedXMLHints())
+	assertJSONContract(t, ir.XMLHints{}, `{}`, *populatedXMLHints())
 }

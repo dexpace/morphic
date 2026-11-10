@@ -164,7 +164,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
-			Default:   v.GetDefault(),
+			Default:   variableDefault(v),
 			Enum:      v.GetEnum(),
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
@@ -173,4 +173,15 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		out = append(out, one)
 	}
 	return out, diags
+}
+
+// variableDefault is the default v writes, nil where it writes none. OpenAPI
+// requires the key, so the empty string it may hold substitutes nothing; the
+// model's field reads an absent key as that string too, and the core's Present
+// tells the two apart.
+func variableDefault(v *soa.ServerVariable) *string {
+	if !v.GetCore().Default.Present {
+		return nil
+	}
+	return new(v.GetDefault())
 }

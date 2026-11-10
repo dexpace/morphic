@@ -133,8 +133,8 @@ func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
 }
 
 // TestJudgeSource_AnOverlayOwnsWhatItWrote pins the attribution of a finding
-// about a node an overlay introduced: the overlay's index, and the node's
-// pointer, where a node the overlay left alone keeps the source's.
+// about a node an overlay introduced: the node's pointer, with the overlay as
+// its writer, where a node the overlay left alone names no writer.
 func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T}\npaths: {}\n"
@@ -145,10 +145,10 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]int{}
 	for _, d := range diags {
-		got[d.Provenance.Pointer] = d.Provenance.Source
+		got[d.Provenance.Pointer] = d.Provenance.WrittenBy
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/info": 0, "/info/description": 1}, got,
-		"the missing version is the source's to answer for, the description the overlay's")
+		"the missing version is the source's to answer for, the description the overlay's, which wrote it")
 }
 
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an

@@ -220,19 +220,21 @@ nodes it can build before it runs: one whose charge would carry the tree, counte
 so it is refused while the tree is past the budget whatever a later action removes. An action that
 builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
 the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
-introduced or rewrote names that entry as its `Provenance.Source`, while a position it left alone
-keeps the source's line and column. An overlay that does not parse, or is not a valid Overlay — no
-version, no actions, an action naming no target — is refused as an `openapi/invalid-overlay` error
-and nothing is applied. One the parser cannot apply as written, or whose grafted content expands
-past the walk's node budget, is refused as an `openapi/overlay-failed` error. Either way the source
-compiles to no Document rather than lowering a tree the caller believes was patched. Application is
-strict unless `Overlay.Lax` is set: each action that changed nothing, or relies on JSONPath
-behaviour the overlay did not opt into, is reported as an `openapi/overlay-action` warning naming
-the action, and the compile proceeds; an action whose selector matches nothing is reported the same
-way and refuses the overlay as `openapi/overlay-failed`. Lax application reports none of these, and
-refuses only an overlay it cannot apply. Where the walk that attributes positions to the overlay
-runs out of its node budget, the overlay is applied and every position names the source, as with no
-overlay, reported as an `openapi/overlay-origin-incomplete` warning.
+introduced or rewrote names the source as its `Provenance.Source` and that entry as its `WrittenBy`
+([provenance](../ir/provenance.md)), while a position it left alone keeps the source's line and
+column; a finding about the overlay document itself names the overlay as its `Source`. An overlay
+that does not parse, or is not a valid Overlay — no version, no actions, an action naming no target
+— is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot
+apply as written, or whose grafted content expands past the walk's node budget, is refused as an
+`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
+tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
+that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
+an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
+selector matches nothing is reported the same way and refuses the overlay as
+`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
+cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
+the overlay is applied and no position names it as a writer, as with no overlay, reported as an
+`openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
@@ -1221,20 +1223,18 @@ with an `openapi/degraded-construct` warning at it.
 
 A schema's `xml` object lowers to `XMLHints` on the node the position owns, or, where it owns none,
 on the property that carries it, the property's hints its own beside its type's
-([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix` and `wrapped` as
-written, and the node type from 3.2's `nodeType`
-([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) or, where none is written, from
-`attribute: true` as `attribute`. An `attribute` flag that a `nodeType` beside it contradicts, which
-3.2 forbids, is kept verbatim under `openapi:xml/attribute` (`degraded_lowering`) with an
-`openapi/degraded-construct` warning at it, and the `nodeType` is placed. The object's `x-*`
-extensions are kept as `openapi:xml/x-*` ([`vendor-extensions`](#vendor-extensions)), and the hints
-of a parameter's schema, which `ir.Parameter` has no field for, are
-[`parameter-schema-keywords`](#parameter-schema-keywords)'.
+([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix`, `attribute` and `wrapped`
+as written, a declared `false` included, and 3.2's `nodeType`
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). An `attribute` flag that a `nodeType`
+beside it contradicts, which 3.2 forbids, is kept verbatim under `openapi:xml/attribute`
+(`degraded_lowering`) with an `openapi/degraded-construct` warning at it, and the `nodeType` is
+placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
+([`vendor-extensions`](#vendor-extensions)), and the hints of a parameter's schema, which
+`ir.Parameter` has no field for, are [`parameter-schema-keywords`](#parameter-schema-keywords)'.
 
 - Cases: `xml-hints`, `xml-nodetype-32`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
-- Status: open: whether a property's hints override its type's field by field or whole (#465).
 
 ## 5. Schemas: composition, unions and enumerations
 
@@ -3925,16 +3925,17 @@ field, and never lowered into a field the flow lacks.
 ### `servers`
 
 The document's `servers` lower to `Document.Servers`, each server registered at the pointer of its
-Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the
-service names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description`
-to its docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the
-order written, to a variable with its `default`, `enum` and `description`, and the server's `x-*`
-and undeclared keys to its own `Unmodeled`. A document whose `servers` is absent or empty is served
-at the one server OpenAPI supplies, at `/`, minted as `server/default` and recording no pointer,
-since nothing in the document writes it. A name one servers list repeats — the document's, a path
-item's or an operation's, compared as written at every version, since the parser reads `name` on
-each — is kept as declared on both entries and reported as an `openapi/duplicate-server-name`
-warning at the repeat's name, naming the first.
+Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the service
+names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description` to its
+docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the order
+written, to a variable with its `default`, an empty string kept and none where the entry writes no
+`default`, its `enum` and its `description`, and the server's `x-*` and undeclared keys to its own
+`Unmodeled`. A document whose `servers` is absent or empty is served at the one server OpenAPI
+supplies, at `/`, minted as `server/default` and recording no pointer, since nothing in the document
+writes it. A name one servers list repeats — the document's, a path item's or an operation's,
+compared as written at every version, since the parser reads `name` on each — is kept as declared on
+both entries and reported as an `openapi/duplicate-server-name` warning at the repeat's name, naming
+the first.
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
@@ -3942,9 +3943,10 @@ warning at the repeat's name, naming the first.
   `servers.TestRegistry_RootServesADocumentWithNoServersAtTheRoot`,
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
-  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
-- Status: partly built: a variable's `default` cannot tell an empty default from none (#883); and a
-  servers list only a `$ref` reaches is never checked for a repeated name (#880).
+  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
+- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
+  (#880).
 
 ## 15. Vendor extensions and policy
 

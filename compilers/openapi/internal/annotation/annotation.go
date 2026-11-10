@@ -142,10 +142,10 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 		h.Prefix = *x.Prefix
 	}
 	if x.Wrapped != nil {
-		h.Wrapped = *x.Wrapped
+		h.Wrapped = new(*x.Wrapped)
 	}
-	if x.Attribute != nil && *x.Attribute {
-		h.NodeType = "attribute"
+	if x.Attribute != nil {
+		h.Attribute = new(*x.Attribute)
 	}
 	return h
 }
@@ -422,8 +422,8 @@ func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer,
 // field below 3.2 (diag.LaterVersionConstruct). A non-empty value outside the
 // five the specification defines is kept verbatim on p instead, as nothing else
 // may fill XMLHints.NodeType. An attribute flag the nodeType contradicts, which
-// 3.2 forbids writing beside it, is kept verbatim on p rather than overwritten
-// in silence.
+// 3.2 forbids writing beside it, is kept verbatim on p rather than placed, so
+// the hints never name two kinds of node.
 func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	if x == nil {
 		return nil, nil
@@ -436,6 +436,7 @@ func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, doc provena
 		return []string{"nodeType"}, diags
 	}
 	if x.Attribute != nil && *x.Attribute != (nodeType == "attribute") {
+		hints.Attribute = nil
 		at := doc.At(owner + ids.Ptr("attribute"))
 		PreserveInto(p, "openapi:xml/attribute", ir.RawValue(strconv.FormatBool(*x.Attribute)),
 			ir.ReasonDegradedLowering, at)

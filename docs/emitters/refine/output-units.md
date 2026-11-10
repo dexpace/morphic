@@ -16,8 +16,9 @@ applies decides.
 1. **Partition by source document.** `Partition` maps a `SourceInfo.Path` to a unit, for an API
    split across files that wants each file's types as a package of its own, a cross-file `$ref`
    becoming a cross-package reference. A type declaration goes to the unit its own
-   `Provenance.Source` maps to, and one an overlay introduced or rewrote belongs to the document the
-   overlay patched, the entry document ([`overlays`](../../compilers/openapi.md#overlays)).
+   `Provenance.Source` maps to, which for one an overlay introduced or rewrote is the document the
+   overlay patched, the entry document, the overlay being its `WrittenBy`
+   ([provenance](../../ir/provenance.md), [`overlays`](../../compilers/openapi.md#overlays)).
    Operations, sub-clients, the client and request types stay where rule 2 or the root puts them,
    whichever file declared them: an operation is a method of its group's client type, and Go
    declares a method in its receiver's package. What the document cannot honour is reported:

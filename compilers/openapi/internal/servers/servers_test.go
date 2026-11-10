@@ -381,3 +381,29 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 	delete(first, "server/default")
 	assert.Contains(t, reg.Servers(), ir.ServerID("server/default"))
 }
+
+// TestServerVariables_AnEmptyDefaultIsNotNone pins that a variable's default is
+// kept apart from its absence: `default: ""` substitutes nothing, and is the
+// empty string, while a variable writing no default, which OpenAPI requires,
+// has none. The parser's model reads both as an empty string, so its core's
+// record of the key is what tells them apart.
+func TestServerVariables_AnEmptyDefaultIsNotNone(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+servers:
+  - url: "https://api.example.com{base}/{v}{w}"
+    variables:
+      base: {default: ""}
+      v: {default: v1}
+      w: {enum: [a]}
+paths: {}
+`)
+	srvs := serviceServers(t, doc)
+	require.Len(t, srvs, 1)
+	got := map[string]*string{}
+	for _, v := range srvs[0].Variables {
+		got[v.Name] = v.Default
+	}
+	assert.Equal(t, map[string]*string{"base": new(""), "v": new("v1"), "w": nil}, got)
+}

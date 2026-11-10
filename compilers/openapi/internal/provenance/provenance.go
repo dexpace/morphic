@@ -37,71 +37,69 @@ func Attributed(index int, pointers map[jsontext.Pointer]bool, nodes map[*yaml.N
 	return Attribution{index: index, pointers: pointers, nodes: nodes}
 }
 
-// IndexAt returns the index of the source that supplied the position at pointer:
-// the overlay's, if the overlay introduced or rewrote it, and fallback
-// otherwise.
+// WriterAt returns the overlay's index when it introduced or rewrote the
+// position at pointer, and 0 otherwise: what ir.Provenance.WrittenBy holds for
+// that position of the patched document.
 //
 // A pointer the attribution never recorded, such as a position reached through
 // an alias or a `<<` merge key, which the node tree holds once at the anchor's
-// own position, falls back: an unrecognized pointer under-attributes rather than
+// own position, answers 0: an unrecognized pointer under-attributes rather than
 // misattributes.
-func (a Attribution) IndexAt(pointer jsontext.Pointer, fallback int) int {
+func (a Attribution) WriterAt(pointer jsontext.Pointer) int {
 	if a.pointers[pointer] {
 		return a.index
 	}
-	return fallback
+	return 0
 }
 
-// IndexOf is IndexAt for a construct no single position addresses, recorded at
-// pointer and assembled from the positions in from: the index of the source that
-// supplied every one of them when one source did, and IndexAt's answer for
-// pointer otherwise, which is also the answer when from is empty.
+// WriterOf is WriterAt for a construct no single position addresses, recorded
+// at pointer and assembled from the positions in from: the overlay's index when
+// it wrote every one of them, and WriterAt's answer for pointer otherwise, which
+// is also the answer when from is empty.
 //
-// A construct the overlay wrote entirely is the overlay's, and one it only added
-// to stays with the document that declares it, as a mapping it merged into does
-// (GitHub #534).
-func (a Attribution) IndexOf(pointer jsontext.Pointer, from []jsontext.Pointer, fallback int) int {
-	own := a.IndexAt(pointer, fallback)
+// A construct the overlay wrote entirely is credited to it, and one it only
+// added to stays with the document that declares it, as a mapping it merged
+// into does (GitHub #534).
+func (a Attribution) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer) int {
+	own := a.WriterAt(pointer)
 	if len(from) == 0 {
 		return own
 	}
-	index := a.IndexAt(from[0], fallback)
+	writer := a.WriterAt(from[0])
 	for _, p := range from[1:] {
-		if a.IndexAt(p, fallback) != index {
+		if a.WriterAt(p) != writer {
 			return own
 		}
 	}
-	return index
+	return writer
 }
 
-// At returns the provenance of a node the overlay introduced or rewrote, the
-// overlay's index and the pointer the node sits at, and false for any other
-// node, nil included.
-func (a Attribution) At(n *yaml.Node) (ir.Provenance, bool) {
+// At returns the pointer at which the overlay put a node it introduced or
+// rewrote, and false for any other node, nil included.
+func (a Attribution) At(n *yaml.Node) (jsontext.Pointer, bool) {
 	pointer, ok := a.nodes[n]
-	if !ok {
-		return ir.Provenance{}, false
-	}
-	return ir.Provenance{Source: a.index, Pointer: pointer}, true
+	return pointer, ok
 }
 
 // Doc places the pointers of one input document: at Source, the document's
-// index in Document.Sources, unless Overlay attributes a position to the overlay
-// applied to it. The zero Doc places every pointer in source 0, with no overlay.
+// index in Document.Sources, the overlay applied to it named as the writer of a
+// position Overlay attributes to it. The zero Doc places every pointer in
+// source 0, with no overlay.
 type Doc struct {
 	Source  int
 	Overlay Attribution
 }
 
-// At returns the provenance to record for the position at pointer: the pointer,
-// and the index of the input document that supplied what sits there.
+// At returns the provenance to record for the position at pointer: the pointer
+// in Source, and the overlay as its writer where the overlay supplied what sits
+// there.
 //
 // from is for a record no single position addresses, such as a validation-only
 // entry folding several keywords. It lists the positions the record was
-// assembled from, so the record names the document that wrote all of them, when
-// one did (Attribution.IndexOf).
+// assembled from, so the record names the overlay as its writer only where the
+// overlay wrote all of them (Attribution.WriterOf).
 func (d Doc) At(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
-	return ir.Provenance{Source: d.Overlay.IndexOf(pointer, from, d.Source), Pointer: pointer}
+	return ir.Provenance{Source: d.Source, Pointer: pointer, WrittenBy: d.Overlay.WriterOf(pointer, from)}
 }
 
 // Tree places the nodes of one document's decoded tree, which Doc places the
@@ -115,19 +113,20 @@ type Tree struct {
 	Pointers func(*yaml.Node) (jsontext.Pointer, bool)
 }
 
-// Node returns where a finding about n is placed: where the overlay put n, for
-// a node it introduced or rewrote, and otherwise in Doc.Source at n's line and
-// column and its pointer in the tree. A node the parser did not place has no
-// line or column, which is the zero Position rather than one at 0:0. A nil n
-// is the document as a whole, placed in Doc.Source alone.
+// Node returns where a finding about n is placed in Doc.Source: where the
+// overlay put n, with the overlay as its writer, for a node it introduced or
+// rewrote, and otherwise at n's line and column and its pointer in the tree. A
+// node the parser did not place has no line or column, which is the zero
+// Position rather than one at 0:0. A nil n is the document as a whole.
 //
 // The tree's root has the empty pointer, which beside a position reads as none,
 // so a finding on the document's top mapping is placed by position alone.
 func (t Tree) Node(n *yaml.Node) ir.Provenance {
-	if prov, ok := t.Doc.Overlay.At(n); ok {
+	prov := ir.Provenance{Source: t.Doc.Source}
+	if pointer, ok := t.Doc.Overlay.At(n); ok {
+		prov.Pointer, prov.WrittenBy = pointer, t.Doc.Overlay.index
 		return prov
 	}
-	prov := ir.Provenance{Source: t.Doc.Source}
 	if n == nil {
 		return prov
 	}
