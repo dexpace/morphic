@@ -11,7 +11,6 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -31,10 +30,10 @@ import (
 // behind body, which may be a node a $ref promised and nothing has built yet
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
-func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	walk := walkBodyParts(c.Bindings(), media.GetSchema())
-	parts := walk.parts
-	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
+func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
+	parts := bodyWalk.parts
+	cutDiags := diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema"))
 	if len(parts) == 0 {
 		return nil, nil, cutDiags
 	}
@@ -45,7 +44,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt s
 	multipart := isMultipart(mt)
 	keys := partKeys{c: c, body: body, fallbackDoc: fallbackDoc, fallback: fallback, multipart: multipart}
 	for _, part := range parts {
-		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part.name, encMap, mediaPtr)
+		pe, partUnmodeled, partDiags := buildPartEncoding(c, w, part.name, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
 		// Kept whether or not the part's encoding ends up empty: an entry declaring
 		// only x-* lowers to an empty PartEncoding that is left out of the map, and
@@ -55,7 +54,7 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt s
 			file: readPartFile(c, part, pe.ContentTypes, multipart)})
 	}
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
-	ts.Defer(keys)
+	w.types.Defer(keys)
 	return keys.out, unmodeled, diags
 }
 
@@ -421,7 +420,7 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 // buildPartEncoding assembles the explicit encoding config of the part named
 // name: content types, headers, style and explode. Its structural flags, Multi
 // and Filename, are partKeys' to read once every type has lowered (partFlags).
-func buildPartEncoding(c lowering.Ctx, ts *compile.Types, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func buildPartEncoding(c lowering.Ctx, w walk, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	if encMap == nil {
 		return ir.PartEncoding{}, nil, nil
 	}
@@ -429,7 +428,7 @@ func buildPartEncoding(c lowering.Ctx, ts *compile.Types, name string, encMap *s
 	if !ok {
 		return ir.PartEncoding{}, nil, nil
 	}
-	return encodingConfig(c, ts, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
+	return encodingConfig(c, w, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
 }
 
 // declaredFlags reads a part's structural flags off every schema declaring it,

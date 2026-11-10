@@ -17,7 +17,7 @@ func TestLowerPayload_NilMediaEntriesYieldNil(t *testing.T) {
 	content := sequencedmap.New(
 		sequencedmap.NewElem("application/json", (*soa.MediaType)(nil)),
 	)
-	payload, diags := lowerPayload(l.ctx, l.types, content, "/p")
+	payload, diags := lowerPayload(l.ctx, l.serviceWalk(), content, "/p")
 	assert.Nil(t, payload, "all-nil media map yields no payload")
 	assert.Empty(t, diags)
 }
