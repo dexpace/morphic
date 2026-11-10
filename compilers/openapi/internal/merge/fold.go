@@ -331,9 +331,9 @@ func sameExamples(a, b []ir.Example) bool {
 // takes reports whether the field takes v, which decls[i] wrote: a null where
 // the field admits null, which the top type always does (nullable), and any
 // other value every bound another declaration brought admits, where decls[i]'s
-// own type is the field's, but for those bounds, or the field's type admits it. A
-// value a declaration writes against its own type and bounds is that
-// declaration's to answer for, not the fold's, and a composed field has no
+// own type is the field's, but for those bounds (ownType), or the field's type
+// admits it. A value a declaration writes against its own type and bounds is
+// that declaration's to answer for, not the fold's, and a composed field has no
 // declaration whose type it is.
 func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
@@ -344,12 +344,24 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}
-	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, winner.Type, own.Type)) {
+	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
 		return true
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
 	return judge.admits(ref, v)
+}
+
+// ownType reports whether decls[i]'s type is the field's but for bounds: the
+// same as the winner's or alike it, where the field keeps the winner's node,
+// and alike the node the merge built for the field otherwise, which can hold
+// members or values the winner's does not (builder).
+func (f *folding) ownType(judge typeJudge, i int) bool {
+	winner, own := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
+	if f.merged.Type.Target == winner.Target {
+		return f.rel[f.winner][i] == relSame || alike(judge, winner, own)
+	}
+	return alike(judge, f.merged.Type, own)
 }
 
 // foldUse settles who sends the field and sees it: required and secret where

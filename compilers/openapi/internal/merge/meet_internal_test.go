@@ -412,3 +412,40 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 	j := judge(g)
 	assert.Equal(t, relOverlap, j.literalBesideDetail(&ir.Literal{Value: str("a")}, reg["t/ab"]))
 }
+
+// TestFold_AValueIsJudgedByTheNodeTheFieldHolds pins a value written beside a
+// type the merge builds the field's node from: that node can hold members or
+// values the declaration's own does not, so the value is judged against it, in
+// either order. A list of integer's default past int32 is refused beside a list
+// of int32, and an enum's default the meeting cut is refused beside the enum it
+// meets, each reported and kept.
+func TestFold_AValueIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
+	t.Parallel()
+	big := ir.Value{Kind: ir.ValueList, List: []ir.Value{num("5000000000")}}
+	for _, tc := range []struct {
+		name          string
+		valued, other ir.TypeID
+		dflt          ir.Value
+	}{
+		{"a list", "t/ints-described", "t/i32s", big},
+		{"an enum", "t/ab", "t/bc", str("a")},
+	} {
+		for i := range 2 {
+			reg := meetRegistry()
+			g, recorded := stubMerger(reg)
+			decls := declsOf(tc.valued, tc.other)
+			decls[0].prop.Default = &tc.dflt
+			if i == 1 {
+				decls = declsOf(tc.other, tc.valued)
+				decls[1].prop.Default = &tc.dflt
+			}
+
+			got := g.fold(decls)
+
+			assert.Equal(t, composedAt(declaredAt(1)), got.Type.Target, "%s (order %d)", tc.name, i)
+			assert.Nil(t, got.Default, "%s (order %d)", tc.name, i)
+			require.Len(t, *recorded, 1, "%s (order %d)", tc.name, i)
+			assert.Equal(t, declaredAt(i), (*recorded)[0].Provenance.Pointer, "%s (order %d)", tc.name, i)
+		}
+	}
+}

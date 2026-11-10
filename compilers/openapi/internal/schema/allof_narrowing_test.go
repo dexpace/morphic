@@ -774,3 +774,23 @@ func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
 	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/T/allOf/0/properties/v/s:b"), declared.Members[1].ID,
 		"the declared enum's members are as they were")
 }
+
+// TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds pins a default written beside
+// a list or an enum the field's node is built from: the list of int32 refuses a
+// default past it, and the enum of the shared values one it cut, so each is
+// reported and kept in either order rather than adopted when written first.
+func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
+	t.Parallel()
+	for _, pair := range [][2]string{
+		{"{type: array, description: d, items: {type: integer}, default: [5000000000]}", "{type: array, items: {type: integer, format: int32}}"},
+		{"{type: string, enum: [a, b], default: a}", "{type: string, enum: [b, c]}"},
+	} {
+		for i, order := range [][2]string{{pair[0], pair[1]}, {pair[1], pair[0]}} {
+			p, _, diags := redeclared(t, order[0], order[1])
+			assert.Nil(t, p.Default, "%v", order)
+			require.Len(t, diags, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
+			assert.Equal(t, fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i), string(diags[0].Provenance.Pointer), "%v", order)
+		}
+	}
+}

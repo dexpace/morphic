@@ -1722,7 +1722,9 @@ each bound, `multipleOf`, a length counted in code points, an item or property c
 declaration's value is held by the same checks to each bound the field keeps that another
 declaration brought, on the property or on a node. A value is its declaration's own to answer for
 against a bound it states itself at the value the field keeps, so a default its own bound refuses
-stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+stays, and against its own type where that is the field's but for bounds; a node the merge builds
+can hold members or values the declaration's own does not, so a value written beside it is judged
+against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
@@ -1868,6 +1870,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps`,
   `merge.TestFold_TuplesBuildWhatFollowsTheirPositions`,
   `merge.TestBuilder_RefusesWhatNoNodeHolds`,
+  `merge.TestFold_AValueIsJudgedByTheNodeTheFieldHolds`,
+  `schema.TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
