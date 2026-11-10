@@ -51,7 +51,8 @@ func checkProvenance(doc *ir.Document) walkCheck {
 // appendWriterViolation reports a WrittenBy that names no overlay writing into
 // src (docs/ir/provenance.md): 0 says src wrote it, and any other index must be
 // an overlay entry of sources other than src itself, since only an overlay
-// writes into a document it is not.
+// writes into a document it is not. On ir.NoSource there is no document to
+// write into, so any writer is reported.
 func appendWriterViolation(vs []Violation, sources []ir.SourceInfo, src, writer int, at ir.WalkPath) []Violation {
 	if writer == 0 {
 		return vs
@@ -60,6 +61,8 @@ func appendWriterViolation(vs []Violation, sources []ir.SourceInfo, src, writer 
 	switch {
 	case writer < 0 || writer >= len(sources):
 		why = "addresses none of " + strconv.Itoa(len(sources)) + " declared sources"
+	case src == ir.NoSource:
+		why = "names a writer for a provenance that names no source to write into"
 	case writer == src:
 		why = "names the source itself, which 0 already says"
 	case !sources[writer].IsOverlay():

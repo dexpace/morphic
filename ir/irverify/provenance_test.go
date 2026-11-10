@@ -242,8 +242,9 @@ func TestVerify_ProvenanceLocatorRules(t *testing.T) {
 
 // TestVerify_AWriterIsAnOverlayWritingIntoTheSource pins ir/provenance-writer:
 // a WrittenBy names an overlay entry other than the provenance's own source, or
-// is 0; one out of range, one naming the source itself and one naming a source
-// that is no overlay are each reported at the field.
+// is 0; one out of range, one on a provenance naming no source, one naming the
+// source itself and one naming a source that is no overlay are each reported at
+// the field.
 func TestVerify_AWriterIsAnOverlayWritingIntoTheSource(t *testing.T) {
 	t.Parallel()
 	sources := []ir.SourceInfo{{Format: "openapi@3.1"}, {Format: "overlay@1.0.0"}, {Format: "openapi@3.1"}}
@@ -257,6 +258,7 @@ func TestVerify_AWriterIsAnOverlayWritingIntoTheSource(t *testing.T) {
 		{"the overlay", 0, 1, nil},
 		{"past the table", 0, 3, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
 		{"negative", 0, -1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
+		{"no source to write into", ir.NoSource, 1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
 		{"the source itself", 1, 1, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
 		{"a source that is no overlay", 0, 2, []string{"doc.Types[t/x/M].Provenance.WrittenBy"}},
 	} {
