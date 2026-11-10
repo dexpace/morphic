@@ -306,7 +306,8 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
 // the decoder could not build is reported: at the least source position
 // reaching it, with why, and not at all for one only another document's
-// content reaches, or one that was built, whichever comes first.
+// content reaches, or one that was built, whichever comes first. One whose
+// least position another document writes is reported in that document.
 func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	t.Parallel()
 	failed := typed.Built{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/S"},
@@ -324,6 +325,14 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 			"the $ref here reaches #/S in other.yaml, where no schema could be built: it failed"),
 	}
 	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere})))
+
+	doc, codes := loadReferencing(t, "./ext.yaml#/X")
+	require.Empty(t, codes)
+	away := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"},
+		Site: bind.Position{Doc: 1, Pointer: "/X/y"}, Reached: true}, Err: errors.New("it failed")}
+	got := buildFailures(places{others: doc.Others, table: doc.Bindings.Table()}, []typed.Built{away})
+	require.Len(t, got, 1)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X/y"}, got[0].Provenance)
 }
 
 // TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases pins GitHub
