@@ -15,21 +15,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
-
-// Locator returns the provenance to record for the position at a pointer: the
-// pointer, and the index of the input document that supplied what sits there.
-//
-// The index belongs to the position, not to the compile: an overlay supplies
-// some positions of the document it patches (GitHub #522). The compiler passes
-// lowering.Ctx.ProvenanceAt, which knows what the overlay introduced; this
-// package sits below that context and cannot ask it directly.
-//
-// from is for a record no single position addresses, and names the positions it
-// was assembled from (see lowering.Ctx.ProvenanceAt).
-type Locator func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance
 
 // EffectiveDeprecated reports the deprecated flag, the nearest schema of chain
 // writing one deciding (Site.Chain).
@@ -71,14 +60,14 @@ func EffectiveVisibility(chain []*oas3.Schema) (ir.Visibility, bool) {
 // nothing; an unconvertible node yields a warning at pointer and no value,
 // rather than a warning at the default's own position as
 // docs/compilers/openapi.md#values asks (GitHub #1101).
-func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, locate Locator) (*ir.Value, []ir.Diagnostic) {
+func EffectiveDefault(chain []*oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Value, []ir.Diagnostic) {
 	i := slices.IndexFunc(chain, func(s *oas3.Schema) bool { return s.GetDefault() != nil })
 	if i < 0 {
 		return nil, nil
 	}
 	v, err := value.FromNode(chain[i].GetDefault())
 	if err != nil {
-		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, locate(pointer),
+		return nil, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, doc.At(pointer),
 			"default: %s", err.Error())}
 	}
 	return &v, nil
@@ -348,10 +337,10 @@ func DeclaresRedaction(s *oas3.Schema) bool {
 // This is the one place the site-versus-referent choice is made, rather than
 // at each position that attaches annotations: three attachment points used to
 // make it separately and disagreed.
-func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnostic) {
-	out, diags := readLocal(st.Node, pointer, locate, true, st.Dialect)
+func Read(st Site, pointer jsontext.Pointer, doc provenance.Doc) (Set, []ir.Diagnostic) {
+	out, diags := readLocal(st.Node, pointer, doc, true, st.Dialect)
 	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, locate, false, Dialect{Dependencies: st.Dialect.Dependencies})
+		voice, voiceDiags := readLocal(v.Node, v.At, doc, false, Dialect{Dependencies: st.Dialect.Dependencies})
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
@@ -373,16 +362,16 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 // rather than a voice, whose dialect keywords and discriminator no fold reads
 // and whose residue keeps them, and dialect is what its dialect spells
 // otherwise (Site.Dialect).
-func readLocal(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, own bool, dialect Dialect) (Set, []ir.Diagnostic) {
+func readLocal(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, own bool, dialect Dialect) (Set, []ir.Diagnostic) {
 	var out Set
 	out.XML = XMLHints(s.GetXML())
 
-	examples, exDiags := schemaExamplesAt(s, pointer, locate)
+	examples, exDiags := schemaExamplesAt(s, pointer, doc)
 	out.Examples = examples
 
-	ext, extDiags := ExtensionsFrom(s.GetExtensions(), locate, pointer)
-	sub, subDiags := subObjectKeys(s, out.XML, pointer, locate, own)
-	kept, keptDiags := unmodeledAt(s, pointer, locate, own, dialect)
+	ext, extDiags := ExtensionsFrom(s.GetExtensions(), doc, pointer)
+	sub, subDiags := subObjectKeys(s, out.XML, pointer, doc, own)
+	kept, keptDiags := unmodeledAt(s, pointer, doc, own, dialect)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
@@ -401,9 +390,9 @@ func readLocal(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, own boo
 // keyword each was written under. The census is graded as an OpenAPI object's,
 // not a schema keyword's. It first reads the XML object's nodeType into hints
 // (applyNodeType). discriminator says whether s's discriminator is read.
-func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, locate Locator, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
+func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer, doc provenance.Doc, discriminator bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
-	xmlTaken, diags := applyNodeType(&out, hints, s.GetXML(), locate, pointer+ids.Ptr("xml"))
+	xmlTaken, diags := applyNodeType(&out, hints, s.GetXML(), doc, pointer+ids.Ptr("xml"))
 	subs := []struct {
 		keyword string
 		obj     any
@@ -419,10 +408,10 @@ func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer,
 			continue
 		}
 		owner := pointer + ids.Ptr(sub.keyword)
-		ext, extDiags := ExtensionsUnder(sub.ext, locate, owner, sub.keyword)
+		ext, extDiags := ExtensionsUnder(sub.ext, doc, owner, sub.keyword)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
-		diags = append(diags, UnknownKeysUnder(&out, sub.obj, locate, owner, sub.keyword, sub.taken...)...)
+		diags = append(diags, UnknownKeysUnder(&out, sub.obj, doc, owner, sub.keyword, sub.taken...)...)
 	}
 	return out, diags
 }
@@ -435,11 +424,11 @@ func subObjectKeys(s *oas3.Schema, hints *ir.XMLHints, pointer jsontext.Pointer,
 // may fill XMLHints.NodeType. An attribute flag the nodeType contradicts, which
 // 3.2 forbids writing beside it, is kept verbatim on p rather than overwritten
 // in silence.
-func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Locator, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
+func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, doc provenance.Doc, owner jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	if x == nil {
 		return nil, nil
 	}
-	nodeType, read, diags := TakeString(p, x.GetRootNode(), "nodeType", definedNodeType, locate, owner, "xml")
+	nodeType, read, diags := TakeString(p, x.GetRootNode(), "nodeType", definedNodeType, doc, owner, "xml")
 	if !read {
 		return nil, diags
 	}
@@ -447,7 +436,7 @@ func applyNodeType(p *ir.Unmodeled, hints *ir.XMLHints, x *oas3.XML, locate Loca
 		return []string{"nodeType"}, diags
 	}
 	if x.Attribute != nil && *x.Attribute != (nodeType == "attribute") {
-		at := locate(owner + ids.Ptr("attribute"))
+		at := doc.At(owner + ids.Ptr("attribute"))
 		PreserveInto(p, "openapi:xml/attribute", ir.RawValue(strconv.FormatBool(*x.Attribute)),
 			ir.ReasonDegradedLowering, at)
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
@@ -479,13 +468,13 @@ func definedNodeType(v string) bool {
 // ir.Encoding depends on what the position lowered to, which only the schema
 // package can answer — schema.recordUnplacedContent asks the node that was
 // built rather than the keyword that was written.
-func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, withDialect bool, dialect Dialect,
+func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, withDialect bool, dialect Dialect,
 ) (ir.Unmodeled, []ir.Diagnostic) {
-	vOnly, diags := validationOnlyAt(s, pointer, locate, dialect.Dependencies)
+	vOnly, diags := validationOnlyAt(s, pointer, doc, dialect.Dependencies)
 	if !withDialect {
 		return vOnly, diags
 	}
-	kept, dDiags := dialectAt(s, pointer, locate, dialect)
+	kept, dDiags := dialectAt(s, pointer, doc, dialect)
 	return MergeUnmodeled(vOnly, kept), append(diags, dDiags...)
 }
 
@@ -529,16 +518,16 @@ func dialectRead(keyword string, dialect Dialect) string {
 // the exclusion is visible in the output rather than only in this comment:
 // those DialectKeywords names, and draft 4's `id` where dialect says s is read
 // in a dialect spelling its identifier so.
-func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
+func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 	keep := func(keyword string) {
-		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
+		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, doc)
 		diags = append(diags, keptDiags...)
 		if !kept {
 			return
 		}
-		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, locate(pointer+ids.Ptr(keyword)),
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, doc.At(pointer+ids.Ptr(keyword)),
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
 			dialectRead(keyword, dialect)))
@@ -556,12 +545,12 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, dialect
 //
 // Site-only: an example written beside a $ref describes the position, never the
 // referent, which is the class of annotation the $ref-sibling defect broke.
-func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) ([]ir.Example, []ir.Diagnostic) {
+func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc) ([]ir.Example, []ir.Diagnostic) {
 	var out []ir.Example
 	var diags []ir.Diagnostic
 	add := func(node *yaml.Node, seg ...string) {
 		var exDiags []ir.Diagnostic
-		out, exDiags = AppendExample(out, ir.Example{}, node, locate, pointer, seg...)
+		out, exDiags = AppendExample(out, ir.Example{}, node, doc, pointer, seg...)
 		diags = append(diags, exDiags...)
 	}
 	if node := s.GetExample(); node != nil {
@@ -580,12 +569,12 @@ func schemaExamplesAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 // around the value (name, summary, description); base and seg locate the node,
 // joined into a pointer only on the failure path.
 func AppendExample(out []ir.Example, proto ir.Example, node *yaml.Node,
-	locate Locator, base jsontext.Pointer, seg ...string,
+	doc provenance.Doc, base jsontext.Pointer, seg ...string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	v, err := value.FromNode(node)
 	if err != nil {
 		return out, []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-			locate(base+ids.Ptr(seg...)), "example: %s", err.Error())}
+			doc.At(base+ids.Ptr(seg...)), "example: %s", err.Error())}
 	}
 	proto.Value = &v
 	return append(out, proto), nil

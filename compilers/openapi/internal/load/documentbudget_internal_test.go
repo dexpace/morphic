@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -213,9 +213,9 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 		return again, err
 	}
 	opts.Reader = reader.Disk{}
-	at := pointerAt(0, overlay.Origin{})
+	at := provenance.Doc{}
 	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil), opts, rebuild)
+		newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
 	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds
 }

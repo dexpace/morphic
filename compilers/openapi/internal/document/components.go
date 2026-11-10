@@ -42,7 +42,7 @@ func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic
 				continue
 			}
 			_, keptDiags := annotation.PreserveNodeInto(&out, "openapi:"+ids.Scope("components", section, entry.Key),
-				entry.Val, ir.ReasonNoIRHome, c.ProvenanceAt(pointer))
+				entry.Val, ir.ReasonNoIRHome, c.Place().At(pointer))
 			diags = append(diags, keptDiags...)
 		}
 	}

@@ -95,9 +95,9 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
-		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.Place().At(at))
 	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
+		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.Place().At(mediaPtr+ids.Ptr("itemEncoding")))
 	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason

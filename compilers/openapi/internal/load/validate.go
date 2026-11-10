@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -72,12 +72,12 @@ func declaredDialect(root *yaml.Node) string {
 // keyword rows, bar what the check hands back to judge in its dialect
 // (judgeOwned), so a keyword only the draft defines is held to none (GitHub
 // #1466).
-func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within budget.Limit) judgment {
+func judgeSource(ctx context.Context, root *yaml.Node, tree provenance.Tree, within budget.Limit) judgment {
 	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}}
 	version := declaredVersion(root)
 	opts := oas.Options{
 		Budget: within,
-		Locate: tree.locatorIn(root),
+		Locate: walkedFrom(root, tree.Node),
 		Seen: func(kind oas.Kind, node *yaml.Node) {
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
 		},
@@ -106,22 +106,18 @@ func nodesAdmitted(opts Options) budget.Limit {
 	return opts.MaxSourceNodes.Plus(opts.MaxAliasSurplus)
 }
 
-// locatorIn returns the Locator for the pointers of the object written at
-// node, which places each as the source's own findings are (see walkedFrom).
-func (t sourceTree) locatorIn(node *yaml.Node) oas.Locator { return walkedFrom(node, t.locate) }
-
 // walkedFrom returns the Locator for the pointers of the object written at
-// node: each is walked from node to the node it names, which locate places. A
+// node: each is walked from node to the node it names, which place places. A
 // pointer that leads nowhere is placed at the last node it reached.
-func walkedFrom(node *yaml.Node, locate scan.Locator) oas.Locator {
+func walkedFrom(node *yaml.Node, place func(*yaml.Node) ir.Provenance) oas.Locator {
 	view := nodeview.New()
 	root := nodeview.DocumentRoot(node)
 	return func(pointer jsontext.Pointer) ir.Provenance {
 		path, _ := view.DocumentPath(root, pointer)
 		if len(path) == 0 {
-			return locate(nil)
+			return place(nil)
 		}
-		return locate(path[len(path)-1])
+		return place(path[len(path)-1])
 	}
 }
 
@@ -134,13 +130,13 @@ const foreign = -1
 // reference reaches. A finding about a node the source's tree holds is placed
 // there, as the source's own are; any other is marked foreign, its position
 // that of the node in the document it is in, which no entry lists.
-func (t sourceTree) reachedLocator(node *yaml.Node) oas.Locator {
-	elsewhere := scan.InSource(foreign)
+func reachedLocator(tree provenance.Tree, node *yaml.Node) oas.Locator {
+	elsewhere := provenance.Tree{Doc: provenance.Doc{Source: foreign}}
 	return walkedFrom(node, func(n *yaml.Node) ir.Provenance {
-		if t.has(n) {
-			return t.locate(n)
+		if treeHolds(tree, n) {
+			return tree.Node(n)
 		}
-		return elsewhere(n)
+		return elsewhere.Node(n)
 	})
 }
 

@@ -64,8 +64,6 @@ const maxJudgeDepth = 8
 // conflict lattice's size stays the lattice's.
 type typeJudge struct {
 	registry
-	// untyped is Merger.Untyped; nil reads every node as stating its type.
-	untyped func(ir.Provenance) bool
 	// modelPairs is what remains of the model pairs a judgment compares
 	// (maxModelPairs), shared by its every depth; relate starts it, and nil
 	// compares none.
@@ -78,20 +76,23 @@ type typeJudge struct {
 // judgment compares: what an alias stands for, the kind its values are read as,
 // what it composes, and which values it admits.
 type registry struct {
-	// Resolve looks a type up in the registry.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// resolve looks a type up in the registry: Merger.resolve, which a test
+	// counts the reads of.
+	resolve func(ir.TypeID) (ir.TypeDef, bool)
 }
 
-// declarationSites is where the two declarations a judgment compares were written,
-// which decides whether two nodes alike are copies of one declaration.
+// declarationSites is where the two declarations a judgment compares were
+// written, which decides whether two nodes alike are copies of one declaration,
+// and the walk that reads what the source writes at a node's site.
 type declarationSites struct {
 	// written is where declarations a and b were written. A node is a hoisted
 	// copy only where it was written at or under its declaration's pointer, in
 	// the same document; one a $ref reached elsewhere was declared apart.
 	written [2]ir.Provenance
-	// alike is Merger.Alike: two nodes held alike keeping a reference are one
-	// type only where they read it against one base.
-	alike func(a, b ir.Provenance) bool
+	// walk is Merger.Walk, whose Alike says two nodes held alike keeping a
+	// reference are one type only where they read it against one base, and
+	// whose Untyped says whether a node's source states no instance type.
+	walk Walk
 }
 
 // relateFrom compares a with b, two types at depth: a field's own at 0, a
@@ -115,8 +116,8 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if depth > maxJudgeDepth {
 		return relUnrelated
 	}
-	at, aok := j.Resolve(a.Target)
-	bt, bok := j.Resolve(b.Target)
+	at, aok := j.resolve(a.Target)
+	bt, bok := j.resolve(b.Target)
 	if !aok || !bok {
 		return relUnrelated
 	}
@@ -221,7 +222,7 @@ func (r registry) composes(id, target ir.TypeID) bool {
 	seen := map[ir.TypeID]bool{id: true}
 	queue := []ir.TypeID{id}
 	for len(queue) > 0 && len(seen) <= maxComposedParts {
-		td, ok := r.Resolve(queue[len(queue)-1])
+		td, ok := r.resolve(queue[len(queue)-1])
 		queue = queue[:len(queue)-1]
 		if !ok {
 			continue
@@ -322,7 +323,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 
 // againstOtherInstance is the verdict on td, a structure through any aliases,
 // against a type of another instance type, from td's side. Where td's source
-// and each alias's state no instance type (Merger.Untyped), td admits every
+// and each alias's state no instance type (Walk.Untyped), td admits every
 // value of another, so the other type is narrower: `properties` alone
 // constrains objects and admits a string. A node saying more than that, such as
 // examples, overlaps instead, as topAt reads an alias of `{}`, since a type
@@ -330,7 +331,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // type.
 func (j typeJudge) againstOtherInstance(td ir.TypeDef, site ir.Provenance, depth int) relation {
 	chain, end := j.aliasChain(td)
-	if j.untyped == nil || !isStructural(end) || !j.untyped(end.Common().Provenance) {
+	if !isStructural(end) || !j.sites.walk.Untyped(end.Common().Provenance) {
 		return relDisjoint
 	}
 	// A $ref carries the docs, deprecation and redaction of what it reaches
@@ -340,7 +341,7 @@ func (j typeJudge) againstOtherInstance(td ir.TypeDef, site ir.Provenance, depth
 	carried := depth == 0 && !hoistedAt(td, site)
 	saysNothing := structureSaysNothing(end, carried && len(chain) == 0)
 	for k, s := range chain {
-		if !j.untyped(s.Provenance) {
+		if !j.sites.walk.Untyped(s.Provenance) {
 			return relDisjoint
 		}
 		saysNothing = saysNothing && aliasSaysNothing(s, carried && k == 0)
@@ -403,7 +404,7 @@ func (r registry) aliasChain(td ir.TypeDef) ([]*ir.Scalar, ir.TypeDef) {
 		if !alias || s.Base == nil {
 			return chain, td
 		}
-		next, ok := r.Resolve(s.Base.Target)
+		next, ok := r.resolve(s.Base.Target)
 		if !ok {
 			return chain, td
 		}
@@ -504,7 +505,7 @@ func (r registry) isAnyType(ref ir.TypeRef) bool {
 	if k, ok := r.kindOf(ref); ok {
 		return k.prim == ir.PrimAny
 	}
-	td, ok := r.Resolve(ref.Target)
+	td, ok := r.resolve(ref.Target)
 	return ok && td.Kind() == ir.KindAny
 }
 
@@ -529,7 +530,7 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
 	keeps := (aHoisted || bHoisted) && (keepsReference(at) || keepsReference(bt))
-	if keeps && !d.alike(at.Common().Provenance, bt.Common().Provenance) {
+	if keeps && !d.walk.Alike(at.Common().Provenance, bt.Common().Provenance) {
 		return relOverlap
 	}
 	return sameNodes(a, b, aHoisted, bHoisted)
@@ -673,7 +674,7 @@ func (r registry) topAt(td ir.TypeDef, depth int) bool {
 		if s.Base == nil || !aliasSaysNothing(s, carried) {
 			return false
 		}
-		next, ok := r.Resolve(s.Base.Target)
+		next, ok := r.resolve(s.Base.Target)
 		if !ok {
 			return false
 		}
@@ -1028,7 +1029,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
 	for range maxTypeResolveDepth {
-		td, ok := r.Resolve(id)
+		td, ok := r.resolve(id)
 		if !ok {
 			return valueKind{}, false
 		}
@@ -1065,7 +1066,7 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 func (r registry) admits(ref ir.TypeRef, v ir.Value) bool { return r.admitsAt(ref, v, 0) }
 
 func (r registry) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
-	td, ok := r.Resolve(ref.Target)
+	td, ok := r.resolve(ref.Target)
 	if !ok || depth > maxJudgeDepth {
 		return false
 	}

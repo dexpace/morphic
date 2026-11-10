@@ -97,7 +97,7 @@ func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Point
 // version, as load reports the key below 3.2 (diag.LaterVersionConstruct).
 func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
 	description, read, diags := annotation.TakeString(u, d.media.GetRootNode(), "description", nil,
-		d.ctx.ProvenanceAt, d.pointer, "")
+		d.ctx.Place(), d.pointer, "")
 	docs := ir.Docs{Description: description}
 	if d.use != nil {
 		docs = resolve.UseDocs[soa.MediaType](d.use, docs)
@@ -136,7 +136,7 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
 	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
-	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.ProvenanceAt, mediaPtr)
+	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.Place(), mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
@@ -145,7 +145,7 @@ func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) 
 	content.Docs = docs
 	diags = append(diags, docDiags...)
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, taken...)...)
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

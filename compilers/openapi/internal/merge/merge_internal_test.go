@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -46,63 +47,91 @@ func declaring(id ir.TypeID) *ir.Model {
 	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: string(id)}}}
 }
 
-// judge is the type judgment over the registry g reads.
-func judge(g *Merger) typeJudge {
-	return typeJudge{Resolve: g.Resolve, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
+// judge is the type judgment over the registry g reads, its declarations read
+// against one base.
+func judge(g *stubbed) typeJudge {
+	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.walk}}
 }
 
-// untypedAt is Merger.Untyped for a registry whose nodes written under
-// /untyped state no instance type.
+// untypedAt is Walk.Untyped for a registry whose nodes written under /untyped
+// state no instance type.
 func untypedAt(p ir.Provenance) bool { return strings.HasPrefix(string(p.Pointer), "/untyped/") }
 
-// stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
-// with no lowerer, parser or document in the setup, so the conflict lattice can
-// be driven directly.
-func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
-	recorded := &[]ir.Diagnostic{}
-	g := &Merger{
-		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Mint: func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
-			common := node.Common()
-			common.ID = composedAt(pointer)
-			reg[common.ID] = node
-			return common.ID
-		},
-		Interned: func(jsontext.Pointer) bool { return false },
-		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },
-		Alike:    alwaysAlike,
-		Untyped:  untypedAt,
-		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
-		},
-	}
-	return g, recorded
+// stubbed is a Merger over a plain map and a stub walk, which records what its
+// folds report, so the conflict lattice can be driven with no lowerer, parser
+// or document in the setup. Its positions are placed in source 0.
+type stubbed struct {
+	Merger
+	walk     *stubWalk
+	recorded *[]ir.Diagnostic
 }
 
-// alwaysAlike is Merger.Alike for declarations all read against one base.
-func alwaysAlike(ir.Provenance, ir.Provenance) bool { return true }
+// fold is Merger.fold, recording what it reports.
+func (s *stubbed) fold(decls []declaration) ir.Property {
+	merged, diags := s.Merger.fold(decls)
+	*s.recorded = append(*s.recorded, diags...)
+	return merged
+}
+
+// stubMerger returns a stubbed Merger over reg, and what its folds report.
+func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*stubbed, *[]ir.Diagnostic) {
+	walk := &stubWalk{reg: reg}
+	recorded := &[]ir.Diagnostic{}
+	return &stubbed{Reg: reg, Walk: walk, walk: walk, recorded: recorded}, recorded
+}
+
+// stubWalk is the walk a test folds under. Mint registers a node in reg under
+// composedAt's ID and counts it in minted, Interned answers for the schemas
+// interned lists, Alike reads every two sites against one base unless apart
+// says they are read apart, and Untyped is untypedAt.
+type stubWalk struct {
+	reg      map[ir.TypeID]ir.TypeDef
+	interned []jsontext.Pointer
+	apart    bool
+	minted   int
+}
+
+// Mint is Walk.Mint.
+func (w *stubWalk) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+	common := node.Common()
+	common.ID = composedAt(pointer)
+	w.reg[common.ID] = node
+	w.minted++
+	return common.ID
+}
+
+// Interned is Walk.Interned.
+func (w *stubWalk) Interned(pointer jsontext.Pointer) bool {
+	return slices.Contains(w.interned, pointer)
+}
+
+// Alike is Walk.Alike.
+func (w *stubWalk) Alike(ir.Provenance, ir.Provenance) bool { return !w.apart }
+
+// Untyped is Walk.Untyped.
+func (w *stubWalk) Untyped(at ir.Provenance) bool { return untypedAt(at) }
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.
 func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
 
+// mintedProp is the ID a field the declaration at pointer names takes where
+// another model carries its first declaration (identify).
+func mintedProp(pointer jsontext.Pointer) ir.PropID { return ids.Document{}.ComposedProp(pointer) }
+
 // foldTwo folds src, rendered by source, into dst, a first declaration with
 // no source recorded: the pair the walk hands over for one redeclared field.
-func foldTwo(g *Merger, dst, src ir.Property, source Source) ir.Property {
+func foldTwo(g *stubbed, dst, src ir.Property, source Source) ir.Property {
 	return g.fold([]declaration{{prop: dst}, {prop: src, source: source}})
 }
 
 // indexOver returns an index filling m, and settle, which folds what the index
-// queued through g, as Finish takes the compiler's completions once every
-// lowering has returned.
-func indexOver(m *ir.Model, g *Merger) (idx *PropIndex, settle func()) {
-	var queued []Settle
-	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
+// queued through g, recording what they report, as Finish takes the compiler's
+// completions once every lowering has returned.
+func indexOver(m *ir.Model, g *stubbed) (idx *PropIndex, settle func()) {
+	idx = NewPropIndex(m)
 	return idx, func() {
-		for _, s := range queued {
-			s(g)
-		}
-		queued = nil
+		*g.recorded = append(*g.recorded, idx.Fold(g.Merger)...)
 	}
 }
 
@@ -114,29 +143,34 @@ func indexOver(m *ir.Model, g *Merger) (idx *PropIndex, settle func()) {
 func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	t.Parallel()
 	reg := ir.TypeRegistry{"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString}}
-	var queued []Settle
 	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
+	idx := NewPropIndex(m)
 
 	w := func(at string) ir.Property {
 		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
 	}
-	idx.MergeProperty(redeclared("t/str", "0"), written(`{"type":"string"}`), "")
-	idx.MergeProperty(w("0"), unread(t), "")
-	idx.MergeProperty(redeclared("t/uri", "1"), unread(t), "")
-	idx.MergeProperty(w("1"), unread(t), "")
-	idx.MergeProperty(redeclared("t/bool", "2"), written(`{"type":"boolean"}`), "")
+	firsts := make([]bool, 0, 5)
+	for _, d := range []struct {
+		prop   ir.Property
+		source Source
+	}{
+		{redeclared("t/str", "0"), written(`{"type":"string"}`)}, {w("0"), unread(t)},
+		{redeclared("t/uri", "1"), unread(t)}, {w("1"), unread(t)},
+		{redeclared("t/bool", "2"), written(`{"type":"boolean"}`)},
+	} {
+		firsts = append(firsts, idx.MergeProperty(d.prop, d.source, ""))
+	}
 
-	require.Len(t, queued, 1, "one settlement per model, however many fields are redeclared")
+	assert.Equal(t, []bool{false, false, true, false, false}, firsts,
+		"one settlement per model, at its first redeclaration, however many fields are redeclared")
 	require.Len(t, m.Properties, 2, "a redeclaration adds no property")
 	assert.Equal(t, ir.TypeID("t/str"), m.Properties[0].Type.Target, "nothing is folded before the settlement runs")
 	assert.Empty(t, m.Properties[0].Unmodeled)
 
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
-	g, recorded := stubMerger(reg)
-	queued[0](g)
-	settled := *recorded
+	g, _ := stubMerger(reg)
+	settled := idx.Fold(g.Merger)
 
 	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")
@@ -154,10 +188,11 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	t.Parallel()
 	m := &ir.Model{ID: "t/m"}
-	idx := NewPropIndex(m, func(Settle) { t.Fatal("a model with no redeclaration queues no fold") })
+	idx := NewPropIndex(m)
 
-	idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), "")
-	idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t), "")
+	assert.False(t, idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), ""))
+	assert.False(t, idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t), ""),
+		"a model with no redeclaration queues no fold")
 
 	require.Len(t, m.Properties, 2)
 	assert.Equal(t, "a", m.Properties[0].WireName)

@@ -34,7 +34,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	schemes := auth.RegistryOf(c, declared)
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
-		Provenance: c.ProvenanceAt(""),
+		Provenance: c.Place().At(""),
 	}
 	if info := c.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
@@ -50,7 +50,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	// lowers to no node — its entries become operations. The service is the
 	// nearest node holding an Unmodeled map, so they are kept there under the
 	// keyword they were written at.
-	pathsExt, pathsDiags := annotation.ExtensionsUnder(c.Doc.GetPaths().GetExtensions(), c.ProvenanceAt, ids.Ptr("paths"), "paths")
+	pathsExt, pathsDiags := annotation.ExtensionsUnder(c.Doc.GetPaths().GetExtensions(), c.Place(), ids.Ptr("paths"), "paths")
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
@@ -151,7 +151,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	// heuristic marker is filled in below, once every lowering that can add one
 	// has run: the grouping choice is known here, but the streaming reading is
 	// not known until the payloads are lowered.
-	opProv := c.ProvenanceAt(decl)
+	opProv := c.Place().At(decl)
 	opAuth, diags := w.schemes.Requirements(c, src.Security, decl)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
@@ -223,7 +223,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 // more response.
 func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
-	ext, diags := annotation.ExtensionsAt(c.ProvenanceAt,
+	ext, diags := annotation.ExtensionsAt(c.Place(),
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
 		annotation.ExtensionSite{Scope: "externalDocs", Owner: docsPtr,
 			Ext: src.GetExternalDocs().GetExtensions()},
@@ -231,9 +231,9 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 			Ext: src.GetResponses().GetExtensions()},
 	)
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.Place(), decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
-		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
+		src.GetExternalDocs(), c.Place(), docsPtr, "externalDocs")...)
 }
 
 // operationName builds an operation's neutral naming: the operationId when

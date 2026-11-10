@@ -527,9 +527,7 @@ func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
 			s := schemaFromYAML(t, tc.schema)
 			assert.Equal(t, tc.want, WritesUnknownKeyword(s))
 			var kept ir.Unmodeled
-			UnknownKeywordsIn(&kept, s, "/s", func(p jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
-				return ir.Provenance{Pointer: p}
-			})
+			UnknownKeywordsIn(&kept, s, "/s", sourced(0))
 			assert.Equal(t, tc.want, len(kept) > 0)
 		})
 	}

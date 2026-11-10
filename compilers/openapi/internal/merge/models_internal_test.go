@@ -122,8 +122,8 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		{"two copies whose catch-alls differ", "t/copy0-open", "t/copy1-open-other", relUnrelated},
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
-			j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
-				alike: alwaysAlike, written: [2]ir.Provenance{ptrAt(declaredAt(i)), ptrAt(declaredAt(1 - i))}}}
+			j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+				walk: &stubWalk{}, written: [2]ir.Provenance{ptrAt(declaredAt(i)), ptrAt(declaredAt(1 - i))}}}
 			want := tc.want
 			if i == 1 {
 				want = want.flipped()
@@ -141,14 +141,14 @@ func TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase(t *testing.T) {
 	t.Parallel()
 	reg := alikeRegistry()
 	for _, tc := range []struct {
-		alike func(a, b ir.Provenance) bool
+		apart bool
 		want  relation
 	}{
-		{alwaysAlike, relSame},
-		{func(ir.Provenance, ir.Provenance) bool { return false }, relUnrelated},
+		{false, relSame},
+		{true, relUnrelated},
 	} {
-		j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
-			alike: tc.alike, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
+		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+			walk: &stubWalk{apart: tc.apart}, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
 		assert.Equal(t, tc.want, j.relate(ref("t/copy0-ref"), ref("t/copy1-ref")))
 	}
 }
@@ -203,8 +203,8 @@ func TestTypeJudge_ModelPairsStopAtTheirBudget(t *testing.T) {
 			}
 			reg[outer.ID] = outer
 		}
-		j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{
-			alike: alwaysAlike, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
+		j := typeJudge{resolve: stubResolve(reg), sites: declarationSites{
+			walk: &stubWalk{}, written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}}}
 
 		want := relSame
 		if nested == maxModelPairs {
@@ -237,12 +237,12 @@ func TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth(t *testing
 	}
 	reads := 0
 	j := typeJudge{
-		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+		resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
 			reads++
 			td, ok := reg[id]
 			return td, ok
 		},
-		sites: declarationSites{written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}, alike: alwaysAlike},
+		sites: declarationSites{written: [2]ir.Provenance{ptrAt(declaredAt(0)), ptrAt(declaredAt(1))}, walk: &stubWalk{}},
 	}
 
 	rel := j.relate(ref("t/0/0"), ref("t/1/0"))

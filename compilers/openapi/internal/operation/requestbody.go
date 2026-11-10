@@ -48,10 +48,10 @@ func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBindi
 	payload.Required = new(rb.GetRequired())
 	// soa.RequestBody exposes no GetExtensions at this library version, so the
 	// field is read directly — as annotation.XMLHints already reads its own.
-	bodyExt, bodyExtDiags := annotation.ExtensionsFrom(rb.Extensions, dc.ProvenanceAt, bodyPtr)
+	bodyExt, bodyExtDiags := annotation.ExtensionsFrom(rb.Extensions, dc.Place(), bodyPtr)
 	payload.Unmodeled = annotation.MergeUnmodeled(payload.Unmodeled, bodyExt)
 	diags = append(diags, bodyExtDiags...)
-	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.ProvenanceAt, bodyPtr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&payload.Unmodeled, rb, dc.Place(), bodyPtr)...)
 	op.Request = payload
 	hb.RequestContentTypes = contentTypeKeys(rb.GetContent())
 	return diags

@@ -28,15 +28,15 @@ func TestPointerAmplification_RefusesPastTheAllowanceAndNotAtIt(t *testing.T) {
 	const pointers, written = 41*435 + 41*465 + 41*30, 30 + 30*41 + 2
 	require.Equal(t, pointers, idx.PointerBytes())
 	require.Equal(t, written, idx.Written())
-	locate := InSource(0)
-	_, refused := pointerAmplificationWithin(locate, idx, idx.PointerBytes())
+	whole := ir.Provenance{Source: 3}
+	_, refused := pointerAmplificationWithin(whole, idx, idx.PointerBytes())
 	assert.False(t, refused, "a document at its allowance is admitted")
 
-	d, refused := pointerAmplificationWithin(locate, idx, idx.PointerBytes()-1)
+	d, refused := pointerAmplificationWithin(whole, idx, idx.PointerBytes()-1)
 	require.True(t, refused)
 	assert.Equal(t, diag.PointerAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
-	assert.Equal(t, locate(nil), d.Provenance)
+	assert.Equal(t, whole, d.Provenance, "a finding about the whole document")
 	assert.Equal(t, fmt.Sprintf("the JSON pointers naming the document's nodes total %d bytes, "+
 		"past the %d-byte allowance for the %d bytes it writes", pointers, pointers-1, written), d.Message)
 }
@@ -53,7 +53,7 @@ func TestPointerAmplification_ReadsTheRatioAndItsFloor(t *testing.T) {
 
 	deep := indexOf(t, []byte(nested("k", MaxNesting)+"\n"))
 	require.Greater(t, deep.PointerBytes(), maxPointerAmplification*deep.Written(), "the ratio alone would refuse it")
-	_, refused := PointerAmplification(InSource(0), deep)
+	_, refused := PointerAmplification(ir.Provenance{}, deep)
 	assert.False(t, refused, "the floor admits a small document nested to the bound")
 }
 
@@ -64,6 +64,6 @@ func TestPointerAmplification_LeavesARecursiveAnchorToItsOwnRefusal(t *testing.T
 	t.Parallel()
 	idx := indexOf(t, []byte("x: &a "+strings.Repeat("{k: ", 3)+"*a"+strings.Repeat("}", 3)+"\n"))
 	require.NotEmpty(t, idx.AnchorCycles())
-	_, refused := pointerAmplificationWithin(InSource(0), idx, 0)
+	_, refused := pointerAmplificationWithin(ir.Provenance{}, idx, 0)
 	assert.False(t, refused)
 }

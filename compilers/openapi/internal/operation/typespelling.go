@@ -114,7 +114,7 @@ func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr j
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	pointer := at + ids.Ptr(passed)
 	kept, diags := annotation.PreserveNodeInto(u, "openapi:"+passed,
-		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+		nodeview.Child(root, passed), ir.ReasonDegradedLowering, c.Place().At(pointer))
 	if !kept {
 		return diags
 	}
@@ -162,7 +162,7 @@ func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, 
 	for _, entry := range passed {
 		pointer := at + ids.Ptr("content", entry.Key)
 		ok, keptDiags := annotation.PreserveNodeInto(&entries, "openapi:"+c.IDs().Coordinate(pointer),
-			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+			entry.Val, ir.ReasonDegradedLowering, c.Place().At(pointer))
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, entry.Key)
@@ -208,13 +208,13 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
 	var unmodeled ir.Unmodeled
-	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.ProvenanceAt, mediaPtr, scope)
+	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.Place(), mediaPtr, scope)
 	unmodeled = annotation.MergeUnmodeled(unmodeled, ext)
 	diags = append(diags, extDiags...)
 	for _, field := range contentOnlyFields(media) {
 		at := mediaPtr + ids.Ptr(field.keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(&unmodeled,
-			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			annotation.EntryKey(scope, field.keyword), field.node, ir.ReasonNoIRHome, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -228,7 +228,7 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
 	return examples, unmodeled,
-		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope, taken...)...)
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.Place(), mediaPtr, scope, taken...)...)
 }
 
 // keepContentDocs keeps verbatim what documents a parameter's or header's
@@ -258,7 +258,7 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 		}
 		at := h.at + ids.Ptr(key)
 		kept, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, key), node,
-			ir.ReasonNoIRHome, h.c.ProvenanceAt(at))
+			ir.ReasonNoIRHome, h.c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, h.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,

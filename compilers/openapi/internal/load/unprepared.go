@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -172,13 +173,13 @@ func (r *externalReads) charge(key string) error {
 
 // exhausted reports the document budget crossed, once, at the source: which
 // documents fell past it follows the walk's order.
-func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
+func (r *externalReads) exhausted(place provenance.Doc) []ir.Diagnostic {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.documents.Exhausted() {
 		return nil
 	}
-	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, place.At(""),
 		"external references name more documents than the %d-document budget; "+
 			"the $refs into the rest are reported unresolved", r.documents.Limit().Cap())}
 }
@@ -435,8 +436,8 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media
 	// Modelled again, since the first models hold what the first pass resolved.
 	// Their faults are the first models', reported already. The pass holds the
 	// media types it modelled (resolution.media).
-	sibs, _ = modelSiblings(ctx, again, nowhere)
-	media, _ = modelMediaTypes(ctx, again, nowhere)
+	sibs, _ = modelSiblings(ctx, again, nowhere())
+	media, _ = modelMediaTypes(ctx, again, nowhere())
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
 	pass = resolveWith(ctx, again, sibs, media, self, opts, &reader)
@@ -489,8 +490,8 @@ func unready(ctx context.Context, root *yaml.Node) bool {
 }
 
 // stillUnprepared reports each document the second resolution found
-// unprepared, once, at the first reference that read it, placed by place.
-func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) []ir.Diagnostic {
+// unprepared, once, at the first reference that read it, placed by sites.
+func stillUnprepared(sites places, missed []usedDocument) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	reported := map[string]bool{}
 	for _, m := range missed {
@@ -498,7 +499,7 @@ func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) [
 			continue
 		}
 		reported[m.key] = true
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, sites.site(m.site),
 			"internal: the second resolution read %s itself; "+
 				"anchored entries, dates and `<<` values in it may be misread (GitHub #538)", m.key))
 	}

@@ -45,7 +45,7 @@ func (g *Merger) judgePosition(decls []declaration, ms []member, depth int) posi
 		}
 	}
 	p.winner = p.widestCone()
-	p.conjuncts = p.composition(registry{g.Resolve})
+	p.conjuncts = p.composition(registry{g.resolve})
 	return p
 }
 
@@ -113,6 +113,6 @@ func (p position) null(reg registry, cone func(k int) bool, depth int) ir.TypeRe
 // targetsTop reports whether ref, a member's type at depth, targets the
 // schemaless top type as the judgment reads one (registry.topAt).
 func targetsTop(reg registry, ref ir.TypeRef, depth int) bool {
-	td, ok := reg.Resolve(ref.Target)
+	td, ok := reg.resolve(ref.Target)
 	return ok && reg.topAt(td, depth)
 }

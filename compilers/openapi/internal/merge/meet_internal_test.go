@@ -432,7 +432,7 @@ func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
 	reg["t/A-rest-tuple"] = &ir.Tuple{ID: "t/A-rest-tuple", Anonymous: true, Provenance: ptrAt(declaredAt(1)),
 		Elems: []ir.TypeRef{ref("t/A")}, Rest: new(ref("t/A"))}
 	g, _ := stubMerger(reg)
-	f := newFolding(g, declsOf("t/A", "t/B"), declaredAt(1))
+	f := newFolding(&g.Merger, declsOf("t/A", "t/B"), declaredAt(1))
 	m := func(id ir.TypeID, decl int) member { return member{ref: ref(id), decl: decl} }
 	for _, tc := range []struct {
 		name          string

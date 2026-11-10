@@ -28,7 +28,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -210,7 +210,6 @@ func TestTargetOf(t *testing.T) {
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
-	place := func(p bind.Position) ir.Provenance { return ir.Provenance{Source: int(p.Doc) + 10, Pointer: p.Pointer} }
 	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
 	written := map[bind.Position]*yaml.Node{
 		{Pointer: "/x-lib/E"}:                         {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
@@ -235,7 +234,7 @@ func TestBuiltTargets(t *testing.T) {
 			Reached: true}, Schema: buildRaw(t, "false")},
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"},
 			Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true}, Schema: buildRaw(t, "false")},
-	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
+	}, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
 		func(p bind.Position) *yaml.Node { return written[p] })
 
 	require.Len(t, got, 5)
@@ -249,12 +248,9 @@ func TestBuiltTargets(t *testing.T) {
 	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/B"}, got[1].home, "read where it lands, in that document")
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource)
-	assert.Nil(t, got[1].place, "a $ref the source writes is placed as the source's")
-	assert.Equal(t, jsontext.Pointer("/u"), got[2].site)
-	require.NotNil(t, got[2].place, "a $ref only another document writes")
-	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
-	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
-	assert.Empty(t, got[1].siteDoc)
+	assert.Equal(t, refSite{pointer: "/t"}, got[1].at(), "a $ref the source writes is placed as the source's")
+	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/u"}, got[2].at(),
+		"a $ref only another document writes is placed, and ordered, by that document's name")
 }
 
 // TestWrittenIn_ReadsTheNodeAtAPosition pins what writtenIn reads at a
@@ -351,8 +347,8 @@ func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
 		}
 	}
 
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil,
-		newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()}))
+	diags := checkReached(t.Context(), places{}, items, nil,
+		newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()}))
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.Validation, diags[0].Code)
@@ -413,16 +409,16 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	targets := map[objectKey]reachedTarget{
 		{node: node.Content[0], kind: oas.Parameter}: {site: "/x", kind: oas.Parameter, node: node.Content[0], doc: "other.yaml"},
 	}
-	at := pointerAt(0, overlay.Origin{})
+	sites := places{}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	stopped := newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()})
-	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
+	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.Empty(t, stopped.checkAll(cancelled, sites, targets))
 	assert.Empty(t, stopped.spans, "no target was charged")
 
-	live := newReached(doc, Options{}, sourceTree{}, judgment{checker: oas.NewChecker()})
-	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
+	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.NotEmpty(t, live.checkAll(t.Context(), sites, targets), "a parameter with no `in` is found wanting")
 	assert.NotEmpty(t, live.spans)
 }
 
