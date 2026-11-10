@@ -393,7 +393,7 @@ func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, 
 	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs, media), media, built)
 }
 
-// restoreFault reports the fault restore ended on, at the model it ended place,
+// restoreFault reports the fault restore ended on, at the model it ended at,
 // and nothing for no fault. It is no spec problem: the library faulted reading
 // its own models.
 func restoreFault(place provenance.Doc, site jsontext.Pointer, err error) []ir.Diagnostic {

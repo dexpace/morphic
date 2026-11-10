@@ -21,9 +21,11 @@ type Attribution struct {
 	// downwards: a cloned subtree contributes each of its own nodes, so a lookup
 	// is one map hit rather than a walk up the pointer's prefixes.
 	pointers map[jsontext.Pointer]bool
-	// nodes holds the same positions keyed by the node that sits at each. A
-	// finding raised on a raw node has the node and not the pointer, and a
-	// grafted node carries no line and column of its own (GitHub #476).
+	// nodes holds the same positions keyed by the node that sits at each: the
+	// value the walk attributed, and the key beside it when the overlay
+	// introduced that too. A finding raised on a raw node has the node and not
+	// the pointer, and a grafted node carries no line and column of its own,
+	// since the library's clone keeps neither (GitHub #476).
 	nodes map[*yaml.Node]jsontext.Pointer
 }
 

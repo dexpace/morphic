@@ -547,7 +547,7 @@ func resolutionTrail(model any) trail {
 }
 
 // chain is every record a reference's resolution holds, first hop first, and
-// the reference it stopped place, if it stopped at one, with the hop that holds
+// the reference it stopped at, if it stopped at one, with the hop that holds
 // it. cut marks a chain followed only as far as maxResolutionHops.
 type chain struct {
 	records []record
