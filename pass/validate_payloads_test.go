@@ -431,6 +431,40 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 	}
 }
 
+// TestValidate_MessagePayloadDiagnosticsAreDeterministic pins invariant 7 for
+// the messages map, whose keys Go ranges in randomized order: forEachPayload
+// sorts them before any payload site reaches a check. Each check that reads
+// payloads through it has a row, so one that ranged the messages itself would
+// redden its own.
+func TestValidate_MessagePayloadDiagnosticsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	doc.Messages = map[ir.MessageID]ir.Message{}
+	for _, id := range []ir.MessageID{"msg/z", "msg/b", "msg/q", "msg/c", "msg/m"} {
+		doc.Messages[id] = ir.Message{ID: id, Payload: ir.Payload{Required: new(true), Contents: []ir.Content{{
+			MediaType: "multipart/form-data",
+			Type:      ir.TypeRef{Target: "t/m"},
+			Encoding:  map[ir.PropID]ir.PartEncoding{"p/m/none": {}},
+		}}}}
+	}
+	cases := []struct{ name, code, at string }{
+		{name: "checkPayloadRequired", code: "ir/payload-required-outside-request"},
+		{name: "checkEncodingKeys", code: "ir/encoding-key-unknown-property", at: "/contents/0/encoding/p/m/none"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			want := pointers(withCode(validated(t, doc), tc.code))
+			require.Equal(t, []string{
+				"msg/b" + tc.at, "msg/c" + tc.at, "msg/m" + tc.at, "msg/q" + tc.at, "msg/z" + tc.at,
+			}, want)
+			for range 8 {
+				assert.Equal(t, want, pointers(withCode(validated(t, doc), tc.code)))
+			}
+		})
+	}
+}
+
 // payloadType is the node whose carriers TestEncodingCarriers_NameEveryPayloadFieldInTheIR
 // enumerates.
 var payloadType = reflect.TypeFor[ir.Payload]()

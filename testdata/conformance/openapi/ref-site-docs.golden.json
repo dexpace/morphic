@@ -204,7 +204,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/widgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1widgets/get/parameters/limit/query",
@@ -219,6 +218,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -341,7 +341,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/gadgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1gadgets/get/parameters/limit/query",
@@ -353,6 +352,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -510,7 +510,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/sprockets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1sprockets/post/parameters/limit/query",
@@ -525,6 +524,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

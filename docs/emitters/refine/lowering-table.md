@@ -24,10 +24,12 @@ IR bug (INV9), not a compiler change.
 | `Model` whose `Base` is no model, not a decorator | — |
 | `AdditionalProps` / `Additional` | pattern channel |
 | `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
-| `Enum` open/closed/flags | member `WireName`; each member's JSON kind, compared by value ([a member on the wire](enums.md#a-member-on-the-wire)) |
+| `Enum` open/closed/flags | member `WireName`; each member's wire form, compared as JSON compares values ([a member on the wire](enums.md#a-member-on-the-wire)) |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |
 | `External` | — |
+| `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](redaction.md)) | the value on the wire, untouched |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../operations/stability.md)) | — |
 | `Visibility` sets | — |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | — |
 | `Constraints` | numeric bounds as decimal |

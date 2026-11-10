@@ -88,8 +88,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/subscribe",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "callbacks": [
                       {
                         "name": "onEvent",
@@ -98,7 +96,9 @@
                           "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -142,9 +142,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "inbound": "callback"
+                    "checksumRequired": false
                   }
                 ]
               },

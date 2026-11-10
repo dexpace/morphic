@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -242,21 +243,41 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 // TestJudgeSource_RefusesTheAnchorsNoReferenceCanName holds the table's grammar
 // for an anchor's name to the binder's, which reads a $ref's plain-name
-// fragment: the table refuses a $anchor exactly where a $ref to its name
-// resolves to nothing.
+// fragment, in each dialect that declares one: the table refuses a $anchor, or
+// an identifier naming a fragment alone, exactly where a $ref to its name
+// resolves to nothing, and that is where the dialect's grammar refuses the
+// name: 2020-12's admits a leading '_' and no ':', the plain names of 2019-09's
+// `$anchor` and of drafts 6 and 7 the reverse. Draft 4 states no grammar, so
+// its `id` refuses none and each name resolves.
 func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
-		spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
-			"    A: {$anchor: '" + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
-		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
-		require.NoError(t, err)
-		refused, unresolved := false, false
-		for _, d := range diags {
-			refused = refused || d.Provenance.Pointer == "/components/schemas/A/$anchor"
-			unresolved = unresolved || d.Code == diag.UnresolvedRef
+	plain := "_a 1a -a .a _ a/b é"
+	for _, d := range []struct{ dialect, keyword, prefix, refuses string }{
+		{"", "$anchor", "", "1a -a .a a:b a/b é"},
+		{"https://json-schema.org/draft/2019-09/schema", "$anchor", "", plain},
+		{"http://json-schema.org/draft-07/schema#", "$id", "#", plain},
+		{"http://json-schema.org/draft-06/schema#", "$id", "#", plain},
+		{draft04, "id", "#", ""},
+	} {
+		for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: '" + d.dialect + "'\n" +
+				"paths: {}\ncomponents:\n  schemas:\n" +
+				"    A: {" + d.keyword + ": '" + d.prefix + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
+			if d.dialect == "" {
+				spec = strings.Replace(spec, "jsonSchemaDialect: ''\n", "", 1)
+			}
+			_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
+			require.NoError(t, err)
+			refused, unresolved := false, false
+			for _, g := range diags {
+				refused = refused || g.Provenance.Pointer == jsontext.Pointer("/components/schemas/A/"+d.keyword) &&
+					g.Severity == ir.SeverityError
+				unresolved = unresolved || g.Code == diag.UnresolvedRef
+			}
+			want := slices.Contains(strings.Fields(d.refuses), name)
+			assert.Equal(t, want, refused, "%s %q in %q: %+v", d.keyword, name, d.dialect, diags)
+			assert.Equal(t, want, unresolved, "a $ref to %s %q in %q: %+v", d.keyword, name, d.dialect, diags)
 		}
-		assert.Equal(t, unresolved, refused, "%q: %+v", name, diags)
 	}
 }
 

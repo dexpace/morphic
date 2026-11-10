@@ -60,7 +60,8 @@ type Operation struct {
 	Servers []ServerID `json:"servers,omitempty"`
 	// Auth overrides the service default; an empty slice differs from nil (empty
 	// = explicitly public). omitzero keeps the two apart on the wire: nil is an
-	// absent key and inherits, an empty slice is written as [].
+	// absent key and inherits, save on an inbound operation, which inherits none
+	// (docs/ir/auth.md#inbound-operations); an empty slice is written as [].
 	Auth []AuthRequirement `json:"auth,omitzero"`
 	// Tags are the operation's tag memberships.
 	Tags []string `json:"tags,omitempty"`
@@ -90,8 +91,9 @@ type Operation struct {
 // arguments (Property.Args) reuse this shape.
 type Parameter struct {
 	// ID identifies the parameter within the document. The bindings, the
-	// pagination inputs and the idempotency token name a parameter by it, not by
-	// its name, which two locations of one operation may share.
+	// pagination inputs, the inputs selecting a stream and the idempotency token
+	// name a parameter by it, not by its name, which two locations of one
+	// operation may share.
 	ID ParamID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
@@ -204,6 +206,14 @@ type Content struct {
 // item (docs/ir/payloads.md). TypeSpec tuple-form multipart lowers to a
 // synthesized model whose properties are the parts.
 type PartEncoding struct {
+	// Explode overrides the default explode behavior; nil = default.
+	Explode *bool `json:"explode,omitzero"`
+	// Style is the form-style serialization for non-file parts.
+	Style string `json:"style,omitempty"`
+	// Inferred lists the heuristics that read Filename in, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares the part a file. It is set only where Filename is.
+	Inferred Inferred `json:"inferred,omitempty"`
 	// ContentTypes are the media type(s) of this part.
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
@@ -212,10 +222,6 @@ type PartEncoding struct {
 	Multi bool `json:"multi"`
 	// Filename reports that the part carries a filename (file part).
 	Filename bool `json:"filename"`
-	// Style is the form-style serialization for non-file parts.
-	Style string `json:"style,omitempty"`
-	// Explode overrides the default explode behavior; nil = default.
-	Explode *bool `json:"explode,omitzero"`
 	// AllowReserved permits reserved characters unescaped in the part's value,
 	// as HTTPParamBinding.AllowReserved does in a parameter's.
 	AllowReserved bool `json:"allowReserved"`
@@ -238,6 +244,10 @@ type FileInfo struct {
 	FilenameLocation string `json:"filenameLocation,omitempty"`
 	// FilenameWireName is the wire name when FilenameLocation is path/header.
 	FilenameWireName string `json:"filenameWireName,omitempty"`
+	// Inferred lists the heuristics that read the body as a file, as
+	// [Provenance].Inferred does on a node that has one; empty means the
+	// source declares it one.
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // Response is one declared output of an Operation (docs/ir/responses.md). All
@@ -369,13 +379,14 @@ type StreamDetail struct {
 	// length up front (Smithy @requiresLength) — changes the generated parameter
 	// type.
 	RequiresLength bool `json:"requiresLength"`
-	// Terminator is the frame data that ends the stream, verbatim, a sentinel
-	// that is no element and must not be decoded as one (an SSE `data: [DONE]`);
-	// nil = the stream ends with its connection.
+	// Terminator is the frame data that ends the stream, verbatim and never
+	// empty, a sentinel that is no element and must not be decoded as one (an
+	// SSE `data: [DONE]`); nil = the stream ends with its connection.
 	Terminator *string `json:"terminator,omitzero"`
 	// Condition is the request input whose value asks for this stream, where an
-	// operation streams only when asked and otherwise returns its non-streaming
-	// contents (a body's `stream: true`); nil = it always streams.
+	// operation streams only when asked and otherwise sends or returns this
+	// side's non-streaming contents (a body's `stream: true`); nil = it always
+	// streams.
 	Condition *StreamCondition `json:"condition,omitzero"`
 }
 
@@ -482,7 +493,7 @@ type Pagination struct {
 	// InputCursor is the input that continues iteration, a parameter or a
 	// request-body field.
 	InputCursor *InputPath `json:"inputCursor,omitzero"`
-	// InputLimit is the page-size input.
+	// InputLimit is the page-size input, a parameter or a request-body field.
 	InputLimit *InputPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
 	Items *PropPath `json:"items,omitzero"`
@@ -500,8 +511,8 @@ type Pagination struct {
 	TotalCount *PropPath `json:"totalCount,omitzero"`
 	// TotalPages is the page-count source in the response, counting pages.
 	TotalPages *PropPath `json:"totalPages,omitzero"`
-	// Stop lists when iteration ends, any one ending it; empty = the source
-	// states no rule, which a consumer does not guess.
+	// Stop lists when iteration ends, each once, any one ending it; empty = the
+	// source states no rule, which a consumer does not guess.
 	Stop []PageStop `json:"stop,omitempty"`
 }
 
@@ -524,6 +535,19 @@ const (
 	PageStopTotal PageStop = "total"
 )
 
+// Valid reports whether s is one of the conditions declared above. PageStop is
+// a bare string enum, so nothing rejects an invented one on the wire, and a
+// consumer ending its loop has no arm for it; irverify calls this so such a
+// value is reported rather than ignored.
+func (s PageStop) Valid() bool {
+	switch s {
+	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal:
+		return true
+	default:
+		return false
+	}
+}
+
 // PropPath addresses a member within a type by identity, not by name
 // (docs/ir/interaction-patterns.md).
 type PropPath struct {
@@ -543,7 +567,7 @@ type PropPath struct {
 // (docs/ir/interaction-patterns.md).
 type InputPath struct {
 	// Param is the ID of the parameter the path roots in; nil = the request
-	// body, which Segments then walk into.
+	// body, which Segments then walk into, of an operation that sends one.
 	Param *ParamID `json:"param,omitzero"`
 	// Segments are the ordered property IDs walked from the parameter or the
 	// body; no entry is empty, and a path into the body has one at least.

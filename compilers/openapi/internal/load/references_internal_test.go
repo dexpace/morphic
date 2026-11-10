@@ -759,7 +759,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		if diag.HasError(refusals(t.Context(), scan.InSource(0), root, Options{})) {
 			continue // a pre-parse refusal fixture: never reaches a resolver
 		}
-		releaseAnchors(t.Context(), root)
+		readyForModel(t.Context(), root)
 		doc1, err := unmarshal(t.Context(), data, root)
 		if err != nil {
 			continue
@@ -770,7 +770,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 
 		root2, _, err := decodeStream(t.Context(), data)
 		require.NoError(t, err, path)
-		releaseAnchors(t.Context(), root2)
+		readyForModel(t.Context(), root2)
 		doc2, err := unmarshal(t.Context(), data, root2)
 		require.NoError(t, err, path)
 

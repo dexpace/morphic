@@ -112,7 +112,8 @@ const (
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
 	// NoResourceTarget is a pointer that names no node of the schema resource
-	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	// an identifier names, which it is read from; Hop.Detail is the resource's
+	// URI.
 	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
@@ -122,13 +123,14 @@ const (
 	// only load words a failure by it, as a schema's NotSchema is worded.
 	NotObject
 	// NoAnchor is a plain-name fragment no schema of the resource it names
-	// declares as its $anchor or $dynamicAnchor.
+	// declares as its $anchor, its $dynamicAnchor or, in a draft before
+	// 2019-09, an identifier naming that fragment alone (DialectRule.Fragments).
 	NoAnchor
 	// DuplicateAnchor is a plain-name fragment two or more schemas of the
 	// resource it names declare, so it names none.
 	DuplicateAnchor
-	// DuplicateID is a URI two or more schemas declare as their $id, so it
-	// names none; Hop.Detail is the URI.
+	// DuplicateID is a URI two or more schemas declare as their identifier, a
+	// $id or draft 4's id, so it names none; Hop.Detail is the URI.
 	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
@@ -138,10 +140,10 @@ const (
 	// for.
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
-	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own, whose root the pointer
-	// is then read from (resources.holding), as OAS 3.1 reads one with none
-	// against the document.
+	// for, which the schema writing it defines: its own definitions answer only
+	// where an identifier makes it a resource of its own, whose root the
+	// pointer is then read from (resources.holding), as OAS 3.1 reads one with
+	// none against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -183,10 +185,10 @@ const (
 // Hop is where the $ref written at a position lands: the next position of its
 // chain, or why there is none.
 type Hop struct {
+	// Target is the position the hop lands on.
+	Target Position
 	// Ref is the $ref as written.
-	Ref    string
-	Status Status
-	Reason Reason
+	Ref string
 	// Detail is a read error, for Unreadable, a parse error, for Unparsable,
 	// and the URI named, for NoResourceTarget and DuplicateID.
 	Detail string
@@ -194,25 +196,28 @@ type Hop struct {
 	// BesideRef.
 	Use jsontext.Pointer
 	Key string
-	// Target is the position the hop lands on, and Role what it reads there.
-	Target Position
-	Role   Role
-	// Named reports whether the $ref names the source, and Spelled is then the
-	// pointer it spells from the source's root: where the lowering places what
-	// it names, though a reference object it passes may carry Target into
-	// another document.
-	Named   bool
+	// Spelled is, when Named, the pointer the $ref spells from the source's
+	// root: where the lowering places what it names, though a reference object
+	// it passes may carry Target into another document.
 	Spelled jsontext.Pointer
+	// Status is how the hop ended, and Reason why, when it is Unresolved.
+	Status Status
+	Reason Reason
+	// Role is what the hop reads at Target.
+	Role Role
+	// Named reports whether the $ref names the source.
+	Named bool
 }
 
 // Chain is where a reference's chain of $refs ends: following each hop until a
 // position holds no $ref.
 type Chain struct {
-	Status Status
 	// End is the position the chain ends on, when Resolved; Hops counts the
 	// $refs read to reach it.
 	End  Position
 	Hops int
+	// Status is how the chain ended.
+	Status Status
 	// Member reports, when Cyclic, whether the position itself lies on a loop
 	// rather than leading into one.
 	Member bool
@@ -232,12 +237,13 @@ type Loop struct {
 	Site    Position
 }
 
-// Landing is a position some hop reads as a schema though the parser's model
+// Landing is a position the table reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
-// source, or a node of another document, whose Name it is in. Site is the
-// least position whose chain reaches it, a $ref's, a mapping value's or an
-// expanding $dynamicRef's, in whichever document; Reached is false when none
-// does, as where the budget cut the reading.
+// source, or a node of another document, whose Name it is in, that some hop
+// reads, or a tuple's entry or rest, which the model has no member for. Site
+// is the least position whose chain reaches it, a $ref's, a mapping value's or
+// an expanding $dynamicRef's, in whichever document, or the schema writing the
+// tuple; Reached is false when none does, as where the budget cut the reading.
 type Landing struct {
 	At      Position
 	Name    string
@@ -269,12 +275,14 @@ func (h Hop) Why() string {
 	case NotObject:
 		return "it names a position that holds no " + h.Detail
 	case NoAnchor:
-		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+		return "no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor " +
+			"or, in a draft before 2019-09, an identifier naming that fragment alone"
 	case DuplicateAnchor:
-		return "two or more schemas of the resource it names declare that name as their $anchor or " +
-			"$dynamicAnchor, so it names none of them"
+		return "two or more schemas of the resource it names declare that name as their $anchor, their " +
+			"$dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone, so it " +
+			"names none of them"
 	case DuplicateID:
-		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
+		return "two or more schemas declare " + h.Detail + " as their identifier, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:
@@ -282,7 +290,7 @@ func (h Hop) Why() string {
 			"holds one by that name"
 	case OwnDefinition:
 		return "the schema writing it defines that name, but a schema's own definitions answer a " +
-			"\"#/$defs/...\" pointer only where an $id makes it a resource of its own, and neither the " +
+			"\"#/$defs/...\" pointer only where an identifier makes it a resource of its own, and neither the " +
 			"document's root nor a schema of the model above it holds one"
 	case RawDefinition:
 		return "raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no " +

@@ -174,7 +174,9 @@ func assertNullabilityConjunction(t *testing.T, doc *ir.Document, _ []ir.Diagnos
 	assert.False(t, props["viaAllOfBoth"].Type.Nullable,
 		"one conjunct forbidding null decides the conjunction")
 
-	for _, name := range []string{"WrapNullableScalar", "WrapNullableModel", "WrapBoth"} {
+	_, isModel := doc.Types[componentID("WrapNullableScalar")].(*ir.Model)
+	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
+	for _, name := range []string{"WrapNullableModel", "WrapBoth"} {
 		wrap, isModel := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, isModel, "%s composes as a model", name)
 		if wrap.Base != nil {

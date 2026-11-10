@@ -88,8 +88,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "callbacks": [
                       {
                         "name": "onEvent",
@@ -98,7 +96,9 @@
                           "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -139,9 +139,9 @@
                   {
                     "method": "PURGE",
                     "uriTemplate": "{$request.body#/callbackUrl}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "inbound": "callback"
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -194,10 +194,10 @@
                   {
                     "method": "QUERY",
                     "uriTemplate": "/index",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -331,10 +331,10 @@
                 "http": [
                   {
                     "method": "FLUSH",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "inbound": "webhook",
-                    "webhookName": "cacheFlushed"
+                    "webhookName": "cacheFlushed",
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

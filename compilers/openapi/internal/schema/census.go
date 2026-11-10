@@ -21,8 +21,9 @@ import (
 
 // censusKeywords are the keywords whose IR home depends on what the position
 // lowered to: a Model's properties, a Model's or MapT's catch-all, a List's
-// element type and bounds, a Literal's value, an Enum's members, a Model's or
-// Union's discriminator. keywordHome asks the built node which a position kept.
+// element type and bounds, a Tuple's rest, a Literal's value, an Enum's
+// members, a Model's or Union's discriminator. keywordHome asks the built node
+// which a position kept.
 //
 // Annotations, validation-only and use-site keywords, content vocabulary and
 // value constraints have their own keepers.
@@ -32,7 +33,7 @@ import (
 // is dropped in silence (GitHub #268, #283).
 // oneOf/anyOf/allOf stay out; see refSiteUnhomedKeywords (GitHub #406).
 var censusKeywords = []string{
-	"additionalProperties", "const", "discriminator", "enum", "format", "items",
+	"additionalItems", "additionalProperties", "const", "discriminator", "enum", "format", "items",
 	"maxItems", "minItems", "patternProperties", "prefixItems", "properties",
 	"required", "type", "uniqueItems",
 }
@@ -60,12 +61,18 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		return isKind(td, ir.KindModel) || (isKind(td, ir.KindMap) && len(s.GetRequired()) == 0)
 	case "items", "prefixItems":
 		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+	case "additionalItems":
+		// The rest of a tuple a list of items writes, as the drafts spell one, so
+		// a Tuple homes it as `items` beside `prefixItems`. Beside an `items` that
+		// is no list it is the rest of nothing, which the unknown keywords' keeper
+		// keeps (PreserveUnknownKeywords).
+		_, listed := listedItems(s)
+		return isKind(td, ir.KindTuple) || !listed
 	case "maxItems", "minItems", "uniqueItems":
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
-			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
+		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -118,8 +125,9 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // hoisted for it carries it in Encoding; a (type, format) pairing
 // spelling.Lookup knows selects a primitive, which carries the pairing in the
 // primitive kind itself, as an Enum's ValueType does where enumValueType took
-// it. With no type declared there was no pairing to make and nothing read it,
-// and a node of any other kind has no Encoding field at all.
+// it, or one narrower where another conjunct narrowed it (typeValueSet). With
+// no type declared there was no pairing to make and nothing read it, and a node
+// of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
@@ -134,10 +142,10 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 		return len(effectiveTypes(s)) > 0
 	case *ir.Enum:
 		prim, paired := formatPrimitive(s)
-		return paired && n.ValueType == prim
+		return paired && narrowsOrIs(n.ValueType, prim)
 	case *ir.Literal:
 		prim, paired := formatPrimitive(s)
-		return paired && n.ValueType == prim
+		return paired && narrowsOrIs(n.ValueType, prim)
 	default:
 		return false
 	}
@@ -173,9 +181,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	if len(types) == 0 {
 		return true
 	}
+
 	if len(types) > 1 {
 		return false
 	}
+
 	switch lit.Value.Kind {
 	case ir.ValueObject:
 		return types[0] == oas3.SchemaTypeObject
@@ -187,9 +197,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	default:
 		return false
 	}
+
 	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
 		return true
 	}
+
 	prim, known := spelling.Lookup(string(types[0]))
 	return known && prim == lit.ValueType
 }
@@ -218,6 +230,11 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	default:
 		return false
 	}
+}
+
+// holdsCollectionBounds reports whether td is a node collectionConstraints fills.
+func holdsCollectionBounds(td ir.TypeDef) bool {
+	return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 }
 
 // constraintsHome reports whether the value constraints a position declared

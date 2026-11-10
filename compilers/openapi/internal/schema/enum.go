@@ -197,22 +197,20 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, node values
 
 // literalValueType picks a Literal's ValueType as enumValueType picks an
 // Enum's, for its one value: the primitive the declared type and format
-// select, else the declared type's, where the value is one of it; else the
-// primitive the value's own kind declares, and none for a null, a list or an
-// object, which no primitive types.
+// select, else the declared type's, where the value is one of it (declaredPrim);
+// else the primitive the value's own kind declares, and none for a null, a list
+// or an object, which no primitive types. A refinement's principal is typed by
+// every conjunct after (typeValueSet).
 func literalValueType(s *oas3.Schema, val ir.Value) ir.PrimKind {
-	if prim, paired := formatPrimitive(s); paired && merge.Admits(prim, val) {
+	if prim, ok := declaredPrim(s, func(p ir.PrimKind) bool { return merge.Admits(p, val) }); ok {
 		return prim
 	}
-	if types := effectiveTypes(s); len(types) == 1 {
-		if prim, known := spelling.Lookup(string(types[0])); known && merge.Admits(prim, val) {
-			return prim
-		}
-	}
+
 	prim, _, scalar := enumMemberForm(val)
 	if !scalar {
 		return ""
 	}
+
 	return prim
 }
 

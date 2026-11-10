@@ -291,17 +291,20 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 
 // variantHint is the hint the union variant for the branch b written at vptr,
 // which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// written inline and t is a decorator (ir.Decorated) over the $ref b's allOf
-// names, when it is the name that $ref suggests (lowering.NameThrough), as a
-// branch holding it would be named. 3.0 annotates a branch only by wrapping
-// its $ref, so `{allOf: [{$ref: X}], description: …}` names its variant as
-// 3.1's `{$ref: X, description: …}` does (GitHub #1018). The node t keeps the
-// branch's own: a decorator collapses into its reference wherever it is used.
+// inline and refines the $ref its allOf names, or t is a decorator (ir.Decorated)
+// over it, when it is the name the $ref suggests (lowering.NameThrough). 3.0
+// annotates a branch only by wrapping its $ref, so `{allOf: [{$ref: X}],
+// description: …}` names its variant as 3.1's `{$ref: X, description: …}` does
+// (GitHub #1018). The node t keeps the branch's own: a decorator collapses into
+// its reference wherever it is used.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
 	if s == nil || isRefBranch(b) {
 		return own
+	}
+	if r, refines := refinementOf(c, s, vptr); refines && r.ref != nil {
+		return cmp.Or(lowering.NameThrough(c, r.ref.pointer), own)
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
@@ -420,7 +423,7 @@ const (
 // docs/compilers/openapi.md#union-beside-structure enumerates this and the
 // other residual shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
-	if !unionBranchesDeclareShape(s) {
+	if !unionBranchesDeclareShape(c, s) {
 		return unionValidationOnly
 	}
 	if !composesAsModel(s) {
@@ -439,30 +442,6 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 		return unionDiscriminated
 	}
 	return unionDistributed
-}
-
-// unionBranchesDeclareShape reports whether any oneOf/anyOf branch contributes
-// data shape. When none does — `oneOf: [{required: [a]}, {required: [b]}]`, the
-// commonest instance — the union narrows what the sibling body accepts without
-// changing it, which is dependentRequired's job description: validation logic,
-// not shape (docs/ir/boundaries.md#validation-only-constructs).
-func unionBranchesDeclareShape(s *oas3.Schema) bool {
-	return slices.ContainsFunc(s.GetOneOf(), branchDeclaresShape) ||
-		slices.ContainsFunc(s.GetAnyOf(), branchDeclaresShape)
-}
-
-// branchDeclaresShape reports whether one union branch declares data shape. A
-// $ref always does; a bare `type: null` never does, since it contributes only
-// the enclosing reference's Nullable bit.
-func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if isRefBranch(b) {
-		return true
-	}
-	s := b.GetSchema()
-	if s == nil {
-		return false // a boolean branch declares no shape of its own
-	}
-	return declaresShape(s) || len(s.GetOneOf())+len(s.GetAnyOf()) > 0
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,
@@ -637,7 +616,8 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, comp: allOfBranches(s, pointer), id: common.ID}
+		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
+		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)
@@ -717,14 +697,14 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // (GitHub #407). Each variant carries a copy, since a bound on the schema
 // constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	idx := propIndex(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, idx, body.comp)...)
 	diags = append(diags, fillModelProperties(c, ts, depth, idx, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.GetRequired(), body.comp))
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
-	diags = append(diags, applyFalseBranches(c, m, body.comp)...)
+	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
 	conjoinBranch(m, branch)
 	// The tag is the enclosing schema's: it is what a base's mapping names, and
 	// the variants are its lowering. No discriminator of its own can be declared

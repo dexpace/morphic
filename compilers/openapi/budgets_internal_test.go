@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
@@ -170,7 +171,8 @@ func TestCompile_NegativeBudgetIsUnbounded(t *testing.T) {
 	t.Parallel()
 	const members = 5
 	doc, diags := compileBounded(t, enumSpec(members),
-		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1, MaxAliasSurplus: -1, MaxExternalDocuments: -1})
+		Limits{MaxSourceBytes: -1, MaxSourceNodes: -1, MaxEnumMembers: -1, MaxAliasSurplus: -1, MaxExternalDocuments: -1,
+			MaxReferenceExpansion: -1})
 
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -252,9 +254,9 @@ func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	resolved := func(l Limits) []budget.Limit {
 		o := Options{Limits: l}.withDefaults()
 		phase := loadOptions(o, nil, src)
-		enum := loweringCtx(&load.Document{}, o).Limits.MaxEnumMembers
-		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, enum, phase.MaxAliasSurplus,
-			phase.MaxExternalDocuments}
+		lowered := loweringCtx(&load.Document{Doc: &soa.OpenAPI{}}, o).Limits
+		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.MaxEnumMembers,
+			phase.MaxAliasSurplus, phase.MaxExternalDocuments, lowered.MaxReferenceExpansion}
 	}
 	tests := []struct {
 		name string
@@ -264,11 +266,13 @@ func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 		{"the zero value takes every default", Limits{}, []budget.Limit{
 			budget.AtMost(DefaultMaxSourceBytes), budget.AtMost(DefaultMaxSourceNodes),
 			budget.AtMost(DefaultMaxEnumMembers), budget.AtMost(DefaultMaxAliasSurplus),
-			budget.AtMost(DefaultMaxExternalDocuments)}},
-		{"a set budget is kept", Limits{11, 12, 13, 14, 15}, []budget.Limit{
-			budget.AtMost(11), budget.AtMost(12), budget.AtMost(13), budget.AtMost(14), budget.AtMost(15)}},
-		{"a negative budget is the caller asking for none", Limits{-1, -2, -3, -4, -5}, []budget.Limit{
-			budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded()}},
+			budget.AtMost(DefaultMaxExternalDocuments), budget.AtMost(DefaultMaxReferenceExpansion)}},
+		{"a set budget is kept", Limits{11, 12, 13, 14, 15, 16}, []budget.Limit{
+			budget.AtMost(11), budget.AtMost(12), budget.AtMost(13), budget.AtMost(14), budget.AtMost(15),
+			budget.AtMost(16)}},
+		{"a negative budget is the caller asking for none", Limits{-1, -2, -3, -4, -5, -6}, []budget.Limit{
+			budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded(), budget.Unbounded(),
+			budget.Unbounded()}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -382,7 +386,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(ctx, lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
+			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), compile.NewTypes())
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")

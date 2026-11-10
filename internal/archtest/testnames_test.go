@@ -117,8 +117,9 @@ func declaredTests(root string) (map[string]map[string]bool, error) {
 			return
 		}
 		pkg := strings.TrimSuffix(f.Name.Name, "_test")
+		testingNames := importNames(f)["testing"]
 		for _, decl := range f.Decls {
-			if fn, ok := decl.(*ast.FuncDecl); ok && takesTestingT(fn) {
+			if fn, ok := decl.(*ast.FuncDecl); ok && takesTestingT(fn, testingNames) {
 				if out[fn.Name.Name] == nil {
 					out[fn.Name.Name] = map[string]bool{}
 				}
@@ -129,8 +130,10 @@ func declaredTests(root string) (map[string]map[string]bool, error) {
 	return out, err
 }
 
-// takesTestingT reports whether fn is a test function: TestName(t *testing.T).
-func takesTestingT(fn *ast.FuncDecl) bool {
+// takesTestingT reports whether fn is a test function: TestName(t *testing.T),
+// with testing written as one of testingNames, the names its file imports the
+// package under.
+func takesTestingT(fn *ast.FuncDecl, testingNames []string) bool {
 	if fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "Test") || fn.Type.Params.NumFields() != 1 {
 		return false
 	}
@@ -143,13 +146,15 @@ func takesTestingT(fn *ast.FuncDecl) bool {
 		return false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
-	return ok && pkg.Name == "testing" && sel.Sel.Name == "T"
+	return ok && slices.Contains(testingNames, pkg.Name) && sel.Sel.Name == "T"
 }
 
 // TestTestNameProblems_ReportsANameNoTestDeclares plants names in Markdown a
 // test declares, a family prefix, a subtest, a placeholder, a name inside a
 // longer span, and names nothing declares, in a document and under testdata,
 // each bare and qualified by its package, the wrong one and one no file has.
+// A test file imports testing under another name, and one imports a package
+// that only shares testing's name.
 func TestTestNameProblems_ReportsANameNoTestDeclares(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -159,6 +164,18 @@ func TestTestNameProblems_ReportsANameNoTestDeclares(t *testing.T) {
 	writeDocFile(t, filepath.Join(root, "a", "b.go"), "package a\n\nfunc TestNotATest(t *testing.T) {}\n")
 	writeDocFile(t, filepath.Join(root, "b", "b_test.go"),
 		"package b_test\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) {}\n")
+	writeDocFile(t, filepath.Join(root, "c", "c_test.go"), `package c
+
+import (
+	tst "testing"
+
+	"example.com/testing"
+)
+
+func TestAliased(t *tst.T) {}
+
+func TestImpostor(t *testing.T) {}
+`)
 	writeDocFile(t, filepath.Join(root, "GUIDE.md"), "Run `TestReal`, `TestFamily`, `TestReal/sub` and\n"+
 		"`TestFunc_Scenario`; `go test -run TestGone` is a command.\n`TestGone` and `TestHelper` and `TestNotATest`.\n"+
 		"`a.TestReal`, `a.TestFamily`, `b.TestOther/sub` and `package.TestName`.\n"+
@@ -172,7 +189,9 @@ func TestTestNameProblems_ReportsANameNoTestDeclares(t *testing.T) {
 		"TestReal":       {"a": true},
 		"TestFamily_One": {"a": true},
 		"TestOther":      {"b": true},
-	}, declared, "a test is recorded under its package, an external test package's under the package it tests")
+		"TestAliased":    {"c": true},
+	}, declared, "a test is recorded under its package, an external test package's under the package it tests, "+
+		"and testing is read under the name its file imports it as")
 
 	problems, named, err := testNameProblems(root, declared)
 	require.NoError(t, err)

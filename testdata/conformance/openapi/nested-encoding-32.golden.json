@@ -136,10 +136,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

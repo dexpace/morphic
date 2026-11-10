@@ -109,6 +109,14 @@ const (
 	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
 	// $id must be (JSON Schema 2020-12 §8.2.1).
 	ResourceURI
+	// PlainName is a plain name as JSON Schema drafts 6, 7 and 2019-09 write
+	// one: a letter, then letters, digits, '-', '_', ':' and '.'
+	// (draft-handrews-json-schema-02 §8.2.3).
+	PlainName
+	// PlainNameURI is a URI reference whose fragment, where it is written alone
+	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
+	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
+	PlainNameURI
 )
 
 // Level is how firmly the specification states a rule.
@@ -122,12 +130,49 @@ const (
 )
 
 // Cite is the sentence of a specification text a row comes from. Sentence is
-// a verbatim fragment of the text of Minor, under the heading Section.
+// a verbatim fragment of that text under the heading Section: OpenAPI's at
+// Minor, or, where Text names it, another specification's, such as a JSON
+// Schema draft whose dialect a Schema Object can declare.
 type Cite struct {
-	Minor    Minor
 	Section  string
 	Sentence string
+	Minor    Minor
+	Text     Text
 }
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts the keywords of the JSON
+// Schema drafts come from, the dialects a Schema Object can be read in beside
+// its minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, draft 4's core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, draft 4's
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text draft 4's $ref comes from.
+	TextJSONReference03
+	// TextDraft06Core is draft-wright-json-schema-01, draft 6's core text.
+	TextDraft06Core
+	// TextDraft06Validation is draft-wright-json-schema-validation-01, draft
+	// 6's validation text.
+	TextDraft06Validation
+	// TextDraft07Core is draft-handrews-json-schema-01, draft 7's core text.
+	TextDraft07Core
+	// TextDraft07Validation is draft-handrews-json-schema-validation-01, draft
+	// 7's validation text.
+	TextDraft07Validation
+	// TextDraft2019Core is draft-handrews-json-schema-02, 2019-09's core text.
+	TextDraft2019Core
+	// TextDraft2019Validation is draft-handrews-json-schema-validation-02,
+	// 2019-09's validation text.
+	TextDraft2019Validation
+)
 
 // Term is one condition on the object a rule judges: the sibling field Field
 // holds one of In. The field "$key" is the key the parent holds the object
@@ -151,12 +196,48 @@ type Alt struct {
 	Span  Span
 }
 
+// Default is a value the field Field takes where its object leaves it
+// unwritten, at the minors Span holds, for a value of the case Case names.
+type Default struct {
+	Field string
+	Value string
+	Cites []Cite
+	Span  Span
+	Case  DefaultCase
+}
+
+// DefaultCase is the case a Default holds in: what the value the object
+// applies to is, as the specification's table of defaults keys it.
+type DefaultCase int
+
+// The cases a Default holds in.
+const (
+	// DefaultUntyped is a value whose schema writes no type.
+	DefaultUntyped DefaultCase = 1 + iota
+)
+
 // Field is one field of an object.
 type Field struct {
-	Name  string
-	Shape Shape
-	// Of is the object kind an Object, Map or List holds.
-	Of Kind
+	Name string
+	// Owner is the package that reports the field's missing-field finding.
+	Owner string
+	// ShapeOwner is the package that reports a value of the wrong shape.
+	ShapeOwner string
+	// ListOwner is the package that judges a list written where the field
+	// holds one schema: a tuple, as a JSON Schema draft a schema names spells
+	// one, which the check, run before any schema's dialect is known, cannot
+	// tell from a mistake.
+	ListOwner string
+	// FormatOwner is the package that judges the value's format, which the
+	// dialect a schema is read in decides, as draft 7's `$id` may name a
+	// fragment that 2020-12's may not, and 2019-09's `$anchor` a colon.
+	FormatOwner string
+	// Values is the values admitted, if the field is enumerated.
+	Values []Value
+	// Alts are the other shapes the field admits.
+	Alts []Alt
+	// Cites are the sentences of the specification the field comes from.
+	Cites []Cite
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
 	Defined Span
@@ -165,21 +246,16 @@ type Field struct {
 	Required Span
 	// NonEmpty is the minors whose grammar refuses the empty string.
 	NonEmpty Span
-	// Values is the values admitted, if the field is enumerated.
-	Values []Value
-	// Alts are the other shapes the field admits.
-	Alts []Alt
+	// Shape is the form the field's value takes in the source.
+	Shape Shape
+	// Of is the object kind an Object, Map or List holds.
+	Of Kind
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// Owner is the package that reports the field's missing-field finding.
-	Owner string
-	// ShapeOwner is the package that reports a value of the wrong shape.
-	ShapeOwner string
 	// Keyword marks a JSON Schema keyword: one a later minor adds is read
 	// as the schema lowering reads it, not reported here.
 	Keyword bool
-	Cites   []Cite
 }
 
 // Pattern is a family of keys an object admits beside its fixed fields:
@@ -234,11 +310,6 @@ const (
 
 // Rule binds several fields of an object, or judges one beyond its shape.
 type Rule struct {
-	Kind  RuleKind
-	Span  Span
-	Level Level
-	// Fields is the fields an exclusion, alternative or ban names.
-	Fields []string
 	// Field is the field a conditional, count, member or unique rule judges.
 	Field string
 	// Of names the list field a Member rule reads.
@@ -247,29 +318,39 @@ type Rule struct {
 	Key string
 	// Value is the value a MustBe rule demands.
 	Value string
-	// Format is the syntax a Syntax rule demands of Field.
-	Format Format
-	// Min and Max bound a Count rule.
-	Min, Max int
-	When     []Term
 	// Scope says, for an Inapplicable rule, where the field does apply.
 	Scope string
 	// Name names the predicate of a Code rule.
 	Name string
 	// Owner is the package that already reports the rule; the engine skips it.
 	Owner string
+	// Fields is the fields an exclusion, alternative or ban names.
+	Fields []string
+	// When is the terms a conditional rule applies under: it judges only where
+	// every one holds.
+	When []Term
+	// Cites are the sentences of the specification the rule comes from.
 	Cites []Cite
+	// Min and Max bound a Count rule.
+	Min, Max int
+	// Span is the minors the rule holds at, Kind what it demands, and Level how
+	// firmly the specification states it.
+	Span  Span
+	Kind  RuleKind
+	Level Level
+	// Format is the syntax a Syntax rule demands of Field.
+	Format Format
 }
 
-// Object is one OpenAPI object: its fields, its pattern fields and its rules.
+// Object is one OpenAPI object: its fields, its pattern fields, its rules and
+// the defaults of its fields.
 type Object struct {
-	Kind Kind
 	// Name is the specification's title for the object: "Info Object".
-	Name       string
-	Fields     []Field
-	Patterned  []Pattern
-	Rules      []Rule
-	Extensible bool
+	Name      string
+	Fields    []Field
+	Patterned []Pattern
+	Rules     []Rule
+	Defaults  []Default
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
 	Referenceable Span
@@ -281,9 +362,16 @@ type Object struct {
 	// such key is a later minor's construct; empty for an object whose $ref
 	// no minor gives siblings.
 	RefSiblings Span
+	// Kind is the object's kind.
+	Kind Kind
+	// Extensible reports whether the object admits extension keys, those
+	// starting "x-".
+	Extensible bool
 }
 
-// Spec is the table: every object of the specification.
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
 type Spec struct {
 	objects []Object
 	index   map[Kind]int

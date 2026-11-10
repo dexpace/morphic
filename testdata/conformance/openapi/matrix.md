@@ -39,7 +39,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `codeclared-keywords`
+  `allof-refinement`, `codeclared-keywords`
 
 ### `negation`
 
@@ -59,11 +59,7 @@ witnessing it.
 
 ### `open-unions`
 
-- Uncovered: OpenAPI states it only through a vendor extension, and no spelling for one is common
-  enough to join the default promotion mapping, which the corpus compiles with. A spec here would
-  hold a closed union and witness nothing. `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`
-  holds the promotion under a mapping that names a key, and this retires when a spelling joins the
-  default mapping
+- Witnesses: `extension-promotion`
 
 ### `custom-scalars`
 
@@ -137,7 +133,8 @@ witnessing it.
 
 ### `multipart-encoding`
 
-- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`
+- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
+  `file-items-32`
 
 ### `per-status-errors`
 

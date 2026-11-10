@@ -201,3 +201,24 @@ func FuzzForResolver(f *testing.F) {
 		}
 	})
 }
+
+// TestAbsolute_TellsAReferenceNoBaseMoves pins what reads the same under any
+// base: a URI with a scheme of two letters or more. A relative path, a fragment
+// alone, a drive letter and text that is no URI are moved by the base, or read
+// as if they were.
+func TestAbsolute_TellsAReferenceNoBaseMoves(t *testing.T) {
+	t.Parallel()
+	for ref, want := range map[string]bool{
+		"https://ex.test/a/n.json":    true,
+		"urn:example:n":               true,
+		"file:///tmp/n.json#/$defs/a": true,
+		"n.json":                      false,
+		"../b/n.json":                 false,
+		"#/components/schemas/A":      false,
+		"/abs/n.json":                 false,
+		"c:/n.json":                   false,
+		"%zz":                         false,
+	} {
+		assert.Equal(t, want, fragment.Absolute(ref), ref)
+	}
+}

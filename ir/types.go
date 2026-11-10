@@ -173,15 +173,16 @@ func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
 }
 
 // AdditionalMode describes the openness of a model's property set beyond its
-// declared properties and AdditionalProps (docs/ir/models.md).
+// declared properties and its catch-all's patterns (docs/ir/models.md#catch-alls).
 type AdditionalMode string
 
 // Additional-property modes.
 const (
 	// AdditionalUnspecified leaves openness unspecified (open by JSON Schema default).
 	AdditionalUnspecified AdditionalMode = ""
-	// AdditionalClosed forbids properties beyond the declared set
-	// (additionalProperties: false, closed-by-construction records).
+	// AdditionalClosed forbids properties beyond the declared set and the
+	// catch-all's patterns (additionalProperties: false, closed-by-construction
+	// records).
 	AdditionalClosed AdditionalMode = "closed"
 	// AdditionalClosedAfterComposition closes the set once composition is resolved
 	// (unevaluatedProperties: false).

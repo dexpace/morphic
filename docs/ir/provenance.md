@@ -35,7 +35,10 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
 the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)). `ErrorCase`
 and `OAuthFlow` have none either, and record a promotion in an `Inferred` of their own
-([promotion](./unmodeled.md#promotion)).
+([promotion](./unmodeled.md#promotion)), as `FileInfo` and `PartEncoding` record the heuristic that
+read a body or a part as a file ([payloads](./payloads.md)): a marker on the operation's own
+`Provenance`, as a guessed stream takes, could not say which of its contents or parts the guess made
+a file.
 
 **`Source` is where, `WrittenBy` is who.** An overlay patches a document in place, so what it
 writes sits at that document's positions and is read there. Its provenance names the patched

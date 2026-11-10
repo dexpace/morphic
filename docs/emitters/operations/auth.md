@@ -7,8 +7,9 @@ IR: `Service.Auth = [ AuthRequirement{Schemes:[apiKey]} ]`;
 AuthRequirement{Schemes:[apiKey]} ]` (priority order); auth schemes in `Document.Auth`.
 
 - **plan.** `OpPlan.Auth` = the operation's options, priority-ordered (the op overrides the service
-  default). An empty option inside a non-empty list = "no auth is one acceptable choice"; an empty
-  `Operation.Auth` slice would mean "explicitly public".
+  default, which an operation the API starts does not inherit:
+  [auth](../../ir/auth.md#inbound-operations)). An empty option inside a non-empty list = "no auth
+  is one acceptable choice"; an empty `Operation.Auth` slice would mean "explicitly public".
 - **refine.** Auth *schemes* are structural IR, so refine emits an `Authenticator` interface, a
   per-scheme option type, and the request-time application code that satisfies the AND-within-option
   / OR-across-options-by-priority contract. Scope sets from `oauth2` flows reach the option types.

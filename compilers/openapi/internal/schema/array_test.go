@@ -136,8 +136,10 @@ func TestLower_ListWithoutItems(t *testing.T) {
 
 // TestLower_MissingArrayItems pins which declarations the 3.0 rule reports and
 // where. Every schema writing type array and no items is reported at its own
-// pointer, whatever it lowers to; a written items, a type that is not array, a
-// $ref site, a subschema kept verbatim and a 2020-12 document are not. Reports
+// pointer, whatever it lowers to, a $ref site's keywords included where what
+// they conjoin with holds the elements to no items, as items: true and a
+// union's branches do not; a written items, a type that is not array, a
+// subschema kept verbatim and a 2020-12 document are not. Reports
 // are counted as the lowering returns them, before compile.Diags drops
 // repeats, and each row lowers each declaration once, so a doubled report
 // reddens.
@@ -183,7 +185,32 @@ func TestLower_MissingArrayItems(t *testing.T) {
 			schemas: "    L: {type: array, items: {}}\n"},
 		{name: "array keywords without a type are silent", version: "3.0.3",
 			schemas: "    L: {minItems: 1}\n"},
-		{name: "a $ref site's sibling type is silent", version: "3.0.3",
+		{name: "a $ref site's sibling type", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n",
+			want:    []string{"/components/schemas/L"}},
+		{name: "a $ref site referenced again", version: "3.0.3",
+			schemas: holder + "        l: {$ref: '#/components/schemas/L'}\n" +
+				"    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n",
+			want: []string{"/components/schemas/L"}},
+		{name: "a $ref site over a target writing items is silent", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/X', type: array}\n    X: {type: array, items: {type: string}}\n"},
+		{name: "the same written as an allOf is silent", version: "3.0.3",
+			schemas: "    L: {allOf: [{$ref: '#/components/schemas/X'}, {type: array}]}\n" +
+				"    X: {type: array, items: {type: string}}\n"},
+		{name: "a $ref site over an alias whose end writes items is silent", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/M', type: array}\n    M: {$ref: '#/components/schemas/X'}\n" +
+				"    X: {allOf: [{type: array, items: {type: string}}]}\n"},
+		{name: "a $ref site over a union whose branches write items", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/U', type: array}\n" +
+				"    U: {oneOf: [{type: array, items: {type: string}}, {type: array, items: {type: integer}}]}\n",
+			want: []string{"/components/schemas/L"}},
+		{name: "a $ref site over items: true", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/X', type: array}\n    X: {type: array, items: true}\n",
+			want:    []string{"/components/schemas/L"}, invalid: "openapi/validation/validation-type-mismatch"},
+		{name: "a $ref site over an untyped target", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/A', type: array}\n    A: {}\n",
+			want:    []string{"/components/schemas/L"}},
+		{name: "a $ref site's sibling type in 3.1 is silent", version: "3.1.0",
 			schemas: "    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n"},
 		{name: "an array kept verbatim under not is silent", version: "3.0.3",
 			schemas: "    L: {type: integer, not: {type: array}}\n"},

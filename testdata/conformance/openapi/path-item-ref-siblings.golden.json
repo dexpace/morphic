@@ -110,7 +110,9 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
+                    "pathDocs": {
+                      "summary": "written beside the ref"
+                    },
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/beside/query",
@@ -122,10 +124,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "pathDocs": {
-                      "summary": "written beside the ref"
-                    }
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -212,7 +212,9 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
+                    "pathDocs": {
+                      "summary": "written beside the ref"
+                    },
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/put/parameters/beside/query",
@@ -224,10 +226,8 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "pathDocs": {
-                      "summary": "written beside the ref"
-                    }
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

@@ -83,7 +83,8 @@ members as a schema evolves, and is open. A `@oneOf` input object is closed, sin
 validates what a client sends. A document that marks an OpenAPI union open can only do it through
 an extension, which a promotion mapping may read into `Closed`
 ([promotion](./unmodeled.md#promotion)); no spelling is common enough for the OpenAPI compiler's
-default mapping to name one. Whether a target tolerates an unknown variant of a closed union is
+default mapping to name one, bar the key that opens an enum, which also opens the union of literals
+a mixed enum lowers to. Whether a target tolerates an unknown variant of a closed union is
 its policy, never the IR's.
 
 `InputOnly` marks a union only a request may carry, with an identity distinct from every output

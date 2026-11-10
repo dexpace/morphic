@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -151,19 +152,39 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			got, ok := SupportedMinor(tc.version)
+			got, ok := supportedMinor(tc.version)
 			assert.Equal(t, tc.want != "", ok)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
-// costs: it asks this of every schema whose null it reads, so the minor is
-// read off the version (oas.ParseMinor) and named by a constant. It is not run
-// in parallel: AllocsPerRun refuses to be.
-func TestSupportedMinor_AllocatesNothing(t *testing.T) {
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = SupportedMinor("3.1.0") }))
+// TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
+// the lowering for the source (Document.Rows): those of the minor it declares,
+// the Schema Object's and the Encoding Object's alike, in the dialect its
+// jsonSchemaDialect names.
+func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
+	t.Parallel()
+	rowsOf := func(version, rest string) Rows {
+		t.Helper()
+		doc, _, err := Load(t.Context(), 0, openapitest.SourceOf("openapi: "+version+
+			"\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+rest), Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc.Rows
+	}
+	r30, r31 := rowsOf("3.0.3", ""), rowsOf("3.1.0", "")
+	assert.True(t, r30.Schema.Defines("nullable"))
+	assert.False(t, r31.Schema.Defines("nullable"))
+	assert.True(t, r31.Schema.Defines("prefixItems"))
+	_, untyped30 := r30.Encoding.UntypedContentType()
+	_, untyped31 := r31.Encoding.UntypedContentType()
+	assert.False(t, untyped30)
+	assert.True(t, untyped31)
+	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
+	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
+	_, untyped04 := r04.Encoding.UntypedContentType()
+	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
 }
 
 // overlayHeader is the preamble every overlay document below needs.

@@ -20,17 +20,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerSecuritySchemes lowers every securitySchemes entry into the Registry
-// (docs/ir/auth.md), keyed by ids.Auth(name). Run it before the service walk so
-// requirements reference registered IDs.
+// LowerSecuritySchemes lowers every securitySchemes entry (docs/ir/auth.md),
+// keyed by ids.Auth(name): the declared schemes the service walk builds its
+// Registry from, so a requirement reaches a declared ID.
 //
 // An entry that yields no mechanism lowers all the same, keyed by
 // ids.UnresolvedAuth(name), so nothing can reach it as a declared scheme: one
 // whose $ref resolves to nothing, reported at its own components pointer (see
 // unresolvableScheme), and one naming no mechanism, reported the same way (see
 // noMechanismDiag).
-func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
-	reg := &Registry{byID: map[ir.AuthID]ir.AuthScheme{}, root: c.ProvenanceAt("")}
+func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
+	declared := map[ir.AuthID]ir.AuthScheme{}
 	var diags []ir.Diagnostic
 	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
 		scheme, schemeDiags := lowerEntry(c, name, rs)
@@ -38,9 +38,9 @@ func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
 		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](rs, scheme.Docs)
-		reg.byID[scheme.ID] = scheme
+		declared[scheme.ID] = scheme
 	}
-	return reg, diags
+	return declared, diags
 }
 
 // lowerEntry lowers the securitySchemes entry called name, as written in rs.

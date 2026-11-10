@@ -277,9 +277,10 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a false schema and a closed empty model are no longer the same node")
 }
 
-// assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
-// reads only its properties and required list, so whatever else the branch wrote
-// survives beside the composed model rather than vanishing into it (GitHub #123).
+// assertAllOfInlineResidue pins the residue of an inline allOf branch: what no
+// reader consumes survives beside the composed model rather than vanishing into
+// it (GitHub #123), and what the position reads lands as it would beside the
+// allOf (GitHub #660).
 //
 // The severity split is the point. A branch declaring a type that cannot be an
 // object contradicts the ir.Model the composition produced, so it is a warning;
@@ -292,8 +293,12 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.True(t, ok, "the inline branch still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"maxProperties":3}`,
+	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false,
+		"description":"A narrowed base.","maxProperties":3}`,
 		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
+	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")
+	require.NotNil(t, narrowed.Constraints)
+	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/allOf/1"),
 		"a branch that only narrows the model is info")
@@ -305,6 +310,15 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
 		"a branch excluding object contradicts the composed model and is a warning")
+
+	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
+	require.True(t, ok)
+	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
+		"a branch read against another base folds nothing")
+	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
+		"the outer branch, read against the position's base, folds its not")
+	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in
@@ -874,6 +888,105 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	for id := range doc.Types {
 		assert.NotContains(t, string(id), "example.com",
 			"$id is kept, and read only to resolve references: no type is keyed by the identity it declares")
+	}
+}
+
+// assertSchemaDialects pins the dialect each schema is read in
+// (docs/compilers/openapi.md#dialect-keywords): the document's
+// jsonSchemaDialect, draft 4, where a schema names none, so a boolean bound
+// modifies the bound beside it; a root's own `$schema` over it, its subschemas
+// read alike, with or without the empty fragment; a resource an $id embeds
+// naming its own; and a dialect the table has no rows for read as 3.1's own,
+// with a warning at the `$schema` naming it.
+func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	scalar := func(name string) *ir.Constraints {
+		s, ok := doc.Types[componentID(name)].(*ir.Scalar)
+		require.True(t, ok, name)
+		require.NotNil(t, s.Constraints, name)
+		return s.Constraints
+	}
+	positive := scalar("Positive")
+	assert.Nil(t, positive.Min, "the boolean moved the bound beside it")
+	assert.Equal(t, ir.BigVal("0"), *positive.ExclusiveMin)
+	assert.Equal(t, ir.BigVal("10"), *scalar("Bounded").ExclusiveMax)
+	assert.Equal(t, ir.BigVal("1"), *scalar("Custom").ExclusiveMin)
+
+	legacy, ok := doc.Types[componentID("Legacy")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, legacy.Properties, 1)
+	count := legacy.Properties[0].Constraints
+	require.NotNil(t, count)
+	assert.Nil(t, count.Max)
+	assert.Equal(t, ir.BigVal("100"), *count.ExclusiveMax)
+
+	embedding, ok := doc.Types[componentID("Embedding")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, embedding.Properties, 1)
+	inner := embedding.Properties[0].Constraints
+	require.NotNil(t, inner)
+	assert.Equal(t, ir.BigVal("3"), *inner.ExclusiveMin, "2020-12's bound, inside a document defaulting to draft 4")
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/unread-dialect", "/components/schemas/Custom/$schema"))
+	var unread int
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
+		if d.Code == "openapi/unread-dialect" {
+			unread++
+		}
+	}
+	assert.Equal(t, 1, unread, "draft 4 and 2020-12 are read")
+}
+
+// assertSchemaDrafts pins what the JSON Schema drafts before 2020-12 spell
+// otherwise, each read in the draft its schema names
+// (docs/compilers/openapi.md#dialect-keywords): a list of items as a tuple
+// whose rest is additionalItems (#tuples), as an array's items too, which
+// the parser reads as false (#whole-schema-fallbacks), draft 6's dependencies kept as
+// validation-only (#validation-only), a keyword beside draft 7's $ref warned of
+// and 2019-09's applied silently (#later-version-construct), and draft 4's `id`
+// naming a resource whose fragment ids a $ref reads, bar one beside that $ref,
+// which draft 4 ignores (#references).
+func assertSchemaDrafts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	tuple := func(name string) *ir.Tuple {
+		tp, ok := doc.Types[componentID(name)].(*ir.Tuple)
+		require.True(t, ok, "%s lowers to a tuple", name)
+		return tp
+	}
+	pair := tuple("Pair")
+	require.Len(t, pair.Elems, 2)
+	assert.Equal(t, componentID("Count"), pair.Elems[1].Target, "an entry's $ref is bound")
+	assert.Nil(t, pair.Rest, "additionalItems: false admits nothing past them")
+	pairs, ok := doc.Types[componentID("Pairs")].(*ir.List)
+	require.True(t, ok)
+	nested, ok := doc.Types[pairs.Elem.Target].(*ir.Tuple)
+	require.True(t, ok, "a tuple as an array's items, which the parser reads as false")
+	assert.Len(t, nested.Elems, 2)
+	open := tuple("Open")
+	require.Len(t, open.Elems, 1)
+	require.NotNil(t, open.Rest, "additionalItems is the rest")
+	rest, ok := doc.Types[open.Rest.Target].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, rest.Constraints)
+	assert.Equal(t, ir.BigVal("0"), *rest.Constraints.ExclusiveMin, "draft 7's exclusive bound is a number")
+
+	paired, ok := doc.Types[componentID("Paired")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonValidationOnly, paired.Unmodeled["openapi:dependencies"].Reason)
+
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Labelled/description"))
+	assert.Empty(t, diagsAt(diags, "openapi/later-version-construct", "/components/schemas/Applied/description"))
+
+	named, ok := doc.Types[componentID("Named")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, named.Properties, 2)
+	for _, p := range named.Properties {
+		assert.Equal(t, ir.TypeID("t/anon/components/schemas/Named/definitions/Leaf"), p.Type.Target,
+			"#leaf names the definition draft 4's id declares it at, an id beside the $ref aside")
+	}
+	for _, d := range diags {
+		assert.NotEqual(t, ir.SeverityError, d.Severity, d.Message)
 	}
 }
 

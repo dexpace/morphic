@@ -35,8 +35,15 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   ([optionality](#optionality)), so an absent email stays apart from an empty one. `RenderCasing`
   turns `["email"]`→`Email`, and the tag is `Tag:json:"email,omitzero"`: the name from `WireName`,
   never the identifier, and `omitzero` because an unset box written without it would send
-  `"email":null`. `password` (`Secret`) gets a redacting `String()` and is excluded from the read
-  shape. `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
+  `"email":null`. `password` is `Secret`, so `User`'s `String()`, `GoString()` and `LogValue()`
+  show it as `[REDACTED]`, as they would a member whose type is `Sensitive`
+  ([redaction](../../refine/redaction.md)), and it is excluded from the read shape. `LogValue` is
+  what `log/slog` reads: its JSON handler writes any other value as JSON, the wire form, and
+  resolves a `slog.LogValuer` only on the value it is handed, never on a list's elements, so
+  `LogValue` writes each redacted position as the marker itself. All three take a value receiver: a
+  pointer receiver's methods are not in a `User`'s method set, so `fmt` and `log/slog` would print
+  field by field a `User` held by value, as `ListUsers` yields one and a slice holds one.
+  `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
   `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
   rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
   value below the call that sets it, so a closed model would otherwise make an open model nested in
@@ -51,10 +58,11 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
 
 Go holds a struct field by value, so a cycle of struct fields is an invalid recursive type. A slice,
 a map, a pointer and an interface each break a cycle, so a list, a map, a union and a polymorphic
-base — the last two a struct holding a sealed interface ([unions](unions.md)) — already do; a model,
-a tuple's positional struct and the boxes above hold their contents by value, and do not. So a
-reference is held through a pointer when it lies on a cycle of references Go holds by value, read
-after `Base` and `Mixins` are flattened into the declarations they land in. The [shared refine
+base — the last two a struct holding a sealed interface, or a pointer per variant where the union is
+inclusive ([unions](unions.md)) — already do; a model, a tuple's positional struct and the boxes
+above hold their contents by value, and do not. So a reference is held through a pointer when it
+lies on a cycle of references Go holds by value, read after `Base` and `Mixins` are flattened into
+the declarations they land in. The [shared refine
 helper](../../refine/models.md#recursive-references) finds those cycles. The pointer stands for a
 box's state where it can: a required reference is `*T`, which `Validate` reports when nil; an
 optional or a nullable one is `*T`, nil meaning absent or null; and an optional nullable one is

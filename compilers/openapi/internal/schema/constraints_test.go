@@ -487,6 +487,152 @@ func TestCollectionBound_BesideAReferenceReachesTheCarrier(t *testing.T) {
 	}
 }
 
+// TestCollectionBound_ARefinementReachesWhatThePositionOwns pins an allOf
+// refining a $ref, which lowers to a reference as a $ref site does: a bound
+// beside the allOf reaches the alias or the carrier, and so does one on its
+// branch, as a value bound there does (GitHub #1312).
+func TestCollectionBound_ARefinementReachesWhatThePositionOwns(t *testing.T) {
+	t.Parallel()
+	const refined = "{allOf: [{$ref: '#/components/schemas/Tags'}], minItems: 1, maxItems: 3, uniqueItems: true}"
+	const onBranch = "{allOf: [{$ref: '#/components/schemas/Tags'}, {minItems: 1, maxItems: 3, uniqueItems: true}]}"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+"    S: "+refined+"\n    B: "+onBranch+"\n"+
+		"    Holder:\n      type: object\n      properties:\n        f: "+refined+"\n        onBranch: "+onBranch+"\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, withCode(diags, diag.DegradedConstruct))
+
+	for _, name := range []string{"S", "B"} {
+		alias, ok := typeByName(doc, name).(*ir.Scalar)
+		require.True(t, ok, "got %T", typeByName(doc, name))
+		assert.Equal(t, allBounds(), alias.Constraints, name)
+		assert.Empty(t, alias.Unmodeled, name)
+	}
+	for _, wire := range []string{"f", "onBranch"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, allBounds(), p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
+	}
+}
+
+// TestCollectionBound_OnABranchLandsAsItsFlatSpelling holds a bound on an
+// inline branch to the same bound written with what decides the position: a
+// type beside the allOf, an inline principal, a tuple or a type list. Each lands
+// where that one does, on the node or the carrier, and nothing is kept.
+func TestCollectionBound_OnABranchLandsAsItsFlatSpelling(t *testing.T) {
+	t.Parallel()
+	const items = "items: {type: string}"
+	for name, tc := range map[string]struct{ flat, branch string }{
+		"a type beside": {"{type: array, " + items + ", maxItems: 2}", "{type: array, " + items + ", allOf: [{maxItems: 2}]}"},
+		"an inline principal": {"{allOf: [{type: array, " + items + "}], maxItems: 2}",
+			"{allOf: [{type: array, " + items + "}, {maxItems: 2}]}"},
+		"a tuple": {"{type: array, prefixItems: [{type: string}], maxItems: 2}",
+			"{type: array, prefixItems: [{type: string}], allOf: [{maxItems: 2}]}"},
+		"a type list": {"{type: [array, string], " + items + ", maxItems: 2}",
+			"{type: [array, string], " + items + ", allOf: [{maxItems: 2}]}"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+				"    Holder:\n      type: object\n      properties:\n        flat: "+tc.flat+"\n        branch: "+tc.branch+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, withCode(diags, diag.DegradedConstruct))
+			want := &ir.Constraints{MaxItems: new(int64(2))}
+			flat, branch := statedBounds(t, doc, "flat"), statedBounds(t, doc, "branch")
+			assert.Equal(t, flat, branch)
+			assert.Contains(t, []*ir.Constraints{flat.carrier, flat.node}, want)
+			assert.Empty(t, propertyOf(t, doc, "Holder", "branch").Unmodeled)
+			assert.Empty(t, doc.Types[propertyOf(t, doc, "Holder", "branch").Type.Target].Common().Unmodeled)
+		})
+	}
+}
+
+// bounds is what a position states of its collection: on its carrier, and on
+// the collection node it lowered to, a type list's List variant included.
+type bounds struct {
+	carrier, node *ir.Constraints
+}
+
+// statedBounds reads the bounds Holder's property wire states.
+func statedBounds(t *testing.T, doc *ir.Document, wire string) bounds {
+	t.Helper()
+	p := propertyOf(t, doc, "Holder", wire)
+	out := bounds{carrier: p.Constraints}
+	td := doc.Types[p.Type.Target]
+	if u, ok := td.(*ir.Union); ok {
+		require.NotEmpty(t, u.Variants)
+		td = doc.Types[u.Variants[0].Type.Target]
+	}
+	switch n := td.(type) {
+	case *ir.List:
+		out.node = n.Constraints
+	case *ir.Tuple:
+		out.node = n.Constraints
+	default:
+		t.Fatalf("%s lowered to %T", wire, td)
+	}
+	return out
+}
+
+// TestCollectionBound_OnABranchMeetsInEveryOrder pins that the conjuncts writing
+// one collection bound agree by meeting, as value bounds do: the tightest count
+// lands, and a uniqueItems any of them writes holds.
+func TestCollectionBound_OnABranchMeetsInEveryOrder(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Tags'}"
+	a, b := "{minItems: 1, maxItems: 5}", "{minItems: 3, maxItems: 4, uniqueItems: true}"
+	want := &ir.Constraints{MinItems: new(int64(3)), MaxItems: new(int64(4)), UniqueItems: true}
+	for _, written := range []string{
+		"{allOf: [" + ref + ", " + a + ", " + b + "]}",
+		"{allOf: [" + ref + ", " + b + ", " + a + "]}",
+		"{allOf: [" + ref + ", " + a + "], minItems: 3, maxItems: 4, uniqueItems: true}",
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+			"    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		p := propertyOf(t, doc, "Holder", "f")
+		assert.Equal(t, want, p.Constraints, written)
+		assert.Empty(t, p.Unmodeled, written)
+	}
+}
+
+// TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch pins the bounds a
+// branch keeps: one ir.Constraints cannot state keeps its branch whole, and one
+// where the position has no collection to bound stays with its branch as it
+// stays beside the type, so the carrier holds none of it.
+func TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Tags'}"
+	for name, tc := range map[string]struct {
+		written, branch, report string
+		held                    *ir.Constraints
+	}{
+		"uniqueItems false": {"{allOf: [" + ref + ", {minItems: 1, uniqueItems: false}]}", "allOf/1",
+			"the branch (uniqueItems)", &ir.Constraints{MinItems: new(int64(1))}},
+		"a count past int64": {"{allOf: [" + ref + ", {minItems: 99999999999999999999}]}", "allOf/1",
+			"the branch (minItems)", nil},
+		"a string": {"{type: string, allOf: [{minItems: 1}]}", "allOf/0", "the branch (minItems)", nil},
+		"an object": {"{allOf: [{properties: {a: {type: string}}}, {minItems: 1}]}", "allOf/1",
+			"the branch (minItems)", nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+				"    Holder:\n      type: object\n      properties:\n        f: "+tc.written+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			p := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, tc.held, p.Constraints)
+			kept := p.Unmodeled
+			if m, composed := doc.Types[p.Type.Target].(*ir.Model); composed {
+				assert.Nil(t, m.Constraints)
+				kept = m.Unmodeled
+			}
+			assert.Equal(t, []string{"openapi:" + tc.branch}, unmodeledKeys(kept))
+			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+				"/components/schemas/Holder/properties/f/"+tc.branch)
+			assert.Contains(t, msg, tc.report)
+		})
+	}
+}
+
 // TestCollectionBound_ReadsThePositionNotItsTarget pins that the rule asks what
 // the position wrote and never what the $ref names, as for a value bound: a
 // bound conjoins with whatever the target admits, and reading the target would

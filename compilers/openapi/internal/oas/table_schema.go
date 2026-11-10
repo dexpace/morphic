@@ -14,9 +14,9 @@ func schemaObjects() []Object {
 // JSON Schema keywords of the dialect it declares (schemaKeywords). From 3.1
 // true and false are schemas, and a $ref is a keyword. In 3.0 a $ref makes the
 // mapping a Reference Object, whose siblings OpenAPI ignores, but the schema
-// lowering reads them as 3.1 does, so they are held to 3.0's keywords as
-// written, the $ref among them, and each is warned of as a later minor's
-// construct (RefSiblings, GitHub #871).
+// lowering applies them as 3.1 does, each read as 3.0 defines it, so they are
+// held to 3.0's keywords as written, the $ref among them, and each is warned of
+// as a later minor's construct (RefSiblings, GitHub #871).
 func schemaObject() Object {
 	c := sectioned("Schema Object")
 	own := []Field{

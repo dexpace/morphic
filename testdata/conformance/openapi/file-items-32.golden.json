@@ -1,0 +1,366 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "FileItems32",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "FileItems32",
+        "canonical": "file_items_32"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1photos/get",
+              "name": {
+                "source": "listPhotos",
+                "canonical": "list_photos"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "multipart/mixed",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "item": {
+                          "target": "t/prim/bytes",
+                          "nullable": false
+                        },
+                        "itemEncoding": {
+                          "contentTypes": [
+                            "image/png",
+                            "image/jpeg"
+                          ],
+                          "multi": true,
+                          "filename": true,
+                          "allowReserved": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/prim/bytes",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/photos",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1photos/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1attachments/get",
+              "name": {
+                "source": "listAttachments",
+                "canonical": "list_attachments"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "multipart/mixed",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "item": {
+                          "target": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+                          "nullable": false
+                        },
+                        "itemEncoding": {
+                          "multi": true,
+                          "filename": true,
+                          "allowReserved": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/attachments",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1attachments/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1thumbnails/get",
+              "name": {
+                "source": "listThumbnails",
+                "canonical": "list_thumbnails"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "multipart/mixed",
+                        "type": {
+                          "target": "t/prim/any",
+                          "nullable": false
+                        },
+                        "item": {
+                          "target": "t/prim/string",
+                          "nullable": false
+                        },
+                        "itemEncoding": {
+                          "inferred": "binary-media-type",
+                          "contentTypes": [
+                            "image/webp"
+                          ],
+                          "multi": true,
+                          "filename": true,
+                          "allowReserved": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/prim/string",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/thumbnails",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1thumbnails/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema",
+      "name": {
+        "hint": "response_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "One attachment."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1attachments/get/responses/200/content/multipart~1mixed/itemSchema"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "file-items-32.yaml",
+      "hash": "af57144aea09115fa7c713ab43222bf06336d12be43ddb230003fa225337ee61"
+    }
+  ]
+}

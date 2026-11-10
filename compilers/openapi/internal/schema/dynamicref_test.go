@@ -240,12 +240,12 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			name: "the anchor is in a resource of its own",
 			schemas: "    M: {$id: 'https://example.com/m', $dynamicAnchor: m, type: string}\n" +
 				"    A: {$dynamicRef: '#m'}\n",
-			wantWhy: `an $id at or above "/components/schemas/M"`,
+			wantWhy: `an identifier at or above "/components/schemas/M"`,
 		},
 		{
 			name:    "the reference is in a resource of its own",
 			schemas: anchor + "    A: {$id: 'https://example.com/a', $dynamicRef: '#m'}\n",
-			wantWhy: `an $id at or above "/components/schemas/A"`,
+			wantWhy: `an identifier at or above "/components/schemas/A"`,
 		},
 		{
 			// The pointer of a schema named "" ends in an empty reference token,
@@ -255,7 +255,7 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			// boundary it should have stopped at.
 			name:    `a schema named "" is still in a resource of its own`,
 			schemas: anchor + "    \"\": {$id: 'https://example.com/empty', $dynamicRef: '#m'}\n",
-			wantWhy: `an $id at or above "/components/schemas/"`,
+			wantWhy: `an identifier at or above "/components/schemas/"`,
 			at:      "t/anon/components/schemas/",
 		},
 		{
@@ -273,7 +273,7 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 			name: "an enclosing schema starts the resource",
 			schemas: anchor +
 				"    A: {$id: 'https://example.com/a', type: array, items: {$dynamicRef: '#m'}}\n",
-			wantWhy: `an $id at or above "/components/schemas/A/items"`,
+			wantWhy: `an identifier at or above "/components/schemas/A/items"`,
 			at:      "t/anon/components/schemas/A/items",
 		},
 		{

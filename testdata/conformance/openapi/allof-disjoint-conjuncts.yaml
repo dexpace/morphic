@@ -1,0 +1,37 @@
+openapi: 3.0.3
+info: {title: AllOfDisjointConjuncts, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    List: {type: array, items: {type: string}}
+    Str: {type: string}
+    Obj: {type: object, properties: {a: {type: string}}}
+    NullableStr: {type: string, nullable: true}
+    NullableObj:
+      type: object
+      nullable: true
+      properties:
+        a: {type: string}
+    # A `type` beside the allOf against a $ref conjunct: an object that is an
+    # array. Neither the branch census nor the census beside the allOf reads it.
+    OwnType:
+      allOf:
+        - {$ref: '#/components/schemas/List'}
+      type: object
+    # Two $ref conjuncts: a string that is an object.
+    TwoRefs:
+      allOf:
+        - {$ref: '#/components/schemas/Str'}
+        - {$ref: '#/components/schemas/Obj'}
+    # An inline branch against a $ref conjunct. The contradiction is reported
+    # once, at the schema, and the branch keeps its residue as an info.
+    Inline:
+      allOf:
+        - {$ref: '#/components/schemas/Obj'}
+        - {type: string}
+    # The control: both conjuncts admit null, which is a value they share, so
+    # nothing is reported.
+    SharedNull:
+      allOf:
+        - {$ref: '#/components/schemas/NullableStr'}
+        - {$ref: '#/components/schemas/NullableObj'}

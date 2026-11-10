@@ -41,13 +41,14 @@ func checkWebhookRoutes(*ir.Document) walkCheck {
 	}
 }
 
-// appendStrayRoute reports the route field b fills that its Inbound does not
-// select, or an Inbound ir does not declare. The cases exclude each other, so a
-// binding draws one at most.
+// appendStrayRoute reports an Inbound ir does not declare, or else the route
+// field b fills that its Inbound does not select. A binding draws one at most:
+// the two route fields exclude each other, and an undeclared kind selects
+// neither.
 func appendStrayRoute(vs []Violation, b ir.HTTPBinding, at ir.WalkPath) []Violation {
 	webhook := b.Inbound == ir.HTTPInboundWebhook
 	switch {
-	case b.Inbound != "" && !webhook && b.Inbound != ir.HTTPInboundCallback:
+	case !b.Inbound.Valid():
 		return append(vs, Violation{
 			Code:    "ir/unknown-http-inbound",
 			Message: "binding carries undeclared inbound kind " + strconv.Quote(string(b.Inbound)),

@@ -154,6 +154,32 @@ class LintTest(unittest.TestCase):
         self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
+    def test_a_rule_cited_from_outside_the_skills_is_held(self):
+        cited = ".claude/skills/good-skill/references/r.md"
+        missing = ".claude/skills/good-skill/references/no.md"
+        bad = f"`{cited}#gone`\n"
+        # Written in reverse of the order the findings come in, which is the tree's sorted order.
+        (self.root / "notes.txt").write_bytes(b"# \xe9 " + bad.encode())
+        write(self.root, "ir/testdata/in.md", bad)
+        write(self.root, "ir/b.go", f"package ir\n\n// Per {cited}#gone too.\n")
+        write(self.root, "docs/ir/notes.md", f"Per `{missing}#x`.\n")
+        write(self.root, "CLAUDE.md", f"See `{cited}#do-the-thing` and `{cited}#gone` on one "
+                                      f"line, not `references/r.md#gone`.\nAnd `{cited}#gone` on "
+                                      "the next.\n")
+        write(self.root, ".golangci.yml", f"# {bad}")
+        write(self.root, ".claude/agents/a.md", bad)
+        (self.root / "bin.dat").write_bytes(b"\0" + bad.encode())
+        self.assertEqual(self.lint()[1], [
+            f".claude/agents/a.md:1: {cited} holds no rule gone",
+            f".golangci.yml:1: {cited} holds no rule gone",
+            f"CLAUDE.md:1: {cited} holds no rule gone",
+            f"CLAUDE.md:2: {cited} holds no rule gone",
+            f"docs/ir/notes.md:1: {missing} does not exist",
+            f"ir/b.go:3: {cited} holds no rule gone",
+            f"ir/testdata/in.md:1: {cited} holds no rule gone",
+            f"notes.txt:1: {cited} holds no rule gone",
+        ])
+
     def test_a_span_path_is_held_whatever_its_first_segment(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each span below names no repository path, by its form or by its first segment.
@@ -168,6 +194,43 @@ class LintTest(unittest.TestCase):
         n = GOOD_SKILL.count("\n") + 2
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_pattern_or_a_ref_in_a_span_names_no_path(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each holds a "/" in a form no repository path takes: a pattern, a ref or a refspec.
+        spans = ("`grep -E 'testify|go-cmp|golang.org/x/tools'`, `sed 's/^a/b/'`, "
+                 "`grep 'a\\/b'`, `refs/remotes/origin/main`, "
+                 "`git fetch <url> main:refs/remotes/origin/main`, "
+                 "`git restore --worktree :/`, `git grep -n x -- :(top)gone/d.go`, "
+                 "`curl localhost:8080/v1/x`, "
+                 "`gone/a.go:12`, `gone/b.go:12:5`, `gone/c.go:3-4`, `ir/a.go:1:2`, `ir/a.go:1-2`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: gone/a.go:12 does not exist",
+                                          f"{skill}:{n}: gone/b.go:12:5 does not exist",
+                                          f"{skill}:{n}: gone/c.go:3-4 does not exist"])
+
+    def test_a_rule_cited_by_its_key_alone_is_reported(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill,
+              GOOD_SKILL + "Cite `#do-the-thing` or `#gate`, not `#N`, `#1234` or `#`; prose cites "
+              "#in-prose and a command `see #in-a-command`, but not C#, issue #12, a/#path or "
+              "[a heading](../../../docs/plan.md#a-heading).\n")
+        write(self.root, "docs/plan.md", "# A heading\n")
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n}: cites #{key} by its key alone: cite references/<file>.md#{key}"
+                for key in ("do-the-thing", "gate", "in-prose", "in-a-command")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_repository_script_is_found_beside_the_skills_own(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        script(self.root, "scripts/fuzz.sh", "true\n")
+        # The skill and the repository both hold scripts/tool.py, which is no finding.
+        script(self.root, "scripts/tool.py", "true\n")
+        write(self.root, skill, GOOD_SKILL + "Run `scripts/fuzz.sh`, `./scripts/./fuzz.sh`, "
+              "`scripts/tool.py`, `scripts/../scripts/test_tool.py` and `scripts/none.sh`.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: scripts/none.sh does not exist"])
 
     def test_a_path_the_tree_lacks_may_name_the_go_toolchains_sources(self):
         skill = ".claude/skills/good-skill/SKILL.md"
@@ -220,6 +283,17 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
+    def test_a_word_opening_with_a_variable_names_no_path_bar_goroot(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each expands to a place outside the tree, so none is held to it; $GOROOT alone still is.
+        spans = ("Then `ls \"$PWD/ir\"`, `ls $PWD/gone`, `ls $D/ir`, `cat $OUT/x.log`, "
+                 "`ls \"$HOME/x\"`, `ls ${PWD}/ir`, `ls '$TMP/y'`, `ls $GOROOT_FINAL/gone` and "
+                 "`$WORK/z`, but not "
+                 "`cat $GOROOT/src/gone.go`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: GOROOT/src/gone.go does not exist"])
+
     def test_a_go_name_placed_in_a_file_is_held_to_its_declarations(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, "ir/b.go", "package ir\n\n// Mentioned is named, as is type Buried.\n"
@@ -269,7 +343,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL
               + "Ignored: `docs/plan.md`, `go run ./cmd/morphic-local`, prose docs/plan.md, "
                 "[the plan](../../../docs/plan.md), `morphic-local`, "
-                "`references/local.md#local-rule`,\nand outside: [x](../../../../outside.md), "
+                "`references/local.md#local-rule`, `references/local.md`,\nand outside: [x](../../../../outside.md), "
                 "but `ir/./a.go` is in the tree.\n")
         n = GOOD_SKILL.count("\n") + 1
         lost = "is ignored by git, so no clone holds it"
@@ -277,6 +351,7 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: docs/plan.md {lost}",
                 f"{skill}:{n}: link target ../../../docs/plan.md {lost}",
                 f"{skill}:{n}: no skill or command named morphic-local",
+                f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n}: references/local.md {lost}",
                 f"{skill}:{n + 1}: link target ../../../../outside.md does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
@@ -496,6 +571,50 @@ class ArgumentsTest(unittest.TestCase):
                     skills_lint.main(argv)
                 self.assertEqual(e.exception.code, 2)
                 lint.assert_not_called()
+
+    def test_a_tree_with_no_repository_is_told_how_to_make_one(self):
+        hint = "; in a copy git archive unpacked, run git init and git add -A first\n"
+        # git's own reason leads, as a refusal inside a .git directory is no missing repository.
+        cases = (("no repository",
+                  "fatal: not a git repository (or any of the parent directories): .git\n",
+                  "fatal: not a git repository (or any of the parent directories): .git"),
+                 ("inside .git", "fatal: this operation must be run in a work tree\n",
+                  "fatal: this operation must be run in a work tree"),
+                 ("a reason over lines",
+                  "fatal: detected dubious ownership in repository at '/r'\n"
+                  "To add an exception for this directory, call:\n\n"
+                  "\tgit config --global --add safe.directory /r\n",
+                  "fatal: detected dubious ownership in repository at '/r'"),
+                 ("git said nothing", "", "git rev-parse exited 128"))
+        for name, stderr, said in cases:
+            with self.subTest(name):
+                err = io.StringIO()
+                refused = subprocess.CalledProcessError(
+                    128, ["git", "rev-parse", "--show-toplevel"], "", stderr)
+                with mock.patch.object(skills_lint, "git", side_effect=refused), \
+                        mock.patch.object(skills_lint, "findings") as lint, \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(skills_lint.main([]), 2)
+                self.assertEqual(err.getvalue(), f"skills_lint: {said}{hint}")
+                lint.assert_not_called()
+
+    def test_no_git_or_no_working_directory_is_one_line_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = Path(d) / "gone"
+            gone.mkdir()
+            cases = (("no git on PATH", d, str(gone), False),
+                     ("a removed working directory", gone, os.environ["PATH"], True))
+            for name, cwd, path, remove in cases:
+                with self.subTest(name):
+                    with contextlib.chdir(cwd), mock.patch.dict(os.environ, {"PATH": path}), \
+                            mock.patch.object(skills_lint, "findings") as lint, \
+                            contextlib.redirect_stderr(io.StringIO()) as err:
+                        if remove:
+                            gone.rmdir()
+                        code = skills_lint.main([])
+                    self.assertEqual(code, 2)
+                    self.assertRegex(err.getvalue(), r"^skills_lint: \[Errno 2\] [^\n]*\n$")
+                    lint.assert_not_called()
 
     def test_help_prints_the_usage_and_lints_nothing(self):
         out = io.StringIO()

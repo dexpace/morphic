@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
@@ -38,6 +40,33 @@ func TestLower_DepthCapExceeded(t *testing.T) {
 	assert.True(t, sawCap, "schema depth-cap diagnostic emitted")
 }
 
+// TestLower_ASchemaPastTheMendsIsTheTopType pins what the load phase leaves
+// read as false past typed.MaxMends schemas one below another, each an items
+// above a draft's list of items: the innermost left is the top type, reported
+// as a degraded-construct error at it, and every one above it is the array it
+// writes. One schema fewer lowers whole.
+func TestLower_ASchemaPastTheMendsIsTheTopType(t *testing.T) {
+	t.Parallel()
+	chain := func(depth int) string {
+		return "jsonSchemaDialect: 'http://json-schema.org/draft-07/schema#'\n" + openapitest.ComponentSpec("    C: "+
+			strings.Repeat("{type: array, items: ", depth)+"[{}]"+strings.Repeat("}", depth)+"\n")
+	}
+	past := "/components/schemas/C" + strings.Repeat("/items", typed.MaxMends+1)
+	doc, diags := LowerSpec(t, chain(typed.MaxMends+2))
+	require.NotNil(t, doc)
+	assert.Equal(t, []jsontext.Pointer{jsontext.Pointer(past)}, openapitest.PointersOf(diags, diag.DegradedConstruct),
+		"the innermost schema left false")
+	assert.False(t, openapitest.HasDiag(diags, diag.FalseSchema), "and no false the document writes")
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			assert.True(t, strings.HasSuffix(d.Message, "moving the schemas below it into a component reads them"),
+				"it says what the writer can do: %s", d.Message)
+		}
+	}
+	_, diags = LowerSpec(t, chain(typed.MaxMends+1))
+	assert.Empty(t, openapitest.PointersOf(diags, diag.DegradedConstruct), "one fewer is mended whole")
+}
+
 // TestRecordSkippedFamilies_MissingOwner drives the same invariant on the
 // keyword families the dispatch passed over. It is reached directly for the
 // reason TestRecordUnhomedKeywords_MissingOwner is: the caller hands it either
@@ -57,8 +86,8 @@ func TestRecordSkippedFamilies_MissingOwner(t *testing.T) {
 //
 // It guards the direction the default falls. Answering an unknown name from
 // another family's guard would let a familyOrder entry added without a case be
-// elected on schemas that never wrote it — and a winner lower() has no arm for
-// is dropped in silence (GitHub #35). Declaring nothing keeps such a name out
+// elected on schemas that never wrote it — and a winner lowerElected has no arm
+// for is dropped in silence (GitHub #35). Declaring nothing keeps such a name out
 // of the election entirely.
 func TestDeclaresFamily_AnUnknownNameDeclaresNothing(t *testing.T) {
 	t.Parallel()

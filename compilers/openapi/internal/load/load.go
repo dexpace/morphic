@@ -82,23 +82,54 @@ type Options struct {
 	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error)
 }
 
-// releaseAnchors clears the anchor name from every node of the model's source
-// tree, so the parser folds every entry the document writes. root must not be
-// nil.
+// readyForModel readies every node of the model's source tree, in one walk: it
+// clears each anchor's name, and tags each mistagged scalar a string. root
+// must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
-// GitHub #459). That skip is the only read of an anchor's name;
-// an alias reaches its target by a kept pointer. Run it after the pre-parse
-// refusals, which do read names. A document read through external is released
-// too (GitHub #501), and replaces the resolver's own parse on a second
-// resolution (GitHub #538).
-func releaseAnchors(ctx context.Context, root *yaml.Node) {
-	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
+// GitHub #459). That skip is the only read of a name; an alias reaches its
+// target by a kept pointer. Run it after the pre-parse refusals, which read
+// names. A document read through external is readied too (GitHub #501), and
+// replaces the resolver's own parse on a second resolution (GitHub #538).
+func readyForModel(ctx context.Context, root *yaml.Node) {
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
+	// is judged from its parent, which knows whether it is a key.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
+		for i, c := range n.Content {
+			if mistagged(n, i) {
+				c.Tag = "!!str"
+			}
+		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+}
+
+// mistagged reports whether the i-th of n's Content is a scalar the parser tags
+// as no string where YAML 1.2, which OpenAPI recommends, reads the string it
+// spells: a date, a timestamp to the parser
+// (docs/parser-library.md#scalar-resolution), or a `<<` anywhere but a
+// mapping's key, the one place it merges, written with no tag or YAML's
+// non-specific `!`. The model decodes no string from either, so a field so
+// written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
+// #1280).
+//
+// A scalar under any other tag keeps it: what that reads as is GitHub #245's
+// and #1368's to settle.
+func mistagged(n *yaml.Node, i int) bool {
+	c := n.Content[i]
+	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
+		return false
+	}
+	switch c.ShortTag() {
+	case "!!timestamp":
+		return true
+	case "!!merge":
+		return n.Kind != yaml.MappingNode || i%2 == 1
+	default:
+		return false
+	}
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
@@ -134,8 +165,24 @@ type Document struct {
 	Siblings   Siblings
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
-	// order Document.Sources lists them after the source and its overlay.
-	Others Others
+	// order Document.Sources lists them after the source and its overlay, and
+	// Dialects the rows each schema resource root naming its dialect governs.
+	Others   Others
+	Dialects Dialects
+	// Rows is what the table says at the minor the source declares, in the
+	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
+	// schemas where none names its own (Dialects) are read with, from the table
+	// the load judged it against: a document of Others read at that minor in
+	// that dialect shares them.
+	Rows Rows
+}
+
+// Rows is what the rule table says at the minor a document is read at, in a
+// dialect: how its schemas read (oas.SchemaRules), and what its Encoding
+// Objects leave unwritten (oas.EncodingRules).
+type Rows struct {
+	Schema   oas.SchemaRules
+	Encoding oas.EncodingRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -265,11 +312,10 @@ func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Pr
 }
 
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
-// alongside the others: a document nested too deeply to build (scan.Nesting),
-// aliases the parser cannot expand (scan.Aliases,
-// docs/parser-library.md#alias-cycle), a mapping carrying a tag the parser
-// faults on (diag.TaggedMapping), and a refusal of its own when the document
-// is too large to index in full.
+// alongside the others: a shape the parser cannot afford to build
+// (shapeRefusals, docs/parser-library.md#alias-cycle among them), a mapping
+// carrying a tag the parser faults on (diag.TaggedMapping), and a refusal of
+// its own when the document is too large to index in full.
 //
 // The size refusal is here, not in scan, because a truncated index answers only
 // in part, and an alias-expansion allowance derived from a partial node count
@@ -287,13 +333,29 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 			sourceindex.MaxIndexedNodes)}
 	}
 
+	diags := shapeRefusals(ctx, locate, idx, opts)
+	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
+		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
+	}
+	return diags
+}
+
+// shapeRefusals reports what of the shape of the tree idx indexes the parser
+// cannot afford to build: its nesting (scan.Nesting), its aliases
+// (scan.Aliases) and, where neither is refused, the bytes of its nodes'
+// pointers (scan.PointerAmplification), which deep nesting and aliasing both
+// multiply, so one defect is not reported twice.
+func shapeRefusals(ctx context.Context, locate scan.Locator, idx sourceindex.Index, opts Options) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
 	diags = append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
-	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
-		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
+	if diag.HasError(diags) {
+		return diags
+	}
+	if d, long := scan.PointerAmplification(locate, idx); long {
+		diags = append(diags, d)
 	}
 	return diags
 }
@@ -350,10 +412,18 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
+// rowsAt returns what spec says at the minor version names, in dialect, and
+// whether dialect is one spec has no Schema Object rows for
+// (oas.Spec.SchemaRules).
+func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
+	schema, unread := spec.SchemaRules(version, dialect)
+	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
+}
+
+// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it: a minor the rule table covers
 // (oas.ParseMinor), so no document is compiled that the table holds to nothing.
-func SupportedMinor(version string) (string, bool) {
+func supportedMinor(version string) (string, bool) {
 	m, ok := oas.ParseMinor(version)
 	if !ok {
 		return "", false
