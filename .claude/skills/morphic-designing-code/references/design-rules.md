@@ -113,8 +113,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   other becomes the data the caller holds, a named type with methods in the lowest package needing
   them. One that stays is a named type's method value, so its construction names its
   implementation.
-- **Why.** `merge.Merger` relays six function fields its tests stub, one of them `Resolve`, a map
-  read in production and in its stub alike, where a map serves both (#1477, #1486).
+- **Why.** `merge.Merger` relayed six function fields its tests stubbed, one of them `Resolve`, a
+  map read in production and in its stub alike, where a map served both (#1477, #1486).
 - **Probe.** `callShapeBaseline` in `internal/archtest` counts calls into packages a package does
   not import; each new one is argued here.
 
