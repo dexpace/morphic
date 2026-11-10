@@ -20,7 +20,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -50,8 +49,7 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc), doc
+	return lowering.New(0, doc, lowering.Policy{}), doc
 }
 
 // extDoc returns the bindings' number for ext.yaml: where A's $ref lands.
@@ -69,8 +67,8 @@ func extDoc(t *testing.T, c lowering.Ctx) bind.DocID {
 // of another document's content runs in: its references read in that
 // document's scope, each Provenance naming its Document.Sources entry, and its
 // IDs qualified by its label. The source's own number returns to the source's
-// coordinates, as InScope does in any scope, and a context given no documents,
-// or none holding that one, cannot place it.
+// coordinates, as InScope does in any scope, and a context given no document
+// holding that one cannot place it.
 func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
@@ -100,12 +98,9 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.ProvenanceAt("/X"),
 		"InScope reads at the source's coordinates, in whichever scope")
 
-	_, ok = lowering.InDocument(lowering.Ctx{}, id)
-	assert.False(t, ok, "a context given no load holds no documents")
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
+	unread := lowering.New(0, &none, lowering.Policy{})
 	same, ok := lowering.InDocument(unread, id)
 	assert.False(t, ok, "a document the compile did not list")
 	assert.Equal(t, ids.Document{}, same.IDs(), "and the context is left as it was")
@@ -127,8 +122,7 @@ func TestScoped_KeysAPositionByTheDocumentItIsRead(t *testing.T) {
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	c := lowering.New(0, doc, lowering.Policy{})
 	in := func(component string) lowering.Ctx {
 		t.Helper()
 		s, ok := c.Doc.Components.Schemas.Get(component)
@@ -157,7 +151,7 @@ func TestScoped_KeysAPositionByTheDocumentItIsRead(t *testing.T) {
 // context reads a schema with: that of the document its scope reads, through
 // InDocument and InScope alike, and back to the source's. SchemaRulesIn answers
 // for a document of the bindings' table, and a context that did not list the
-// document, or has no load phase, answers with the source's.
+// document answers with the source's.
 func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	t.Parallel()
 	c, doc := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
@@ -175,12 +169,10 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 
 	assert.True(t, lowering.SchemaRulesIn(c, id).Defines("nullable"))
 	assert.False(t, lowering.SchemaRulesIn(c, bind.Source).Defines("nullable"))
-	assert.False(t, lowering.SchemaRulesIn(lowering.Ctx{}, id).Defines("nullable"), "no load phase")
 
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
+	unread := lowering.New(0, &none, lowering.Policy{})
 	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
 	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
 }
@@ -188,7 +180,7 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 // TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames pins whose rows a
 // schema is read with by its node: those of the dialect the root holding it
 // names, here a document of schemas naming draft 4 at its root, and else the
-// source's. A context with no load phase knows no root.
+// source's.
 func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
@@ -199,10 +191,6 @@ func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
 	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"the source's own schema reads its document's")
-	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	assert.True(t, lowering.SchemaRulesOf(bare, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
-		"no load phase")
 }
 
 // TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect pins that a reading by
@@ -233,8 +221,7 @@ func TestSchemaRulesOf_ReadsANodeInItsOwnDocumentsDialect(t *testing.T) {
 // names, here a document of schemas naming draft 4 at its root, read in that
 // document's context; the context's own where none is, as for the source's A;
 // and the context's where it places no position, as InScope reads another
-// document's content at the source's. A context with no load phase knows no
-// root.
+// document's content at the source's.
 func TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
@@ -246,9 +233,6 @@ func TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs(t *testing.T) {
 	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
 	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
 	assert.False(t, boolean(there.InScope(there.RefScope()), "/X"), "no position, the scope's document's rows")
-	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	assert.False(t, boolean(bare, "/X"), "no load phase")
 }
 
 // TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
@@ -264,20 +248,19 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 	assert.False(t, defines, "the 3.1 source defines no nullable")
 }
 
-// TestWithLoaded_ReadsTheSourcesRowsFromTheLoad pins where a context over a
-// loaded document gets the source's rows: the load phase's own
-// (load.Document.Rows), held by identity, so building the context builds no
-// rule table, which alone allocates more than the whole context does. It runs
-// alone, since the allocation counts are the process's.
-func TestWithLoaded_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
+// TestNew_ReadsTheSourcesRowsFromTheLoad pins where a context over a loaded
+// document gets the source's rows: the load phase's own (load.Document.Rows),
+// held by identity, so building the context builds no rule table, which alone
+// allocates more than the whole context does. It runs alone, since the
+// allocation counts are the process's.
+func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
 	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
 	built := testing.AllocsPerRun(10, func() {
-		_ = lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-			lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+		_ = lowering.New(0, doc, lowering.Policy{})
 	})
 	assert.Less(t, built, table, "building the context built a rule table")
 }
@@ -293,17 +276,14 @@ func TestIDsAt_NamesEachSourceEntrysDocument(t *testing.T) {
 	assert.Equal(t, ids.Document{}, lowering.IDsAt(c, 0))
 	assert.Equal(t, ids.In("ext.yaml"), lowering.IDsAt(c, 1))
 	assert.Equal(t, ids.Document{}, lowering.IDsAt(c, 2), "an index no document is at")
-	assert.Equal(t, ids.Document{}, lowering.IDsAt(lowering.Ctx{}, 1), "a context given no load")
 	assert.Equal(t, []ids.Document{ids.In("ext.yaml")}, lowering.OtherIDs(c))
-	assert.Nil(t, lowering.OtherIDs(lowering.Ctx{}))
 }
 
 // TestNameAt_NamesAPositionInTheContextsDocument pins that one pointer in two
 // documents is two positions: ext.yaml's /P/schema is a parameter's schema,
 // named by the parameter's name, while the source's /P/schema is no schema the
 // grammar reads, named from its pointer. ext.yaml's content read in its scope
-// at the source's coordinates (InScope) names the source's, and a context
-// given no load names every position from its pointer.
+// at the source's coordinates (InScope) names the source's.
 func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query, schema: {type: string}}\n")
@@ -313,18 +293,16 @@ func TestNameAt_NamesAPositionInTheContextsDocument(t *testing.T) {
 	assert.Equal(t, "p", lowering.NameAt(there, "/P/schema"))
 	assert.Equal(t, "schema", lowering.NameAt(c, "/P/schema"))
 	assert.Equal(t, "schema", lowering.NameAt(there.InScope(there.RefScope()), "/P/schema"))
-	assert.Equal(t, "schema", lowering.NameAt(lowering.Ctx{}, "/P/schema"))
 }
 
 // TestNameThrough_NamesWhereAReferenceLands pins that the name a $ref suggests
 // is that of the position it lands on, in whichever document, and that a
-// position writing no $ref, or a context given no load, suggests none.
+// position writing no $ref suggests none.
 func TestNameThrough_NamesWhereAReferenceLands(t *testing.T) {
 	t.Parallel()
 	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
 	assert.Equal(t, "X", lowering.NameThrough(c, "/components/schemas/A"))
 	assert.Empty(t, lowering.NameThrough(c, "/paths/~1a/get"), "nothing is referenced there")
-	assert.Empty(t, lowering.NameThrough(lowering.Ctx{}, "/components/schemas/A"))
 }
 
 // TestDeclared_LowersAReferencedObjectWhereItIsDeclared pins where a reference

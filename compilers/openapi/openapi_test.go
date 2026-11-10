@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -257,7 +257,7 @@ func TestRun_RegistryRefusalsAreSurfaced(t *testing.T) {
 	types := compile.NewTypes()
 	types.Register("", nil)
 
-	_, diags, err := openapi.Run(t.Context(), lowering.Ctx{Doc: &soa.OpenAPI{}}, types)
+	_, diags, err := openapi.Run(t.Context(), loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), types)
 	require.NoError(t, err)
 
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {

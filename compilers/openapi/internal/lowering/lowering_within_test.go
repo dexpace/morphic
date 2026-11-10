@@ -16,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -44,8 +43,7 @@ paths:
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := lowering.New(0, doc, lowering.Policy{})
 	inline, ok := doc.Doc.Paths.Get("/inline")
 	require.True(t, ok)
 	ext, ok := doc.Doc.Paths.Get("/ext")
@@ -101,8 +99,7 @@ components:
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	c := lowering.New(0, doc, lowering.Policy{})
 	declared := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
 		t.Helper()
 		js, ok := doc.Doc.Components.Schemas.Get(name)

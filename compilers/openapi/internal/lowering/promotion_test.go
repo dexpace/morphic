@@ -17,15 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
 // promoter builds the promoter a context carrying nothing but policy hands out.
 func promoter(policy lowering.ExtensionPromotions) lowering.Promoter {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, policy, lowering.NullableWidening{}, overlay.Origin{}).Promoter()
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy}).Promoter()
 }
 
 // mapping is a policy reading target from sources, in the order given.
@@ -1107,23 +1107,16 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 	assert.Equal(t, 2, reads)
 }
 
-// TestPromoter_ReferentReadsNothingOffPolicy holds the two promoters with no key
-// to look for: neither reads the schema, so a compile that turned promotion off
-// spends nothing on a $ref. A zero context has the disabled policy.
+// TestPromoter_ReferentReadsNothingOffPolicy holds the promoter with no key to
+// look for: it reads no schema, so a compile that turned promotion off spends
+// nothing on a $ref.
 func TestPromoter_ReferentReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
-	for name, p := range map[string]lowering.Promoter{
-		"disabled": promoter(lowering.ExtensionPromotions{Disabled: true}),
-		"zero":     (lowering.Ctx{}).Promoter(),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, lowering.Referent{}, p.Referent(bind.Position{}, true, func() ir.Unmodeled {
-				t.Error("a policy mapping no key read the schema")
-				return nil
-			}))
-		})
-	}
+	p := promoter(lowering.ExtensionPromotions{Disabled: true})
+	assert.Equal(t, lowering.Referent{}, p.Referent(bind.Position{}, true, func() ir.Unmodeled {
+		t.Error("a policy mapping no key read the schema")
+		return nil
+	}))
 }
 
 // TestPromoter_KeysListsWhatThePolicyReads pins the list a use site looks up on

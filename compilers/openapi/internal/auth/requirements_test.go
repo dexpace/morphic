@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -451,8 +452,8 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 // opposite claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
-	var c lowering.Ctx
-	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
 
 	absent, absentDiags := reg.Requirements(c, nil, "")
 	assert.Nil(t, absent, "no security key at all inherits the enclosing default")
@@ -656,8 +657,9 @@ func loaderErrors(diags []ir.Diagnostic) []string {
 // and a nil one is in no document at all.
 func TestRegistryRequirements_DropsANilEntrySilently(t *testing.T) {
 	t.Parallel()
-	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, nil)
-	got, diags := reg.Requirements(lowering.Ctx{}, []*soa.SecurityRequirement{nil}, "/security")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	reg := auth.RegistryOf(c, nil)
+	got, diags := reg.Requirements(c, []*soa.SecurityRequirement{nil}, "/security")
 
 	assert.Empty(t, got, "a nil entry is no requirement, so it is dropped")
 	assert.Empty(t, diags)

@@ -12,14 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
@@ -202,11 +200,6 @@ func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 	assert.Zero(t, e.Weighed())
 	_, refused := e.Refusal(0)
 	assert.False(t, refused)
-
-	var none *lowering.Expansion
-	assert.True(t, none.Admit(raw, declaration()), "a zero context's expansion bounds nothing")
-	_, refused = none.Refusal(0)
-	assert.False(t, refused)
 }
 
 // TestExpansion_RefusalNamesTheBudgetAndNoPosition pins the refusal: an error
@@ -229,12 +222,7 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 // copies held to limit.
 func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
 	t.Helper()
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{MaxReferenceExpansion: limit},
-		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
-		overlay.Origin{}).WithLoaded(doc)
+	return loweringtest.Context(t, src, lowering.Policy{Limits: lowering.Limits{MaxReferenceExpansion: limit}})
 }
 
 // TestDeclared_ResolvesNoReferencePastTheExpansionBudget pins what bounds a
@@ -315,7 +303,7 @@ components:
 
 // TestReadingOf_ReadsTheObjectTheUseSiteWrites pins the reading a copy is
 // weighed under: the object read at the $ref's position, and raw YAML where
-// that is no object a $ref names, or where the context holds no table.
+// that is no object a $ref names.
 func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	t.Parallel()
 	c := loaded(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", budget.Unbounded())
@@ -324,7 +312,6 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	assert.True(t, param.Below("schema").Schema())
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
-	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(lowering.Ctx{}, "/paths/~1a/get/parameters/0"))
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c.InScope(resolve.Scope{Foreign: true}), "/paths/~1a/get/parameters/0"),
 		"what another document holds, read at the source's coordinates, has no position of its own")
 }
@@ -332,8 +319,7 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 // TestChargeExpansion_ChargesTheRunsExpansion pins the two charges a copy made
 // with no $ref adds to the budget: a declaration, weighed as the grammar reads
 // its position, here a path item's parameter weighing 25 as paramP's does, and
-// raw bytes beside it. Past the budget the run is refused, and a zero context
-// bounds nothing.
+// raw bytes beside it. Past the budget the run is refused.
 func TestChargeExpansion_ChargesTheRunsExpansion(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.2.0
@@ -357,8 +343,4 @@ paths:
 	_, refused = c.ExpansionRefusal()
 	assert.True(t, refused, "one more crosses it")
 	assert.True(t, lowering.ExpansionCrossed(c))
-
-	zero := lowering.Ctx{}
-	lowering.ChargeExpansion(zero, 1<<40)
-	assert.False(t, lowering.ExpansionCrossed(zero), "a zero context's expansion bounds nothing")
 }

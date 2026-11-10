@@ -12,7 +12,10 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +27,7 @@ func TestRegistrySchemes_SharesNothingWithTheRegistry(t *testing.T) {
 		SecuritySchemes: sequencedmap.New(
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
-	c := lowering.Ctx{Doc: doc}
+	c := lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{})
 	declared, _ := auth.LowerSecuritySchemes(c)
 	reg := auth.RegistryOf(c, declared)
 
@@ -41,7 +44,7 @@ func TestRegistryOf_SharesNothingWithTheDeclaredSchemes(t *testing.T) {
 	t.Parallel()
 	id := ids.Auth("key")
 	declared := map[ir.AuthID]ir.AuthScheme{id: {ID: id}}
-	reg := auth.RegistryOf(lowering.Ctx{Doc: &soa.OpenAPI{}}, declared)
+	reg := auth.RegistryOf(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), declared)
 
 	clear(declared)
 
