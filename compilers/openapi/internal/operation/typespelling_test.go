@@ -298,7 +298,7 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
         text/plain: {schema: {type: string}}
 `)
 	src := openapitest.PathsSpec(spec.String())
-	doc, _ := parseFull(t, src)
+	doc, diags := parseFull(t, src)
 
 	assert.Equal(t, []string{"openapi:" + headerMap + "/text~1plain", "openapi:" + paramMap + "/text~1plain"},
 		slices.Sorted(maps.Keys(doc.Unmodeled)))
@@ -310,8 +310,9 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 		require.Len(t, op.Responses[0].Headers, 1)
 		assert.Empty(t, op.Responses[0].Headers[0].Unmodeled, name)
 	}
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "%+v", diags)
 	_, reported := serviceAsReported(t, src)
-	assert.Equal(t, 2, openapitest.CountDiagsAt(reported, diag.DegradedConstruct, ir.SeverityWarning),
+	assert.Equal(t, []jsontext.Pointer{headerMap, paramMap}, openapitest.PointersOf(reported, diag.DegradedConstruct),
 		"%+v", reported)
 }
 

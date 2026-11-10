@@ -26,7 +26,9 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 			return ir.Unmodeled{key: {Reason: ir.ReasonDegradedLowering}}, []ir.Diagnostic{{Code: key}}
 		}
 	}
-	reach := func(on walk, coordinate string) []ir.Diagnostic { return on.kept.once(coordinate, keep(coordinate)) }
+	reach := func(copied walk, coordinate string) []ir.Diagnostic {
+		return copied.kept.once(coordinate, keep(coordinate))
+	}
 
 	assert.Len(t, reach(w, "a"), 1, "the first reach reports")
 	assert.Empty(t, reach(w, "a"), "a copy shares what was read")
