@@ -321,7 +321,7 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 // TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
 // on 3.2: one of the five node types the specification defines. Anything else is
 // kept verbatim under the xml object's scope with a warning, an attribute flag
-// the nodeType contradicts is kept the same way rather than overwritten, a
+// the nodeType contradicts is kept the same way rather than placed beside it, a
 // nodeType merged in through `<<` is read as one written there is, and one
 // merged in from past nodeview.MergeDepthLimit keeps the census's report.
 func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
@@ -330,19 +330,23 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		name     string
 		xml      string
 		nodeType string
+		attr     *bool  // the Attribute placed, nil for none
 		kept     string // the Unmodeled key expected, "" for none
 		code     string // the diagnostic expected at the key, "" for none
 	}{
-		{"defined", "{nodeType: cdata}", "cdata", "", ""},
-		{"null", "{nodeType: ~}", "", "", ""},
-		{"null beside attribute", "{attribute: true, nodeType: ~}", "attribute", "", ""},
-		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
-		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
-		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
-		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
+		{"defined", "{nodeType: cdata}", "cdata", nil, "", ""},
+		{"null", "{nodeType: ~}", "", nil, "", ""},
+		{"null beside attribute", "{attribute: true, nodeType: ~}", "", new(true), "", ""},
+		{"undefined value", "{nodeType: comment}", "", nil, "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"not a string", "{nodeType: {a: 1}}", "", nil, "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", new(true), "", ""},
+		{"agrees with no attribute", "{attribute: false, nodeType: element}", "element", new(false), "", ""},
+		{"contradicts attribute", "{attribute: true, nodeType: element}", "element", nil,
 			"openapi:xml/attribute", diag.DegradedConstruct},
-		{"merged in", "{<<: {nodeType: cdata}, name: q}", "cdata", "", ""},
-		{"merged in past the bound", pastMergeBound("{nodeType: cdata, name: q}"), "", "", diag.UnknownKeyUnreachable},
+		{"contradicts no attribute", "{attribute: false, nodeType: attribute}", "attribute", nil,
+			"openapi:xml/attribute", diag.DegradedConstruct},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "cdata", nil, "", ""},
+		{"merged in past the bound", pastMergeBound("{nodeType: cdata, name: q}"), "", nil, "", diag.UnknownKeyUnreachable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -350,6 +354,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
 			require.NotNil(t, got.XML)
 			assert.Equal(t, tc.nodeType, got.XML.NodeType)
+			assert.Equal(t, tc.attr, got.XML.Attribute, "the attribute flag, placed only where no nodeType contradicts it")
 			if tc.kept == "" {
 				assert.Empty(t, got.Unmodeled)
 			} else {
@@ -715,7 +720,7 @@ func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 	assert.Nil(t, XMLHints(nil))
 
 	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
-	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), NodeType: "attribute"},
+	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), Attribute: new(true)},
 		XMLHints(s.GetXML()))
 
 	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
@@ -726,7 +731,8 @@ func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 		"a declared false is kept, so it can override a type's true field by field")
 
 	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
-	assert.Empty(t, XMLHints(notAttr.GetXML()).NodeType, "attribute: false is not the attribute node type")
+	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(notAttr.GetXML()),
+		"a declared false is kept, so it can override a type's true field by field")
 }
 
 // TestSchemaExamplesAt_ReadsBothKeywordsInOrder pins that `example` and each

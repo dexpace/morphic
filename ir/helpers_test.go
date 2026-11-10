@@ -344,6 +344,7 @@ func populatedXMLHints() *ir.XMLHints {
 		Namespace: "https://example.com/ns",
 		Prefix:    "ex",
 		NodeType:  "element",
+		Attribute: new(false),
 		Wrapped:   new(true),
 	}
 }

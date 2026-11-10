@@ -958,6 +958,7 @@ type WireIDRange struct
 	"to" int
 
 type XMLHints struct
+	"attribute" *bool omitzero
 	"name" string omitempty
 	"namespace" string omitempty
 	"nodeType" string omitempty

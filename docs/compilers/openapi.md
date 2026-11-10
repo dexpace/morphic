@@ -1223,20 +1223,18 @@ with an `openapi/degraded-construct` warning at it.
 
 A schema's `xml` object lowers to `XMLHints` on the node the position owns, or, where it owns none,
 on the property that carries it, the property's hints its own beside its type's
-([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix` and `wrapped` as
-written, and the node type from 3.2's `nodeType`
-([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) or, where none is written, from
-`attribute: true` as `attribute`. An `attribute` flag that a `nodeType` beside it contradicts, which
-3.2 forbids, is kept verbatim under `openapi:xml/attribute` (`degraded_lowering`) with an
-`openapi/degraded-construct` warning at it, and the `nodeType` is placed. The object's `x-*`
-extensions are kept as `openapi:xml/x-*` ([`vendor-extensions`](#vendor-extensions)), and the hints
-of a parameter's schema, which `ir.Parameter` has no field for, are
-[`parameter-schema-keywords`](#parameter-schema-keywords)'.
+([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix`, `attribute` and `wrapped`
+as written, a declared `false` included, and 3.2's `nodeType`
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). An `attribute` flag that a `nodeType`
+beside it contradicts, which 3.2 forbids, is kept verbatim under `openapi:xml/attribute`
+(`degraded_lowering`) with an `openapi/degraded-construct` warning at it, and the `nodeType` is
+placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
+([`vendor-extensions`](#vendor-extensions)), and the hints of a parameter's schema, which
+`ir.Parameter` has no field for, are [`parameter-schema-keywords`](#parameter-schema-keywords)'.
 
 - Cases: `xml-hints`, `xml-nodetype-32`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
-- Status: open: whether a property's hints override its type's field by field or whole (#465).
 
 ## 5. Schemas: composition, unions and enumerations
 
