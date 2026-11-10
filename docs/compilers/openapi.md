@@ -1457,7 +1457,7 @@ of a type list holding one where such a variant does; a collection bound `Constr
 a `uniqueItems` of `false` or a count past 64 bits, never folds. A `oneOf`, an `anyOf` or a
 `$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement))
 and changes nothing else here: where the `allOf` composes, its branches fold into the composition
-as they do with neither there, beside a `$dynamicRef` it keeps from expanding
+as they do with none of them there, beside a `$dynamicRef` it keeps from expanding
 ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where the union distributes, a branch's
 annotations and what a use binds reach the `Union` and its carriers, and a value bound each variant,

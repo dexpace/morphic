@@ -249,9 +249,10 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 
 // TestAllOf_BranchResidueRidesEveryDistributedVariant covers fillAllOf's second
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
-// the residue has to land on every variant the composition rides on, the whole
-// branch with what folds at the Union. The diagnostic is announced once even so —
-// the branch is one source construct however many variants carry it.
+// the residue, the whole branch, has to land on every variant the composition
+// rides on, while what the branch folds reaches the Union. The diagnostic is
+// announced once even so — the branch is one source construct however many
+// variants carry it.
 func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}

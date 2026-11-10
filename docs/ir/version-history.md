@@ -379,7 +379,7 @@ it sees. Changes made together in one bump are listed together under it.
     overlay's file reads it at the wrong place.
 - **0.38.0** — no shape change: an inline branch of an `allOf` beside a `oneOf`, an `anyOf` or a
   `$dynamicRef` folds what it writes for the position into the composition, as a composing `allOf`'s
-  branch does with neither there, where the OpenAPI compiler had kept it whole under
+  branch does with none of them there, where the OpenAPI compiler had kept it whole under
   `Unmodeled["openapi:allOf/<n>"]`
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). Where a union
   distributes ([models](./models.md#composition-beside-a-union)), the branch's docs, deprecation,
