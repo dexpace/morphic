@@ -323,9 +323,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",
-		// A variable's default is a plain string in the parser's model, so whether
-		// the key was written at all is read off its node.
-		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/openapi"},
 	// The schema walk, and everything that recurses with it: composition,
 	// reference following, and the preservation that hangs off both. It is one

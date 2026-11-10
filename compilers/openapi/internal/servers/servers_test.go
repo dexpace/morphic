@@ -385,8 +385,8 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 // TestServerVariables_AnEmptyDefaultIsNotNone pins that a variable's default is
 // kept apart from its absence: `default: ""` substitutes nothing, and is the
 // empty string, while a variable writing no default, which OpenAPI requires,
-// has none. The parser holds both as an empty string, so only the node tells
-// them apart.
+// has none. The parser's model reads both as an empty string, so its core's
+// record of the key is what tells them apart.
 func TestServerVariables_AnEmptyDefaultIsNotNone(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, `openapi: 3.1.0
