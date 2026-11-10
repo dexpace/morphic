@@ -377,6 +377,30 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 		slices.Sorted(maps.Keys(got.Unmodeled)), "each is kept")
 }
 
+// TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported pins that a
+// declaration past the bound is kept as one the fold judged and lost is: one
+// with no source to render is reported unkeepable beside the budget error, not
+// dropped in silence.
+func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(narrowingRegistry())
+	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
+	decls := make([]declaration, 0, maxFoldDeclarations+1)
+	for i := range maxFoldDeclarations {
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(at(i))}, source: unread(t)})
+	}
+	decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
+
+	got := g.fold(decls)
+
+	require.Len(t, *recorded, 2, "%+v", *recorded)
+	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
+	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
+	assert.Equal(t, at(maxFoldDeclarations), (*recorded)[1].Provenance.Pointer)
+	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
+	assert.Empty(t, got.Unmodeled, "nothing of it could be kept")
+}
+
 // TestFold_ANarrowerTypeThatLosesIsAnOverlap pins how the fold reports a type
 // narrower than the winner's that still lost. The judgment's narrowing is
 // transitive, so such a type holds every type the winner holds and wins; were
