@@ -44,6 +44,13 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	}
 }
 
+// serviceWalk is the walk LowerService hands the lowerings beneath it, over l's
+// registry. It holds no operationId claims, servers or schemes: no lowering a test
+// here hands it to reads them.
+func (l *lowerer) serviceWalk() walk {
+	return walk{types: l.types, kept: newKeptOnce()}
+}
+
 // loweredFor loads src and returns the fixture over it with nothing lowered
 // yet, plus the load diagnostics.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {

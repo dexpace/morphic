@@ -10,7 +10,6 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -29,13 +28,13 @@ import (
 // component's name rather than the operationId hint (issue #107). A body $ref'd
 // from another operation has no component name, so it is named for the
 // operation declaring it, never this mount's (lowering.NameAt, GitHub #433).
-func lowerRequestBody(c lowering.Ctx, ts *compile.Types, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+func lowerRequestBody(c lowering.Ctx, w walk, op *ir.Operation, hb *ir.HTTPBinding, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	usePtr := opDeclPtr + ids.Ptr("requestBody")
 	rb, dc, bodyPtr := lowering.Declared[soa.RequestBody](c, src.GetRequestBody(), usePtr)
 	if rb == nil {
 		return nil
 	}
-	payload, diags := lowerPayload(dc, ts, rb.GetContent(), bodyPtr)
+	payload, diags := lowerPayload(dc, w, rb.GetContent(), bodyPtr)
 	if payload == nil {
 		// A body lowering no media type is still the body: whether it must be
 		// sent, its description and its x-* stay on a Payload with no Contents.

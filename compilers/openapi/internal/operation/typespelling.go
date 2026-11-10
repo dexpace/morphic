@@ -51,7 +51,7 @@ type typeSpelling struct {
 // Property.Encoding.MediaType), where `schema` would push the media type into
 // Unmodeled. The specification gives no precedence. The election is
 // unconditional, even where the entry names no schema (GitHub #320).
-func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
+func electTypeSpelling(c lowering.Ctx, w walk, js *oas3.JSONSchema[oas3.Referenceable],
 	content *sequencedmap.Map[string, *soa.MediaType], root *yaml.Node, at jsontext.Pointer,
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
@@ -65,7 +65,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 		mediaPtr := at + ids.Ptr("content", mt)
 		elected, electedDiags := contentSpelling(c, media, mt, mediaPtr, carrier, home)
 		diags = append(diags, electedDiags...)
-		diags = append(diags, c.Kept.Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+		diags = append(diags, w.kept.once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
 			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
 		})...)
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
@@ -146,7 +146,7 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 // elected, kept verbatim under openapi:<its coordinate>, and reports them once at
 // the map, sorted, so the report follows no declaration order.
 //
-// They are the Document's rather than the carrier's (lowering.KeptOnce): a carrier
+// They are the Document's rather than the carrier's (keptOnce): a carrier
 // a $ref reaches lowers once per reference, and an entry belongs to the
 // declaration, which no node stands for. So what they cost is what the source
 // wrote, and none need dropping.

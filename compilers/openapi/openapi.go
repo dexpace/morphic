@@ -217,7 +217,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is

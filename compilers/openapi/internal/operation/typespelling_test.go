@@ -259,9 +259,10 @@ func TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest(t *testing.T) {
 
 // TestPassedOverEntries_KeepsOneCopyPerDeclaration lowers a parameter and a header
 // through several references. What they pass over belongs to the declaration, so
-// the Document holds it once and no reference copies it, and the warning stands
-// once at the declaration: the IR grows with the source, not with its product
-// with the references (GitHub #1240).
+// the Document holds it once and no reference copies it, and the walk reads it
+// once, its warning standing once in the walk's own report rather than left to
+// compile.Diags to drop: the work grows with the source, not with its product with
+// the references (GitHub #1240).
 func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 	t.Parallel()
 	const (
@@ -296,7 +297,8 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
         application/json: {schema: {type: integer}}
         text/plain: {schema: {type: string}}
 `)
-	doc, diags := parseFull(t, openapitest.PathsSpec(spec.String()))
+	src := openapitest.PathsSpec(spec.String())
+	doc, _ := parseFull(t, src)
 
 	assert.Equal(t, []string{"openapi:" + headerMap + "/text~1plain", "openapi:" + paramMap + "/text~1plain"},
 		slices.Sorted(maps.Keys(doc.Unmodeled)))
@@ -308,7 +310,9 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 		require.Len(t, op.Responses[0].Headers, 1)
 		assert.Empty(t, op.Responses[0].Headers[0].Unmodeled, name)
 	}
-	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "%+v", diags)
+	_, reported := serviceAsReported(t, src)
+	assert.Equal(t, 2, openapitest.CountDiagsAt(reported, diag.DegradedConstruct, ir.SeverityWarning),
+		"%+v", reported)
 }
 
 // TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry

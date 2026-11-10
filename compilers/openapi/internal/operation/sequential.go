@@ -9,7 +9,6 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -29,10 +28,10 @@ import (
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c, ts, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
+		ref, itemDiags := schema.Ref(c, w.types, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
 		diags = append(diags, itemsOfOneDocument(c, content.MediaType, mediaPtr)...)
@@ -45,7 +44,7 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, medi
 	if enc != nil {
 		var unmodeled ir.Unmodeled
 		var encDiags []ir.Diagnostic
-		pe, unmodeled, encDiags = encodingConfig(c, ts, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
+		pe, unmodeled, encDiags = encodingConfig(c, w, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 		diags = append(diags, encDiags...)
 	}

@@ -119,12 +119,6 @@ type Ctx struct {
 	// answers.
 	reached *resolve.Reached
 
-	// Kept holds what the run keeps for the Document rather than a node. Copies
-	// share it on purpose, as reached: only run reads what it keeps, once every
-	// lowering has returned, so it cannot change their answers. Its own fields are
-	// private, so a lowering writes it only through Once.
-	Kept *KeptOnce
-
 	// expansion charges each $ref Declared resolves what the declarations its
 	// chain names weigh, and each additionalOperations entry what it copies of
 	// its path item (ChargeExpansion). Copies share it on purpose: the budget is
@@ -220,7 +214,6 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 				Bindings: doc.Bindings}, readings: map[any]any{}},
 		reached:   resolve.NewReached(),
-		Kept:      &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
 }
