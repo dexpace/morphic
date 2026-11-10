@@ -263,7 +263,7 @@ func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
 		for range 3 {
 			runtime.ReadMemStats(&stats)
 			before := stats.TotalAlloc
-			_, _ = annotation.Read(site, at, l.Ctx.ProvenanceAt)
+			_, _ = annotation.Read(site, at, l.Ctx.Place())
 			runtime.ReadMemStats(&stats)
 			least = min(least, stats.TotalAlloc-before)
 		}

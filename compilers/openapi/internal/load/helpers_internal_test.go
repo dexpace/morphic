@@ -4,6 +4,7 @@
 package load
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
@@ -14,7 +15,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -122,7 +124,7 @@ func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, er
 	t.Helper()
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
 		Siblings{}, MediaTypes{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
+	return resolved, passDiags(provenance.Doc{}, pass, missed), err
 }
 
 // respelled returns url with its scheme spelled scheme, which net/url respells
@@ -153,4 +155,11 @@ var respellings = []struct {
 	{"escaped userinfo", func(c string) string {
 		return strings.Replace(c, "http://", "http://us%65r@", 1)
 	}},
+}
+
+// treeOf places the nodes of root in the source at srcIndex, with no overlay,
+// its pointers indexed under ctx once a node is first asked about, as the load
+// places the source's tree.
+func treeOf(ctx context.Context, srcIndex int, root *yaml.Node) provenance.Tree {
+	return provenance.Tree{Doc: provenance.Doc{Source: srcIndex}, Pointers: scan.Pointers(ctx, root)}
 }

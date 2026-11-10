@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -102,9 +103,9 @@ type Ctx struct {
 	// overlay, so nothing below has to ask whether there was one.
 	//
 	// It is unexported for the reason streaming is — it holds a map, which a
-	// struct copy would share — and it is read only through ProvenanceAt, which
-	// keeps "provenance is built in exactly one place" true of the source index
-	// as well as of the pointer.
+	// struct copy would share — and it is read only through Place and Sources,
+	// which keeps "provenance is built in exactly one place" true of the source
+	// index as well as of the pointer.
 	overlay overlay.Origin
 
 	// loaded is what the load phase resolved with the document. It sits behind
@@ -485,7 +486,7 @@ func (c Ctx) RefScope() resolve.Scope {
 // both, and a lowering that has no accumulator yet can still be sure of its
 // provenance.
 func (c Ctx) DiagAt(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) ir.Diagnostic {
-	return diag.Newf(sev, code, c.ProvenanceAt(pointer), format, args...)
+	return diag.Newf(sev, code, c.Place().At(pointer), format, args...)
 }
 
 // IDs returns the document c's positions are in, as the IDs of what it
@@ -570,22 +571,18 @@ func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
 	return name, o, ok
 }
 
-// ProvenanceAt is where a Provenance is built, and the only place this compiler
-// spells the source index into one.
+// Place returns where c places a pointer of its document: in another document's
+// own Document.Sources entry, for one InDocument reads, and otherwise in the
+// source's, or the overlay's for a position the overlay introduced or rewrote.
 //
-// It serves entities as well as diagnostics (GitHub #86). Being the one place
-// also traces an overlay's contribution without touching any lowering: a
-// position the overlay introduced or rewrote names the overlay as its source.
-//
-// from is for a record no single position addresses, such as a validation-only
-// entry folding several keywords. The entry is located at the declaring schema,
-// and from lists the keywords' positions, so the entry names the document that
-// wrote all of them, when one did (see overlay.Origin.IndexOf).
-func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
+// It is the one place this compiler spells the source index into a Provenance,
+// for entities as well as diagnostics (GitHub #86), which also traces an
+// overlay's contribution without touching any lowering.
+func (c Ctx) Place() provenance.Doc {
 	if o, ok := homeOf(c); ok {
-		return ir.Provenance{Source: o.Index, Pointer: pointer}
+		return provenance.Doc{Source: o.Index}
 	}
-	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
+	return provenance.Doc{Source: c.SrcIndex, Overlay: c.overlay.Attribution()}
 }
 
 // Position returns where pointer is in the bindings' table, and false where c

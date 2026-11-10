@@ -72,6 +72,12 @@ var rules = map[string][]string{
 	// the compiler would be able to derive one from something other than a
 	// source coordinate.
 	"compilers/openapi/internal/ids": {module + "/ir", module + "/compilers/compile"},
+	// Where a finding or a lowered position is placed: which input document
+	// supplied a pointer, or a node of a decoded tree. It reaches ir and the YAML
+	// node alone, so the overlay that records an attribution, the scans and
+	// checks that place a node and the lowerings that place a pointer reach one
+	// answer as a value, without reaching each other.
+	"compilers/openapi/internal/provenance": {module + "/ir", "go.yaml.in/yaml/v3"},
 	// The one classification of a YAML scalar, and value lowering built on it.
 	// It reaches ir for the value types, yaml for the node it reads and nodeview
 	// for a mapping's members as the parser reads them, and nothing else: a
@@ -157,6 +163,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/sourceindex", "go.yaml.in/yaml/v3"},
 	// What a schema or a carrier says about itself rather than about its shape,
 	// plus how a construct is kept verbatim under Unmodeled, the validation-only
@@ -173,6 +180,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/extensions",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
@@ -188,6 +196,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/provenance",
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
 	// The entry side: parse, check, resolve. It indexes the tree its one decode
 	// produced through sourceindex, runs the pre-lowering refusals over that index
@@ -212,6 +221,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
@@ -290,6 +300,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
 	// The lowering context the compiler's tests lower under, over a document the
@@ -339,6 +350,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
+		module + "/compilers/openapi/internal/provenance",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",

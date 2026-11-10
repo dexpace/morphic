@@ -31,24 +31,24 @@ const minPointerBytes = 1 << 26 // 64 MiB
 
 // PointerAmplification refuses a document whose nodes' pointers total past what
 // its size allows (pointerAllowance) before the parser builds it, as a
-// diag.PointerAmplification error at the document, or reports nothing for one
+// diag.PointerAmplification error at whole, the document, or reports nothing for one
 // within it. The index must cover the tree the parser will be handed,
 // untruncated, and a document holding a recursive anchor is left to the
 // anchor-cycle refusal, as Nesting leaves it. Every node counts, values kept
 // verbatim among them, though no compile names theirs one by one, so a
 // document whose values nest long keys deep is refused (GitHub #1499).
-func PointerAmplification(locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	return pointerAmplificationWithin(locate, idx, pointerAllowance(idx.Written()))
+func PointerAmplification(whole ir.Provenance, idx sourceindex.Index) (ir.Diagnostic, bool) {
+	return pointerAmplificationWithin(whole, idx, pointerAllowance(idx.Written()))
 }
 
 // pointerAmplificationWithin is PointerAmplification under an allowance of
 // allowance bytes, so a test can cross it without a document spelling the
 // floor.
-func pointerAmplificationWithin(locate Locator, idx sourceindex.Index, allowance int) (ir.Diagnostic, bool) {
+func pointerAmplificationWithin(whole ir.Provenance, idx sourceindex.Index, allowance int) (ir.Diagnostic, bool) {
 	if idx.PointerBytes() <= allowance || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
-	return diag.Newf(ir.SeverityError, diag.PointerAmplification, locate(nil),
+	return diag.Newf(ir.SeverityError, diag.PointerAmplification, whole,
 		"the JSON pointers naming the document's nodes total %d bytes, past the %d-byte allowance "+
 			"for the %d bytes it writes", idx.PointerBytes(), allowance, idx.Written()), true
 }

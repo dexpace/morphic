@@ -14,6 +14,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
@@ -43,24 +44,24 @@ type Other struct {
 
 // Others is every document a reference reached beside the source, in the order
 // Document.Sources lists them, the names a reference reads each by, and where
-// each one's trees write a node (see locator).
+// each one's trees write a node (see tree).
 type Others struct {
-	list     []Other
-	byName   map[string]int
-	pointers []func(*yaml.Node) (jsontext.Pointer, bool)
+	list   []Other
+	byName map[string]int
+	trees  []provenance.Tree
 }
 
-// locator returns the Locator for the nodes of the document a reference reads
-// by name, which places one as the source's tree places its own (scan.InTree):
-// in that document's Document.Sources entry, at the node's line and column,
-// and at its pointer in whichever of the document's trees holds it. It returns
-// false for a document the compile did not read beside the source.
-func (o Others) locator(name string) (scan.Locator, bool) {
+// tree returns where a node of the document a reference reads by name is
+// placed, as the source's tree places its own: in that document's
+// Document.Sources entry, at the node's line and column, and at its pointer in
+// whichever of the document's trees holds it. It returns false for a document
+// the compile did not read beside the source.
+func (o Others) tree(name string) (provenance.Tree, bool) {
 	i, ok := o.index(name)
 	if !ok {
-		return nil, false
+		return provenance.Tree{}, false
 	}
-	return scan.InTree(o.list[i].Index, o.pointers[i]), true
+	return o.trees[i], true
 }
 
 // List returns the documents, in the order Document.Sources lists them.
@@ -142,7 +143,8 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
 		}, Rows: rows, version: version, dialect: dialect})
-		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
+		o.trees = append(o.trees, provenance.Tree{Doc: provenance.Doc{Source: first + i},
+			Pointers: pointersIn(ctx, read.trees, keys)})
 		for _, key := range keys {
 			o.byName[key] = i
 		}

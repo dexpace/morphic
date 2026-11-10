@@ -6,7 +6,6 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -261,10 +260,14 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 
 // TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords pins GitHub #534:
 // a combined entry — if/then/else, contains, unevaluated — has no position of
-// its own, so it is attributed by asking the Locator about exactly the
-// keywords it combines, rather than about the schema alone. A single-keyword
-// entry, and the note announcing each entry, ask about nothing but the position
-// they are located at.
+// its own, so it is attributed by exactly the keywords it combines, rather than
+// by the schema alone. A single-keyword entry, and the note announcing each
+// entry, are attributed by the position they are located at.
+//
+// The overlay here wrote the keywords present and nothing else, the schema
+// included, so a combined entry names it only where it is asked about every
+// keyword written and none absent, and an entry or note attributed by the
+// schema alone names the base document.
 func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
@@ -272,31 +275,26 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 		"if: {required: [name]}\nthen: {required: [tag]}\n"+
 		"contains: {type: string}\nminContains: 1\n"+
 		"unevaluatedProperties: false\nunevaluatedItems: {type: string}\n")
-	var calls []recordedCall
+	// Not the absent else or maxContains, and not unevaluatedProperties: a false
+	// one is a structural mode, which the unevaluated entry does not combine.
+	doc := overlaid("/S/if", "/S/then", "/S/contains", "/S/minContains", "/S/unevaluatedItems")
 
-	got, diags := validationOnlyAt(s, "/S", recording(&calls), false)
+	got, diags := validationOnlyAt(s, "/S", doc, false)
 
-	assert.ElementsMatch(t, []recordedCall{
-		{pointer: "/S/not"},
-		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},              // not the absent else
-		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}}, // not the absent maxContains
-		{pointer: "/S", from: []jsontext.Pointer{"/S/unevaluatedItems"}},           // a false unevaluatedProperties is a structural mode
-		// and one note per entry, each at the schema
-		{pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"}, {pointer: "/S"},
-	}, calls)
-
-	// recording answers source 1 only when asked with from, so each source shows
-	// which question its record's provenance came from.
-	for key, want := range map[string]int{
-		"openapi:not": 0, "openapi:if-then-else": 1, "openapi:contains": 1, "openapi:unevaluated": 1,
+	for key, want := range map[string]ir.Provenance{
+		"openapi:not":          {Source: 0, Pointer: "/S/not"},
+		"openapi:if-then-else": {Source: 1, Pointer: "/S"},
+		"openapi:contains":     {Source: 1, Pointer: "/S"},
+		"openapi:unevaluated":  {Source: 1, Pointer: "/S"},
 	} {
 		entry, ok := got[key]
 		require.True(t, ok, "%s is kept", key)
-		assert.Equal(t, want, entry.Provenance.Source, key)
+		assert.Equal(t, want, entry.Provenance, key)
 	}
 	require.Len(t, diags, 4, "one announcement per entry kept")
 	for _, d := range diags {
-		assert.Equal(t, 0, d.Provenance.Source, "a note is asked about the schema alone: %s", d.Message)
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, d.Provenance,
+			"a note is attributed by the schema alone: %s", d.Message)
 	}
 }
 
@@ -309,15 +307,11 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 	s := schemaFromYAML(t, "type: object\n"+
 		"if: {required: [name]}\nthen: {const: .nan}\n"+
 		"contains: {const: .nan}\nminContains: 1\n")
-	var calls []recordedCall
+	doc := overlaid("/S/if", "/S/then", "/S/contains", "/S/minContains")
 
-	got, diags := validationOnlyAt(s, "/S", recording(&calls), false)
+	got, diags := validationOnlyAt(s, "/S", doc, false)
 
 	assert.Empty(t, got, "an entry that will not render is not kept")
-	assert.ElementsMatch(t, []recordedCall{
-		{pointer: "/S", from: []jsontext.Pointer{"/S/if", "/S/then"}},
-		{pointer: "/S", from: []jsontext.Pointer{"/S/contains", "/S/minContains"}},
-	}, calls)
 	require.Len(t, diags, 2)
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityError, d.Severity, "%s", d.Message)
@@ -360,33 +354,6 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	require.Len(t, diags, 1, "and is announced exactly once")
 	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
 	assert.Equal(t, 7, diags[0].Provenance.Source)
-}
-
-// recordedCall is one (pointer, from) pair a recording Locator was asked
-// about.
-type recordedCall struct {
-	pointer jsontext.Pointer
-	from    []jsontext.Pointer
-}
-
-// recording is a Locator that appends every call it receives to calls, in call
-// order, and answers source 1 when from is non-empty and source 0 otherwise —
-// enough to tell a combined entry's call, made with the keywords it holds,
-// apart from a single position's, made with none. It exists to let a test
-// assert what a reader asked a Locator, rather than only what answer came
-// back. An empty from is recorded as nil, so a call made with none compares
-// equal to a recordedCall that names none.
-func recording(calls *[]recordedCall) Locator {
-	return func(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
-		call := recordedCall{pointer: pointer}
-		source := 0
-		if len(from) > 0 {
-			call.from = slices.Clone(from)
-			source = 1
-		}
-		*calls = append(*calls, call)
-		return ir.Provenance{Source: source, Pointer: pointer}
-	}
 }
 
 // TestExamplesRaw_CombinesTheTwoKeywords pins the object two schemas' examples are

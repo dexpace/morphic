@@ -178,7 +178,7 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		return allOfBranches(s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
-		return l.Ctx.ProvenanceAt(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
+		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
 	w := newAdmission(l.Ctx)
 	merge := settledMerge{c: l.Ctx}

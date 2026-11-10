@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -46,7 +47,7 @@ type reached struct {
 	ends chainEnds
 	// tree places a finding about a node of the source (see reachedLocator),
 	// and others one about another document's (see locatorFor).
-	tree   sourceTree
+	tree   provenance.Tree
 	others Others
 	// dialects gives the rows each schema checked is read with, which judge
 	// the values the check leaves to the load phase (ownedFindings).
@@ -63,8 +64,8 @@ type reached struct {
 // among the $refs reaching it, the kind they expect it to be, the node it is
 // written as, the document it is in, as findingPlace names it, whether that is
 // the source, and where it is read, as a reference names that document and the
-// pointer it reads there (home). place places a finding at site where another
-// document writes that $ref, named siteDoc, and is nil where the source does.
+// pointer it reads there (home). siteDoc names the document writing that $ref
+// where another document does, and is empty where the source does.
 type reachedTarget struct {
 	site     jsontext.Pointer
 	siteDoc  string
@@ -73,7 +74,6 @@ type reachedTarget struct {
 	doc      string
 	inSource bool
 	home     refSite
-	place    func(jsontext.Pointer) ir.Provenance
 }
 
 // at is the site of the $ref t is placed at.
@@ -85,34 +85,33 @@ func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.
 // (GitHub #751), and every schema built for a landing of b. Each finding is
 // reported once, where it is placed (see locatorFor), and none the source's
 // own check made.
-func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
-	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef, dialects Dialects,
+func validateReached(ctx context.Context, sites places, b bound, doc *soa.OpenAPI,
+	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []visitedRef, dialects Dialects,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree, self.judged)
 	checks.esc, checks.others, checks.dialects = self.escapes, b.others, dialects
 	table := b.bindings.Table()
 	view := nodeview.New()
-	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name },
+	targets := builtTargets(b.built, func(id bind.DocID) string { return table.Document(id).Name },
 		func(p bind.Position) *yaml.Node { return writtenIn(view, table, p) })
 	for _, a := range away {
 		if t, ok := targetOf(a.site.pointer, a.r, checks.esc, checks.ends); ok {
-			t.siteDoc, t.place = a.site.doc, a.place
+			t.siteDoc = a.site.doc
 			targets = append(targets, t)
 		}
 	}
-	return checkReached(ctx, at, walkSource(ctx, doc, sibs, media), targets, checks)
+	return checkReached(ctx, sites, walkSource(ctx, doc, sibs, media), targets, checks)
 }
 
 // builtTargets returns the targets the schemas built for landings make, each
-// placed at the least position whose chain reaches it, in whichever document
-// (place), as name names it. One no position reaches, which only a budget
+// placed at the least position whose chain reaches it, in whichever document,
+// as name names it. One no position reaches, which only a budget
 // cutting the reading leaves, is no target, and nor is a boolean schema, which
 // holds nothing to check. A tuple's entry the parser read as false though what
 // is written there, which written returns, is no schema, such as a number, is
 // one, so the check reports it as it does a prefixItems entry; its rest is
 // judged beside its `items` instead (oas.SchemaRules.TupleRestFinding).
-func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, name func(bind.DocID) string,
-	written func(bind.Position) *yaml.Node,
+func builtTargets(built []typed.Built, name func(bind.DocID) string, written func(bind.Position) *yaml.Node,
 ) []reachedTarget {
 	var out []reachedTarget
 	for _, b := range built {
@@ -130,7 +129,6 @@ func builtTargets(built []typed.Built, place func(bind.Position) ir.Provenance, 
 			doc: b.Landing.Name, inSource: at.Doc == bind.Source, home: refSite{doc: name(at.Doc), pointer: at.Pointer}}
 		if site := b.Landing.Site; site.Doc != bind.Source {
 			t.siteDoc = name(site.Doc)
-			t.place = func(p jsontext.Pointer) ir.Provenance { return place(bind.Position{Doc: site.Doc, Pointer: p}) }
 		}
 		out = append(out, t)
 	}
@@ -167,8 +165,8 @@ func isBoolean(n *yaml.Node) bool {
 // A panic reading the walk is reported at the model being read, or at the root,
 // and nothing is checked, since the targets read so far need not hold each
 // one's least $ref.
-func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
-	items iter.Seq[soa.WalkItem], built []reachedTarget, checks *reached,
+func checkReached(ctx context.Context, sites places, items iter.Seq[soa.WalkItem], built []reachedTarget,
+	checks *reached,
 ) []ir.Diagnostic {
 	targets := map[objectKey]reachedTarget{}
 	add := func(t reachedTarget) {
@@ -184,13 +182,13 @@ func checkReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
 		return nil
 	})
 	if err != nil {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error())}
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, sites.source.At(site), "%s", err.Error())}
 	}
 	for _, t := range built {
 		add(t)
 	}
 	checks.dropSeen(targets)
-	return checks.checkAll(ctx, at, targets)
+	return checks.checkAll(ctx, sites, targets)
 }
 
 // kindOf returns the kind of object a reference object expects to name, or false
@@ -254,7 +252,7 @@ func (v *reached) dropSeen(targets map[objectKey]reachedTarget) {
 // unbounded. It holds one in the source to the version doc declares, and one in
 // another document to that document's (versionOf). tree is the source's,
 // and judged what the table found in it, none of which is reported again.
-func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment) *reached {
+func newReached(doc *soa.OpenAPI, opts Options, tree provenance.Tree, judged judgment) *reached {
 	limit := nodesAdmitted(opts)
 	reported := make(map[ir.Diagnostic]bool, len(judged.diags))
 	for _, d := range judged.diags {
@@ -280,8 +278,7 @@ func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment
 // An object inside one checked before it is checked, and charged, again
 // (GitHub #571): a container spans more than its model reads, such as an
 // extension's content.
-func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Provenance,
-	targets map[objectKey]reachedTarget,
+func (v *reached) checkAll(ctx context.Context, sites places, targets map[objectKey]reachedTarget,
 ) []ir.Diagnostic {
 	order := slices.SortedFunc(maps.Values(targets), func(a, b reachedTarget) int {
 		return compareSites(a.at(), b.at())
@@ -291,11 +288,7 @@ func (v *reached) checkAll(ctx context.Context, at func(jsontext.Pointer) ir.Pro
 		if ctx.Err() != nil {
 			break
 		}
-		place := at
-		if t.place != nil {
-			place = t.place
-		}
-		diags = append(diags, v.check(ctx, place(t.site), t)...)
+		diags = append(diags, v.check(ctx, sites.site(t.at()), t)...)
 	}
 	return diags
 }
@@ -355,10 +348,10 @@ func (v *reached) versionOf(t reachedTarget) string {
 // #1030); and, for a document no entry lists, nowhere yet, marked foreign for
 // placeAt to put at the $ref.
 func (v *reached) locatorFor(t reachedTarget) oas.Locator {
-	if locate, listed := v.others.locator(t.home.doc); listed && !t.inSource {
-		return walkedFrom(t.node, locate)
+	if tree, listed := v.others.tree(t.home.doc); listed && !t.inSource {
+		return walkedFrom(t.node, tree.Node)
 	}
-	return v.tree.reachedLocator(t.node)
+	return reachedLocator(v.tree, t.node)
 }
 
 // charge counts what checking the object at node spans against doc's budget,

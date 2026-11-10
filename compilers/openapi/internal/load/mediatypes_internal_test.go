@@ -21,8 +21,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -78,7 +78,7 @@ func faulting(context.Context, *yaml.Node) (*refscope.ReferencedMediaType, error
 // ending on it is handed.
 func TestModelMediaTypes_ModelsEachDeclaredEntry(t *testing.T) {
 	t.Parallel()
-	m, faults := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), scan.InSource(0))
+	m, faults := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
 	require.Empty(t, faults)
 	pointers := make([]jsontext.Pointer, 0, len(m.declared))
 	for _, d := range m.declared {
@@ -95,7 +95,7 @@ func TestModelMediaTypes_ModelsEachDeclaredEntry(t *testing.T) {
 // faults building: reported where it is written, and not modelled.
 func TestMediaTypesFrom_AParserFaultIsReported(t *testing.T) {
 	t.Parallel()
-	m, faults := mediaTypesFrom(t.Context(), modelOf(t, mediaTypeSpec), scan.InSource(0), faulting)
+	m, faults := mediaTypesFrom(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{}, faulting)
 	assert.Empty(t, m.declared)
 	require.Len(t, faults, 3, "Pet, Alias and Merged; the scalar and the null $ref are the table's")
 	assert.Equal(t, diag.Validation, faults[0].Code)
@@ -108,7 +108,7 @@ func TestMediaTypesFrom_AParserFaultIsReported(t *testing.T) {
 func TestMediaTypes_UseAnswersByTheMappingWritten(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, scan.InSource(0))
+	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
 	for range walkSource(t.Context(), doc, Siblings{}, m) {
 		continue
 	}
@@ -134,7 +134,7 @@ func TestMediaTypes_UseAnswersByTheMappingWritten(t *testing.T) {
 func TestWalkSource_YieldsEachMediaTypesModel(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, scan.InSource(0))
+	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
 	var models []string
 	for item := range walkSource(t.Context(), doc, Siblings{}, m) {
 		_ = item.Match(soa.Matcher{Any: func(model any) error {
@@ -165,7 +165,7 @@ func TestWalkSource_YieldsEachMediaTypesModel(t *testing.T) {
 func TestWalkSource_StopsWhereItsConsumerStops(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, mediaTypeSpec)
-	m, _ := modelMediaTypes(t.Context(), doc, scan.InSource(0))
+	m, _ := modelMediaTypes(t.Context(), doc, provenance.Tree{})
 	total := 0
 	for range walkSource(t.Context(), doc, Siblings{}, m) {
 		total++
@@ -193,7 +193,7 @@ func TestWalkSource_StopsWhereItsConsumerStops(t *testing.T) {
 // model, and neither is held as canonical.
 func TestMediaTypes_MetSkipsWhatHoldsNoMapping(t *testing.T) {
 	t.Parallel()
-	m, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), scan.InSource(0))
+	m, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
 	before := len(m.canonical)
 	assert.Nil(t, m.met(t.Context(), nil))
 	assert.Nil(t, m.met(t.Context(), &soa.MediaType{}))
@@ -208,7 +208,7 @@ func TestModelMediaTypes_StopsOnceCancelled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	m, faults := modelMediaTypes(ctx, modelOf(t, mediaTypeSpec), scan.InSource(0))
+	m, faults := modelMediaTypes(ctx, modelOf(t, mediaTypeSpec), provenance.Tree{})
 	assert.Empty(t, m.declared)
 	assert.Empty(t, faults)
 }
@@ -266,7 +266,7 @@ paths:
             application/json: *use
 `
 	doc := modelOf(t, spec)
-	media, _ := mediaTypesFrom(t.Context(), doc, scan.InSource(0), faulting)
+	media, _ := mediaTypesFrom(t.Context(), doc, provenance.Tree{}, faulting)
 	_, _, _, pass, _, err := resolveExternal(t.Context(), doc, Siblings{}, media,
 		sourceDocument{path: root}, Options{Reader: reader.Disk{}}, nil)
 	require.NoError(t, err)
@@ -379,7 +379,7 @@ x-text: just text
 // on a node no model was built from.
 func TestMediaTypes_AdoptLeavesAnEndItHoldsNoModelOf(t *testing.T) {
 	t.Parallel()
-	m, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), scan.InSource(0))
+	m, _ := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), provenance.Tree{})
 	var source any = &soa.OpenAPI{}
 	var other any = &yaml.Node{}
 	assert.False(t, m.adopt(chain{stopped: "#/x"}))

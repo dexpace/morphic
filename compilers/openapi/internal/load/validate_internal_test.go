@@ -21,7 +21,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -67,7 +66,7 @@ components:
       <<: {minLength: -1}
 `
 	root := decodeRoot(t, src)
-	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
+	tree := treeOf(t.Context(), 4, root)
 
 	got := judgeSource(t.Context(), root, tree, budget.Unbounded())
 
@@ -104,7 +103,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), budget.Unbounded())
+	got := judgeSource(t.Context(), root, treeOf(t.Context(), 0, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -235,7 +234,7 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), budget.AtMost(2))
+	got := judgeSource(t.Context(), &root, treeOf(t.Context(), 0, &root), budget.AtMost(2))
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)

@@ -31,7 +31,7 @@ type Registry struct {
 func RegistryOf(c lowering.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
 	maps.Copy(byID, declared)
-	return &Registry{byID: byID, root: c.ProvenanceAt("")}
+	return &Registry{byID: byID, root: c.Place().At("")}
 }
 
 // Schemes returns a copy of the registry, or nil when it holds nothing, so a

@@ -28,7 +28,7 @@ func exampleList(c lowering.Ctx, single *yaml.Node, plural *sequencedmap.Map[str
 	var diags []ir.Diagnostic
 	if single != nil {
 		var exDiags []ir.Diagnostic
-		out, exDiags = annotation.AppendExample(out, ir.Example{}, single, c.ProvenanceAt, pointer, "example")
+		out, exDiags = annotation.AppendExample(out, ir.Example{}, single, c.Place(), pointer, "example")
 		diags = append(diags, exDiags...)
 	}
 	if plural == nil {
@@ -60,8 +60,8 @@ func appendPluralExample(c lowering.Ctx, out []ir.Example, re *soa.ReferencedExa
 	if ex == nil {
 		return out, nil
 	}
-	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.ProvenanceAt, decl)
-	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.ProvenanceAt, decl)...)
+	ext, diags := annotation.ExtensionsFrom(ex.GetExtensions(), dc.Place(), decl)
+	diags = append(diags, annotation.UnknownKeysIn(&ext, ex, dc.Place(), decl)...)
 	// A summary or description beside a $ref of the entry's chain documents this
 	// use of the example (GitHub #610).
 	docs := resolve.UseDocs[soa.Example](re, ir.Docs{Summary: ex.GetSummary(), Description: ex.GetDescription()})
@@ -116,9 +116,9 @@ func appendExampleData(c lowering.Ctx, out []ir.Example, proto ir.Example,
 	re *soa.ReferencedExample, node *yaml.Node, pointer jsontext.Pointer, name, keyword string,
 ) ([]ir.Example, []ir.Diagnostic) {
 	if re.IsReference() {
-		return annotation.AppendExample(out, proto, node, c.ProvenanceAt, pointer, "examples", name)
+		return annotation.AppendExample(out, proto, node, c.Place(), pointer, "examples", name)
 	}
-	return annotation.AppendExample(out, proto, node, c.ProvenanceAt, pointer, "examples", name, keyword)
+	return annotation.AppendExample(out, proto, node, c.Place(), pointer, "examples", name, keyword)
 }
 
 // keepExampleSpelling keeps the node an Example Object writes under keyword
@@ -130,7 +130,7 @@ func keepExampleSpelling(c lowering.Ctx, u *ir.Unmodeled, node *yaml.Node, keywo
 	reason ir.UnmodeledReason, decl jsontext.Pointer, why string,
 ) (bool, []ir.Diagnostic) {
 	at := decl + ids.Ptr(keyword)
-	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey("", keyword), node, reason, c.ProvenanceAt(at))
+	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey("", keyword), node, reason, c.Place().At(at))
 	if !kept {
 		return false, diags
 	}

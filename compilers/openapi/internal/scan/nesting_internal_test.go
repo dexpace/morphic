@@ -14,6 +14,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
@@ -29,7 +30,7 @@ func nested(key string, n int) string {
 func placedNesting(t *testing.T, src string, limit int) (ir.Diagnostic, bool) {
 	t.Helper()
 	idx := indexOf(t, []byte(src))
-	return nestingWithin(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, limit)
+	return nestingWithin(t.Context(), provenance.Tree{Pointers: Pointers(t.Context(), idx.Root())}, idx, limit)
 }
 
 // TestNesting_RefusesPastTheBoundAndNotAtIt pins the bound's edge on the
@@ -39,11 +40,11 @@ func TestNesting_RefusesPastTheBoundAndNotAtIt(t *testing.T) {
 	t.Parallel()
 	at := indexOf(t, []byte(nested("k", MaxNesting)+"\n"))
 	require.Equal(t, MaxNesting, at.Nesting())
-	_, refused := Nesting(t.Context(), InSource(0), at)
+	_, refused := Nesting(t.Context(), provenance.Tree{}, at)
 	assert.False(t, refused, "a document at the bound is admitted")
 
 	past := indexOf(t, []byte(nested("k", MaxNesting+1)+"\n"))
-	d, refused := Nesting(t.Context(), InSource(0), past)
+	d, refused := Nesting(t.Context(), provenance.Tree{}, past)
 	require.True(t, refused)
 	assert.Equal(t, diag.SourceTooDeep, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)

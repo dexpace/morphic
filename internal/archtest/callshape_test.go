@@ -47,12 +47,6 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/operation": 2,
 		"compilers/openapi/internal/schema":    4,
 	},
-	"compilers/openapi/internal/annotation": {
-		// Placement through lowering.Ctx.ProvenanceAt and schema's unlocated,
-		// which #1485 replaces with one provenance value.
-		"compilers/openapi/internal/lowering": 14,
-		"compilers/openapi/internal/schema":   1,
-	},
 	"compilers/openapi/internal/bind": {
 		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
 		// (Open), policy bind may not import (Locate, Refuse), a live query
@@ -91,16 +85,18 @@ var callShapeBaseline = map[string]map[string]int{
 		// takes each value it leaves to the load phase, traversal callbacks.
 		"compilers/openapi/internal/load": 12,
 	},
+	"compilers/openapi/internal/provenance": {
+		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
+		// off an index built on the first node asked about, under the context of
+		// the load reading the tree: a lazily built index.
+		"compilers/openapi/internal/load": 1,
+		"compilers/openapi/internal/scan": 1,
+	},
 	"compilers/openapi/internal/resolve": {
 		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
-	},
-	"compilers/openapi/internal/scan": {
-		// Placement through scan.Locator and its pointers, which #1487 replaces
-		// with one provenance tree.
-		"compilers/openapi/internal/load": 13,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate

@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,7 +25,7 @@ import (
 // items is walkSource's walk. A site where resolved holds the resolver's own
 // failure is not reported again: by #767 it can fail a reference it later
 // reached. A panic in the walk is reported at the model it reached.
-func besideRefs(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items iter.Seq[soa.WalkItem],
+func besideRefs(place provenance.Doc, sibs Siblings, items iter.Seq[soa.WalkItem],
 	resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
 	if len(sibs.list) == 0 {
@@ -38,13 +39,13 @@ func besideRefs(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items it
 	}
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "path item $ref check", func(site jsontext.Pointer, model any) error {
-		if d, beside := besideRef(at, site, sibs, model); beside && !failed[d.Provenance] {
+		if d, beside := besideRef(place, site, sibs, model); beside && !failed[d.Provenance] {
 			diags = append(diags, d)
 		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
 	}
 	return diags
 }
@@ -54,7 +55,7 @@ func besideRefs(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items it
 // the field written there (Siblings.Writes). The chain is read as the lowering
 // reads it (resolve.ObjectAt): hop by hop while each lands in the source. A
 // schema's $ref is no reference object; the binding reports its own (bind.Hop).
-func besideRef(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, sibs Siblings, model any,
+func besideRef(place provenance.Doc, site jsontext.Pointer, sibs Siblings, model any,
 ) (ir.Diagnostic, bool) {
 	r, isRef := model.(resolvable)
 	if !isRef || !r.IsReference() {
@@ -65,7 +66,7 @@ func besideRef(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, s
 			break
 		}
 		if use, key, beside := sibs.Beside(hop.pointer); beside && !sibs.Writes(hop.pointer, hop.object) {
-			return diag.Newf(ir.SeverityError, diag.UnresolvedRef, at(site), "unresolved $ref %q: it reaches %s; %s",
+			return diag.Newf(ir.SeverityError, diag.UnresolvedRef, place.At(site), "unresolved $ref %q: it reaches %s; %s",
 				r.GetReference(), hop.pointer, bind.BesideReason(use, key)), true
 		}
 	}

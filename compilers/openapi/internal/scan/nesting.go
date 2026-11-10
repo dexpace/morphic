@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
@@ -37,18 +38,18 @@ const MaxNesting = 1024
 // A document holding a recursive anchor is left to the anchor-cycle refusal:
 // it nests without end, and the index's count of one turn round it is no
 // fact to refuse on or to find a site for.
-func Nesting(ctx context.Context, locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
-	return nestingWithin(ctx, locate, idx, MaxNesting)
+func Nesting(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
+	return nestingWithin(ctx, tree, idx, MaxNesting)
 }
 
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
-func nestingWithin(ctx context.Context, locate Locator, idx sourceindex.Index, limit int) (ir.Diagnostic, bool) {
+func nestingWithin(ctx context.Context, tree provenance.Tree, idx sourceindex.Index, limit int) (ir.Diagnostic, bool) {
 	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
 	root := idx.Root()
-	return diag.Newf(ir.SeverityError, diag.SourceTooDeep, locate(Least(ctx, root, deepSites(ctx, root, limit))),
+	return diag.Newf(ir.SeverityError, diag.SourceTooDeep, tree.Node(Least(ctx, root, deepSites(ctx, root, limit))),
 		"document nests %d levels deep with its aliases expanded, past the %d-level bound", idx.Nesting(), limit), true
 }
 

@@ -17,8 +17,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -87,13 +87,13 @@ func (m MediaTypes) Use(media *soa.MediaType) (*refscope.ReferencedMediaType, bo
 // or whose $ref holds no scalar, is not modelled, as the rule table reports it,
 // nor is one past the merge bound, which document.retainUnreferencedComponents
 // reports.
-func modelMediaTypes(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (MediaTypes, []ir.Diagnostic) {
-	return mediaTypesFrom(ctx, doc, locate, buildMediaType)
+func modelMediaTypes(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree) (MediaTypes, []ir.Diagnostic) {
+	return mediaTypesFrom(ctx, doc, tree, buildMediaType)
 }
 
 // mediaTypesFrom is modelMediaTypes with a build the caller supplies, so a test
 // can hand it one that faults.
-func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator, build mediaTypeBuild,
+func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree, build mediaTypeBuild,
 ) (MediaTypes, []ir.Diagnostic) {
 	m := MediaTypes{uses: map[*yaml.Node]*refscope.ReferencedMediaType{}, faults: map[*yaml.Node]error{},
 		canonical: map[*yaml.Node]*refscope.ReferencedMediaType{}, build: build}
@@ -110,7 +110,7 @@ func mediaTypesFrom(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator, 
 		}
 		model, err := build(ctx, node)
 		if err != nil {
-			faults = append(faults, diag.Newf(ir.SeverityError, diag.Validation, locate(node),
+			faults = append(faults, diag.Newf(ir.SeverityError, diag.Validation, tree.Node(node),
 				"this media type could not be read: %s", err.Error()))
 			continue
 		}

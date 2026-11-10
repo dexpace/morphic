@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -392,14 +393,14 @@ func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, 
 	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs, media), media, built)
 }
 
-// restoreFault reports the fault restore ended on, at the model it ended at,
+// restoreFault reports the fault restore ended on, at the model it ended place,
 // and nothing for no fault. It is no spec problem: the library faulted reading
 // its own models.
-func restoreFault(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer, err error) []ir.Diagnostic {
+func restoreFault(place provenance.Doc, site jsontext.Pointer, err error) []ir.Diagnostic {
 	if err == nil {
 		return nil
 	}
-	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.InternalInvariant, at(site), "internal: %s", err.Error())}
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.InternalInvariant, place.At(site), "internal: %s", err.Error())}
 }
 
 // restoreFrom is restore over a walk of the source the caller supplies, so a

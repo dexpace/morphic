@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,7 +25,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -48,20 +47,20 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		return again, err
 	}
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil),
+		newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), 0, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
+	return resolved, passDiags(provenance.Doc{}, pass, missed), err
 }
 
 // passDiags is what pass reports, and the documents missed it found
 // unprepared, a finding in another document placed at the source's root, as no
 // document is listed: nil for no pass, as a failed rebuild leaves.
-func passDiags(at func(jsontext.Pointer) ir.Provenance, pass *resolution, missed []usedDocument) []ir.Diagnostic {
+func passDiags(source provenance.Doc, pass *resolution, missed []usedDocument) []ir.Diagnostic {
 	if pass == nil {
 		return nil
 	}
-	place := sitePlacer(at, Others{})
-	return append(pass.diags(place), stillUnprepared(place, missed)...)
+	sites := places{source: source}
+	return append(pass.diags(sites), stillUnprepared(sites, missed)...)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to
@@ -323,19 +322,15 @@ func TestLoad_APhaseFailingOnceCancelledIsTheContexts(t *testing.T) {
 // resolveExternal with a rebuild that differs from the first model.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
-	place := func(s refSite) ir.Provenance {
-		if s.inSource() {
-			return ir.Provenance{Source: 3, Pointer: s.pointer}
-		}
-		return ir.Provenance{Source: 4, Pointer: s.pointer}
-	}
+	sites := places{source: provenance.Doc{Source: 3},
+		others: Others{list: []Other{{Index: 4}}, byName: map[string]int{"b.yaml": 0}}}
 	missed := []usedDocument{
 		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1x"}},
 		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1y"}}, // same key: reported once
 		{key: "http://a/2.yaml", site: refSite{doc: "b.yaml", pointer: "/paths/~1z"}},
 	}
 
-	diags := stillUnprepared(place, missed)
+	diags := stillUnprepared(sites, missed)
 
 	require.Len(t, diags, 2, "one report per distinct key")
 	for _, d := range diags {

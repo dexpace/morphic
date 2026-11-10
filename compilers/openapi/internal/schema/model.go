@@ -105,7 +105,7 @@ func (s settledMerge) alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
 		at, placed := s.c.Position(p.Pointer)
 		uri, known := s.c.Bindings().Table().Base(at)
-		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+		return uri, placed && known && p.Source == s.c.Place().At(p.Pointer).Source
 	}
 	ua, okA := base(a)
 	ub, okB := base(b)
@@ -143,7 +143,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 			Name:       compile.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
-			Provenance: c.ProvenanceAt(ppointer),
+			Provenance: c.Place().At(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		declared := p.Secret

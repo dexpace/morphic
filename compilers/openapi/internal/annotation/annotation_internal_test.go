@@ -6,7 +6,6 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -791,24 +791,17 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
-// sourced is the Locator for a compile with no overlay: every position belongs
-// to the one source at index.
-func sourced(index int) Locator {
-	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Source: index, Pointer: pointer}
-	}
-}
+// sourced places every position in the one source at index: a compile with no
+// overlay.
+func sourced(index int) provenance.Doc { return provenance.Doc{Source: index} }
 
-// overlaid is the Locator for a compile where an overlay touched exactly
-// pointers: each resolves to source 1, as ProvenanceAt resolves a position the
-// overlay introduced or rewrote, and every other pointer resolves to source 0,
-// the base document. It answers for a position alone and ignores from, so a test
-// of a combined record uses recording instead.
-func overlaid(pointers ...jsontext.Pointer) Locator {
-	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
-		if slices.Contains(pointers, pointer) {
-			return ir.Provenance{Source: 1, Pointer: pointer}
-		}
-		return ir.Provenance{Source: 0, Pointer: pointer}
+// overlaid places a compile where an overlay at source 1 touched exactly
+// pointers, as an applied overlay's attribution does, and every other position
+// in source 0, the base document.
+func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
+	touched := make(map[jsontext.Pointer]bool, len(pointers))
+	for _, p := range pointers {
+		touched[p] = true
 	}
+	return provenance.Doc{Overlay: provenance.Attributed(1, touched, nil)}
 }

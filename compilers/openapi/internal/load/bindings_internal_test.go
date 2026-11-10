@@ -27,7 +27,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
@@ -53,7 +53,7 @@ func TestBindingDiags_ReportsTheBudgetOnce(t *testing.T) {
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml", Limit: budget.AtMost(2)})
 	require.True(t, table.Exhausted(), "sanity: two steps are not enough to bind the document")
 
-	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
+	diags := bindingDiags(places{}, table)
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
@@ -110,7 +110,7 @@ func TestBindingDiags_ReportsAFailedRefOnceWhereItIsWrittenAtEveryBudget(t *test
 		table := bind.Bind(t.Context(), root, cfg)
 		var failed []ir.Diagnostic
 		crossed := false
-		for _, d := range bindingDiags(byDocument, table) {
+		for _, d := range bindingDiags(byDocument(table), table) {
 			switch d.Code {
 			case diag.UnresolvedRef:
 				failed = append(failed, d)
@@ -150,7 +150,7 @@ func TestBindingDiags_NamesALoopsMembersByTheirDocument(t *testing.T) {
 	}})
 	require.Equal(t, 3, table.Documents(), "sanity: the source and the two documents it leads into")
 
-	diags := bindingDiags(byDocument, table)
+	diags := bindingDiags(byDocument(table), table)
 	got := make([]string, 0, len(diags))
 	for _, d := range diags {
 		got = append(got, fmt.Sprintf("%d%s: %s", d.Provenance.Source, d.Provenance.Pointer, d.Message))
@@ -207,7 +207,7 @@ func TestBindingDiags_ReportsAChainBackIntoTheSourceWhereItFails(t *testing.T) {
 	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml",
 		Open: func(string) (*yaml.Node, error) { return &other, nil }})
 
-	diags := bindingDiags(inSource(pointerAt(0, overlay.Origin{})), table)
+	diags := bindingDiags(places{}, table)
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, jsontext.Pointer("/components/schemas/B"), diags[0].Provenance.Pointer)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -296,13 +296,11 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 	b.WriteString("components:\n  schemas:\n    T: {type: string}\n    A: {<<: *c70}\n")
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(b.String()), &root))
-	at := pointerAt(0, overlay.Origin{})
-
-	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at(""),
+	want := []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, ir.Provenance{},
 		"a mapping merges through `<<` deeper than 64 levels, which resolving the schema $refs does not "+
 			"expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that "+
 			"mapping is a schema, no $dynamicRef in its document is expanded")}
-	assert.Empty(t, cmp.Diff(want, bindingDiags(inSource(at), bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))))
+	assert.Empty(t, cmp.Diff(want, bindingDiags(places{}, bind.Bind(t.Context(), &root, bind.Config{Self: "spec.yaml"}))))
 }
 
 // TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor pins where a landing
@@ -311,7 +309,6 @@ func TestBindingDiags_ReportsTheMergeBound(t *testing.T) {
 // content reaches, or one that was built, whichever comes first.
 func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	t.Parallel()
-	at := pointerAt(0, overlay.Origin{})
 	failed := typed.Built{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/S"},
 		Site: bind.Position{Pointer: "/components/schemas/A"}, Reached: true}, Err: errors.New("it failed")}
 	elsewhere := typed.Built{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/S"}, Name: "other.yaml",
@@ -321,12 +318,12 @@ func TestBuildFailures_ReportsALandingNoSchemaWasBuiltFor(t *testing.T) {
 	built := typed.Built{Landing: failed.Landing}
 
 	want := []ir.Diagnostic{
-		diag.Newf(ir.SeverityError, diag.Validation, at("/components/schemas/A"),
+		diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Pointer: "/components/schemas/A"},
 			"the $ref here reaches #/x-lib/S, where no schema could be built: it failed"),
-		diag.Newf(ir.SeverityError, diag.Validation, at("/components/schemas/B"),
+		diag.Newf(ir.SeverityError, diag.Validation, ir.Provenance{Pointer: "/components/schemas/B"},
 			"the $ref here reaches #/S in other.yaml, where no schema could be built: it failed"),
 	}
-	assert.Empty(t, cmp.Diff(want, buildFailures(inSource(at), []typed.Built{built, failed, foreign, elsewhere})))
+	assert.Empty(t, cmp.Diff(want, buildFailures(places{}, []typed.Built{built, failed, foreign, elsewhere})))
 }
 
 // TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases pins GitHub
@@ -351,17 +348,18 @@ func TestLoad_AMergeFanOutPastTheMergeBoundIsRefusedForItsAliases(t *testing.T) 
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 }
 
-// inSource places a finding at a position of a table that read the source
-// alone: at's Provenance for its pointer.
-func inSource(at func(jsontext.Pointer) ir.Provenance) func(bind.Position) ir.Provenance {
-	return func(p bind.Position) ir.Provenance { return at(p.Pointer) }
-}
-
-// byDocument places a finding at a position of a table that read other
+// byDocument places a finding at a position of table, which read other
 // documents: Source is the number the table reads the position's document
 // under, which indexes Document.Sources in the order these tests read them.
-func byDocument(p bind.Position) ir.Provenance {
-	return ir.Provenance{Source: int(p.Doc), Pointer: p.Pointer}
+func byDocument(table *bind.Table) places {
+	others := Others{byName: map[string]int{}}
+	for id := range bind.DocID(table.Documents()) {
+		if id != bind.Source {
+			others.byName[table.Document(id).Name] = len(others.list)
+			others.list = append(others.list, Other{Index: int(id)})
+		}
+	}
+	return places{others: others, table: table}
 }
 
 // TestPositionOf_PlacesASiteInTheDocumentTheTableRead pins positionOf and
@@ -422,24 +420,25 @@ func TestUnplaced_NamesTheDocumentOfASiteOutsideTheSource(t *testing.T) {
 	assert.Equal(t, "/components/parameters/P in a.yaml", site)
 }
 
-// TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt pins where a finding at a
-// position of the bindings' table is placed: the source's at its own
-// Provenance, another document's in that document's Document.Sources entry,
-// and one in a document no entry lists, which a load never produces, at the
-// source's root rather than nowhere.
-func TestPlacer_PlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
+// TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt pins where a
+// finding at a position of the bindings' table is placed: the source's where
+// the source places its pointer, another document's in that document's
+// Document.Sources entry, and one in a document no entry lists, which a load
+// never produces, at the source's root rather than nowhere.
+func TestPlaces_PositionPlacesAFindingInTheDocumentThatHoldsIt(t *testing.T) {
 	t.Parallel()
 	doc, codes := loadReferencing(t, "./ext.yaml#/X")
 	require.Empty(t, codes)
-	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: "/at" + p} }
+	source := provenance.Doc{Source: 5}
+	table := doc.Bindings.Table()
 	ext := bind.Position{Doc: 1, Pointer: "/X"}
 
-	listed := bound{bindings: doc.Bindings, others: doc.Others}.placer(at)
-	assert.Equal(t, ir.Provenance{Pointer: "/at/components"}, listed(bind.Position{Pointer: "/components"}))
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed(ext))
+	listed := places{source: source, others: doc.Others, table: table}
+	assert.Equal(t, ir.Provenance{Source: 5, Pointer: "/components"}, listed.position(bind.Position{Pointer: "/components"}))
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, listed.position(ext))
 
-	unlisted := bound{bindings: doc.Bindings}.placer(at)
-	assert.Equal(t, ir.Provenance{Pointer: "/at"}, unlisted(ext))
+	unlisted := places{source: source, table: table}
+	assert.Equal(t, ir.Provenance{Source: 5}, unlisted.position(ext))
 }
 
 // TestBindSchemas_AChainEndsInTheDocumentItEndsIn is TestTargetOf for schema

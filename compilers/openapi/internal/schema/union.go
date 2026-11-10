@@ -189,10 +189,10 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason 
 	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.ProvenanceAt)...)
+			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.Place())...)
 			continue
 		}
-		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.ProvenanceAt)
+		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, kw)
@@ -238,7 +238,7 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 		return nil
 	}
 	unused := otherCombinator[won]
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.Place())
 	if !kept {
 		return diags
 	}

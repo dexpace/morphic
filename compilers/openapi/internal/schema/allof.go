@@ -355,7 +355,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, comp allOfC
 		}
 		m.Additional = ir.AdditionalClosed
 		annotation.PreserveInto(&m.Unmodeled, comp.branchKey(e.pointer),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
@@ -364,7 +364,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, comp allOfC
 
 	if m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
 		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, s, "additionalProperties",
-			ir.ReasonDegradedLowering, comp.pointer, c.ProvenanceAt)
+			ir.ReasonDegradedLowering, comp.pointer, c.Place())
 		diags = append(diags, keptDiags...)
 	}
 	forbidRest(m)
@@ -396,7 +396,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil
 	}
 	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		bs.GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+		bs.GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 	if !kept {
 		return keptDiags
 	}

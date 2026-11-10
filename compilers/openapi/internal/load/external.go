@@ -28,6 +28,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -64,8 +65,8 @@ type external struct {
 
 // crossed reports each budget the reads through reader crossed, once every
 // read is in: the resolver's and the binding's.
-func crossed(at func(jsontext.Pointer) ir.Provenance, reader *external) []ir.Diagnostic {
-	return append(reader.work.exhausted(at), reader.read.exhausted(at)...)
+func crossed(place provenance.Doc, reader *external) []ir.Diagnostic {
+	return append(reader.work.exhausted(place), reader.read.exhausted(place)...)
 }
 
 // maxOpenedSpellings is the most spellings Open holds every object of the
@@ -295,7 +296,7 @@ func (e external) holdSpelling(ref references.Reference, base string) {
 // that stalled where mending cures it (see resumable): the library reports a
 // document as its bytes when it holds both them and the object a reference
 // names, and a hop resolved against bytes fails (GitHub #761). Each resumption
-// starts past the hop the last stalled at, so maxResolutionHops bounds them, and
+// starts past the hop the last stalled place, so maxResolutionHops bounds them, and
 // is charged to e.work before it reads anything.
 func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions, err error) error {
 	for range maxResolutionHops {
@@ -526,7 +527,8 @@ func parseTree(ctx context.Context, data []byte) (*yaml.Node, error) {
 // could name: the reference that named the document is what fails, with the
 // findings as its reason.
 func (e external) admit(ctx context.Context, key string, root *yaml.Node) error {
-	findings := refusals(ctx, nowhere, root, e.opts)
+	place := nowhere()
+	findings := refusals(ctx, place, place.Node(nil), root, e.opts)
 	if len(findings) > 0 {
 		reasons := make([]string, len(findings))
 		for i, d := range findings {
@@ -675,10 +677,10 @@ func isFileURI(s string) bool {
 	return err == nil && strings.EqualFold(u.Scheme, "file")
 }
 
-// nowhere locates an external document's findings, which leave as the text of
+// nowhere places an external document's findings, which leave as the text of
 // an error and never as diagnostics, so where each is does not matter.
-func nowhere(*yaml.Node) ir.Provenance {
-	return ir.Provenance{Source: ir.NoSource}
+func nowhere() provenance.Tree {
+	return provenance.Tree{Doc: provenance.Doc{Source: ir.NoSource}}
 }
 
 // refused returns the error the read of the document under key fails with,

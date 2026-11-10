@@ -17,7 +17,7 @@ import (
 // How a construct is kept verbatim is annotation's: the key its entry takes, the
 // position it is located at, the conversion of its value, and the report when
 // it cannot be kept. This package calls annotation for that directly, with
-// c.ProvenanceAt. What it decides is what a position keeps and why: which
+// c.Place(). What it decides is what a position keeps and why: which
 // keywords, under which reason, announced how. PreserveUnknownKeywords is one
 // such decision, reading the dialect a schema is read in. A preservation
 // function that decides nothing and only keys, locates or converts belongs in
@@ -43,8 +43,8 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
 	}
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)
-	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.Place(), taken...)
+	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.Place())...)
 }
 
 // undefinedKeywords returns the keywords s writes that the schema model names
