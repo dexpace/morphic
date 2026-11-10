@@ -34,7 +34,7 @@ Each row names the rule and code that shows it holding, the thing to copy.
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` | `Deprecation` in `ir/docs.go` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` | `Inferred` in `ir/inferred.go` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` | `Pointer` in `compilers/openapi/internal/fragment/fragment.go` |
-| a helper or algorithm another site may hold | `references/design-rules.md#share-only-what-means-the-same` | `hoistScalar` in `compilers/openapi/internal/schema/scalar.go` |
+| a helper or algorithm another site may hold | `references/design-rules.md#share-only-what-means-the-same`, `references/design-rules.md#fallback-suits-the-decision` | `hoistScalar` in `compilers/openapi/internal/schema/scalar.go` |
 | code that needs no morphic concept | `references/design-rules.md#domain-free-code-lives-apart` | `Catch` in `barrier/barrier.go` |
 
 ## Already checked

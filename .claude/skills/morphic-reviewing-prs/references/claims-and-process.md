@@ -29,7 +29,9 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    its reproduction run on the base and on the head
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-reproduction-reruns`),
    what in the tree still cites it
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-cited-in-the-tree`),
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-cited-in-the-tree`)
+   and what in the tracker does
+   (`references/claims-and-process.md#tracker-on-what-cites-a-closing-issue`),
    a sidebar link to it
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-sidebar-link`),
    and each choice resting on an open issue against the open PRs settling it
@@ -134,7 +136,22 @@ The matrix is each claim class with the members checked, and each closed issue w
   content classified as a stream, and an element rule left #630 unnamed. The PR named neither until
   a later revision, and no pass would have looked for them (#1167, #1170).
 - **Probe.** The report lists each construct, the issues its search returned, and what the change
-  does about each.
+  does about each. Then `references/claims-and-process.md#tracker-on-what-cites-a-closing-issue`.
+
+## Search the tracker for what cites each issue the PR closes
+`tracker-on-what-cites-a-closing-issue`
+
+- **Rule.** For each issue the PR closes, by keyword or sidebar link, and for the PR's own number,
+  run `gh issue list --state all --limit 1000 --search "#<N> in:body"`, and settle each open hit as
+  `references/claims-and-process.md#tracker-on-what-a-rule-settles` settles a construct's. Run it
+  before judging the body's universal claims and before calling a defect beside the change
+  unfiled.
+- **Why.** A review of #1514, which closes #1086, called a defect beside it unfiled and passed the
+  body's claim that a branch on a loop "is reported once", while #1566 held the defect and #1570
+  contradicted the claim, both citing #1086; a search by construct found them only with their
+  words (#1669).
+- **Probe.** The report lists each number searched and each open hit, with what the change does
+  about it.
 
 ## Check a choice resting on an open issue against the open PRs settling it
 `open-issue-against-open-prs`

@@ -67,7 +67,11 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 				Fault:      "client",
 			},
 		},
-		OneWay:    false,
+		Default: &ir.Response{
+			Name:       ir.Naming{Source: "default"},
+			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}},
+			Payload:    errorPayload(),
+		},
 		Streaming: ir.StreamingBidi,
 		RequestStream: &ir.StreamDetail{
 			Events:         &ir.TypeRef{Target: "t/req-events"},
@@ -102,6 +106,9 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Unmodeled:  populatedUnmodeled(),
 		Provenance: populatedProvenance(),
 	}
+	assertNoFieldZero(t, want, zeroField{"OneWay", "mutually exclusive with the responses the " +
+		"fixture sets, which validate rejects beside it; it carries no omitempty, so " +
+		"TestOperation_ZeroValueShape pins its key"})
 	assertRoundTrip(t, want)
 }
 
@@ -253,8 +260,9 @@ func TestParameter_JSONContract(t *testing.T) {
 }
 
 // TestPayload_JSONContract pins Payload's omitempty contract (every field is
-// optional) and that a Payload with multiple media-type contents round-trips,
-// all kept per the "no primary-response selection" invariant.
+// optional) and that a fully populated Payload round-trips, its several
+// media-type contents all kept per the "no primary-response selection"
+// invariant.
 func TestPayload_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Payload{}, `{}`, ir.Payload{
@@ -263,6 +271,7 @@ func TestPayload_JSONContract(t *testing.T) {
 			{MediaType: "application/xml", Type: populatedTypeRef()},
 		},
 		Required:  new(true),
+		Docs:      populatedDocs(),
 		Unmodeled: populatedUnmodeled(),
 	})
 }
@@ -385,6 +394,7 @@ func TestPartEncoding_JSONContract(t *testing.T) {
 		Headers:       []ir.Header{populatedHeader()},
 		Multi:         true,
 		Filename:      true,
+		Inferred:      "binary-media-type",
 		Style:         "form",
 		Explode:       new(false),
 		AllowReserved: true,
@@ -403,6 +413,7 @@ func TestFileInfo_JSONContract(t *testing.T) {
 		ContentTypeDefault: "image/png",
 		FilenameLocation:   "header",
 		FilenameWireName:   "X-Filename",
+		Inferred:           "binary-media-type",
 	})
 }
 
@@ -483,6 +494,7 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Throttling: new(false),
 			Docs:       populatedDocs(),
 			Unmodeled:  populatedUnmodeled(),
+			Inferred:   "extension-promotion",
 		})
 }
 

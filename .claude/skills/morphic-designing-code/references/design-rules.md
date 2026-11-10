@@ -173,6 +173,20 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   stayed apart, as sharing would change what they report (#789).
 - **Probe.** Diff every site's results over the shared table.
 
+## A reused reader's fallback must suit its new caller's decision
+`fallback-suits-the-decision`
+
+- **Rule.** When a new caller reuses a reader, name the decision its fallback (its answer for what
+  it does not read) was chosen for, and the one the caller makes. Where the fallback is safe for the
+  first and unsafe for the second, the reader reports that it fell back, as `Budget.Exhausted`
+  reports a cut, and the caller takes that as its own safe answer.
+- **Why.** `conjunctTypes` answers `anyInstance` for what it does not read, which keeps
+  `allof-disjoint-conjuncts` silent. #1656 reused it as `Merger.Untyped` (now `Walk.Untyped`), where
+  `anyInstance` let a kind replace the structure: `{allOf: [{$ref: NotStr}], properties: …}` beside `{type: string}`
+  lowered to a bare string, unreported through three review rounds (#1673).
+- **Probe.** Through the new caller, compile one input per construct the reader does not read, and
+  check each verdict against the source.
+
 ## Keep code that needs no morphic concept apart from the domain
 `domain-free-code-lives-apart`
 
