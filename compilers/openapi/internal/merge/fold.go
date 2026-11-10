@@ -92,7 +92,9 @@ type declaration struct {
 // that declaration (identify). Every fact is decided from the whole set, so
 // declaration order decides only a tie, which is reported. What a declaration
 // says that the field does not carry is reported at that declaration, which is
-// kept verbatim beside the field.
+// kept verbatim beside the field. Each report names a pointer alone
+// (pointerOnly), and fold places them all through g.Doc, so none is placed
+// apart from the model's document.
 //
 // A fold judges every pair of declarations, so it judges at most
 // maxFoldDeclarations of them (keepUnjudged).
@@ -112,7 +114,17 @@ func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 	f.foldUnmodeled()
 	merged, diags := f.finish()
 	g.identify(&merged, schema, field)
-	return merged, append(diags, g.keepUnjudged(&merged, past)...)
+	diags = append(diags, g.keepUnjudged(&merged, past)...)
+	for i := range diags {
+		diags[i].Provenance = g.Doc.At(diags[i].Provenance.Pointer)
+	}
+	return merged, diags
+}
+
+// pointerOnly is a Provenance holding pointer and naming no document until fold
+// places it.
+func pointerOnly(pointer jsontext.Pointer) ir.Provenance {
+	return ir.Provenance{Pointer: pointer}
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -129,7 +141,7 @@ func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) []ir.Diag
 	if len(past) == 0 {
 		return nil
 	}
-	at := g.Doc.At(past[0].prop.Provenance.Pointer)
+	at := pointerOnly(past[0].prop.Provenance.Pointer)
 	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
 			"kept verbatim under Unmodeled, unjudged",
@@ -521,7 +533,7 @@ func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			diags = append(diags, diag.Newf(n.sev, n.code, f.g.Doc.At(f.at(i)), "%s", n.msg))
+			diags = append(diags, diag.Newf(n.sev, n.code, pointerOnly(f.at(i)), "%s", n.msg))
 		}
 		if f.lost[i] {
 			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)
