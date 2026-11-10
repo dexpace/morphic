@@ -140,11 +140,25 @@ yourself. These rules are the ways that reading still lies.
   code runs concurrently, plant on a branch only the excluded callers take, found by
   `references/mutation.md#find-what-only-excluded-callers-reach`: the included set's run stays
   green while the excluded set's reports the plant. A plant at a function's entry measures
-  its busiest caller, and is the control, not the evidence.
+  its busiest caller, and is the control, not the evidence; a helper's other callers take
+  `references/mutation.md#plant-a-bypass-in-each-caller`.
 - **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
   listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
   drew none from the listed packages and 14 from those two (#1380).
 - **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
+
+## Plant a bypass in each caller of a helper a test holds
+`plant-a-bypass-in-each-caller`
+
+- **Rule.** For a test holding a property of a helper several callers share, list the callers
+  (`git grep -n '<helper>(' -- <package>`), and in each the test does not run through, plant a
+  bypass doing the helper's work without the property. A test fails for each, or that caller's
+  property is unheld; a plant inside the helper holds only the callers the test runs through.
+- **Why.** A test held `forEachPayload`'s sorted range over `doc.Messages` through
+  `checkPayloadRequired` alone: `checkEncodingKeys` ranging the map itself passed every test in
+  `pass` and `engine`, while 20 runs gave its diagnostics 5 orders (#1644).
+- **Probe.** Each bypass beside the suite's result, and a run showing the bypass reaches the
+  output, as the 20 runs did.
 
 ## Find what only the excluded callers reach from a coverage profile
 `find-what-only-excluded-callers-reach`

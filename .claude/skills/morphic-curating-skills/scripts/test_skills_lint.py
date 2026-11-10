@@ -458,6 +458,17 @@ class LintTest(unittest.TestCase):
               "---\nname: " + "x" * 64 + "\ndescription: Use when testing.\n---\n")
         self.assertEqual(self.lint()[1], [], "64 characters is within the limit")
 
+    def test_a_positional_placeholder_is_refused_in_a_body_and_kept_in_a_reference(self):
+        skill = ".claude/skills/good-skill/"
+        awk = "Run `awk '{print c\":\"$0}'` and `awk '{print $(0)}'`.\n"
+        write(self.root, skill + "SKILL.md", GOOD_SKILL + "```bash\nsed -n \"$1p\"\n```\n" + awk)
+        write(self.root, skill + "references/r.md", "# R\n\n" + awk + "\n" + RULE)
+        lines = len(GOOD_SKILL.split("\n"))
+        message = ("a $ before a digit is replaced by the skill's arguments when it loads; "
+                   "spell an awk field $(N)")
+        self.assertEqual(self.lint()[1], [f"{skill}SKILL.md:{lines + 1}: {message}",
+                                          f"{skill}SKILL.md:{lines + 3}: {message}"])
+
     def test_a_description_is_held_to_500_characters(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         body = GOOD_SKILL.split("---\n", 2)[2]

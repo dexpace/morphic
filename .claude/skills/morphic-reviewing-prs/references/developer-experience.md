@@ -15,8 +15,10 @@ comments and messages let a reader find, follow and extend it without asking. It
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies`),
    and each normative document and `CONTRIBUTING.md` recipe it touches changes with it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#update-normative-docs-in-same-change`).
-   Moved code and divided documents take `references/developer-experience.md#moved-comments`, and a
-   restructured one `references/developer-experience.md#restructure-accounts-for-every-sentence`.
+   Moved code and divided documents take `references/developer-experience.md#moved-comments`, code
+   crossing a package `references/developer-experience.md#move-keeps-what-the-package-enforced`,
+   and a restructured document
+   `references/developer-experience.md#restructure-accounts-for-every-sentence`.
 5. **Messages.** Each new diagnostic or error names what is wrong, where, and what the writer can
    do.
 
@@ -36,6 +38,20 @@ finding breaks.
 - **Probe.** `git diff --name-only --diff-filter=AMR "$main"...HEAD -- '*.go'` names each file
   that gained code, a move included; read the `doc.go` in each one's directory.
 
+## A move across packages keeps what the old package enforced
+`move-keeps-what-the-package-enforced`
+
+- **Rule.** For each declaration crossing a package boundary, list what the old package's
+  unexported fields and functions made impossible for code now sharing its package: each comment
+  the move deletes or rewrites saying "only through", "private", "unexported" or "cannot" names
+  one. Plant a write bypassing each; one no test refuses gets a test, or a type keeping it by
+  construction.
+- **Why.** #1650 moved `KeptOnce` into the package of its one writer, deleting a comment saying a
+  lowering writes it only through `Once`; a write skipping it, and a fresh read set per operation,
+  passed every test until a review planted past the defects the PR listed (#1651).
+- **Probe.** `git diff "$main"...HEAD | grep -nE '^-[[:space:]]*//.*(only through|private|unexported|cannot)'`
+  lists the deleted comments, each read beside its plant.
+
 ## Moved prose leans on what stayed behind
 `moved-prose`
 
@@ -48,7 +64,7 @@ finding breaks.
   checks (#1179, #1184).
 - **Probe.** `git grep -nwE 'the same|there|too|also' -- <files>`, each section's first line for a
   pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and
-  `awk 'FNR==1{p="";f=($0=="---")} f{if(FNR>1&&$0=="---")f=0;next} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
+  `awk 'FNR==1{p="";c=0;f=($0=="---")} f{if(FNR>1&&$0=="---")f=0;next}/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c;p="";next}c{next} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
   `TestDocuments_OpenNoLineWithAPlus` holds `+`.
 
 ## A restructured document accounts for every sentence it held

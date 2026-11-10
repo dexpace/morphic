@@ -146,6 +146,19 @@ verifier and codecs must reach.
 - **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
   the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
 
+## A verdict landing on another node changes no meaning
+`verdict-on-another-node`
+
+- **Rule.** A lowering that changes which node a field names, mints nodes of a kind the IR already
+  declares, or adds an ID namespace changes no key's meaning, IDs being opaque to consumers
+  (`docs/ir/identity.md`), and bumps nothing. A value a consumer switches on, as a primitive, a
+  mode or a media type, is `references/ir-lessons.md#widened-field-values`'s, and bumps.
+- **Why.** The redeclared-field merge added the `composed` namespace and minted composed models
+  (#1181), then nodes holding two declarations' bounds (#1307), each without a bump, while the
+  skill's values bullet read as asking a bump for each (#1657).
+- **Probe.** `git show <merge> --stat -- ir/document.go docs/ir/version-history.md` lists neither
+  file for #1181's `20017d99b` or #1307's `7cf3f95fc`.
+
 ## Ask each consumer of a widened field what it did with the old value
 `widened-field-consumers`
 
@@ -164,12 +177,26 @@ verifier and codecs must reach.
   its document, cited, not restated
   (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
   Say whether each changes the answer, compiling a minimal spec for one the golden spec lacks.
-  Check a step order against what each step reads that a later one changes.
+  Check a step order by `references/ir-lessons.md#step-order-both-ways`.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
   steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
   kind documents and restated sections (#1402).
 - **Probe.** `go doc -all ./ir <Type>` and `grep -n '^#' <document>`; an input with no stated
   effect is unchecked.
+
+## Check a step order against what later steps change and declare
+`step-order-both-ways`
+
+- **Rule.** Check a step order both ways: what each step reads that a later one changes, and what
+  each adds to that a later one declares. A step adding to a declaration runs after the step
+  declaring it.
+- **Why.** An import step preceded the steps renaming what it imports (#1019). At 4cb221a80,
+  `docs/emitters/refine/steps.md` placed `LowerRedaction` before `BuildRequestShaping`, whose
+  request types it gives a redacting form, and `MarkStability` before the steps declaring the
+  methods it marks; reading only what each step reads passed both (#1630).
+- **Probe.** List the order with
+  `awk -F'|' '/^\| \140/{print NR": "$2}' docs/emitters/refine/steps.md`, and beside each step
+  what it reads and adds to, against the steps after it.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`
@@ -180,9 +207,10 @@ verifier and codecs must reach.
 - **Why.** Three decode mechanisms in turn passed a prototype of their cost and failed a sibling
   document's requirement: builders could not reach a variant in another output unit, a second
   `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
-  caller's own `Json` (#1329).
+  caller's own `Json` (#1329); a `must|never|only` grep missed #1340's "every error message"
+  (#1631).
 - **Probe.** With `<layer>` each entry of `ls docs/emitters` the mechanism runs in,
-  `grep -rnwE 'must|never|only' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
+  `grep -rnwE 'must|never|only|every|each|all|always' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
   lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
   unmet.
 

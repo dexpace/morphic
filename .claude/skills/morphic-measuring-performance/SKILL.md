@@ -23,7 +23,7 @@ busy machine measures the machine.
 | bounded on any input | generated shapes, deep and wide, on both builds (`references/finding-cost.md#deep-generated-shapes`) |
 | a cost weighed, or claimed absent | an input where it can occur (`references/finding-cost.md#cost-measured-where-it-occurs`) |
 | a fuzz worker's cost | the worker profiled alone past warm-up with minimization off, and a share spent minimizing with its cut runs counted (`references/finding-cost.md#profile-a-fuzz-worker-alone`, `references/finding-cost.md#minimization-in-a-fuzz-cost`) |
-| a share of named functions | pprof's `cum`, over functions none of which calls another (`references/finding-cost.md#share-of-named-functions`) |
+| a share of named functions | pprof's `cum`, over functions none of which calls another, beside the share no module frame holds (`references/finding-cost.md#share-of-named-functions`, `references/finding-cost.md#share-no-module-frame-holds`) |
 
 ## Habits
 

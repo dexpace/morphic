@@ -30,11 +30,11 @@ branch it targets (`gh pr view N --json baseRefName --jq .baseRefName`).
 
 ```bash
 pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep'
-cs='/U[s]ers/[^/[:space:]]+/|(^|[^A-Za-z0-9])[HM][0-9]{1,2}([^0-9A-Za-z]|$)'
+cs='/U[s]ers/[^/[:space:]]+/|(^|[^A-Za-z0-9])[HM][0-9]{1,2}([^0-9A-Za-z]|$)|(^|[^A-Za-z0-9&])#[A-Z][A-Z0-9_-]+([^A-Za-z0-9]|$)|into[[:space:]]HEAD$'
 git status --short --untracked-files=all
 for b in main <base>; do git merge-tree --write-tree "origin/$b" HEAD >/dev/null || echo "conflicts with $b"; done
 o=$(mktemp)
-git log --format='@%h%n%B' HEAD --not "origin/<base>" origin/main | awk '/^@[0-9a-f]+$/{c=substr($0,2);next}{print(c":"$0)}' > "$o"
+git log --format='@%h%n%B' HEAD --not "origin/<base>" origin/main | awk '/^@[0-9a-f]+$/{c=substr($(0),2);next}{print(c":"$(0))}' > "$o"
 git diff "origin/<base>"...HEAD -- ':!go.sum' | grep '^+' >> "$o"
 grep -niE "${pat:?}" "$o"; grep -nE "${cs:?}" "$o"
 ```

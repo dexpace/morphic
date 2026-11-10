@@ -27,6 +27,10 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-met-at-its-site`),
    its reproduction run on the base and on the head
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-reproduction-reruns`),
+   what in the tree still cites it
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-cited-in-the-tree`),
+   a sidebar link to it
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-sidebar-link`),
    and each choice resting on an open issue against the open PRs settling it
    (`references/claims-and-process.md#open-issue-against-open-prs`).
 

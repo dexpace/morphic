@@ -244,6 +244,18 @@ and every diagnostic is true, located, and decided from what actually happened.
   every position and in every spelling the Rule lists, and diff the IR and diagnostics per position
   and per spelling.
 
+## Diff the reports an object draws kept whole against lowered
+`kept-whole-draws-the-lowered-reports`
+
+- **Rule.** When a change keeps whole an object a reader lowers at another position, compile it on
+  both paths, a spec and its twin differing only in what sends it down each, and diff the
+  diagnostic codes. Each report the kept path drops is still made, or excused by a sentence in the
+  rule keeping it whole, so a test pinning the silence pins a recorded decision.
+- **Why.** #1498 kept whole an Encoding Object whose key names no part, and its twin under a part's
+  name drew two `unknown-object-key` warnings and a `reserved-header-name` the kept copy lost, its
+  test pinning the silence with no reason recorded (#1660).
+- **Probe.** `diff <(go run ./cmd/morphic validate a.yaml 2>&1 | cut -d' ' -f1,2) <(go run ./cmd/morphic validate b.yaml 2>&1 | cut -d' ' -f1,2)`.
+
 ## Decide and test the combination when keywords co-occur
 `test-co-declared-keywords-together`
 

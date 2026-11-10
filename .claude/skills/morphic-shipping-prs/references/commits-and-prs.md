@@ -20,11 +20,24 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `limitation-searched-on-what-it-names`
 
 - **Rule.** Search for each limitation a body states on the tool or behaviour it names, not on the
-  construct the change decides, and have it cite what turns up or say no issue exists.
+  construct the change decides, and have it cite what turns up or say no issue exists. An issue it
+  names takes `references/commits-and-prs.md#limitation-names-a-filed-issue`.
 - **Why.** A gap in `--explain` read as a decision while #693 tracked it, which searches on the
   construct do not return (#1191).
 - **Probe.** List each limitation beside its
   `gh issue list --state all --limit 1000 --search "<tool or behaviour>"`.
+
+## Name a limitation's issue by a number the tracker holds
+`limitation-names-a-filed-issue`
+
+- **Rule.** Each issue a stated limitation names is `#` and digits, filed before the push. A
+  placeholder standing for one still to file is filed first, and its number replaces it in the
+  comment, the rule and the body.
+- **Why.** #1498 named `#NEW-CATCHALL` in a doc comment, a normative Status line and its body, and
+  six days on no such issue existed, every check green: `TestDocuments_LinksResolve` reads no `#`
+  before letters (#1659).
+- **Probe.** `gh issue view <N> --json state` exits 0 for each issue a limitation names, and the
+  push checklist's `cs` grep prints no `#` before capitals.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
@@ -139,13 +152,24 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
   keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
   narrate other work with other verbs ("landed"), and give a stack landing through one PR every
-  child's `Closes #N`: a keyword links only in a PR based on `main`.
+  child's `Closes #N`: a keyword links only in a PR based on `main`. A sidebar link closes one too
+  (`references/commits-and-prs.md#closing-sidebar-link`).
 - **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
-- **Probe.** Read each (`references/commits-and-prs.md#closing-issue-read-whole`). Seconds after
-  each body edit, as the field lags, compare
+- **Probe.** Read each (`references/commits-and-prs.md#closing-issue-read-whole`), and compare the
+  numbers by `references/commits-and-prs.md#closing-sidebar-link`.
+
+## Unlink from the sidebar an issue the PR does not finish
+`closing-sidebar-link`
+
+- **Rule.** An issue linked in the PR's Development sidebar closes on merge with no keyword in the
+  body. A partly addressed issue is unlinked there as well as left without a keyword.
+- **Why.** #1498's body only referenced #604, whose union-branch half it left open, while a sidebar
+  link would have closed #604 on its merge (#1658).
+- **Probe.** Seconds after each body edit, as the field lags, compare
   `gh pr view <N> --json closingIssuesReferences` with the body's:
   `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
+  A number only the first lists is a sidebar link, removed or given a `Closes` line.
 
 ## Read each issue a PR closes whole, and again before saying it closes
 `closing-issue-read-whole`
@@ -175,6 +199,21 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   each named, in its title or its Direction, read as before, the fix sitting in a new rule the old
   one never cited, and dropped #1347's step running the gate steps after a failure (#1522).
 - **Probe.** For each closing issue, quote the site its title names, as it reads at the head.
+  Then `references/commits-and-prs.md#closing-issue-cited-in-the-tree`.
+
+## Find what in the tree still describes a closing issue as open
+`closing-issue-cited-in-the-tree`
+
+- **Rule.** For each issue a closing keyword names, `git grep` the head for its number and for the
+  input its reproduction writes, and read each hit. A sentence calling the issue open, planned or
+  pending, or taking its input as an example of the old behaviour, is rewritten on the branch; a
+  test or comment citing it as the reason for a fix stays.
+- **Why.** At #1361's 3d7252950, after a round read each closing issue at its site, three documents
+  still called #664, #668 and #987 open, one stating a rule the new field contradicted; at
+  894da789c, #1647 kept two examples quoting #1309's input, which no number found (#1642).
+- **Probe.** Over the closing issues' numbers,
+  `git grep -nE '(#|issues/)(<N>|<M>)([^0-9]|$)' -- . ':!*.golden*' ':!docs/ir/version-history.md'`,
+  then `git grep -nF '<a line of each reproduction>'`.
 
 ## Rerun a closing issue's reproduction on the base and on the head
 `closing-issue-reproduction-reruns`

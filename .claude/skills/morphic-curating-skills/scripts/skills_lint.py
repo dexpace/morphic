@@ -13,7 +13,8 @@ Each rule in a reference is held to the format morphic-curating-skills gives. Sc
 Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
 and a test_<name>.py beside each. A path the tree lacks may name the Go toolchain's sources, which
 `go env GOROOT` locates; where go cannot say, every path is held to the tree. A Go name spelled
-`Name` in `path/to/file.go` on one line is held to what that file declares.
+`Name` in `path/to/file.go` on one line is held to what that file declares. A SKILL.md body spells
+no $ before a digit, which the skill loader replaces with an argument.
 """
 
 import argparse
@@ -84,6 +85,9 @@ HEADING = re.compile(r"#{1,6} +(.+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# A placeholder the skill loader replaces with an argument's word in a SKILL.md body, so a
+# command spelling awk's `$0` there reads the argument instead. References are read as files.
+POSITIONAL = re.compile(r"\$[0-9]")
 # A skill's name, as the Agent Skills specification gives it: 1 to MAX_NAME_CHARS lowercase
 # letters and digits, joined by single hyphens.
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -329,6 +333,10 @@ class Linter:
         words = len("\n".join(lines[end + 1:]).split())
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
+        for i, line in enumerate(lines[end + 1:], end + 2):
+            if POSITIONAL.search(line):
+                self.report(skill, i, "a $ before a digit is replaced by the skill's arguments "
+                                      "when it loads; spell an awk field $(N)")
 
     def check_front_keys(self, skill: Path, front: list[str]) -> None:
         """Hold each frontmatter key to the specification's fields, once each, and each plain

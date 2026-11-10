@@ -13,21 +13,26 @@ branch (`references/rounds.md#branch-held-elsewhere`); and where the PR's stacke
 as `gh pr view <base PR> --json state,mergedAt` shows while a `baseRefName` read before the
 retarget still names the deleted branch, take
 `.claude/skills/morphic-shipping-prs/references/merging-main.md#merge-a-landed-bases-final-head`.
-Before the PR exists, as before a branch's first push, the base is the branch it will target, the
-worktree is added at the branch's head, and `<N>` is the number the push checklist in
-`morphic-shipping-prs` derives.
+Before the PR exists, as before a branch's first push, the base is the branch it will target, `$h`
+the branch, the worktree is added at the branch's head, and `<N>` is the number the push checklist
+in `morphic-shipping-prs` derives.
 
 Each round reviews the tree as it will land, in a throwaway worktree
 (`references/rounds.md#review-head-in-own-ref`):
 
 ```bash
 base=$(gh pr view <N> --json baseRefName --jq .baseRefName)
+h=$(gh pr view <N> --json headRefName --jq .headRefName)
 git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>" &&
   main=$(git rev-parse origin/main) && b=$(git rev-parse "origin/$base")
 git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
-git merge --no-edit "$b" && git merge --no-edit "$main"
+git merge --no-edit -m "Merge branch '$base' into $h" "$b" &&
+  git merge --no-edit -m "Merge branch 'main' into $h" "$main"
 git merge-base --is-ancestor refs/rv<session>/<N> HEAD && git merge-base --is-ancestor "$main" HEAD
 ```
+
+Each merge is titled for the PR's branch, as the round's fixes push it there: untitled, a detached
+merge reads `Merge commit '<sha>' into HEAD` (#1629).
 
 A conflict the review can resolve mechanically is resolved in that worktree and reported as the
 review's own resolution, so every angle reads `main`'s new commits beside the branch; one whose
@@ -37,7 +42,8 @@ merge or a sweep takes a worktree or copy of its own, and nothing writes to the 
 from. Every later read of `main` is `$main`, and of the base `$b`
 (`references/rounds.md#pin-main-for-the-round`). A
 round's report names what it reviewed, the merged commit among it, each delegated reader's minutes
-and tool calls from its hand-back, each angle's matrix, then the findings ranked:
+and tool calls from its hand-back, each angle's matrix, then the findings ranked, and is kept by
+`references/later-rounds.md#keep-each-rounds-report`:
 
 ```text
 Round <n>: head <sha>, base <sha>, main <sha>, merged <sha>
@@ -292,8 +298,9 @@ narrowed: <round before>, <its findings>, <each commit since, its finding, why i
 - **Rule.** Compact the main session, or ask whoever drives it to, at a clean round boundary, before
   its window's limit compacts it wherever it stands, and never mid-fix or mid-disproof. A clean
   boundary has the fixes pushed, the body updated, the next reader dispatched and the round's state
-  written to a file outside the tree. After compacting, treat the summary as unverified, re-reading
-  the round's report, the PR body and the saved state before acting on it.
+  written to the file `references/later-rounds.md#keep-each-rounds-report` names. After compacting,
+  treat the summary as unverified, re-reading the round's report, the PR body and the saved state
+  before acting on it.
 - **Why.** #1532's main session reached 962k tokens before compacting on its own, and its summary
   carried two wrong figures forward as settled, the open PRs sharing a file and a token count
   doubled by counting transcript records, with no sign either was unchecked (#1532, #1542).

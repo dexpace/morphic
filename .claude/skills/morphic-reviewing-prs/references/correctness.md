@@ -20,8 +20,9 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
    (`references/correctness.md#refactor-differential-fuzz`), a query
    (`references/correctness.md#query-differential`), a generated sweep
    (`references/correctness.md#reroot-generated-sweep`), a merge of `main`
-   (`references/correctness.md#ported-check-grammar`) or a CI or cache change
-   (`references/correctness.md#simulate-ci-runs`).
+   (`references/correctness.md#ported-check-grammar`), a CI or cache change
+   (`references/correctness.md#simulate-ci-runs`) or a dependency update
+   (`references/correctness.md#dependency-update-differential`).
 
 A normative document has no output to compare: run its rules as a program
 (`references/design.md#review-design-rules`). The matrix is each altered output with its spec and
@@ -136,3 +137,17 @@ both builds' results.
   `--event schedule` printed none (#1382, #1606).
 - **Probe.** `gh run view <id> --json event,headSha,headBranch`, beside the commits the branch
   gained after that run.
+
+## Diff what a dependency update changes under morphic's code
+`dependency-update-differential`
+
+- **Rule.** For a module update, diff the old and new trees from the module cache with tests left
+  out, `diff -ru -x '*_test.go' <old> <new>`, each directory from
+  `go mod download -json <module>@<version>`. For each change reaching code morphic calls, run the
+  outputs it can alter built at both versions
+  (`.claude/skills/morphic-verifying-changes/references/differentials.md#argv-differential`). A
+  difference no test pins is a finding, however green the gate.
+- **Why.** #1616's pflag update changed the help goldens, which CI caught, and a bad bool's message
+  from `invalid syntax` to `must be true or false`, which no test pins and only the CLI's output
+  diffed across both builds showed (#1632).
+- **Probe.** The report gives each changed file reaching morphic's calls beside its outputs' diff.

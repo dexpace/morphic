@@ -16,6 +16,8 @@ compiled spec in the worktree is a probe; a package's suite is CI's
    `.claude/skills/morphic-verifying-changes/references/mutation.md`: where only the callers a check
    leaves out reach
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#plant-past-the-included-callers`),
+   in each caller of a helper a test holds through others
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#plant-a-bypass-in-each-caller`),
    on a run owning its cache
    (`.claude/skills/morphic-verifying-changes/references/mutation.md#mutant-run-owns-its-cache`),
    each kill read against its plant
