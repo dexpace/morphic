@@ -90,22 +90,24 @@ func noFieldZeroReports(v any, zeroOK ...zeroField) *recordingT {
 	return rec
 }
 
+// pair and embedsPair are the structs TestAssertNoFieldZero_ReportsWhatItHolds
+// hands the walk: embedsPair promotes pair's fields, which it does not declare.
+type (
+	pair struct {
+		A string
+		B int
+	}
+	embedsPair struct {
+		pair
+		C bool
+	}
+)
+
 // TestAssertNoFieldZero_ReportsWhatItHolds holds the walk every populated value
 // goes through to what it reports, since a walk reporting nothing would leave
 // each test it serves green whatever its value left zero.
 func TestAssertNoFieldZero_ReportsWhatItHolds(t *testing.T) {
 	t.Parallel()
-	// embedsPair promotes pair's fields, which it does not declare.
-	type (
-		pair struct {
-			A string
-			B int
-		}
-		embedsPair struct {
-			pair
-			C bool
-		}
-	)
 	for _, tc := range []struct {
 		name    string
 		value   any
