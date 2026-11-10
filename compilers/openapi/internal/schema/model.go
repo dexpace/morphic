@@ -5,12 +5,16 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -92,24 +96,51 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 		},
-		Alike: s.alike,
+		Alike:   s.alike,
+		Untyped: s.untyped,
 	})
 	return diags
 }
 
-// alike is merge.Merger.Alike. Each site is read at s.c's position for its
-// pointer, as the model's own document holds it; a site in another document,
-// such as a component a $ref there reached, one c does not place, or one whose
-// base the bindings cannot tell, is no match.
+// place returns where p is in the bindings' table, read at s.c's position for
+// its pointer, as the model's own document holds it, and false for a site in
+// another document, such as a component a $ref there reached, or one c does not
+// place.
+func (s settledMerge) place(p ir.Provenance) (bind.Position, bool) {
+	at, placed := s.c.Position(p.Pointer)
+	return at, placed && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+}
+
+// alike is merge.Merger.Alike. A site place does not place, or one whose base
+// the bindings cannot tell, is no match.
 func (s settledMerge) alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
-		at, placed := s.c.Position(p.Pointer)
+		at, placed := s.place(p)
 		uri, known := s.c.Bindings().Table().Base(at)
-		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+		return uri, placed && known
 	}
 	ua, okA := base(a)
 	ub, okB := base(b)
 	return okA && okB && ua == ub
+}
+
+// untyped is merge.Merger.Untyped: the schema written at p states no instance
+// type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
+// conjunct (conjunctTypes). A site place does not place, one holding no schema
+// object, and a read that runs out of its budget or passes over what could
+// refuse a value of some instance type, state one, which keeps the verdict a
+// structure had before its source was read.
+func (s settledMerge) untyped(p ir.Provenance) bool {
+	at, placed := s.place(p)
+	if !placed {
+		return false
+	}
+	js := s.c.Bindings().At(at)
+	if js == nil || js.GetSchema() == nil {
+		return false
+	}
+	r := conjunctTypes{refs: s.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
+	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted() && !r.passedOver
 }
 
 // mint registers node, the type of the field the declaration at pointer names.
@@ -120,9 +151,31 @@ func (s settledMerge) alike(a, b ir.Provenance) bool {
 func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 	id := s.c.IDs().ComposedType(pointer)
 	site, common := commonFor(s.c, id, pointer), node.Common()
+	from := common.ID
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
+	if e, ok := node.(*ir.Enum); ok {
+		e.Members = membersBeneath(e.Members, from, func(tail string) ir.EnumMemberID {
+			return s.c.IDs().ComposedMember(pointer, tail)
+		})
+	}
 	s.ts.Register(id, node)
 	return id
+}
+
+// membersBeneath returns a copy of ms, the members of the enum identified by
+// from, each identified beneath the enum a mint registers instead (idAt), by the
+// tail its ID adds to from's path. A member ID outside from's path keeps it, for
+// irverify to report (docs/ir/identity.md#enum-members).
+func membersBeneath(ms []ir.EnumMember, from ir.TypeID, idAt func(tail string) ir.EnumMemberID) []ir.EnumMember {
+	enumPath, ok := ir.IDPath(ir.IDKindType, string(from))
+	out := slices.Clone(ms)
+	for i, m := range out {
+		path, hasPath := ir.IDPath(ir.IDKindEnumMember, string(m.ID))
+		if ok && hasPath && strings.HasPrefix(path, enumPath+"/") {
+			out[i].ID = idAt(strings.TrimPrefix(path, enumPath))
+		}
+	}
+	return out
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
