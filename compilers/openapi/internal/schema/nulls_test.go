@@ -395,7 +395,7 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct{ union, code string }{
-		"degraded":    {"oneOf: [{type: string}, {type: integer}]", diag.DegradedConstruct},
+		"degraded":    {"oneOf: [{$ref: '#/components/schemas/Pet'}], anyOf: [{$ref: '#/components/schemas/Toy'}]", diag.DegradedConstruct},
 		"distributed": {"oneOf: [{$ref: '#/components/schemas/Pet'}, {$ref: '#/components/schemas/Toy'}]", diag.CompositionLowering},
 	} {
 		besideUnion := openapitest.HolderSpec("3.0.3", "{"+tc.union+", allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true}]}",

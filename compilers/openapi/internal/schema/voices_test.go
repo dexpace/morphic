@@ -29,16 +29,18 @@ func voicesDoc(written string) string {
 }
 
 // besideTheAllOf is what S writes beside its allOf for each outcome the allOf
-// composes at: nothing, a union it distributes across, one kept beside its Model
-// for an inline branch, one narrowing it alone
+// composes at: nothing, a union it distributes across, a oneOf and an anyOf kept
+// beside its Model, a union narrowing it alone
 // (docs/compilers/openapi.md#union-beside-structure), and a $dynamicRef it keeps
-// from expanding (docs/compilers/openapi.md#dynamic-ref).
-var besideTheAllOf = map[string]string{
-	"alone":                    "",
-	"distributed":              ", oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]",
-	"beside a degraded union":  ", oneOf: [{$ref: '#/components/schemas/A'}, {type: object, properties: {z: {type: string}}}]",
-	"beside a narrowing union": ", oneOf: [{required: [a]}, {required: [b]}]",
-	"beside a $dynamicRef":     ", $dynamicRef: '#meta'",
+// from expanding (docs/compilers/openapi.md#dynamic-ref). code is the report
+// showing the outcome reached, drawn at S or at the keyword at names below it.
+var besideTheAllOf = map[string]struct{ beside, code, at string }{
+	"alone":       {},
+	"distributed": {", oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]", diag.CompositionLowering, ""},
+	"beside a degraded union": {", oneOf: [{$ref: '#/components/schemas/A'}], anyOf: [{$ref: '#/components/schemas/B'}]",
+		diag.DegradedConstruct, ""},
+	"beside a narrowing union": {", oneOf: [{required: [a]}, {required: [b]}]", diag.ValidationOnlyKeyword, ""},
+	"beside a $dynamicRef":     {", $dynamicRef: '#meta'", diag.DegradedConstruct, "/$dynamicRef"},
 }
 
 // TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
@@ -69,12 +71,16 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 		"propertyNames":      "propertyNames: {pattern: '^a'}",
 		"a redaction":        "format: password",
 	} {
-		for shape, beside := range besideTheAllOf {
+		for shape, tc := range besideTheAllOf {
 			t.Run(shape+"/"+name, func(t *testing.T) {
 				t.Parallel()
 				ref := "{$ref: '#/components/schemas/Base'}"
-				want, wantDiags := parseFull(t, voicesDoc("{allOf: ["+ref+"], "+keyword+beside+"}"))
-				got, gotDiags := parseFull(t, voicesDoc("{allOf: ["+ref+", {"+keyword+"}]"+beside+"}"))
+				want, wantDiags := parseFull(t, voicesDoc("{allOf: ["+ref+"], "+keyword+tc.beside+"}"))
+				got, gotDiags := parseFull(t, voicesDoc("{allOf: ["+ref+", {"+keyword+"}]"+tc.beside+"}"))
+				if tc.code != "" {
+					require.True(t, openapitest.HasDiagCodeAt(gotDiags, tc.code, "/components/schemas/S"+tc.at),
+						"the outcome this row names; got %v", gotDiags)
+				}
 				assert.False(t, openapitest.HasDiagCodeAt(gotDiags, diag.DegradedConstruct, "/components/schemas/S/allOf/1"),
 					"nothing is left to keep or report; got %v", gotDiags)
 				assert.Equal(t, severityCodes(wantDiags), severityCodes(gotDiags))
