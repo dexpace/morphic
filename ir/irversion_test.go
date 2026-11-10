@@ -86,7 +86,10 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.34.0", format: 1, shape: "4f2bec076cd4bfdcdb4dc2d5657dd2b623d5255b9a57306d3600530aa8c1eb9f",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
-	{version: "0.35.0", format: 1, shape: "5bbe58925cbec6b949bd9eceb9ebf1722fb5a7dd313603383a53d3b4cf4aa9ac",
+	{version: "0.35.0", format: 1, shape: "4f2bec076cd4bfdcdb4dc2d5657dd2b623d5255b9a57306d3600530aa8c1eb9f",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf conjunct says what it says written beside the allOf: a branch's collection bound reaches Constraints, an enum or a const beside a refining allOf is one of its conjuncts, its union variant hinted as the $ref it narrows, and the value set a refinement lowers to is typed by every conjunct"},
+	{version: "0.36.0", format: 1, shape: "5bbe58925cbec6b949bd9eceb9ebf1722fb5a7dd313603383a53d3b4cf4aa9ac",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 }
 

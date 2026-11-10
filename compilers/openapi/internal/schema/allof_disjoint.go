@@ -172,16 +172,20 @@ func (a allOfComposition) namedConjuncts(own kindSet, read []kindSet) []string {
 	return out
 }
 
-// diagDisjointConjuncts is the one report a composition whose conjuncts share
-// no value draws, at the schema that writes them.
-func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition) []ir.Diagnostic {
+// diagDisjointConjuncts is the one report an allOf whose conjuncts share no
+// value draws, at the schema that writes them, which lowered to shape: a
+// composition, or the value set an election passed it over for.
+func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) []ir.Diagnostic {
 	if len(comp.disjoint) == 0 {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
-		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which a composition cannot state",
-		strings.Join(comp.disjoint, ", "))}
+		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which %s cannot state",
+		strings.Join(comp.disjoint, ", "), shape)}
 }
+
+// composedShape is the shape a composition lowers to, for diagDisjointConjuncts.
+const composedShape = "a composition"
 
 // readAllOf is allOfBranches of the schema written at pointer, with what its
 // conjuncts jointly admit read, for a lowering that composes it.

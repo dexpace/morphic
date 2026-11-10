@@ -17,8 +17,8 @@ import (
 
 // agreement is what the conjuncts of one allOf write for the position holding
 // it, entry by entry: the first writer's rendering of each, the entries two
-// writers render apart, and what the writers of each value bound say of it
-// together. It is a set over the conjuncts, so no order decides what agrees.
+// writers render apart, and what the writers of each bound say of it together.
+// It is a set over the conjuncts, so no order decides what agrees.
 type agreement struct {
 	c      lowering.Ctx
 	first  map[string]foldRendering
@@ -51,7 +51,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		} else if !held.agrees(rendered) {
 			a.split[entry] = true
 		}
-		if !slices.Contains(valueConstraintKeywords, entry) {
+		if !isBound(entry) {
 			continue
 		}
 		if !read {
@@ -61,11 +61,19 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			// never does for a branch kept apart, so a 3.0 exclusive flag beside
 			// no bound there goes unwarned (GitHub #1494).
 			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", unlocated)
+			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true
 		}
 		a.bound(entry).add(boundOf(entry, cons))
 	}
 	return entries
+}
+
+// isBound reports whether entry is a bound whose writers agree by meeting: a
+// value bound or a count. A uniqueItems that folds is `true` (referenceHolds),
+// so its writers agree by rendering it alike.
+func isBound(entry string) bool {
+	return slices.Contains(valueConstraintKeywords, entry) || entry == "minItems" || entry == "maxItems"
 }
 
 // unlocated is the annotation.Locator of a reading whose findings go nowhere.
@@ -82,7 +90,7 @@ func (a *agreement) bound(entry string) *boundReading {
 }
 
 // apart reports whether the writers of entry disagree, so none of them folds: a
-// value bound agrees where every writer states a value and the values meet, as a
+// bound agrees where every writer states a value and the values meet, as a
 // redeclared field's bounds do (merge.Constraints), and any entry agrees where
 // every writer renders it alike.
 func (a *agreement) apart(entry string) bool {
@@ -92,7 +100,7 @@ func (a *agreement) apart(entry string) bool {
 	return a.split[entry]
 }
 
-// boundReading is what the writers of one value bound say of it together.
+// boundReading is what the writers of one bound say of it together.
 type boundReading struct {
 	// met is what they say together, nil before one states a value.
 	met *ir.Constraints
@@ -122,7 +130,7 @@ func (b *boundReading) add(bound ir.Constraints) {
 // no order, or a literal no decimal holds, meets only one written alike.
 func (b *boundReading) meets() bool { return !b.unstated && !b.disjoint }
 
-// boundOf returns the fields of cons the value bound keyword entry fills. A 3.0
+// boundOf returns the fields of cons the bound keyword entry fills. A 3.0
 // exclusive modifier moves the bound beside it, so a minimum and its exclusive
 // form share a pair of fields, and the maximum's likewise.
 func boundOf(entry string, cons *ir.Constraints) ir.Constraints {
@@ -146,6 +154,10 @@ func boundOf(entry string, cons *ir.Constraints) ir.Constraints {
 		return ir.Constraints{MaxProps: cons.MaxProps}
 	case "pattern":
 		return ir.Constraints{Pattern: cons.Pattern}
+	case "minItems":
+		return ir.Constraints{MinItems: cons.MinItems}
+	case "maxItems":
+		return ir.Constraints{MaxItems: cons.MaxItems}
 	default:
 		return ir.Constraints{}
 	}

@@ -23,16 +23,15 @@ import (
 )
 
 // Ctx is everything a lowering may read: the parsed document, the caller's
-// policies, the identity of the source, and the indexes derived from them once
-// at entry.
+// policies, the source's identity, and the indexes derived from them once at
+// entry. New builds one; the zero Ctx is invalid.
 //
 // It is a value: a function taking one takes a copy, and every lowering takes
 // it as a parameter (#177). Of what copies share, only expansion changes an
 // answer: past its budget, no $ref resolves. The maps stay unexported because
 // a copy shares a map, which an exported one would let a callee write through.
 //
-// Call sites bind it to c, never ctx, which the styleguide reserves for the
-// context.Context a Compile takes.
+// Call sites bind it to c: ctx names the context.Context a Compile takes.
 type Ctx struct {
 	// Doc is the parsed, reference-resolved source document. Lowering reads it
 	// and never writes through it.
@@ -43,9 +42,7 @@ type Ctx struct {
 	// Provenance.
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
-	// of the caller policies the context carries, beside the budgets, the
-	// streaming and binary media lists, the promotion mapping and
-	// NullableWidening; everything else here is a fact about the document.
+	// of the caller policies the context carries (Policy).
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -110,39 +107,34 @@ type Ctx struct {
 	// as well as of the pointer.
 	overlay overlay.Origin
 
-	// loaded is what the load phase resolved with the document, set only by
-	// WithLoaded and nil in a context given none. It sits behind one pointer
-	// because every lowering takes a copy of the context, and a closure over one
-	// that escapes moves it to the heap, with every word the context holds.
+	// loaded is what the load phase resolved with the document. It sits behind
+	// one pointer because every lowering takes a copy of the context, and a
+	// closure over one that escapes moves it to the heap, with every word the
+	// context holds.
 	loaded *loadResult
 
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
-	// answers. Nil in a zero context, which records nothing.
+	// answers.
 	reached *resolve.Reached
-
-	// Kept holds what the run keeps for the Document rather than a node. Copies
-	// share it on purpose, as reached: only run reads what it keeps, once every
-	// lowering has returned, so it cannot change their answers. Its own fields are
-	// private, so a lowering writes it only through Once. Nil in a zero context,
-	// which keeps nothing.
-	Kept *KeptOnce
 
 	// expansion charges each $ref Declared resolves what the declarations its
 	// chain names weigh, and each additionalOperations entry what it copies of
 	// its path item (ChargeExpansion). Copies share it on purpose: the budget is
 	// the run's, so once it is crossed no copy lowers a $ref or such an entry,
 	// which is the answer it changes, and the run is refused
-	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
+	// (ExpansionRefusal).
 	expansion *expansion
 }
 
-// loadResult holds what a context reads of the load phase (see WithLoaded): the
+// loadResult holds what a context reads of the load phase (see New): the
 // fields the path items write beside their $refs, and the readings RefScope
 // hands every scope over them, over the raw YAML the model reads on in, and
-// over the schema bindings. The readings are bound once, here: binding them
-// in RefScope would allocate each time.
+// over the schema bindings. They come with the document rather than being
+// derived from it, since resolving them reads every document the source names,
+// which only the load phase may (GitHub #757). The readings are bound once,
+// here: binding them in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
 	// media is each components/mediaTypes entry and each content entry written
@@ -184,30 +176,45 @@ type ScopedPosition struct {
 	at      bind.Position
 }
 
-// New derives the context for one loaded source.
+// Policy is the caller's choice of how a source is lowered, as the compiler's
+// Options resolve it.
+type Policy struct {
+	Grouping         GroupingStrategy
+	Limits           Limits
+	Streaming        StreamingMedia
+	Binary           BinaryMedia
+	Promotions       ExtensionPromotions
+	NullableWidening NullableWidening
+}
+
+// New derives the context for doc, at srcIndex, under p. doc must not be nil:
+// the compiler lowers only a document its load returned.
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see
 // a component declared later. The streaming and binary policies are normalized
 // here so readers cannot disagree about a media type, and the promotion policy
 // is copied so no lowering can write through the context into the caller's map.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, binary BinaryMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
+func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 	return Ctx{
-		Doc:              doc,
-		Source:           src,
+		Doc:              doc.Doc,
+		Source:           doc.Source,
 		SrcIndex:         srcIndex,
-		Grouping:         grouping,
-		Limits:           limits,
-		schemas:          declaredSchemaNames(doc),
-		streaming:        streamingSet(streaming),
-		binary:           binarySet(binary),
-		promoter:         newPromoter(promotions),
-		NullableWidening: nullable,
-		overlay:          origin,
+		Grouping:         p.Grouping,
+		Limits:           p.Limits,
+		schemas:          declaredSchemaNames(doc.Doc),
+		streaming:        streamingSet(p.Streaming),
+		binary:           binarySet(p.Binary),
+		promoter:         newPromoter(p.Promotions),
+		NullableWidening: p.NullableWidening,
+		overlay:          doc.Overlay,
 
+		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
+			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
+			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
+				Bindings: doc.Bindings}, readings: map[any]any{}},
 		reached:   resolve.NewReached(),
-		Kept:      &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
-		expansion: newExpansion(limits.MaxReferenceExpansion),
+		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
 }
 
@@ -220,12 +227,8 @@ func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
 	return c.expansion.refusal(c.SrcIndex)
 }
 
-// Promoter returns the vendor-extension promotion policy this context carries,
-// which a zero context reads as disabled.
+// Promoter returns the vendor-extension promotion policy this context carries.
 func (c Ctx) Promoter() Promoter {
-	if c.promoter == nil {
-		return Promoter{}
-	}
 	return *c.promoter
 }
 
@@ -250,36 +253,15 @@ func (c Ctx) Sources() []ir.SourceInfo {
 	if c.overlay.Applied() {
 		out = append(out, c.overlay.Source())
 	}
-	if c.loaded != nil {
-		for _, o := range c.loaded.others.List() {
-			out = append(out, o.Info)
-		}
+	for _, o := range c.loaded.others.List() {
+		out = append(out, o.Info)
 	}
 	return out
 }
 
-// WithLoaded returns a copy of c carrying what the load phase resolved with
-// doc: where each schema $ref lands (its bindings), and the fields its path
-// items write beside their $refs. They come with the document rather than
-// being derived from it, since resolving either reads every document the
-// source names, which only the load phase may (GitHub #757). One call sets
-// both, so no context carries one without the other. The copy remembers no
-// answer Remembered read for c, nor a name of c's, which read c's bindings and
-// documents.
-func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
-		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-			Bindings: doc.Bindings}, readings: map[any]any{}}
-	return c
-}
-
 // Bindings returns where the document's schema $refs land, as the load phase
-// resolved them, or nil in a context given none (see WithLoaded).
+// resolved them.
 func (c Ctx) Bindings() *typed.Bindings {
-	if c.loaded == nil {
-		return nil
-	}
 	return c.loaded.reads.Bindings
 }
 
@@ -294,12 +276,8 @@ func Scoped(c Ctx, at bind.Position) ScopedPosition {
 // lowering changes, and key on all else it turns on; a package's own key type
 // keeps its readings from another's. Each type of key and answer has a map of
 // its own, so neither is boxed to be found or kept, and a key read for two
-// types of answer is read once for each. A context given no load phase reads
-// every time.
+// types of answer is read once for each.
 func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
-	if c.loaded == nil {
-		return read()
-	}
 	answers, ok := c.loaded.readings[memo[K, V]{}].(map[K]V)
 	if !ok {
 		// Kept before read runs, so a reading that asks Remembered for answers of
@@ -320,22 +298,15 @@ func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 type memo[K comparable, V any] struct{}
 
 // Siblings returns the fields the load phase modelled beside the document's
-// path item $refs (see WithLoaded). A load.Siblings only answers questions, so
+// path item $refs (see New). A load.Siblings only answers questions, so
 // handing it out lets no copy of c change what another reads.
 func (c Ctx) Siblings() load.Siblings {
-	if c.loaded == nil {
-		return load.Siblings{}
-	}
 	return c.loaded.siblings
 }
 
 // MediaTypeUse returns the model the load phase built of media, a content
-// entry, and whether media is written as a $ref (load.MediaTypes.Use). In a
-// context given no load result, one written so has no model.
+// entry, and whether media is written as a $ref (load.MediaTypes.Use).
 func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, bool) {
-	if c.loaded == nil {
-		return load.MediaTypes{}.Use(media)
-	}
 	return c.loaded.media.Use(media)
 }
 
@@ -395,7 +366,7 @@ func Declared[T, S any, R chainable[T, S], P interface {
 // the end is the source's own reference's in the source, or the table places
 // none.
 func declaredElsewhere(c Ctx, elsewhere bool, usePtr jsontext.Pointer) (Ctx, jsontext.Pointer, bool) {
-	if !elsewhere || c.loaded == nil {
+	if !elsewhere {
 		return c, "", false
 	}
 	end, ok := c.Bindings().Table().Through(bind.Position{Doc: c.homeDoc, Pointer: usePtr})
@@ -419,9 +390,6 @@ func (c Ctx) InScope(scope resolve.Scope) Ctx {
 // declaredSchemaNames collects the names under components/schemas, none when
 // the document declares none.
 func declaredSchemaNames(doc *soa.OpenAPI) resolve.Names {
-	if doc == nil {
-		return resolve.Names{}
-	}
 	return resolve.NewNames(slices.Collect(doc.Components.GetSchemas().Keys())...)
 }
 
@@ -432,9 +400,7 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas.Has(name) }
 // SchemaRules returns the Schema Object's rows of the document whose content c
 // reads (rowsOf). A reading only a minor decides, such as a required `items` or
 // the effect `nullable` has, asks these rather than the version; a keyword's
-// shape, which a schema's dialect decides, asks SchemaRulesAt. A version the
-// table does not cover, and a context with no document, answer with the zero
-// rows.
+// shape, which a schema's dialect decides, asks SchemaRulesAt.
 func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 
 // EncodingRules returns the Encoding Object's rows an encoding c lowers is read
@@ -444,26 +410,15 @@ func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
 
 // rowsOf returns what the table says at the minor of the document whose
 // content c reads, in the dialect its jsonSchemaDialect names, which its scope
-// names (load.Other.Rows), the source's for its own (sourceRows).
+// names (load.Other.Rows), the source's for its own (load.Document.Rows).
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
 func rowsOf(c Ctx) load.Rows {
-	if c.foreign && c.loaded != nil {
+	if c.foreign {
 		if o, ok := c.loaded.others.Named(c.holder); ok {
 			return o.Rows
 		}
-	}
-	return sourceRows(c)
-}
-
-// sourceRows returns what the table says at the source's minor, in its
-// dialect: what the load phase read, or, in a context given no load phase,
-// what it says at the version and the jsonSchemaDialect c.Doc declares, which
-// builds the table on each call.
-func sourceRows(c Ctx) load.Rows {
-	if c.loaded == nil {
-		return load.RowsOf(c.Doc)
 	}
 	return c.loaded.rows
 }
@@ -473,7 +428,7 @@ func sourceRows(c Ctx) load.Rows {
 // names, where one does (load.Dialects.At), and c's otherwise (SchemaRules),
 // as where c reads another document's content at the source's positions.
 func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
-	if at, placed := c.Position(pointer); placed && c.loaded != nil {
+	if at, placed := c.Position(pointer); placed {
 		if r, ok := c.loaded.dialects.At(at); ok {
 			return r
 		}
@@ -487,12 +442,10 @@ func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
 // follows a $ref into another document still reads its schemas in their own
 // dialect. An aliased node reads one dialect wherever it is placed.
 func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
-	if c.loaded != nil {
-		if r, ok := c.loaded.dialects.Of(n); ok {
-			return r
-		}
+	if r, ok := c.loaded.dialects.Of(n); ok {
+		return r
 	}
-	return sourceRows(c).Schema
+	return c.loaded.rows.Schema
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'
@@ -503,7 +456,7 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 	if _, o, ok := otherIn(c, id); ok {
 		return o.Rows.Schema
 	}
-	return sourceRows(c).Schema
+	return c.loaded.rows.Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
@@ -514,16 +467,10 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // context after any change to it — and the whole point of the context is that
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
-	scope := resolve.Scope{SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign, Holder: c.holder,
-		Ends: resolve.ReferenceEnd, Reached: c.reached}
-	if l := c.loaded; l != nil {
-		r := l.reads
-		scope.Holds, scope.Beside, scope.Writes, scope.Bindings = r.Holds, r.Beside, r.Writes, r.Bindings
-	}
-	if c.Doc != nil { // keep Doc a nil interface, not one holding a nil pointer
-		scope.Doc = c.Doc
-	}
-	return scope
+	r := c.loaded.reads
+	return resolve.Scope{Doc: c.Doc, SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign,
+		Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds, Beside: r.Beside,
+		Writes: r.Writes, Bindings: r.Bindings}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source
@@ -554,9 +501,6 @@ func (c Ctx) IDs() ids.Document {
 // the source declares name it, in the order Document.Sources lists them: the
 // documents whose namespaces the compile declares beside the source's.
 func OtherIDs(c Ctx) []ids.Document {
-	if c.loaded == nil {
-		return nil
-	}
 	others := c.loaded.others.List()
 	out := make([]ids.Document, 0, len(others))
 	for _, o := range others {
@@ -569,9 +513,6 @@ func OtherIDs(c Ctx) []ids.Document {
 // declares name that document: ids.In its label for one a reference read
 // beside the source, and the source's own for the source and its overlay.
 func IDsAt(c Ctx, source int) ids.Document {
-	if c.loaded == nil {
-		return ids.Document{}
-	}
 	if o, ok := c.loaded.others.At(source); ok {
 		return ids.In(o.Label)
 	}
@@ -580,30 +521,21 @@ func IDsAt(c Ctx, source int) ids.Document {
 
 // NameAt returns the hint the node built at pointer in c's document is named
 // by (naming.Namer.At): a function of the documents and the coordinate alone,
-// whichever lowering builds the node, read once for every copy of c. A
-// context given no bindings names a position by its pointer alone.
+// whichever lowering builds the node, read once for every copy of c.
 func NameAt(c Ctx, pointer jsontext.Pointer) string {
-	at := bind.Position{Doc: c.homeDoc, Pointer: pointer}
-	if c.loaded == nil {
-		return naming.New(nil).At(at)
-	}
-	return c.loaded.names.At(at)
+	return c.loaded.names.At(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
 // NameThrough returns the name the $ref written at pointer in c's document
-// suggests (naming.Namer.Through), and "" where it suggests none. A context
-// given no bindings resolves no $ref, so it suggests none.
+// suggests (naming.Namer.Through), and "" where it suggests none.
 func NameThrough(c Ctx, pointer jsontext.Pointer) string {
-	if c.loaded == nil {
-		return ""
-	}
 	return c.loaded.names.Through(bind.Position{Doc: c.homeDoc, Pointer: pointer})
 }
 
 // homeOf returns the document other than the source whose positions c reads,
 // and false for the source's own.
 func homeOf(c Ctx) (load.Other, bool) {
-	if c.home == 0 || c.loaded == nil {
+	if c.home == 0 {
 		return load.Other{}, false
 	}
 	return c.loaded.others.At(c.home)
@@ -628,10 +560,9 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 
 // otherIn returns the name document id of the bindings' table is read by, and
 // the document the compile read beside the source under it, and false for the
-// source, for a context given no load phase, and for a document the compile
-// did not read beside the source.
+// source and for a document the compile did not read beside the source.
 func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
-	if id == bind.Source || c.loaded == nil {
+	if id == bind.Source {
 		return "", load.Other{}, false
 	}
 	name := c.Bindings().Table().Document(id).Name

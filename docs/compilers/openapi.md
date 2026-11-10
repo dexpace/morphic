@@ -1308,10 +1308,12 @@ be, with nothing lost, where:
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
 
-An `enum` or a `const` beside the `allOf` wins the election of
-[`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
-`allOf` writes alone speaks for it as a narrowed one does below. That `allOf` stays verbatim: its
-branches fold nothing, and its `$ref` lowers nothing.
+An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts, the keywords beside
+the `allOf` writing a value set, rather than its rival in the election of
+[`competing-keywords`](#competing-keywords): `{enum: [a], allOf: [{$ref: Level}]}` elects its
+principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its branches fold and its
+`$ref` still lowers. Beside an `allOf` that composes, the value set wins that election and the
+`allOf` stays verbatim.
 
 The principal is chosen from the whole set:
 
@@ -1341,6 +1343,17 @@ is written beside it on the alias [models](../ir/models.md#composition-entries) 
 inline branch as a schema carried by the position. A branch that reduces to a shared node reads as
 written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
 `readOnly` and `writeOnly` as it keeps its schema's.
+
+The value set a refinement lowers to, the `Enum` or `Literal` of a principal or of the keywords
+beside the `allOf`, is typed by every conjunct. Each selects a primitive as
+[`enum-const`](#enum-const) reads one schema, from its `type` and `format`, else its `type`, where
+every value is of it, a `$ref` conjunct by the schema deciding what it lands on, past a chain of
+`$ref`s and refinements. The `ValueType` is the one of these, the value set's own included, that
+narrows every other, and each `type` and `format` it holds is consumed, a wider one included. So
+`{allOf: [{type: integer}, {const: 80.0}]}` is an `integer`, as `{type: integer, const: 80.0}` is,
+and keeps nothing. Where none narrows every other, as of two formats neither of which narrows the
+other, the value set keeps the `ValueType` its own schema gives it, and a format that reaches none
+stays with its branch.
 
 What the conjuncts say lands where the position keeps what it writes: on the carrier
 ([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes
@@ -1387,6 +1400,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AValueComparesAsAnEnumEntryDoes`,
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
   `schema.TestRefinement_ANarrowedRefStillLowersItsTarget`,
+  `schema.TestRefinement_AValueSetBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AValueSetIsTypedByEveryConjunct`,
+  `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
@@ -1402,8 +1418,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
-  (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
-  (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
+  (#661), and a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
+  (#1067).
 
 ### `allof-beside-ref`
 
@@ -1429,29 +1445,34 @@ JSON Schema conjoins an `allOf`'s keywords with those beside it, so what a branc
 position reads as written beside the `allOf`, in a composition and in a refinement
 ([`allof-refinement`](#allof-refinement)) alike: its `title`, `description`, `externalDocs`,
 `deprecated`, `example`, `examples`, `xml`, `default`, `readOnly`, `writeOnly`, value constraints,
-`format: password` ([`password`](#password)), vendor extensions and validation-only keywords
-([`validation-only`](#validation-only)) land where the same keyword beside the `allOf` lands, each
-read at the branch's own pointer and reported as that keyword is there, which for most is not at
-all. A `nullable` folds only from a branch writing no `properties`, under the nullable-widening
-policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not fold, being a composing
-model's openness; a value bound does not where the position owns a node with no field for one; and a
-composition distributed across a union keeps every branch on each variant
+collection bounds, `format: password` ([`password`](#password)), vendor extensions and
+validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
+the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
+which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
+the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
+fold, being a composing model's openness; a bound does not where the position has no field for it,
+as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
+no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
+of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
+a `uniqueItems` of `false` or a count past 64 bits, never folds; and a composition distributed
+across a union keeps every branch on each variant
 ([`union-beside-structure`](#union-beside-structure)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value bounds
-agree where they meet, as a redeclared field's do
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
-folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
-written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
-`exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently. A branch whose folding keywords write a relative `$ref` it reads against
-another base than the position does, an `$id` at or above it naming another URI, folds nothing
-either, since that `$ref` would name another schema read at the position; it stays whole, with its
-report, and is no conjunct the others are compared with. One writing none there, or only absolute
-ones, reads the same at the position, so an `$id` alone keeps nothing it writes from folding.
+folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
+to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
+have no one value, and neither has a 3.0 `exclusiveMinimum` with no bound beside it, which fills no
+field, so each disagrees with another written differently. A branch whose folding keywords write a
+relative `$ref` it reads against another base than the position does, an `$id` at or above it naming
+another URI, folds nothing either, since that `$ref` would name another schema read at the position;
+it stays whole, with its report, and is no conjunct the others are compared with. One writing none
+there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
+writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1497,11 +1518,14 @@ every entry reads that one twice.
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
-  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
-- Status: partly built: a collection bound on an inline branch of a refinement stays with its
-  branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
-  principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that
-  has the field, as one over a `$ref` does (#1312).
+  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestCollectionBound_OnABranchLandsAsItsFlatSpelling`,
+  `schema.TestCollectionBound_OnABranchMeetsInEveryOrder`,
+  `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
+  `schema.TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt`
+- Status: partly built: a value bound on a branch beside a type list stays with its branch, though
+  the variants that hold one beside the `allOf` hold it too, since those need not be variants it
+  constrains (#1310).
 
 ### `allof-redeclared-property`
 
@@ -1954,8 +1978,9 @@ any version. A conjunct writing an `allOf` also states nothing here where its `t
 leave at most a null, which is what keeps a schema composing a reported one from drawing a second
 report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
 entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
-`allOf` that does not compose, one beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) or
-passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)), is not read.
+`allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
+One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
+any composition is, and the warning names the value set the position lowered as.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
@@ -1966,9 +1991,10 @@ passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
-  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
+  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
+  `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`
 - Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
-  (#1390), and an `allOf` an `enum` or a `const` beside it passes over is not read (#1309).
+  (#1390).
 
 ### `union`
 
@@ -2202,8 +2228,8 @@ reported as an info `openapi/degraded-construct` at the position.
 
 ### `competing-keywords`
 
-Keywords conjoin, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a narrowing of `Base` rather than a
-malformed document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
+Keywords conjoin, so `{const: a, enum: [a, b]}` admits `a` alone rather than being a malformed
+document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
 Three families compete for it: the value keywords `const`, `enum` and `allOf`, elected in that
 order; the two union combinators, where `oneOf` wins; and a parameter's or header's `schema` beside
 its `content`, where `content` wins, since a media-type entry names both a schema and the media type
@@ -2221,8 +2247,11 @@ nullable `X` ([type-graph](../ir/type-graph.md#type-references)), because the co
 asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins with it, and
 collapsing would resolve the position to a shared primitive, which must never carry one
 declaration's keywords. Where a *structural* sibling is written as well,
-[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept. A
-keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing an object,
+[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept.
+An `allOf` that refines ([`allof-refinement`](#allof-refinement)) is no rival of an `enum` or a
+`const` beside it, which is one of its conjuncts, so the election passes over it only where it
+composes. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
@@ -2327,7 +2356,8 @@ to the top type, with an `openapi/budget-exceeded` error at the schema. A `const
 value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
 so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
 verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
-`openapi/degraded-construct` warning at the schema. A
+`openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is typed by every
+conjunct ([`allof-refinement`](#allof-refinement)). A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
 
@@ -2345,8 +2375,8 @@ at that position, whichever is lowered first.
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619); and a `Literal` an `allOf` refines takes no type or format another
-  conjunct declares (#1641). Open: whether a mixed-type enum's `null` lifts out of its union (#618).
+  only an info diagnostic (#619). Open: whether a mixed-type enum's `null` lifts out of its union
+  (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -2703,7 +2733,8 @@ of the node or carrier the position owns (a `Scalar`, a `Property` or a `Paramet
 `maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
 carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
 union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
-the target is; and
+the target is, as does one on an inline `allOf` branch
+([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
@@ -2746,12 +2777,11 @@ which a bool cannot tell from one never written, and a count that does not fit i
   `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
   `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
-  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
+  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
+  `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
+  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`
 - Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference (#1050); and a collection bound on an
-  inline branch of a refinement ([`allof-refinement`](#allof-refinement)), whatever its principal,
-  stays verbatim with its branch, which folds no collection bound, where one beside the `allOf`
-  reaches `Constraints` (#1312).
+  everywhere but the collection bounds beside a reference or on an inline `allOf` branch (#1050).
 
 ### `validation-only`
 

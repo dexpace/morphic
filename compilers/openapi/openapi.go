@@ -217,7 +217,7 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
@@ -271,19 +271,23 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 	return out
 }
 
-// loweringCtx projects a loaded document and the caller's options onto the
-// lowering context, and is the loadOptions of the phase below: it is the one
-// place the loader's result type meets the lowering, so lowering.New can take
-// the facts it needs rather than the loader's struct. It reads the budgets the
-// lowering holds, on enums and on what $refs and path items copy, as
-// loadOptions reads the others.
+// loweringCtx builds the lowering context over a loaded document under the
+// caller's options, and is the loadOptions of the phase below: it projects
+// Options onto lowering.Policy, that package's own input, deliberately not this
+// public type. It reads the budgets the lowering holds, on enums and on what
+// $refs and path items copy, as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	limits := lowering.Limits{
-		MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
-		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
-	}
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.BinaryMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
+	return lowering.New(rootSrcIndex, doc, lowering.Policy{
+		Grouping: o.Grouping,
+		Limits: lowering.Limits{
+			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
+			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+		},
+		Streaming:        o.StreamingMedia,
+		Binary:           o.BinaryMedia,
+		Promotions:       o.Promotions,
+		NullableWidening: o.NullableWidening,
+	})
 }
 
 // undecodable reports a source this compiler recognized and could not read.

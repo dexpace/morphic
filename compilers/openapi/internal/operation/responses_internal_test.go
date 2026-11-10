@@ -100,7 +100,7 @@ func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
-	diags := lowerResponses(l.ctx, l.types, op, &soa.Operation{}, "/op")
+	diags := lowerResponses(l.ctx, l.serviceWalk(), op, &soa.Operation{}, "/op")
 	assert.Nil(t, op.Responses)
 	assert.Nil(t, op.Errors)
 	assert.Nil(t, op.Default)

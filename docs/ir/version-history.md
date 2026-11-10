@@ -327,7 +327,29 @@ it sees. Changes made together in one bump are listed together under it.
     or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
     consumer pinned to 0.33.0 reading a webhook with no `Auth` as inheriting hands it the client's
     credentials.
-- **0.35.0** — pagination and streaming gained the facts declared pagination and conditional
+- **0.35.0** — no shape change; three changes to what a compiled document holds, made together, each
+  reading what an `allOf` conjunct writes as the OpenAPI compiler reads it written beside the `allOf`
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
+  [`allof-refinement`](../compilers/openapi.md#allof-refinement)):
+  - A `minItems`, `maxItems` or true `uniqueItems` on an inline branch reaches the `Constraints` one
+    written beside the `allOf` reaches: of the `Property`, `Parameter` or alias `Scalar` holding a
+    refinement's use of its principal, or of the `List` or `Tuple` the position lowers to. The branch
+    had been kept whole under `Unmodeled`. A collection bound on a branch beside a type list lands
+    on its `List` or `Tuple` variant.
+  - An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts rather than the
+    winner of the election of competing keywords, so the `allOf` is no longer kept whole under
+    `Unmodeled`: its branches fold, a `$ref` it writes lowers, and a narrower branch is what the
+    position uses. One beside an `allOf` that composes still wins it, and conjuncts sharing no value
+    there draw the warning a composition's do. A union variant written as such a value set narrowing
+    a `$ref` takes the hint the `$ref` suggests, as the same conjunction written in its branches
+    does, where it took `variant_N`, so the symbol an emitter generates from it is renamed.
+  - The `ValueType` of the `Enum` or `Literal` a refinement lowers to reads the type and format every
+    conjunct declares, where it read its own schema's alone, and a branch whose format it holds is
+    no longer kept.
+
+  A consumer pinned to 0.34.0 that read those `Unmodeled` entries no longer finds them, and refuses
+  the document as another generation's.
+- **0.36.0** — pagination and streaming gained the facts declared pagination and conditional
   streams state:
   - `ParamPath` became `InputPath`, whose `Param` is optional: nil roots the path in the request
     body, so a search endpoint's body cursor or page size is an input. `Pagination` gained
@@ -336,5 +358,5 @@ it sees. Changes made together in one bump are listed together under it.
   - `StreamDetail` gained `Terminator`, the frame data that ends a stream and is no element (an
     SSE `data: [DONE]`), and `Condition`, the request input and value that ask for a stream an
     operation sends only when asked.
-  - No compiler fills these yet. A consumer pinned to 0.34.0 refuses a document that sets one, and
+  - No compiler fills these yet. A consumer pinned to 0.35.0 refuses a document that sets one, and
     finds a body input's `param` absent where it required one.

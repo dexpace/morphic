@@ -15,7 +15,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -26,8 +25,8 @@ import (
 // there would reach these.
 
 // lowerer is test scaffolding, not a compiler type: every lowering is a
-// function of the context and the registry (#177), and this holds what a
-// single-lowering test wants in one place.
+// function of the context and the registry, or the walk holding it (#177), and
+// this holds what a single-lowering test wants in one place.
 type lowerer struct {
 	ctx   lowering.Ctx
 	types *compile.Types
@@ -45,6 +44,13 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 	}
 }
 
+// serviceWalk stands in for the walk LowerService hands the lowerings beneath it:
+// l's registry, and a kept set of its own. It holds no operationId claims, servers
+// or schemes: no lowering a test here hands it to reads them.
+func (l *lowerer) serviceWalk() walk {
+	return walk{types: l.types, kept: newKeptOnce()}
+}
+
 // loweredFor loads src and returns the fixture over it with nothing lowered
 // yet, plus the load diagnostics.
 func loweredFor(t *testing.T, src string) (*lowerer, []ir.Diagnostic) {
@@ -59,15 +65,13 @@ func loweredAt(t *testing.T, src compilers.Source, opts load.Options) (*lowerer,
 	loadedDoc, diags, err := load.Load(t.Context(), 0, src, opts)
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return lowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)), diags
+	return lowererOver(lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})), diags
 }
 
 // newRawLowerer builds a fixture over a hand-constructed document, bypassing
 // the parser so nil slice/map entries can be exercised.
 func newRawLowerer(doc *soa.OpenAPI) *lowerer {
-	return lowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
+	return lowererOver(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath

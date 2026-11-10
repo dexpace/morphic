@@ -208,6 +208,25 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Port80/allOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Port80/allOf/1",
+      "name": {
+        "hint": "port_80"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80/allOf/1"
+      },
+      "value": {
+        "kind": "number",
+        "num": "80"
+      },
+      "valueType": "int32"
+    },
     "t/anon/components/schemas/Scores/items": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Scores/items",
@@ -247,6 +266,51 @@
         "target": "t/openapi/components/schemas/Port",
         "nullable": false
       }
+    },
+    "t/anon/components/schemas/Zone/properties/level": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Zone/properties/level",
+      "name": {
+        "hint": "level"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "What to do"
+      },
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "$ref": "#/components/schemas/Mode"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/level/allOf/0"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/level"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Zone/properties/level/s:get",
+          "name": {
+            "source": "get",
+            "canonical": "get"
+          },
+          "value": {
+            "kind": "string",
+            "str": "get"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     },
     "t/anon/components/schemas/Zone/properties/mode/allOf/1": {
       "kind": "enum",
@@ -384,6 +448,29 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/BoundedList": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/BoundedList",
+      "name": {
+        "source": "BoundedList",
+        "canonical": "bounded_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedList"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 2,
+        "uniqueItems": false
+      }
+    },
     "t/openapi/components/schemas/Disjoint": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Disjoint",
@@ -459,6 +546,53 @@
         "maxLength": 64,
         "uniqueItems": false
       }
+    },
+    "t/openapi/components/schemas/Level": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Level",
+      "name": {
+        "source": "Level",
+        "canonical": "level"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A level"
+      },
+      "sensitive": false,
+      "deprecation": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Level"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Level/s:low",
+          "name": {
+            "source": "low",
+            "canonical": "low"
+          },
+          "value": {
+            "kind": "string",
+            "str": "low"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Level/s:high",
+          "name": {
+            "source": "high",
+            "canonical": "high"
+          },
+          "value": {
+            "kind": "string",
+            "str": "high"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     },
     "t/openapi/components/schemas/Mode": {
       "kind": "enum",
@@ -572,6 +706,25 @@
         "nullable": false
       }
     },
+    "t/openapi/components/schemas/Port80": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Port80",
+      "name": {
+        "source": "Port80",
+        "canonical": "port_80"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Port80/allOf/1",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/Prim": {
       "kind": "scalar",
       "id": "t/openapi/components/schemas/Prim",
@@ -607,6 +760,25 @@
       },
       "base": {
         "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Raw80": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Raw80",
+      "name": {
+        "source": "Raw80",
+        "canonical": "raw_80"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Raw80"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Port80/allOf/1",
         "nullable": false
       }
     },
@@ -647,6 +819,25 @@
       },
       "elem": {
         "target": "t/anon/components/schemas/Scores/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Tags": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Tags",
+      "name": {
+        "source": "Tags",
+        "canonical": "tags"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
         "nullable": false
       }
     },
@@ -963,6 +1154,64 @@
             "source": 0,
             "pointer": "/components/schemas/Zone/properties/scan"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minItems": 2,
+            "uniqueItems": true
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/tags"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/level",
+          "name": {
+            "source": "level",
+            "canonical": "level"
+          },
+          "wireName": "level",
+          "type": {
+            "target": "t/anon/components/schemas/Zone/properties/level",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/level"
+          }
         }
       ],
       "abstract": false,
@@ -1060,6 +1309,15 @@
       }
     },
     {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/level/allOf/0"
+      }
+    },
+    {
       "severity": "warning",
       "code": "openapi/degraded-construct",
       "message": "the conjuncts of this allOf share no value (allOf/0: integer, allOf/1: string), so no instance satisfies this schema, which a composition cannot state",
@@ -1100,7 +1358,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "5516a198d627a7c98d336834ca0d6722aeeb9a2e415a1998b82078b59f620a2c"
+      "hash": "5569e428abcc60c76b996f40ab43601babeab29830f408bac74a815ea387f82e"
     }
   ]
 }
