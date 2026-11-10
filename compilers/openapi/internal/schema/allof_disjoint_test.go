@@ -124,6 +124,12 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 		{"an allOf an enum passes over beside a union",
 			`{enum: [a], oneOf: [{type: string}, {type: integer}], allOf: [` + refStr + `, ` + refObj + `]}`,
 			"allOf/0: string, allOf/1: object"},
+		{"an allOf passed over that cannot be kept",
+			`{enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
+			"allOf/0: string, allOf/1: integer"},
+		{"an allOf passed over beside a family kept",
+			`{const: a, enum: [a], allOf: [{type: string}, {type: integer, x-v: ` + unpreservableValue + `}]}`,
+			"allOf/0: string, allOf/1: integer"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

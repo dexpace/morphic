@@ -447,20 +447,19 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 			kept = append(kept, keyword)
 		}
 	}
-	if len(kept) == 0 {
-		return diags
+	if len(kept) > 0 {
+		skipped := strings.Join(kept, " and ")
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+			"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
+				"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
+			skipped, d.won, d.won, skipped))
 	}
-	skipped := strings.Join(kept, " and ")
-	diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
-			"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
-		skipped, d.won, d.won, skipped))
-	if !slices.Contains(kept, "allOf") {
+	if !slices.Contains(d.skipped, "allOf") {
 		return diags
 	}
 	// An allOf that refines is no rival of the value set (lower), so one passed
 	// over composes, and its conjuncts may share no value, as they are read where
-	// it wins (lowerAllOf).
+	// it wins (lowerAllOf), whether or not the allOf could be kept.
 	return append(diags, diagDisjointConjuncts(c, readAllOf(c, s, pointer), "the "+d.won+" it lowered as")...)
 }
 
