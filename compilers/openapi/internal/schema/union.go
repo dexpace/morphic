@@ -337,11 +337,12 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 // declares shape against s, if that union is one classifyBranchSet
 // distributes. A second such union leaves none: distributing one would drop
 // the other. A union declaring no shape stays residue beside the rest.
+//
+// Nor does s distribute below a discriminated ancestor, whose route may name
+// it (routedSubtype): every reader of s shares this reading, which has no
+// position to tell an inline s no route names.
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 	if !allOfConjoins(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
-		return branchUnionIndex{}
-	}
-	if _, refines := refinementOf(c, s, ""); refines {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(s, "").branches
@@ -353,11 +354,13 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 		}
 		index, count = i, count+1
 	}
-	if count != 1 {
+	if count != 1 || branches[index].capped || classifyBranchSet(c, branches[index].schema.GetSchema()) != unionDistributed {
 		return branchUnionIndex{}
 	}
-	e := branches[index]
-	return branchUnionIndex{index: index, ok: !e.capped && classifyBranchSet(c, e.schema.GetSchema()) == unionDistributed}
+	if _, refines := refinementOf(c, s, ""); refines || len(ancestorDiscriminators(c.Bindings(), s)) > 0 {
+		return branchUnionIndex{}
+	}
+	return branchUnionIndex{index: index, ok: true}
 }
 
 // variantHint is the hint the union variant for the branch b written at vptr,
@@ -553,6 +556,10 @@ const (
 	// unionDiscriminated marks a union whose branches a declared discriminator
 	// binds by name, which distribution would break.
 	unionDiscriminated
+	// unionRoutedSubtype marks a body a discriminator on an ancestor routes to
+	// (routedSubtype). The route names the type the body lowers to, which as a
+	// union would be no subtype of that ancestor.
+	unionRoutedSubtype
 )
 
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
@@ -565,17 +572,32 @@ const (
 //
 // A declared discriminator rules distribution out: its mapping names the branch
 // schemas, which distribution replaces with synthesized composed models
-// (pass/validate's discriminator-missing-variant rule is the mirror). The rule
-// docs/compilers/openapi.md#union-beside-structure enumerates this and the
-// other residual shapes.
-func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
+// (pass/validate's discriminator-missing-variant rule is the mirror). So does
+// one on an ancestor routing to s, written at pointer (routedSubtype).
+// docs/compilers/openapi.md#union-beside-structure enumerates the shapes.
+func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) unionLowering {
 	if !unionBranchesDeclareShape(c, s) {
 		return unionValidationOnly
 	}
 	if !composesAsModel(c, s) {
 		return unionUncomposableBody
 	}
-	return classifyBranchSet(c, s)
+	if outcome := classifyBranchSet(c, s); outcome != unionDistributed {
+		return outcome
+	}
+	if routedSubtype(c, s, pointer) {
+		return unionRoutedSubtype
+	}
+	return unionDistributed
+}
+
+// routedSubtype reports whether a discriminator on an ancestor of s, written at
+// pointer, routes to s as its subtype: by a mapping key or by its name as a
+// component, the tag its lowering takes (subtypeDiscriminatorValue). That
+// lowering reports the tag's own diagnostics, so this reading drops them.
+func routedSubtype(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
+	_, routed, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer)
+	return routed
 }
 
 // classifyBranchSet is the part of classifyUnionSiblings that reads the union
@@ -664,7 +686,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 		}
 		return lowerBesideUnmodeledUnion(c, ts, depth, s, pointer, reason, why)
 	}
-	switch classifyUnionSiblings(c, s) {
+	switch classifyUnionSiblings(c, s, pointer) {
 	case unionDistributed:
 		return lowerDistributedUnion(c, ts, depth, s, unionOf(s, pointer), pointer)
 	case unionValidationOnly:
@@ -682,6 +704,9 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 	case unionNullBranch:
 		return beside(ir.ReasonDegradedLowering,
 			"a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it")
+	case unionRoutedSubtype:
+		return beside(ir.ReasonDegradedLowering,
+			"a discriminator on an ancestor routes to this schema as its subtype, which distributing it into a union would undo")
 	default: // unionDiscriminated
 		return beside(ir.ReasonDegradedLowering,
 			"a declared discriminator binds the branches by name, which distributing them would break")
@@ -784,7 +809,7 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
+		body := composedBody{schema: s, comp: readAllOf(c, s, pointer)}
 		if u.holder != s {
 			body.comp.distributes = u.at
 		}
@@ -808,13 +833,10 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 }
 
 // composedBody is the schema every distributed variant carries: the enclosing
-// schema, where it is written, and the identity of the Union it lowered to —
-// which is the node a base's discriminator mapping names, since the source
-// declares one schema, not one per branch.
+// schema and where it is written.
 type composedBody struct {
 	schema *oas3.Schema
 	comp   allOfComposition // schema's flattened allOf, built once for every variant
-	id     ir.TypeID
 }
 
 // composedVariant synthesizes the Model for one distributed variant: the
@@ -881,12 +903,9 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
 	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
 	conjoinBranch(m, branch)
-	// The tag is the enclosing schema's: it is what a base's mapping names, and
-	// the variants are its lowering. No discriminator of its own can be declared
-	// here — a schema that declares one is never distributed.
-	tag, tagDiags := subtypeDiscriminatorValue(c, body.schema, body.id, body.comp.pointer)
-	m.DiscriminatorValue = tag
-	diags = append(diags, tagDiags...)
+	// No variant carries a DiscriminatorValue: a schema a discriminated
+	// ancestor routes to is never distributed (unionRoutedSubtype), and one
+	// declaring a discriminator of its own is not either (unionDiscriminated).
 	return m, diags
 }
 

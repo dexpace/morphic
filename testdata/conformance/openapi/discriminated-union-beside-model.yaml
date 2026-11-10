@@ -51,9 +51,10 @@ components:
         - type: object
           properties:
             side: {type: number}
-    # Bird writes allOf to Animal, but also a oneOf the allOf is distributed
-    # across, so Bird lowers to a union and is no subtype of Animal. Only the
-    # lowered document can tell, so the discriminator is kept beside the union.
+    # Bird writes allOf to Animal and a oneOf beside it. Animal's mapping routes
+    # to Bird, so the union is kept beside it rather than distributed, which
+    # would make Bird a union and no subtype, and Animal keeps its
+    # discriminator.
     Animal:
       type: object
       discriminator:

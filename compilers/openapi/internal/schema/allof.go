@@ -56,7 +56,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		if d != nil {
 			m.Discriminator = d
 		}
-		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
+		tag, _, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
 		m.DiscriminatorValue = tag
 		diags = append(diags, tagDiags...)
 		return objectNode(m)

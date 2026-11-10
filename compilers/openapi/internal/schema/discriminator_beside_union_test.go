@@ -55,9 +55,6 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 		{"lowers to an alias over its $ref", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
 			"    Cat: {$ref: '#/components/schemas/Other', allOf: [{$ref: '#/components/schemas/Pet'}]}\n" +
 				"    Other: {type: object}\n" + subDog, `"mapping"`},
-		{"lowers to a distributed union", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
-			"    Cat: " + viaPet + ", oneOf: [{$ref: '#/components/schemas/House'}, {$ref: '#/components/schemas/Wild'}]}\n" +
-				"    House: {type: object}\n    Wild: {type: object}\n" + subDog, `"mapping"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -147,8 +144,10 @@ func TestDiscriminatorBesideUnion_KeepsARoutingMapAModel(t *testing.T) {
 
 // TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype pins the case the
 // model keeps its discriminator beside a kept union: every route is a subtype,
-// at any distance and however it is spelled. A branch no name reaches, inline
-// or a position, is no route, so it does not move the discriminator either.
+// at any distance and however it is spelled, a route writing a union beside
+// its allOf among them, which the route keeps a subtype. A branch no name
+// reaches, inline or a position, is no route, so it does not move the
+// discriminator either.
 func TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype(t *testing.T) {
 	t.Parallel()
 	const grand = "    Cat: {allOf: [{$ref: '#/components/schemas/Mid'}], type: object}\n" +
@@ -168,6 +167,11 @@ func TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype(t *testing.T) {
 		{"grandchild", "3.1.0", petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"), grand},
 		{"default", "3.2.0", petWith("{propertyName: kind, defaultMapping: '#/components/schemas/Dog'}"), subtypes},
 		{"branches no name reaches", "3.1.0", unnamed, cat + "    Holder: {type: object, properties: {pet: {type: object}}}\n"},
+		{"a union beside its allOf, which a route keeps undistributed", "3.1.0",
+			petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"),
+			"    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}], " +
+				"oneOf: [{$ref: '#/components/schemas/House'}, {$ref: '#/components/schemas/Wild'}]}\n" +
+				"    House: {type: object}\n    Wild: {type: object}\n" + subDog},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

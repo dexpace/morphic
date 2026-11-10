@@ -283,6 +283,92 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	}
 }
 
+// TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype pins a union beside or
+// on an allOf branch of a schema a discriminated ancestor routes to, by a
+// mapping key or its name as a component
+// (docs/compilers/openapi.md#union-beside-structure). Distributed, the schema
+// would be a union, no subtype of the ancestor, so it stays a tagged model
+// under it, its union kept verbatim, and the document validates, a subtype of
+// it included. An inline schema no route names distributes beside the allOf,
+// its variants untagged, and stays whole on its branch; a mapping key routes to
+// one, "" among them.
+func TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping:
+          dog: '#/components/schemas/Dog'
+          bird: '#/components/schemas/Bird'
+          '': '#/components/schemas/Holder/properties/hamster'
+    Small: {type: object, properties: {size: {type: integer}}}
+    Big: {type: object, properties: {weight: {type: integer}}}
+    Dog:
+      allOf: [{$ref: '#/components/schemas/Pet'}]
+      oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]
+    Cat:
+      allOf: [{$ref: '#/components/schemas/Pet'}]
+      oneOf: [{properties: {meow: {type: string}}}, {properties: {purr: {type: string}}}]
+    Bird:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+        - oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]
+    Fish:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+        - anyOf: [{properties: {fins: {type: integer}}}, {$ref: '#/components/schemas/Big'}]
+    Kennel:
+      allOf: [{$ref: '#/components/schemas/Dog'}, {properties: {name: {type: string}}}]
+    Holder:
+      type: object
+      properties:
+        beside:
+          allOf: [{$ref: '#/components/schemas/Pet'}]
+          oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]
+        branch:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+            - oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]
+        hamster:
+          allOf: [{$ref: '#/components/schemas/Pet'}]
+          oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc), "every route names a subtype, so the document validates")
+
+	for name, tc := range map[string]struct{ tag, kept string }{
+		"Dog": {"dog", "openapi:oneOf"}, "Cat": {"Cat", "openapi:oneOf"},
+		"Bird": {"bird", "openapi:allOf/1"}, "Fish": {"Fish", "openapi:allOf/1"},
+	} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
+		require.NotNil(t, m.Base, name)
+		assert.Equal(t, componentID("Pet"), m.Base.Target, "%s is a subtype of Pet", name)
+		assert.Equal(t, tc.tag, m.DiscriminatorValue, name)
+		assert.Equal(t, ir.ReasonDegradedLowering, m.Unmodeled[tc.kept].Reason, "%s keeps its union", name)
+	}
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Dog"),
+		"a discriminator on an ancestor routes to this schema as its subtype")
+	assert.True(t, ir.IsSubtype(doc, componentID("Kennel"), componentID("Pet")), "through Dog")
+
+	beside, ok := doc.Types["t/anon/components/schemas/Holder/properties/beside"].(*ir.Union)
+	require.True(t, ok, "an inline schema no route names distributes beside the allOf")
+	for _, v := range beside.Variants {
+		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok)
+		assert.Empty(t, m.DiscriminatorValue, "and no variant is tagged")
+	}
+	_, ok = doc.Types["t/anon/components/schemas/Holder/properties/branch"].(*ir.Model)
+	assert.True(t, ok, "and stays a model on its branch")
+	hamster, ok := doc.Types["t/anon/components/schemas/Holder/properties/hamster"].(*ir.Model)
+	require.True(t, ok, "one a mapping key routes to stays a model, the key \"\" among them")
+	assert.Contains(t, hamster.Unmodeled, "openapi:oneOf")
+}
+
 // variantModels returns the composed models the component name's Union
 // distributes its body across, in variant order.
 func variantModels(t *testing.T, doc *ir.Document, name string) []*ir.Model {

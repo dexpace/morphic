@@ -631,28 +631,35 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 }
 
 // assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
-// union is kept verbatim beside a model. Pet's and Animal's routes are not
-// subtypes of them, so pass.Validate would reject the discriminator on the
-// model; it moves whole to Unmodeled beside the union. Vehicle's object
-// variant holds one the same way. Shape's routes are true allOf subtypes, so
-// the model keeps it, and the document validates clean.
+// union is kept verbatim beside a model. Pet's routes are not subtypes of it,
+// so pass.Validate would reject the discriminator on the model; it moves whole
+// to Unmodeled beside the union. Vehicle's object variant holds one the same
+// way. Shape's and Animal's routes are true allOf subtypes, Bird's union kept
+// beside it rather than distributed, so each model keeps it, and the document
+// validates clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
 	assert.Empty(t, found)
 
-	for _, name := range []string{"Pet", "Animal"} {
-		m, ok := doc.Types[componentID(name)].(*ir.Model)
-		require.True(t, ok, name)
-		assert.Nil(t, m.Discriminator, "%s routes to a non-subtype, so the model does not carry it", name)
-		entry, ok := m.Unmodeled["openapi:discriminator"]
-		require.True(t, ok, "%s keeps it verbatim instead", name)
-		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-		assert.Contains(t, m.Unmodeled, "openapi:oneOf", "beside the union it routes through")
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
-	}
-	_, isUnion := doc.Types[componentID("Bird")].(*ir.Union)
-	assert.True(t, isUnion, "Bird writes allOf to Animal but lowers to a union, which is no subtype")
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, pet.Discriminator, "Pet routes to a non-subtype, so the model does not carry it")
+	entry, ok := pet.Unmodeled["openapi:discriminator"]
+	require.True(t, ok, "Pet keeps it verbatim instead")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Contains(t, pet.Unmodeled, "openapi:oneOf", "beside the union it routes through")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator"))
+
+	bird, ok := doc.Types[componentID("Bird")].(*ir.Model)
+	require.True(t, ok, "Bird writes allOf to Animal, whose route keeps it a subtype")
+	require.NotNil(t, bird.Base)
+	assert.Equal(t, componentID("Animal"), bird.Base.Target)
+	assert.Contains(t, bird.Unmodeled, "openapi:oneOf", "its union kept beside it")
+	animal, ok := doc.Types[componentID("Animal")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, animal.Discriminator, "its route is a subtype, so it stays")
+	assert.Equal(t, componentID("Bird"), animal.Discriminator.Mapping["bird"])
 
 	vehicle, ok := doc.Types[componentID("Vehicle")].(*ir.Union)
 	require.True(t, ok, "a multi-typed body lowers to a union")
@@ -844,8 +851,8 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 // assertAllOfUnionBranch pins a union written as an allOf branch, distributed
 // across the rest of the composition as the same union beside the allOf is,
-// and one that only narrows the body, which stays with its branch
-// (docs/compilers/openapi.md#union-beside-structure).
+// and one that only narrows the body or sits on a subtype a route names, which
+// stays with its branch (docs/compilers/openapi.md#union-beside-structure).
 func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
@@ -886,4 +893,11 @@ func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.True(t, ok, "unions that only narrow leave the composition a model")
 	assert.Contains(t, message.Unmodeled, "openapi:allOf/0")
 	assert.Contains(t, message.Unmodeled, "openapi:allOf/1")
+
+	dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
+	require.True(t, ok, "a subtype a route names stays a model")
+	require.NotNil(t, dog.Base)
+	assert.Equal(t, componentID("Pet"), dog.Base.Target)
+	assert.Equal(t, "dog", dog.DiscriminatorValue)
+	assert.Contains(t, dog.Unmodeled, "openapi:allOf/1", "its union kept with its branch")
 }

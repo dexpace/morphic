@@ -120,7 +120,7 @@ simply absent from the IR and preserve nothing.
   cannot express it at all. The shape is instead handled where it arises: read as the union alone
   where the structural keywords say nothing its branches do not, distributed across the union's
   variants per [models](./models.md#composition-beside-a-union) when every branch names a
-  referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
+  referent, and kept verbatim under `ReasonDegradedLowering` in the residual shapes
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. A second format
   that declares a genuine intersection — not a model-only `&` — is what would reopen this.
 

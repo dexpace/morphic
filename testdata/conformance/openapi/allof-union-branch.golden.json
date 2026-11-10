@@ -1039,6 +1039,48 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WithoutData"
+              },
+              {
+                "$ref": "#/components/schemas/WithData"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "dog",
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Message": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Message",
@@ -1213,6 +1255,60 @@
       ],
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Pet/properties/kind",
+        "mapping": {
+          "dog": "t/openapi/components/schemas/Dog"
+        },
+        "inferred": false
+      },
       "inputOnly": false
     },
     "t/openapi/components/schemas/Record": {
@@ -1445,6 +1541,15 @@
     },
     {
       "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (oneOf) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/composition-lowering",
       "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
       "provenance": {
@@ -1457,7 +1562,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-union-branch.yaml",
-      "hash": "ead825daa0a25530aea6419665cad9498c46500c7e45481b88046583a0e02c49"
+      "hash": "7f14b278a682f3536dff0c0a0a399957341a04dfecd912ff598e38614df8ba0c"
     }
   ]
 }

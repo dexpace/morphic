@@ -2207,10 +2207,12 @@ schema writes no union and no `discriminator` of its own, its `allOf` composes r
 declare shape (below). Its variants take their IDs from the branch's pointers, its `$ref` and inline
 branches conjoin as above, and the branch keeps nothing of the union, what else it writes merging as
 any branch does ([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
-of the five shapes below, one of two branch unions declaring shape, distributing either of which
-would drop the other, or one on a branch nested past the flattening depth stays whole with its
-branch, and so does one whose branches declare no shape, on each variant where another union
-distributes. Five shapes distribution cannot reach:
+of the shapes below, one of two branch unions declaring shape, distributing either of which would
+drop the other, or one on a branch nested past the flattening depth stays whole with its branch, and
+so does one whose branches declare no shape, on each variant where another union distributes. Below
+a discriminated ancestor (shape 6) a union on a branch stays whole even at a position no route
+names: which positions a route names is read from the position, and every reader of the schema
+shares one reading of it, which has none. Distribution cannot reach these shapes:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
@@ -2223,12 +2225,16 @@ distributes. Five shapes distribution cannot reach:
    it does not intern, an undeclared component, a pointer addressing no schema — so it declines
    rather than composing a variant whose branch quietly went missing;
 4. a `discriminator` is declared, binding the branch schemas by name;
-5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
+5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other;
+6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
+   as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
+   lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
+   `pass/validate` holds a mapping to), so it stays a `Model` under it, tagged.
 
-In all five, whatever structural body the schema declares is lowered — `properties` or a declared
+In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
-`openapi/degraded-construct` at the schema naming which of the five applied; in case 3 the broken
+`openapi/degraded-construct` at the schema naming which applied; in case 3 the broken
 reference is reported as well, as an `openapi/unresolved-ref` error. Case 1's body-less sibling
 leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
 [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
@@ -2253,7 +2259,7 @@ any union ([`nullable`](#nullable)), and a keyword the branches do not all say, 
 stays validation logic beside it whatever they repeat, and a `discriminator` beside the union keeps
 the body, whose routes may be its subtypes.
 
-A `discriminator` beside any of the five whose body lowers to a `Model` stays on that `Model` only
+A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
 when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
 `pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
 each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
@@ -2269,10 +2275,10 @@ a body the move leaves holding a map and nothing else lowers to that map's `MapT
 decides once every node is interned (`compile.Settlement`), because neither the walk nor the source
 schemas can answer it: a subtype declared after the `Model` has no `Base` while the `Model` lowers,
 and a schema whose `allOf` names the `Model` may still lower to no subtype — an `enum`, a `const`,
-an alias over a `$ref` beside it, or a union its `allOf` is distributed across.
+or an alias over a `$ref` beside it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
-a degradation and is not one of the five: it narrows the body without reshaping it, which is
+a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
 validation logic, so it is kept under `validation_only` with the keyword family of
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
 `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A `$ref`
@@ -2322,7 +2328,7 @@ the body's own `type`, so repeating the body never changes a verdict:
    `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
    `$schema`, `$vocabulary` and any keyword of no vocabulary.
 
-A branch declaring shape falls to the five shapes above. The branches and the body are read within
+A branch declaring shape falls to the shapes above. The branches and the body are read within
 the bounds of [`allof-refinement`](#allof-refinement), which a union's branches share, an `enum`
 a branch writes counting its members, and the body only as far as they need: a branch writing only
 keywords point 1 names reads none of it, the declarations of what a schema nests are read only
@@ -2341,6 +2347,7 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
   `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
+  `schema.TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
@@ -2452,8 +2459,10 @@ reference, and where several keys name it [`discriminator`](#discriminator) elec
 name as declared (`Cat/Dog`, not its pointer token) if it is a component schema, OpenAPI's implicit
 mapping. A subtype that is no component schema — inline as a property or a union branch, or under an
 extension — has no name to answer to, so only a mapping entry tags it, and a chain with no
-discriminated ancestor carries no tag however deep. A variant of a distributed `oneOf`/`anyOf`
-([`union-beside-structure`](#union-beside-structure)) carries the tag of the schema enclosing it.
+discriminated ancestor carries no tag however deep. A subtype a tag routes to is never distributed
+across a union beside its `allOf` or on a branch of it
+([`union-beside-structure`](#union-beside-structure)), as a union would be no subtype, so no variant
+of a distributed union carries a tag.
 
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,

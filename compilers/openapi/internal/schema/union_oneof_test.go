@@ -259,7 +259,7 @@ func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 // the whole compiled document: the same components in two declaration orders
 // compile to the same IR. Each case permutes a site the distribution shares
 // with something outside it: an outside $ref aimed at either union branch, and
-// the discriminated base the variants take their tag from.
+// the discriminated base whose route keeps the schema its subtype.
 //
 // These cases permute only components that emit no diagnostics, since
 // diagnostics are appended in traversal order and so differ in order even when
@@ -289,35 +289,12 @@ func TestOneOf_CoDeclaredDistributionIsOrderIndependent(t *testing.T) {
 	}
 }
 
-// TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue pins the tag the variants
-// inherit. The enclosing schema is an allOf subtype of a discriminated base, so
-// every variant is written on the wire with that subtype's tag — and the tag
-// comes from the base's mapping entry for the *enclosing* schema, since that is
-// the node the mapping names.
-func TestOneOf_CoDeclaredVariantCarriesDiscriminatorValue(t *testing.T) {
-	t.Parallel()
-	doc, diags := schema.LowerSpec(t, comboDiscriminatedSpec(true))
-	openapitest.RequireNoErrorDiags(t, diags)
-
-	u, ok := typeByName(doc, "Combo").(*ir.Union)
-	require.True(t, ok)
-	require.Len(t, u.Variants, 2)
-	for i := range u.Variants {
-		v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
-		require.True(t, ok)
-		assert.Equal(t, "combo", v.DiscriminatorValue,
-			"variant %d carries the mapping key naming the enclosing schema, not its own hint", i)
-	}
-}
-
 // TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue extends
-// GitHub #517 to buildComposedVariant, the union-branch caller of
-// subtypeDiscriminatorValue: the enclosing schema of this co-declared oneOf is
-// hoisted inline (a property, not a component), so it has no schema name and
-// its distributed variants get no implicit tag either — the same rule the allOf
-// case pins, at the other of the two call sites the fix touches. Before the fix
-// both variants took the property key "Combo" as their tag, a value the document
-// never assigned and one a component named Combo would also answer to.
+// GitHub #517 to a union beside an allOf subtype: the enclosing schema is
+// hoisted inline (a property, not a component), so it has no name a route could
+// answer to, and it distributes (routedSubtype) with no variant tagged. The
+// property key "Combo" as a tag is a value the document never assigned, and one
+// a component named Combo would also answer to.
 func TestOneOf_InlineCoDeclaredDistributionHasNoImplicitDiscriminatorValue(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Pet:
@@ -466,10 +443,11 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	}
 }
 
-// TestOneOf_CoDeclaredNotDistributedReasons pins four of the five shapes
-// distribution declines, each kept verbatim under ReasonDegradedLowering with
-// its own reason in the diagnostic (docs/compilers/openapi.md#union-beside-structure);
-// TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed pins the fifth.
+// TestOneOf_CoDeclaredNotDistributedReasons pins the shapes distribution
+// declines, each kept verbatim under ReasonDegradedLowering with its own reason
+// in the diagnostic (docs/compilers/openapi.md#union-beside-structure), but two:
+// TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed and
+// TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype pin those.
 // Half-distributing any of them would leave a Union whose variants disagree
 // about whether they carry the body. The messages are asserted, not just the
 // code: the reasons are the only thing telling the otherwise identical
@@ -516,7 +494,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	nullBranch := typeByName(doc, "NullBranch").(*ir.Model)
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a bare null branch blocks distribution rather than lifting to Nullable")
-	// The sixth is settling's, once the registry is whole: Discriminated's
+	// One more is settling's, once the registry is whole: Discriminated's
 	// discriminator routes to no subtype of its model, so it stays beside the
 	// union it was written for.
 	assert.Contains(t,
@@ -1520,10 +1498,10 @@ func comboRefStealSpec(branch int, outsiderFirst bool) string {
 	return openapitest.ComponentSpec(combo + outsider)
 }
 
-// comboDiscriminatedSpec is the co-declared union of a discriminated Base with
-// A|B. Every variant is written on the wire with the enclosing schema's tag,
-// which the base's mapping supplies, so the base and the schemas naming it are
-// permutable against each other — components lower in source order.
+// comboDiscriminatedSpec is the union A|B co-declared with an allOf subtype of
+// a discriminated Base, whose mapping routes to it and so keeps it a subtype,
+// and the base and the schemas naming it are permutable against each other —
+// components lower in source order.
 func comboDiscriminatedSpec(baseFirst bool) string {
 	base := `    Base:
       type: object
