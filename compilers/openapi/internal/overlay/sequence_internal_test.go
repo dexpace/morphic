@@ -484,7 +484,7 @@ func TestSequence_NeverChargesLessThanItBuilds(t *testing.T) {
 			charged := s.cost(doc.Actions[0])
 			before := countNodes(t.Context(), &root, budget.AtMost(maxNodes))
 
-			_, diags := Apply(t.Context(), 1, 0, &root, Options{Data: []byte(head + action)})
+			_, diags := Apply(t.Context(), 1, &root, Options{Data: []byte(head + action)})
 			require.False(t, diag.HasError(diags), "%+v", diags)
 
 			built := countNodes(t.Context(), &root, budget.AtMost(maxNodes)) - before

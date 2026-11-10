@@ -181,7 +181,7 @@ func lowerResponseParts(c lowering.Ctx, w walk, r *soa.Response, code string, rp
 // read for the census to leave alone. It reads at every version, as load
 // reports the key below 3.2 (diag.LaterVersionConstruct).
 func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer) (string, []string, []ir.Diagnostic) {
-	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.ProvenanceAt, rptr, "")
+	summary, read, diags := annotation.TakeString(p, r.GetRootNode(), "summary", nil, c.Place(), rptr, "")
 	if !read {
 		return "", nil, diags
 	}
@@ -200,11 +200,11 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 // (GitHub #616).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
 	_, diags := annotation.PreserveNodeInto(p, "openapi:links",
-		nodeview.Child(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.ProvenanceAt(rptr+ids.Ptr("links")))
-	ext, extDiags := annotation.ExtensionsFrom(r.GetExtensions(), c.ProvenanceAt, rptr)
+		nodeview.Child(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.Place().At(rptr+ids.Ptr("links")))
+	ext, extDiags := annotation.ExtensionsFrom(r.GetExtensions(), c.Place(), rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
 	diags = append(diags, extDiags...)
-	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr, taken...)...)
+	return append(diags, annotation.UnknownKeysIn(p, r, c.Place(), rptr, taken...)...)
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no

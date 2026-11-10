@@ -240,11 +240,11 @@ func keepOn(op *ir.Operation, kept ir.Unmodeled, docs ir.Docs) []ir.Diagnostic {
 func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
 ) []ir.Diagnostic {
 	diags := applyPathItemDocs(c, into, pi, declPtr, cedes)
-	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.ProvenanceAt, declPtr, into.scope)
+	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.Place(), declPtr, into.scope)
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysNamed(into.unmodeled, keptKeys(undeclaredPathItemKeys(pi), cedes),
-		pi.GetRootNode(), c.ProvenanceAt, declPtr, into.scope)...)
+		pi.GetRootNode(), c.Place(), declPtr, into.scope)...)
 }
 
 // carrier is where a path item's own declarations are kept, and under what key
@@ -410,7 +410,7 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 		}
 		_, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, annotation.EntryKey(into.scope, keyword),
 			nodeview.Child(pi.GetRootNode(), keyword), ir.ReasonNoIRHome,
-			c.ProvenanceAt(declPtr+ids.Ptr(keyword)))
+			c.Place().At(declPtr+ids.Ptr(keyword)))
 		diags = append(diags, fieldDiags...)
 	}
 	return diags
@@ -454,7 +454,7 @@ func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, de
 		diags = append(diags, repeatDiags...)
 		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
 		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
-			ir.ReasonNoIRHome, c.ProvenanceAt(entry))
+			ir.ReasonNoIRHome, c.Place().At(entry))
 		diags = append(diags, keepDiags...)
 	}
 	return diags

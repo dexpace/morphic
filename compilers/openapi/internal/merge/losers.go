@@ -34,24 +34,24 @@ var errNoSource = errors.New("no source was recorded for the declaration")
 // A declaration with no pointer is skipped, since PreserveInto overwrites a
 // collapsed key; no production path produces one. A source that will not
 // render is reported as an error (GitHub #144).
-func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, source Source) {
+func (g *Merger) keepLosingDeclaration(dst *ir.Property, loser ir.Provenance, source Source) []ir.Diagnostic {
 	pointer := loser.Pointer
 	if pointer == "" {
-		return
+		return nil
 	}
 	key := losingDeclarationKey + string(pointer)
 	raw, err := render(source)
 	if err != nil {
-		g.Report(ir.SeverityError, diag.UnpreservableConstruct, pointer,
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.UnpreservableConstruct, pointerOnly(pointer),
 			"%s could not be kept verbatim under Unmodeled and is represented in the IR "+
-				"in no form at all: %s", key, err.Error())
-		return
+				"in no form at all: %s", key, err.Error())}
 	}
 	// Degraded lowering (docs/ir/boundaries.md#degraded-constructs,
 	// docs/compilers/openapi.md#allof-redeclared-property): the IR has no
 	// combinator for two shapes or two defaults at one position.
 	annotation.PreserveInto(&dst.Unmodeled, key, raw,
 		ir.ReasonDegradedLowering, loser)
+	return nil
 }
 
 // render calls source, or fails with errNoSource when there is none.

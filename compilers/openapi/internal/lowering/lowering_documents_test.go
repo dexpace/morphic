@@ -82,20 +82,20 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	there, ok := lowering.InDocument(c, id)
 	require.True(t, ok)
 	assert.Equal(t, ids.In("ext.yaml"), there.IDs())
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, there.ProvenanceAt("/X"))
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/X"}, there.Place().At("/X"))
 	assert.True(t, there.RefScope().Foreign)
 	assert.Equal(t, c.Bindings().Table().Document(id).Name, there.RefScope().Holder)
 
 	back, ok := lowering.InDocument(there, bind.Source)
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}, back.IDs())
-	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.ProvenanceAt("/X"))
+	assert.Equal(t, ir.Provenance{Pointer: "/X"}, back.Place().At("/X"))
 	assert.False(t, back.RefScope().Foreign)
 	assert.Equal(t, ids.Document{}, there.InScope(there.RefScope().InSource()).IDs(),
 		"the source's scope is read at the source's coordinates")
 	kept := there.InScope(there.RefScope())
 	assert.True(t, kept.RefScope().Foreign)
-	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.ProvenanceAt("/X"),
+	assert.Equal(t, ir.Provenance{Pointer: "/X"}, kept.Place().At("/X"),
 		"InScope reads at the source's coordinates, in whichever scope")
 
 	none := *doc

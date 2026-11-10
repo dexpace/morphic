@@ -377,6 +377,30 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 		slices.Sorted(maps.Keys(got.Unmodeled)), "each is kept")
 }
 
+// TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported pins that a
+// declaration past the bound is kept as one the fold judged and lost is: one
+// with no source to render is reported unkeepable beside the budget error, not
+// dropped in silence.
+func TestFold_AnUnjudgedDeclarationThatWillNotRenderIsReported(t *testing.T) {
+	t.Parallel()
+	g, recorded := stubMerger(narrowingRegistry())
+	at := func(i int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/allOf/%d/properties/p", i)) }
+	decls := make([]declaration, 0, maxFoldDeclarations+1)
+	for i := range maxFoldDeclarations {
+		decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimString), Provenance: ptrAt(at(i))}, source: unread(t)})
+	}
+	decls = append(decls, declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimURL), Provenance: ptrAt(at(maxFoldDeclarations))}})
+
+	got := g.fold(decls)
+
+	require.Len(t, *recorded, 2, "%+v", *recorded)
+	assert.Equal(t, diag.BudgetExceeded, (*recorded)[0].Code)
+	assert.Equal(t, diag.UnpreservableConstruct, (*recorded)[1].Code)
+	assert.Equal(t, at(maxFoldDeclarations), (*recorded)[1].Provenance.Pointer)
+	assert.Contains(t, (*recorded)[1].Message, errNoSource.Error())
+	assert.Empty(t, got.Unmodeled, "nothing of it could be kept")
+}
+
 // TestFold_ANarrowerTypeThatLosesIsAnOverlap pins how the fold reports a type
 // narrower than the winner's that still lost. The judgment's narrowing is
 // transitive, so such a type holds every type the winner holds and wins; were
@@ -387,7 +411,7 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	g, _ := stubMerger(narrowingRegistry())
 	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
 	_, field := fieldSpan(decls)
-	f := newFolding(g, decls, field)
+	f := newFolding(&g.Merger, decls, field)
 	f.rel[f.winner][1] = relBNarrower
 
 	f.drop(1)
@@ -483,7 +507,7 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 }
 
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
-// declarations write alike, writing a reference, is one only where Merger.Alike
+// declarations write alike, writing a reference, is one only where Walk.Alike
 // says they read it against one base: elsewhere the same text may name another
 // schema, so the later one is reported and kept as one given differently is.
 // An entry writing no reference is one under any base.
@@ -503,7 +527,7 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 		first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
 		second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
 		g, recorded := stubMerger(narrowingRegistry())
-		g.Alike = func(ir.Provenance, ir.Provenance) bool { return false }
+		g.walk.apart = true
 
 		got := g.fold([]declaration{first, second})
 

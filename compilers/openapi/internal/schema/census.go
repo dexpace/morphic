@@ -456,7 +456,7 @@ func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
 		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword,
-			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, keyword)

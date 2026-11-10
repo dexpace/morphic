@@ -54,10 +54,10 @@ func encodingConfig(c lowering.Ctx, w walk, enc *soa.Encoding, encPtr jsontext.P
 func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	diags := nestedEncodings(c, &out, enc, encPtr, scope)
-	ext, extDiags := annotation.ExtensionsUnder(enc.GetExtensions(), c.ProvenanceAt, encPtr, scope)
+	ext, extDiags := annotation.ExtensionsUnder(enc.GetExtensions(), c.Place(), encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)
-	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.ProvenanceAt, encPtr, scope)...)
+	return out, append(diags, annotation.UnknownKeysUnder(&out, enc, c.Place(), encPtr, scope)...)
 }
 
 // nestedEncodingFields are the OpenAPI 3.2 Encoding Object fields that carry a
@@ -80,7 +80,7 @@ func nestedEncodings(c lowering.Ctx, out *ir.Unmodeled, enc *soa.Encoding, encPt
 	for _, keyword := range nestedEncodingFields {
 		at := encPtr + ids.Ptr(keyword)
 		kept, keptDiags := annotation.PreserveNodeInto(out, annotation.EntryKey(scope, keyword),
-			nodeview.Child(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+			nodeview.Child(enc.GetRootNode(), keyword), ir.ReasonNoIRHome, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

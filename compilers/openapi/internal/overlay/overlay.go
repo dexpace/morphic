@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -60,30 +61,15 @@ type Options struct {
 // The zero value is the answer for a compile with no overlay: nothing was
 // applied, and every position belongs to whichever source the caller names.
 type Origin struct {
-	// index is the overlay's position in Document.Sources.
-	index int
-	// target is the position in Document.Sources of the document the overlay
-	// patches.
-	target int
 	// source is the overlay's identity as an input document.
 	source ir.SourceInfo
+	// attribution holds the positions the overlay introduced or rewrote. It
+	// attributes none when the overlay did not apply, or applied past the node
+	// budget.
+	attribution provenance.Attribution
 	// applied reports that the overlay was applied, whether or not it changed
 	// anything and whether or not its positions could be attributed to it.
 	applied bool
-	// pointers holds every position the overlay introduced or rewrote, closed
-	// downwards: a cloned subtree contributes each of its own nodes, so a lookup
-	// is one map hit rather than a walk up the pointer's prefixes.
-	//
-	// It is nil when no position is attributed to the overlay: it did not
-	// apply, or it applied past the node budget.
-	pointers map[jsontext.Pointer]bool
-	// nodes holds the same positions keyed by the node that sits at each — the
-	// value the walk attributed, and the key beside it when the overlay
-	// introduced that too. A diagnostic raised on a raw node has the node and
-	// not the pointer; this is what lets it be answered at all, since a grafted
-	// node carries no line and column of its own (the library's clone keeps
-	// neither) and would otherwise be reported at 0:0 in the source.
-	nodes map[*yaml.Node]jsontext.Pointer
 }
 
 // Applied reports whether an overlay was applied to the document at all. It
@@ -97,68 +83,21 @@ func (o Origin) Applied() bool { return o.applied }
 // It is meaningful only when Applied reports true.
 func (o Origin) Source() ir.SourceInfo { return o.source }
 
-// WriterAt returns the index of the overlay when it introduced or rewrote the
-// position at pointer, and 0 otherwise: what ir.Provenance.WrittenBy holds for
-// that position of the patched document.
-//
-// A pointer the walk never produced — a position reached through an alias or a
-// `<<` merge key, which the node tree holds once at the anchor's own position —
-// answers 0, so an unrecognized pointer under-attributes rather than
-// misattributes.
-func (o Origin) WriterAt(pointer jsontext.Pointer) int {
-	if o.pointers[pointer] {
-		return o.index
-	}
-	return 0
-}
-
-// WriterOf is WriterAt for a construct no single position addresses, recorded at
-// pointer and assembled from the positions in from: the overlay's index when it
-// wrote every one of them, and WriterAt's answer for pointer otherwise, which
-// is also the answer when from is empty.
-//
-// A construct the overlay wrote entirely is credited to it, and one it only
-// added to stays with the document that declares it, as a mapping it merged
-// into does (GitHub #534).
-func (o Origin) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer) int {
-	own := o.WriterAt(pointer)
-	if len(from) == 0 {
-		return own
-	}
-	writer := o.WriterAt(from[0])
-	for _, p := range from[1:] {
-		if o.WriterAt(p) != writer {
-			return own
-		}
-	}
-	return writer
-}
-
-// At returns the provenance of a node the overlay introduced or rewrote — the
-// patched document's index, the JSON pointer the node sits at, and the overlay
-// as its writer — and false for any other node, including nil.
-//
-// It answers a diagnostic anchored on a raw node rather than a lowered
-// position, which would otherwise read the node's line and column; a grafted
-// node has none, so the finding would name the source at 0:0 (GitHub #476).
-func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
-	pointer, ok := o.nodes[n]
-	if !ok {
-		return ir.Provenance{}, false
-	}
-	return ir.Provenance{Source: o.target, Pointer: pointer, WrittenBy: o.index}, true
-}
+// Attribution returns the positions the overlay supplied, which name the
+// overlay as the writer of a pointer or a node of the patched document, placed
+// in that document's own entry of Document.Sources (provenance.Doc,
+// provenance.Tree).
+func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 
 // Apply applies opts to root in place and returns the attribution of what it
-// changed, with index as the overlay's place in Document.Sources and target as
-// that of the document root holds, which the overlay writes into.
+// changed, with index as the overlay's place in Document.Sources.
 //
 // An error-severity diagnostic means root was not usefully overlaid and the
 // caller must refuse to lower: the library applies actions in order and does not
 // undo the ones that landed, so a tree left behind by a failed application is
 // neither the source nor what the overlay asked for.
-func Apply(ctx context.Context, index, target int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(ctx, index, target, root, opts, budget.AtMost(maxNodes))
+func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
+	return applyWithin(ctx, index, root, opts, budget.AtMost(maxNodes))
 }
 
 // applyWithin is Apply with the walks' node bound as a parameter.
@@ -168,7 +107,7 @@ func Apply(ctx context.Context, index, target int, root *yaml.Node, opts Options
 // is a parameter so the degradation at the bound is reachable from a test with
 // a small tree, rather than only from a document large enough that no test
 // would build one — an unreachable branch is an unverified claim.
-func applyWithin(ctx context.Context, index, target int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
+func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
 
 	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
@@ -204,11 +143,12 @@ func applyWithin(ctx context.Context, index, target int, root *yaml.Node, opts O
 	if !ok {
 		// Applied without attribution: the source keeps every position, but the
 		// overlay stays in Document.Sources, since the warning below names it.
-		degraded := Origin{index: index, target: target, source: sourceInfo(doc, opts), applied: true}
+		degraded := Origin{source: sourceInfo(doc, opts), applied: true}
 		return degraded, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", walks.Cap()))
 	}
-	return Origin{index: index, target: target, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
+	return Origin{source: sourceInfo(doc, opts), attribution: provenance.Attributed(index, pointers, nodes), applied: true},
+		diags
 }
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and

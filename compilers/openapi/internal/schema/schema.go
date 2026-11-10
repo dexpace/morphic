@@ -189,7 +189,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 		// schema writes none. Nothing can collide with it: a schema that is a
 		// boolean has no other keywords to preserve.
 		annotation.PreserveInto(&common.Unmodeled, "openapi:schema",
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model "+
@@ -442,7 +442,7 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	kept := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {
 		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword,
-			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, storedDiags...)
 		if stored {
 			kept = append(kept, keyword)

@@ -58,7 +58,7 @@ func internNode(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, bui
 func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCommon {
 	common := ir.TypeCommon{
 		ID:         id,
-		Provenance: c.ProvenanceAt(pointer),
+		Provenance: c.Place().At(pointer),
 	}
 	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
 		common.Name = compile.NamingFor(name)

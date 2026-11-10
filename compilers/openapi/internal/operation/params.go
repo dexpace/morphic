@@ -70,7 +70,7 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		ID:         id,
 		Name:       compile.NamingFor(name),
 		Required:   p.GetRequired() || in == soa.ParameterInPath,
-		Provenance: c.ProvenanceAt(pptr),
+		Provenance: c.Place().At(pptr),
 	}
 	style, explode := resolveStyleExplode(p, in)
 	binding := ir.HTTPParamBinding{
@@ -153,7 +153,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// default and description off an intermediate reference instead of the
 	// schema that declares them.
 	use := schema.UseOf(c, ts, js, param.Type, pointer)
-	def, diags := annotation.EffectiveDefault(use.DefaultChain(s), pointer, c.ProvenanceAt)
+	def, diags := annotation.EffectiveDefault(use.DefaultChain(s), pointer, c.Place())
 	param.Default = def
 
 	cons, consDiags := schema.CarrierConstraintsOf(c, ts, &param.Unmodeled, s, use.Voices, param.Type, pointer)
@@ -193,7 +193,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.ProvenanceAt)
+	a, readDiags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs
@@ -224,7 +224,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 // gap by adding the field (GitHub #124).
 func preserveParamXML(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	at := pointer + ids.Ptr("xml")
-	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, "xml", ir.ReasonNoIRHome, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"parameter schema xml hints have no ir.Parameter home; kept verbatim under Unmodeled"))
@@ -250,7 +250,7 @@ func preserveParamVisibility(c lowering.Ctx, param *ir.Parameter, s *oas3.Schema
 			continue
 		}
 		at := pointer + ids.Ptr(keyword)
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&param.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue
@@ -289,10 +289,10 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 	if ex := positionExamples(own, elected.examples); len(ex) > 0 {
 		param.Examples = ex
 	}
-	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.ProvenanceAt, pptr)
+	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.Place(), pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
-	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
+	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.Place(), pptr)...)
 	return append(diags, schema.PromoteUse(c, schema.KeysLentTo(c, ts, elected.js, param.Type, elected.pointer), param.Unmodeled,
 		&param.Deprecation, &param.Secret, &param.Provenance)...)
 }

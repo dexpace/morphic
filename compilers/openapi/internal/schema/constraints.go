@@ -53,7 +53,7 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.ProvenanceAt)
+	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.Place())
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, stampConstraintDiags(c, diags, pointer)
 }
@@ -64,7 +64,7 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 // Diags.Append rather than reported twice.
 func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
 	for i := range diags {
-		diags[i].Provenance = c.ProvenanceAt(pointer)
+		diags[i].Provenance = c.Place().At(pointer)
 	}
 	return diags
 }

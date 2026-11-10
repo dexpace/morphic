@@ -400,17 +400,17 @@ func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
 	assert.False(t, ok, "a value of no reference kind is no reference")
 }
 
-// TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
+// TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
 // GitHub #86 exists for. Provenance built by hand is how a diagnostic shipped
 // with none (#43) — and a source index written wrong misattributes a node just
 // as silently, since nothing downstream can tell a wrong one from a right one.
-func TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
+func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 	t.Parallel()
 	c := lowering.New(7, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
-		c.ProvenanceAt("/components/schemas/User"))
-	assert.Equal(t, ir.Provenance{Source: 7}, c.ProvenanceAt(""),
+		c.Place().At("/components/schemas/User"))
+	assert.Equal(t, ir.Provenance{Source: 7}, c.Place().At(""),
 		"a document-level position carries the index and no pointer")
 }
 
@@ -439,7 +439,7 @@ func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
 
-	origin, diags := overlay.Apply(t.Context(), index, 0, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	origin, diags := overlay.Apply(t.Context(), index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	require.True(t, origin.Applied())
 	return origin
@@ -476,12 +476,12 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
 
-// TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced pins the one place
+// TestPlace_NamesTheOverlayForThePositionsItIntroduced pins the one place
 // a source index is spelled into a Provenance. Asking the overlay here is what
 // makes an overlay's contribution traceable without touching a lowering, so a
-// ProvenanceAt that ignored it would credit the overlay's work to the file on
-// disk at every site at once. The position is the source's either way.
-func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
+// Place that ignored it would credit the overlay's work to the file on disk at
+// every site at once. The position is the source's either way.
+func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	t.Parallel()
 	origin := appliedOverlay(t, 1, "info: {title: T}\n",
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
@@ -490,9 +490,9 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
-		c.ProvenanceAt("/info/description"), "the overlay wrote this position of the source")
+		c.Place().At("/info/description"), "the overlay wrote this position of the source")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
-		c.ProvenanceAt("/info/title"), "and left this one alone")
+		c.Place().At("/info/title"), "and left this one alone")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")

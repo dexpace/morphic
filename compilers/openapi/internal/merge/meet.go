@@ -29,7 +29,7 @@ func (b *builder) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 	if b.dry {
 		return ""
 	}
-	return b.f.g.Mint(pointer, node)
+	return b.f.g.Walk.Mint(pointer, node)
 }
 
 // meetNode returns the node base and partners, members that meet it, stand on:
@@ -43,7 +43,7 @@ func (b *builder) meetNode(base member, partners []member, pointer jsontext.Poin
 	all := append([]member{base}, partners...)
 	nodes := make([]ir.TypeDef, len(all))
 	for k, m := range all {
-		td, ok := b.f.g.Resolve(m.ref.Target)
+		td, ok := b.f.g.resolve(m.ref.Target)
 		if !ok {
 			b.failed = true
 			return base.ref.Target
@@ -200,7 +200,7 @@ func (b *builder) settle(ms []member, pointer jsontext.Pointer, depth int) ir.Ty
 		base, partners := p.meeting(all)
 		target = b.meetNode(base, partners, pointer, depth+1)
 	}
-	ref := p.null(registry{b.f.g.Resolve}, all, depth+1)
+	ref := p.null(registry{b.f.g.resolve}, all, depth+1)
 	ref.Target = target
 	return ref
 }
@@ -226,7 +226,7 @@ func (b *builder) adoptInto(built ir.TypeDef, all []member, nodes []ir.TypeDef) 
 		others[k] = *td.Common()
 	}
 	c := built.Common()
-	*c = adopt(*c, others, b.f.g.Alike, func(k int, field string) { b.differ(all[k+1].decl, field) })
+	*c = adopt(*c, others, b.f.g.Walk, func(k int, field string) { b.differ(all[k+1].decl, field) })
 	if l, ok := built.(*ir.List); ok && l.Encoding == nil {
 		b.adoptEncoding(l, all, nodes)
 	}

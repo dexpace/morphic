@@ -57,7 +57,7 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 		ID:          id,
 		Name:        serverName(&soa.Server{URL: defaultServerURL}),
 		URLTemplate: defaultServerURL,
-		Provenance:  c.ProvenanceAt(""),
+		Provenance:  c.Place().At(""),
 	}
 	return []ir.ServerID{id}, nil
 }
@@ -110,7 +110,7 @@ func (r *Registry) Servers() map[ir.ServerID]ir.Server {
 // undeclared keys on the ir.Server itself.
 func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
-	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.ProvenanceAt, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.Place(), sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
 		ID:          id,
@@ -119,9 +119,9 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   vars,
 		Unmodeled:   ext,
-		Provenance:  c.ProvenanceAt(sptr),
+		Provenance:  c.Place().At(sptr),
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
+	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
 }
 
 // serverName builds a server's neutral naming: the declared name (only OpenAPI
@@ -160,7 +160,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
 		// field is read directly — as annotation.XMLHints already reads its own.
-		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.ProvenanceAt, vptr)
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.Place(), vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
@@ -169,7 +169,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.ProvenanceAt, vptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.Place(), vptr)...)
 		out = append(out, one)
 	}
 	return out, diags

@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
@@ -269,11 +269,11 @@ func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) fu
 // the repeats of a parameter or servers list, and the references refused for
 // reading past a path item $ref into the fields beside it, less any resolved
 // already reports (see besideRefs).
-func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
+func sourceChecks(ctx context.Context, place provenance.Doc, doc *soa.OpenAPI, sibs Siblings,
 	media MediaTypes, resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
-	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs, media))
-	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
+	diags := listRepeats(place, sibs, walkSource(ctx, doc, sibs, media))
+	return append(diags, besideRefs(place, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is
@@ -283,44 +283,18 @@ func defaultIndex(ctx context.Context, root *yaml.Node) sourceindex.Index {
 	return sourceindex.Build(ctx, root, sourceindex.MaxIndexedNodes)
 }
 
-// locator answers where a node of the patched tree pointers indexes is, for
-// every diagnostic anchored on one: the overlay's index and the node's JSON
-// pointer for a node the overlay introduced or rewrote — the answer the
-// lowering gives for that pointer — and otherwise srcIndex with the node's own
-// line and column and its pointer in the tree (scan.InTree). A zero origin, the
-// answer for a compile with no overlay, never claims a node, so the two cases
-// need no telling apart here.
-func locator(srcIndex int, origin overlay.Origin, pointers func(*yaml.Node) (jsontext.Pointer, bool)) scan.Locator {
-	inSource := scan.InTree(srcIndex, pointers)
-	return func(n *yaml.Node) ir.Provenance {
-		if prov, ok := origin.At(n); ok {
-			return prov
-		}
-		return inSource(n)
-	}
-}
-
-// pointerAt answers where a pointer is, as the lowering answers it
-// (lowering.Ctx.ProvenanceAt): in srcIndex, written by the overlay where the
-// overlay introduced or rewrote the position. A load diagnostic placed by a
-// pointer is placed where a lowering one at the same pointer is, which is what
-// lets the compiler tell the two report the same position.
-func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Provenance {
-	return func(p jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Source: srcIndex, Pointer: p, WrittenBy: origin.WriterAt(p)}
-	}
-}
-
 // refusals indexes a decoded tree once and reports its pre-parse refusals, each
 // alongside the others: a shape the parser cannot afford to build
 // (shapeRefusals, docs/parser-library.md#alias-cycle among them), a mapping
 // carrying a tag the parser faults on (diag.TaggedMapping), and a refusal of
-// its own when the document is too large to index in full.
+// its own when the document is too large to index in full, each at the node
+// tree places or at whole.
 //
-// The size refusal is here, not in scan, because a truncated index answers only
-// in part, and an alias-expansion allowance derived from a partial node count
-// would refuse documents on a bound they never crossed.
-func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
+// The size refusal is here, not in scan: a truncated index answers only in
+// part, and an alias allowance derived from a partial node count would refuse
+// documents on a bound they never crossed.
+func refusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, root *yaml.Node, opts Options,
+) []ir.Diagnostic {
 	build := opts.buildIndex
 	if build == nil {
 		build = defaultIndex
@@ -328,14 +302,14 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 
 	idx := build(ctx, root)
 	if idx.Truncated() {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, whole,
 			"source document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
 
-	diags := shapeRefusals(ctx, locate, idx, opts)
+	diags := shapeRefusals(ctx, tree, whole, idx, opts)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
-		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
+		diags = append(diags, taggedMappingRefusal(tree, scan.Least(ctx, root, tagged)))
 	}
 	return diags
 }
@@ -344,28 +318,30 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 // cannot afford to build: its nesting (scan.Nesting), its aliases
 // (scan.Aliases) and, where neither is refused, the bytes of its nodes'
 // pointers (scan.PointerAmplification), which deep nesting and aliasing both
-// multiply, so one defect is not reported twice.
-func shapeRefusals(ctx context.Context, locate scan.Locator, idx sourceindex.Index, opts Options) []ir.Diagnostic {
+// multiply, so one defect is not reported twice. tree places a finding at a
+// node, and whole one about the tree as a whole.
+func shapeRefusals(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index, opts Options,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, locate, idx); deep {
+	if d, deep := scan.Nesting(ctx, tree, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
+	diags = append(diags, scan.Aliases(ctx, tree, whole, idx, opts.MaxAliasSurplus)...)
 	if diag.HasError(diags) {
 		return diags
 	}
-	if d, long := scan.PointerAmplification(locate, idx); long {
+	if d, long := scan.PointerAmplification(whole, idx); long {
 		diags = append(diags, d)
 	}
 	return diags
 }
 
 // taggedMappingRefusal builds the diag.TaggedMapping refusal, anchored where
-// locate puts the mapping — the way the alias refusals are anchored. The parser
+// tree places the mapping — the way the alias refusals are anchored. The parser
 // panics on such a mapping at a reference object, where no recover reaches
 // (docs/parser-library.md#tagged-mapping-panic).
-func taggedMappingRefusal(locate scan.Locator, n *yaml.Node) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.TaggedMapping, locate(n),
+func taggedMappingRefusal(tree provenance.Tree, n *yaml.Node) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.TaggedMapping, tree.Node(n),
 		"mapping is tagged %q; an OpenAPI document limits YAML tags to YAML 1.2's JSON schema ruleset, which tags a mapping %s",
 		n.Tag, sourceindex.MapTag)
 }
