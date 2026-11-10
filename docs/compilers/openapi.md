@@ -2357,10 +2357,12 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a union
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
-  body itself writes (#1423). Open: keeping a discriminated `oneOf` a union when structural keywords
-  sit beside it (#594).
+  body itself writes (#1423), a subtype a discriminator routes to keeps its union verbatim (#1694),
+  and a union on a branch below a discriminated base stays whole where no route names the schema
+  (#1695). Open: keeping a discriminated `oneOf` a union when structural keywords sit beside it
+  (#594).
 
 ### `union-beside-ref`
 

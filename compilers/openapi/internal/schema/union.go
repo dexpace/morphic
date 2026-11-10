@@ -340,7 +340,7 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 //
 // Nor does s distribute below a discriminated ancestor, whose route may name
 // it (routedSubtype): every reader of s shares this reading, which has no
-// position to tell an inline s no route names.
+// position to tell an inline s no route names (GitHub #1695).
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 	if !allOfConjoins(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
@@ -559,7 +559,7 @@ const (
 	unionDiscriminated
 	// unionRoutedSubtype marks a body a discriminator on an ancestor routes to
 	// (routedSubtype). The route names the type the body lowers to, which as a
-	// union would be no subtype of that ancestor.
+	// union would be no subtype of that ancestor (GitHub #1694).
 	unionRoutedSubtype
 )
 
