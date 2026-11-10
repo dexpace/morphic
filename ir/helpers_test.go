@@ -434,6 +434,8 @@ type testingT interface {
 // until the value sets it, so a round trip of the value cannot pass it unread.
 // Each zeroOK entry names a field of the struct's own that the value leaves
 // zero, and is asserted in both directions, so it cannot outlive its reason.
+// The walk reads the struct's own fields alone, not the fields of a value one
+// of them holds.
 func assertNoFieldZero(t testingT, v any, zeroOK ...zeroField) {
 	t.Helper()
 	rv := reflect.Indirect(reflect.ValueOf(v))
@@ -463,9 +465,9 @@ func assertNoFieldZero(t testingT, v any, zeroOK ...zeroField) {
 // through the matching UnmarshalJSONFrom, which refuses a tag naming a
 // different kind (json.go), then compares the result with cmp.Diff. Every
 // caller claims want populated in full, which assertNoFieldZero holds.
-func assertTypeDefRoundTrip[T any](t *testing.T, want *T, zeroOK ...zeroField) {
+func assertTypeDefRoundTrip[T any](t *testing.T, want *T) {
 	t.Helper()
-	assertNoFieldZero(t, want, zeroOK...)
+	assertNoFieldZero(t, want)
 	raw, err := json.Marshal(want)
 	require.NoError(t, err)
 	got := new(T)
