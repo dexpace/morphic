@@ -302,3 +302,32 @@ components:
       type: object
       properties:
         branch: {$ref: '#/components/schemas/NarrowedPastARef/allOf/0'}
+    # A schema writing properties and no type constrains objects and admits a
+    # string, so a scalar or an array beside it is the narrower, in either order.
+    UntypedObject:
+      properties:
+        a: {type: string}
+    StringBesideUntypedFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/UntypedObject'}
+        - properties:
+            p: {type: string}
+    StringBesideUntypedLast:
+      allOf:
+        - properties:
+            p: {type: string}
+        - properties:
+            p: {$ref: '#/components/schemas/UntypedObject'}
+    ArrayBesideUntypedFirst:
+      allOf:
+        - properties:
+            p: {properties: {a: {type: string}}}
+        - properties:
+            p: {type: array, items: {type: string}}
+    ArrayBesideUntypedLast:
+      allOf:
+        - properties:
+            p: {type: array, items: {type: string}}
+        - properties:
+            p: {properties: {a: {type: string}}}

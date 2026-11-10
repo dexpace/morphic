@@ -793,6 +793,60 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasFirst/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasLast/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
       "kind": "model",
       "id": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
@@ -911,6 +965,27 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/Anything": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Anything",
+      "name": {
+        "source": "Anything",
+        "canonical": "anything"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Admits every value."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Anything"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/AtLeastTwoMembers": {
       "kind": "scalar",
@@ -1947,6 +2022,104 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/TopAliasFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopAliasFirst",
+      "name": {
+        "source": "TopAliasFirst",
+        "canonical": "top_alias_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopAliasFirst/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Admits every value."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopAliasFirst/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TopAliasLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopAliasLast",
+      "name": {
+        "source": "TopAliasLast",
+        "canonical": "top_alias_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopAliasLast/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Admits every value."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopAliasLast/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoComponents": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoComponents",
@@ -2106,7 +2279,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "96504111f506cb923e44bcd0c76cc4a635b06a785677c73cfcd1a52005d51156"
+      "hash": "9bdfcbddaea53a7c368ee46215f4d10558b9c4ac5229f23428567a654c0dd4a7"
     }
   ]
 }

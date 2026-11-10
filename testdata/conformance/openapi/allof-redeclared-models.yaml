@@ -224,6 +224,33 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/AtLeastTwoMembers'}
+    # A component that is {} with only a description admits every value, so it
+    # adds no conjunct, as a bare {} does, wherever it stands, and the field keeps
+    # its description, which the reference carries down.
+    Anything:
+      description: Admits every value.
+    TopAliasFirst:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Anything'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}
+    TopAliasLast:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Anything'}
     AnyObject:
       type: object
     AtLeastTwoMembers:

@@ -57,6 +57,134 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/1/properties/p/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/HexBroadFirst/allOf/1/properties/p",
@@ -138,6 +266,100 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/NarrowedPastARef/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ArrayBesideUntypedFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ArrayBesideUntypedFirst",
+      "name": {
+        "source": "ArrayBesideUntypedFirst",
+        "canonical": "array_beside_untyped_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/ArrayBesideUntypedFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ArrayBesideUntypedLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ArrayBesideUntypedLast",
+      "name": {
+        "source": "ArrayBesideUntypedLast",
+        "canonical": "array_beside_untyped_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ArrayBesideUntypedLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ArrayBesideUntypedLast/allOf/0/properties/p"
           }
         }
       ],
@@ -1252,6 +1474,100 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/StringBesideUntypedFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBesideUntypedFirst",
+      "name": {
+        "source": "StringBesideUntypedFirst",
+        "canonical": "string_beside_untyped_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBesideUntypedFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBesideUntypedFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBesideUntypedFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringBesideUntypedLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBesideUntypedLast",
+      "name": {
+        "source": "StringBesideUntypedLast",
+        "canonical": "string_beside_untyped_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBesideUntypedLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBesideUntypedLast/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBesideUntypedLast/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/StringDatetimeBroadFirst": {
       "kind": "model",
       "id": "t/openapi/components/schemas/StringDatetimeBroadFirst",
@@ -1527,6 +1843,53 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Uint8Int16NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UntypedObject": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UntypedObject",
+      "name": {
+        "source": "UntypedObject",
+        "canonical": "untyped_object"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UntypedObject"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UntypedObject/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UntypedObject/properties/a"
           }
         }
       ],
@@ -1931,7 +2294,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "82cfaed186a6666f69ebb2545756de70af9af3dfab66fb55699a224c98644542"
+      "hash": "29948655a8af114bd986fe31f91a6d59351d7a5c33905b89238fed03d0fadf36"
     }
   ]
 }
