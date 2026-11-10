@@ -10,9 +10,10 @@ round runs and when the loop ends.
 
 - **Rule.** Each round appends its report, first line included, to
   `"$(git rev-parse --path-format=absolute --git-common-dir)/morphic-review/<N>.md"`, which every
-  worktree of the clone shares and no commit carries, and a later round reads it before choosing
-  what to read. A round finding no report there, as in another clone, reads the whole change as
-  the first two rounds do, and its report says why.
+  worktree of the clone shares and no commit carries. A later round's main session reads it before
+  choosing what the round reads, its reader getting only what
+  `references/readers.md#fresh-reader-for-the-second-round` allows. A round finding no report there,
+  as in another clone, reads the whole change as the first two rounds do, and its report says why.
 - **Why.** A round of #1647 at 894da789c, after rounds whose fixes were on the branch, found no
   comment, review, body line, ref or file holding their reports, so neither `<merged>` nor whether
   its `issue:` sat in a filled cell could be told (#1649).

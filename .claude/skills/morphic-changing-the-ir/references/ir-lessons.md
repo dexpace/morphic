@@ -196,7 +196,8 @@ verifier and codecs must reach.
   methods it marks; reading only what each step reads passed both (#1630).
 - **Probe.** List the order with
   `awk -F'|' '/^\| \140/{print NR": "$2}' docs/emitters/refine/steps.md`, and beside each step
-  what it reads and adds to, against the steps after it.
+  what it reads and adds to, against the steps after it, as the ordering paragraph of
+  `docs/emitters/refine/pipeline.md` argues each placement.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`
