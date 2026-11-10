@@ -616,7 +616,8 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
+		body := composedBody{schema: s, comp: readAllOf(c, s, pointer),
+			voices: positionVoices(c, ts, s, pointer, ir.TypeRef{}), id: common.ID}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
@@ -638,7 +639,8 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 // declares one schema, not one per branch.
 type composedBody struct {
 	schema *oas3.Schema
-	comp   allOfComposition // schema's flattened allOf, built once for every variant
+	comp   allOfComposition   // schema's flattened allOf, built once for every variant
+	voices []annotation.Voice // what comp's folding branches say of the position, read once too
 	id     ir.TypeID
 }
 
@@ -693,11 +695,11 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // declared, named after the enclosing schema, not after whichever branch built
 // them first.
 //
-// The enclosing schema's value constraints are read as lowerAllOf reads them
-// (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction.
+// The enclosing schema's value constraints, its folding branches' among them,
+// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
+// since a bound on the schema constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.voices, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)

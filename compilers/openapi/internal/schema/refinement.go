@@ -76,7 +76,7 @@ type decision struct {
 // the bindings, never the registry, so a decision turns on no lowering order, and
 // each position's many readers share one reading.
 func refinementOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	if !allOfConjoins(s) {
+	if !allOfMayRefine(s) {
 		return refinement{}, false
 	}
 	d := lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
