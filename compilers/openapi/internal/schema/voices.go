@@ -104,11 +104,12 @@ func allOfMayRefine(s *oas3.Schema) bool {
 
 // allOfDecides reports whether s's allOf is what its position lowers: one the
 // election of competing keywords made the value, or one refining, whose rival
-// there, an enum or a const beside it, is one of its conjuncts. A union beside
-// the composing allOf leaves it deciding, composed into each variant the union
-// distributes across or into the Model keeping the union verbatim, and so does
-// a $dynamicRef it keeps from expanding. An allOf that value set beats
-// otherwise stays verbatim (docs/compilers/openapi.md#competing-keywords).
+// there, an enum or a const beside it, is one of its conjuncts. An allOf that
+// value set beats otherwise stays verbatim
+// (docs/compilers/openapi.md#competing-keywords). A union beside the composing
+// allOf leaves it deciding, composed into each variant the union distributes
+// across or into the Model keeping the union verbatim, and so does a $dynamicRef
+// it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfBesideNoRef(s) {
 		return false
