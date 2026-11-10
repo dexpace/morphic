@@ -22,9 +22,9 @@ import (
 // that adds nothing to its branches (docs/compilers/openapi.md#union-beside-structure):
 // a `type` naming every kind they admit, and a `format`, `enum`, `const` or
 // `items` each is held to, leave the union alone, lowered as its bare spelling
-// is, keeping nothing and reporting nothing. A keyword no branch says beyond the body's
-// keywords stays beside the union, and one the branches do not all say keeps
-// the body: a null the `type` leaves out, a branch writing no `type`, branches
+// is, keeping nothing and reporting nothing. A `format` the branches do not all
+// say stays beside the union, and a body keyword they do not all say keeps the
+// body: a null the `type` leaves out, a branch writing no `type`, branches
 // declaring no shape and a discriminator beside them each keep it.
 func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T) {
 	t.Parallel()

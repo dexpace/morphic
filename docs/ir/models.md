@@ -181,8 +181,9 @@ declares and the composition entries that name no model. Its rules:
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
   of that model takes, the content's type for an encoding key, or the first variant declaring the
-  part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler keys a part through the flattening, and tags a discriminator by an
-  own property, which the flattening takes. `pass.Validate` holds each only to a property the model
+  part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler
+  keys a part through the flattening, and tags a discriminator by an own property, which the
+  flattening takes. `pass.Validate` holds each only to a property the model
   exposes, not yet to the one it takes, since a flattening per model it asks about grows
   quadratically down a deep hierarchy, which its cost tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to

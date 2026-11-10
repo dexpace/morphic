@@ -1367,15 +1367,15 @@ another URI, the same spelling may name another schema, while an absolute one na
 wherever it is read. A copy in another document is read apart. One saying
 more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
 `allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
-branch or at the position. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any
-of its branches admits, naming the kinds they name, so it may be the principal, lowering at its own
-pointer as an inline branch does. A principal lying within one of its branches says it, a `oneOf`'s
-only where it also shares no kind with another, so that exactly one admits each value the position
-holds: `{allOf: [{anyOf: [{type: string}, {type: number}]}, {type: string, maxLength: 1000}]}` lowers
-as `{type: string, maxLength: 1000}` does, keeping nothing. A `$ref` a value set beats is kept the same way, and its target still
+branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
 speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
 takes it, and still lowers, though nothing else names it, as a position no component holds lowers
-for a `$ref`.
+for a `$ref`. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any of its
+branches admits, naming the kinds they name, so it may be the principal, lowering at its own pointer
+as an inline branch does. A principal lying within one of its branches says it, a `oneOf`'s only
+where it also shares no kind with another, so that exactly one admits each value the position holds:
+`{allOf: [{anyOf: [{type: string}, {type: number}]}, {type: string, maxLength: 1000}]}` lowers as
+`{type: string, maxLength: 1000}` does, keeping nothing.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
@@ -4191,8 +4191,7 @@ where one reading could override what the other reports.
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
   `oneOf` kept verbatim beside a discriminated body waits for those branches to lower (#594); and a
-  mapping
-  naming a target nothing reads is accepted in silence (#1281).
+  mapping naming a target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`
 
