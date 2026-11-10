@@ -174,7 +174,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Read each issue a PR closes whole, and again before saying it closes
 `closing-issue-read-whole`
 
-- **Rule.** For each issue a closing keyword in the body names
+- **Rule.** For each issue the PR closes, by keyword or sidebar link
   (`references/commits-and-prs.md#closing-keywords`), read
   `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
   and again before a report says the PR closes it. A closed issue's closing comment is a recorded
@@ -204,8 +204,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Find what in the tree still describes a closing issue as open
 `closing-issue-cited-in-the-tree`
 
-- **Rule.** For each issue a closing keyword names, `git grep` the head for its number and for the
-  input its reproduction writes, and read each hit. A sentence calling the issue open, planned or
+- **Rule.** For each issue the PR closes, `git grep` the head for its number and for the input its
+  reproduction writes, and read each hit. A sentence calling the issue open, planned or
   pending, or taking its input as an example of the old behaviour, is rewritten on the branch; a
   test or comment citing it as the reason for a fix stays.
 - **Why.** At #1361's 3d7252950, after a round read each closing issue at its site, three documents

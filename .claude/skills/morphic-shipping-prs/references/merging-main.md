@@ -63,10 +63,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 ## Title each merge a branch carries for that branch
 `merge-titled-for-the-branch`
 
-- **Rule.** A merge a pushed branch carries is titled with `-m` for what it merges and the
-  branch's name, as `Merge branch 'main' into <branch>` or
-  `Merge the final head of #<base PR> into <branch>`. Untitled, a merge by commit, by a ref of
-  one's own or in a detached worktree names that ref, or `HEAD` for the branch.
+- **Rule.** A merge a pushed branch carries is titled for what it merges and the branch's name, as
+  `Merge branch 'main' into <branch>` or `Merge the final head of #<base PR> into <branch>`. A
+  merge by commit, by a ref of one's own or in a detached worktree takes `-m`: untitled, it names
+  that ref, or `HEAD` for the branch.
 - **Why.** A review of #1355 set up by `references/merging-main.md#merge-a-landed-bases-final-head`
   made merges titled `Merge commit 'refs/rv<session>/1354' into HEAD` and
   `Merge remote-tracking branch 'origin/main' into HEAD`, which its fixes would have pushed and a

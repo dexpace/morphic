@@ -62,8 +62,8 @@ The matrix is each claim class with the members checked, and each closed issue w
 - **Why.** A rule widened from load and binding to lowering kept citing two entries that hold no
   lowering bound's kind; the citations resolved, so the claim sweep passed it (#1441).
 - **Probe.** For each case the scope reaches,
-  `awk -v pat='<the case>' '/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>` prints the
-  entry holding it, which must be the one the citing text sends it to.
+  `awk -v pat='<the case>' '/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>`
+  prints the entry holding it, which must be the one the citing text sends it to.
 
 ## Read an edited rule against those on its acts and constructs
 `edited-rule-against-its-neighbours`

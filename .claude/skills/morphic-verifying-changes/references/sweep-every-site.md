@@ -62,9 +62,11 @@ it.
   above all those saying only, never, the single, records or reports. Re-check each precondition a
   doc comment states against every call site, new ones included.
 - **Why.** Converted functions still said they "record" diagnostics they now return, and "the single
-  append point" survived the change that made it false (#198, #213).
-- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages and
-  read each hit against the new code; list callers for each precondition.
+  append point" survived the change that made it false (#198, #213); two examples quoting #1309's
+  input outlived its fix, matching none of those words (#1642).
+- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages, and
+  `git grep -nF '<input>'` over the tree for each input whose result changed; read each hit against
+  the new code; list callers for each precondition.
 
 ## Update the normative doc a change makes untrue, in the same change
 `update-normative-docs-in-same-change`

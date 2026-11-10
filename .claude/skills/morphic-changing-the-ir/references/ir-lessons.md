@@ -181,8 +181,9 @@ verifier and codecs must reach.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
   steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
   kind documents and restated sections (#1402).
-- **Probe.** `go doc -all ./ir <Type>` and `grep -n '^#' <document>`; an input with no stated
-  effect is unchecked.
+- **Probe.** `go doc -all ./ir <Type>` and
+  `awk '/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#/{print FNR": "$0}' <document>`; an input
+  with no stated effect is unchecked.
 
 ## Check a step order against what later steps change and declare
 `step-order-both-ways`
