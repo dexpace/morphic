@@ -4,11 +4,12 @@ The angle that holds one input to one output: in either declaration order, at an
 and machine, with IDs from source pointers and never from names or order (`CLAUDE.md`, invariants 3,
 5 and 7). It loads `morphic-verifying-changes`.
 
-1. Diff the two declaration orders of each construct the change lowers, each sequence the change
-   builds holding two elements (`references/determinism.md#ordered-result-needs-two-elements`) and
-   its diagnostics compared as a sorted multiset
-   (`.claude/skills/morphic-verifying-changes/references/differentials.md#two-order-diagnostics`),
-   and declare a fixture meant to guard an order fix in the order that was wrong.
+1. Diff the two declaration orders of each construct the change lowers, its diagnostics as a sorted
+   multiset
+   (`.claude/skills/morphic-verifying-changes/references/differentials.md#two-order-diagnostics`)
+   and each sequence the change builds holding two elements
+   (`references/determinism.md#ordered-result-needs-two-elements`), and declare a fixture meant to
+   guard an order fix in the order that was wrong.
 2. Diff by hand each fact the change places outside what the order oracle compares
    (`.claude/skills/morphic-verifying-changes/references/differentials.md#order-oracle-reads-what-it-compares`),
    and each verdict a limit decides (`references/determinism.md#two-orders-at-every-limit`).
