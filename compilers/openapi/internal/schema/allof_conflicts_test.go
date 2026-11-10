@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1406,6 +1407,7 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
     List: {type: array, items: {type: string}}
     Wrapped: {allOf: [{$ref: '#/components/schemas/Str'}]}
     Props: {properties: {a: {type: string}}}
+    PropsAlias: {$ref: '#/components/schemas/Props', description: d}
     Obj: {type: object, properties: {a: {type: string}}}
     ObjByAllOf: {allOf: [{type: object}], properties: {a: {type: string}}}
     Sampled: {properties: {a: {type: string}}, examples: [{a: x}]}
@@ -1425,6 +1427,7 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 		{ref("Wrapped"), ref("Props"), componentID("Wrapped")},
 		{ref("Int"), ref("Props"), componentID("Int")},
 		{ref("List"), ref("Props"), componentID("List")},
+		{ref("Str"), ref("PropsAlias"), componentID("Str")},
 		{"{type: string}", "{properties: {a: {type: string}}}", "t/prim/string"},
 	} {
 		for _, order := range [][2]string{{tc.narrow, tc.untyped}, {tc.untyped, tc.narrow}} {
@@ -1450,6 +1453,65 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 		openapitest.RequireNoErrorDiags(t, diags)
 		require.Len(t, withCode(diags, tc.code), 1, tc.other)
 		assert.Equal(t, componentID("Int"), propertyOf(t, doc, "T", "f").Type.Target, tc.other)
+	}
+}
+
+// TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict pins a structure
+// writing no `type` beside a string, where a schema its allOf reaches writes
+// what the read of instance types does not follow but which can refuse a
+// string: a union, a `not`, a condition, an `enum` or `const`, a keyword beside
+// an entry's or an alias's $ref, a $ref landing on nothing or on `false`, or
+// a `false` entry.
+// The structure may admit no string, so the pair stays the conflict it was. A
+// `true` entry, and an alias of a structure holding only docs, refuse nothing,
+// so the string still narrows them.
+func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
+	t.Parallel()
+	const spec = `    Empty: {}
+    Props: {properties: {a: {type: string}}}
+    NotStr: {not: {type: string}}
+    ObjOneOf: {oneOf: [{type: object, required: [a]}, {type: object, required: [b]}]}
+    ObjAnyOf: {anyOf: [{type: object}, {type: array}]}
+    IfObj: {if: {required: [a]}, then: {type: object}, else: {type: object}}
+    AliasOneOf: {$ref: '#/components/schemas/Props', oneOf: [{type: object}]}
+    AliasDoc: {$ref: '#/components/schemas/Props', description: d}
+    Refuses: false
+    T:
+      allOf:
+        - {properties: {f: {type: string}}}
+        - {properties: {f: {allOf: [%s], properties: {b: {type: string}}}}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	compile := func(entry string) (ir.Property, []ir.Diagnostic) {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, entry)))
+		return propertyOf(t, doc, "T", "f"), diags
+	}
+	for _, entry := range []string{
+		ref("NotStr"), ref("ObjOneOf"), ref("ObjAnyOf"), ref("IfObj"), ref("AliasOneOf"),
+		"{$ref: '#/components/schemas/Empty', type: object}",
+		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
+		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}]}",
+		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#/components/schemas/Props'}",
+		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
+	} {
+		p, diags := compile(entry)
+		require.Len(t, withCode(diags, diag.ConflictingRedecl), 1, entry)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
+	}
+
+	for _, entry := range []string{"true", ref("AliasDoc")} {
+		p, diags := compile(entry)
+		openapitest.RequireNoErrorDiags(t, diags)
+		var atT []ir.Diagnostic
+		for _, d := range diags {
+			if strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/T/") {
+				atT = append(atT, d)
+			}
+		}
+		assert.Empty(t, atT, "the fold reports nothing: %s", entry)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Empty(t, p.Unmodeled, entry)
 	}
 }
 

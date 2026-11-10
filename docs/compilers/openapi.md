@@ -1628,16 +1628,20 @@ and a kind, or a union or an external and anything else. A structure whose sourc
 instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
 [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
 every value of another instance type, as `properties` alone constrains objects and admits a string.
-A value type or a structure of another instance type is narrower than it, in either order, where
-it and each alias naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps
-it otherwise, since a type replacing it would lose what it holds. So a structure written at the
-declaration itself, which keeps its docs, deprecation and redaction on its own node, overlaps a
-value type or a structure of another instance type where it holds any of them; one a `$ref` reached
-carries them down to the field. Two such structures of different instance types overlap, sharing
-every value of a third. The source is read in the document holding the composing model, so a
-structure another document declares, and one whose `allOf` runs past the 256 schemas that read
-spends, reads as stating its type. A pair gets the same verdict as a field's types and as two
-containers' members, but for tuples, above.
+That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
+else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
+`not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
+alias's `$ref`, a `$ref` landing on no schema or on `false`, or a `false` entry. A value type or a
+structure of another instance type is narrower than it, in either order, where it and each alias
+naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
+since a type replacing it would lose what it holds. So a structure written at the declaration
+itself, which keeps its docs, deprecation and redaction on its own node, overlaps a value type or a
+structure of another instance type where it holds any of them; one a `$ref` reached carries them
+down to the field. Two such structures of different instance types overlap, sharing every value of
+a third. The source is read in the document holding the composing model, so a structure another
+document declares, and one whose `allOf` runs past the 256 schemas that read spends, reads as
+stating its type. A pair gets the same verdict as a field's types and as two containers' members,
+but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
 most declarations' types, the first of them on a tie. A declaration's type within every other's
@@ -1853,6 +1857,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
   `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
   `schema.TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites`,
+  `schema.TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict`,
   `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
   `merge.TestTypeJudge_ModelsAlikeAreCopies`,
   `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,

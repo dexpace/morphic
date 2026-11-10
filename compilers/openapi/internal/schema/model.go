@@ -127,8 +127,9 @@ func (s settledMerge) alike(a, b ir.Provenance) bool {
 // untyped is merge.Merger.Untyped: the schema written at p states no instance
 // type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
 // conjunct (conjunctTypes). A site place does not place, one holding no schema
-// object, and a read that runs out of its budget, state one, which keeps the
-// verdict a structure had before its source was read.
+// object, and a read that runs out of its budget or passes over what could
+// refuse a value of some instance type, state one, which keeps the verdict a
+// structure had before its source was read.
 func (s settledMerge) untyped(p ir.Provenance) bool {
 	at, placed := s.place(p)
 	if !placed {
@@ -139,7 +140,7 @@ func (s settledMerge) untyped(p ir.Provenance) bool {
 		return false
 	}
 	r := conjunctTypes{refs: s.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
-	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted()
+	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted() && !r.passedOver
 }
 
 // mint registers node, the type of the field the declaration at pointer names.

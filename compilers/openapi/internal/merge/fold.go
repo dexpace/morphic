@@ -43,7 +43,8 @@ type Merger struct {
 	// no instance type, so the structure it lowered to admits every value of
 	// another: `properties` alone constrains objects and admits a string
 	// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A node it cannot
-	// place reads as stating one.
+	// place, or whose source writes what that read does not follow but which
+	// could refuse a value of some instance type, reads as stating one.
 	Untyped func(at ir.Provenance) bool
 }
 
