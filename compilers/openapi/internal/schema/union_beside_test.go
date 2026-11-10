@@ -197,11 +197,11 @@ func deepChain(n int) string {
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, and another branch folds onto the union. One
-// declaring no shape, one of two that do, one beside the schema's own union or
-// discriminator, one distribution declines, one past the flattening depth and
-// one beside a branch's $ref, which it conjoins with, stay with their branch;
-// an enum beside the allOf decides.
+// nodes, the branch keeps nothing, another branch folds onto the union, and an
+// unexpanded $dynamicRef stays beside it. One declaring no shape, one of two
+// that do, one beside the schema's own union or discriminator, one distribution
+// declines, one past the flattening depth and one beside a branch's $ref, which
+// it conjoins with, stay with their branch; an enum beside the allOf decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -251,6 +251,12 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - {description: mine, properties: {c: {type: string}}}
       oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+    Node: {$dynamicAnchor: node, type: object, properties: {n: {type: string}}}
+    DynamicRef:
+      $dynamicRef: '#node'
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+        - {type: object, properties: {c: {type: string}}}
     RefBranch:
       allOf:
         - {$ref: '#/components/schemas/A', oneOf: [{$ref: '#/components/schemas/B'}]}
@@ -335,6 +341,9 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	for _, v := range variantModels(t, doc, "Annotated") {
 		assert.Empty(t, v.Unmodeled, "a branch folding whole is kept on no variant")
 	}
+	dynamic, ok := typeByName(doc, "DynamicRef").(*ir.Union)
+	require.True(t, ok, "beside a $dynamicRef it keeps unexpanded, the branch union distributes as beside the allOf")
+	assert.Contains(t, dynamic.Unmodeled, "openapi:$dynamicRef")
 	for _, v := range variantModels(t, doc, "BesideToo") {
 		assert.Contains(t, v.Unmodeled, "openapi:allOf/0", "beside its own union, a branch's stays with the branch")
 	}

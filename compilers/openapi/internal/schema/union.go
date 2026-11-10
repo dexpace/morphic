@@ -327,18 +327,19 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 	return unionAt{holder: e.schema.GetSchema(), at: e.pointer}, true
 }
 
-// findBranchUnion is branchUnion's reading of s: where s writes no union or
-// discriminator of its own and its allOf composes rather than refines, the one
-// branch whose union declares shape against s, if that branch lies within the
-// flattening depth and holds a union classifyBranchSet distributes. A second
-// such union leaves none: distributing one would drop the other. A union
-// declaring no shape stays residue.
+// findBranchUnion is branchUnion's reading of s: where s lowers its allOf,
+// composing, not refining, beside no discriminator of its own, the one branch
+// whose union declares shape against s, where that branch lies within the
+// flattening depth and classifyBranchSet distributes its union. Two such unions
+// leave none, either dropping the other, and one declaring no shape stays
+// residue. A $ref site or a union beside the allOf lowers first
+// (lowerSchemaBody).
 //
-// Nor does s distribute below a discriminated ancestor, whose route may name
-// it (routedSubtype): every reader of s shares this reading, which has no
-// position to tell an inline s no route names (GitHub #1695).
+// Nor below a discriminated ancestor, whose route may name s (routedSubtype):
+// the readers of s share one reading, with no position to tell an inline s no
+// route names (GitHub #1695).
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
-	if !allOfMayRefine(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
+	if s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
 	}
 	branches := allOfBranches(s, "").branches
