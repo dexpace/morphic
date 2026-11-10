@@ -40,11 +40,7 @@ func valueSetNode(c lowering.Ctx, ts *compile.Types, r refinement, pointer jsont
 	if r.principal != nil {
 		at = r.principal.pointer
 	}
-	id, owned := ts.Lookup(c.IDs().Coordinate(at))
-	if !owned {
-		return nil
-	}
-	td, ok := ts.Node(id)
+	td, ok := ts.NodeAt(c.IDs().Coordinate(at))
 	if !ok || !isKind(td, ir.KindLiteral) && !isKind(td, ir.KindEnum) {
 		return nil
 	}
