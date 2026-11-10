@@ -264,10 +264,10 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 // by the schema alone. A single-keyword entry, and the note announcing each
 // entry, are attributed by the position they are located at.
 //
-// The overlay here wrote the keywords present and nothing else, the schema
-// included, so a combined entry names it only where it is asked about every
-// keyword written and none absent, and an entry or note attributed by the
-// schema alone names the base document.
+// The overlay writes no schema, and each row a different share of the keywords
+// present: all, then each half. An entry names it only where it wrote every
+// keyword combined, so one asking about a keyword too few, or an absent one,
+// names the wrong document in some row.
 func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
@@ -277,45 +277,60 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 		"unevaluatedProperties: false\nunevaluatedItems: {type: string}\n")
 	// Not the absent else or maxContains, and not unevaluatedProperties: a false
 	// one is a structural mode, which the unevaluated entry does not combine.
-	doc := overlaid("/S/if", "/S/then", "/S/contains", "/S/minContains", "/S/unevaluatedItems")
-
-	got, diags := validationOnlyAt(s, "/S", doc, false)
-
-	for key, want := range map[string]ir.Provenance{
-		"openapi:not":          {Source: 0, Pointer: "/S/not"},
-		"openapi:if-then-else": {Source: 1, Pointer: "/S"},
-		"openapi:contains":     {Source: 1, Pointer: "/S"},
-		"openapi:unevaluated":  {Source: 1, Pointer: "/S"},
+	for name, tc := range map[string]struct {
+		wrote                         []jsontext.Pointer
+		ifThen, contains, unevaluated int
+	}{
+		"every keyword":                     {[]jsontext.Pointer{"/S/if", "/S/then", "/S/contains", "/S/minContains", "/S/unevaluatedItems"}, 1, 1, 1},
+		"if, contains and unevaluatedItems": {[]jsontext.Pointer{"/S/if", "/S/contains", "/S/unevaluatedItems"}, 0, 0, 1},
+		"then and minContains":              {[]jsontext.Pointer{"/S/then", "/S/minContains"}, 0, 0, 0},
 	} {
-		entry, ok := got[key]
-		require.True(t, ok, "%s is kept", key)
-		assert.Equal(t, want, entry.Provenance, key)
-	}
-	require.Len(t, diags, 4, "one announcement per entry kept")
-	for _, d := range diags {
-		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, d.Provenance,
-			"a note is attributed by the schema alone: %s", d.Message)
+		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), false)
+
+		for key, want := range map[string]ir.Provenance{
+			"openapi:not":          {Source: 0, Pointer: "/S/not"},
+			"openapi:if-then-else": {Source: tc.ifThen, Pointer: "/S"},
+			"openapi:contains":     {Source: tc.contains, Pointer: "/S"},
+			"openapi:unevaluated":  {Source: tc.unevaluated, Pointer: "/S"},
+		} {
+			entry, ok := got[key]
+			require.True(t, ok, "%s: %s is kept", name, key)
+			assert.Equal(t, want, entry.Provenance, "%s: %s", name, key)
+		}
+		require.Len(t, diags, 4, "%s: one announcement per entry kept", name)
+		for _, d := range diags {
+			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/S"}, d.Provenance,
+				"%s: a note is attributed by the schema alone: %s", name, d.Message)
+		}
 	}
 }
 
 // TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords is the
 // failure half of the test above: a combined entry that will not render is
 // reported instead of kept, and the report is attributed as the entry would have
-// been, by every keyword written, the one that failed to convert included.
+// been, by every keyword written, the one that failed to convert included. Its
+// rows split the keywords as that test's do.
 func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
 		"if: {required: [name]}\nthen: {const: .nan}\n"+
 		"contains: {const: .nan}\nminContains: 1\n")
-	doc := overlaid("/S/if", "/S/then", "/S/contains", "/S/minContains")
+	for name, tc := range map[string]struct {
+		wrote []jsontext.Pointer
+		want  int
+	}{
+		"every keyword":        {[]jsontext.Pointer{"/S/if", "/S/then", "/S/contains", "/S/minContains"}, 1},
+		"if and contains":      {[]jsontext.Pointer{"/S/if", "/S/contains"}, 0},
+		"then and minContains": {[]jsontext.Pointer{"/S/then", "/S/minContains"}, 0},
+	} {
+		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), false)
 
-	got, diags := validationOnlyAt(s, "/S", doc, false)
-
-	assert.Empty(t, got, "an entry that will not render is not kept")
-	require.Len(t, diags, 2)
-	for _, d := range diags {
-		assert.Equal(t, ir.SeverityError, d.Severity, "%s", d.Message)
-		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S"}, d.Provenance, "%s", d.Message)
+		assert.Empty(t, got, "%s: an entry that will not render is not kept", name)
+		require.Len(t, diags, 2, name)
+		for _, d := range diags {
+			assert.Equal(t, ir.SeverityError, d.Severity, "%s: %s", name, d.Message)
+			assert.Equal(t, ir.Provenance{Source: tc.want, Pointer: "/S"}, d.Provenance, "%s: %s", name, d.Message)
+		}
 	}
 }
 
