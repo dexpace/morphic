@@ -377,3 +377,8 @@ it sees. Changes made together in one bump are listed together under it.
     source's index with the overlay as its writer, where `Source` had named the overlay at a
     position of another document. A consumer pinned to 0.36.0 reading such a pointer against the
     overlay's file reads it at the wrong place.
+- **0.38.0** — `Content.Encoding` on a body that is a union, as one a composition is distributed
+  across is, keys each part by the property of the first variant declaring it, where its keys were
+  defined only against a body model and `pass.Validate` refused them. The shape is unchanged. A
+  consumer pinned to 0.37.0 that looks such a key up among the union's own members finds none and
+  renders no part.

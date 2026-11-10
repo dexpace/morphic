@@ -171,6 +171,10 @@ type allOfComposition struct {
 	// across a union, whose variants each keep every branch.
 	speaks  []bool
 	rebased []bool
+	// distributes is the pointer of the branch whose union the position
+	// distributes across its variants (branchUnion), whose merge consumes it,
+	// and empty where no branch's is.
+	distributes jsontext.Pointer
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -390,8 +394,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
+	distributed := comp.distributes != "" && e.pointer == comp.distributes
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true}))
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
+			(distributed && declaresUnionKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
@@ -504,6 +510,11 @@ func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	default:
 		return false
 	}
+}
+
+// declaresUnionKeyword reports whether keyword is oneOf or anyOf.
+func declaresUnionKeyword(keyword string) bool {
+	return keyword == "oneOf" || keyword == "anyOf"
 }
 
 // declaresObjectOnly reports whether the branch's declared type is exactly

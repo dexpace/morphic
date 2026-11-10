@@ -40,7 +40,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, s, unionOf(s, pointer), common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, refDiags := Ref(c, ts, depth, b, vptr)
 				diags = append(diags, refDiags...)
@@ -254,39 +254,110 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 // stripping, variant hints, exclusivity, pointer derivation.
 type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef
 
-// buildUnion assembles the Union node for a oneOf/anyOf schema, attaching a
-// discriminator when one is declared. common is already built by the caller
+// buildUnion assembles the Union node for the union u of the schema s, attaching
+// a discriminator when s declares one. common is already built by the caller
 // (internNode), so buildUnion needs no hint of its own to build one.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
 // knowing what each variant names (readsThrough). A union the discriminator
 // routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
 // names its variant (docs/ir/unions.md).
-func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
-	branches, key, exclusive := unionBranches(s)
-	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
+func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, common ir.TypeCommon, pointer jsontext.Pointer,
+	variantType variantTypeFunc,
+) (ir.TypeDef, []ir.Diagnostic) {
+	branches, key, exclusive := unionBranches(u.holder)
+	diags := preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
 	variants := make([]ir.Variant, 0, len(branches))
 	for i, b := range branches {
 		if isNullSchema(b) {
 			continue // null branches lift to the enclosing ref's Nullable bit
 		}
-		vptr := pointer + ids.Ptr(key, strconv.Itoa(i))
+		vptr := u.at + ids.Ptr(key, strconv.Itoa(i))
 		t := variantType(b, vptr)
 		variants = append(variants, ir.Variant{
 			Name: compile.NamingHint(variantHint(c, ts, b, vptr, t)),
 			Type: t,
 		})
 	}
-	u := &ir.Union{
+	node := &ir.Union{
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  exclusive,
 		Closed:     true,
 	}
 	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
-	u.Discriminator = disc
-	u.WireTagged = disc != nil
-	return u, append(diags, discDiags...)
+	node.Discriminator = disc
+	node.WireTagged = disc != nil
+	return node, append(diags, discDiags...)
+}
+
+// unionAt is a union a position lowers: the oneOf or anyOf, whichever
+// unionBranches elects, that holder writes at the pointer at. holder is the
+// schema written at the position, or an inline branch of its allOf, which JSON
+// Schema conjoins with the rest of the composition as it would one written
+// beside it (docs/compilers/openapi.md#union-beside-structure).
+type unionAt struct {
+	holder *oas3.Schema
+	at     jsontext.Pointer
+}
+
+// unionOf is the union s, written at pointer, writes.
+func unionOf(s *oas3.Schema, pointer jsontext.Pointer) unionAt {
+	return unionAt{holder: s, at: pointer}
+}
+
+// branchUnionOf keys what branchUnion read of one schema.
+type branchUnionOf struct {
+	schema *oas3.Schema
+}
+
+// branchUnionIndex is where in a schema's flattened allOf the branch whose
+// union it distributes is, where one is.
+type branchUnionIndex struct {
+	index int
+	ok    bool
+}
+
+// branchUnion returns the union an inline branch of s's allOf writes that s,
+// written at pointer, distributes across the rest of its composition, as it
+// would the same union written beside the allOf
+// (docs/compilers/openapi.md#union-beside-structure). Every reader of the
+// position asks, so it is read once a run.
+func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unionAt, bool) {
+	at := lowering.Remembered(c, branchUnionOf{s}, func() branchUnionIndex { return findBranchUnion(c, s) })
+	if !at.ok {
+		return unionAt{}, false
+	}
+	e := allOfBranches(s, pointer).branches[at.index]
+	return unionOf(e.schema.GetSchema(), e.pointer), true
+}
+
+// findBranchUnion is branchUnion's reading of s: where s writes no union of its
+// own and its allOf composes rather than refines, the one branch whose union
+// declares shape against s, if that union is one classifyBranchSet
+// distributes. A second such union leaves none: distributing one would drop
+// the other. A union declaring no shape stays residue beside the rest.
+func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
+	if !allOfConjoins(s) || s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
+		return branchUnionIndex{}
+	}
+	if _, refines := refinementOf(c, s, ""); refines {
+		return branchUnionIndex{}
+	}
+	branches := allOfBranches(s, "").branches
+	index, count := 0, 0
+	for i, e := range branches {
+		bs := e.schema.GetSchema()
+		if isRefBranch(e.schema) || !declaresUnion(bs) || !setsDeclareShape(c, s, bs.GetOneOf(), bs.GetAnyOf()) {
+			continue
+		}
+		index, count = i, count+1
+	}
+	if count != 1 {
+		return branchUnionIndex{}
+	}
+	e := branches[index]
+	return branchUnionIndex{index: index, ok: !e.capped && classifyBranchSet(c, e.schema.GetSchema()) == unionDistributed}
 }
 
 // variantHint is the hint the union variant for the branch b written at vptr,
@@ -504,17 +575,25 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 	if !composesAsModel(c, s) {
 		return unionUncomposableBody
 	}
-	if len(s.GetOneOf()) > 0 && len(s.GetAnyOf()) > 0 {
+	return classifyBranchSet(c, s)
+}
+
+// classifyBranchSet is the part of classifyUnionSiblings that reads the union
+// holder writes rather than the body: whichever of a union beside the body and
+// one on a branch of its allOf the body distributes (branchUnion), it does so
+// only where this says unionDistributed.
+func classifyBranchSet(c lowering.Ctx, holder *oas3.Schema) unionLowering {
+	if len(holder.GetOneOf()) > 0 && len(holder.GetAnyOf()) > 0 {
 		return unionBothCombinators
 	}
-	branches, _, _ := unionBranches(s)
+	branches, _, _ := unionBranches(holder)
 	if slices.ContainsFunc(branches, isNullSchema) {
 		return unionNullBranch
 	}
-	if !branchesNameReferents(c, s) {
+	if !branchesNameReferents(c, holder) {
 		return unionUnresolvedBranch
 	}
-	if s.GetDiscriminator() != nil {
+	if holder.GetDiscriminator() != nil {
 		return unionDiscriminated
 	}
 	return unionDistributed
@@ -587,7 +666,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 	}
 	switch classifyUnionSiblings(c, s) {
 	case unionDistributed:
-		return lowerDistributedUnion(c, ts, depth, s, pointer)
+		return lowerDistributedUnion(c, ts, depth, s, unionOf(s, pointer), pointer)
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
@@ -696,17 +775,21 @@ func declaresUnion(s *oas3.Schema) bool {
 const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than composing into a structural body, so there is nothing at this position to distribute the union's composition across"
 
 // lowerDistributedUnion emits the Union that is the schema's value, distributing
-// the sibling composition across its variants: `S ∧ (X | Y)` becomes
+// the sibling composition across the variants of u: `S ∧ (X | Y)` becomes
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
 // own properties (docs/ir/models.md#composition-beside-a-union) alongside its
 // branch, so the composition is carried on every variant rather than merged
-// into one or dropped.
-func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// into one or dropped. A union an allOf branch writes is the branch's to give,
+// not residue each variant keeps (allOfComposition.distributes).
+func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
+		if u.holder != s {
+			body.comp.distributes = u.at
+		}
 		diags = append(diags, diagDisjointConjuncts(c, body.comp, composedShape)...)
-		def, unionDiags := buildUnion(c, ts, s, common, pointer,
+		def, unionDiags := buildUnion(c, ts, s, u, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)
 				diags = append(diags, variantDiags...)
@@ -716,8 +799,12 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		return def
 	})
 	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
+	where := "co-declared with structural keywords"
+	if u.holder != s {
+		where = "written on an allOf branch conjoins with the rest of the composition"
+	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
-		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants"))
+		"oneOf/anyOf %s; the composition is distributed across the union variants", where))
 }
 
 // composedBody is the schema every distributed variant carries: the enclosing

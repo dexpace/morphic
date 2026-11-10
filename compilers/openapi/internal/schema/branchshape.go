@@ -75,6 +75,12 @@ func (r *bodyReading) declared() declarationSet {
 // a reading its budget cut short says nothing, so it counts as one that does,
 // even where the body's own keywords would settle it (GitHub #1423).
 func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
+	return setsDeclareShape(c, s, s.GetOneOf(), s.GetAnyOf())
+}
+
+// setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
+// union on an allOf branch of s among them, judged against s as the body.
+func setsDeclareShape(c lowering.Ctx, s *oas3.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
@@ -85,7 +91,9 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 	declares := func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return isRefBranch(b) || branchDeclaresShape(body, b)
 	}
-	found := slices.ContainsFunc(s.GetOneOf(), declares) || slices.ContainsFunc(s.GetAnyOf(), declares)
+	found := slices.ContainsFunc(sets, func(set []*oas3.JSONSchema[oas3.Referenceable]) bool {
+		return slices.ContainsFunc(set, declares)
+	})
 	return found || r != nil && r.w.incomplete()
 }
 

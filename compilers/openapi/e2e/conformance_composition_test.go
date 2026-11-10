@@ -841,3 +841,49 @@ func assertUnionInlineBranches(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	require.True(t, ok, "a bare null branch keeps the body")
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, maybe.Unmodeled, "openapi:oneOf").Reason)
 }
+
+// assertAllOfUnionBranch pins a union written as an allOf branch, distributed
+// across the rest of the composition as the same union beside the allOf is,
+// and one that only narrows the body, which stays with its branch
+// (docs/compilers/openapi.md#union-beside-structure).
+func assertAllOfUnionBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
+
+	for name, bases := range map[string][]ir.TypeID{
+		"Record":     {componentID("WithoutData"), componentID("WithData")},
+		"App":        {"t/anon/components/schemas/App/allOf/1/oneOf/0", "t/anon/components/schemas/App/allOf/1/oneOf/1"},
+		"AppRequest": {"t/anon/components/schemas/AppRequest/allOf/0/oneOf/0", "t/anon/components/schemas/AppRequest/allOf/0/oneOf/1"},
+	} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is the union, the composition distributed across it; got %T", name, doc.Types[componentID(name)])
+		require.Len(t, u.Variants, len(bases), name)
+		for i, base := range bases {
+			v, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+			require.True(t, ok, "%s variant %d is a composed model", name, i)
+			require.NotNil(t, v.Base, "%s variant %d", name, i)
+			assert.Equal(t, base, v.Base.Target, "%s variant %d conjoins its branch", name, i)
+			assert.NotEmpty(t, v.Properties, "%s variant %d carries the shared fields", name, i)
+		}
+		assert.Contains(t,
+			openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/"+name),
+			"written on an allOf branch", name)
+	}
+	request, ok := doc.Types[componentID("AppRequest")].(*ir.Union)
+	require.True(t, ok)
+	for _, v := range request.Variants {
+		assert.Contains(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:allOf/1",
+			"the union that only narrows stays with its branch on every variant")
+	}
+
+	upload := openapitest.FirstOp(t, doc.Services[0]).Request.Contents[0]
+	const file = ir.PropID("p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file")
+	require.Contains(t, upload.Encoding, file, "the part is keyed by the property every variant holds")
+	assert.Equal(t, []string{"image/png"}, upload.Encoding[file].ContentTypes)
+
+	message, ok := doc.Types[componentID("Message")].(*ir.Model)
+	require.True(t, ok, "unions that only narrow leave the composition a model")
+	assert.Contains(t, message.Unmodeled, "openapi:allOf/0")
+	assert.Contains(t, message.Unmodeled, "openapi:allOf/1")
+}

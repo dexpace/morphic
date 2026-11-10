@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -169,4 +170,127 @@ func TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches(t *testing.T) {
 	assert.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 		return d.Provenance.Pointer == "/components/schemas/BesideString" && strings.Contains(d.Message, "the body is not a model")
 	}), "%+v", diags)
+}
+
+// TestAllOf_AUnionBranchDistributesAsBesideTheAllOf pins a oneOf or anyOf
+// written as an inline allOf branch, which distributes as the same union beside
+// the allOf does (docs/compilers/openapi.md#union-beside-structure): the
+// variants match the beside spelling's, inline branches conjoined by their own
+// nodes, the branch keeps nothing, and another branch folds nothing, kept whole
+// on each variant. A union declaring no shape, one of two that do, one beside
+// the schema's own union and one distribution declines stay with their branch,
+// and the composition stays a model where nothing distributes.
+func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    Branch:
+      allOf:
+        - {type: object, anyOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
+        - {type: object, required: [id], properties: {id: {type: string}}}
+    Beside:
+      type: object
+      required: [id]
+      properties: {id: {type: string}}
+      anyOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+    Inline:
+      allOf:
+        - oneOf: [{type: object, properties: {x: {type: string}}}, {type: object, properties: {y: {type: string}}}]
+        - {properties: {enabled: {type: boolean}}}
+    WithShapeless:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+        - anyOf: [{required: [a]}, {required: [b]}]
+        - {type: object, properties: {c: {type: string}}}
+    Outside: {$ref: '#/components/schemas/Inline/allOf/0/oneOf/1'}
+    Shapeless:
+      allOf:
+        - anyOf: [{required: [p]}, {required: [q]}]
+        - {type: object, properties: {p: {type: string}, q: {type: string}}}
+    Two:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}]
+        - anyOf: [{$ref: '#/components/schemas/B'}]
+        - {type: object, properties: {c: {type: string}}}
+    BesideToo:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}]
+        - {type: object, properties: {c: {type: string}}}
+      anyOf: [{$ref: '#/components/schemas/B'}]
+    NullBranch:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {type: 'null'}]
+        - {type: object, properties: {c: {type: string}}}
+    Annotated:
+      allOf:
+        - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
+        - {description: mine, properties: {c: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc), "the document must validate")
+
+	branch, beside := variantModels(t, doc, "Branch"), variantModels(t, doc, "Beside")
+	require.Len(t, branch, 2)
+	for i := range branch {
+		require.NotNil(t, branch[i].Base)
+		assert.Equal(t, beside[i].Base, branch[i].Base, "variant %d conjoins the branch the beside spelling's does", i)
+		require.Len(t, branch[i].Properties, 1)
+		assert.Equal(t, "id", branch[i].Properties[0].WireName)
+		assert.True(t, branch[i].Properties[0].Required)
+		assert.Empty(t, branch[i].Unmodeled, "the branch keeps nothing: its union is the variants' to give")
+	}
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Branch"),
+		"written on an allOf branch")
+
+	inline := variantModels(t, doc, "Inline")
+	require.Len(t, inline, 2)
+	for i, v := range inline {
+		require.NotNil(t, v.Base)
+		assert.Equal(t, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Inline/allOf/0/oneOf/%d", i)), v.Base.Target)
+	}
+	outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, inline[1].Base.Target, outside.Base.Target, "an outside $ref finds the branch node")
+
+	for _, v := range variantModels(t, doc, "WithShapeless") {
+		assert.Contains(t, v.Unmodeled, "openapi:allOf/1", "the union declaring no shape stays with its branch")
+		assert.NotContains(t, v.Unmodeled, "openapi:allOf/0")
+	}
+
+	for name, kept := range map[string][]string{
+		"Shapeless":  {"openapi:allOf/0"},
+		"Two":        {"openapi:allOf/0", "openapi:allOf/1"},
+		"NullBranch": {"openapi:allOf/0"},
+	} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, "%s stays a model; got %T", name, typeByName(doc, name))
+		for _, key := range kept {
+			assert.Contains(t, m.Unmodeled, key, "%s keeps its union with its branch", name)
+		}
+	}
+	annotated, ok := typeByName(doc, "Annotated").(*ir.Union)
+	require.True(t, ok)
+	assert.Empty(t, annotated.Docs.Description, "a distributed branch folds nothing, as beside the allOf")
+	for _, v := range variantModels(t, doc, "Annotated") {
+		assert.Contains(t, v.Unmodeled, "openapi:allOf/1", "each variant keeps it whole")
+	}
+	for _, v := range variantModels(t, doc, "BesideToo") {
+		assert.Contains(t, v.Unmodeled, "openapi:allOf/0", "beside its own union, a branch's stays with the branch")
+	}
+}
+
+// variantModels returns the composed models the component name's Union
+// distributes its body across, in variant order.
+func variantModels(t *testing.T, doc *ir.Document, name string) []*ir.Model {
+	t.Helper()
+	u, ok := typeByName(doc, name).(*ir.Union)
+	require.True(t, ok, "%s is a union; got %T", name, typeByName(doc, name))
+	out := make([]*ir.Model, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok, "%s variant %s is a composed model", name, v.Type.Target)
+		out = append(out, m)
+	}
+	return out
 }

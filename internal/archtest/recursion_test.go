@@ -448,9 +448,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyUnionSiblings":     "isNullSchema",
-		"unionBranchesDeclareShape": "branchDeclaresShape",
-		"oneOfAnyOfHasNull":         "isNullSchema",
+		"classifyBranchSet": "isNullSchema",
+		"setsDeclareShape":  "branchDeclaresShape",
+		"oneOfAnyOfHasNull": "isNullSchema",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

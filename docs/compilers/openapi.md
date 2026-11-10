@@ -1443,8 +1443,9 @@ hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under 
 A branch written inline rather than as a `$ref` owns no node, so composition has nowhere to point
 ([models](../ir/models.md#composition)) and the branch is merged into the composing model in place.
 That merge consumes the branch's `properties`, its `required` list, a `type` that is exactly
-`object`, which the composed `Model` already restates, and, for an entry flattened under
-[`allof-classification`](#allof-classification), its `allOf`.
+`object`, which the composed `Model` already restates, for an entry flattened under
+[`allof-classification`](#allof-classification), its `allOf`, and the `oneOf` or `anyOf` the
+position distributes across its variants ([`union-beside-structure`](#union-beside-structure)).
 
 JSON Schema conjoins an `allOf`'s keywords with those beside it, so what a branch writes for the
 position reads as written beside the `allOf`, in a composition and in a refinement
@@ -2197,7 +2198,18 @@ inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref
 finds too. The referent is carried as written, a branch admitting no object among them
 ([models](../ir/models.md#composition-entries)). A bare `required` is a body too where every
 branch admits only an object or null, the values it constrains or leaves alone: each variant
-requires the names of its branch. Five shapes distribution cannot reach:
+requires the names of its branch.
+
+A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
+the composition as one written beside the `allOf` does, so it distributes the same way, where the
+schema writes no union and no `discriminator` of its own, its `allOf` composes rather than refines
+([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
+declare shape (below). Its variants take their IDs from the branch's pointers, its `$ref` and inline
+branches conjoin as above, and the branch keeps nothing of the union, what else it writes merging as
+any branch does ([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
+of the five shapes below, or one of two branch unions declaring shape, distributing either of which
+would drop the other, stays whole with its branch, and so does one whose branches declare no shape,
+on each variant where another union distributes. Five shapes distribution cannot reach:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
@@ -2318,13 +2330,14 @@ as one whose branches declare shape.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`, `union-restated-type`,
-  `union-inline-branches`
+  `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
+  `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,

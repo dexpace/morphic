@@ -93,6 +93,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.37.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.38.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an encoding key on a body that is a union names a part of its variants, the first variant declaring it"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

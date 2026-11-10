@@ -42,7 +42,9 @@ type Content struct {
                                   // part property's PropID — a position inside the body model, so
                                   // `pass` resolves a key against that model rather than a
                                   // registry; of a part several declarations name, the one the
-                                  // model's flattening takes (docs/ir/models.md)
+                                  // model's flattening takes (docs/ir/models.md). A body that is a
+                                  // union, as one a composition is distributed across is, has its
+                                  // variants' parts, a part keyed by the first variant declaring it
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost

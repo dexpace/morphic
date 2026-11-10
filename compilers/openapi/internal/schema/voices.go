@@ -105,6 +105,9 @@ func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfConjoins(s) {
 		return false
 	}
+	if _, distributes := branchUnion(c, s, ""); distributes {
+		return false // its variants each keep every branch
+	}
 	if dispatchOf(s).won == "allOf" {
 		return true
 	}
