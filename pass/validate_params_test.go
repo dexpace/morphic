@@ -246,6 +246,23 @@ func TestValidate_ParamReferences_StreamConditionsAreHeld(t *testing.T) {
 	assert.Equal(t, []string{"op/x/post/requestStream/condition", "op/x/post/responseStream/condition"}, at)
 }
 
+// TestValidate_ParamReferences_BodyInputsAreNoReference pins that an input
+// rooted in the request body names no parameter, whether it continues a page
+// walk or asks for a stream, so nothing holds it to the operation's own.
+func TestValidate_ParamReferences_BodyInputsAreNoReference(t *testing.T) {
+	t.Parallel()
+	op := paramRefOp("op/x/search", "param/x/search/p", "param/x/search/p", "param/x/search/p", "param/x/search/p")
+	body := ir.InputPath{Segments: []ir.PropID{"p/m/a"}}
+	op.Pagination = &ir.Pagination{InputCursor: &body, InputLimit: &body}
+	op.RequestStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
+	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
+
+	codes := irtest.DiagCodes(validated(t, docWithOperations(op)))
+	assert.NotContains(t, codes, "pass/param-binding-mismatch")
+	assert.NotContains(t, codes, "ir/dangling-param-ref")
+	assert.NotContains(t, codes, "ir/dangling-prop-ref", "the body member the inputs name is declared")
+}
+
 // TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean pins that
 // an empty token is no reference: it is how an operation that is not
 // token-keyed spells having none.

@@ -15,8 +15,8 @@ import (
 var paramIDType = reflect.TypeFor[ir.ParamID]()
 
 // checkParams holds every reference an operation makes to a parameter — its
-// HTTP bindings, its pagination inputs and its idempotency token — to the
-// parameters it declares. refs holds what the one walk of the document
+// HTTP bindings, its pagination inputs, the inputs selecting a stream and its
+// idempotency token — to the parameters it declares. refs holds what the one walk of the document
 // declared, which the dangling check resolves against too.
 func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	return append(checkParamBindings(doc, refs), checkParamReferences(doc, refs)...)
@@ -163,8 +163,9 @@ func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
 	return append(dst, paramRef{*in.Param, field})
 }
 
-// checkParamReferences holds an operation's pagination inputs and idempotency
-// token to the parameters that operation declares.
+// checkParamReferences holds an operation's pagination inputs, the inputs
+// selecting its streams and its idempotency token to the parameters that
+// operation declares.
 //
 // Another operation's parameter is a well-formed reference, so the registry walk
 // has nothing to say about it, while an emitter reads the pagination cursor off
