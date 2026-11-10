@@ -51,6 +51,15 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-str"] = &ir.Scalar{ID: "t/scalar-str", Base: &ir.TypeRef{Target: "t/prim/string"}}
 	reg["t/scalar-int"] = &ir.Scalar{ID: "t/scalar-int", Base: &integer}
 	reg["t/scalar-any"] = &ir.Scalar{ID: "t/scalar-any", Base: &ir.TypeRef{Target: "t/prim/any"}}
+	reg["t/scalar-any-doc"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"}, TypeCommon: ir.TypeCommon{
+		ID: "t/scalar-any-doc", Docs: ir.Docs{Description: "d"}, Deprecation: &ir.Deprecation{}, Sensitive: true}}
+	reg["t/scalar-any-ex"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/prim/any"}, TypeCommon: ir.TypeCommon{
+		ID: "t/scalar-any-ex", Examples: []ir.Example{{Value: new(num("1"))}}}}
+	reg["t/alias-scalar-any-doc"] = &ir.Scalar{ID: "t/alias-scalar-any-doc", Base: &ir.TypeRef{Target: "t/scalar-any-doc"}}
+	reg["t/alias-doc-scalar-any"] = &ir.Scalar{Base: &ir.TypeRef{Target: "t/scalar-any"},
+		TypeCommon: ir.TypeCommon{ID: "t/alias-doc-scalar-any", Docs: ir.Docs{Description: "d"}}}
+	reg["t/list-scalar-any"] = &ir.List{ID: "t/list-scalar-any", Elem: ir.TypeRef{Target: "t/scalar-any"}}
+	reg["t/list-scalar-any-doc"] = &ir.List{ID: "t/list-scalar-any-doc", Elem: ir.TypeRef{Target: "t/scalar-any-doc"}}
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
 	formatted := func(id ir.TypeID, enc ir.Encoding) *ir.Scalar {
@@ -187,7 +196,13 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a scalar over its own kind", "t/scalar-str", prim(ir.PrimString), relANarrower},
 		{"a scalar over a narrower kind", "t/scalar-int", prim(ir.PrimNumber), relANarrower},
 		{"a scalar over a broader kind", "t/scalar-int", prim(ir.PrimInt32), relOverlap},
-		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), relOverlap},
+		{"an alias over the top type", "t/scalar-any", prim(ir.PrimInt32), relBNarrower},
+		{"an alias over the top type holding what a reference carries down", "t/scalar-any-doc", prim(ir.PrimInt32), relBNarrower},
+		{"an alias over the top type holding examples", "t/scalar-any-ex", prim(ir.PrimInt32), relOverlap},
+		{"an alias of an alias holding docs over the top type", "t/alias-scalar-any-doc", "t/model", relUnrelated},
+		{"an alias holding docs of an alias over the top type", "t/alias-doc-scalar-any", "t/model", relBNarrower},
+		{"a list of an alias over the top type", "t/list-scalar-any", "t/list-i32", relBNarrower},
+		{"a list of an alias holding docs over the top type", "t/list-scalar-any-doc", "t/list-i32", relOverlap},
 		{"an opaque scalar", "t/scalar-opaque", prim(ir.PrimInt32), relUnrelated},
 		{"a literal the kind admits", "t/lit-1", prim(ir.PrimInteger), relANarrower},
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
@@ -218,7 +233,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a time scalar against a format with no grammar here", "t/scalar-time", "t/scalar-email", relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
-		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relUnrelated},
+		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relBNarrower},
+		{"an alias over the top type holding docs against a model", "t/scalar-any-doc", "t/model", relBNarrower},
+		{"an alias over the top type holding examples against a model", "t/scalar-any-ex", "t/model", relUnrelated},
 		{"two literals", "t/lit-a", "t/lit-x", relOverlap},
 		{"two identical hoisted literals", "t/lit-a-h1", "t/lit-a-h2", relSame},
 		{"a named enum against a hoisted copy", "t/enum-str", "t/enum-str-h", relANarrower},

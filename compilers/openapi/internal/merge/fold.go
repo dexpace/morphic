@@ -228,11 +228,11 @@ func (f *folding) foldType() {
 	f.merged.Type = merged
 }
 
-// targetsTop reports whether ref targets the schemaless top type, a bare
-// PrimAny (isTop).
+// targetsTop reports whether ref, a declaration's type, targets the schemaless
+// top type as the judgment reads one (typeJudge.topAt).
 func (f *folding) targetsTop(ref ir.TypeRef) bool {
 	td, ok := f.g.Resolve(ref.Target)
-	return ok && isTop(td)
+	return ok && typeJudge{Resolve: f.g.Resolve}.topAt(td, 0)
 }
 
 // drop reports how decls[i]'s type, which the field does not hold, relates to

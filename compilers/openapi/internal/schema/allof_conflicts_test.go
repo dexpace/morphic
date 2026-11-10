@@ -1353,3 +1353,44 @@ func TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase(t *testi
 		})
 	}
 }
+
+// TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct pins GitHub #1194 wherever the
+// alias stands among the declarations: a component that is `{}` with a
+// description is the top type, so beside two models it adds no conjunct and the
+// field composes the models, as a bare `{}` does, with nothing kept or reported.
+// The description reaches the field, which a reference carries it down to. An
+// alias holding examples says something of its values a model would lose, so it
+// still keeps the field from composing.
+func TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct(t *testing.T) {
+	t.Parallel()
+	const spec = `    M: {type: object, properties: {m: {type: string}}}
+    N: {type: object, properties: {n: {type: string}}}
+    Anything: {description: admits every value}
+    Sampled: {examples: [1]}
+    T:
+      allOf:
+        - {type: object, properties: {f: %s}}
+        - {type: object, properties: {f: %s}}
+        - {type: object, properties: {f: %s}}
+`
+	m, n := "{$ref: '#/components/schemas/M'}", "{$ref: '#/components/schemas/N'}"
+	for _, alias := range []string{"{$ref: '#/components/schemas/Anything'}", "{}"} {
+		for _, order := range [][3]string{{alias, m, n}, {m, alias, n}, {m, n, alias}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1], order[2])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := fmt.Sprint(order)
+			assert.Empty(t, diags, name)
+			assert.Empty(t, propertyOf(t, doc, "T", "f").Unmodeled, name)
+			assert.Equal(t, []ir.TypeRef{{Target: componentID("M")}, {Target: componentID("N")}},
+				composedField(t, doc, "T", "f").Mixins, name)
+			if alias != "{}" {
+				assert.Equal(t, "admits every value", propertyOf(t, doc, "T", "f").Docs.Description, name)
+			}
+		}
+	}
+
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, m, n, "{$ref: '#/components/schemas/Sampled'}")))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Len(t, diags, 2, "an alias holding examples keeps the models apart, each drop reported")
+	assert.Equal(t, componentID("M"), propertyOf(t, doc, "T", "f").Type.Target)
+}

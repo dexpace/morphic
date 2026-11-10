@@ -1540,7 +1540,10 @@ unrelated. A disjoint pair is unsatisfiable but for a null both declarations adm
 satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
 this order.
 `{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
-unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
+unconvertible const), which is unrelated to every type, and so does an alias of `{}` that says
+nothing of its values: as a field's own type it may hold the docs, deprecation and redaction a
+reference carries down to the field ([annotations](../ir/annotations.md#what-a-reference-carries-down)),
+and anywhere else nothing but where it was declared. Where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
 by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
 `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
@@ -1624,7 +1627,8 @@ written `allOf` of them composes ([`allof-classification`](#allof-classification
 as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
-property list. Whatever another declaration's type holds adds no conjunct: a `{}`, a model saying
+property list. Whatever another declaration's type holds adds no conjunct: a `{}` or an alias of it
+read as one, a model saying
 nothing but `type: object` beside one saying more, and a model another declaration composes. Two
 models saying nothing, declared apart, are two types neither of which holds the other, so they
 compose, and an object saying anything else composes too, so what it says stays reachable. Two
@@ -1788,6 +1792,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
   `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
   `schema.TestAllOf_AnObjectSayingMoreThanItsTypeComposes`,
+  `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -1892,10 +1897,10 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   one adding other detail, and a list or map whose members meet, are reported as an overlap and
   never narrowed (#1042); two models alike in every property compose rather than collapse to one
   type (#1083); a model and a map or a union are reported as types the merge does not compare
-  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
-  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
-  wrapper it flattens that fold different sets only because the model stops at the flattening depth
-  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
+  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a
+  model and the wrapper it flattens that fold different sets only because the model stops at the
+  flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
+  names both.
 
 ### `allof-required`
 

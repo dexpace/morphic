@@ -20,7 +20,8 @@ type relation int
 const (
 	// relUnrelated is a pair nothing relates, such as two composites of one
 	// kind neither says it is, a union or an opaque scalar against a kind or a
-	// structure, the top type spelled as an alias, a degraded node, nesting past
+	// structure, an alias of the top type saying something of its values, a
+	// degraded node, nesting past
 	// maxJudgeDepth, or a type the registry does not hold. The fold composes two
 	// models (composition), and otherwise drops the second and says it does not
 	// compare.
@@ -84,7 +85,8 @@ type declarationSites struct {
 // swapping the arguments, and written's two pointers with them, flips a
 // narrowing and leaves any other verdict as it was. The arms, in order: the
 // same target; a degraded Any node, which is unrelated to every type; the top
-// type, which loses to anything else; then arms, and classify for a pair arms
+// type, spelled bare or as an alias saying nothing of its values (topAt), which
+// loses to anything else; then arms, and classify for a pair arms
 // leaves unrelated. Every pair gets its verdict here, a field's types and two
 // containers' members alike, bar the exceptions boundedNodes and contained name.
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
@@ -105,7 +107,7 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 	if isDegraded(at) || isDegraded(bt) {
 		return relUnrelated
 	}
-	aTop, bTop := isTop(at), isTop(bt)
+	aTop, bTop := j.topAt(at, depth), j.topAt(bt, depth)
 	switch {
 	case aTop:
 		return relBNarrower
@@ -546,6 +548,44 @@ func fromSpelling(r spelling.Relation) relation {
 func isTop(td ir.TypeDef) bool {
 	p, ok := td.(*ir.Primitive)
 	return ok && p.Prim == ir.PrimAny
+}
+
+// topAt reports whether a type a judgment at depth reads as td stands for the
+// top type: td is (isTop), or is a chain of alias scalars ending in it that
+// says nothing of its values. The chain's first alias may hold docs, a
+// deprecation and redaction where it is a field's own type, since a reference
+// carries those down to the property using it
+// (docs/ir/annotations.md#what-a-reference-carries-down); any other alias holds
+// nothing but where it was declared, so no type replacing it loses anything.
+func (j typeJudge) topAt(td ir.TypeDef, depth int) bool {
+	carried := depth == 0
+	for range maxTypeResolveDepth {
+		s, alias := td.(*ir.Scalar)
+		if !alias {
+			return isTop(td)
+		}
+		if s.Base == nil || !aliasSaysNothing(s, carried) {
+			return false
+		}
+		next, ok := j.Resolve(s.Base.Target)
+		if !ok {
+			return false
+		}
+		td, carried = next, false
+	}
+	return false
+}
+
+// aliasSaysNothing reports whether the alias s holds nothing but its base and
+// where it was declared, and, where carried, what a reference carries down to
+// its use.
+func aliasSaysNothing(s *ir.Scalar, carried bool) bool {
+	bare := *s
+	bare.TypeCommon, bare.Base = siteless(s.TypeCommon), nil
+	if carried {
+		bare.Docs, bare.Deprecation, bare.Sensitive = ir.Docs{}, nil, false
+	}
+	return reflect.DeepEqual(bare, ir.Scalar{})
 }
 
 // isDegraded reports whether td is an Any node. This compiler mints one only

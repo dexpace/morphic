@@ -44,6 +44,8 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/top":    &ir.Primitive{ID: "t/top", Prim: ir.PrimAny},
 		"t/any":    &ir.Any{ID: "t/any"},
 		"t/map":    &ir.MapT{ID: "t/map"},
+		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topDoc", Docs: ir.Docs{Description: "d"}}},
+		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topEx", Examples: []ir.Example{{}}}},
 	}
 }
 
@@ -90,6 +92,7 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "the first discriminated component is", targets: []ir.TypeID{"t/Dog", "t/A", "t/Pet"}, base: "t/Dog", mixins: []ir.TypeID{"t/A", "t/Pet"}},
 		{name: "one type declared twice composes once", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "`{}` adds no conjunct", targets: []ir.TypeID{"t/top", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
+		{name: "an alias of `{}` saying nothing of its values adds none", targets: []ir.TypeID{"t/A", "t/B", "t/topDoc"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "a bare object adds no conjunct", targets: []ir.TypeID{"t/bare", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
 		{name: "a type what composes it holds adds no conjunct", targets: []ir.TypeID{"t/A", "t/B", "t/sub"}, mixins: []ir.TypeID{"t/B", "t/sub"}},
 		{name: "an alias composes as written", targets: []ir.TypeID{"t/alias", "t/in1"}, base: "t/alias", mixins: []ir.TypeID{"t/in1"}},
@@ -150,6 +153,7 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/any", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "an alias of `{}` holding examples beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/topEx"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
