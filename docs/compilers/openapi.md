@@ -1470,9 +1470,10 @@ a `uniqueItems` of `false` or a count past 64 bits, never folds. A `oneOf`, an `
 and changes nothing else here: where the `allOf` composes, its branches fold into the composition
 as they do with none of them there, beside a `$dynamicRef` it keeps from expanding
 ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
-([`union-beside-structure`](#union-beside-structure)). Where the union distributes, a branch's
-annotations and what a use binds reach the `Union` and its carriers, and a value bound each variant,
-as the same keyword beside the `allOf` does, and a branch with no residue is kept on no variant
+([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
+its branches distributes, a branch's annotations and what a use binds reach the `Union` and its
+carriers, and a value bound each variant, as the same keyword beside the `allOf` does, and a branch
+with no residue is kept on no variant
 ([models](../ir/models.md#composition-beside-a-union)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the

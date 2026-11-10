@@ -107,15 +107,12 @@ func allOfMayRefine(s *oas3.Schema) bool {
 // there, an enum or a const beside it, is one of its conjuncts. An allOf that
 // value set beats otherwise stays verbatim
 // (docs/compilers/openapi.md#competing-keywords). A union beside the composing
-// allOf leaves it deciding, composed into each variant the union distributes
-// across or into the Model keeping the union verbatim, and so does a $dynamicRef
-// it keeps from expanding.
+// allOf or on one of its branches leaves it deciding, composed into each variant
+// the union distributes across or into the Model keeping the union verbatim, and
+// so does a $dynamicRef it keeps from expanding.
 func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
 	if !allOfBesideNoRef(s) {
 		return false
-	}
-	if _, distributes := branchUnion(c, s, ""); distributes {
-		return false // its variants each keep every branch
 	}
 	if dispatchOf(s).won == "allOf" {
 		return true

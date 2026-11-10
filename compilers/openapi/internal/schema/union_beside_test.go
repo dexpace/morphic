@@ -197,11 +197,11 @@ func deepChain(n int) string {
 // written as an inline allOf branch, which distributes as the same union beside
 // the allOf does (docs/compilers/openapi.md#union-beside-structure): the
 // variants match the beside spelling's, inline branches conjoined by their own
-// nodes, the branch keeps nothing, and another branch folds nothing, kept whole
-// on each variant. One declaring no shape, one of two that do, one beside the
-// schema's own union or discriminator, one distribution declines, one past the
-// flattening depth and one beside a branch's $ref, which it conjoins with, stay
-// with their branch; an enum beside the allOf decides the position.
+// nodes, the branch keeps nothing, and another branch folds onto the union. One
+// declaring no shape, one of two that do, one beside the schema's own union or
+// discriminator, one distribution declines, one past the flattening depth and
+// one beside a branch's $ref, which it conjoins with, stay with their branch;
+// an enum beside the allOf decides.
 func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {type: object, properties: {a: {type: string}}}
@@ -247,6 +247,10 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
       allOf:
         - oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
         - {description: mine, properties: {c: {type: string}}}
+    AnnotatedBeside:
+      allOf:
+        - {description: mine, properties: {c: {type: string}}}
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
     RefBranch:
       allOf:
         - {$ref: '#/components/schemas/A', oneOf: [{$ref: '#/components/schemas/B'}]}
@@ -325,9 +329,11 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 	assert.Contains(t, enum.Unmodeled, "openapi:allOf")
 	annotated, ok := typeByName(doc, "Annotated").(*ir.Union)
 	require.True(t, ok)
-	assert.Empty(t, annotated.Docs.Description, "a distributed branch folds nothing, as beside the allOf")
+	assert.Equal(t, "mine", annotated.Docs.Description, "another branch folds onto the union, as beside the allOf")
+	besideDocs := typeByName(doc, "AnnotatedBeside").Common().Docs
+	assert.Equal(t, besideDocs, annotated.Docs)
 	for _, v := range variantModels(t, doc, "Annotated") {
-		assert.Contains(t, v.Unmodeled, "openapi:allOf/1", "each variant keeps it whole")
+		assert.Empty(t, v.Unmodeled, "a branch folding whole is kept on no variant")
 	}
 	for _, v := range variantModels(t, doc, "BesideToo") {
 		assert.Contains(t, v.Unmodeled, "openapi:allOf/0", "beside its own union, a branch's stays with the branch")
