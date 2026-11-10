@@ -19,12 +19,14 @@ import (
 )
 
 // voicesDoc is a document of Base, A and B, objects, Meta, an object anchored
-// dynamically, and a component S written as written.
+// dynamically, Holder, an object using S through a $ref, and a component S
+// written as written.
 func voicesDoc(written string) string {
 	return openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, properties: {id: {type: string}}}\n"+
 		"    A: {type: object, properties: {a: {type: string}}}\n"+
 		"    B: {type: object, properties: {b: {type: string}}}\n"+
 		"    Meta: {$dynamicAnchor: meta, type: object}\n"+
+		"    Holder: {type: object, properties: {s: {$ref: '#/components/schemas/S'}}}\n"+
 		"    S: "+written+"\n")
 }
 
@@ -45,8 +47,8 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 
 // TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
 // branch to the same keyword beside the allOf, beside each union outcome: for each
-// one the two lower to the same nodes, the branch's kept nowhere else and
-// reported nowhere but where it is written.
+// one the two lower to the same nodes, a $ref use of S among them, the branch's
+// kept nowhere else and reported nowhere but where it is written.
 func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
@@ -54,6 +56,8 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 		"description":        "description: mine",
 		"externalDocs":       "externalDocs: {url: 'https://example.com'}",
 		"deprecated":         "deprecated: true",
+		"readOnly":           "readOnly: true",
+		"default":            "default: {id: a}",
 		"example":            "example: {id: a}",
 		"examples":           "examples: [{id: a}]",
 		"xml":                "xml: {name: mine}",
@@ -85,6 +89,8 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 					"nothing is left to keep or report; got %v", gotDiags)
 				assert.Equal(t, severityCodes(wantDiags), severityCodes(gotDiags))
 
+				holder := componentID("Holder")
+				assertNodeAlike(t, want.Types[holder], got.Types[holder])
 				id := componentID("S")
 				assertNodeAlike(t, want.Types[id], got.Types[id])
 				wantUnion, ok := want.Types[id].(*ir.Union)
