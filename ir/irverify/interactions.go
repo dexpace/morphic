@@ -73,9 +73,9 @@ func checkInteractions(*ir.Document) walkCheck {
 	}
 }
 
-// appendInputViolation reports in, at at, when it names no value of the
-// request. With no parameter it roots in the request body, so it needs a member
-// of it (ir/input-path-empty) and an operation that sends one
+// appendInputViolation reports in, where the walk reached it, when it names no
+// value of the request. With no parameter it roots in the request body, so it
+// needs a member of it (ir/input-path-empty) and an operation that sends one
 // (ir/input-body-absent).
 func appendInputViolation(vs []Violation, in ir.InputPath, bodyless bool, at ir.WalkPath) []Violation {
 	switch {

@@ -493,7 +493,7 @@ type Pagination struct {
 	// InputCursor is the input that continues iteration, a parameter or a
 	// request-body field.
 	InputCursor *InputPath `json:"inputCursor,omitzero"`
-	// InputLimit is the page-size input.
+	// InputLimit is the page-size input, a parameter or a request-body field.
 	InputLimit *InputPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
 	Items *PropPath `json:"items,omitzero"`
