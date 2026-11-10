@@ -124,13 +124,14 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
-		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace},
+		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindServer:     {OpenAPISpace, DefaultServerSpace},
 	}
 	for _, d := range others {
 		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonSpace), d.space(ComposedSpace))
 		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace), d.space(ComposedSpace))
-		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace))
+		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace),
+			d.space(ComposedSpace))
 		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
 	}
 	return ns
@@ -236,6 +237,13 @@ func ParamPath(name, in string, occurrence int) jsontext.Pointer {
 // a key itself, since a key opens with a kind tag and a colon.
 func (d Document) EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
 	return compile.EnumMemberID(d.space(schemaSpace(enumPointer)), string(numbered(enumPointer+Ptr(key), occurrence)))
+}
+
+// ComposedMember returns the stable ID of a member of the enum minted at
+// pointer in d (ComposedType): its key and the number a repeated value appends,
+// tail, as they follow the path of the enum it was taken from.
+func (d Document) ComposedMember(pointer jsontext.Pointer, tail string) ir.EnumMemberID {
+	return compile.EnumMemberID(d.space(ComposedSpace), string(pointer)+tail)
 }
 
 // numbered returns the path of the occurrence-th holder of the identity at

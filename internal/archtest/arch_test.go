@@ -261,6 +261,7 @@ var rules = map[string][]string{
 	// fields, which is what keeps the conflict lattice drivable without a walk.
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/spelling"},
 	// The table that maps a (type, format) pair to a primitive kind, and the

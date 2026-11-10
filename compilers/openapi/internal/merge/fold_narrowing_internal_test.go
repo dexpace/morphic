@@ -259,6 +259,8 @@ func TestFold_TheTopTypeTakesTheOtherSidesNullAdmission(t *testing.T) {
 	for i, order := range [][2]ir.TypeRef{
 		{primRef(ir.PrimAny), nullable(primRef(ir.PrimInteger))},
 		{nullable(primRef(ir.PrimInteger)), primRef(ir.PrimAny)},
+		{ref("t/scalar-any-doc"), nullable(primRef(ir.PrimInteger))},
+		{nullable(primRef(ir.PrimInteger)), ref("t/scalar-any-doc")},
 	} {
 		g, recorded := stubMerger(judgeRegistry())
 		dst := ir.Property{WireName: "x", Type: order[0], Provenance: ptrAt("/allOf/0/properties/x")}

@@ -1542,7 +1542,10 @@ unrelated. A disjoint pair is unsatisfiable but for a null both declarations adm
 satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
 this order.
 `{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
-unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
+unconvertible const), which is unrelated to every type, and so does an alias of `{}` that says
+nothing of its values: as a field's own type it may hold the docs, deprecation and redaction a
+reference carries down to the field ([annotations](../ir/annotations.md#what-a-reference-carries-down)),
+and anywhere else nothing but where it was declared. Where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
 by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
 `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
@@ -1560,7 +1563,9 @@ with members against `bytes` stays an overlap. A `const` wins when the kind admi
 it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
 `Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
 the node admits it and says nothing but its base, the format and bounds, so a field typed by the
-`const` loses none of it; a node saying more, a description or an example, overlaps it. Two
+`const` loses none of it. Where the node also says what a `const` can hold beside its value, a
+description or a deprecation, the two meet in a `const` holding that too (below); a node giving
+examples overlaps it, since nothing shows the `const` admits them. Two
 enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
 whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
 one type where both were written inline at the field's own declarations, in their document, as the
@@ -1570,23 +1575,44 @@ are two types the source declared apart, which overlap. A copy is one type with 
 gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
-Two lists,
-or two maps with one key, compare
-by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other, its bounds say all the other's do, and the other holds nothing else the
-winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
-examples, deprecation, XML hints or `Unmodeled`. Disjoint members still overlap where both admit
-null, or where both containers admit the empty one. Two tuples compare position by position, and
-relate only where every position, and what may follow the last, is one type; a tuple that a
-container or another tuple holds is not compared, since a tuple has a member per position where any
-other node has one, and comparing them nested would cost its width to the power of the depth. Two
-lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
-one type where both were written inline, the one declared elsewhere winning over an inline copy in
-either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
-all but their bounds are judged by those bounds, wherever each was declared: the one whose bounds
-say all the other's do is narrower, and where neither does, or a keyword with no order differs, the
-two meet. Two that meet as a container's members overlap, since a fold builds a node for a field's
-own type and none for what it holds. A structure is narrower than
+Two `const`s of different values share none, so they are disjoint. Two enums of one value type,
+closedness, bit-flag reading and fallback, whose members holding one value say the same of it, are
+judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
+every one of is narrower where it also says all the other does beside its members, and otherwise the
+two meet, as do two each holding a value the other lacks, in an enum of the values they share
+(below), where both list those values in one order. Two listing them in different orders overlap,
+since an enum of both would take its order from one declaration. Two holding one set of values in
+another order or saying the rest differently, and any other pair of enums, are judged by their kind.
+Two models alike in every member but where they and what they name were declared (the same
+properties in the same order, each with the same wire name, required flag, visibility, docs,
+constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
+read by position) are judged the same way where every type they name relates to the other's as the
+same type, or as that rule relates the two models: a component wins over an inline copy of itself,
+a nested object included, in either order, and two inline copies are one type. A property keeping a
+relative `$ref` makes them one only under one base, as above. Two components alike were declared
+apart, and models alike in all but a type that relates otherwise are no copies, so either pair
+composes as two models do (below). One judgment compares at most 64 pairs of models member by
+member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
+two are unrelated and compose, which loses nothing.
+Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
+element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
+included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
+meeting; and what else each says, read as two `Scalar`s are but where each was declared: encoding,
+documentation, examples, deprecation, XML hints and `Unmodeled`. Two `Scalar`s of one base and
+encoding are judged by their bounds and what else they say the same way. A node says all another
+does of a part where its member is the narrower or admits null no more widely, its bounds say all
+the other's do, or it sets every detail the other sets, alike. Two saying one set of values are
+judged as two equal enums are where they say the rest alike; where they do not, they are two types
+declared apart, which overlap, but for two `Scalar`s, then judged by their kind. Otherwise the one
+saying all the other does in every part is narrower, and two each saying what the other lacks meet in
+a node holding both (below), unless they give one detail differently, or one gives examples the
+other does not, since nothing shows that node admits them, which leaves them an overlap. Members that
+meet, or that compose as two models or a model and a map or a union do (below), make their
+containers meet, so lists of two models stand on a list of a model composing both. Disjoint members
+still overlap where both admit null, or where both containers admit the empty one, and members
+related otherwise leave their containers so. A tuple that a container or another tuple holds is not
+compared, since a tuple has a member per position where any other node has one, and comparing them
+nested would cost its width to the power of the depth. A structure is narrower than
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
@@ -1597,11 +1623,27 @@ pair is judged by what the two types hold, an alias as the
 type it stands for and a `const` object or array as a structure of that instance type: disjoint
 where their kinds share no value, or a value type meets a structure, or two structures of different
 instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
-in a kind, but for the `time` node above, or another `const`; and unrelated where nothing says
+in a kind, but for the `time` node above, or a `const` of its value; and unrelated where nothing says
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
-and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
-types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
+and a kind, or a union or an external and anything else. A structure whose source states no
+instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
+every value of another instance type, as `properties` alone constrains objects and admits a string.
+That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
+else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
+`not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
+alias's `$ref`, a `$ref` landing on no schema or on `false`, or a `false` entry. A value type or a
+structure of another instance type is narrower than it, in either order, where it and each alias
+naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
+since a type replacing it would lose what it holds. So a structure written at the declaration
+itself, which keeps its docs, deprecation and redaction on its own node, overlaps a value type or a
+structure of another instance type where it holds any of them; one a `$ref` reached carries them
+down to the field. Two such structures of different instance types overlap, sharing every value of
+a third. The source is read in the document holding the composing model, so a structure another
+document declares, and one whose `allOf` runs past the 256 schemas that read spends, reads as
+stating its type. A pair gets the same verdict as a field's types and as two containers' members,
+but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
 most declarations' types, the first of them on a tie. A declaration's type within every other's
@@ -1611,28 +1653,46 @@ other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with no
 every order, while `int32` and `uint32` alone keep the first declared and report the other.
 
 Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
-takes a node the merge mints: all the winner's node holds, with the bounds of each declaration
-meeting it folded as a property's are, below. So `minItems: 1` beside `maxItems: 5` is one list
-holding both, in either order. It is anonymous, in the `composed` namespace, and derives from the
-declaration naming the field, as a composed model does below. Where that fold leaves the winner's
-bounds as they stand, because only a keyword with no order differs, the field keeps the winner's
-node and nothing is minted.
+takes a node the merge mints: all the winner's node holds, with what each declaration meeting it
+adds. Its bounds fold as a property's do, below; each detail the winner leaves empty is taken as a
+reference to that node would read it; an enum's values are cut to those every one holds, in the
+order the winner lists them; and each member is built from theirs a level down, composed or meeting
+theirs in turn, at a position of its own beneath the field's (`/items`, `/additionalProperties`,
+`/prefixItems/<n>`). That position is named beneath the declaration naming the field whether the
+declaration writes the container or a `$ref` there reaches it, so it may be one the source does not
+write; the member's own position would give one ID to two fields building different members of
+it. A `const` meeting a
+`Scalar` is the node, holding what the `Scalar` says beside its values. So `minItems: 1` beside
+`maxItems: 5` is one list holding both, a described list of `integer` beside a list of `int32` one
+list of `int32` holding the description, `[a, b]` beside `[b, c]` the enum `[b]`, and lists of two
+models a list of a model composing both, each in either order. Every node it mints is anonymous, in
+the `composed` namespace, an enum's members too, and derives from its position: the declaration
+naming the field, as a composed model does below, or a position beneath it. Where two declarations
+meeting the winner give one detail differently, the first's is kept and the later one reported and
+kept, as a property's detail is. Where no node holds every declaration meeting the winner, as when
+three meet in pairs but no member holds all of theirs, or no value is in every enum, the field keeps
+the winner's node, and each declaration meeting it is dropped and reported as an overlap. Where the
+declarations leave the winner's node as it stands, because only a keyword with no order differs, the
+field keeps that node and nothing is minted.
 
-Two models neither of which holds the other are the exception, since an instance satisfying both is
-a value of a type neither names. Where the declarations whose types no other declaration holds are
-two or more models, each named directly or through an alias, the field's type is a `Model` the merge
-mints: anonymous, holding no property of its own, and composing each of those types once as a
-written `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written
-as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
+Two models neither of which holds the other are the exception, and so are a model and a map or a
+union, since an instance satisfying both is a value of a type neither names. Where the declarations
+whose types no other declaration holds are two or more models, maps or unions, each named directly
+or through an alias, and one of them a model, the field's type is a `Model` the merge mints:
+anonymous, holding no property of its own, and composing each of those types once as a written
+`allOf` of them composes ([`allof-classification`](#allof-classification)). The one written as the
+only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
-property list. Whatever another declaration's type holds adds no conjunct: a `{}`, a model saying
+property list. Whatever another declaration's type holds adds no conjunct: a `{}` or an alias of it
+read as one, a model saying
 nothing but `type: object` beside one saying more, and a model another declaration composes. Two
 models saying nothing, declared apart, are two types neither of which holds the other, so they
 compose, and an object saying anything else composes too, so what it says stays reachable. Two
 aliases of one model are two types, each able to say more than the model, so they compose, and so
-does an alias of a bare object beside another model. Any other type beside the models (a map, a
-kind, a degraded node) leaves the choice to the rule above. Every declaration then folds into the
+does an alias of a bare object beside another model. Any other type beside them (a kind, a list, a
+degraded node, an alias of `{}` saying something of its values), or maps and unions with no model
+among them, leaves the choice to the rule above. Every declaration then folds into the
 field, so none is dropped for its type, and each conjunct keeps the node its own pointer denotes.
 The minted model's ID is in the `composed` namespace ([identity](../ir/identity.md#the-id-grammar),
 [models](../ir/models.md#composition-beside-a-union)), so no `$ref` reaches it, and derives from the
@@ -1673,7 +1733,9 @@ each bound, `multipleOf`, a length counted in code points, an item or property c
 declaration's value is held by the same checks to each bound the field keeps that another
 declaration brought, on the property or on a node. A value is its declaration's own to answer for
 against a bound it states itself at the value the field keeps, so a default its own bound refuses
-stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+stays, and against its own type where that is the field's but for bounds; a node the merge builds
+can hold members or values the declaration's own does not, so a value written beside it is judged
+against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
@@ -1732,17 +1794,21 @@ whose say the field kept. A dropped declaration is reported against the winner a
 `openapi/conflicting-redeclaration`
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
-admits, a scalar against a
-structure, two structures of different instance types, or two lists or maps whose members share no
+admits, two `const`s of different values, two enums sharing no value, a scalar against a
+structure stating its instance type, two structures of different instance types each stating
+theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
-two enums of one kind, each with members, a `const` against a kind with no judge, against a node
-that ends in a kind, but for the `time` node above, or against another `const`, or two lists or
-maps whose members share only null or share nothing while
-both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
-the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
-node a degraded lowering minted, or two models beside a type that keeps them from composing), since
-which of them the field keeps then follows declaration order. No declaration is dropped without a
+a `const` against a kind with no judge, against a node that ends in a kind, but for the `time` node
+above, or against a `const` of its value saying more, two `Scalar`s of different encodings, such as
+`format: hex` against `format: byte`, which no one node holds, two nodes saying one set of values
+differently, two enums listing the values they share in different orders, two nodes giving one
+detail differently or examples only one gives, or two lists or maps whose members share only null
+or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
+and so are two types the judgment does not compare (a list and a tuple, a map or a union with no
+model to compose with, an opaque scalar, a node a degraded lowering minted, or models beside a type
+that keeps them from composing), since which of them the field keeps then follows declaration
+order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
@@ -1790,6 +1856,38 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
   `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
   `schema.TestAllOf_AnObjectSayingMoreThanItsTypeComposes`,
+  `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
+  `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
+  `schema.TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites`,
+  `schema.TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict`,
+  `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
+  `merge.TestTypeJudge_ModelsAlikeAreCopies`,
+  `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,
+  `merge.TestFold_ModelsAlikeAreOneType`,
+  `merge.TestTypeJudge_ModelPairsStopAtTheirBudget`,
+  `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
+  `schema.TestAllOf_ModelsAlikeAreOneType`,
+  `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
+  `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
+  `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
+  `merge.TestFold_EnumsListingSharedValuesApartKeepTheWinner`,
+  `merge.TestFold_TwoEnumsCostTheirWidth`,
+  `merge.TestFold_ANarrowerListAdoptsTheBroadersDetail`,
+  `merge.TestFold_ANarrowerListAdoptsTheBroadersEncoding`,
+  `merge.TestFold_ContainersOfModelsComposeTheirMembers`,
+  `merge.TestFold_AConstMeetsATimeScalarHoldingDetail`,
+  `merge.TestFold_AMeetingNoNodeHoldsKeepsTheWinner`,
+  `merge.TestFold_AFailedMeetingReportsOnlyItsDrops`,
+  `merge.TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept`,
+  `schema.TestAllOf_EnumsAndListsNarrowToWhatTheyShare`,
+  `schema.TestAllOf_ContainersOfDifferentModelsComposeTheirMembers`,
+  `schema.TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem`,
+  `merge.TestFold_AnEnumWithinAnotherAdoptsItsDetail`,
+  `merge.TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps`,
+  `merge.TestFold_TuplesBuildWhatFollowsTheirPositions`,
+  `merge.TestBuilder_RefusesWhatNoNodeHolds`,
+  `merge.TestFold_AValueIsJudgedByTheNodeTheFieldHolds`,
+  `schema.TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -1860,7 +1958,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
   `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
   `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
-  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder`,
+  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder`,
   `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,
   `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
@@ -1887,17 +1985,14 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums whose members fit each other's kind, two different literals), a list or map whose
-  broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
-  description or other detail of its own against a `const` it admits, a node adding a bound beside
-  one adding other detail, and a list or map whose members meet, are reported as an overlap and
-  never narrowed (#1042); two models alike in every property compose rather than collapse to one
-  type (#1083); a model and a map or a union are reported as types the merge does not compare
-  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
-  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
-  wrapper it flattens that fold different sets only because the model stops at the flattening depth
-  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
+- Status: partly built: two enums of different value types are judged by their kind, so one within
+  the other overlaps it rather than narrowing (#1654); a structure stating no instance type that
+  refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
+  it conflicts with a kind it admits (#1671); an alias of an enum, a `Scalar` or a list is judged
+  by its kind beside a node it could meet, so the two overlap or are not compared rather than
+  meeting (#1672); a model and the wrapper it flattens that fold different sets only because the
+  model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
+  since one declaration names both.
 
 ### `allof-required`
 

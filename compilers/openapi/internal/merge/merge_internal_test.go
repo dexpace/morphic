@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,17 +38,22 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
-// declaring returns a model declaring one property, which a test takes where
-// any model will do: a model declaring nothing says nothing but object
-// (saysOnlyObject).
+// declaring returns a model declaring one property, named for it, which a test
+// takes where any model will do: a model declaring nothing says nothing but
+// object (saysOnlyObject), and two declaring the same are alike
+// (typeJudge.models).
 func declaring(id ir.TypeID) *ir.Model {
-	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: "own"}}}
+	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: string(id)}}}
 }
 
 // judge is the type judgment over the registry g reads.
 func judge(g *Merger) typeJudge {
-	return typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: alwaysAlike}}
+	return typeJudge{Resolve: g.Resolve, untyped: untypedAt, sites: declarationSites{alike: alwaysAlike}}
 }
+
+// untypedAt is Merger.Untyped for a registry whose nodes written under
+// /untyped state no instance type.
+func untypedAt(p ir.Provenance) bool { return strings.HasPrefix(string(p.Pointer), "/untyped/") }
 
 // stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
 // with no lowerer, parser or document in the setup, so the conflict lattice can
@@ -65,6 +71,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 		Interned: func(jsontext.Pointer) bool { return false },
 		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },
 		Alike:    alwaysAlike,
+		Untyped:  untypedAt,
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
