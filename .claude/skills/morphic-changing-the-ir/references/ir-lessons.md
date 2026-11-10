@@ -137,9 +137,9 @@ verifier and codecs must reach.
 `populated-value-sets-every-field`
 
 - **Rule.** A value a test calls populated in full names a struct's fields by hand, so a field the
-  struct gains is left zero there with every round trip green. Hold it with `assertNoFieldZero` in
-  `ir/helpers_test.go`, which `assertJSONContract` and `assertTypeDefRoundTrip` there call, naming
-  each field it leaves zero with the reason.
+  struct gains is left zero there with every round trip green. Hold it with
+  `assertNoFieldZero` in `ir/helpers_test.go`, which `assertJSONContract` and
+  `assertTypeDefRoundTrip` there call, naming each field it leaves zero with the reason.
 - **Why.** #1367's four fields went unset in two values their contract tests called fully
   populated, so a `json:"-"` tag on any of them passed both (#1670).
 - **Probe.** Each test whose comment `git grep -nE 'fully( populated|$)' -- 'ir/*_test.go'` hits
