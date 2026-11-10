@@ -188,6 +188,79 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 	}
 }
 
+// TestRefinement_AUnionBranchIsAConjunct pins a oneOf or anyOf written as an
+// allOf branch where the conjuncts admit no object: a conjunct admitting what its
+// branches do, read as docs/compilers/openapi.md#allof-refinement reads any
+// other. Beside a narrower conjunct it lowers to the meet, at a property as at a
+// component, saying nothing more where that conjunct lies within one branch and,
+// for a oneOf, shares a kind with no other; it stays with its branch where it
+// says more. Where it is the narrowest, it is the principal, and where it shares
+// no value with the rest, the allOf composes.
+func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
+      allOf:
+        - anyOf: [{type: string}, {type: number}, {type: boolean}]
+        - {type: string, maxLength: 1000}
+    ValueString: {type: string, maxLength: 1000}
+    ByRef: {allOf: [{oneOf: [{type: integer}, {$ref: '#/components/schemas/Owner'}, {type: string}]}, {$ref: '#/components/schemas/Str'}]}
+    TwoMatch: {allOf: [{oneOf: [{type: string}, {type: string, maxLength: 3}]}, {type: string, format: uuid}]}
+    FormatNotHeld: {allOf: [{anyOf: [{type: string, format: uuid}, {type: integer}]}, {type: string}]}
+    Overlapping: {allOf: [{oneOf: [{type: string}, {type: string, format: date}]}, {$ref: '#/components/schemas/Str'}]}
+    Disjoint: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {type: boolean}]}
+    Widest: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {description: either}]}
+    Holder:
+      type: object
+      properties:
+        value:
+          allOf:
+            - anyOf: [{type: string}, {type: number}, {type: boolean}]
+            - {type: string, maxLength: 1000}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	value, ok := typeByName(doc, "Value").(*ir.Scalar)
+	require.True(t, ok, "Value is a scalar, not %T", typeByName(doc, "Value"))
+	want, ok := typeByName(doc, "ValueString").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, want.Base, value.Base, "Value lowers as ValueString does")
+	assert.Equal(t, want.Constraints, value.Constraints)
+	assert.Empty(t, value.Unmodeled, "the anyOf says nothing the string does not")
+	for _, at := range []string{"/components/schemas/Value", "/components/schemas/Value/allOf/0", "/components/schemas/Value/allOf/1"} {
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
+	}
+
+	field := propertyOf(t, doc, "Holder", "value")
+	assert.Equal(t, ir.TypeID("t/prim/string"), field.Type.Target, "a property lowers to the meet too")
+	require.NotNil(t, field.Constraints)
+	assert.Equal(t, int64(1000), *field.Constraints.MaxLength)
+	assert.Empty(t, field.Unmodeled)
+
+	byRef, ok := typeByName(doc, "ByRef").(*ir.Scalar)
+	require.True(t, ok, "ByRef is a use of Str, not %T", typeByName(doc, "ByRef"))
+	assert.Equal(t, componentID("Str"), byRef.Base.Target)
+	assert.Empty(t, byRef.Unmodeled, "Str lies within one branch and shares no kind with another")
+
+	for name, key := range map[string]string{
+		"TwoMatch": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0", "Overlapping": "openapi:allOf/0",
+	} {
+		kept := typeByName(doc, name).Common().Unmodeled[key]
+		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s keeps the union, which says more", name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/allOf/0"), name)
+	}
+
+	_, composes := typeByName(doc, "Disjoint").(*ir.Model)
+	assert.True(t, composes, "a union sharing no value with the rest leaves the allOf a composition")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Disjoint/allOf/1"))
+
+	widest, ok := typeByName(doc, "Widest").(*ir.Scalar)
+	require.True(t, ok, "Widest is an alias over its principal, not %T", typeByName(doc, "Widest"))
+	u, ok := doc.Types[widest.Base.Target].(*ir.Union)
+	require.True(t, ok, "the union branch is the principal")
+	assert.Len(t, u.Variants, 2)
+	assert.Equal(t, "either", widest.Docs.Description)
+}
+
 // TestRefinement_DisjointConjunctsStayAComposition pins what GitHub #1043 keeps:
 // no value satisfies both branches, so the warnings stand on the model.
 func TestRefinement_DisjointConjunctsStayAComposition(t *testing.T) {
@@ -471,9 +544,6 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/R'}]}\n    R: {allOf: [{$ref: '#/components/schemas/S'}]}\n",
 		},
 		"an unresolved $ref": {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Gone'}, {type: string}]}\n", errs: true},
-		"a union on a branch": {
-			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}, {oneOf: [{minLength: 1}, {maxLength: 2}]}]}\n",
-		},
 		"a union beside": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], oneOf: [{minLength: 1}, {maxLength: 2}]}\n",
 		},

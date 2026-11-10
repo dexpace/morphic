@@ -239,8 +239,8 @@ A `Model` says its value is an object, and `allOf: [{type: integer}, {type: inte
 admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
 the conjunct that decides it, short of the cases the OpenAPI compiler's rule
 [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
-on a branch among them: a reference to its `$ref`, a node at an inline branch's own pointer, and an
-alias only where the position writes what no carrier holds.
+beside the `allOf` among them: a reference to its `$ref`, a node at an inline branch's own pointer,
+and an alias only where the position writes what no carrier holds.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 

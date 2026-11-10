@@ -336,6 +336,13 @@ func assertAllOfPositionConstraints(t *testing.T, doc *ir.Document, diags []ir.D
 // no conjunct can make an object lowers as a use of the conjunct deciding it, at
 // every kind of position, and one that can stays a composition.
 func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	needle, ok := doc.Types[componentID("Needle")].(*ir.Scalar)
+	require.True(t, ok, "a union conjunct leaves the meet, not a model")
+	assert.Equal(t, &ir.TypeRef{Target: "t/prim/string"}, needle.Base)
+	require.NotNil(t, needle.Constraints)
+	assert.Equal(t, new(int64(1000)), needle.Constraints.MaxLength)
+	assert.Empty(t, needle.Unmodeled, "the anyOf says nothing the string does not")
+
 	zone, ok := doc.Types[componentID("Zone")].(*ir.Model)
 	require.True(t, ok)
 	props := openapitest.PropsByWire(zone.Properties)
