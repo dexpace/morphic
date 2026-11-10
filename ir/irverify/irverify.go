@@ -169,7 +169,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkStreamingModes,
 		checkWebhookRoutes,
 		checkCallbacks,
-		checkInputs,
+		checkInteractions,
 	}
 }
 

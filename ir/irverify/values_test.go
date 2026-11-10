@@ -74,6 +74,7 @@ func streamConditionCarrierDoc(v ir.Value) *ir.Document {
 	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
 	op := &doc.Services[0].Groups[0].Operations[0]
 	op.Bindings = ir.OpBindings{}
+	op.Request = &ir.Payload{}
 	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
 		Input: ir.InputPath{Segments: []ir.PropID{"p/x/Body/stream"}}, Value: v,
 	}}

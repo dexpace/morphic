@@ -379,9 +379,9 @@ type StreamDetail struct {
 	// length up front (Smithy @requiresLength) — changes the generated parameter
 	// type.
 	RequiresLength bool `json:"requiresLength"`
-	// Terminator is the frame data that ends the stream, verbatim, a sentinel
-	// that is no element and must not be decoded as one (an SSE `data: [DONE]`);
-	// nil = the stream ends with its connection.
+	// Terminator is the frame data that ends the stream, verbatim and never
+	// empty, a sentinel that is no element and must not be decoded as one (an
+	// SSE `data: [DONE]`); nil = the stream ends with its connection.
 	Terminator *string `json:"terminator,omitzero"`
 	// Condition is the request input whose value asks for this stream, where an
 	// operation streams only when asked and otherwise sends or returns this
@@ -567,7 +567,7 @@ type PropPath struct {
 // (docs/ir/interaction-patterns.md).
 type InputPath struct {
 	// Param is the ID of the parameter the path roots in; nil = the request
-	// body, which Segments then walk into.
+	// body, which Segments then walk into, of an operation that sends one.
 	Param *ParamID `json:"param,omitzero"`
 	// Segments are the ordered property IDs walked from the parameter or the
 	// body; no entry is empty, and a path into the body has one at least.
