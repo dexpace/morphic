@@ -7,6 +7,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -96,31 +98,14 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	}
 }
 
-// assertNodeAlike holds got to want in what a reader of the position finds on
-// it: its docs, deprecation, secrecy, XML hints, examples, a model's constraints,
-// and what it keeps, by key, reason and value.
+// assertNodeAlike holds got to want whole but for provenance, which names where
+// each spelling was written and so differs between them.
 func assertNodeAlike(t *testing.T, want, got ir.TypeDef) {
 	t.Helper()
 	require.NotNil(t, want)
 	require.NotNil(t, got)
-	require.Equal(t, want.Kind(), got.Kind())
-	w, g := want.Common(), got.Common()
-	assert.Equal(t, w.Docs, g.Docs)
-	assert.Equal(t, w.Deprecation, g.Deprecation)
-	assert.Equal(t, w.Sensitive, g.Sensitive)
-	assert.Equal(t, w.XML, g.XML)
-	assert.Len(t, g.Examples, len(w.Examples))
-	assert.Len(t, g.Unmodeled, len(w.Unmodeled))
-	for key, entry := range w.Unmodeled {
-		if assert.Contains(t, g.Unmodeled, key) {
-			assert.Equal(t, entry.Reason, g.Unmodeled[key].Reason, key)
-			assert.JSONEq(t, string(entry.Value), string(g.Unmodeled[key].Value), key)
-		}
-	}
-	if wm, ok := want.(*ir.Model); ok {
-		gm, ok := got.(*ir.Model)
-		require.True(t, ok)
-		assert.Equal(t, wm.Constraints, gm.Constraints)
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreTypes(ir.Provenance{})); diff != "" {
+		t.Errorf("node mismatch (-beside the allOf +on a branch):\n%s", diff)
 	}
 }
 

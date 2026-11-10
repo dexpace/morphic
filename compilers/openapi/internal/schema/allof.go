@@ -189,7 +189,10 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 
 // readAllOf is allOfBranches of the schema written at pointer, with what its
 // conjuncts jointly admit read and, where the allOf is what the position lowers,
-// which branches fold there (voicingOf), for a lowering that composes it.
+// which branches fold there (voicingOf), for a lowering that composes it. That
+// gate is positionVoices', so a branch gives up a keyword only where a reader
+// of the position takes it up; both composers pass it, and the report of an
+// allOf the election passed over does not.
 func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
