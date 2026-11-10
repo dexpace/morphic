@@ -41,7 +41,7 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		return &ir.List{
 			TypeCommon:  common,
 			Elem:        elem,
-			Constraints: collectionConstraints(s),
+			Constraints: collectionConstraints(c, ts, s, pointer),
 		}
 	})
 	return id, diags
@@ -95,7 +95,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(s)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(js) {
 		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
@@ -172,7 +172,7 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, co
 		diags = append(diags, refDiags...)
 		elems = append(elems, ref)
 	}
-	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(s)}
+	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
 	if items := itemsSchema(s); !annotation.IsFalseSchema(items) {
 		rest, restDiags := Ref(c, ts, depth, items, pointer+ids.Ptr("items"))
 		diags = append(diags, restDiags...)
@@ -181,20 +181,26 @@ func buildTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, co
 	return t, diags
 }
 
-// collectionConstraints reads an array schema's collection bounds, which bound
-// the whole instance whether it lowers to a List or a Tuple. Only the integer
-// and boolean bounds are read here, from the parser's model, which holds an
-// integer past int64 as 0 (GitHub #1050); numeric-value bounds go through raw
-// nodes elsewhere to avoid the float64 trap.
-func collectionConstraints(s *oas3.Schema) *ir.Constraints {
+// collectionConstraints reads the collection bounds of an array schema s, lowered
+// at pointer, which bound the whole instance whether it lowers to a List or a
+// Tuple, met with those the branches of its allOf write for it (positionVoices).
+// Only the integer and boolean bounds are read here, from the parser's model,
+// which holds an integer past int64 as 0 (GitHub #1050); numeric-value bounds go
+// through raw nodes elsewhere to avoid the float64 trap.
+func collectionConstraints(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) *ir.Constraints {
+	return voicedCollectionBounds(ownCollectionConstraints(s), positionVoices(c, ts, s, pointer, ir.TypeRef{}))
+}
+
+// ownCollectionConstraints reads the collection bounds s itself writes.
+func ownCollectionConstraints(s *oas3.Schema) *ir.Constraints {
 	if s.MinItems == nil && s.MaxItems == nil && s.UniqueItems == nil {
 		return nil
 	}
-	c := &ir.Constraints{MinItems: s.MinItems, MaxItems: s.MaxItems}
+	cons := &ir.Constraints{MinItems: s.MinItems, MaxItems: s.MaxItems}
 	if s.UniqueItems != nil {
-		c.UniqueItems = *s.UniqueItems
+		cons.UniqueItems = *s.UniqueItems
 	}
-	return c
+	return cons
 }
 
 // missingArrayItems reports a 3.0 schema that writes type array and no items,
