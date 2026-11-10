@@ -1578,8 +1578,9 @@ closedness, bit-flag reading and fallback, whose members holding one value say t
 judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
 every one of is narrower where it also says all the other does beside its members, and otherwise the
 two meet, as do two each holding a value the other lacks, in an enum of the values they share
-(below). Two holding one set of values in another order or saying the rest differently, and any other
-pair of enums, are judged by their kind.
+(below), where both list those values in one order. Two listing them in different orders overlap,
+since an enum of both would take its order from one declaration. Two holding one set of values in
+another order or saying the rest differently, and any other pair of enums, are judged by their kind.
 Two models alike in every member but where they and what they name were declared (the same
 properties in the same order, each with the same wire name, required flag, visibility, docs,
 constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
@@ -1791,12 +1792,13 @@ value where one is never empty. Types that share values but that the merge does 
 a `const` against a kind with no judge, against a node that ends in a kind, but for the `time` node
 above, or against a `const` of its value saying more, two `Scalar`s of different encodings, such as
 `format: hex` against `format: byte`, which no one node holds, two nodes saying one set of values
-differently, two nodes giving one detail differently or examples only one gives, or two lists or
-maps whose members share only null or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
-the judgment does not compare (a list and a tuple, a map or a union with no model to compose with, an
-opaque scalar, a node a degraded lowering minted, or models beside a type that keeps them from
-composing), since
-which of them the field keeps then follows declaration order. No declaration is dropped without a
+differently, two enums listing the values they share in different orders, two nodes giving one
+detail differently or examples only one gives, or two lists or maps whose members share only null
+or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
+and so are two types the judgment does not compare (a list and a tuple, a map or a union with no
+model to compose with, an opaque scalar, a node a degraded lowering minted, or models beside a type
+that keeps them from composing), since which of them the field keeps then follows declaration
+order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
@@ -1856,6 +1858,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
   `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
   `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
+  `merge.TestFold_EnumsListingSharedValuesApartKeepTheWinner`,
   `merge.TestFold_TwoEnumsCostTheirWidth`,
   `merge.TestFold_ANarrowerListAdoptsTheBroadersDetail`,
   `merge.TestFold_ANarrowerListAdoptsTheBroadersEncoding`,

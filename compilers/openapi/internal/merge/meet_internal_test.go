@@ -39,6 +39,12 @@ func meetRegistry() map[ir.TypeID]ir.TypeDef {
 	enum("t/c", 1, "c")
 	enum("t/ac", 1, "a", "c")
 	enum("t/bc2", 2, "b", "c")
+	enum("t/abc", 0, "a", "b", "c")
+	enum("t/bcd", 1, "b", "c", "d")
+	enum("t/cbd", 1, "c", "b", "d")
+	enum("t/ba", 1, "b", "a")
+	enum("t/abc-described", 0, "a", "b", "c")
+	reg["t/abc-described"].Common().Docs.Description = "d"
 	list := func(id ir.TypeID, n int, elem ir.TypeRef, c ir.TypeCommon) {
 		c.ID, c.Anonymous, c.Provenance = id, true, at(n)
 		reg[id] = &ir.List{TypeCommon: c, Elem: elem}
@@ -248,6 +254,36 @@ func TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept(t *testing.T) {
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+}
+
+// TestFold_EnumsListingSharedValuesApartKeepTheWinner pins two enums listing
+// the values they share in different orders, in either branch order: an enum of
+// both would take one declaration's order, so the two overlap, and the field
+// keeps the first, reports the other and mints nothing, whether each holds a
+// value the other lacks or one holds only the other's values beside less
+// detail. Two listing them in one order meet in an enum of those in that order.
+func TestFold_EnumsListingSharedValuesApartKeepTheWinner(t *testing.T) {
+	t.Parallel()
+	for _, pair := range [][2]ir.TypeID{{"t/abc", "t/cbd"}, {"t/abc-described", "t/ba"}} {
+		for _, order := range [][2]ir.TypeID{pair, {pair[1], pair[0]}} {
+			got, reg, recorded := foldOf(order[:]...)
+
+			assert.Equal(t, order[0], got.Type.Target, "%v", order)
+			assert.Len(t, reg, len(meetRegistry()), "nothing is minted: %v", order)
+			require.Len(t, recorded, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, recorded[0].Code, "%v", order)
+		}
+	}
+
+	for _, order := range [][]ir.TypeID{{"t/abc", "t/bcd"}, {"t/bcd", "t/abc"}} {
+		got, reg, recorded := foldOf(order...)
+
+		e, ok := reg[got.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%v", order)
+		require.Len(t, e.Members, 2, "%v", order)
+		assert.Equal(t, []ir.Value{str("b"), str("c")}, []ir.Value{e.Members[0].Value, e.Members[1].Value}, "%v", order)
+		assert.Empty(t, recorded, "%v", order)
+	}
 }
 
 // TestFold_EnumsSharingNoValueTogetherKeepTheWinner pins three enums each

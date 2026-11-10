@@ -12,10 +12,11 @@ import (
 // enums relates two enums alike but for their members and TypeCommon by the
 // values they hold: none shared is disjoint, and otherwise verdict judges the
 // members' values, the one whose values the other holds all of saying all the
-// other does, beside what else each says. Two holding one set of values, or
-// saying a shared value's member differently (sharedMembers), are left
-// unrelated, for classify to judge by their kind, as are two differing in
-// anything else.
+// other does, beside what else each says. Two listing the values they share in
+// different orders hold no enum of both, since its order would be one
+// declaration's (inOneOrder). Two holding one set of values, or saying a shared
+// value's member differently (sharedMembers), are left unrelated, for classify
+// to judge by their kind, as are two differing in anything else.
 func (j typeJudge) enums(a, b *ir.Enum) relation {
 	as, bs := *a, *b
 	as.TypeCommon, bs.TypeCommon, as.Members, bs.Members = ir.TypeCommon{}, ir.TypeCommon{}, nil, nil
@@ -34,7 +35,7 @@ func (j typeJudge) enums(a, b *ir.Enum) relation {
 		return relUnrelated
 	}
 	detail, adoptable := j.detailOf(extras{Common: a.TypeCommon}, extras{Common: b.TypeCommon})
-	return verdict(holding{a: aWithin, b: bWithin}, detail, adoptable)
+	return verdict(holding{a: aWithin, b: bWithin}, detail, adoptable && inOneOrder(a.Members, bi))
 }
 
 // sharedMembers counts the members of xs whose value ys holds, and reports
@@ -56,6 +57,23 @@ func sharedMembers(xs []ir.EnumMember, ys memberIndex) (within bool, shared int,
 		shared++
 	}
 	return within, shared, true
+}
+
+// inOneOrder reports whether ys lists the values it shares with xs in the order
+// xs lists them.
+func inOneOrder(xs []ir.EnumMember, ys memberIndex) bool {
+	last := -1
+	for _, x := range xs {
+		k, found := ys.find(x.Value)
+		if !found {
+			continue
+		}
+		if k < last {
+			return false
+		}
+		last = k
+	}
+	return true
 }
 
 // memberIndex finds an enum's first member holding a value (sameValue) without
