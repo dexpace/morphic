@@ -249,9 +249,9 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 
 // TestAllOf_BranchResidueRidesEveryDistributedVariant covers fillAllOf's second
 // caller: buildComposedVariant re-runs the same merge once per union variant, so
-// the residue has to land on every variant the composition rides on. The
-// diagnostic is announced once even so — the branch is one source construct
-// however many variants carry it.
+// the residue has to land on every variant the composition rides on, the whole
+// branch with what folds at the Union. The diagnostic is announced once even so —
+// the branch is one source construct however many variants carry it.
 func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Base: {type: object, properties: {id: {type: string}}}
@@ -263,6 +263,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
         - type: object
           properties: {c: {type: string}}
           description: BranchDoc
+          patternProperties: {'^x': {type: string}}
       oneOf:
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
@@ -280,6 +281,7 @@ func TestAllOf_BranchResidueRidesEveryDistributedVariant(t *testing.T) {
 		require.True(t, ok, "variant %d carries the branch residue; got %+v", i, variant.Unmodeled)
 		assert.Contains(t, string(entry.Value), `"description":"BranchDoc"`, "variant %d", i)
 	}
+	assert.Equal(t, "BranchDoc", u.Docs.Description)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"one branch, one diagnostic, however many variants carry it; got %+v", diags)
 }

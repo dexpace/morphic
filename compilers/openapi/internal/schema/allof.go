@@ -41,10 +41,6 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
 		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
-		if allOfDecides(c, s) {
-			v := voicingOf(c, s)
-			comp.speaks, comp.rebased = v.speaks, v.rebased
-		}
 		fields := newModelFields(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
@@ -167,8 +163,8 @@ type allOfComposition struct {
 	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong), and
 	// rebased each whose folding keywords write a relative $ref it reads against
-	// another base, so it does not. They are nil for a composition distributed
-	// across a union, whose variants each keep every branch.
+	// another base, so it does not. They are nil where the allOf is not what the
+	// position lowers (allOfDecides).
 	speaks  []bool
 	rebased []bool
 }
@@ -189,6 +185,19 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper, capped: st.capped})
 	}
 	return allOfComposition{pointer: pointer, branches: out}
+}
+
+// readAllOf is allOfBranches of the schema written at pointer, with what its
+// conjuncts jointly admit read and, where the allOf is what the position lowers,
+// which branches fold there (voicingOf), for a lowering that composes it.
+func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
+	comp := allOfBranches(s, pointer)
+	comp.disjoint = disjointConjuncts(c, s, comp)
+	if allOfDecides(c, s) {
+		v := voicingOf(c, s)
+		comp.speaks, comp.rebased = v.speaks, v.rebased
+	}
+	return comp
 }
 
 // allOfRefBranches yields the $ref branches of s's allOf after flattening,

@@ -693,11 +693,12 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // declared, named after the enclosing schema, not after whichever branch built
 // them first.
 //
-// The enclosing schema's value constraints are read as lowerAllOf reads them
-// (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction.
+// The enclosing schema's value constraints, its folding branches' among them,
+// are read as lowerAllOf reads them (GitHub #407). Each variant carries a copy,
+// since a bound on the schema constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
+	voices := positionVoices(c, ts, body.schema, body.comp.pointer, ir.TypeRef{})
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, voices, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	fields := newModelFields(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
