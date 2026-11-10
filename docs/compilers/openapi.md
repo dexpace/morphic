@@ -3698,7 +3698,8 @@ lowers as written.
 its pointer, and a `security` list — the document's to the Service's, an operation's to the
 Operation's — to an OR of ANDs: each requirement object one alternative, naming its schemes, each
 with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `security`
-inherits the document's, and one writing `security: []` is public; the two stay apart, absent
+inherits the document's, save a webhook or a callback, which inherits none
+([`webhooks`](#webhooks)), and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
 spellings apart in `Service.Auth`.
 

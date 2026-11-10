@@ -18,7 +18,7 @@ import (
 
 // Requirements lowers an OR-of-ANDs security list (docs/ir/auth.md) declared
 // under base: "" at the root, else an operation's own declaration, never its
-// mount. A nil list inherits the enclosing default, and an empty one stays []. A
+// mount. A nil list stays nil, apart from an empty one, which stays []. A
 // non-nil list yields one AuthRequirement per option, diagnosed at
 // base+/security/<index>; an empty option {} means "no auth is one acceptable
 // choice".
