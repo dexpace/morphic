@@ -169,6 +169,7 @@ member 0 0 Property.wireID
 member 0 0 Property.wireNameByFormat
 member 0 0 ProtocolDecl.name
 member 0 0 ProtocolDecl.options
+member 0 0 Provenance.writtenBy
 member 0 0 RPCBinding.fullMethod
 member 0 0 RPCBinding.idempotencyLevel
 member 0 0 RPCBinding.inputType

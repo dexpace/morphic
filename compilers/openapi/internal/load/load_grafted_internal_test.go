@@ -71,8 +71,8 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 					continue
 				}
 				found++
-				assert.Equal(t, ir.Provenance{Source: 1, Pointer: tc.pointer}, d.Provenance,
-					"the overlay put the node there, and the pointer says where")
+				assert.Equal(t, ir.Provenance{Source: 0, Pointer: tc.pointer, WrittenBy: 1}, d.Provenance,
+					"the overlay put the node there, and the pointer says where in the source")
 			}
 			assert.Equal(t, 1, found, "diagnostics: %+v", diags)
 		})
@@ -138,8 +138,8 @@ func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 			require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
 			for _, d := range diags {
 				if d.Code == diag.TaggedMapping {
-					assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1b/get/responses/404"}, d.Provenance,
-						"and the overlay owns the position it was grafted at")
+					assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, d.Provenance,
+						"and the overlay wrote the position it was grafted at")
 				}
 			}
 		})

@@ -168,7 +168,7 @@ actions:
 				assert.Equal(t, ir.SeverityWarning, d.Severity)
 				_, first, _ := strings.Cut(d.Message, " repeats the name at ")
 				first, _, _ = strings.Cut(first, ";")
-				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.Source})
+				got = append(got, report{at: string(d.Provenance.Pointer), first: first, source: d.Provenance.WrittenBy})
 			}
 			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
 
@@ -233,8 +233,8 @@ func TestCompile_OverlayAppliesBeforeLowering(t *testing.T) {
 // TestCompile_OverlayWorkAnAliasMountsStaysTheSources pins where attribution
 // falls back. It records what the overlay wrote at the anchor it wrote it
 // under, so a position an alias or a `<<` merge key mounts that content at is
-// one it never recorded, and names the source: under-attributed rather than
-// misattributed (provenance.Attribution.IndexAt).
+// one it never recorded, and names no writer: under-attributed rather than
+// misattributed (provenance.Attribution.WriterAt).
 func TestCompile_OverlayWorkAnAliasMountsStaysTheSources(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -258,8 +258,8 @@ actions:
 	require.NoError(t, err)
 	require.NotNil(t, doc, "compile refused: %+v", diags)
 
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/A/properties/added"},
-		propertyProvenance(t, doc, "A", "added"), "the anchor's own position is the overlay's")
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/A/properties/added", WrittenBy: 1},
+		propertyProvenance(t, doc, "A", "added"), "the overlay wrote the anchor's own position")
 	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/B/properties/added"},
 		propertyProvenance(t, doc, "B", "added"), "an alias mounts it where attribution never looked")
 	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/C/allOf/0/properties/added"},
@@ -267,10 +267,10 @@ actions:
 }
 
 // TestCompile_OverlayIsCreditedWithAFieldItRedeclares pins where an allOf fold
-// places what it reports: in the document that wrote the declaration it reports
-// at, as any finding at a pointer is placed. The fold runs once every lowering
-// has returned, apart from the walk, so it is told where its model's positions
-// are placed rather than asking the walk.
+// places what it reports: at the declaration it reports at, naming the overlay
+// that wrote it, as any finding at a pointer is placed. The fold runs once
+// every lowering has returned, apart from the walk, so it is told where its
+// model's positions are placed rather than asking the walk.
 func TestCompile_OverlayIsCreditedWithAFieldItRedeclares(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -300,7 +300,7 @@ actions:
 			got = append(got, d.Provenance)
 		}
 	}
-	assert.Equal(t, []ir.Provenance{{Source: 1, Pointer: "/components/schemas/X/allOf/1/properties/p"}}, got,
+	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/1/properties/p", WrittenBy: 1}}, got,
 		"the conflict is reported at the declaration the overlay wrote")
 }
 
@@ -323,7 +323,7 @@ func TestCompile_OverlayIsRecordedAsASource(t *testing.T) {
 	assert.NotEqual(t, doc.Sources[0].Hash, doc.Sources[1].Hash, "each hashes its own bytes")
 
 	introduced := propertyProvenance(t, doc, "Pet", "tag")
-	assert.Equal(t, 1, introduced.Source, "the overlay introduced this property")
+	assert.Equal(t, 1, introduced.WrittenBy, "the overlay introduced this property")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Pet/properties/tag"), introduced.Pointer)
 
 	declared := propertyProvenance(t, doc, "Pet", "name")
@@ -429,8 +429,8 @@ components:
 `
 
 // addBirthProperty overlays a property of another primitive kind, date, onto
-// Widget, at a position whose own Provenance.Source is the overlay's index (1)
-// rather than the spec's (0). No position the spec declares reaches that kind.
+// Widget, at a position whose own Provenance names the overlay (1) as its
+// WrittenBy. No position the spec declares reaches that kind.
 const addBirthProperty = `overlay: 1.0.0
 info: {title: Patch, version: "1"}
 actions:
@@ -482,7 +482,7 @@ func TestCompile_PrimitivesNameNoSource(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, doc, "compile refused: %+v", diags)
 			if tc.overlay != nil {
-				require.Equal(t, 1, propertyProvenance(t, doc, "Widget", "born").Source,
+				require.Equal(t, 1, propertyProvenance(t, doc, "Widget", "born").WrittenBy,
 					"the one position reaching date is the overlay's")
 			}
 
@@ -1016,7 +1016,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			entry := entryKeyed(t, entries, tc.key)
-			assert.Equal(t, tc.want, entry.Provenance.Source, tc.key)
+			assert.Equal(t, tc.want, entry.Provenance.WrittenBy, tc.key)
 		})
 	}
 
@@ -1028,7 +1028,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		require.Len(t, found, 2, "Pet's entry and Widget's")
 		sources := map[jsontext.Pointer]int{}
 		for _, entry := range found {
-			sources[entry.Provenance.Pointer] = entry.Provenance.Source
+			sources[entry.Provenance.Pointer] = entry.Provenance.WrittenBy
 		}
 		assert.Equal(t, map[jsontext.Pointer]int{
 			"/components/schemas/Pet":    1, // the overlay wrote if and then
@@ -1054,7 +1054,7 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			list := byCodeAndPointer[diagKey{tc.code, tc.pointer}]
 			require.Len(t, list, 1)
-			assert.Equal(t, tc.want, list[0].Provenance.Source)
+			assert.Equal(t, tc.want, list[0].Provenance.WrittenBy)
 		})
 	}
 
@@ -1080,10 +1080,10 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		// which document drew an entirely overlay-introduced path item.
 		unmounted := byCodeAndPointer[diagKey{diag.DegradedConstruct, "/paths/~1empty"}]
 		require.Len(t, unmounted, 1)
-		assert.Equal(t, 1, unmounted[0].Provenance.Source, "%s", unmounted[0].Message)
+		assert.Equal(t, 1, unmounted[0].Provenance.WrittenBy, "%s", unmounted[0].Message)
 		server, ok := doc.Servers["server/openapi/paths/~1empty/servers/0"]
 		require.True(t, ok, "the item's servers are registered (servers.go Declared)")
-		assert.Equal(t, 1, server.Provenance.Source, "and credited to the overlay that wrote them")
+		assert.Equal(t, 1, server.Provenance.WrittenBy, "and credited to the overlay that wrote them")
 	})
 }
 
@@ -1139,16 +1139,16 @@ actions:
 	}
 
 	entries := unmodeledEntriesByPath(doc)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Num/exclusiveMinimum"},
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/Num/exclusiveMinimum", WrittenBy: 1},
 		entryKeyed(t, entries, "openapi:exclusiveMinimum").Provenance,
 		"a component schema's kept modifier (declaration.go hoistDeclarationHome)")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum"},
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1n/get/parameters/0/schema/exclusiveMaximum", WrittenBy: 1},
 		entryKeyed(t, entries, "openapi:exclusiveMaximum").Provenance,
 		"a parameter schema's kept modifier (params.go fillParamSchema)")
 
 	unkept := diagnosticsByCodeAndPointer(diags)[diagKey{diag.UnpreservableConstruct, "/components/schemas/Str/oneOf"}]
 	require.Len(t, unkept, 1, "the oneOf that will not render is reported: %+v", diags)
-	assert.Equal(t, 1, unkept[0].Provenance.Source,
+	assert.Equal(t, 1, unkept[0].Provenance.WrittenBy,
 		"a branch set the overlay added is reported as the overlay's (union.go preserveBranchSets)")
 }
 
@@ -1204,7 +1204,7 @@ actions:
 		t.Run(tc.name, func(t *testing.T) {
 			unkept := byCodeAndPointer[diagKey{diag.UnpreservableConstruct, tc.pointer}]
 			require.Len(t, unkept, 1, "the if/then/else that will not render is reported: %+v", diags)
-			assert.Equal(t, tc.want, unkept[0].Provenance.Source)
+			assert.Equal(t, tc.want, unkept[0].Provenance.WrittenBy)
 		})
 	}
 }
@@ -1256,7 +1256,7 @@ func TestCompile_OverlayAddingAConflictingOperationIDIsAnError(t *testing.T) {
 	require.Len(t, found[diag.ConflictingOperationID], 1, "one second declaration of listPets: %+v", diags)
 	conflict := found[diag.ConflictingOperationID][0]
 	assert.Equal(t, ir.SeverityError, conflict.Severity)
-	assert.Equal(t, 1, conflict.Provenance.Source, "attributed to the overlay that wrote the second declaration")
+	assert.Equal(t, 1, conflict.Provenance.WrittenBy, "attributed to the overlay that wrote the second declaration")
 	assert.Equal(t, jsontext.Pointer("/paths/~1z/get"), conflict.Provenance.Pointer)
 	assert.Empty(t, found[diag.DuplicateOperationID], "nothing is mounted twice")
 }
@@ -1320,7 +1320,7 @@ func TestCompile_OverlayWritingAnIDTwiceIsAConflictNotARemount(t *testing.T) {
 			require.Len(t, found[diag.ConflictingOperationID], 1, "a second declaration: %+v", diags)
 			conflict := found[diag.ConflictingOperationID][0]
 			assert.Equal(t, ir.SeverityError, conflict.Severity)
-			assert.Equal(t, 1, conflict.Provenance.Source, "attributed to the overlay that wrote it")
+			assert.Equal(t, 1, conflict.Provenance.WrittenBy, "attributed to the overlay that wrote it")
 			assert.Equal(t, tc.at, conflict.Provenance.Pointer)
 			assert.Empty(t, found[diag.DuplicateOperationID], "and not a remount of one declaration")
 		})

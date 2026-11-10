@@ -83,9 +83,10 @@ func (o Origin) Applied() bool { return o.applied }
 // It is meaningful only when Applied reports true.
 func (o Origin) Source() ir.SourceInfo { return o.source }
 
-// Attribution returns the positions the overlay supplied, which place a
-// pointer or a node of the patched document in the overlay's own entry of
-// Document.Sources (provenance.Doc, provenance.Tree).
+// Attribution returns the positions the overlay supplied, which name the
+// overlay as the writer of a pointer or a node of the patched document, placed
+// in that document's own entry of Document.Sources (provenance.Doc,
+// provenance.Tree).
 func (o Origin) Attribution() provenance.Attribution { return o.attribution }
 
 // Apply applies opts to root in place and returns the attribution of what it

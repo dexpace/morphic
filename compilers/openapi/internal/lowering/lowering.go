@@ -573,7 +573,8 @@ func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
 
 // Place returns where c places a pointer of its document: in another document's
 // own Document.Sources entry, for one InDocument reads, and otherwise in the
-// source's, or the overlay's for a position the overlay introduced or rewrote.
+// source's, the overlay named as its writer for a position the overlay
+// introduced or rewrote.
 //
 // Every lowering places a pointer through it, entities and diagnostics alike
 // (GitHub #86), so no lowering spells a source index, and an overlay's

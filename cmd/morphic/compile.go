@@ -262,7 +262,7 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 	}
 
 	if opts.explain.set {
-		e := report.Explain(res.Document, res.Diagnostics, res.Sources, opts.explain.pointer)
+		e := report.Explain(res.Document, res.Diagnostics, opts.explain.pointer)
 		// The writers check ctx before the document's first byte, and this is
 		// the same check for the report: a stop that came while the
 		// diagnostics were being written, or since, leaves none of it written.

@@ -54,7 +54,7 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 
 	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
 	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
-	assert.Equal(t, 9, origin.Attribution().IndexAt("/info/description", 9), "no position is attributed to it, not even one it introduced")
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/info/description"), "no position is attributed to it, not even one it introduced")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayOriginIncomplete, diags[0].Code)

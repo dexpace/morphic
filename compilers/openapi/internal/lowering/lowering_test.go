@@ -479,8 +479,8 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 // TestPlace_NamesTheOverlayForThePositionsItIntroduced pins the one place
 // a source index is spelled into a Provenance. Asking the overlay here is what
 // makes an overlay's contribution traceable without touching a lowering, so a
-// Place that ignored it would attribute the overlay's work to the file on
-// disk at every site at once.
+// Place that ignored it would credit the overlay's work to the file on disk at
+// every site at once. The position is the source's either way.
 func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	t.Parallel()
 	origin := appliedOverlay(t, 1, "info: {title: T}\n",
@@ -489,11 +489,11 @@ func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 
 	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, lowering.Policy{})
 
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
-		c.Place().At("/info/description"), "the overlay introduced this position")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
+		c.Place().At("/info/description"), "the overlay wrote this position of the source")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
 		c.Place().At("/info/title"), "and left this one alone")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
 }

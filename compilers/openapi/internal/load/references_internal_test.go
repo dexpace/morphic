@@ -121,8 +121,8 @@ func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 			continue
 		}
 		found++
-		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Ghost"}, d.Provenance,
-			"the overlay introduced this $ref, so the overlay's own index names it, not the base document's")
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/Ghost", WrittenBy: 1}, d.Provenance,
+			"the overlay introduced this $ref, so it is named the writer of the base document's position")
 		assert.Contains(t, d.Message, `unresolved $ref "#/components/schemas/Missing"`)
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)

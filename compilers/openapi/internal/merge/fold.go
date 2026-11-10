@@ -449,9 +449,10 @@ func (f *folding) foldAnnotations() {
 	if i := slices.IndexFunc(f.decls, func(d declaration) bool { return d.prop.Deprecation != nil }); i > 0 {
 		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[i].prop.Provenance.Inferred)
 	}
+	// XMLHints.Wrapped is a pointer, which == would compare by address.
 	f.merged.XML = firstWritten(f, "xml", func(_ int, p *ir.Property) (*ir.XMLHints, bool) {
 		return p.XML, p.XML != nil
-	}, func(a, b *ir.XMLHints) bool { return *a == *b })
+	}, func(a, b *ir.XMLHints) bool { return reflect.DeepEqual(a, b) })
 }
 
 // firstWritten returns the first value of detail a declaration gives (of), or

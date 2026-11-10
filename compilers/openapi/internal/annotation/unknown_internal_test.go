@@ -174,13 +174,13 @@ func TestUnknownKeysIn_AttributesEachKeyAtItsOwnPointer(t *testing.T) {
 	require.Len(t, got, 2)
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/x/alpha"}, got["openapi:alpha"].Provenance,
 		"the untouched key stays with the base")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x/zeta"}, got["openapi:zeta"].Provenance,
+	assert.Equal(t, ir.Provenance{Pointer: "/x/zeta", WrittenBy: 1}, got["openapi:zeta"].Provenance,
 		"the overlaid key names the overlay")
 
 	require.Len(t, diags, 2)
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/x/alpha"}, diags[0].Provenance,
 		"sorted keys put alpha first")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/x/zeta"}, diags[1].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/x/zeta", WrittenBy: 1}, diags[1].Provenance)
 }
 
 // TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes exercises the bound. An

@@ -75,7 +75,7 @@ func TestPreserveSchemaKeyword_KeysAndLocatesTheEntryAtTheKeyword(t *testing.T) 
 	assert.Empty(t, diags)
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "format"): {
 		Reason: ir.ReasonNoIRHome, Value: ir.RawValue(`"password"`),
-		Provenance: ir.Provenance{Source: 1, Pointer: "/S/format"},
+		Provenance: ir.Provenance{Pointer: "/S/format", WrittenBy: 1},
 	}}, p)
 }
 
@@ -97,7 +97,7 @@ func TestPreserveSchemaKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testing.T) {
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/default"}, diags[0].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/S/default", WrittenBy: 1}, diags[0].Provenance)
 }
 
 // TestPreserveSchemaKeyword_TheCensusLeavesItsEntryAlone holds the function to
@@ -134,7 +134,7 @@ func TestPreserveValidationOnlyKeyword_SplitsTheEntryFromItsAnnouncement(t *test
 
 	assert.Equal(t, ir.Unmodeled{EntryKey("", "not"): {
 		Reason: ir.ReasonValidationOnly, Value: ir.RawValue(`{"const":"x"}`),
-		Provenance: ir.Provenance{Source: 1, Pointer: "/S/not"},
+		Provenance: ir.Provenance{Pointer: "/S/not", WrittenBy: 1},
 	}}, p)
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.ValidationOnlyKeyword, diags[0].Code)
@@ -155,7 +155,7 @@ func TestPreserveValidationOnlyKeyword_ReportsAnUnkeptKeywordAtItsNode(t *testin
 	assert.Nil(t, p, "an unconvertible keyword writes no entry")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnpreservableConstruct, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/dependentRequired"}, diags[0].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/S/dependentRequired", WrittenBy: 1}, diags[0].Provenance)
 }
 
 // TestUnpreservableDiag_IsAnErrorNotADegradation pins the severity split: a

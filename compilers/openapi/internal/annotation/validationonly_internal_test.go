@@ -234,7 +234,7 @@ func TestValidationOnlyAt_AttributesTheEntryAtItsKeyword(t *testing.T) {
 
 	entry, ok := got["openapi:not"]
 	require.True(t, ok)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, entry.Provenance,
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/S/not", WrittenBy: 1}, entry.Provenance,
 		"the kept entry names the overlay that rewrote the keyword")
 
 	require.Len(t, diags, 1)
@@ -255,7 +255,7 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 	assert.NotContains(t, got, "openapi:not", "a keyword that will not render is not kept")
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/not"}, diags[0].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/S/not", WrittenBy: 1}, diags[0].Provenance)
 }
 
 // TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords pins GitHub #534:
@@ -267,7 +267,7 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 // The overlay writes no schema, and each row a different share of the keywords
 // present: all, then each half. An entry names it only where it wrote every
 // keyword combined, so one asking about a keyword too few, or an absent one,
-// names the wrong document in some row.
+// names the wrong writer in some row.
 func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
@@ -289,9 +289,9 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 
 		for key, want := range map[string]ir.Provenance{
 			"openapi:not":          {Source: 0, Pointer: "/S/not"},
-			"openapi:if-then-else": {Source: tc.ifThen, Pointer: "/S"},
-			"openapi:contains":     {Source: tc.contains, Pointer: "/S"},
-			"openapi:unevaluated":  {Source: tc.unevaluated, Pointer: "/S"},
+			"openapi:if-then-else": {Pointer: "/S", WrittenBy: tc.ifThen},
+			"openapi:contains":     {Pointer: "/S", WrittenBy: tc.contains},
+			"openapi:unevaluated":  {Pointer: "/S", WrittenBy: tc.unevaluated},
 		} {
 			entry, ok := got[key]
 			require.True(t, ok, "%s: %s is kept", name, key)
@@ -329,7 +329,7 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 		require.Len(t, diags, 2, name)
 		for _, d := range diags {
 			assert.Equal(t, ir.SeverityError, d.Severity, "%s: %s", name, d.Message)
-			assert.Equal(t, ir.Provenance{Source: tc.want, Pointer: "/S"}, d.Provenance, "%s: %s", name, d.Message)
+			assert.Equal(t, ir.Provenance{Pointer: "/S", WrittenBy: tc.want}, d.Provenance, "%s: %s", name, d.Message)
 		}
 	}
 }

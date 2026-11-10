@@ -91,6 +91,8 @@ var generations = []generation{
 		meaning: "an allOf conjunct says what it says written beside the allOf: a branch's collection bound reaches Constraints, an enum or a const beside a refining allOf is one of its conjuncts, its union variant hinted as the $ref it narrows, and the value set a refinement lowers to is typed by every conjunct"},
 	{version: "0.36.0", format: 1, shape: "5bbe58925cbec6b949bd9eceb9ebf1722fb5a7dd313603383a53d3b4cf4aa9ac",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.37.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
