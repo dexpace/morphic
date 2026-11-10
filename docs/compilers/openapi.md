@@ -1639,10 +1639,10 @@ declaration naming the field, as a composed model does below. Where that fold le
 bounds as they stand, because only a keyword with no order differs, the field keeps the winner's
 node and nothing is minted.
 
-Two models neither of which holds the other are the exception, since an instance satisfying both is
-a value of a type neither names. Where the declarations whose types no other declaration holds are
-two or more models, each named directly or through an alias, the field's type is a `Model` the merge
-mints: anonymous, holding no property of its own, and composing each of those types once as a
+Two models neither of which holds the other are the exception, and so are a model and a map or a
+union, since an instance satisfying both is a value of a type neither names. Where the declarations
+whose types no other declaration holds are two or more models, maps or unions, each named directly
+or through an alias, and one of them a model, the field's type is a `Model` the merge mints: anonymous, holding no property of its own, and composing each of those types once as a
 written `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written
 as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
@@ -1653,8 +1653,9 @@ nothing but `type: object` beside one saying more, and a model another declarati
 models saying nothing, declared apart, are two types neither of which holds the other, so they
 compose, and an object saying anything else composes too, so what it says stays reachable. Two
 aliases of one model are two types, each able to say more than the model, so they compose, and so
-does an alias of a bare object beside another model. Any other type beside the models (a map, a
-kind, a degraded node) leaves the choice to the rule above. Every declaration then folds into the
+does an alias of a bare object beside another model. Any other type beside them (a kind, a list, a
+degraded node, an alias of `{}` saying something of its values), or maps and unions with no model
+among them, leaves the choice to the rule above. Every declaration then folds into the
 field, so none is dropped for its type, and each conjunct keeps the node its own pointer denotes.
 The minted model's ID is in the `composed` namespace ([identity](../ir/identity.md#the-id-grammar),
 [models](../ir/models.md#composition-beside-a-union)), so no `$ref` reaches it, and derives from the
@@ -1763,8 +1764,9 @@ two enums of one kind, each with members, a `const` against a kind with no judge
 that ends in a kind, but for the `time` node above, or against another `const`, or two lists or
 maps whose members share only null or share nothing while
 both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
-the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
-node a degraded lowering minted, or two models beside a type that keeps them from composing), since
+the judgment does not compare (a list and a tuple, a map or a union with no model to compose with, an
+opaque scalar, a node a degraded lowering minted, or models beside a type that keeps them from
+composing), since
 which of them the field keeps then follows declaration order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
@@ -1822,6 +1824,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_ModelPairsStopAtTheirBudget`,
   `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
   `schema.TestAllOf_ModelsAlikeAreOneType`,
+  `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -1924,8 +1927,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
   description or other detail of its own against a `const` it admits, a node adding a bound beside
   one adding other detail, and a list or map whose members meet, are reported as an overlap and
-  never narrowed (#1042); a model and a map or a union are reported as types the merge does not compare
-  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a
+  never narrowed (#1042); two lists, tuples or maps whose members are different models are reported
+  as types the merge does not compare (#1180); a
   model and the wrapper it flattens that fold different sets only because the model stops at the
   flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
   names both.

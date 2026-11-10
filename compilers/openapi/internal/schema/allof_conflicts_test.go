@@ -1192,22 +1192,18 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 }
 
 // TestAllOf_RelatedStructuresAreNotCalledAConflict pins the warning to pairs
-// that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, a
-// union may hold the very model it meets, and a `const` object may be a value of
-// a model, so each draws an info saying the merge does not compare them, in
-// either order.
+// that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, and
+// a `const` object may be a value of a model, so each draws an info saying the
+// merge does not compare them, in either order.
 func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
 	t.Parallel()
 	list := "{type: array, items: {type: string}}"
 	tuple := "{type: array, prefixItems: [{type: string}]}"
 	model := "{$ref: '#/components/schemas/A'}"
-	union := "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}"
 	object := "{const: {a: x}}"
 	for _, tc := range []struct{ name, a, b string }{
 		{"a list, then a tuple", list, tuple},
 		{"a tuple, then a list", tuple, list},
-		{"a model, then a union", model, union},
-		{"a union, then a model", union, model},
 		{"a model, then a const object", model, object},
 		{"a const object, then a model", object, model},
 	} {
@@ -1526,4 +1522,39 @@ func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
 	m := composedField(t, doc, "T", "owner")
 	require.NotNil(t, m.Base)
 	assert.Equal(t, componentID("Owner"), m.Base.Target, "a copy differing in a nested member composes")
+}
+
+// TestAllOf_AModelComposesWithAMapOrAUnion pins GitHub #1182 in both branch
+// orders: a field declared as a model and as a map, or as a model and as a
+// union, names one minted model composing both, as a written allOf of them
+// does, with nothing kept or reported. The component is the Base as the sole
+// $ref, and the inline map or union a Mixin.
+func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
+	t.Parallel()
+	const spec = `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	model := "{$ref: '#/components/schemas/A'}"
+	for _, other := range []string{
+		"{type: object, additionalProperties: {type: string}}",
+		"{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}",
+	} {
+		for i, order := range [][2]string{{model, other}, {other, model}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := order[0] + " then " + order[1]
+			assert.Empty(t, diags, name)
+			assert.Empty(t, propertyOf(t, doc, "T", "v").Unmodeled, name)
+			m := composedField(t, doc, "T", "v")
+			require.NotNil(t, m.Base, name)
+			assert.Equal(t, componentID("A"), m.Base.Target, name)
+			require.Len(t, m.Mixins, 1, name)
+			inline := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
+			assert.Equal(t, ir.TypeID(inline), m.Mixins[0].Target, name)
+		}
+	}
 }

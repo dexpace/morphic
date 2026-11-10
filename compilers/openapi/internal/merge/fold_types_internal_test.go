@@ -93,17 +93,17 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/A":   declaring("t/A"),
-		"t/map": &ir.MapT{ID: "t/map"},
-		"t/any": &ir.Any{ID: "t/any"},
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/opq": &ir.Scalar{ID: "t/opq"},
+		"t/list":  &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
+		"t/tuple": &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{{Target: "t/str"}}},
+		"t/any":   &ir.Any{ID: "t/any"},
+		"t/str":   &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/opq":   &ir.Scalar{ID: "t/opq"},
 	}
 	cases := []struct {
 		name                 string
 		dstTarget, srcTarget ir.TypeID
 	}{
-		{"a model and a map", "t/A", "t/map"},
+		{"a list and a tuple", "t/list", "t/tuple"},
 		{"an opaque scalar keeps the position", "t/opq", "t/str"},
 	}
 	for _, tc := range cases {
@@ -142,12 +142,12 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/A":   declaring("t/A"),
-		"t/map": &ir.MapT{ID: "t/map"},
+		"t/opq": &ir.Scalar{ID: "t/opq"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
 	src := ir.Property{
 		WireName:    "x",
-		Type:        ir.TypeRef{Target: "t/map"},
+		Type:        ir.TypeRef{Target: "t/opq"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
 		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
@@ -157,7 +157,7 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	dst = foldTwo(g, dst, src, written(`{"type":"object","default":{},"minProperties":1}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and a map are still not called a conflict")
+	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and an opaque scalar are not called a conflict")
 	assert.Nil(t, dst.Default, "the default describes the shape that was dropped")
 	assert.Nil(t, dst.Constraints, "so does minProperties")
 	assert.Empty(t, dst.Examples, "and so do the examples")

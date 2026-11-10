@@ -7,35 +7,38 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// conjunct is one model a field composes: the index of the declaration naming
-// it, and the model that declaration's type stands for.
+// conjunct is one type a field composes: the index of the declaration naming
+// it, and the node that declaration's type stands for.
 type conjunct struct {
-	decl  int
-	model *ir.Model
+	decl int
+	node ir.TypeDef
 }
 
-// composition returns the models the field composes
+// composition returns the types the field composes
 // (docs/compilers/openapi.md#allof-redeclared-property): those of the declarations
-// no other declaration's type holds, each type once, in declaration order. Two
-// models say nothing of what they share, but an instance satisfies both, so
-// the field's type is the composition of them all. It returns nothing where
-// fewer than two remain, since one type then holds every other, or where one
-// that remains is no model, such as an alias of `{}` holding examples, which
-// leaves the type to the winner.
+// no other declaration's type holds, each once, in declaration order. Two
+// models, or a model and a map or a union, say nothing of what they share, but
+// an instance satisfies both, so the field's type is a model composing them all.
+// It returns nothing where fewer than two remain, since one type then holds every
+// other, where none is a model, or where one is no model, map or union, such as
+// a kind, which leaves the type to the winner.
 func (f *folding) composition() []conjunct {
 	reg := registry{f.g.Resolve}
 	var conjuncts []conjunct
+	model := false
 	for i, d := range f.decls {
 		if f.heldByAnother(i) {
 			continue
 		}
-		m, ok := reg.model(d.prop.Type)
+		node, ok := reg.composable(d.prop.Type)
 		if !ok {
 			return nil
 		}
-		conjuncts = append(conjuncts, conjunct{decl: i, model: m})
+		_, isModel := node.(*ir.Model)
+		model = model || isModel
+		conjuncts = append(conjuncts, conjunct{decl: i, node: node})
 	}
-	if len(conjuncts) < 2 {
+	if len(conjuncts) < 2 || !model {
 		return nil
 	}
 	return conjuncts
@@ -59,11 +62,14 @@ func (f *folding) heldByAnother(i int) bool {
 func (f *folding) compose() ir.TypeID {
 	var refs []int
 	for k, c := range f.conjuncts {
-		if !hoistedAt(c.model, f.decls[c.decl].prop.Provenance) {
+		if !hoistedAt(c.node, f.decls[c.decl].prop.Provenance) {
 			refs = append(refs, k)
 		}
 	}
-	base, hasBase := SelectBase(refs, func(k int) bool { return f.conjuncts[k].model.Discriminator != nil })
+	base, hasBase := SelectBase(refs, func(k int) bool {
+		m, ok := f.conjuncts[k].node.(*ir.Model)
+		return ok && m.Discriminator != nil
+	})
 	composed := &ir.Model{}
 	for k, c := range f.conjuncts {
 		ref := ir.TypeRef{Target: f.decls[c.decl].prop.Type.Target}
@@ -92,13 +98,17 @@ func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
 	return 0, false
 }
 
-// model returns the Model ref names, directly or through aliases, and false
-// where it names anything else.
-func (r registry) model(ref ir.TypeRef) (*ir.Model, bool) {
+// composable returns the node ref names, directly or through aliases, where
+// it is a Model, a MapT or a Union, and false where it names anything else.
+func (r registry) composable(ref ir.TypeRef) (ir.TypeDef, bool) {
 	td, ok := r.Resolve(ref.Target)
 	if !ok {
 		return nil, false
 	}
-	m, ok := r.unaliased(td).(*ir.Model)
-	return m, ok
+	switch node := r.unaliased(td).(type) {
+	case *ir.Model, *ir.MapT, *ir.Union:
+		return node, true
+	default:
+		return nil, false
+	}
 }

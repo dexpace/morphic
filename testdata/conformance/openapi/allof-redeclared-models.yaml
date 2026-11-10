@@ -306,6 +306,50 @@ components:
               type: object
               properties:
                 name: {type: string}
+    # A map or a union beside a model composes with it, as a written allOf of
+    # the two does, in either order.
+    ModelThenMap:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {type: string}
+    MapThenModel:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              additionalProperties: {type: string}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    ModelThenUnion:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Meeting'}
+                - {$ref: '#/components/schemas/Recording'}
+    UnionThenModel:
+      allOf:
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Meeting'}
+                - {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
     AnyObject:
       type: object
     AtLeastTwoMembers:

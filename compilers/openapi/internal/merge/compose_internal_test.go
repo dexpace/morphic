@@ -45,6 +45,8 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/top":    &ir.Primitive{ID: "t/top", Prim: ir.PrimAny},
 		"t/any":    &ir.Any{ID: "t/any"},
 		"t/map":    &ir.MapT{ID: "t/map"},
+		"t/union":  &ir.Union{ID: "t/union", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/A"}}, {Type: ir.TypeRef{Target: "t/B"}}}},
+		"t/list":   &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
 		"t/topDoc": &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topDoc", Docs: ir.Docs{Description: "d"}}},
 		"t/topEx":  &ir.Scalar{Base: &ir.TypeRef{Target: "t/top"}, TypeCommon: ir.TypeCommon{ID: "t/topEx", Examples: []ir.Example{{}}}},
 	}
@@ -73,10 +75,11 @@ func declsOf(targets ...ir.TypeID) []declaration {
 	return out
 }
 
-// TestFold_RedeclaredModelsCompose pins what a field declared as several models
-// takes: a model the fold mints, composing each once as a written allOf of them
-// does. Nothing is lost, so nothing is kept and nothing reported, and a bare
-// `{}` beside the models adds no conjunct.
+// TestFold_RedeclaredModelsCompose pins what a field declared as several models,
+// or as a model beside a map or a union, takes: a model the fold mints,
+// composing each once as a written allOf of them does. Nothing is lost, so
+// nothing is kept and nothing reported, and a bare `{}` beside the models adds
+// no conjunct.
 func TestFold_RedeclaredModelsCompose(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -98,6 +101,10 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "a type what composes it holds adds no conjunct", targets: []ir.TypeID{"t/A", "t/B", "t/sub"}, mixins: []ir.TypeID{"t/B", "t/sub"}},
 		{name: "an alias composes as written", targets: []ir.TypeID{"t/alias", "t/in1"}, base: "t/alias", mixins: []ir.TypeID{"t/in1"}},
 		{name: "a node under its declaration is inline", targets: []ir.TypeID{"t/in0", "t/nested"}, mixins: []ir.TypeID{"t/in0", "t/nested"}},
+		{name: "a model and a map", targets: []ir.TypeID{"t/A", "t/map"}, mixins: []ir.TypeID{"t/A", "t/map"}},
+		{name: "a map and an inline model", targets: []ir.TypeID{"t/map", "t/in1"}, base: "t/map", mixins: []ir.TypeID{"t/in1"}},
+		{name: "a model and a union", targets: []ir.TypeID{"t/union", "t/A"}, mixins: []ir.TypeID{"t/union", "t/A"}},
+		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, mixins: []ir.TypeID{"t/A", "t/B", "t/map"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -133,8 +140,8 @@ func targetsOf(refs []ir.TypeRef) []ir.TypeID {
 }
 
 // TestFold_OnlyTwoOrMoreModelsCompose pins where the type stays the winner's:
-// one type holds every other, or a declaration that remains is no model, so the
-// fold keeps what it did and mints nothing.
+// one type holds every other, a declaration that remains is no model, map or
+// union, or none is a model, so the fold keeps what it did and mints nothing.
 func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -153,7 +160,8 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 		{name: "`{}` loses to one model", targets: []ir.TypeID{"t/top", "t/A"}, want: "t/A"},
 		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/any", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
-		{name: "a map beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/map"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "a list beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/list"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
+		{name: "a map and a union with no model", targets: []ir.TypeID{"t/map", "t/union"}, want: "t/map", dropped: []jsontext.Pointer{declaredAt(1)}},
 		{name: "an alias of `{}` holding examples beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/topEx"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

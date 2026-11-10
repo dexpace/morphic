@@ -239,6 +239,82 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/MapThenModel/allOf/0/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion/allOf/1/properties/data"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "meeting"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Meeting",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "recording"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Recording",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Owner/properties/address": {
       "kind": "model",
       "id": "t/anon/components/schemas/Owner/properties/address",
@@ -837,6 +913,46 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel/allOf/0/properties/data"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "meeting"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Meeting",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "recording"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Recording",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data": {
       "kind": "model",
       "id": "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data",
@@ -965,6 +1081,87 @@
         },
         {
           "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
           "nullable": false
         }
       ],
@@ -1270,6 +1467,33 @@
         },
         {
           "target": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -1997,6 +2221,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/MapThenModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/MapThenModel",
+      "name": {
+        "source": "MapThenModel",
+        "canonical": "map_then_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MapThenModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Meeting": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Meeting",
@@ -2064,6 +2335,100 @@
         "target": "t/openapi/components/schemas/Meeting",
         "nullable": false
       }
+    },
+    "t/openapi/components/schemas/ModelThenMap": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ModelThenMap",
+      "name": {
+        "source": "ModelThenMap",
+        "canonical": "model_then_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ModelThenMap/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ModelThenMap/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ModelThenUnion": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ModelThenUnion",
+      "name": {
+        "source": "ModelThenUnion",
+        "canonical": "model_then_union"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ModelThenUnion/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ModelThenUnion/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Owner": {
       "kind": "model",
@@ -2805,6 +3170,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/UnionThenModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UnionThenModel",
+      "name": {
+        "source": "UnionThenModel",
+        "canonical": "union_then_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UnionThenModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionThenModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/any": {
       "kind": "primitive",
       "id": "t/prim/any",
@@ -2870,7 +3282,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "8f1debcb19785bbaf8a8f06c8d4bb07bd46006aa12ede00d7192d2ac1fb918b2"
+      "hash": "bac44442fb9b2a779edc649e372c8f0d0f2948a6008dc728898659a25fcf2121"
     }
   ]
 }

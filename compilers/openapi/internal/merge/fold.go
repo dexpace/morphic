@@ -134,7 +134,7 @@ type folding struct {
 	// shape detail.
 	winner int
 	cone   []bool
-	// conjuncts lists the models the field composes, which puts every
+	// conjuncts lists the types the field composes, which puts every
 	// declaration in the cone, or nothing where the winner's type is the field's
 	// (composition).
 	conjuncts []conjunct
