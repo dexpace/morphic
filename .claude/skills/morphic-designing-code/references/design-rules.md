@@ -176,8 +176,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 ## A reused reader's fallback must suit its new caller's decision
 `fallback-suits-the-decision`
 
-- **Rule.** When a new caller reuses a reader, name the decision its fallback, the answer for what
-  it does not read, was chosen for, and the one the caller makes. Where the fallback is safe for the
+- **Rule.** When a new caller reuses a reader, name the decision its fallback (its answer for what
+  it does not read) was chosen for, and the one the caller makes. Where the fallback is safe for the
   first and unsafe for the second, the reader reports that it fell back, as `Budget.Exhausted`
   reports a cut, and the caller takes that as its own safe answer.
 - **Why.** `conjunctTypes` answers `anyInstance` for what it does not read, which keeps
