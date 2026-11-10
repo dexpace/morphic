@@ -57,24 +57,26 @@ type constraintKeyword struct {
 // both (commonStep), and a keyword with no order keeps one value and conflicts
 // with any other. UniqueItems is absent: a plain bool cannot tell false from
 // unset, and under intersection a true from either side always holds.
-func constraintKeywords() []constraintKeyword {
-	return []constraintKeyword{
-		numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
-		numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
-		numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
-		numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
-		numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
-		intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
-		intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
-		intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
-		intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
-		intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
-		intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
-		intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
-		intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
-		strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
-		strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
-	}
+func constraintKeywords() []constraintKeyword { return keywordTable }
+
+// keywordTable is constraintKeywords' list, built once: every judgment of two
+// nodes' bounds reads it, several times over.
+var keywordTable = []constraintKeyword{
+	numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
+	numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
+	numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
+	numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
+	numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
+	intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
+	intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
+	intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
+	intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
+	intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
+	intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
+	intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
+	intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
+	strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
+	strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
 }
 
 // numberKeyword is the arbitrary-precision keyword name, stored at slot, which

@@ -97,9 +97,13 @@ func (b *builder) build(all []member, nodes []ir.TypeDef, pointer jsontext.Point
 }
 
 // tuple is build for a tuple: each position, and what may follow the last,
-// built from all the tuples' (settle).
+// built from all the tuples' (settle), which meet only at one length and one
+// presence of what follows (typeJudge.tuples).
 func (b *builder) tuple(n *ir.Tuple, all []member, nodes []ir.TypeDef, pointer jsontext.Pointer, depth int) (ir.TypeDef, bool) {
-	if !sameKind[*ir.Tuple](nodes) {
+	if !sameKind[*ir.Tuple](nodes) || slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
+		t, _ := td.(*ir.Tuple)
+		return len(t.Elems) != len(n.Elems) || (t.Rest == nil) != (n.Rest == nil)
+	}) {
 		return nil, false
 	}
 	out := *n

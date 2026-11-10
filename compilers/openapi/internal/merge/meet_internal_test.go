@@ -293,3 +293,122 @@ func TestFold_AFailedMeetingReportsOnlyItsDrops(t *testing.T) {
 		assert.Equal(t, diag.DegradedConstruct, d.Code)
 	}
 }
+
+// TestFold_AnEnumWithinAnotherAdoptsItsDetail pins GitHub #1042's enum with the
+// broader side's detail in both orders: the field is an enum of the narrower's
+// values, minted holding the broader's description.
+func TestFold_AnEnumWithinAnotherAdoptsItsDetail(t *testing.T) {
+	t.Parallel()
+	for _, order := range [][]ir.TypeID{{"t/ab-described", "t/a"}, {"t/a", "t/ab-described"}} {
+		reg := meetRegistry()
+		ab := *reg["t/ab"].(*ir.Enum)
+		ab.ID, ab.Docs = "t/ab-described", ir.Docs{Description: "d"}
+		reg["t/ab-described"] = &ab
+		g, recorded := stubMerger(reg)
+
+		got := g.fold(declsOf(order...))
+
+		e, ok := reg[got.Type.Target].(*ir.Enum)
+		require.True(t, ok, "%v", order)
+		require.Len(t, e.Members, 1, "%v", order)
+		assert.Equal(t, str("a"), e.Members[0].Value, "%v", order)
+		assert.Equal(t, "d", e.Docs.Description, "%v", order)
+		assert.Empty(t, *recorded, "%v", order)
+	}
+}
+
+// TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps pins what a node keeps under
+// Unmodeled: adopted with the provenance it was kept at, in either order, and a
+// key two declarations meeting the first keep differently is the first's, the
+// other reported and kept.
+func TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps(t *testing.T) {
+	t.Parallel()
+	kept := func(v string) ir.Unmodeled {
+		return ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue(v), Provenance: ptrAt("/kept/" + jsontext.Pointer(v))}}
+	}
+	for _, order := range [][]ir.TypeID{{"t/ints-kept", "t/i32s"}, {"t/i32s", "t/ints-kept"}} {
+		reg := meetRegistry()
+		reg["t/ints-kept"] = &ir.List{ID: "t/ints-kept", Anonymous: true,
+			Provenance: ptrAt(declaredAt(0)), Unmodeled: kept("1"), Elem: primRef(ir.PrimInteger)}
+		g, recorded := stubMerger(reg)
+
+		got := g.fold(declsOf(order...))
+
+		l, ok := reg[got.Type.Target].(*ir.List)
+		require.True(t, ok, "%v", order)
+		assert.Equal(t, kept("1"), l.Unmodeled, "%v", order)
+		assert.Empty(t, *recorded, "%v", order)
+	}
+
+	reg := meetRegistry()
+	reg["t/ints-min"] = &ir.List{ID: "t/ints-min", Anonymous: true, Provenance: ptrAt(declaredAt(0)),
+		Elem: primRef(ir.PrimInteger), Constraints: &ir.Constraints{MinItems: new(int64(1))}}
+	for n, v := range []string{"1", "2"} {
+		id := ir.TypeID("t/i32s-kept-" + v)
+		reg[id] = &ir.List{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n + 1)),
+			Unmodeled: kept(v), Elem: primRef(ir.PrimInt32)}
+	}
+	g, recorded := stubMerger(reg)
+
+	got := g.fold(declsOf("t/ints-min", "t/i32s-kept-1", "t/i32s-kept-2"))
+
+	l, ok := reg[got.Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, kept("1"), l.Unmodeled)
+	require.Len(t, *recorded, 1)
+	assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
+}
+
+// TestFold_TuplesBuildWhatFollowsTheirPositions pins a tuple's rest: two tuples
+// of different models with rests of different models stand on one tuple whose
+// position and rest each compose both, the rest minted at its own position.
+func TestFold_TuplesBuildWhatFollowsTheirPositions(t *testing.T) {
+	t.Parallel()
+	reg := meetRegistry()
+	for n, m := range []ir.TypeID{"t/A", "t/B"} {
+		id := ir.TypeID("t/" + string(m[2:]) + "-rest-tuple")
+		reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(declaredAt(n)),
+			Elems: []ir.TypeRef{ref(m)}, Rest: new(ref(m))}
+	}
+	g, recorded := stubMerger(reg)
+
+	got := g.fold(declsOf("t/A-rest-tuple", "t/B-rest-tuple"))
+
+	tu, ok := reg[got.Type.Target].(*ir.Tuple)
+	require.True(t, ok)
+	require.NotNil(t, tu.Rest)
+	assert.Equal(t, composedAt(declaredAt(1)+"/items"), tu.Rest.Target)
+	assert.Equal(t, composedAt(declaredAt(1)+"/prefixItems/0"), tu.Elems[0].Target)
+	assert.Empty(t, *recorded)
+}
+
+// TestBuilder_RefusesWhatNoNodeHolds pins the build's own guards, which the
+// judgment keeps every fold from reaching: a partner the registry does not
+// hold, nodes of a kind no node is built of, tuples of different shapes, and an
+// enum beside a node of another kind each fail the build, and a literal meets
+// only a Scalar holding more than its format.
+func TestBuilder_RefusesWhatNoNodeHolds(t *testing.T) {
+	t.Parallel()
+	reg := meetRegistry()
+	reg["t/A-pair-tuple"] = &ir.Tuple{ID: "t/A-pair-tuple", Anonymous: true, Provenance: ptrAt(declaredAt(1)),
+		Elems: []ir.TypeRef{ref("t/A"), ref("t/A")}}
+	g, _ := stubMerger(reg)
+	f := newFolding(g, declsOf("t/A", "t/B"), declaredAt(1))
+	m := func(id ir.TypeID, decl int) member { return member{ref: ref(id), decl: decl} }
+	for _, tc := range []struct {
+		name          string
+		base, partner member
+	}{
+		{"a partner the registry does not hold", m("t/A", 0), m("t/absent", 1)},
+		{"two models", m("t/A", 0), m("t/B", 1)},
+		{"tuples of different lengths", m("t/A-tuple", 0), m("t/A-pair-tuple", 1)},
+		{"an enum beside a list", m("t/ab", 0), m("t/i32s", 1)},
+	} {
+		b := builder{f: f, dry: true}
+		b.meetNode(tc.base, []member{tc.partner}, declaredAt(1), 0)
+		assert.True(t, b.failed, tc.name)
+	}
+
+	j := judge(g)
+	assert.Equal(t, relOverlap, j.literalBesideDetail(&ir.Literal{Value: str("a")}, reg["t/ab"]))
+}

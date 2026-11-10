@@ -1645,9 +1645,13 @@ every order, while `int32` and `uint32` alone keep the first declared and report
 Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
 takes a node the merge mints: all the winner's node holds, with what each declaration meeting it
 adds. Its bounds fold as a property's do, below; each detail the winner leaves empty is taken as a
-reference to that node would read it; an enum's values are cut to those every one holds; and each
-member is built from theirs a level down, composed or meeting theirs in turn, at a position of its
-own beneath the field's (`/items`, `/additionalProperties`, `/prefixItems/<n>`). A `const` meeting a
+reference to that node would read it; an enum's values are cut to those every one holds, in the
+order the winner lists them; and each member is built from theirs a level down, composed or meeting
+theirs in turn, at a position of its own beneath the field's (`/items`, `/additionalProperties`,
+`/prefixItems/<n>`). That position is named beneath the declaration naming the field whether the
+declaration writes the container or a `$ref` there reaches it, so it may be one the source does not
+write; the member's own position would give one ID to two fields building different members of
+it. A `const` meeting a
 `Scalar` is the node, holding what the `Scalar` says beside its values. So `minItems: 1` beside
 `maxItems: 5` is one list holding both, a described list of `integer` beside a list of `int32` one
 list of `int32` holding the description, `[a, b]` beside `[b, c]` the enum `[b]`, and lists of two
@@ -1859,6 +1863,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept`,
   `schema.TestAllOf_EnumsAndListsNarrowToWhatTheyShare`,
   `schema.TestAllOf_ContainersOfDifferentModelsComposeTheirMembers`,
+  `schema.TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem`,
+  `merge.TestFold_AnEnumWithinAnotherAdoptsItsDetail`,
+  `merge.TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps`,
+  `merge.TestFold_TuplesBuildWhatFollowsTheirPositions`,
+  `merge.TestBuilder_RefusesWhatNoNodeHolds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,

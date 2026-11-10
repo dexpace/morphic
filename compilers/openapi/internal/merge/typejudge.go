@@ -287,7 +287,8 @@ func saysOnlyObject(td ir.TypeDef) bool {
 // and any other pair overlaps. A literal against a type ending in a kind is
 // judged by againstKind, and against a literal of its value overlaps. A value
 // type against a structure, or two structures of different instance types
-// (saysItsValues), are judged by what each structure's source states (anyKind).
+// (saysItsValues), are judged by what each structure's source states
+// (againstOtherInstance).
 // Anything else is unrelated: nothing says what they share.
 func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ak, aok := j.kindOf(a)
@@ -302,9 +303,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		}
 		return relOverlap
 	case aok && isStructural(bu):
-		return j.anyKind(bt, depth).flipped()
+		return j.againstOtherInstance(bt, depth).flipped()
 	case bok && isStructural(au):
-		return j.anyKind(at, depth)
+		return j.againstOtherInstance(at, depth)
 	case aok:
 		return j.againstKind(bu, a, at, ak).flipped()
 	case bok:
@@ -312,46 +313,36 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
-		return acrossKinds(j.anyKind(at, depth), j.anyKind(bt, depth))
+		return acrossInstances(j.againstOtherInstance(at, depth), j.againstOtherInstance(bt, depth))
 	default:
 		return relUnrelated
 	}
 }
 
-// anyKind is the verdict on td, a structure through any aliases, against a type
-// of another instance type, from td's side. Where td's source and each alias's
-// state no instance type (Merger.Untyped), td admits every value of another, so
-// the other type is narrower: `properties` alone constrains objects and admits a
-// string. A node saying more than that, such as a title, overlaps instead, as
-// topAt reads an alias of `{}`, since a type replacing it would lose it. Any
-// other structure is disjoint from the other type.
-func (j typeJudge) anyKind(td ir.TypeDef, depth int) relation {
-	if j.untyped == nil || !isStructural(j.unaliased(td)) {
+// againstOtherInstance is the verdict on td, a structure through any aliases,
+// against a type of another instance type, from td's side. Where td's source
+// and each alias's state no instance type (Merger.Untyped), td admits every
+// value of another, so the other type is narrower: `properties` alone
+// constrains objects and admits a string. A node saying more than that, such as
+// examples, overlaps instead, as topAt reads an alias of `{}`, since a type
+// replacing it would lose it. Any other structure is disjoint from the other
+// type.
+func (j typeJudge) againstOtherInstance(td ir.TypeDef, depth int) relation {
+	chain, end := j.aliasChain(td)
+	if j.untyped == nil || !isStructural(end) || !j.untyped(end.Common().Provenance) {
 		return relDisjoint
 	}
-	carried, saysNothing := depth == 0, true
-	for range maxTypeResolveDepth {
-		if !j.untyped(td.Common().Provenance) {
+	saysNothing := structureSaysNothing(end, depth == 0 && len(chain) == 0)
+	for k, s := range chain {
+		if !j.untyped(s.Provenance) {
 			return relDisjoint
 		}
-		s, alias := td.(*ir.Scalar)
-		if !alias {
-			if !saysNothing || !structureSaysNothing(td, carried) {
-				return relOverlap
-			}
-			return relBNarrower
-		}
-		if s.Base == nil {
-			return relDisjoint
-		}
-		next, ok := j.Resolve(s.Base.Target)
-		if !ok {
-			return relDisjoint
-		}
-		saysNothing = saysNothing && aliasSaysNothing(s, carried)
-		td, carried = next, false
+		saysNothing = saysNothing && aliasSaysNothing(s, depth == 0 && k == 0)
 	}
-	return relDisjoint
+	if !saysNothing {
+		return relOverlap
+	}
+	return relBNarrower
 }
 
 // structureSaysNothing reports whether td holds nothing in its TypeCommon but
@@ -366,11 +357,12 @@ func structureSaysNothing(td ir.TypeDef, carried bool) bool {
 	return reflect.DeepEqual(c, ir.TypeCommon{})
 }
 
-// acrossKinds joins the verdicts anyKind gives two structures of different
-// instance types, a's against b and b's against a, each from its own side.
+// acrossInstances joins the verdicts againstOtherInstance gives two structures
+// of different instance types, a's against b and b's against a, each from its
+// own side.
 // Where both admit every value of the other's type they share every value of a
 // third, so they overlap.
-func acrossKinds(a, b relation) relation {
+func acrossInstances(a, b relation) relation {
 	switch {
 	case a == relDisjoint && b == relDisjoint:
 		return relDisjoint
@@ -389,27 +381,36 @@ func acrossKinds(a, b relation) relation {
 func saysItsValues(td ir.TypeDef) bool { return isLiteral(td) || isStructural(td) }
 
 // unaliased returns the type td stands for: td itself, or what a chain of alias
-// scalars ends in (docs/ir/scalars.md#aliases). The chain is bounded against a
-// malformed registry, as kindOf's is.
+// scalars ends in (aliasChain).
 func (r registry) unaliased(td ir.TypeDef) ir.TypeDef {
+	_, end := r.aliasChain(td)
+	return end
+}
+
+// aliasChain returns the alias scalars a chain from td leads through, in order,
+// and the type it ends in: td itself where td is no alias
+// (docs/ir/scalars.md#aliases). The chain is bounded against a malformed
+// registry, as kindOf's is.
+func (r registry) aliasChain(td ir.TypeDef) ([]*ir.Scalar, ir.TypeDef) {
+	var chain []*ir.Scalar
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
 		if !alias || s.Base == nil {
-			return td
+			return chain, td
 		}
 		next, ok := r.Resolve(s.Base.Target)
 		if !ok {
-			return td
+			return chain, td
 		}
-		td = next
+		chain, td = append(chain, s), next
 	}
-	return td
+	return chain, td
 }
 
-// againstKind judges td, which ends in no primitive kind, against kindRef, a
-// type that ends in k and resolves to kindNode, from td's side. A structure is
-// disjoint from it, and anything else but a literal, a union or an opaque
-// scalar, is unrelated to it. A literal overlaps it, since which values meet is
+// againstKind judges td, which ends in no primitive kind and is no structure
+// (classify judges those), against kindRef, a type that ends in k and resolves
+// to kindNode, from td's side. Anything but a literal, such as a union, is
+// unrelated to it. A literal overlaps it, since which values meet is
 // not decided here, unless a held format narrows k. Then the literal is
 // disjoint where kindRef refuses its value, as against a kind with a judge,
 // narrower where kindRef admits it and says nothing more (saysOnlyFormat), and
@@ -418,7 +419,7 @@ func (j typeJudge) againstKind(td ir.TypeDef, kindRef ir.TypeRef, kindNode ir.Ty
 	lit, ok := td.(*ir.Literal)
 	switch {
 	case !ok:
-		return disjointIf(isStructural(td))
+		return relUnrelated
 	case k.format == "":
 		return relOverlap
 	case !j.admits(kindRef, lit.Value):
@@ -446,15 +447,6 @@ func scalarSaysOnlyFormat(s *ir.Scalar) bool {
 	bare := *s
 	bare.TypeCommon, bare.Base, bare.Encoding, bare.Constraints = siteless(s.TypeCommon), nil, nil, nil
 	return held && reflect.DeepEqual(bare, ir.Scalar{})
-}
-
-// disjointIf maps a pair that cannot share a value but null to relDisjoint,
-// and any other to relUnrelated.
-func disjointIf(disjoint bool) relation {
-	if disjoint {
-		return relDisjoint
-	}
-	return relUnrelated
 }
 
 // isLiteral reports whether td is a Literal.
@@ -860,14 +852,14 @@ func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
 	}
 	values := boundsHolding(a.Constraints, b.Constraints)
 	for i := range a.Elems {
-		h, ok := j.memberHolding(a.Elems[i], b.Elems[i], depth)
+		h, ok := j.memberHolding(a.Elems[i], b.Elems[i], j.relateAt(a.Elems[i], b.Elems[i], depth+1))
 		if !ok {
 			return relUnrelated
 		}
 		values = values.and(h)
 	}
 	if a.Rest != nil {
-		h, ok := j.memberHolding(*a.Rest, *b.Rest, depth)
+		h, ok := j.memberHolding(*a.Rest, *b.Rest, j.relateAt(*a.Rest, *b.Rest, depth+1))
 		if !ok {
 			return relUnrelated
 		}
@@ -877,22 +869,22 @@ func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
 	return verdict(values, detail, adoptable)
 }
 
-// memberHolding is the holding of two members of containers at depth, null
-// included, and false where neither holds the other and the fold builds no
-// member of the two: two members that meet are built into one, and two that
-// compose, as two models or a model beside a map or a union do (composable), are
-// composed.
-func (j typeJudge) memberHolding(x, y ir.TypeRef, depth int) (holding, bool) {
-	h, ok := holdingOf(j.relateAt(x, y, depth+1))
-	if !ok && j.compose(x, y) {
+// memberHolding is the holding of x and y, two members of containers judged
+// rel against each other, null included, and false where neither holds the
+// other and the fold builds no member of the two: two members that meet are
+// built into one, and two that compose, as two models or a model beside a map
+// or a union do (composedBeside), are composed.
+func (j typeJudge) memberHolding(x, y ir.TypeRef, rel relation) (holding, bool) {
+	h, ok := holdingOf(rel)
+	if !ok && j.composedBeside(x, y) {
 		h, ok = holding{}, true
 	}
 	return h.and(nullHolding(x, y)), ok
 }
 
-// compose reports whether the fold composes x and y beside each other: each a
-// model, a map or a union, and one of them a model (folding.composition).
-func (j typeJudge) compose(x, y ir.TypeRef) bool {
+// composedBeside reports whether the fold composes x and y beside each other:
+// each a model, a map or a union, and one of them a model (position.composition).
+func (j typeJudge) composedBeside(x, y ir.TypeRef) bool {
 	xn, xok := j.composable(x)
 	yn, yok := j.composable(y)
 	_, xModel := xn.(*ir.Model)
@@ -912,7 +904,7 @@ func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relati
 		// value of both, so disjoint members overlap.
 		return relOverlap
 	}
-	member, ok := j.memberHolding(ae, be, depth)
+	member, ok := j.memberHolding(ae, be, rel)
 	if !ok {
 		return rel
 	}

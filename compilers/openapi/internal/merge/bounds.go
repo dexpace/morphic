@@ -4,6 +4,7 @@
 package merge
 
 import (
+	"reflect"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
@@ -11,9 +12,13 @@ import (
 
 // boundsRelation judges two nodes alike in all but the bounds a and b. The node
 // whose bounds say all the other's do is narrower, and two that say one thing
-// are the same. Otherwise neither holds the other, and the two meet, which is
-// the verdict too on a keyword no one value states.
+// are the same, as two written alike do without a keyword read. Otherwise
+// neither holds the other, and the two meet, which is the verdict too on a
+// keyword no one value states.
 func boundsRelation(a, b *ir.Constraints) relation {
+	if reflect.DeepEqual(a, b) {
+		return relSame
+	}
 	if _, _, conflict := constraintsConflict(a, b); conflict {
 		return relMeet
 	}

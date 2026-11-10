@@ -113,6 +113,9 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-i32"] = &ir.List{ID: "t/list-i32", Elem: i32}
 	reg["t/list-i32-null"] = &ir.List{ID: "t/list-i32-null", Elem: nullable(i32)}
 	reg["t/list-u32"] = &ir.List{ID: "t/list-u32", Elem: primRef(ir.PrimUint32)}
+	reg["t/lit-a-doc"] = &ir.Literal{ID: "t/lit-a-doc", Docs: ir.Docs{Description: "d"}, Value: str("a")}
+	reg["t/list-i32-kept-other"] = &ir.List{ID: "t/list-i32-kept-other", Elem: i32,
+		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("2")}}}
 	reg["t/list-int-kept"] = &ir.List{ID: "t/list-int-kept",
 		Unmodeled: ir.Unmodeled{"openapi:x-a": {Value: ir.RawValue("1")}}, Elem: integer}
 	reg["t/list-i32-h-described"] = &ir.List{ID: "t/list-i32-h-described", Anonymous: true,
@@ -165,6 +168,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/tuple-null"] = tuple("t/tuple-null", nil, nil, nullable(i32))
 	reg["t/tuple-rest"] = tuple("t/tuple-rest", nil, &i32, i32)
 	reg["t/tuple-rest-int"] = tuple("t/tuple-rest-int", nil, &integer, i32)
+	str := primRef(ir.PrimString)
+	reg["t/tuple-rest-str"] = tuple("t/tuple-rest-str", nil, &str, i32)
 	reg["t/list-i32-min"] = &ir.List{ID: "t/list-i32-min", Elem: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-int-min"] = &ir.List{ID: "t/list-int-min", Elem: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-i32-twin"] = &ir.List{ID: "t/list-i32-twin", Elem: i32}
@@ -339,6 +344,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"two tuples, one position admitting null", "t/tuple", "t/tuple-null", relANarrower},
 		{"a tuple with a rest against one with none", "t/tuple", "t/tuple-rest", relUnrelated},
 		{"two tuples, one rest narrower", "t/tuple-rest", "t/tuple-rest-int", relANarrower},
+		{"two tuples whose rests share no value", "t/tuple-rest", "t/tuple-rest-str", relUnrelated},
+		{"two literals of one value, one described", "t/lit-a", "t/lit-a-doc", relOverlap},
+		{"a narrower element keeping a key the broader keeps otherwise", "t/list-i32-kept-other", "t/list-int-kept", relOverlap},
 		{"a tuple against a list", "t/tuple", "t/list-i32", relUnrelated},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
@@ -362,6 +370,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	nullTwin := ref("t/lit-a-h2")
 	nullTwin.Nullable = true
 	assert.Equal(t, relBNarrower, j.relate(nullTwin, ref("t/lit-a-h1")), "identical hoisted nodes order by null")
+	assert.Equal(t, relANarrower, j.relate(ref("t/lit-a-h1"), nullTwin), "in either order")
 
 	nullInt := primRef(ir.PrimInteger)
 	nullInt.Nullable = true

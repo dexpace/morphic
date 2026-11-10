@@ -69,6 +69,17 @@ func alikeRegistry() map[ir.TypeID]ir.TypeDef {
 		m.Properties[0].Unmodeled = ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"#n"}`)}}
 		reg[id] = &m
 	}
+	for n, id := range []ir.TypeID{"t/copy0-open", "t/copy1-open", "t/copy1-open-other"} {
+		m := *reg[ir.TypeID(fmt.Sprintf("t/copy%d", min(n, 1)))].(*ir.Model)
+		value := ref(ir.TypeID(fmt.Sprintf("t/copy%d/addr", min(n, 1))))
+		if n == 2 {
+			value = primRef(ir.PrimInteger)
+		}
+		m.AdditionalProps = &ir.AdditionalProps{Value: &value, Key: new(primRef(ir.PrimString)),
+			Patterns: []ir.PatternProps{{Pattern: "^x", Value: primRef(ir.PrimString)}}}
+		m.Implements, m.Base = []ir.TypeRef{ref("t/Addr")}, new(ref("t/Addr"))
+		reg[id] = &m
+	}
 	stray := *reg["t/copy1"].(*ir.Model)
 	stray.Discriminator = &ir.Discriminator{Property: "p/elsewhere"}
 	reg["t/copy1-stray-tag"] = &stray
@@ -103,6 +114,8 @@ func TestTypeJudge_ModelsAlikeAreCopies(t *testing.T) {
 		{"a copy whose member is disjoint", "t/copy0", "t/copy1-int", relUnrelated},
 		{"two copies tagged by the same property", "t/copy0-tagged", "t/copy1-tagged", relSame},
 		{"a tag naming no property of its model", "t/copy0", "t/copy1-stray-tag", relUnrelated},
+		{"two copies with one catch-all and composition", "t/copy0-open", "t/copy1-open", relSame},
+		{"two copies whose catch-alls differ", "t/copy0-open", "t/copy1-open-other", relUnrelated},
 	} {
 		for i, order := range [][2]ir.TypeID{{tc.a, tc.b}, {tc.b, tc.a}} {
 			j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{

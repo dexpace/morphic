@@ -753,3 +753,24 @@ func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
 		})
 	}
 }
+
+// TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem pins the enum minted for
+// two sharing only some values: it holds those, each member identified beneath
+// it in the composed namespace, where irverify holds a member's ID.
+func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
+	t.Parallel()
+	p, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
+
+	assert.Empty(t, diags)
+	require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, e.Members, 1)
+	assert.Equal(t, "b", e.Members[0].Value.Str)
+	assert.Equal(t, ir.EnumMemberID("e/composed/components/schemas/T/allOf/1/properties/v/s:b"), e.Members[0].ID)
+	assert.Empty(t, validated(t, doc), "the minted enum's members live where irverify holds them")
+	declared, ok := doc.Types["t/anon/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/T/allOf/0/properties/v/s:b"), declared.Members[1].ID,
+		"the declared enum's members are as they were")
+}

@@ -126,16 +126,16 @@ func (s settledMerge) alike(a, b ir.Provenance) bool {
 
 // untyped is merge.Merger.Untyped: the schema written at p states no instance
 // type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
-// conjunct (conjunctTypes). A site place does not place, and a read that runs
-// out of its budget, state one, which keeps the verdict a structure had before
-// its source was read.
+// conjunct (conjunctTypes). A site place does not place, one holding no schema
+// object, and a read that runs out of its budget, state one, which keeps the
+// verdict a structure had before its source was read.
 func (s settledMerge) untyped(p ir.Provenance) bool {
 	at, placed := s.place(p)
 	if !placed {
 		return false
 	}
 	js := s.c.Bindings().At(at)
-	if js == nil {
+	if js == nil || js.GetSchema() == nil {
 		return false
 	}
 	r := conjunctTypes{refs: s.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
