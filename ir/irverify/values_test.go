@@ -68,9 +68,6 @@ func enumMemberCarrierDoc(v ir.Value) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
 }
 
-// otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
-// under one service and one group and reached through Document.Services rather
-// than Document.Types, where a walk scoped to Types would never reach it.
 // streamConditionCarrierDoc carries v as the value a request body member holds
 // to ask for an operation's stream.
 func streamConditionCarrierDoc(v ir.Value) *ir.Document {
@@ -83,6 +80,9 @@ func streamConditionCarrierDoc(v ir.Value) *ir.Document {
 	return doc
 }
 
+// otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
+// under one service and one group and reached through Document.Services rather
+// than Document.Types, where a walk scoped to Types would never reach it.
 func otpCarrierDoc(v ir.Value) *ir.Document {
 	const ch ir.ChannelID = "c/x/Proc"
 	op := ir.Operation{

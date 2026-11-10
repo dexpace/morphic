@@ -91,8 +91,9 @@ type Operation struct {
 // arguments (Property.Args) reuse this shape.
 type Parameter struct {
 	// ID identifies the parameter within the document. The bindings, the
-	// pagination inputs and the idempotency token name a parameter by it, not by
-	// its name, which two locations of one operation may share.
+	// pagination inputs, the inputs selecting a stream and the idempotency token
+	// name a parameter by it, not by its name, which two locations of one
+	// operation may share.
 	ID ParamID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
@@ -383,8 +384,9 @@ type StreamDetail struct {
 	// nil = the stream ends with its connection.
 	Terminator *string `json:"terminator,omitzero"`
 	// Condition is the request input whose value asks for this stream, where an
-	// operation streams only when asked and otherwise returns its non-streaming
-	// contents (a body's `stream: true`); nil = it always streams.
+	// operation streams only when asked and otherwise sends or returns this
+	// side's non-streaming contents (a body's `stream: true`); nil = it always
+	// streams.
 	Condition *StreamCondition `json:"condition,omitzero"`
 }
 
@@ -509,8 +511,8 @@ type Pagination struct {
 	TotalCount *PropPath `json:"totalCount,omitzero"`
 	// TotalPages is the page-count source in the response, counting pages.
 	TotalPages *PropPath `json:"totalPages,omitzero"`
-	// Stop lists when iteration ends, any one ending it; empty = the source
-	// states no rule, which a consumer does not guess.
+	// Stop lists when iteration ends, each once, any one ending it; empty = the
+	// source states no rule, which a consumer does not guess.
 	Stop []PageStop `json:"stop,omitempty"`
 }
 
@@ -532,6 +534,19 @@ const (
 	// read reach TotalPages.
 	PageStopTotal PageStop = "total"
 )
+
+// Valid reports whether s is one of the conditions declared above. PageStop is
+// a bare string enum, so nothing rejects an invented one on the wire, and a
+// consumer ending its loop has no arm for it; irverify calls this so such a
+// value is reported rather than ignored.
+func (s PageStop) Valid() bool {
+	switch s {
+	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal:
+		return true
+	default:
+		return false
+	}
+}
 
 // PropPath addresses a member within a type by identity, not by name
 // (docs/ir/interaction-patterns.md).

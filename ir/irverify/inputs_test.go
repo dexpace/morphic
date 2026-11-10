@@ -54,8 +54,40 @@ func TestVerify_APaginationStopIsOneIRDeclares(t *testing.T) {
 	o := ir.Operation{ID: "op/x/S/op", Pagination: &ir.Pagination{
 		Stop: []ir.PageStop{ir.PageStopEmpty, "Empty", ir.PageStopNoNext, ir.PageStopShort, ir.PageStopTotal, "never"},
 	}}
+	vs := irverify.Verify(opDoc(o))
 	assert.Equal(t, []string{
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[1]",
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[5]",
-	}, violationPaths(irverify.Verify(opDoc(o)), "ir/unknown-page-stop"))
+	}, violationPaths(vs, "ir/unknown-page-stop"))
+	assert.Empty(t, violationPaths(vs, "ir/set-entry-duplicate"), "no declared stop repeats")
+}
+
+// TestVerify_APaginationStopIsListedOnce holds Pagination.Stop to a set, as
+// ir/set-entry-duplicate holds the IR's other sets: a repeat is reported at
+// its later index, however far apart, and one pagination's stops are no
+// repeat of another's.
+func TestVerify_APaginationStopIsListedOnce(t *testing.T) {
+	t.Parallel()
+	stops := []ir.PageStop{ir.PageStopNoNext, ir.PageStopEmpty, "never", ir.PageStopNoNext, ir.PageStopEmpty}
+	doc := opDoc(ir.Operation{ID: "op/x/S/a", Pagination: &ir.Pagination{Stop: stops}})
+	ops := &doc.Services[0].Groups[0].Operations
+	*ops = append(*ops, ir.Operation{ID: "op/x/S/b", Pagination: &ir.Pagination{Stop: []ir.PageStop{ir.PageStopEmpty}}})
+
+	vs := irverify.Verify(doc)
+	assert.Equal(t, []string{
+		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[3]",
+		"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[4]",
+	}, violationPaths(vs, "ir/set-entry-duplicate"))
+	var messages []string
+	for _, v := range vs {
+		if v.Code == "ir/set-entry-duplicate" {
+			messages = append(messages, v.Message)
+		}
+	}
+	assert.Equal(t, []string{
+		`set entry "no_next" is listed here and at index 0`,
+		`set entry "empty" is listed here and at index 1`,
+	}, messages, "each repeat names the entry it repeats")
+	assert.Equal(t, []string{"doc.Services[0].Groups[0].Operations[0].Pagination.Stop[2]"},
+		violationPaths(vs, "ir/unknown-page-stop"), "an undeclared stop is no set entry")
 }

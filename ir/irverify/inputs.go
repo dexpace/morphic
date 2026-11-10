@@ -15,20 +15,31 @@ var (
 	paginationType = reflect.TypeFor[ir.Pagination]()
 )
 
-// declaredPageStops are the stop conditions ir declares
-// (docs/ir/interaction-patterns.md#pagination).
-var declaredPageStops = map[ir.PageStop]bool{
-	ir.PageStopEmpty: true, ir.PageStopNoNext: true, ir.PageStopShort: true, ir.PageStopTotal: true,
+// inputPath holds the types between an operation and each ir.InputPath or
+// ir.Pagination below it, the rest of the path checkInputs walks past
+// operationPath (TestOperationPath_ListsEveryCarrier).
+var inputPath = map[reflect.Type]bool{
+	reflect.TypeFor[*ir.Pagination]():      true,
+	reflect.TypeFor[*ir.InputPath]():       true,
+	reflect.TypeFor[*ir.StreamDetail]():    true,
+	reflect.TypeFor[ir.StreamDetail]():     true,
+	reflect.TypeFor[*ir.StreamCondition](): true,
+	reflect.TypeFor[ir.StreamCondition]():  true,
 }
 
 // checkInputs asserts every ir.InputPath names a value of the request, and
-// every pagination stop is one ir declares. A path with no parameter roots in
-// the request body, so one with no segment either names the body whole, which
-// no input is: ir/input-path-empty. An emitter switches on a stop to end its
-// loop, so one it has no arm for is ir/unknown-page-stop. The walk reaches the
-// values rather than their carriers, so a new carrier is held at once.
+// every pagination stop is one ir declares, listed once. A path with no
+// parameter roots in the request body, so one with no segment either names the
+// body whole, which no input is: ir/input-path-empty. An emitter switches on a
+// stop to end its loop, so one it has no arm for is ir/unknown-page-stop.
+//
+// It prunes all but operationPath and inputPath, for checkStreamingModes's
+// reason.
 func checkInputs(*ir.Document) walkCheck {
 	var vs []Violation
+	// Every pagination's stops are read through this one, so a list costs no
+	// map of its own.
+	var stops reusedMap[ir.PageStop, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			switch v.Type() {
@@ -40,26 +51,47 @@ func checkInputs(*ir.Document) walkCheck {
 						Path:    at.String(),
 					})
 				}
+				return false
 			case paginationType:
 				if pg, ok := reflect.TypeAssert[ir.Pagination](v); ok {
-					vs = appendUnknownStops(vs, pg.Stop, at)
+					vs = appendStopViolations(vs, pg.Stop, at, &stops)
 				}
+				return true
+			default:
+				return operationPath[v.Type()] || inputPath[v.Type()]
 			}
-			return true
 		},
 		report: reporting(&vs),
 	}
 }
 
-// appendUnknownStops reports each stop in stops ir does not declare.
-func appendUnknownStops(vs []Violation, stops []ir.PageStop, at ir.WalkPath) []Violation {
+// appendStopViolations reports each stop in the pagination at at that ir does
+// not declare, and each repeat of one at its later index, as a set's repeat is
+// (ir/set-entry-duplicate): it ends nothing more.
+func appendStopViolations(vs []Violation, stops []ir.PageStop, at ir.WalkPath,
+	entries *reusedMap[ir.PageStop, int],
+) []Violation {
+	if len(stops) == 0 {
+		return vs // an empty Stop states no rule, and costs no map
+	}
+	first := entries.emptied()
 	for i, stop := range stops {
-		if !declaredPageStops[stop] {
+		where := at.String() + ".Stop[" + strconv.Itoa(i) + "]"
+		switch earlier, repeated := first[stop]; {
+		case !stop.Valid():
 			vs = append(vs, Violation{
 				Code:    "ir/unknown-page-stop",
 				Message: "pagination stops on undeclared condition " + strconv.Quote(string(stop)),
-				Path:    at.String() + ".Stop[" + strconv.Itoa(i) + "]",
+				Path:    where,
 			})
+		case repeated:
+			vs = append(vs, Violation{
+				Code:    "ir/set-entry-duplicate",
+				Message: "set entry " + strconv.Quote(string(stop)) + " is listed here and at index " + strconv.Itoa(earlier),
+				Path:    where,
+			})
+		default:
+			first[stop] = i
 		}
 	}
 	return vs

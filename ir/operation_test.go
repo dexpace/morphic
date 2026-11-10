@@ -139,6 +139,27 @@ func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
 	}
 }
 
+// TestPageStop_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list. A condition added without teaching Valid fails here, not
+// as a spurious ir/unknown-page-stop on a document that states it correctly.
+func TestPageStop_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "PageStop")
+	require.NotEmpty(t, declared, "the ir sources must declare PageStop constants")
+	for _, c := range declared {
+		assert.True(t, ir.PageStop(c.Value).Valid(), "declared condition %q must be Valid", c.Value)
+	}
+}
+
+// TestPageStop_UnknownIsInvalid pins the other direction: Valid rejects a
+// condition no const declares, the empty one and another casing among them.
+func TestPageStop_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, stop := range []ir.PageStop{"", "Empty", "no-next", "never"} {
+		assert.False(t, stop.Valid(), "%q", stop)
+	}
+}
+
 // TestStability_Constants pins the on-disk spelling of every Stability value,
 // including the empty string that states none.
 func TestStability_Constants(t *testing.T) {
