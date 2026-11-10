@@ -70,6 +70,8 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 		Docs: ir.Docs{Description: "d"}})
 	untyped("t/model-untyped-ex", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
 		Examples: []ir.Example{{}}})
+	untyped("t/model-untyped-doc-inline", &ir.Model{Properties: []ir.Property{{WireName: "own"}},
+		Anonymous: true, Docs: ir.Docs{Description: "d"}})
 	untyped("t/alias-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/model-untyped"}})
 	untyped("t/alias-doc-untyped", &ir.Scalar{Base: &ir.TypeRef{Target: "t/alias-untyped"},
 		Docs: ir.Docs{Description: "d"}})
@@ -276,6 +278,7 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a model stating no instance type against a bare kind", "t/model-untyped", prim(ir.PrimInteger), relBNarrower},
 		{"one holding docs a reference carries down", "t/model-untyped-doc", prim(ir.PrimInteger), relBNarrower},
 		{"one holding examples", "t/model-untyped-ex", prim(ir.PrimInteger), relOverlap},
+		{"one holding docs written at the declaration", "t/model-untyped-doc-inline", prim(ir.PrimInteger), relOverlap},
 		{"an enum against a model stating no instance type", "t/enum-str", "t/model-untyped", relANarrower},
 		{"a literal against a model stating no instance type", "t/lit-a", "t/model-untyped", relANarrower},
 		{"a list against a model stating no instance type", "t/list-i32", "t/model-untyped", relANarrower},

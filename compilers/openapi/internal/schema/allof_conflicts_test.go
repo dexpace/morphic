@@ -1453,6 +1453,50 @@ func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
 	}
 }
 
+// TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
+// stating no instance type that holds docs or a deprecation, beside a string,
+// in both branch orders. Reached through a $ref, the reference carries them
+// down to the property, so the string takes the field and the property keeps
+// them. Written at the declaration, alone or composing what it reaches, they
+// are the structure's own, which a string would lose, so the two overlap: the
+// field keeps the first and reports the other.
+func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
+	t.Parallel()
+	const spec = `    Described: {description: D, properties: {a: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: %s}}
+        - {properties: {f: %s}}
+`
+	compile := func(first, second string) (ir.Property, []ir.Diagnostic) {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, first, second)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		return propertyOf(t, doc, "T", "f"), diags
+	}
+	const text, described = "{type: string}", "{$ref: '#/components/schemas/Described'}"
+	for _, order := range [][2]string{{text, described}, {described, text}} {
+		p, diags := compile(order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%v", order)
+		assert.Equal(t, "D", p.Docs.Description, "%v", order)
+	}
+
+	for _, inline := range []string{
+		"{description: D, properties: {a: {type: string}}}",
+		"{deprecated: true, properties: {a: {type: string}}}",
+		"{description: D, allOf: [" + described + "]}",
+	} {
+		for i, order := range [][2]string{{text, inline}, {inline, text}} {
+			p, diags := compile(order[0], order[1])
+			require.Len(t, diags, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
+			want := []ir.TypeID{"t/prim/string", "t/anon/components/schemas/T/allOf/0/properties/f"}[i]
+			assert.Equal(t, want, p.Type.Target, "%v", order)
+			assert.Len(t, p.Unmodeled, 1, "the other is kept: %v", order)
+		}
+	}
+}
+
 // TestAllOf_ASourceIsReadOnlyInItsOwnDocument pins that what a structure's
 // source states is read where the structure was declared, never at the same
 // pointer in the composing model's document: another document's object here

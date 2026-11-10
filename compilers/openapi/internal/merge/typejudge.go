@@ -288,12 +288,13 @@ func saysOnlyObject(td ir.TypeDef) bool {
 // judged by againstKind, and against a literal of its value overlaps. A value
 // type against a structure, or two structures of different instance types
 // (saysItsValues), are judged by what each structure's source states
-// (againstOtherInstance).
-// Anything else is unrelated: nothing says what they share.
+// (againstOtherInstance). Anything else is unrelated: nothing says what they
+// share.
 func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ak, aok := j.kindOf(a)
 	bk, bok := j.kindOf(b)
 	au, bu := j.unaliased(at), j.unaliased(bt)
+	aSite, bSite := j.sites.written[0], j.sites.written[1]
 	switch {
 	case aok && ak.prim == ir.PrimAny, bok && bk.prim == ir.PrimAny:
 		return relUnrelated
@@ -303,9 +304,9 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 		}
 		return relOverlap
 	case aok && isStructural(bu):
-		return j.againstOtherInstance(bt, depth).flipped()
+		return j.againstOtherInstance(bt, bSite, depth).flipped()
 	case bok && isStructural(au):
-		return j.againstOtherInstance(at, depth)
+		return j.againstOtherInstance(at, aSite, depth)
 	case aok:
 		return j.againstKind(bu, a, at, ak).flipped()
 	case bok:
@@ -313,7 +314,7 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case isLiteral(au) && isLiteral(bu):
 		return relOverlap
 	case saysItsValues(au) && saysItsValues(bu) && instanceKind(au) != instanceKind(bu):
-		return acrossInstances(j.againstOtherInstance(at, depth), j.againstOtherInstance(bt, depth))
+		return acrossInstances(j.againstOtherInstance(at, aSite, depth), j.againstOtherInstance(bt, bSite, depth))
 	default:
 		return relUnrelated
 	}
@@ -327,17 +328,22 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 // examples, overlaps instead, as topAt reads an alias of `{}`, since a type
 // replacing it would lose it. Any other structure is disjoint from the other
 // type.
-func (j typeJudge) againstOtherInstance(td ir.TypeDef, depth int) relation {
+func (j typeJudge) againstOtherInstance(td ir.TypeDef, site ir.Provenance, depth int) relation {
 	chain, end := j.aliasChain(td)
 	if j.untyped == nil || !isStructural(end) || !j.untyped(end.Common().Provenance) {
 		return relDisjoint
 	}
-	saysNothing := structureSaysNothing(end, depth == 0 && len(chain) == 0)
+	// A $ref carries the docs, deprecation and redaction of what it reaches
+	// down to the property, so a field's own type the declaration written at
+	// site reached through one may hold them; one written there keeps them on
+	// itself alone (docs/ir/annotations.md#what-a-reference-carries-down).
+	carried := depth == 0 && !hoistedAt(td, site)
+	saysNothing := structureSaysNothing(end, carried && len(chain) == 0)
 	for k, s := range chain {
 		if !j.untyped(s.Provenance) {
 			return relDisjoint
 		}
-		saysNothing = saysNothing && aliasSaysNothing(s, depth == 0 && k == 0)
+		saysNothing = saysNothing && aliasSaysNothing(s, carried && k == 0)
 	}
 	if !saysNothing {
 		return relOverlap
@@ -359,9 +365,8 @@ func structureSaysNothing(td ir.TypeDef, carried bool) bool {
 
 // acrossInstances joins the verdicts againstOtherInstance gives two structures
 // of different instance types, a's against b and b's against a, each from its
-// own side.
-// Where both admit every value of the other's type they share every value of a
-// third, so they overlap.
+// own side. Where both admit every value of the other's type they share every
+// value of a third, so they overlap.
 func acrossInstances(a, b relation) relation {
 	switch {
 	case a == relDisjoint && b == relDisjoint:
@@ -655,8 +660,9 @@ func isTop(td ir.TypeDef) bool {
 // says nothing of its values. The chain's first alias may hold docs, a
 // deprecation and redaction where it is a field's own type, since a reference
 // carries those down to the property using it
-// (docs/ir/annotations.md#what-a-reference-carries-down); any other alias holds
-// nothing but where it was declared, so no type replacing it loses anything.
+// (docs/ir/annotations.md#what-a-reference-carries-down), and a property
+// keeps what is written beside its $ref itself. Any other alias holds nothing
+// but where it was declared, so no type replacing it loses anything.
 func (r registry) topAt(td ir.TypeDef, depth int) bool {
 	carried := depth == 0
 	for range maxTypeResolveDepth {
