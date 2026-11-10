@@ -1672,8 +1672,9 @@ Two models neither of which holds the other are the exception, and so are a mode
 union, since an instance satisfying both is a value of a type neither names. Where the declarations
 whose types no other declaration holds are two or more models, maps or unions, each named directly
 or through an alias, and one of them a model, the field's type is a `Model` the merge mints:
-anonymous, holding no property of its own, and composing each of those types once as a written `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written
-as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
+anonymous, holding no property of its own, and composing each of those types once as a written
+`allOf` of them composes ([`allof-classification`](#allof-classification)). The one written as the
+only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
 property list. Whatever another declaration's type holds adds no conjunct: a `{}` or an alias of it

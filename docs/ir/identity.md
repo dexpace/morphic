@@ -161,11 +161,10 @@ them fixes it here.
 An enum member is identified by the enum that declares it and the value it holds:
 `e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
 enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one, `composed` for one
-a merge mints) and beneath its
-path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
-(`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
-scope is what ties the two IDs together. The key, and the number a repeated value appends after it,
-are described in [enums](./enums.md#member-identity).
+a merge mints) and beneath its path, so it needs no namespace of its own: only enums hold members.
+`irverify` holds it there (`ir/member-id-scope`); a member records no pointer for the agreement
+below to compare, so that scope is what ties the two IDs together. The key, and the number a
+repeated value appends after it, are described in [enums](./enums.md#member-identity).
 
 ## What irverify holds
 
