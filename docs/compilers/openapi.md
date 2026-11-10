@@ -2461,10 +2461,10 @@ reference, and where several keys name it [`discriminator`](#discriminator) elec
 name as declared (`Cat/Dog`, not its pointer token) if it is a component schema, OpenAPI's implicit
 mapping. A subtype that is no component schema — inline as a property or a union branch, or under an
 extension — has no name to answer to, so only a mapping entry tags it, and a chain with no
-discriminated ancestor carries no tag however deep. A subtype a tag routes to is never distributed
-across a union beside its `allOf` or on a branch of it
-([`union-beside-structure`](#union-beside-structure)), as a union would be no subtype, so no variant
-of a distributed union carries a tag.
+discriminated ancestor carries no tag however deep. A subtype a discriminator routes to is never
+distributed across a union written beside its `allOf` or on one of its branches
+([`union-beside-structure`](#union-beside-structure)), since a union would be no subtype, so no
+variant of a distributed union carries a tag.
 
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
