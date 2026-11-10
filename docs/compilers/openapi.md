@@ -1522,6 +1522,7 @@ every entry reads that one twice.
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
+  `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
   `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,

@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -46,9 +47,9 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 }
 
 // TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
-// branch to the same keyword beside the allOf, beside each union outcome: for each
-// one the two lower to the same nodes, a $ref use of S among them, the branch's
-// kept nowhere else and reported nowhere but where it is written.
+// branch to the same keyword beside the allOf, at each outcome besideTheAllOf
+// names: for each one the two lower to the same nodes, a $ref use of S among them,
+// the branch's kept nowhere else and reported nowhere but where it is written.
 func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
@@ -131,6 +132,85 @@ func severityCodes(diags []ir.Diagnostic) []string {
 		out = append(out, string(d.Severity)+" "+d.Code)
 	}
 	slices.Sort(out)
+	return out
+}
+
+// TestVoices_KeptAndMetBranchesHoldAtEveryOutcome pins that what keeps a branch
+// whole, or meets two, holds at each outcome besideTheAllOf names as it does
+// alone (docs/compilers/openapi.md#allof-inline-residue): a branch disagreeing
+// with a conjunct, or reading a $ref against another base, stays whole on each
+// Model the composition lowers to, with one report saying why and nothing it
+// writes folded, and two bounds meet there in either order.
+func TestVoices_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	const n = "\n    N: {$id: 'https://ex.test/a/n.json', type: string}" // what `n.json` names under https://ex.test/a/
+	met := &ir.Constraints{MaxProps: new(int64(3))}
+	for name, tc := range map[string]struct {
+		branches string
+		kept     []string
+		why      string
+		cons     *ir.Constraints
+	}{
+		"a disagreement": {ref + ", {description: a}, {description: b}", []string{"allOf/1", "allOf/2"},
+			"the conjuncts of this allOf disagree", nil},
+		"a disagreement swapped": {"{description: b}, {description: a}, " + ref, []string{"allOf/0", "allOf/1"},
+			"the conjuncts of this allOf disagree", nil},
+		"another base": {ref + ", {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}",
+			[]string{"allOf/1"}, "reads its $refs against another base", nil},
+		"bounds meeting":         {ref + ", {maxProperties: 3}, {maxProperties: 5}", nil, "", met},
+		"bounds meeting swapped": {ref + ", {maxProperties: 5}, {maxProperties: 3}", nil, "", met},
+	} {
+		for shape, outcome := range besideTheAllOf {
+			t.Run(shape+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				doc, diags := parseFull(t, voicesDoc("{allOf: ["+tc.branches+"]"+outcome.beside+"}"+n))
+				openapitest.RequireNoErrorDiags(t, diags)
+				if outcome.code != "" {
+					require.True(t, openapitest.HasDiagCodeAt(diags, outcome.code, "/components/schemas/S"+outcome.at),
+						"the outcome this row names; got %v", diags)
+				}
+				for _, path := range tc.kept {
+					got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+path)
+					assert.Contains(t, got, tc.why, path)
+				}
+				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing a kept branch writes folds")
+				for _, m := range composedModels(t, doc) {
+					assert.ElementsMatch(t, tc.kept, keptBranches(m), m.ID)
+					assert.Equal(t, tc.cons, m.Constraints, m.ID)
+				}
+			})
+		}
+	}
+}
+
+// composedModels returns the Models S's composition lowers to: S itself, or each
+// variant of the Union a distributed union lowers it to.
+func composedModels(t *testing.T, doc *ir.Document) []*ir.Model {
+	t.Helper()
+	u, distributed := typeByName(doc, "S").(*ir.Union)
+	if !distributed {
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok)
+		return []*ir.Model{m}
+	}
+	out := make([]*ir.Model, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok)
+		out = append(out, m)
+	}
+	return out
+}
+
+// keptBranches returns the path of each allOf branch m keeps whole.
+func keptBranches(m *ir.Model) []string {
+	var out []string
+	for key := range m.Unmodeled {
+		if path, ok := strings.CutPrefix(key, "openapi:"); ok && strings.HasPrefix(path, "allOf/") {
+			out = append(out, path)
+		}
+	}
 	return out
 }
 
