@@ -109,7 +109,7 @@ func dynamicRefSiblings(s *oas3.Schema) bool {
 	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
 		return true
 	}
-	return len(siblingKeywords(s)) > 0
+	return writesSiblingKeyword(s)
 }
 
 // soleAnchorSite returns the one position of c's document declaring the named

@@ -449,12 +449,12 @@ func typesDisjoint(types []oas3.SchemaType) bool {
 // stays validation logic beside it whatever they repeat. A discriminator beside
 // them keeps the body, whose routes may be its subtypes (GitHub #594).
 func hasUnionSiblings(c lowering.Ctx, s *oas3.Schema) bool {
+	if !declaresUnion(s) || s.GetDiscriminator() != nil {
+		return writesSiblingKeyword(s) // no branches say what it writes
+	}
 	siblings := siblingKeywords(s)
 	if len(siblings) == 0 {
 		return false
-	}
-	if s.GetDiscriminator() != nil {
-		return true
 	}
 	said := branchesSay(c, s)
 	if slices.ContainsFunc(siblings, func(k string) bool { return !slices.Contains(said, k) }) {
@@ -478,7 +478,8 @@ type branchesSayOf struct {
 // an `items` each branch is held to (admission.holds). Such a keyword adds
 // nothing to the union, so the position reads as if it were not written
 // (docs/compilers/openapi.md#union-beside-structure). A read cut short says
-// none. Every reader of the position asks, so it is read once a run.
+// none, and so does a schema writing no union, of which "every branch" would
+// say anything. Every reader of the position asks, so it is read once a run.
 func branchesSay(c lowering.Ctx, s *oas3.Schema) []string {
 	return lowering.Remembered(c, branchesSayOf{s}, func() []string {
 		branches := slices.Concat(s.GetOneOf(), s.GetAnyOf())

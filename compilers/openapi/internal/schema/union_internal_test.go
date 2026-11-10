@@ -4,11 +4,14 @@
 package schema
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -26,6 +29,20 @@ func TestIsNullSchema_EmptyEitherFalse(t *testing.T) {
 func TestAllNullUnion_NoBranchesFalse(t *testing.T) {
 	t.Parallel()
 	assert.False(t, allNullUnion(&oas3.Schema{}), "no oneOf/anyOf branches admits nothing to be null-only")
+}
+
+// TestBranchesSay_NoBranchesSayNothing covers the guard's own contract rather
+// than its callers', which ask only of a schema writing a union: over no
+// branches, "every branch says it" holds of each keyword the schema writes,
+// which a reader consuming what the branches say would then drop.
+func TestBranchesSay_NoBranchesSayNothing(t *testing.T) {
+	t.Parallel()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader("{type: string, format: uuid, enum: [a]}"), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assert.Empty(t, branchesSay(l.Ctx, js.GetSchema()), "no branch says a keyword the schema writes")
 }
 
 func TestPreserveUnionSiblings_MissingNode(t *testing.T) {

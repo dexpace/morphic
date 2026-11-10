@@ -536,10 +536,19 @@ var narrowingKeywords = []siblingKeyword{
 // that s writes, in that order.
 func siblingKeywords(s *oas3.Schema) []string {
 	var out []string
-	for _, k := range slices.Concat(shapeKeywords, narrowingKeywords) {
-		if k.writes(s) {
-			out = append(out, k.key)
+	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
+		for _, k := range set {
+			if k.writes(s) {
+				out = append(out, k.key)
+			}
 		}
 	}
 	return out
+}
+
+// writesSiblingKeyword reports whether siblingKeywords(s) holds any keyword,
+// without building the list, as most schemas a reader asks of write one.
+func writesSiblingKeyword(s *oas3.Schema) bool {
+	writes := func(k siblingKeyword) bool { return k.writes(s) }
+	return slices.ContainsFunc(shapeKeywords, writes) || slices.ContainsFunc(narrowingKeywords, writes)
 }
