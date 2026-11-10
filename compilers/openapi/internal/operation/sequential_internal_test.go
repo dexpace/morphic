@@ -19,7 +19,7 @@ func TestFillSequential_EmptyItemEncoding(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	content := &ir.Content{}
 	media := &soa.MediaType{ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, content, media, "/mp")
+	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
 	assert.Equal(t, &ir.PartEncoding{Multi: true}, content.ItemEncoding,
 		"a config-free itemEncoding still records that the tail repeats")
 	assert.Nil(t, content.Unmodeled, "nothing is preserved raw")
@@ -36,7 +36,7 @@ func TestPositionalEncoding_WithoutRootNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	content := &ir.Content{}
 	media := &soa.MediaType{PrefixEncoding: []*soa.Encoding{{}}, ItemEncoding: &soa.Encoding{}}
-	diags := fillSequential(l.ctx, l.types, content, media, "/mp")
+	diags := fillSequential(l.ctx, l.serviceWalk(), content, media, "/mp")
 	assert.Nil(t, content.ItemEncoding, "prefixes still block the every-item lowering")
 	assert.Nil(t, content.Unmodeled, "a media type with no source node has nothing verbatim to keep")
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)

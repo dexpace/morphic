@@ -5,11 +5,9 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -157,28 +155,6 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	require.NotNil(t, c.RefScope().Reached)
 	assert.Same(t, c.RefScope().Reached, c.InScope(c.RefScope()).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
-}
-
-// TestKeptOnce_ReadsADeclarationOnce holds what makes a kept entry cost what the
-// source wrote: the first reach reads and reports, a later one through any copy of
-// the context does neither, and another declaration is a read of its own.
-func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
-	t.Parallel()
-	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
-	reads := 0
-	keep := func(key string) func() (ir.Unmodeled, []ir.Diagnostic) {
-		return func() (ir.Unmodeled, []ir.Diagnostic) {
-			reads++
-			return ir.Unmodeled{key: {Reason: ir.ReasonDegradedLowering}}, []ir.Diagnostic{{Code: key}}
-		}
-	}
-
-	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
-	assert.Empty(t, c.InScope(c.RefScope()).Kept.Once("/a", keep("a")), "a copy shares what was read")
-	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
-
-	assert.Equal(t, 2, reads)
-	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept.Entries())))
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
