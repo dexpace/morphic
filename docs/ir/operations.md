@@ -56,8 +56,9 @@ type Operation struct {
 type Parameter struct {
     ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
                                    // /<n> after it on the n-th holder of one name and location;
-                                   // the bindings, pagination inputs and idempotency token name a
-                                   // parameter by it, not by Name, which two locations may share
+                                   // the bindings, pagination inputs, stream conditions and
+                                   // idempotency token name a parameter by it, not by Name, which
+                                   // two locations may share
     Name       Naming
     Type       TypeRef
     Required   bool

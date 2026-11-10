@@ -91,8 +91,9 @@ type Operation struct {
 // arguments (Property.Args) reuse this shape.
 type Parameter struct {
 	// ID identifies the parameter within the document. The bindings, the
-	// pagination inputs and the idempotency token name a parameter by it, not by
-	// its name, which two locations of one operation may share.
+	// pagination inputs, the inputs selecting a stream and the idempotency token
+	// name a parameter by it, not by its name, which two locations of one
+	// operation may share.
 	ID ParamID `json:"id"`
 	// Name is the parameter's naming.
 	Name Naming `json:"name"`
@@ -378,6 +379,24 @@ type StreamDetail struct {
 	// length up front (Smithy @requiresLength) — changes the generated parameter
 	// type.
 	RequiresLength bool `json:"requiresLength"`
+	// Terminator is the frame data that ends the stream, verbatim and never
+	// empty, a sentinel that is no element and must not be decoded as one (an
+	// SSE `data: [DONE]`); nil = the stream ends with its connection.
+	Terminator *string `json:"terminator,omitzero"`
+	// Condition is the request input whose value asks for this stream, where an
+	// operation streams only when asked and otherwise sends or returns this
+	// side's non-streaming contents (a body's `stream: true`); nil = it always
+	// streams.
+	Condition *StreamCondition `json:"condition,omitzero"`
+}
+
+// StreamCondition is the request input that selects a stream, and the value
+// selecting it (docs/ir/interaction-patterns.md#streaming).
+type StreamCondition struct {
+	// Input is the request value that selects the stream.
+	Input InputPath `json:"input"`
+	// Value is what Input holds when the stream is asked for.
+	Value Value `json:"value"`
 }
 
 // Stability is how far a source commits to an operation's contract
@@ -471,10 +490,11 @@ type Pagination struct {
 	// Inferred reports heuristic detection (OpenAPI name-matching policy) vs
 	// declared (Smithy/TypeSpec).
 	Inferred bool `json:"inferred"`
-	// InputCursor is the input that continues iteration.
-	InputCursor *ParamPath `json:"inputCursor,omitzero"`
-	// InputLimit is the page-size input.
-	InputLimit *ParamPath `json:"inputLimit,omitzero"`
+	// InputCursor is the input that continues iteration, a parameter or a
+	// request-body field.
+	InputCursor *InputPath `json:"inputCursor,omitzero"`
+	// InputLimit is the page-size input, a parameter or a request-body field.
+	InputLimit *InputPath `json:"inputLimit,omitzero"`
 	// Items is where result items live in the response — a path, not a name.
 	Items *PropPath `json:"items,omitzero"`
 	// NextCursor is the continuation source in the response.
@@ -487,8 +507,45 @@ type Pagination struct {
 	FirstLink *PropPath `json:"firstLink,omitzero"`
 	// LastLink is the last-page navigation link.
 	LastLink *PropPath `json:"lastLink,omitzero"`
-	// TotalCount is the total-count source in the response.
+	// TotalCount is the total-count source in the response, counting items.
 	TotalCount *PropPath `json:"totalCount,omitzero"`
+	// TotalPages is the page-count source in the response, counting pages.
+	TotalPages *PropPath `json:"totalPages,omitzero"`
+	// Stop lists when iteration ends, each once, any one ending it; empty = the
+	// source states no rule, which a consumer does not guess.
+	Stop []PageStop `json:"stop,omitempty"`
+}
+
+// PageStop is one condition that ends pagination
+// (docs/ir/interaction-patterns.md#pagination).
+type PageStop string
+
+// Page stop conditions.
+const (
+	// PageStopEmpty ends iteration at a page holding no items.
+	PageStopEmpty PageStop = "empty"
+	// PageStopNoNext ends it at a page whose next cursor or next link is
+	// empty, null or absent.
+	PageStopNoNext PageStop = "no_next"
+	// PageStopShort ends it at a page holding fewer items than the limit asked
+	// for.
+	PageStopShort PageStop = "short"
+	// PageStopTotal ends it once the items read reach TotalCount, or the pages
+	// read reach TotalPages.
+	PageStopTotal PageStop = "total"
+)
+
+// Valid reports whether s is one of the conditions declared above. PageStop is
+// a bare string enum, so nothing rejects an invented one on the wire, and a
+// consumer ending its loop has no arm for it; irverify calls this so such a
+// value is reported rather than ignored.
+func (s PageStop) Valid() bool {
+	switch s {
+	case PageStopEmpty, PageStopNoNext, PageStopShort, PageStopTotal:
+		return true
+	default:
+		return false
+	}
 }
 
 // PropPath addresses a member within a type by identity, not by name
@@ -505,13 +562,15 @@ type PropPath struct {
 	Segments []PropID `json:"segments,omitempty"`
 }
 
-// ParamPath addresses a member within a named parameter
+// InputPath addresses a value an operation's request carries: a parameter, or
+// a member within one, or a member of the request body
 // (docs/ir/interaction-patterns.md).
-type ParamPath struct {
-	// Param is the ID of the parameter the path roots in.
-	Param ParamID `json:"param,omitempty"`
-	// Segments are the ordered property IDs walked from the parameter; no entry
-	// is empty.
+type InputPath struct {
+	// Param is the ID of the parameter the path roots in; nil = the request
+	// body, which Segments then walk into, of an operation that sends one.
+	Param *ParamID `json:"param,omitzero"`
+	// Segments are the ordered property IDs walked from the parameter or the
+	// body; no entry is empty, and a path into the body has one at least.
 	Segments []PropID `json:"segments,omitempty"`
 }
 
