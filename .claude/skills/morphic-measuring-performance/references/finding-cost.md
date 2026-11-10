@@ -137,13 +137,13 @@ how to measure so the number means what the claim says.
 `share-no-module-frame-holds`
 
 - **Rule.** Beside a share of named functions, quote the share of samples whose stack holds no frame
-  of the module or its dependencies, as the collector's. Where it is large, attribute it by an
+  of the module or its dependencies, as the runtime's. Where it is large, attribute it by an
   allocation profile of the same run (`-sample_index=alloc_space`), or by instructions retired with
   the suspected party switched off, never by CPU samples alone.
 - **Why.** One `engine.Run` over the GitHub REST description booked 22.1% of CPU samples to the
   parser library and 8.4% to the module alone, with 69.2% under the runtime; its allocation
   profile put 75% of the bytes under the library (#1653).
-- **Probe.** `go tool pprof -top -nodecount=100000 -ignore="$(go list -m -f '{{.Path}}' all | sed 's/[.]/\\./g' | paste -sd'|' -)" <binary> <profile> | grep '^Showing'`
+- **Probe.** `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 -ignore="$(go list -m -f '{{.Path}}' all | sed 's/[.]/\\./g' | paste -sd'|' -)" <binary> <profile> | grep '^Showing'`
   prints those samples and their share of the total.
 
 ## Measure a claimed cost on an input that can show it

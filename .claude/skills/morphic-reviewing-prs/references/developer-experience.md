@@ -64,7 +64,7 @@ finding breaks.
   checks (#1179, #1184).
 - **Probe.** `git grep -nwE 'the same|there|too|also' -- <files>`, each section's first line for a
   pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and
-  `awk 'FNR==1{p="";c=0;f=($0=="---")} f{if(FNR>1&&$0=="---")f=0;next}/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c;p="";next}c{next} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
+  `awk 'FNR==1{p="";c=0;f=($0=="---")} f{if(FNR>1&&$0=="---")f=0;next}/^\040{0,3}(\140{3}|~{3})/{c=!c;p="";next}c{next} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
   `TestDocuments_OpenNoLineWithAPlus` holds `+`.
 
 ## A restructured document accounts for every sentence it held

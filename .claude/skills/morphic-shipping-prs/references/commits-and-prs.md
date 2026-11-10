@@ -36,8 +36,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** #1498 named `#NEW-CATCHALL` in a doc comment, a normative Status line and its body, and
   six days on no such issue existed, every check green: `TestDocuments_LinksResolve` reads no `#`
   before letters (#1659).
-- **Probe.** `gh issue view <N> --json state` exits 0 for each issue a limitation names, and the
-  push checklist's `cs` grep prints no `#` before capitals.
+- **Probe.** `gh issue view <N> --json url --jq .url` prints an `/issues/` URL for each issue a
+  limitation names, where a pull request's number prints `/pull/`, and the push checklist's `cs`
+  grep prints no `#` before capitals.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`

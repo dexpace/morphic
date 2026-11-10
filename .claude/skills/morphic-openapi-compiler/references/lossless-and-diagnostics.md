@@ -255,7 +255,7 @@ and every diagnostic is true, located, and decided from what actually happened.
   name drew two `unknown-object-key` warnings and a `reserved-header-name` the kept copy lost, a
   test pinning the silence unexplained (#1660); `main`'s other objects kept whole drop them too
   (#1662).
-- **Probe.** `diff <(go run ./cmd/morphic validate a.yaml 2>&1 | cut -d' ' -f1,2) <(go run ./cmd/morphic validate b.yaml 2>&1 | cut -d' ' -f1,2)`.
+- **Probe.** `diff <(go run ./cmd/morphic validate --verify a.yaml 2>&1 | cut -d' ' -f1,2) <(go run ./cmd/morphic validate --verify b.yaml 2>&1 | cut -d' ' -f1,2)`.
 
 ## Decide and test the combination when keywords co-occur
 `test-co-declared-keywords-together`

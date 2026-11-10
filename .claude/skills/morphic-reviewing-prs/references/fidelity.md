@@ -21,9 +21,9 @@ IR and the passes.
    words, and presence apart from null (`CLAUDE.md`, invariants 4, 6 and 8).
 4. Read each diagnostic's provenance against the site that fired
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#diagnostic-provenance-names-the-real-site`),
-   and each defect as reported once
+   each defect as reported once
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#one-defect-one-finding`),
-   an object kept whole drawing the reports its lowered twin does
+   and an object kept whole as drawing the reports its lowered twin does
    (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#kept-whole-draws-the-lowered-reports`).
 5. For a reader moved off the library, account for every diagnostic `main` reported
    (`references/fidelity.md#moved-reader-parity`); for a predicate choosing a new path, compile its

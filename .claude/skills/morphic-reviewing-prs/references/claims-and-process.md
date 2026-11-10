@@ -11,7 +11,8 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`references/claims-and-process.md#cut-against-mains-words`) and as an edited rule beside the
    rule it cites (`references/claims-and-process.md#edited-rule-against-its-neighbours`), and run
    each command an edited rule prescribes
-   (`references/claims-and-process.md#run-prescribed-commands`).
+   (`references/claims-and-process.md#run-prescribed-commands`), with the flags a neighbouring rule
+   passes the same tool (`references/claims-and-process.md#command-keeps-its-neighbours-flags`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
    and text; then hold title, commits, body, closing keywords and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
@@ -62,7 +63,7 @@ The matrix is each claim class with the members checked, and each closed issue w
 - **Why.** A rule widened from load and binding to lowering kept citing two entries that hold no
   lowering bound's kind; the citations resolved, so the claim sweep passed it (#1441).
 - **Probe.** For each case the scope reaches,
-  `awk -v pat='<the case>' '/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>`
+  `awk -v pat='<the case>' '/^\040{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>`
   prints the entry holding it, which must be the one the citing text sends it to.
 
 ## Read an edited rule against those on its acts and constructs
@@ -105,6 +106,21 @@ The matrix is each claim class with the members checked, and each closed issue w
   the pair, and passed review on reading (#1364). Three `git grep` Probes matched nothing, or were
   refused, on such values until they took `-F` (#1532).
 - **Probe.** The report lists each prescribed command with its exit status.
+
+## Pass a tool the flags a neighbouring rule passes it
+`command-keeps-its-neighbours-flags`
+
+- **Rule.** For each tool a command in an edited rule runs, list the other rules running it
+  (`git grep -nF '<tool>' -- .claude/skills`) and compare the flags. Each flag a neighbour passes
+  for the same reading, such as one lifting a default cutoff, is passed too, or the edited rule
+  says why not.
+- **Why.** The Probe of
+  `.claude/skills/morphic-measuring-performance/references/finding-cost.md#share-no-module-frame-holds`
+  read a total off pprof's `-top` without the `-nodefraction=0` the rule before it passes. On a
+  15.40 s profile of the OpenAPI end-to-end tests at c524701b5, it printed 9.57 s where those
+  stacks held 10.14 s, as pprof dropped 137 nodes (#1667).
+- **Probe.** The report lists each edited command beside each neighbour's call of its tool, and each
+  flag only one of them passes, with its reason.
 
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`

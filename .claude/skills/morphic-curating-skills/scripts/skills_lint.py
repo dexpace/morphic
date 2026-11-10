@@ -336,7 +336,8 @@ class Linter:
         for i, line in enumerate(lines[end + 1:], end + 2):
             if POSITIONAL.search(line):
                 self.report(skill, i, "a $ before a digit is replaced by the skill's arguments "
-                                      "when it loads; spell an awk field $(N)")
+                                      "when it loads; spell an awk field $(N) and a shell "
+                                      "parameter ${N}")
 
     def check_front_keys(self, skill: Path, front: list[str]) -> None:
         """Hold each frontmatter key to the specification's fields, once each, and each plain

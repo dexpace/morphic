@@ -151,7 +151,7 @@ yourself. These rules are the ways that reading still lies.
 `plant-a-bypass-in-each-caller`
 
 - **Rule.** For a test holding a property of a helper several callers share, list the callers
-  (`git grep -n '<helper>(' -- <package>`), and in each the test does not run through, plant a
+  (`git grep -nF '<helper>(' -- <package>`), and in each the test does not run through, plant a
   bypass doing the helper's work without the property. A test fails for each, or that caller's
   property is unheld; a plant inside the helper holds only the callers the test runs through.
 - **Why.** A test held `forEachPayload`'s sorted range over `doc.Messages` through

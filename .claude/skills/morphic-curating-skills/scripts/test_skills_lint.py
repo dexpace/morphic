@@ -465,7 +465,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill + "references/r.md", "# R\n\n" + awk + "\n" + RULE)
         lines = len(GOOD_SKILL.split("\n"))
         message = ("a $ before a digit is replaced by the skill's arguments when it loads; "
-                   "spell an awk field $(N)")
+                   "spell an awk field $(N) and a shell parameter ${N}")
         self.assertEqual(self.lint()[1], [f"{skill}SKILL.md:{lines + 1}: {message}",
                                           f"{skill}SKILL.md:{lines + 3}: {message}"])
 

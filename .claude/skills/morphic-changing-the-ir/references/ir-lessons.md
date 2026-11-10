@@ -182,7 +182,7 @@ verifier and codecs must reach.
   steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
   kind documents and restated sections (#1402).
 - **Probe.** `go doc -all ./ir <Type>` and
-  `awk '/^[[:blank:]]{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#/{print FNR": "$0}' <document>`; an input
+  `awk '/^\040{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#/{print FNR": "$0}' <document>`; an input
   with no stated effect is unchecked.
 
 ## Check a step order against what later steps change and declare
