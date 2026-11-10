@@ -323,14 +323,15 @@ included, so the claims are judged once the walks over paths and webhooks have r
 (GitHub #548). They sit in `walk`, the value `LowerService` builds around the type
 registry and hands down, beside what else only the service walk writes: the server and
 security-scheme registries the service's servers and security requirements go into,
-each holding an entry once by ID (GitHub #1144, #1479), and the content entries a
+each holding an entry once by ID (GitHub #1144, #1226, #1479), and the content entries a
 parameter or header passes over, read once per declaration however many references reach
 it (GitHub #1240, #1484). They are effect handles beside `ts`, which §4 admits none of.
-Each spans the operations: a claim is judged against every other, and a server, a scheme
-or a passed-over entry is lowered once however many operations reach it, which values an
-operation returns after lowering could not settle. They are the walk's and not the run's:
-`LowerService` judges or returns each before it returns, so no lowering outside the
-service walk reaches them, and `Ctx` holds none.
+Each spans the operations: a claim is judged against every other, a server and a
+passed-over entry are lowered once, and a scheme no entry declares is minted once, however
+many operations reach them, which values an operation returns after lowering could not
+settle. They are the walk's and not the run's: `LowerService` judges or returns each
+before it returns, so no lowering outside the service walk reaches them, and `Ctx` holds
+none.
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.
