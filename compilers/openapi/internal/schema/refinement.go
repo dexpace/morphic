@@ -389,8 +389,8 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeD
 
 // said reports whether the principal of r already says what s's keyword key
 // does: what it admits holds it, or it is a format the value set it lowered to,
-// typed, holds as its ValueType (typeValueSet). A type that ValueType holds, its
-// values hold too.
+// typed, holds in its ValueType (typeValueSet), that format's primitive or a
+// narrower one. A type that ValueType holds, its values hold too.
 func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
 	if w.holds(r.held, s, key) {
 		return true

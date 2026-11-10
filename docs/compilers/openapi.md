@@ -1348,7 +1348,7 @@ beside the `allOf`, is typed by every conjunct. Each selects a primitive as
 [`enum-const`](#enum-const) reads one schema, from its `type` and `format`, else its `type`, where
 every value is of it, a `$ref` conjunct by the schema deciding what it lands on, past a chain of
 `$ref`s and refinements. The `ValueType` is the one of these, the value set's own included, that
-narrows every other, and each `type` and `format` it holds is consumed. So
+narrows every other, and each `type` and `format` it holds is consumed, a wider one included. So
 `{allOf: [{type: integer}, {const: 80.0}]}` is an `integer`, as `{type: integer, const: 80.0}` is,
 and keeps nothing. Where none narrows every other, as of two formats neither of which narrows the
 other, the value set keeps the `ValueType` its own schema gives it, and a format that reaches none

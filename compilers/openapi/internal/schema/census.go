@@ -125,8 +125,9 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // hoisted for it carries it in Encoding; a (type, format) pairing
 // spelling.Lookup knows selects a primitive, which carries the pairing in the
 // primitive kind itself, as an Enum's ValueType does where enumValueType took
-// it. With no type declared there was no pairing to make and nothing read it,
-// and a node of any other kind has no Encoding field at all.
+// it, or one narrower where another conjunct narrowed it (typeValueSet). With
+// no type declared there was no pairing to make and nothing read it, and a node
+// of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
@@ -141,10 +142,10 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 		return len(effectiveTypes(s)) > 0
 	case *ir.Enum:
 		prim, paired := formatPrimitive(s)
-		return paired && n.ValueType == prim
+		return paired && narrowsOrIs(n.ValueType, prim)
 	case *ir.Literal:
 		prim, paired := formatPrimitive(s)
-		return paired && n.ValueType == prim
+		return paired && narrowsOrIs(n.ValueType, prim)
 	default:
 		return false
 	}
