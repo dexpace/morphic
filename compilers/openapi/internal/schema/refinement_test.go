@@ -719,6 +719,8 @@ func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
 			ir.PrimNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
 		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimInteger,
 			[]string{"openapi:allOf/0"}},
+		"a format a member is not of": {"{allOf: [{type: integer, format: int8}, {enum: [1, 300]}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/0"}},
 		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimInteger,
 			[]string{"openapi:allOf/1"}},
 	} {
@@ -771,13 +773,16 @@ func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
 // a const beside an allOf that refines is one of its conjuncts, not its rival. It
 // lowers as if no allOf were written where it is the principal, with what the
 // branches say folded as written beside it, and a narrower branch is the
-// principal. Beside an allOf that composes, it still wins and keeps the allOf.
+// principal. A branch writing what the enum has no field for stays whole, though
+// the enum holds its format. Beside an allOf that composes, the enum still wins
+// and keeps the allOf.
 func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Flat: {type: string, enum: [a], description: the level, deprecated: true}
     Noted: {type: string, enum: [a], allOf: [{description: the level, deprecated: true}]}
     Const: {const: a, allOf: [{description: the level}]}
     Narrowed: {enum: [a, b], allOf: [{enum: [a]}]}
+    Bounded: {enum: [1, 2000], allOf: [{type: integer, format: int64, maximum: 10}]}
     Composes: {enum: [x], allOf: [{type: object, properties: {p: {type: string}}}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -800,6 +805,13 @@ func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
 	for _, at := range []string{"/components/schemas/Noted", "/components/schemas/Const", "/components/schemas/Narrowed"} {
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "%s keeps nothing", at)
 	}
+
+	bounded, ok := typeByName(doc, "Bounded").(*ir.Enum)
+	require.True(t, ok, "got %T", typeByName(doc, "Bounded"))
+	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
+	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(bounded.Unmodeled))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/Bounded/allOf/0"), "the branch (maximum) is kept verbatim")
 
 	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
 	require.True(t, ok)
@@ -1601,17 +1613,19 @@ func TestRefinement_AConstUnreadableStaysAComposition(t *testing.T) {
 }
 
 // TestRefinement_DecidingSchemaIsAskedOfAWholeChain pins the reader of a body's
-// shape through two refinements, one a $ref's and one inline, and past an enum.
+// shape through two refinements, one a $ref's and one inline, and past an enum,
+// one beside the allOf among them, to the narrower branch it refines to.
 func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 	t.Parallel()
 	l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Blob: {type: string, format: binary}
     Inner: {allOf: [{$ref: '#/components/schemas/Blob'}], description: inner}
     Outer: {allOf: [{$ref: '#/components/schemas/Inner'}, {description: outer}]}
     Inline: {allOf: [{type: string, format: binary}, {description: inline}]}
+    Narrowed: {enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}
     Bare: {allOf: [{description: says nothing}]}
 `))
 	schemas := l.Ctx.Doc.Components.GetSchemas()
-	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Bare": ""} {
+	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Narrowed": "binary", "Bare": ""} {
 		js, ok := schemas.Get(name)
 		require.True(t, ok, name)
 		assert.Equal(t, format, schema.DecidingSchema(l.Ctx, js.GetSchema()).GetFormat(), name)
