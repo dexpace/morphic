@@ -40,7 +40,7 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 	}
 	var diags []ir.Diagnostic
 	tid := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		def, unionDiags := buildUnion(c, ts, s, unionOf(s, pointer), common, pointer,
+		def, unionDiags := buildUnion(c, ts, s, unionAt{holder: s, at: pointer}, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, refDiags := Ref(c, ts, depth, b, vptr)
 				diags = append(diags, refDiags...)
@@ -301,11 +301,6 @@ type unionAt struct {
 	at     jsontext.Pointer
 }
 
-// unionOf is the union s, written at pointer, writes.
-func unionOf(s *oas3.Schema, pointer jsontext.Pointer) unionAt {
-	return unionAt{holder: s, at: pointer}
-}
-
 // branchUnionOf keys what branchUnion read of one schema.
 type branchUnionOf struct {
 	schema *oas3.Schema
@@ -329,14 +324,15 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 		return unionAt{}, false
 	}
 	e := allOfBranches(s, pointer).branches[at.index]
-	return unionOf(e.schema.GetSchema(), e.pointer), true
+	return unionAt{holder: e.schema.GetSchema(), at: e.pointer}, true
 }
 
-// findBranchUnion is branchUnion's reading of s: where s writes no union of its
-// own and its allOf composes rather than refines, the one branch whose union
-// declares shape against s, if that union is one classifyBranchSet
-// distributes. A second such union leaves none: distributing one would drop
-// the other. A union declaring no shape stays residue beside the rest.
+// findBranchUnion is branchUnion's reading of s: where s writes no union or
+// discriminator of its own and its allOf composes rather than refines, the one
+// branch whose union declares shape against s, if that branch lies within the
+// flattening depth and holds a union classifyBranchSet distributes. A second
+// such union leaves none: distributing one would drop the other. A union
+// declaring no shape stays residue.
 //
 // Nor does s distribute below a discriminated ancestor, whose route may name
 // it (routedSubtype): every reader of s shares this reading, which has no
@@ -689,7 +685,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 	}
 	switch classifyUnionSiblings(c, s, pointer) {
 	case unionDistributed:
-		return lowerDistributedUnion(c, ts, depth, s, unionOf(s, pointer), pointer)
+		return lowerDistributedUnion(c, ts, depth, s, unionAt{holder: s, at: pointer}, pointer)
 	case unionValidationOnly:
 		return beside(ir.ReasonValidationOnly, "")
 	case unionUncomposableBody:
