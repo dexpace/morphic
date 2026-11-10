@@ -62,7 +62,8 @@ type Options struct {
 type Origin struct {
 	// index is the overlay's position in Document.Sources.
 	index int
-	// target is the position of the document the overlay patches.
+	// target is the position in Document.Sources of the document the overlay
+	// patches.
 	target int
 	// source is the overlay's identity as an input document.
 	source ir.SourceInfo

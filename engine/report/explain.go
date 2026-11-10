@@ -45,10 +45,9 @@ type Interned struct {
 // pointer in the source it compiled: a position in the source is read, whoever
 // wrote it, an overlay included, and one in another document, a split source's
 // or the overlay's own, is not, since its pointer spells a position of that
-// document. A nil document has no types; a
-// nil registry entry, untyped or a typed nil pointer, is skipped rather than
-// dereferenced, since a malformed registry is what pass.Validate and irverify
-// exist to report.
+// document. A nil document has no types; a nil registry entry, untyped or a
+// typed nil pointer, is skipped rather than dereferenced, since a malformed
+// registry is what pass.Validate and irverify exist to report.
 func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) Explanation {
 	e := Explanation{Pointer: pointer}
 	for _, id := range sortedTypeIDs(doc) {
