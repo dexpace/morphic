@@ -61,13 +61,13 @@ func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (
 // hand-built node.
 func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
 ) (ir.AuthScheme, []ir.Diagnostic) {
-	scheme := unresolvedScheme(name, c.ProvenanceAt(entry))
+	scheme := unresolvedScheme(name, c.Place().At(entry))
 	if rs == nil {
 		return scheme, nil
 	}
 	scheme.Docs = docsBeside(rs)
 	_, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:$ref", rs.GetCore().Reference.ValueNode,
-		ir.ReasonDegradedLowering, c.ProvenanceAt(entry+ids.Ptr("$ref")))
+		ir.ReasonDegradedLowering, c.Place().At(entry+ids.Ptr("$ref")))
 	return scheme, append(unresolvableSchemeDiags(c, name, rs, entry), keptDiags...)
 }
 
@@ -121,7 +121,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
-		Provenance: c.ProvenanceAt(entry),
+		Provenance: c.Place().At(entry),
 	}
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
@@ -141,7 +141,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	// defines for a securityScheme which this entry's own mechanism gives no
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
 	// at all.
-	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.Place(), decl)...)
 	// After the extensions, whose entries are what a promotion reads. A statement
 	// of its own, since it writes the provenance of the scheme returned.
 	diags = append(diags, c.Promoter().Deprecation(scheme.Unmodeled, lowering.Referent{}, &scheme.Deprecation, &scheme.Provenance)...)
@@ -158,17 +158,17 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 // verbatim by preserveUnreadFields, extensions and all, and no ir.OAuthFlow was
 // lowered for a flow's own to land on.
 func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme, decl jsontext.Pointer) []ir.Diagnostic {
-	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.ProvenanceAt, decl)
+	ext, diags := annotation.ExtensionsFrom(ss.GetExtensions(), c.Place(), decl)
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, ext)
 	if scheme.Kind != ir.AuthKindOAuth2 {
 		return diags
 	}
 	flows := ss.GetFlows()
 	flowsPtr := decl + ids.Ptr("flows")
-	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.ProvenanceAt, flowsPtr, "flows")
+	flowsExt, flowsDiags := annotation.ExtensionsUnder(flows.GetExtensions(), c.Place(), flowsPtr, "flows")
 	scheme.Unmodeled = annotation.MergeUnmodeled(scheme.Unmodeled, flowsExt)
 	diags = append(diags, flowsDiags...)
-	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.ProvenanceAt, flowsPtr, "flows")...)
+	diags = append(diags, annotation.UnknownKeysUnder(&scheme.Unmodeled, flows, c.Place(), flowsPtr, "flows")...)
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
@@ -314,7 +314,7 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 		}
 		at := decl + ids.Ptr(field)
 		kept, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:"+field,
-			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
+			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

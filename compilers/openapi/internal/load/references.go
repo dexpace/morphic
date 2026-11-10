@@ -115,15 +115,15 @@ func (p *resolution) holdMediaType(doc *soa.OpenAPI, site jsontext.Pointer, mode
 }
 
 // diags returns what the pass found, the source's failures first and then each
-// other document's, by its name, each placed by place: in the source, or in the
+// other document's, by its name, each placed by sites: in the source, or in the
 // Document.Sources entry of the document writing the reference, which is
 // listed only once every document is read. Two objects the library built for
 // one position fail alike there, a finding the compile keeps once.
-func (p *resolution) diags(place func(refSite) ir.Provenance) []ir.Diagnostic {
+func (p *resolution) diags(sites places) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, doc := range slices.Sorted(maps.Keys(p.failures)) {
 		for _, d := range p.failures[doc] {
-			d.Provenance = place(refSite{doc: doc, pointer: d.Provenance.Pointer})
+			d.Provenance = sites.site(refSite{doc: doc, pointer: d.Provenance.Pointer})
 			out = append(out, d)
 		}
 	}
@@ -153,16 +153,13 @@ func (p *resolution) ends() map[refSite]referenceEnd {
 }
 
 // elsewhere returns each reference object the pass visited in another
-// document, with where a finding at a pointer of that document is placed.
-func (p *resolution) elsewhere(place func(refSite) ir.Provenance) []awayRef {
-	var out []awayRef
+// document.
+func (p *resolution) elsewhere() []visitedRef {
+	var out []visitedRef
 	for _, v := range p.visited {
-		if v.site.inSource() {
-			continue
+		if !v.site.inSource() {
+			out = append(out, v)
 		}
-		doc := v.site.doc
-		out = append(out, awayRef{visitedRef: v,
-			place: func(pointer jsontext.Pointer) ir.Provenance { return place(refSite{doc: doc, pointer: pointer}) }})
 	}
 	return out
 }
@@ -179,13 +176,6 @@ func (p *resolution) used() []usedDocument {
 		}
 	}
 	return used
-}
-
-// awayRef is a reference object written in another document, and where a
-// finding at a pointer of that document is placed.
-type awayRef struct {
-	visitedRef
-	place func(jsontext.Pointer) ir.Provenance
 }
 
 // pointerOnly is a Provenance holding pointer and naming no document yet.

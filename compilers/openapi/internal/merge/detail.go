@@ -80,7 +80,7 @@ func verdict(values, detail holding, adoptable bool) relation {
 // nothing shows the node built of the two admits them.
 func (j typeJudge) detailOf(a, b extras) (holding, bool) {
 	h, adoptable := fieldHolding(reflect.ValueOf(a.Encoding), reflect.ValueOf(b.Encoding))
-	um, umOK := unmodeledHolding(a.Common.Unmodeled, b.Common.Unmodeled, j.sites.alike)
+	um, umOK := unmodeledHolding(a.Common.Unmodeled, b.Common.Unmodeled, j.sites.walk)
 	ex, exOK := fieldHolding(reflect.ValueOf(a.Common.Examples), reflect.ValueOf(b.Common.Examples))
 	h, adoptable = h.and(um).and(ex), adoptable && umOK && exOK && ex == holdsBoth
 	ac, bc := siteless(a.Common), siteless(b.Common)
@@ -110,8 +110,8 @@ func fieldHolding(a, b reflect.Value) (holding, bool) {
 
 // unmodeledHolding is the holding of what two nodes keep under Unmodeled, key
 // by key as fieldHolding reads a field, and false where both keep a key
-// differently, as sameEntry reads two entries under alike.
-func unmodeledHolding(a, b ir.Unmodeled, alike func(a, b ir.Provenance) bool) (holding, bool) {
+// differently, as sameEntry reads two entries through walk.
+func unmodeledHolding(a, b ir.Unmodeled, walk Walk) (holding, bool) {
 	h := holdsBoth
 	for _, k := range slices.Sorted(maps.Keys(a)) {
 		other, ok := b[k]
@@ -119,7 +119,7 @@ func unmodeledHolding(a, b ir.Unmodeled, alike func(a, b ir.Provenance) bool) (h
 			h.b = false
 			continue
 		}
-		if !sameEntry(alike, a[k], other) {
+		if !sameEntry(walk, a[k], other) {
 			return holding{}, false
 		}
 	}
@@ -136,7 +136,7 @@ func unmodeledHolding(a, b ir.Unmodeled, alike func(a, b ir.Provenance) bool) (h
 // to set it gives it, and differ hears of each later one setting it otherwise,
 // by its index and the name a document spells the field with. Base keeps its
 // site and its examples, which nothing adopts (detailOf).
-func adopt(base ir.TypeCommon, others []ir.TypeCommon, alike func(a, b ir.Provenance) bool,
+func adopt(base ir.TypeCommon, others []ir.TypeCommon, walk Walk,
 	differ func(k int, field string),
 ) ir.TypeCommon {
 	said := func(c ir.TypeCommon) reflect.Value {
@@ -166,7 +166,7 @@ func adopt(base ir.TypeCommon, others []ir.TypeCommon, alike func(a, b ir.Proven
 			}
 		}
 	}
-	base.Unmodeled = adoptUnmodeled(base.Unmodeled, others, alike, differ)
+	base.Unmodeled = adoptUnmodeled(base.Unmodeled, others, walk, differ)
 	return base
 }
 
@@ -179,7 +179,7 @@ func jsonName(f reflect.StructField) string {
 // adoptUnmodeled returns own with each key of others' Unmodeled it lacks, the
 // first to keep one giving it, its provenance with it. differ hears of a later
 // one keeping the key otherwise. It writes to no map it was given.
-func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, alike func(a, b ir.Provenance) bool,
+func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, walk Walk,
 	differ func(k int, field string),
 ) ir.Unmodeled {
 	out := maps.Clone(own)
@@ -194,7 +194,7 @@ func adoptUnmodeled(own ir.Unmodeled, others []ir.TypeCommon, alike func(a, b ir
 					out = ir.Unmodeled{}
 				}
 				out[key], taken[key] = entry, true
-			case taken[key] && !sameEntry(alike, kept, entry):
+			case taken[key] && !sameEntry(walk, kept, entry):
 				differ(k, key)
 			}
 		}

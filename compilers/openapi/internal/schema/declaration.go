@@ -146,7 +146,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		return nil
 	}
 	use := nodeUse(c, ts, s, pointer, target)
-	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -247,7 +247,7 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

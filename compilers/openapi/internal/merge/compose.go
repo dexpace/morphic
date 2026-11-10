@@ -103,7 +103,7 @@ func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
 // composable returns the node ref names, directly or through aliases, where
 // it is a Model, a MapT or a Union, and false where it names anything else.
 func (r registry) composable(ref ir.TypeRef) (ir.TypeDef, bool) {
-	td, ok := r.Resolve(ref.Target)
+	td, ok := r.resolve(ref.Target)
 	if !ok {
 		return nil, false
 	}

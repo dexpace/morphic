@@ -91,7 +91,7 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 		WireName:   name,
 		Type:       headerType,
 		Required:   h.GetRequired(),
-		Provenance: c.ProvenanceAt(hptr),
+		Provenance: c.Place().At(hptr),
 		Unmodeled:  elected.unmodeled,
 	}
 	if elected.mediaType != "" {
@@ -127,8 +127,8 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	if ex := positionExamples(own, media); len(ex) > 0 {
 		p.Examples = ex
 	}
-	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.ProvenanceAt, hdecl)
+	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.Place(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
+	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.Place(), hdecl)...)
 }

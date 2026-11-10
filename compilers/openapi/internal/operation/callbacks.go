@@ -41,7 +41,7 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointer
 		// expression's path item, and ir.Callback holds no Unmodeled map. The HTTP
 		// binding does, and is where the callbacks themselves live, so they are kept
 		// there under the name the callback is mapped by.
-		cbExt, cbExtDiags := annotation.ExtensionsUnder(cb.GetExtensions(), c.ProvenanceAt, cbDecl, ids.Scope("callbacks", cbName))
+		cbExt, cbExtDiags := annotation.ExtensionsUnder(cb.GetExtensions(), c.Place(), cbDecl, ids.Scope("callbacks", cbName))
 		ext = annotation.MergeUnmodeled(ext, cbExt)
 		diags = append(diags, cbExtDiags...)
 		for expr, rp := range cb.All() {

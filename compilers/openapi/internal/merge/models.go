@@ -39,7 +39,7 @@ func (j typeJudge) models(a ir.TypeRef, am *ir.Model, b ir.TypeRef, bm *ir.Model
 	if !aok || !bok || as.tag != bs.tag || len(as.refs) != len(bs.refs) || !reflect.DeepEqual(as.model, bs.model) {
 		return relUnrelated
 	}
-	if (membersKeepReference(am) || membersKeepReference(bm)) && !j.sites.alike(am.Provenance, bm.Provenance) {
+	if (membersKeepReference(am) || membersKeepReference(bm)) && !j.sites.walk.Alike(am.Provenance, bm.Provenance) {
 		return relUnrelated
 	}
 	outer := j.sites.copies(a, am, b, bm)

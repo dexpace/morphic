@@ -413,7 +413,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	diags := recordUnhomedAt(c, p, s, k.keywords, k.shape, pointer)
 	for _, b := range k.branches {
 		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
-			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(b.entry.pointer))
+			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))

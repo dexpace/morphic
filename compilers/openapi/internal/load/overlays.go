@@ -13,7 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
@@ -109,24 +109,19 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	place := locator(srcIndex, origin, scan.Pointers(ctx, root))
-	return origin, append(diags, patchedRefusals(ctx, place, root, opts)...)
+	tree := treeOf(ctx, provenance.Doc{Source: srcIndex, Overlay: origin.Attribution()}, root)
+	return origin, append(diags, patchedRefusals(ctx, tree, root, opts)...)
 }
 
 // patchedRefusals is refusals of root, the tree the overlay patched, one at a
-// node placed as place places it. One of the whole tree, such as its pointers'
+// node placed as tree places it. One of the whole tree, such as its pointers'
 // bytes, is placed at the overlay, whose actions caused it, since the source
 // passed the same refusals before the overlay applied (loading.preParse), and
 // says it reads the tree the overlay leaves, as the overlay's own document
 // draws the same refusal (overlayRefusals).
-func patchedRefusals(ctx context.Context, place scan.Locator, root *yaml.Node, opts Options) []ir.Diagnostic {
+func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node, opts Options) []ir.Diagnostic {
 	whole := ir.Provenance{Source: opts.OverlaySrcIndex}
-	found := refusals(ctx, func(n *yaml.Node) ir.Provenance {
-		if n == nil {
-			return whole
-		}
-		return place(n)
-	}, root, opts)
+	found := refusals(ctx, tree, whole, root, opts)
 	for i := range found {
 		if found[i].Provenance == whole {
 			found[i].Message += ", once the overlay applies"
@@ -161,12 +156,12 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if build == nil {
 		build = defaultIndex
 	}
-	locate := scan.InTree(opts.OverlaySrcIndex, scan.Pointers(ctx, tree))
+	placed := treeOf(ctx, provenance.Doc{Source: opts.OverlaySrcIndex}, tree)
 	idx := build(ctx, tree)
 	if idx.Truncated() {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, locate(nil),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, placed.Node(nil),
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	return shapeRefusals(ctx, locate, idx, opts)
+	return shapeRefusals(ctx, placed, placed.Node(nil), idx, opts)
 }

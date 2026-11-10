@@ -189,10 +189,10 @@ func preserveBranchSets(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, reason 
 	var kept []string
 	for _, kw := range []string{"oneOf", "anyOf"} {
 		if reason == ir.ReasonValidationOnly {
-			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.ProvenanceAt)...)
+			diags = append(diags, annotation.PreserveValidationOnlyKeyword(p, s, kw, pointer, c.Place())...)
 			continue
 		}
-		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.ProvenanceAt)
+		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, kw, reason, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, kw)
@@ -238,7 +238,7 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 		return nil
 	}
 	unused := otherCombinator[won]
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, unused, ir.ReasonDegradedLowering, pointer, c.Place())
 	if !kept {
 		return diags
 	}
@@ -699,9 +699,9 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
-	idx := propIndex(c, ts, m)
-	diags = append(diags, fillAllOf(c, ts, depth, m, idx, body.comp)...)
-	diags = append(diags, fillModelProperties(c, ts, depth, idx, body.schema, body.comp.pointer)...)
+	fields := newModelFields(c, ts, m)
+	diags = append(diags, fillAllOf(c, ts, depth, m, fields, body.comp)...)
+	diags = append(diags, fillModelProperties(c, ts, depth, fields, body.schema, body.comp.pointer)...)
 	requireMembers(m, compositionRequired(body.schema.GetRequired(), body.comp))
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
 	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)

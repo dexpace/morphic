@@ -12,6 +12,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -47,7 +48,7 @@ const minExpandedNodes = 1 << 15 // 32768
 //
 // Run it only once recursive anchors are refused, which makes the alias graph
 // a DAG (see Aliases).
-func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, raw int, surplus budget.Limit,
+func aliasAmplification(ctx context.Context, tree provenance.Tree, root *yaml.Node, raw int, surplus budget.Limit,
 ) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
@@ -66,16 +67,16 @@ func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, ra
 		return ir.Diagnostic{}, false
 	}
 	if !budgeted {
-		return aliasAmplificationDiag(locate, Least(ctx, root, culprits), shape, raw), true
+		return aliasAmplificationDiag(tree, Least(ctx, root, culprits), shape, raw), true
 	}
 
 	// Past the budget, the document is weighed again against the ratio, so one
 	// past both is named for the shape, which no budget admits. Only a refused
 	// document pays for this walk.
 	if bombs := newAliasWeigher(shape).weigh(ctx, root); len(bombs) > 0 {
-		return aliasAmplificationDiag(locate, Least(ctx, root, bombs), shape, raw), true
+		return aliasAmplificationDiag(tree, Least(ctx, root, bombs), shape, raw), true
 	}
-	return aliasBudgetDiag(locate, Least(ctx, root, culprits), surplus, raw), true
+	return aliasBudgetDiag(tree, Least(ctx, root, culprits), surplus, raw), true
 }
 
 // shapeAllowance returns the bound the ratio rule sets on the expanded weight
@@ -89,14 +90,14 @@ func shapeAllowance(raw int) budget.Limit {
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
-// anchored where locate puts n, the innermost node past allowance that
+// anchored where tree places n, the innermost node past allowance that
 // aliasAmplification names. The reported node count is a lower bound ("at
 // least"), not the exact expansion: aliasWeigher holds its sums one past the
 // allowance, so the true expansion of a severe bomb (the 10-level x 10-way
 // fixture expands past 37 billion nodes) is never actually computed, only
 // proven to exceed the allowance.
-func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance budget.Limit, raw int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.AliasAmplification, locate(n),
+func aliasAmplificationDiag(tree provenance.Tree, n *yaml.Node, allowance budget.Limit, raw int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.AliasAmplification, tree.Node(n),
 		"YAML alias expansion reaches at least %d nodes, past the %d-node allowance for a %d-node document",
 		allowance.Past(), allowance.Cap(), raw)
 }
@@ -104,8 +105,8 @@ func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance budget.Limit
 // aliasBudgetDiag builds the diag.BudgetExceeded error diagnostic for a
 // document whose aliases add more nodes than the surplus budget, anchored as
 // aliasAmplificationDiag anchors its own and a lower bound for the same reason.
-func aliasBudgetDiag(locate Locator, n *yaml.Node, surplus budget.Limit, raw int) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, locate(n),
+func aliasBudgetDiag(tree provenance.Tree, n *yaml.Node, surplus budget.Limit, raw int) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, tree.Node(n),
 		"YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
 		surplus.Past(), raw, surplus.Cap())
 }

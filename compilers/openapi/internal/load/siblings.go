@@ -14,7 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
@@ -176,11 +176,11 @@ type siblingBuild func(ctx context.Context, node *yaml.Node) (*soa.PathItem, err
 // A tree in which no mapping keys $ref beside another key holds no use site and
 // is not walked: that is nearly every document, and the walk is a pass over the
 // whole model.
-func modelSiblings(ctx context.Context, doc *soa.OpenAPI, locate scan.Locator) (Siblings, []ir.Diagnostic) {
+func modelSiblings(ctx context.Context, doc *soa.OpenAPI, tree provenance.Tree) (Siblings, []ir.Diagnostic) {
 	if !anyNode(ctx, doc.GetRootNode(), refBeside) {
 		return Siblings{}, nil
 	}
-	return siblingsFrom(ctx, walk(ctx, doc), locate, buildSibling)
+	return siblingsFrom(ctx, walk(ctx, doc), tree, buildSibling)
 }
 
 // refBeside reports whether n is a mapping keying $ref beside another key, as
@@ -211,13 +211,13 @@ func refBeside(n *yaml.Node) bool {
 // so there are no more models than mappings the source holds, which its node
 // bound caps. A walk that panics stops the search where it stands; the
 // resolution walk meets the same fault at the same model, and reports it.
-func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], locate scan.Locator, build siblingBuild,
+func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree provenance.Tree, build siblingBuild,
 ) (Siblings, []ir.Diagnostic) {
 	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{},
 		writtenAs: map[jsontext.Pointer]*yaml.Node{}}
 	var faults []ir.Diagnostic
 	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
-		faults = append(faults, s.add(ctx, site, rp, build, locate)...)
+		faults = append(faults, s.add(ctx, site, rp, build, tree)...)
 	}
 	// A model's walk also records what each reference object in it is written
 	// as; the document's matches its path items alone.
@@ -256,7 +256,7 @@ func (s *Siblings) write(site jsontext.Pointer, w referenceWrapper) {
 // parser faulted on holds no model, and its fault is returned as an error
 // diagnostic instead.
 func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem, build siblingBuild,
-	locate scan.Locator,
+	tree provenance.Tree,
 ) []ir.Diagnostic {
 	if !rp.IsReference() {
 		return nil
@@ -276,7 +276,7 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 	item, err := build(ctx, fields)
 	if err != nil {
 		s.faulted[node] = true
-		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, locate(node),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.Validation, tree.Node(node),
 			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
 	}
 	s.byNode[node] = len(s.list)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -36,13 +37,13 @@ const (
 //
 // The second return holds the one keyword that reaches no field, a 3.0
 // exclusive modifier with no bound beside it (applyExclusiveFlag), placed by
-// pointer and locate, for the caller to merge.
-func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, locate Locator) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
+// pointer and doc, for the caller to merge.
+func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer, doc provenance.Doc) (*ir.Constraints, ir.Unmodeled, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil, nil
 	}
 	c := &ir.Constraints{}
-	residue := boundResidue{pointer: pointer, locate: locate}
+	residue := boundResidue{pointer: pointer, doc: doc}
 	numericBounds(c, s)
 	diags := applyExclusive(c, s, minBound, &residue, exclusiveBoolean)
 	diags = append(diags, applyExclusive(c, s, maxBound, &residue, exclusiveBoolean)...)
@@ -88,7 +89,7 @@ func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
 // is how a message comes to claim one that never happened (GitHub #144).
 type boundResidue struct {
 	pointer jsontext.Pointer
-	locate  Locator
+	doc     provenance.Doc
 	kept    ir.Unmodeled
 }
 
@@ -100,7 +101,7 @@ type boundResidue struct {
 // absence of one is the reason it is being kept at all.
 func (b *boundResidue) keepUnmodifiable(inclProp, exclProp string) ir.Diagnostic {
 	PreserveInto(&b.kept, "openapi:"+exclProp, ir.RawValue("true"),
-		ir.ReasonDegradedLowering, b.locate(b.pointer+ids.Ptr(exclProp)))
+		ir.ReasonDegradedLowering, b.doc.At(b.pointer+ids.Ptr(exclProp)))
 	return unmodifiableExclusiveDiag(inclProp, exclProp)
 }
 

@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"encoding/json/jsontext"
 	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -12,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -59,8 +59,9 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			// is the load phase's to report (load.ownedFinding). What else it
 			// warns of and keeps, the lowering does where it reads it, which it
 			// never does for a branch kept apart, so a 3.0 exclusive flag beside
-			// no bound there goes unwarned (GitHub #1494).
-			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", unlocated)
+			// no bound there goes unwarned (GitHub #1494). Nothing this reading
+			// places is kept, so it places at the zero Doc.
+			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", provenance.Doc{})
 			cons = merge.Constraints(cons, heldCollectionBounds(conjunct))
 			read = true
 		}
@@ -75,9 +76,6 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 func isBound(entry string) bool {
 	return slices.Contains(valueConstraintKeywords, entry) || entry == "minItems" || entry == "maxItems"
 }
-
-// unlocated is the annotation.Locator of a reading whose findings go nowhere.
-func unlocated(jsontext.Pointer, ...jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 
 // bound returns the reading of the value bound entry, starting one.
 func (a *agreement) bound(entry string) *boundReading {

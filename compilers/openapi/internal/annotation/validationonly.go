@@ -11,6 +11,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -133,7 +134,7 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // among them where dependencies says the schema's dialect defines it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, dependencies bool) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dependencies bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -142,7 +143,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, 
 	// contains, unevaluated — go through keep, because no single keyword names
 	// those.
 	keepKeyword := func(keyword string) {
-		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, locate)...)
+		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, doc)...)
 	}
 	// keep takes the conversion's error alongside its payload so an entry that
 	// could not be converted is reported rather than passed on as an absent one —
@@ -156,12 +157,12 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, 
 		for _, keyword := range combined {
 			from = append(from, pointer+ids.Ptr(keyword))
 		}
-		entry := locate(pointer, from...)
+		entry := doc.At(pointer, from...)
 		if err != nil {
 			diags = append(diags, unpreservableDiag(key, entry, err))
 			return
 		}
-		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, locate(pointer), label)...)
+		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), label)...)
 	}
 
 	if Written(s.GetNot()) {

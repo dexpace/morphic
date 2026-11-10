@@ -546,7 +546,7 @@ func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	}
 	at := d.pointer + ids.Ptr("discriminator")
 	kept, diags := annotation.PreserveSchemaKeyword(&owner.Common().Unmodeled, d.s, "discriminator",
-		ir.ReasonDegradedLowering, d.pointer, d.c.ProvenanceAt)
+		ir.ReasonDegradedLowering, d.pointer, d.c.Place())
 	if !kept {
 		return diags
 	}
