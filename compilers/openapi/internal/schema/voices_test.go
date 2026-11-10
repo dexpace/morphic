@@ -98,13 +98,15 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	}
 }
 
-// assertNodeAlike holds got to want whole but for provenance, which names where
-// each spelling was written and so differs between them.
+// assertNodeAlike holds got to want whole but for where provenance places each
+// part, which differs between the two spellings: what it marks inferred and
+// which document wrote it do not.
 func assertNodeAlike(t *testing.T, want, got ir.TypeDef) {
 	t.Helper()
 	require.NotNil(t, want)
 	require.NotNil(t, got)
-	if diff := cmp.Diff(want, got, cmpopts.IgnoreTypes(ir.Provenance{})); diff != "" {
+	at := cmpopts.IgnoreFields(ir.Provenance{}, "Pointer", "Position", "Node")
+	if diff := cmp.Diff(want, got, at); diff != "" {
 		t.Errorf("node mismatch (-beside the allOf +on a branch):\n%s", diff)
 	}
 }
