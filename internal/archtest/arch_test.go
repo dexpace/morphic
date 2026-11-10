@@ -268,10 +268,12 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/references",
 		"go.yaml.in/yaml/v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
-	// redeclaration unions rather than intersects, ids for the identity a field
-	// takes of its own, and provenance to place what a fold reports. The
-	// registry and the walk that declared the field reach it as values, which is
-	// what keeps the conflict lattice drivable without a walk.
+	// redeclaration unions rather than intersects, budget for the model pairs a
+	// judgment compares, diag for what a fold reports, ids for the identity a
+	// field takes of its own, provenance to place what it reports, and spelling
+	// for how two primitive kinds relate. The registry and the walk that
+	// declared the field reach it as values, which is what keeps the conflict
+	// lattice drivable without a walk.
 	"compilers/openapi/internal/merge": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/budget",

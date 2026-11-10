@@ -81,8 +81,9 @@ type registry struct {
 	resolve func(ir.TypeID) (ir.TypeDef, bool)
 }
 
-// declarationSites is where the two declarations a judgment compares were written,
-// which decides whether two nodes alike are copies of one declaration.
+// declarationSites is where the two declarations a judgment compares were
+// written, which decides whether two nodes alike are copies of one declaration,
+// and the walk that reads what the source writes at a node's site.
 type declarationSites struct {
 	// written is where declarations a and b were written. A node is a hoisted
 	// copy only where it was written at or under its declaration's pointer, in
