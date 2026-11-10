@@ -72,10 +72,11 @@ So each field keeps what its source declared, a declared `false` included, and n
 writes stands for a value the source left unstated.
 
 `NodeType` and `Attribute` spell one fact, the node's kind: `NodeType` as OpenAPI 3.2 names it, and
-`Attribute` as the flag older versions write does. They override as one, so a property setting
-either replaces the type's kind, and a level setting both is read by `NodeType`. Folding the flag
-into `NodeType` would have left a declared `attribute: false` nothing to be: it is not `element` on
-an array, where 3.2's `element` means wrapped, and an unset `NodeType` would take the type's.
+`Attribute` as a flag says it, OpenAPI's `attribute` or Smithy's `xmlAttribute`, the field a format
+writing only the flag fills. They override as one, so a property setting either replaces the type's
+kind, and a level setting both is read by `NodeType`. Folding the flag into `NodeType` would have
+left a declared `attribute: false` nothing to be: it is not `element` on an array, where 3.2's
+`element` means wrapped, and an unset `NodeType` would take the type's.
 
 ```go
 type XMLHints struct {

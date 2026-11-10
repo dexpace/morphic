@@ -105,8 +105,8 @@ type XMLHints struct {
 	// node's kind over Attribute.
 	NodeType string `json:"nodeType,omitempty"`
 	// Attribute reports that the node is an attribute rather than an element, as
-	// a flag older than NodeType says; nil = unstated, so a property's false can
-	// override a type's true.
+	// a flag such as OpenAPI's attribute or Smithy's xmlAttribute says; nil =
+	// unstated, so a property's false can override a type's true.
 	Attribute *bool `json:"attribute,omitzero"`
 	// Wrapped reports that list items are wrapped in a container element; nil =
 	// unstated, so a property's false can override a type's true.
