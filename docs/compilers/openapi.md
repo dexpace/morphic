@@ -1984,9 +1984,13 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
 - Status: partly built: two enums of different value types are judged by their kind, so one within
-  the other overlaps it rather than narrowing (#1654); a model and the wrapper it flattens that
-  fold different sets only because the model stops at the flattening depth are refused as
-  `compile/registry-refused`, not told apart, since one declaration names both.
+  the other overlaps it rather than narrowing (#1654); a structure stating no instance type that
+  refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
+  it conflicts with a kind it admits (#1671); an alias of an enum, a `Scalar` or a list is judged
+  by its kind beside a node it could meet, so the two overlap or are not compared rather than
+  meeting (#1672); a model and the wrapper it flattens that fold different sets only because the
+  model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
+  since one declaration names both.
 
 ### `allof-required`
 
