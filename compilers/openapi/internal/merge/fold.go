@@ -92,9 +92,7 @@ type declaration struct {
 // that declaration (identify). Every fact is decided from the whole set, so
 // declaration order decides only a tie, which is reported. What a declaration
 // says that the field does not carry is reported at that declaration, which is
-// kept verbatim beside the field. Each report names a pointer alone
-// (pointerOnly), and fold places them all through g.Doc, so none is placed
-// apart from the model's document.
+// kept verbatim beside the field.
 //
 // A fold judges every pair of declarations, so it judges at most
 // maxFoldDeclarations of them (keepUnjudged).
@@ -122,7 +120,8 @@ func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 }
 
 // pointerOnly is a Provenance holding pointer and naming no document until fold
-// places it.
+// places it. Every site of a fold reports at one, and fold places them all
+// through Merger.Doc, so none is placed apart from the model's document.
 func pointerOnly(pointer jsontext.Pointer) ir.Provenance {
 	return ir.Provenance{Pointer: pointer}
 }
