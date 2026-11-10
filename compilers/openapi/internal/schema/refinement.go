@@ -401,22 +401,24 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeD
 }
 
 // said reports whether the principal of r already says what s's keyword key
-// does: what it admits holds it, a union it lies within (unionHeld), or it is a
-// format the value set it lowered to, typed, holds in its ValueType
-// (typeValueSet), that format's primitive or a narrower one. A type that
-// ValueType holds, its values hold too.
+// does: what it admits holds it, a union one of whose branches it restates
+// (unionHeld), or it is a format the value set it lowered to, typed, holds in
+// its ValueType (typeValueSet), that format's primitive or a narrower one. A
+// type that ValueType holds, its values hold too.
 func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
-	if w.holds(r.held, s, key) || unionHeld(w, r.held, s, key) {
+	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
 		return true
 	}
 	return typed != nil && key == "format" && formatHome(typed, s)
 }
 
-// unionHeld reports whether every value held admits satisfies s's oneOf or
-// anyOf, the keyword key names: it lies within a branch, and for a oneOf within
-// one alone, sharing no kind with any other, so that exactly one admits each of
-// its values. A read cut short says no.
-func unionHeld(w *admission, held admitted, s *oas3.Schema, key string) bool {
+// unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
+// the keyword key names: a branch says nothing r's principal does not
+// (admission.restates), and for a oneOf one alone, sharing no kind with any
+// other, so that exactly one admits each of its values. A branch is compared
+// keyword by keyword, as what it admits leaves its bounds and annotations unread,
+// and one writing what no reading compares says more. A read cut short says no.
+func unionHeld(w *admission, r refinement, s *oas3.Schema, key string) bool {
 	var branches []*oas3.JSONSchema[oas3.Referenceable]
 	switch key {
 	case "oneOf":
@@ -426,13 +428,16 @@ func unionHeld(w *admission, held admitted, s *oas3.Schema, key string) bool {
 	default:
 		return false
 	}
+	var principal *oas3.JSONSchema[oas3.Referenceable]
+	if r.principal != nil {
+		principal = r.principal.schema
+	}
 	within, overlaps := 0, 0
 	for _, b := range branches {
-		read := w.whole(b)
 		switch {
-		case w.within(held, read):
+		case w.restates(r.held, principal, b):
 			within++
-		case held.kinds&read.kinds != 0:
+		case r.held.kinds&w.whole(b).kinds != 0:
 			overlaps++
 		}
 	}

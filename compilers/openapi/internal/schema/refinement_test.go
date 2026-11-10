@@ -189,13 +189,13 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 }
 
 // TestRefinement_AUnionBranchIsAConjunct pins a oneOf or anyOf written as an
-// allOf branch where the conjuncts admit no object: a conjunct admitting what its
-// branches do, read as docs/compilers/openapi.md#allof-refinement reads any
-// other. Beside a narrower conjunct it lowers to the meet, at a property as at a
-// component, saying nothing more where that conjunct lies within one branch and,
-// for a oneOf, shares a kind with no other; it stays with its branch where it
-// says more. Where it is the narrowest, it is the principal, and where it shares
-// no value with the rest, the allOf composes.
+// allOf branch where the conjuncts admit no object, read as
+// docs/compilers/openapi.md#allof-refinement reads any conjunct. Beside a
+// narrower one it lowers to the meet, at a property as at a component, saying
+// nothing more where a branch says nothing that conjunct does not and, for a
+// oneOf, shares a kind with no other; a branch's bound, pattern or annotation
+// says more, so it stays with its branch. Where it is the narrowest, it is the
+// principal, and where it shares no value with the rest, the allOf composes.
 func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
@@ -209,6 +209,11 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
     Overlapping: {allOf: [{oneOf: [{type: string}, {type: string, format: date}]}, {$ref: '#/components/schemas/Str'}]}
     Disjoint: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {type: boolean}]}
     Widest: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {description: either}]}
+    Bounded: {allOf: [{anyOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    BoundedOne: {allOf: [{oneOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    Patterned: {allOf: [{anyOf: [{type: string, pattern: '^a'}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    Described: {allOf: [{anyOf: [{type: string, description: a word}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    BesideDecides: {type: string, maxLength: 1000, allOf: [{anyOf: [{type: string}, {type: integer}]}]}
     Holder:
       type: object
       properties:
@@ -236,6 +241,11 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 	assert.Equal(t, int64(1000), *field.Constraints.MaxLength)
 	assert.Empty(t, field.Unmodeled)
 
+	beside, ok := typeByName(doc, "BesideDecides").(*ir.Scalar)
+	require.True(t, ok, "BesideDecides is a scalar, not %T", typeByName(doc, "BesideDecides"))
+	assert.Equal(t, ir.TypeID("t/prim/string"), beside.Base.Target, "the keywords beside the allOf decide it")
+	assert.Empty(t, beside.Unmodeled, "with no principal branch, the anyOf is said all the same")
+
 	byRef, ok := typeByName(doc, "ByRef").(*ir.Scalar)
 	require.True(t, ok, "ByRef is a use of Str, not %T", typeByName(doc, "ByRef"))
 	assert.Equal(t, componentID("Str"), byRef.Base.Target)
@@ -243,6 +253,8 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 
 	for name, key := range map[string]string{
 		"TwoMatch": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0", "Overlapping": "openapi:allOf/0",
+		"Bounded": "openapi:allOf/0", "BoundedOne": "openapi:allOf/0", "Patterned": "openapi:allOf/0",
+		"Described": "openapi:allOf/0",
 	} {
 		kept := typeByName(doc, name).Common().Unmodeled[key]
 		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s keeps the union, which says more", name)

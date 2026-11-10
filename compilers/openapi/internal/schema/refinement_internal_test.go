@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -22,6 +23,26 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
+
+// TestUnionHeld_AReadCutShortSaysNo covers unionHeld's own contract rather than
+// its callers', whose refinement declines first wherever a union's read is cut
+// short: a branch restating what the position holds says the union only while
+// every branch's read finishes.
+func TestUnionHeld_AReadCutShortSaysNo(t *testing.T) {
+	t.Parallel()
+	js := &oas3.JSONSchema[oas3.Referenceable]{}
+	valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader("{anyOf: [{type: string}, {type: integer}]}"), js)
+	require.NoError(t, err)
+	require.Empty(t, valErrs, "the fixture parses cleanly")
+	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    A: {type: string}\n"))
+	r := refinement{held: admitted{kinds: kindString}}
+
+	whole := newAdmission(l.Ctx)
+	assert.True(t, unionHeld(&whole, r, js.GetSchema(), "anyOf"), "read whole, the string branch says the union")
+	cut := newAdmission(l.Ctx)
+	require.True(t, cut.reads.Spend(maxAdmissionReads), "the budget holds what is spent")
+	assert.False(t, unionHeld(&cut, r, js.GetSchema(), "anyOf"), "the integer branch's read runs past it")
+}
 
 // TestOutcomeKeeps_ReportsANodeTheRegistryLacks pins the one way recordOn keeps
 // nothing: the node it was handed is not in the registry, a compiler bug no source

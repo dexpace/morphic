@@ -1372,10 +1372,15 @@ speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only wh
 takes it, and still lowers, though nothing else names it, as a position no component holds lowers
 for a `$ref`. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any of its
 branches admits, naming the kinds they name, so it may be the principal, lowering at its own pointer
-as an inline branch does. A principal lying within one of its branches says it, a `oneOf`'s only
-where it also shares no kind with another, so that exactly one admits each value the position holds:
+as an inline branch does. The principal says the union where one of its branches says nothing the
+principal does not, each keyword the branch writes compared as one written beside the `allOf` is,
+and a `oneOf` only where that branch also shares no kind with another, so that exactly one admits
+each value the position holds:
 `{allOf: [{anyOf: [{type: string}, {type: number}]}, {type: string, maxLength: 1000}]}` lowers as
-`{type: string, maxLength: 1000}` does, keeping nothing.
+`{type: string, maxLength: 1000}` does, keeping nothing. A branch writing a bound, a `pattern` or an
+annotation says more than the principal, so
+`{allOf: [{anyOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}`
+keeps the union with its branch.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
