@@ -95,10 +95,10 @@ func allOfBesideNoRef(s *oas3.Schema) bool {
 	return len(s.GetAllOf()) > 0 && s.Ref == nil
 }
 
-// allOfConjoins reports whether s's allOf may refine: no $ref, union or
+// allOfMayRefine reports whether s's allOf may refine: no $ref, union or
 // $dynamicRef stands beside it, the last two keeping it the composition it would
 // otherwise be (docs/compilers/openapi.md#allof-refinement).
-func allOfConjoins(s *oas3.Schema) bool {
+func allOfMayRefine(s *oas3.Schema) bool {
 	return allOfBesideNoRef(s) && !declaresUnion(s) && !declaresDynamicRef(s)
 }
 
