@@ -117,22 +117,29 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 // TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering pins the other side
 // of fillRefBranch's gate: a $ref off any loop that resolves to nothing, whether
 // it names an absent component or the whole document, is reported at the branch
-// and adds neither the Base nor a Mixin. Load reports these $refs at that
-// pointer too, so a full compile drops the lowering's report (withoutRereported),
-// and only the lowering's own list can show it gone here.
+// and adds neither the Base nor a Mixin, including beside a $ref that resolves,
+// where it would be a Mixin. Load reports these $refs at that pointer too, so a
+// full compile drops the lowering's report (withoutRereported), and only the
+// lowering's own list can show it gone here.
 func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ name, branches string }{
+	tests := []struct {
+		name, branches string
+		mixins         []ir.TypeRef
+	}{
 		{"a component that is absent", `        - $ref: '#/components/schemas/Ghost'
-`},
+`, nil},
 		{"the whole document beside an inline branch", `        - {$ref: '#'}
         - {type: object, properties: {a: {type: string}}}
-`},
+`, nil},
+		{"a component that is absent beside one that resolves", `        - $ref: '#/components/schemas/Ghost'
+        - $ref: '#/components/schemas/A'
+`, []ir.TypeRef{{Target: componentID("A")}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    Y:\n      allOf:\n"+tc.branches))
+			doc, diags := lowerSpecOnly(t, openapitest.ComponentSpec("    A: {type: object, properties: {a: {type: string}}}\n    Y:\n      allOf:\n"+tc.branches))
 			require.Len(t, diags, 1, "got %+v", diags)
 			assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
 			assert.Equal(t, ir.SeverityError, diags[0].Severity)
@@ -141,7 +148,7 @@ func TestAllOf_ARefBranchNamingNothingIsReportedByTheLowering(t *testing.T) {
 			y, ok := typeByName(doc, "Y").(*ir.Model)
 			require.True(t, ok, "Y is a Model, got %T", typeByName(doc, "Y"))
 			assert.Nil(t, y.Base, "the branch naming nothing is not the base")
-			assert.Empty(t, y.Mixins, "the branch naming nothing is not a mixin")
+			assert.Equal(t, tc.mixins, y.Mixins, "the branch naming nothing is not a mixin")
 		})
 	}
 }

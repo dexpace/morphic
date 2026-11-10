@@ -277,12 +277,14 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 }
 
 // TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
-// allOf branch and a union branch on a loop of $refs from being reported twice:
-// removing the gate in fillRefBranch, diagUnresolvedBranches or refTypeRef adds
-// an unresolved-ref beside the loop's cyclic-ref. A loop reported at the branch
-// itself hides that from withoutRereported, so each gate has a row for a loop
-// closing through a component too. A union beside structural keywords reaches
-// diagUnresolvedBranches only as case 3 of
+// allOf or union branch on a loop the compiler reads from being reported
+// twice: removing the gate in fillRefBranch, diagUnresolvedBranches or
+// refTypeRef adds an unresolved-ref beside the cyclic-ref. Where load
+// reports the loop at the branch, its least member, withoutRereported drops that
+// error, so each gate also has a row whose loop runs through L, which sorts
+// first, and fillRefBranch a second, allOf beside a distributed union. A
+// loop past the merge bound goes unread (#1570). A union beside structural
+// keywords reaches diagUnresolvedBranches only as case 3 of
 // docs/compilers/openapi.md#union-beside-structure, which the why field checks.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
@@ -352,6 +354,22 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 `, namesNoReferent, []report{
 			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
 			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"allOf branch beside a distributed union on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+      oneOf:
+        - $ref: '#/components/schemas/A'
+        - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
 		}},
 		{"union branch with no keyword beside it on a loop through a component", `    Z:
       oneOf:

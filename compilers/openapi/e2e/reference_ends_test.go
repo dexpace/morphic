@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -160,8 +161,8 @@ func TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt(t *testing.T) {
 		Severity ir.Severity
 		Pointer  string
 	}
-	// The root warning is the extension this document's x-params cannot be
-	// serialized as; the info is the union kept verbatim beside its body.
+	// x-params writes q twice, so it cannot be serialized as an extension: that
+	// is the root warning. The info is the union kept verbatim beside its body.
 	rootWarning := report{diag.DegradedConstruct, ir.SeverityWarning, ""}
 	tests := []struct {
 		name, schema string
@@ -232,7 +233,8 @@ components:
 			}
 			assert.Equal(t, tc.list, list, "the whole report, in order; got %+v", diags)
 			assert.Equal(t, tc.want, got, "got %+v", diags)
-			assert.Equal(t, `extension "x-params" could not be serialized`, diags[len(diags)-1].Message, "the root warning")
+			assert.Equal(t, `extension "x-params" could not be serialized`,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, ""), "the root warning")
 		})
 	}
 }
