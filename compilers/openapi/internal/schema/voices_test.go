@@ -188,16 +188,17 @@ func TestVoices_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
 // variant of the Union a distributed union lowers it to.
 func composedModels(t *testing.T, doc *ir.Document) []*ir.Model {
 	t.Helper()
-	u, distributed := typeByName(doc, "S").(*ir.Union)
+	s := typeByName(doc, "S")
+	u, distributed := s.(*ir.Union)
 	if !distributed {
-		m, ok := typeByName(doc, "S").(*ir.Model)
-		require.True(t, ok)
+		m, ok := s.(*ir.Model)
+		require.True(t, ok, "S lowered to a %T, want a Model or a Union", s)
 		return []*ir.Model{m}
 	}
 	out := make([]*ir.Model, 0, len(u.Variants))
 	for _, v := range u.Variants {
 		m, ok := doc.Types[v.Type.Target].(*ir.Model)
-		require.True(t, ok)
+		require.True(t, ok, "variant %s lowered to a %T, want a Model", v.Type.Target, doc.Types[v.Type.Target])
 		out = append(out, m)
 	}
 	return out
