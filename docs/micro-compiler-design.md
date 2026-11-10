@@ -290,11 +290,14 @@ changed is that no lowering carries it as a parameter.
 each document's `$dynamicAnchor`s beside its other identifiers, and
 `Ctx.DynamicAnchorSites` only asks the table (GitHub #401, #454, #1031).
 
-That makes it the one counterexample to §4's claim that interning is
-"irreducibly shared and stateful; nothing else is". It is a weaker exception than
-that phrasing suggests — a memo caches a pure function of the document, where the
-interning table accumulates decisions — but it is shared and it is mutated, and
-the claim as written does not admit it.
+The memo was the first counterexample to §4's claim that interning is
+"irreducibly shared and stateful; nothing else is", and the memos `Ctx` holds now are
+of its kind: `Remembered` keeps each answer a reading of the documents and their
+bindings gives (GitHub #1480), the namer each node's name (GitHub #1106), and the
+promotion policy what each schema lends a carrier (GitHub #1269). Each is a weaker
+exception than that phrasing suggests — a memo caches a pure function of the document,
+where the interning table accumulates decisions — but each is shared and mutated, and
+the claim as written does not admit them.
 
 *Later:* a second shared record does accumulate decisions. `resolve.Reached`, held
 by `Ctx` and written by every reference resolution, records where each one landed,
@@ -305,6 +308,29 @@ answers, and it is read as a set whose contents do not depend on the order they 
 written in. Only the lowering knows what it followed, so the alternatives were a
 reading of the source that guesses — which dropped entries and gave others two
 homes — or threading a return value through every lowering.
+
+*Later:* another shared record changes answers. `Ctx`'s expansion budget charges each
+`$ref` that `lowering.Declared` resolves what the declarations its chain names weigh, and
+each `additionalOperations` entry what it copies of its path item. Once the run's budget
+is crossed, no copy of `Ctx` lowers another such `$ref` or entry, and the compiler refuses
+the document rather than assemble one from whichever copies came first (GitHub #1430). Of
+what copies of `Ctx` share, it is the one that changes what another lowering reads.
+
+*Later:* the `operationIDs` row did not survive either. The operation walk recurses
+through callbacks, each a path item with operations of its own, and whether an
+operationId is unique is a question about every operation the service mounts, callbacks
+included, so the claims are judged once the walks over paths and webhooks have returned
+(GitHub #548). They sit in `walk`, the value `LowerService` builds around the type
+registry and hands down, beside what else only the service walk writes: the server and
+security-scheme registries the service's servers and security requirements go into,
+each holding an entry once by ID (GitHub #1144, #1479), and the content entries a
+parameter or header passes over, read once per declaration however many references reach
+it (GitHub #1240, #1484). They are effect handles beside `ts`, which §4 admits none of.
+Each spans the operations: a claim is judged against every other, and a server, a scheme
+or a passed-over entry is lowered once however many operations reach it, which values an
+operation returns after lowering could not settle. They are the walk's and not the run's:
+`LowerService` judges or returns each before it returns, so no lowering outside the
+service walk reaches them, and `Ctx` holds none.
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.
