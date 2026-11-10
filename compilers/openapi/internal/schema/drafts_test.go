@@ -123,6 +123,21 @@ func TestUnion_ABranchWritingAListOfItemsRestatesNothing(t *testing.T) {
 	assert.Equal(t, readDistributed, unionReading(doc, "U"))
 }
 
+// TestUnion_AListOfItemsBesideTheBranchesIsNotSaid pins that a body writing
+// `items` as a list, a tuple in a draft, is said by no branch writing one
+// element schema, so the union keeps the body rather than lowering alone and
+// dropping the tuple (docs/compilers/openapi.md#union-beside-structure).
+func TestUnion_AListOfItemsBesideTheBranchesIsNotSaid(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    U:\n      "+d4+"\n      type: array\n"+
+		"      items: [{type: string}, {type: integer}]\n"+
+		"      anyOf: [{type: array, items: {type: string, format: uuid}}, {type: array, items: {type: string, format: date}}]\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "U"))
+	_, tuple := typeByName(doc, "U").(*ir.Tuple)
+	assert.True(t, tuple, "the body keeps its tuple; got %T", typeByName(doc, "U"))
+}
+
 // TestAllOf_ABranchUnderADraftsIDFoldsNothing pins that draft 4's `id` gives an
 // inline allOf branch its base as `$id` does: `n.json` names A under the
 // branch's id and nothing at the position, so its `not` and description stay

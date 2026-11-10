@@ -2197,8 +2197,8 @@ written beside the `$ref` hoists, and an inline branch's own node, hoisted at it
 inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref` to that pointer
 finds too. The referent is carried as written, a branch admitting no object among them
 ([models](../ir/models.md#composition-entries)). A bare `required` is a body too where every
-branch admits only an object or null, the values it constrains or leaves alone: each variant
-requires the names of its branch.
+branch admits only an object or null, the values it constrains or leaves alone, so each variant
+requires those names of its branch.
 
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
 the composition as one written beside the `allOf` does, so it distributes the same way, where the
@@ -2207,9 +2207,10 @@ schema writes no union and no `discriminator` of its own, its `allOf` composes r
 declare shape (below). Its variants take their IDs from the branch's pointers, its `$ref` and inline
 branches conjoin as above, and the branch keeps nothing of the union, what else it writes merging as
 any branch does ([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
-of the five shapes below, or one of two branch unions declaring shape, distributing either of which
-would drop the other, stays whole with its branch, and so does one whose branches declare no shape,
-on each variant where another union distributes. Five shapes distribution cannot reach:
+of the five shapes below, one of two branch unions declaring shape, distributing either of which
+would drop the other, or one on a branch nested past the flattening depth stays whole with its
+branch, and so does one whose branches declare no shape, on each variant where another union
+distributes. Five shapes distribution cannot reach:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
    `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
@@ -2240,7 +2241,8 @@ emitter to reach.
 A keyword beside the union that every branch already says adds nothing to it: a `type` naming each
 kind a branch admits, null included, and a `format`, an `enum`, a `const` or an `items` each branch
 is held to, read as [`allof-refinement`](#allof-refinement) reads what a conjunct admits and within
-its bounds, a read cut short saying none. Where the branches declare shape (below) and say every
+its bounds, a read cut short saying none. An `items` written as a list, a draft's tuple, is said by
+no branch. Where the branches declare shape (below) and say every
 keyword that makes a body, the schema means the union alone, and it lowers as if those keywords
 were not written: `{type: string, anyOf: [{$ref: V4}, {$ref: V6}]}` as `{anyOf: [{$ref: V4},
 {$ref: V6}]}`, and `{type: object, oneOf: [{$ref: A}, {$ref: B}]}` as the union of `A` and `B`, not
@@ -2337,6 +2339,7 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
   `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
   `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
+  `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,

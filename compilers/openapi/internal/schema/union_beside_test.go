@@ -20,9 +20,9 @@ import (
 
 // TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone pins the body
 // that adds nothing to its branches (docs/compilers/openapi.md#union-beside-structure):
-// a `type` naming every kind they admit, and a `format`, `enum` or `items` each
-// is held to, leave the union alone, lowered as its bare spelling is, keeping
-// nothing and reporting nothing. A keyword no branch says beyond the body's
+// a `type` naming every kind they admit, and a `format`, `enum`, `const` or
+// `items` each is held to, leave the union alone, lowered as its bare spelling
+// is, keeping nothing and reporting nothing. A keyword no branch says beyond the body's
 // keywords stays beside the union, and one the branches do not all say keeps
 // the body: a null the `type` leaves out, a branch writing no `type`, branches
 // declaring no shape and a discriminator beside them each keep it.
@@ -35,6 +35,9 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
     Typed: {type: string, anyOf: [{$ref: '#/components/schemas/V4'}, {$ref: '#/components/schemas/V6'}]}
     Formatted: {type: string, format: ipv4, anyOf: [{$ref: '#/components/schemas/V4'}, {type: string, format: ipv4, maxLength: 15}]}
     Valued: {enum: [a, b, c], oneOf: [{type: string, enum: [a]}, {type: string, enum: [b, c]}]}
+    CA: {type: string, const: a}
+    EA: {type: string, enum: [a], description: an a}
+    Constant: {const: a, anyOf: [{$ref: '#/components/schemas/CA'}, {$ref: '#/components/schemas/EA'}]}
     Listed:
       type: array
       items: {type: string}
@@ -57,7 +60,7 @@ func TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone(t *testing.T)
 	typed, ok := typeByName(doc, "Typed").(*ir.Union)
 	require.True(t, ok, "a type every branch says leaves the union alone")
 	assert.Equal(t, bare.Variants, typed.Variants, "as its bare spelling lowers")
-	for _, name := range []string{"Typed", "Formatted", "Valued", "Listed", "Objects"} {
+	for _, name := range []string{"Typed", "Formatted", "Valued", "Constant", "Listed", "Objects"} {
 		u, ok := typeByName(doc, name).(*ir.Union)
 		require.True(t, ok, "%s lowers to its union; got %T", name, typeByName(doc, name))
 		assert.Empty(t, u.Unmodeled, "%s keeps nothing: each keyword beside it is said", name)

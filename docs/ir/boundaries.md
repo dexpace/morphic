@@ -117,8 +117,9 @@ simply absent from the IR and preserve nothing.
   artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
   (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already covered
   by `Base`/`Mixins` ([models](./models.md#composition)); Smithy, GraphQL, Protobuf and Erlang/OTP
-  cannot express it at all. The shape is instead handled where it arises: distributed across the
-  union's variants per [models](./models.md#composition-beside-a-union) when every branch names a
+  cannot express it at all. The shape is instead handled where it arises: read as the union alone
+  where the structural keywords say nothing its branches do not, distributed across the union's
+  variants per [models](./models.md#composition-beside-a-union) when every branch names a
   referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. A second format
   that declares a genuine intersection — not a model-only `&` — is what would reopen this.
