@@ -1632,11 +1632,12 @@ A value type or a structure of another instance type is narrower than it, in eit
 it and each alias naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps
 it otherwise, since a type replacing it would lose what it holds. So a structure written at the
 declaration itself, which keeps its docs, deprecation and redaction on its own node, overlaps a
-value type where it holds any of them; one a `$ref` reached carries them down to the field. Two
-such structures of different instance types overlap, sharing every value of a third. The source is
-read in the document holding the composing model, so a structure another document declares, and
-one whose `allOf` runs past the 256 schemas that read spends, reads as stating its type. A pair gets
-the same verdict as a field's types and as two containers' members, but for tuples, above.
+value type or a structure of another instance type where it holds any of them; one a `$ref` reached
+carries them down to the field. Two such structures of different instance types overlap, sharing
+every value of a third. The source is read in the document holding the composing model, so a
+structure another document declares, and one whose `allOf` runs past the 256 schemas that read
+spends, reads as stating its type. A pair gets the same verdict as a field's types and as two
+containers' members, but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
 most declarations' types, the first of them on a tie. A declaration's type within every other's
