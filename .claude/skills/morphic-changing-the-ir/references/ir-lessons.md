@@ -140,8 +140,9 @@ verifier and codecs must reach.
   struct gains is left zero there with every round trip green. Hold it with
   `assertNoFieldZero` in `ir/helpers_test.go`, which `assertJSONContract` and
   `assertTypeDefRoundTrip` there call, naming each field it leaves zero with the reason. A struct no
-  test hands it, as one round-tripped arm by arm or held only inside another, is held by none until
-  the check of #1679 lands: until then, set each field it gains in a round-trip value.
+  test hands `assertNoFieldZero`, as one round-tripped arm by arm or held only inside another, is
+  held by none until the check of #1679 lands: until then, set each field it gains in a round-trip
+  value.
 - **Why.** #1367's four fields went unset in two values their contract tests called fully
   populated, so a `json:"-"` tag on any of them passed both (#1670).
 - **Probe.** Each test whose comment `git grep -niE 'fully( populated|$)' -- 'ir/*_test.go'` hits
