@@ -17,17 +17,18 @@ operation whose `Servers` names a server of its own.
   a base URL, which replaces the server's URL entirely, for a proxy, a test server or a deployment
   the document does not list ([Go](../targets/go/operations.md#the-client),
   [Kotlin](../targets/kotlin/operations.md#the-client)). A value outside a variable's `Enum` is
-  refused when the client is built, never sent. An empty `Default` substitutes nothing, the one
-  reading OpenAPI admits, since it requires a default; telling an empty default from none, which
-  AsyncAPI allows, is #883's.
+  refused when the client is built, never sent, and so is a variable with no `Default`, which
+  AsyncAPI allows, that the caller gives no value. An empty `Default` substitutes nothing, as
+  OpenAPI's `default: ""` does.
 - **A server a client cannot reach.** A server whose URL, its variables at their defaults, has no
   scheme and host — the `/` OpenAPI supplies for a document that declares no server, which records
   no pointer ([servers](../../ir/servers.md)), among them — cannot be the default: the document's
-  location, which OpenAPI resolves a relative URL against, is not something an SDK knows. The
-  default is the first server that has both, so a relative server listed first passes the default to
-  the next. A client refuses to be built while the server it would use has neither and no base URL
-  replaces it, as when a caller names a relative server, and refine reports a client none of whose
-  servers has both once, as an info `emitters/<target>/no-default-server`.
+  location, which OpenAPI resolves a relative URL against, is not something an SDK knows. Nor can a
+  server with a variable that has no `Default`, whose URL has no value until a caller gives one. The
+  default is the first server neither excludes, so a relative server listed first passes the default
+  to the next. A client refuses to be built while the server it would use has no scheme and host and
+  no base URL replaces it, as when a caller names a relative server, and refine reports a client
+  none of whose servers can be the default once, as an info `emitters/<target>/no-default-server`.
 - **An operation's own servers.** An operation whose `Servers` names any is sent to those in place
   of its service's, by the same rules: to the first of them a client can reach, each variable at its
   `Default`. The caller's choice of server and of variable values is a choice among the service's

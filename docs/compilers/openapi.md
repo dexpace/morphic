@@ -3925,16 +3925,17 @@ field, and never lowered into a field the flow lacks.
 ### `servers`
 
 The document's `servers` lower to `Document.Servers`, each server registered at the pointer of its
-Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the
-service names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description`
-to its docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the
-order written, to a variable with its `default`, `enum` and `description`, and the server's `x-*`
-and undeclared keys to its own `Unmodeled`. A document whose `servers` is absent or empty is served
-at the one server OpenAPI supplies, at `/`, minted as `server/default` and recording no pointer,
-since nothing in the document writes it. A name one servers list repeats — the document's, a path
-item's or an operation's, compared as written at every version, since the parser reads `name` on
-each — is kept as declared on both entries and reported as an `openapi/duplicate-server-name`
-warning at the repeat's name, naming the first.
+Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the service
+names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description` to its
+docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the order
+written, to a variable with its `default`, an empty string kept and none where the entry writes no
+`default`, its `enum` and its `description`, and the server's `x-*` and undeclared keys to its own
+`Unmodeled`. A document whose `servers` is absent or empty is served at the one server OpenAPI
+supplies, at `/`, minted as `server/default` and recording no pointer, since nothing in the document
+writes it. A name one servers list repeats — the document's, a path item's or an operation's,
+compared as written at every version, since the parser reads `name` on each — is kept as declared on
+both entries and reported as an `openapi/duplicate-server-name` warning at the repeat's name, naming
+the first.
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
@@ -3942,9 +3943,10 @@ warning at the repeat's name, naming the first.
   `servers.TestRegistry_RootServesADocumentWithNoServersAtTheRoot`,
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
-  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
-- Status: partly built: a variable's `default` cannot tell an empty default from none (#883); and a
-  servers list only a `$ref` reaches is never checked for a repeated name (#880).
+  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
+- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
+  (#880).
 
 ## 15. Vendor extensions and policy
 
