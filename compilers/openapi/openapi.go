@@ -273,10 +273,9 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 
 // loweringCtx builds the lowering context over a loaded document under the
 // caller's options, and is the loadOptions of the phase below: it projects
-// Options onto the lowering's own Policy, which it reads as its own input
-// rather than this public type. It reads the budgets the lowering holds, on
-// enums and on what $refs and path items copy, as loadOptions reads the
-// others.
+// Options onto lowering.Policy, that package's own input, deliberately not this
+// public type. It reads the budgets the lowering holds, on enums and on what
+// $refs and path items copy, as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	return lowering.New(rootSrcIndex, doc, lowering.Policy{
 		Grouping: o.Grouping,
