@@ -101,7 +101,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
-	self := newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), 0, root), nil)
+	self := newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	return doc, newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)
@@ -115,7 +115,7 @@ func TestTreeOf_IndexesUnderTheLoadsContext(t *testing.T) {
 	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
 	ctx := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
 
-	tree := treeOf(ctx, 0, root)
+	tree := treeOf(ctx, provenance.Doc{}, root)
 	require.Zero(t, ctx.Calls, "nothing is indexed before a node is asked about")
 
 	assert.True(t, treeHolds(tree, root.Content[0]))
@@ -128,7 +128,7 @@ func TestTreeOf_IndexesUnderTheLoadsContext(t *testing.T) {
 func TestWalkedFrom_AnswersAtTheLastNodeItReaches(t *testing.T) {
 	t.Parallel()
 	root := decodeRoot(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n")
-	tree := treeOf(t.Context(), 0, root)
+	tree := treeOf(t.Context(), provenance.Doc{}, root)
 
 	for _, locate := range []oas.Locator{walkedFrom(root, tree.Node), reachedLocator(tree, root)} {
 		got := locate("/info/nowhere/at/all")

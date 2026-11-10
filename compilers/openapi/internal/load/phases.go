@@ -15,7 +15,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -120,7 +119,7 @@ type loading struct {
 // it faults on. A non-fatal finding, the scan's report that it could not
 // finish, is carried forward.
 func (l *loading) preParse(ctx context.Context) (bool, error) {
-	tree := provenance.Tree{Doc: provenance.Doc{Source: l.srcIndex}, Pointers: scan.Pointers(ctx, l.root)}
+	tree := treeOf(ctx, provenance.Doc{Source: l.srcIndex}, l.root)
 	l.early = refusals(ctx, tree, tree.Node(nil), l.root, l.opts)
 	return diag.HasError(l.early), nil
 }
@@ -134,7 +133,7 @@ func (l *loading) patchOverlay(ctx context.Context) (bool, error) {
 	}
 	l.origin, l.early = origin, append(l.early, diags...)
 	l.place = provenance.Doc{Source: l.srcIndex, Overlay: origin.Attribution()}
-	l.tree = provenance.Tree{Doc: l.place, Pointers: scan.Pointers(ctx, l.root)}
+	l.tree = treeOf(ctx, l.place, l.root)
 	return diag.HasError(l.early), nil
 }
 

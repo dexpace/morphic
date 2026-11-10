@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -172,7 +173,7 @@ func placedRefusals(t *testing.T, src string) []ir.Diagnostic {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return refusals(t.Context(), treeOf(t.Context(), 0, &root), ir.Provenance{}, &root, Options{})
+	return refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{})
 }
 
 // TestRefusals_NamesTheLeastTaggedMapping pins the tagged-mapping refusal's
@@ -200,7 +201,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(t.Context(), treeOf(t.Context(), 0, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)})
+	diags := refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)})
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {

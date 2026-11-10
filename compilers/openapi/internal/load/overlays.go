@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
@@ -110,8 +109,7 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	tree := provenance.Tree{Doc: provenance.Doc{Source: srcIndex, Overlay: origin.Attribution()},
-		Pointers: scan.Pointers(ctx, root)}
+	tree := treeOf(ctx, provenance.Doc{Source: srcIndex, Overlay: origin.Attribution()}, root)
 	return origin, append(diags, patchedRefusals(ctx, tree, root, opts)...)
 }
 
@@ -158,7 +156,7 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if build == nil {
 		build = defaultIndex
 	}
-	placed := provenance.Tree{Doc: provenance.Doc{Source: opts.OverlaySrcIndex}, Pointers: scan.Pointers(ctx, tree)}
+	placed := treeOf(ctx, provenance.Doc{Source: opts.OverlaySrcIndex}, tree)
 	idx := build(ctx, tree)
 	if idx.Truncated() {
 		return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.SourceTooLarge, placed.Node(nil),

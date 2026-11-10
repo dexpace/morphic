@@ -4,12 +4,14 @@
 package load
 
 import (
+	"context"
 	"path/filepath"
 
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
 
 // sourceDocument is the source as its references' resolution reads it: the
@@ -29,6 +31,13 @@ type sourceDocument struct {
 	// escapes holds the $ref values rewritten in the source's tree and in the
 	// trees of the documents it reads, or is nil for none (GitHub #911).
 	escapes *escapes
+}
+
+// treeOf places the nodes of root in the document doc places, their pointers
+// indexed under ctx once a node is first asked about (scan.Pointers), so the
+// index stops where the load does.
+func treeOf(ctx context.Context, doc provenance.Doc, root *yaml.Node) provenance.Tree {
+	return provenance.Tree{Doc: doc, Pointers: scan.Pointers(ctx, root)}
 }
 
 // treeHolds reports whether tree holds n, so a finding about n is placed in
