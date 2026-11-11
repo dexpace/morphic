@@ -2545,8 +2545,8 @@ whichever settles first. Two unions meet it:
   `schema.TestDiscriminatorInference_DisabledReadsNothing`,
   `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
   `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`
-- Status: partly built: a hierarchy's subtype keeps the tag its component name gives it where it
-  pins another (#1699).
+- Status: partly built: a subtype keeps the tag its component name gives it where it, or the union
+  it composes, pins its tag to other values (#1699).
 
 ### `string-const-union`
 
