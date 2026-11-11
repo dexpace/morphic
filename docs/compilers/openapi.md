@@ -2157,14 +2157,23 @@ property or parameter ([`constraints`](#constraints)). Each variant is built fro
 so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
 is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
 
-- Cases: `keywords-at-every-outcome`, `type-array-numeric`
+The `object` variant holds no `discriminator`, so the census keeps it on the union, whether or not a
+`oneOf` or `anyOf` is written beside it. No `$ref` or `mapping` can name the variant's position,
+which holds a type's name and no schema, so no type is its subtype, and every route the
+discriminator takes leads elsewhere: a `mapping` target, the `defaultMapping`, or a component whose
+`allOf` names the schema, which composes the union and keeps it as its `Base`, with the
+`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)).
+Settling the variant's discriminator by its routes, as one beside a union kept verbatim is settled
+([`union-beside-structure`](#union-beside-structure)), would keep it only where it routes nowhere,
+and would have to find every component composing the schema to know that.
+
+- Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
-  `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a value
-  bound lands on any variant with a `Constraints` field, whether or not it constrains that variant's
-  type (#1310).
+  `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`
+- Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
+  not it constrains that variant's type (#1310).
 
 ### `union-null-variant`
 
@@ -2298,12 +2307,12 @@ union, with an info `openapi/degraded-construct` at the discriminator; a subtype
 `DiscriminatorValue` its mapping key gives it, since that is still the tag its instances carry, and
 a body the move leaves holding a map and nothing else lowers to that map's `MapT`
 ([containers](../ir/containers.md)). A union whose branches declare no shape
-(`validation_only`) is held to the same rule, and so is a multi-typed body, which lowers to a
-`Union` whose object variant, built from the same schema, holds the discriminator. The compiler
-decides once every node is interned (`compile.Settlement`), because neither the walk nor the source
-schemas can answer it: a subtype declared after the `Model` has no `Base` while the `Model` lowers,
-and a schema whose `allOf` names the `Model` may still lower to no subtype — an `enum`, a `const`,
-or an alias over a `$ref` beside it.
+(`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
+[`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
+The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
+nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
+`Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
+`enum`, a `const`, or an alias over a `$ref` beside it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
@@ -2389,11 +2398,11 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
   `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`,
   `schema.TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), a union
-  beside a composition the bounds cut short degrades even where each branch restates only what the
-  body itself writes (#1423), a subtype a discriminator routes to keeps its union verbatim (#1694),
-  a union on a branch below a discriminated base stays whole where no route names the schema
-  (#1695), and a discriminated union on a branch stays whole with its branch (#1698).
+- Status: partly built: a union beside a composition the bounds cut short degrades even where each
+  branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
+  keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
+  no route names the schema (#1695), and a discriminated union on a branch stays whole with its
+  branch (#1698).
 
 ### `union-beside-ref`
 

@@ -414,3 +414,11 @@ it sees. Changes made together in one bump are listed together under it.
   distinct string. The union's `Provenance.Inferred` names `discriminator-inference` either way. A
   consumer pinned to 0.39.0 no longer finds those keys on such a schema, reads an undeclared union
   it read as untagged as tagged, and routes a declared one by a mapping it had read as nil.
+- **0.41.0** — no shape change. The OpenAPI compiler lowers a `type` listing more than one type with
+  no `Discriminator` on its `object` variant, keeping the schema's `discriminator` verbatim under
+  `Unmodeled["openapi:discriminator"]` on the `Union` the type array lowers to
+  ([`type-arrays`](../compilers/openapi.md#type-arrays)). The variant had held it except beside a
+  `oneOf` or `anyOf` kept verbatim, where a mapping, a default or a `$ref` branch moved it to the
+  `Union`. Nothing can name the variant, so no type is its subtype: a mapping to a subtype of the
+  schema failed validation, and a route by a subtype's component name went unread. A consumer pinned
+  to 0.40.0 that read the variant's `Discriminator` no longer finds it there.

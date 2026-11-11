@@ -477,36 +477,14 @@ func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3
 	return out
 }
 
-// deferDiscriminatorBesideUnion queues a settlement for each model that holds
-// the discriminator written beside the union lowerBesideUnmodeledUnion kept
-// verbatim on owner (discriminatorModels). A body that lowered to anything else
-// holds none: the census kept its discriminator where it kept the rest.
+// deferDiscriminatorBesideUnion queues a settlement for the discriminator a
+// model at owner holds beside the union lowerBesideUnmodeledUnion kept verbatim
+// on it. A body that lowered to anything else holds none: the census kept its
+// discriminator where it kept the rest, a multi-typed body's on its union
+// (lowerTypeVariant).
 func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
-	named := namedBranches(c, s)
-	for _, model := range discriminatorModels(ts, owner) {
-		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, owner: owner, model: model, named: named})
-	}
-}
-
-// discriminatorModels returns the models holding the discriminator of the body
-// lowered to owner: owner itself when it is a model, and otherwise each model
-// variant of the union a multi-typed body lowers to, which lowerUnion builds
-// from the same schema. lowerDiscriminator fills no other node a body yields.
-func discriminatorModels(ts *compile.Types, owner ir.TypeID) []ir.TypeID {
-	td, _ := ts.Node(owner)
-	switch n := td.(type) {
-	case *ir.Model:
-		return []ir.TypeID{owner}
-	case *ir.Union:
-		var models []ir.TypeID
-		for _, v := range n.Variants {
-			if vt, _ := ts.Node(v.Type.Target); isKind(vt, ir.KindModel) {
-				models = append(models, v.Type.Target)
-			}
-		}
-		return models
-	default:
-		return nil
+	if td, _ := ts.Node(owner); isKind(td, ir.KindModel) {
+		ts.Defer(besideUnionDiscriminator{c: c, s: s, pointer: pointer, model: owner, named: namedBranches(c, s)})
 	}
 }
 
@@ -596,8 +574,8 @@ func spellImplicitRoutes(c lowering.Ctx, holder *oas3.Schema, u *ir.Union, point
 // besideUnionDiscriminator settles a discriminator a model holds beside a
 // union kept verbatim. A model discriminator says the model is a hierarchy's
 // base, so it stays only where every type it routes to is a subtype, the rule
-// pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to
-// Unmodeled on the node keeping the union it was written for.
+// pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to the
+// model's Unmodeled, beside the union it was written for.
 //
 // It is a settlement because only a lowered node says whether its type is a
 // subtype, and a subtype lowered after the model has no Base yet when the
@@ -606,8 +584,7 @@ type besideUnionDiscriminator struct {
 	c       lowering.Ctx
 	s       *oas3.Schema
 	pointer jsontext.Pointer
-	owner   ir.TypeID   // keeps the union verbatim
-	model   ir.TypeID   // holds the discriminator: owner, or a variant of it
+	model   ir.TypeID   // holds the discriminator and keeps the union verbatim
 	named   []ir.TypeID // namedBranches
 }
 
@@ -623,21 +600,19 @@ type besideUnionDiscriminator struct {
 // A move leaving a map swaps in its MapT (ir.AsMap), which homes all the model
 // did; a later settlement leaves the map alone.
 func (d besideUnionDiscriminator) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	owner := reg[d.owner]
-	if mt, settled := reg[d.model].(*ir.MapT); settled && mt != nil && !ir.IsNilTypeDef(owner) {
+	if mt, settled := reg[d.model].(*ir.MapT); settled && mt != nil {
 		return nil
 	}
 	m, isModel := reg[d.model].(*ir.Model)
-	if !isModel || m == nil || ir.IsNilTypeDef(owner) {
+	if !isModel || m == nil {
 		return []ir.Diagnostic{d.c.DiagAt(ir.SeverityError, diag.InternalInvariant, d.pointer,
-			"internal: %q is no model or %q is not registered, so the discriminator settlement deferred for them is not taken",
-			d.model, d.owner)}
+			"internal: %q is no model, so the discriminator settlement deferred for it is not taken", d.model)}
 	}
 	if m.Discriminator == nil || routesToSubtypes(reg, m, d.named) {
 		return nil
 	}
 	at := d.pointer + ids.Ptr("discriminator")
-	kept, diags := annotation.PreserveSchemaKeyword(&owner.Common().Unmodeled, d.s, "discriminator",
+	kept, diags := annotation.PreserveSchemaKeyword(&m.Unmodeled, d.s, "discriminator",
 		ir.ReasonDegradedLowering, d.pointer, d.c.Place())
 	if !kept {
 		return diags

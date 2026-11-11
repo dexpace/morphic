@@ -312,23 +312,21 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 }
 
 // TestBesideUnionDiscriminator_ReportsWhatItCannotSettle pins that a settlement
-// whose model is missing, nil or no model, or whose union's node is missing, is
-// announced rather than skipped: the discriminator it was deferred for would
-// otherwise be settled nowhere, unremarked. A nil map is no settled one.
+// whose model is missing, nil or no model is announced rather than skipped:
+// the discriminator it was deferred for would otherwise be settled nowhere,
+// unremarked. A nil map is no settled one.
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"model missing":          {"t/owner": &ir.Union{ID: "t/owner"}},
-		"no model":               {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
-		"owner missing":          {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
-		"owner of a map missing": {"t/ghost": &ir.MapT{ID: "t/ghost"}},
-		"nil model":              {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.Model)(nil)},
-		"nil map":                {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.MapT)(nil)},
+		"model missing": {"t/other": &ir.Model{ID: "t/other"}},
+		"no model":      {"t/ghost": &ir.Scalar{ID: "t/ghost"}},
+		"nil model":     {"t/ghost": (*ir.Model)(nil)},
+		"nil map":       {"t/ghost": (*ir.MapT)(nil)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
+			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", model: "t/ghost"}
 
 			diags := d.Settle(reg)
 
@@ -345,9 +343,9 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
 	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
-	reg := ir.TypeRegistry{"t/owner": &ir.Union{ID: "t/owner"}, "t/pet": mt}
+	reg := ir.TypeRegistry{"t/pet": mt}
 	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
+	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", model: "t/pet"}
 
 	assert.Empty(t, d.Settle(reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")

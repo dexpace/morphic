@@ -519,6 +519,31 @@ func assertDiscriminatorInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagn
 	}
 }
 
+// assertTypeArrayDiscriminator covers a hierarchy whose base is a type array
+// (GitHub #853). The base lowers to a union whose object variant nothing can
+// name, so no subtype composes it: the discriminator is kept verbatim on the
+// union, each subtype composes the union, and each keeps the tag it carries.
+func assertTypeArrayDiscriminator(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
+	require.True(t, ok, "a type array lowers to a union")
+	entry, ok := pet.Unmodeled["openapi:discriminator"]
+	require.True(t, ok, "the union keeps the discriminator verbatim")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.JSONEq(t, `{"propertyName":"kind","mapping":{"cat":"#/components/schemas/Cat"}}`, string(entry.Value))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
+	variant, ok := doc.Types["t/anon/components/schemas/Pet/type/0"].(*ir.Model)
+	require.True(t, ok, "the object variant is a model")
+	assert.Nil(t, variant.Discriminator, "the object variant holds none")
+
+	for name, value := range map[string]string{"Cat": "cat", "Dog": "Dog"} {
+		sub, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s composes as a Model", name)
+		require.NotNil(t, sub.Base, name)
+		assert.Equal(t, componentID("Pet"), sub.Base.Target, "%s composes the union", name)
+		assert.Equal(t, value, sub.DiscriminatorValue)
+	}
+}
+
 // assertDiscriminatorInlineSubtype covers the subtypes OpenAPI's implicit
 // mapping cannot name (GitHub #517). The implicit tag is the name of the
 // component schema that declares a subtype, so one declared inline — as a
