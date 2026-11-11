@@ -264,7 +264,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // names its variant (docs/ir/unions.md).
 func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, common ir.TypeCommon, pointer jsontext.Pointer,
 	variantType variantTypeFunc,
-) (ir.TypeDef, []ir.Diagnostic) {
+) (*ir.Union, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(u.holder)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, u.holder, key, u.at)
 	variants := make([]ir.Variant, 0, len(branches))
@@ -288,6 +288,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
+	deferUnionTags(c, ts, s, common.ID, pointer)
 	return node, append(diags, discDiags...)
 }
 
@@ -328,11 +329,11 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 }
 
 // findBranchUnion is branchUnion's reading of s: where s lowers its allOf,
-// composing, not refining, beside no discriminator of its own, the one branch
-// whose union declares shape against s, where that branch lies within the
-// flattening depth and classifyBranchSet distributes its union. Two such unions
-// leave none, either dropping the other, and one declaring no shape stays
-// residue. A $ref site or a union beside the allOf lowers first
+// composing, not refining, the one branch whose union declares shape against
+// s, where that branch lies within the flattening depth and classifyBranchSet
+// distributes its union, neither writing a discriminator (GitHub #1698). Two
+// such unions leave none, either dropping the other, and one declaring no
+// shape stays residue. A $ref site or a union beside the allOf lowers first
 // (lowerSchemaBody).
 //
 // Nor below a discriminated ancestor, whose route may name s (routedSubtype):
@@ -351,7 +352,11 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 		}
 		index, count = i, count+1
 	}
-	if count != 1 || branches[index].capped || classifyBranchSet(c, branches[index].schema.GetSchema()) != unionDistributed {
+	if count != 1 || branches[index].capped {
+		return branchUnionIndex{}
+	}
+	if holder := branches[index].schema.GetSchema(); holder.GetDiscriminator() != nil ||
+		classifyBranchSet(c, holder) != unionDistributed {
 		return branchUnionIndex{}
 	}
 	if _, refines := refinementOf(c, s, ""); refines || len(ancestorDiscriminators(c.Bindings(), s)) > 0 {
@@ -438,16 +443,15 @@ func typesDisjoint(types []oas3.SchemaType) bool {
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
 // keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
 // a keyword that narrows an instance without declaring one. When it does, the
-// union alone cannot represent the schema, so the sibling body must be lowered
-// too rather than dropped (invariant 2,
-// docs/ir/models.md#composition-beside-a-union), unless the branches declare
-// shape and say every one of those keywords already (branchesSay): the schema
-// then means the union alone. Branches declaring none narrow the body, which
-// stays validation logic beside it whatever they repeat. A discriminator beside
-// them keeps the body, whose routes may be its subtypes (GitHub #594).
+// union alone cannot represent the schema, so the sibling body is lowered too
+// (invariant 2, docs/ir/models.md#composition-beside-a-union), unless the
+// branches declare shape and say every one of those keywords (branchesSay): the
+// schema then means the union alone. Branches declaring none narrow the body,
+// whatever they repeat, and a discriminator routing to branches composing the
+// body keeps it, their base (branchesComposeBody).
 func hasUnionSiblings(c lowering.Ctx, s *oas3.Schema) bool {
-	if !declaresUnion(s) || s.GetDiscriminator() != nil {
-		return writesSiblingKeyword(s) // no branches say what it writes
+	if !declaresUnion(s) || branchesComposeBody(c, s) {
+		return writesSiblingKeyword(s) // no branch says it, or the body is their base
 	}
 	siblings := siblingKeywords(s)
 	if len(siblings) == 0 {
@@ -551,9 +555,11 @@ const (
 	// buildUnion lifts onto the position's Nullable rather than conjoining it, so
 	// no variant could say whether the body admits the null.
 	unionNullBranch
-	// unionDiscriminated marks a union whose branches a declared discriminator
-	// binds by name, which distribution would break.
-	unionDiscriminated
+	// unionHierarchyBase marks a union beside a discriminator routing to
+	// branches that compose the body through allOf, its subtypes, which a union
+	// of composed variants would no longer have for a base
+	// (branchesComposeBody).
+	unionHierarchyBase
 	// unionRoutedSubtype marks a body a discriminator on an ancestor routes to
 	// (routedSubtype). The route names the type the body lowers to, which as a
 	// union would be no subtype of that ancestor (GitHub #1694).
@@ -568,11 +574,11 @@ const (
 // sides: classified where the IR can express the conjunction, verbatim where it
 // cannot.
 //
-// A declared discriminator rules distribution out: its mapping names the branch
-// schemas, which distribution replaces with synthesized composed models
-// (pass/validate's discriminator-missing-variant rule is the mirror). So does
-// one on an ancestor routing to s, written at pointer (routedSubtype).
-// docs/compilers/openapi.md#union-beside-structure enumerates the shapes.
+// A discriminator beside the union rules distribution out where a branch it
+// routes to composes s (branchesComposeBody), as one on an ancestor routing to
+// s, written at pointer, does (routedSubtype); any other routes the composed
+// variants (referencedVariants). docs/compilers/openapi.md#union-beside-structure
+// enumerates the shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) unionLowering {
 	if !unionBranchesDeclareShape(c, s) {
 		return unionValidationOnly
@@ -582,6 +588,9 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poin
 	}
 	if outcome := classifyBranchSet(c, s); outcome != unionDistributed {
 		return outcome
+	}
+	if branchesComposeBody(c, s) {
+		return unionHierarchyBase
 	}
 	if routedSubtype(c, s, pointer) {
 		return unionRoutedSubtype
@@ -612,9 +621,6 @@ func classifyBranchSet(c lowering.Ctx, holder *oas3.Schema) unionLowering {
 	}
 	if !branchesNameReferents(c, holder) {
 		return unionUnresolvedBranch
-	}
-	if holder.GetDiscriminator() != nil {
-		return unionDiscriminated
 	}
 	return unionDistributed
 }
@@ -705,9 +711,9 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 	case unionRoutedSubtype:
 		return beside(ir.ReasonDegradedLowering,
 			"a discriminator on an ancestor routes to this schema as its subtype, which distributing it into a union would undo")
-	default: // unionDiscriminated
+	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
-			"a declared discriminator binds the branches by name, which distributing them would break")
+			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
 	}
 }
 
@@ -820,6 +826,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 				return ref
 			})
 		diags = append(diags, unionDiags...)
+		diags = append(diags, spellImplicitRoutes(c, u.holder, def, pointer)...)
 		return def
 	})
 	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
@@ -903,9 +910,10 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 	diags = append(diags, fillAdditional(c, ts, depth, m, body.schema, body.comp.pointer)...)
 	diags = append(diags, applyFalseBranches(c, m, body.schema, body.comp)...)
 	conjoinBranch(m, branch)
-	// No variant carries a DiscriminatorValue: a schema a discriminated
-	// ancestor routes to is never distributed (unionRoutedSubtype), and one
-	// declaring a discriminator of its own is not either (unionDiscriminated).
+	// No variant carries a DiscriminatorValue, which tags a hierarchy's
+	// subtype: a schema a discriminated ancestor routes to is never distributed
+	// (unionRoutedSubtype), and a discriminator beside the union routes its
+	// variants by its mapping (spellImplicitRoutes).
 	return m, diags
 }
 

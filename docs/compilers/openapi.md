@@ -2118,8 +2118,9 @@ A `oneOf` lowers to a `Union` with `Exclusive` set and an `anyOf` to one without
 the branch's lowering — a `$ref` branch to its target, an inline one to its own node or primitive
 ([`inline-hoisting`](#inline-hoisting)) — and never collapsed into optional fields. The union is
 untagged, `WireTagged` false, unless a `discriminator` beside it routes it
-([`discriminator`](#discriminator)): the tag property's value then names the variant, so the union
-is `WireTagged`, an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). Every union is
+([`discriminator`](#discriminator)), or [`discriminator-inference`](#discriminator-inference) reads
+one off its variants: the tag property's value then names the variant, so the union is `WireTagged`,
+an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). Every union is
 `Closed`, since JSON Schema admits only what matches a listed branch; an extension a promotion
 mapping names may open one ([`extension-promotion`](#extension-promotion)). A branch set of
 one schema and `null` ([`union-null-variant`](#union-null-variant)), of `null` alone
@@ -2214,13 +2215,24 @@ finds too. The referent is carried as written, a branch admitting no object amon
 branch admits only an object or null, the values it constrains or leaves alone, so each variant
 requires those names of its branch.
 
+A `discriminator` beside the union, where no branch composes the schema (shape 4), routes the
+distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
+`defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
+that branch. OpenAPI routes a variant no entry names by the name of the component its branch
+names, which a composed variant, named for its position, does not carry, so that route is written
+into the `Mapping`: each such name keys its variant, unless two branches name that component or an
+entry spells that key already. No variant carries a `DiscriminatorValue`, which tags a subtype in a
+hierarchy, since the mapping's keys tag the union's variants, and
+[`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
+
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
 the composition as one written beside the `allOf` does, so it distributes the same way, where the
-schema writes no union and no `discriminator` of its own, its `allOf` composes rather than refines
-([`allof-refinement`](#allof-refinement)), and the union is the one branch union whose branches
-declare shape (below). Its variants take their IDs from the branch's pointers, its `$ref` and inline
-branches conjoin as above, and the branch keeps nothing of the union, what else it writes merging as
-any branch does ([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
+schema writes no union of its own and neither it nor the branch a `discriminator`, its `allOf`
+composes rather than refines ([`allof-refinement`](#allof-refinement)), and the union is the one
+branch union whose branches declare shape (below). Its variants take their IDs from the
+branch's pointers, its `$ref` and inline branches conjoin as above, and the branch keeps nothing of
+the union, what else it writes merging as any branch does
+([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
 of the shapes below, one of two branch unions declaring shape, distributing either of which would
 drop the other, or one on a branch nested past the flattening depth stays whole with its branch, and
 so does one whose branches declare no shape, on each variant where another union distributes. Below
@@ -2238,7 +2250,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
 3. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
    it does not intern, an undeclared component, a pointer addressing no schema — so it declines
    rather than composing a variant whose branch quietly went missing;
-4. a `discriminator` is declared, binding the branch schemas by name;
+4. a `discriminator` is declared and a branch composes the schema through `allOf`, at any depth
+   (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the base of a hierarchy the discriminator
+   routes, which a union of composed variants would no longer be the base of;
 5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other;
 6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
    as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
@@ -2266,12 +2280,12 @@ no branch. Where the branches declare shape (below) and say every
 keyword that makes a body, the schema means the union alone, and it lowers as if those keywords
 were not written: `{type: string, anyOf: [{$ref: V4}, {$ref: V6}]}` as `{anyOf: [{$ref: V4},
 {$ref: V6}]}`, and `{type: object, oneOf: [{$ref: A}, {$ref: B}]}` as the union of `A` and `B`, not
-a union of models composed over each. A `nullable` beside such a union reads as it reads beside
-any union ([`nullable`](#nullable)), and a keyword the branches do not all say, a bound or a
-`format` among them, is kept as the census keeps it beside a union
-([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body, which
-stays validation logic beside it whatever they repeat, and a `discriminator` beside the union keeps
-the body, whose routes may be its subtypes.
+a union of models composed over each, which a `discriminator` beside it routes. A `nullable` beside
+such a union reads as it reads beside any union ([`nullable`](#nullable)), and a keyword the
+branches do not all say, a bound or a `format` among them, is kept as the census keeps it beside a
+union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body,
+which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
+keeps the body where a branch composes it (shape 4).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
 when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
@@ -2350,7 +2364,8 @@ where it nests something, and what the body declares of one property or element 
 however many branches restate it. A read that does not finish says nothing, so its union is judged
 as one whose branches declare shape.
 
-- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
+- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`,
+  `discriminated-union-distributed`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`, `union-restated-type`,
   `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
@@ -2371,13 +2386,13 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType`,
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
-  `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
+    `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
+  `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`
 - Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
   body itself writes (#1423), a subtype a discriminator routes to keeps its union verbatim (#1694),
-  and a union on a branch below a discriminated base stays whole where no route names the schema
-  (#1695). Open: keeping a discriminated `oneOf` a union when structural keywords sit beside it
-  (#594).
+  a union on a branch below a discriminated base stays whole where no route names the schema
+  (#1695), and a discriminated union on a branch stays whole with its branch (#1698).
 
 ### `union-beside-ref`
 
@@ -2434,7 +2449,12 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
-`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. A mapping
+`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. With no
+`mapping`, the `Mapping` is nil, and a union routes each variant by the name of its type, as
+OpenAPI's implicit mapping does by component name, unless
+[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin, or the
+variants are composed over their branches ([`union-beside-structure`](#union-beside-structure)),
+which writes those names out. A mapping
 target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the entry,
 which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag —
 takes the smallest in byte order as its `DiscriminatorValue`
@@ -2461,8 +2481,7 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298). Open: inferring a
-  discriminator from pinned tag values, as an injectable policy (#659).
+  type two variants alias, which a valid document can write (#1298).
 
 ### `discriminator-value`
 
@@ -2486,6 +2505,48 @@ variant of a distributed union carries a tag.
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
   `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
   `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`
+
+### `discriminator-inference`
+
+The discriminator-inference policy reads a union's tags off what its variants pin: the Go option
+`Options.DiscriminatorInference`, whose zero value is on and whose `Disabled` reads only what the
+document declares, and the text option `discriminator-inference`, which `false` turns off
+(invariant 6). A variant pins a property where the declaration its flattening takes
+(`ir.FlattenedProperties`) is a reference admitting no null to a string `Literal`, or to a closed
+`Enum` of one string member, read through alias scalars. A number, a boolean, or a value set of
+more than one pins nothing a `Mapping` holds, since a discriminator's tag is the wire string. The
+reading waits for every node to be interned (`compile.Settlement`), since a variant lowered after
+its union has no node while the union lowers, and what it finds no other settlement changes,
+whichever settles first. Two unions meet it:
+
+1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
+   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant and names a tag
+   a variant pinning another value rejects. Where every variant pins the `propertyName` to a
+   distinct string and some variant's is not that name, the `Mapping` is read off the pinned
+   values, the union's `Provenance.Inferred` names `discriminator-inference`, and an info
+   `openapi/inferred-discriminator` at the discriminator names the first variants it reads
+   otherwise. `Discriminator.Inferred` stays false: the tag property is declared.
+2. A closed union of two or more variants declaring no discriminator, no variant admitting null,
+   gets one where every variant requires a property and pins it to a distinct string: the first
+   such property in the first variant's layout order is its `PropertyName`, each pinned value maps
+   to its variant, and the union is `WireTagged`, `Discriminator.Inferred` set and
+   `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no other
+   admits, a payload names its variant as validation finds it, departing from nothing the document
+   says, so nothing is reported. An open union may meet a variant carrying any tag
+   ([unions](../ir/unions.md#open-unions)), and is left alone.
+
+- Cases: `discriminator-inferred`
+- Codes: `openapi/inferred-discriminator`
+- Tests: `schema.TestDiscriminatorInference_MapsAnUnmappedDiscriminator`,
+  `schema.TestDiscriminatorInference_LeavesADeclaredMapping`,
+  `schema.TestDiscriminatorInference_NamesAFewDisagreements`,
+  `schema.TestDiscriminatorInference_InfersAnUndeclaredDiscriminator`,
+  `schema.TestDiscriminatorInference_LeavesALoneOrNullableVariant`,
+  `schema.TestDiscriminatorInference_DisabledReadsNothing`,
+  `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
+  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`
+- Status: partly built: a hierarchy's subtype keeps the tag its component name gives it where it
+  pins another (#1699).
 
 ### `string-const-union`
 
@@ -4207,8 +4268,9 @@ where one reading could override what the other reports.
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
-  `oneOf` kept verbatim beside a discriminated body waits for those branches to lower (#594); and a
-  mapping naming a target nothing reads is accepted in silence (#1281).
+  `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a mapping naming a
+  target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`
 

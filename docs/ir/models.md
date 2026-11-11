@@ -69,9 +69,16 @@ type Discriminator struct {
                                    // "object" = {kind, value} wrapper (TypeSpec @discriminated envelope)
     EnvelopeValueName string       // wire name of the envelope's value property (default "value";
                                    // TypeSpec envelopePropertyName); meaningful only when Envelope=="object"
-    Inferred bool                  // discovered heuristically (const-property detection), not declared
+    Inferred bool                  // discovered heuristically (each variant pins a property to a
+                                   // distinct value), not declared; a heuristic filling only the
+                                   // Mapping of a declared one leaves it false
 }
 ```
+
+A heuristic that sets `Inferred`, or fills the `Mapping` of a discriminator the source declares
+with none, names itself in the `Provenance.Inferred` of the node holding the discriminator
+([provenance](./provenance.md)), as every heuristic does. `Inferred` alone says which half was
+read in: the tag itself, or only where its values route.
 
 ## Composition
 
@@ -314,3 +321,11 @@ degrade instead, enumerated by the OpenAPI compiler's rule
 Where `S` only restates what every branch already is, a `type: object` beside branches that are
 all objects among it, the conjunction is the union itself, so the node is a `Union` of the
 branches with nothing composed over them.
+
+A discriminator written beside the union routes the variants, the composed ones included: a
+mapping entry naming a branch's referent names the variant composed over it, and a route the
+source implies by the referent's name, which the composed variant does not carry, is written into
+the `Mapping`. Where a branch composes `S` in turn, as a subtype of a hierarchy `S` is the base of,
+the discriminator routes subtypes rather than variants, and the source's union is no union of them:
+`S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union verbatim
+([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).

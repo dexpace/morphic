@@ -81,6 +81,7 @@ a TypeSpec literal type, an Erlang atom. The count is the wrong thing to decide 
 - Every other format's one-member enum is an `Enum`, as the memberless one above already is.
 
 So OpenAPI 3.0, which has no `const` and writes a pinned value as a one-member `enum`, lowers it to
-an `Enum`. A consumer that reads a pinned value — discriminator inference (#659), a target that
+an `Enum`. A consumer that reads a pinned value — discriminator inference
+([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)), a target that
 types a tag as a literal type — reads a closed one-member `Enum` the way it reads a `Literal`, and
 that reading is its policy rather than a lowering.

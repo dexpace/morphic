@@ -173,6 +173,8 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-transitive", assertDiscriminatorTransitive},
 		{"discriminator-alias-mapping", assertDiscriminatorAliasMapping},
 		{"discriminated-union-beside-model", assertDiscriminatedUnionBesideModel},
+		{"discriminated-union-distributed", assertDiscriminatedUnionDistributed},
+		{"discriminator-inferred", assertDiscriminatorInferred},
 		{"nullable-union-discriminator", assertNullableUnionDiscriminator},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"union-beside-ref", assertUnionBesideRef},

@@ -1,0 +1,572 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Discriminated union beside a body it distributes",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Discriminated union beside a body it distributes",
+        "canonical": "discriminated_union_beside_a_body_it_distributes"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/composed/components/schemas/Payment/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Payment/oneOf/0",
+      "name": {
+        "hint": "payment_card"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Payment/properties/amount",
+          "name": {
+            "source": "amount",
+            "canonical": "amount"
+          },
+          "wireName": "amount",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Payment/properties/amount"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Card",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Payment/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Payment/oneOf/1",
+      "name": {
+        "hint": "payment_bank"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Payment/properties/amount",
+          "name": {
+            "source": "amount",
+            "canonical": "amount"
+          },
+          "wireName": "amount",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Payment/properties/amount"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Bank",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Refund/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Refund/oneOf/0",
+      "name": {
+        "hint": "refund_card"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Refund/properties/reason",
+          "name": {
+            "source": "reason",
+            "canonical": "reason"
+          },
+          "wireName": "reason",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Refund/properties/reason"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Card",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Refund/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Refund/oneOf/1",
+      "name": {
+        "hint": "refund_bank"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Refund/properties/reason",
+          "name": {
+            "source": "reason",
+            "canonical": "reason"
+          },
+          "wireName": "reason",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Refund/properties/reason"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Bank",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Bank": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Bank",
+      "name": {
+        "source": "Bank",
+        "canonical": "bank"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bank"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Bank/properties/method",
+          "name": {
+            "source": "method",
+            "canonical": "method"
+          },
+          "wireName": "method",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bank/properties/method"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Bank/properties/iban",
+          "name": {
+            "source": "iban",
+            "canonical": "iban"
+          },
+          "wireName": "iban",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bank/properties/iban"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Card": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Card",
+      "name": {
+        "source": "Card",
+        "canonical": "card"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Card"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Card/properties/method",
+          "name": {
+            "source": "method",
+            "canonical": "method"
+          },
+          "wireName": "method",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/method"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Card/properties/last4",
+          "name": {
+            "source": "last4",
+            "canonical": "last_4"
+          },
+          "wireName": "last4",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Card/properties/last4"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Payment": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Payment",
+      "name": {
+        "source": "Payment",
+        "canonical": "payment"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "card"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Payment/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "bank"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Payment/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "method",
+        "mapping": {
+          "bank": "t/composed/components/schemas/Payment/oneOf/1",
+          "card": "t/composed/components/schemas/Payment/oneOf/0"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Refund": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Refund",
+      "name": {
+        "source": "Refund",
+        "canonical": "refund"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "card"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Refund/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "bank"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Refund/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "method",
+        "mapping": {
+          "Bank": "t/composed/components/schemas/Refund/oneOf/1",
+          "Card": "t/composed/components/schemas/Refund/oneOf/0"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Payment"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Refund"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "discriminated-union-distributed.yaml",
+      "hash": "38f1d7a674ade4e93e222b97446e4cc540120b2ab2e2dae76dbced9e316f7c60"
+    }
+  ]
+}

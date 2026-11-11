@@ -400,3 +400,17 @@ it sees. Changes made together in one bump are listed together under it.
   variant declaring it, where its keys were defined only against a body model and `pass.Validate`
   refused them. A consumer pinned to 0.38.0 that read such a union under those keys no longer finds
   it there, and one looking such an encoding key up among the union's own members finds none.
+- **0.40.0** — no shape change. The OpenAPI compiler lowers a `oneOf` or `anyOf` with a
+  `discriminator` beside structure, where no branch composes the schema, as it lowers one with
+  none, a union of its branches where they say the keywords beside it and a union of composed
+  variants otherwise, the discriminator routing the union, where it kept the branches under
+  `openapi:oneOf` or `openapi:anyOf` and the discriminator under `openapi:discriminator` beside a
+  model ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Its
+  discriminator-inference policy, on by default, reads a union's tags off the string each variant
+  pins ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): it fills the
+  `Mapping` of a discriminator declaring none where OpenAPI's implicit mapping by component name
+  would route a variant by a tag it rejects, and gives a union declaring none a `Discriminator` with
+  `Inferred` set, the union `WireTagged`, where every variant requires a property pinned to a
+  distinct string. The union's `Provenance.Inferred` names `discriminator-inference` either way. A
+  consumer pinned to 0.39.0 no longer finds those keys on such a schema, reads an undeclared union
+  it read as untagged as tagged, and routes a declared one by a mapping it had read as nil.

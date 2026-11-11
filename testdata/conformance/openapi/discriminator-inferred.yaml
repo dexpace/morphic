@@ -1,0 +1,70 @@
+openapi: 3.1.0
+info:
+  title: Discriminators read off pinned tags
+  version: "1"
+paths: {}
+components:
+  schemas:
+    # The discriminator declares no mapping, and each variant pins its tag to a
+    # value that is not its component's name, which OpenAPI's implicit mapping
+    # routes by: the mapping is read off the pinned values.
+    Format:
+      oneOf:
+        - $ref: '#/components/schemas/JsonFormat'
+        - $ref: '#/components/schemas/TextFormat'
+      discriminator:
+        propertyName: type
+    # Each variant pins its tag to its component's name, so the implicit
+    # mapping already routes it, and nothing is read in.
+    Named:
+      oneOf:
+        - $ref: '#/components/schemas/json'
+        - $ref: '#/components/schemas/text'
+      discriminator:
+        propertyName: type
+    # No discriminator, but each variant requires one property and pins it to
+    # a distinct string, so the payload names its variant by it.
+    Untagged:
+      anyOf:
+        - $ref: '#/components/schemas/JsonFormat'
+        - $ref: '#/components/schemas/TextFormat'
+    # A number names no tag a mapping holds, so nothing is read in.
+    Coded:
+      oneOf:
+        - type: object
+          required: [code]
+          properties:
+            code: {type: integer, enum: [7106]}
+        - type: object
+          required: [code]
+          properties:
+            code: {type: integer, enum: [7109]}
+    # A tag no variant must carry tells no payload apart.
+    Optional:
+      oneOf:
+        - type: object
+          properties:
+            kind: {const: a}
+        - type: object
+          properties:
+            kind: {const: b}
+    JsonFormat:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, enum: [json]}
+    TextFormat:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string, const: text}
+    json:
+      type: object
+      required: [type]
+      properties:
+        type: {const: json}
+    text:
+      type: object
+      required: [type]
+      properties:
+        type: {const: text}

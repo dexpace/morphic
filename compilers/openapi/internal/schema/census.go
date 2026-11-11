@@ -406,7 +406,8 @@ const distributedShape = "a union of models conjoining its body with each branch
 // Union has no field for what they consume, so the census asks them; handled is
 // as unhomedKeywords takes it. A constraint reaches each variant that has the
 // field, one it cannot constrain included (GitHub #1310), so it is kept only
-// where none does.
+// where none does. A discriminator the Union holds is homed there, routing its
+// variants.
 func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
@@ -416,6 +417,9 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if !isUnion {
 		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: type %q is not the union its variants were built for", id))
+	}
+	if discriminatorHome(u) {
+		handled = append(slices.Clip(handled), "discriminator")
 	}
 	nodes := make([]ir.TypeDef, 0, len(u.Variants))
 	for _, v := range u.Variants {

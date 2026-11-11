@@ -69,6 +69,12 @@ wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag pic
 several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
 shape twice.
 
+A union whose source declares no discriminator may still name its variant in the payload: where
+every variant requires one property and pins it to a distinct value, that value tells them apart as
+validation does. A compiler policy may read such a tag in, as a `Discriminator` with `Inferred` set
+([models](./models.md#discriminator)), and the union is then `WireTagged`, since the payload does
+name its variant; an emitter wanting only what the source declares reads it as untagged.
+
 ## Open unions
 
 `Closed` says whether a payload can hold a variant the union does not list, as `Enum.Closed` says

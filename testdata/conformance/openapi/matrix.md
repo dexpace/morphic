@@ -26,7 +26,7 @@ witnessing it.
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
   `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
-  `discriminator-aliased-branch`
+  `discriminator-aliased-branch`, `discriminated-union-distributed`, `discriminator-inferred`
 
 ### `untagged-unions`
 

@@ -49,6 +49,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"overlay":                 "patch.yaml",
 			"overlay-lax":             "true",
 			"nullable-widening":       "false",
+			"discriminator-inference": "false",
 			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
 			"streaming-inference":     "false",
 			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
@@ -72,6 +73,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Nil(t, opts.Overlay.Data, "named for the compile to read, not read")
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
+	assert.True(t, opts.DiscriminatorInference.Disabled, "discriminator-inference=false turns the policy off")
 	assert.Equal(t, openapi.StreamingMedia{
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
@@ -121,7 +123,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		wantErr  string
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
-			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, grouping, ` +
+			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
+				`discriminator-inference, grouping, ` +
 				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
 				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
 				`streaming-media)`},

@@ -172,7 +172,7 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 // which is what makes "the extension survives its own promotion" structural
 // instead of a rule each caller has to remember: nothing here can consume an
 // entry. It takes them at the top level, so a key under a scope or inside a
-// verbatim entry reaches no field (GitHub #594, #1220, #1221).
+// verbatim entry reaches no field (GitHub #1220, #1221).
 type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
