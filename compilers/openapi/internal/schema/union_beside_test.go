@@ -485,12 +485,13 @@ func variantModels(t *testing.T, doc *ir.Document, name string) []*ir.Model {
 }
 
 // TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants pins a
-// discriminator beside a union whose branches compose no body beside it
-// (docs/compilers/openapi.md#union-beside-structure): the body distributes, and
-// the discriminator routes each variant composed over a branch. A mapping
-// target naming a branch's component routes to its variant, and a variant no
-// entry routes takes the component name its branch names, the route OpenAPI
-// implies, unless another branch names it too or an entry spells that key.
+// discriminator beside a union none of whose branches composes the body beside
+// it (docs/compilers/openapi.md#union-beside-structure): the body distributes,
+// and the discriminator routes each variant composed over a branch. A mapping
+// target or the default naming a branch's component routes to its variant, and
+// a variant no entry routes takes the component name its branch names, the
+// route OpenAPI implies, unless another branch names it too or an entry spells
+// that key.
 func TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants(t *testing.T) {
 	t.Parallel()
 	const variants = "    A: {type: object, properties: {kind: {type: string}}}\n" +

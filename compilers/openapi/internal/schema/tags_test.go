@@ -119,8 +119,8 @@ func TestDiscriminatorInference_NamesAFewDisagreements(t *testing.T) {
 // reading of a union declaring no discriminator: where every variant requires
 // one property and pins it to a distinct string, the first such property of
 // the first variant is the inferred tag, and the union is tagged by it. A
-// property a variant may leave out, may hold null or pins to no string, one
-// variant alone, and a variant that is itself nullable read nothing in.
+// property a variant may leave out, lacks, may hold null or pins to no string,
+// and a variant that is no model, read nothing in.
 func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 	t.Parallel()
 	variant := func(name, props string, required ...string) string {

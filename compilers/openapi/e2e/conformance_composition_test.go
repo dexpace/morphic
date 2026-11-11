@@ -756,7 +756,7 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"only the declared discriminator's mapping is reported")
 }
 
-// unionNamed returns the component name lowers to, which must be a union.
+// unionNamed returns the union the component name lowers to.
 func unionNamed(t *testing.T, doc *ir.Document, name string) *ir.Union {
 	t.Helper()
 	u, ok := doc.Types[componentID(name)].(*ir.Union)
