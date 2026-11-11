@@ -227,18 +227,6 @@ func ParamPath(name, in string, occurrence int) jsontext.Pointer {
 	return numbered(Ptr("parameters", name, in), occurrence)
 }
 
-// EnumMember returns the stable ID of the occurrence-th member, counting from
-// one, of the enum at enumPointer in d to hold key.
-//
-// It lives in the namespace of the enum's own TypeID, which schemaSpace chooses
-// for both, so the member sits under the type that declares it. The key is one
-// escaped token, built by the caller from the member's value, never from its
-// name or position. A repeat's number follows the key (numbered) and is never
-// a key itself, since a key opens with a kind tag and a colon.
-func (d Document) EnumMember(enumPointer jsontext.Pointer, key string, occurrence int) ir.EnumMemberID {
-	return compile.EnumMemberID(d.space(schemaSpace(enumPointer)), string(numbered(enumPointer+Ptr(key), occurrence)))
-}
-
 // ComposedMember returns the stable ID of a member of the enum minted at
 // pointer in d (ComposedType): its key and the number a repeated value appends,
 // tail, as they follow the path of the enum it was taken from.

@@ -100,12 +100,11 @@ const IDSpaceUnresolved = "unresolved"
 
 // PrimTypeID returns the shared TypeID of the primitive of kind k.
 //
-// It is the one ID this package can derive. Every other path is the compiler's
-// own — a JSON Pointer, a GraphQL structural path and a protobuf
-// fully-qualified name are different things and nothing here can compute one —
-// so compilers/compile owns those. A primitive has no source position to derive
-// from: its identity is its kind, which is an ir type, so the derivation belongs
-// beside it (GitHub #73).
+// It is the one ID this package derives from no other, as an enum member's
+// extends its enum's (EnumMemberIDFor). Every other path is the compiler's own
+// — a JSON Pointer, a GraphQL path and a protobuf full name differ, and nothing
+// here can compute one — so compilers/compile owns those. A primitive has no
+// source position: its identity is its kind, so its derivation is here (#73).
 //
 // That placement is what lets irverify hold every Document to this ID rather
 // than only the ones this repository's compilers produce.

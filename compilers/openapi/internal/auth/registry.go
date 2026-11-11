@@ -6,7 +6,6 @@ package auth
 import (
 	"maps"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -58,7 +57,7 @@ func (r *Registry) unresolved(name string) ir.AuthID {
 func unresolvedScheme(name string, prov ir.Provenance) ir.AuthScheme {
 	return ir.AuthScheme{
 		ID:         ids.UnresolvedAuth(name),
-		Name:       compile.NamingFor(name),
+		Name:       ir.NamingFor(name),
 		Kind:       ir.AuthKindUnresolved,
 		Provenance: prov,
 	}

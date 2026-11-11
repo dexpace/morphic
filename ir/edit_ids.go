@@ -173,3 +173,33 @@ func (n idCount) clause(d declaredID, from string) string {
 	}
 	return fmt.Sprintf("the %s %q %d times, where %s does %d times", d.class, d.id, n.change, from, n.node)
 }
+
+// withOwnMembers appends to list, the IDs a node is held to, the ID of each of
+// node's members, where node is an enum, that its enum's ID and its value give
+// it (EnumMemberIDFor) in a namespace the edited document declares for members.
+// Only that member can hold such an ID, so it collides with nothing (invariant
+// 3), and a change may declare it once: a pass building an enum needs IDs for
+// its members.
+func (e *Editor) withOwnMembers(list []declaredID, node any) []declaredID {
+	enum, isEnum := node.(*Enum)
+	if !isEnum || enum == nil {
+		return list
+	}
+	space, spaced := IDSpace(IDKindType, string(enum.ID))
+	if !spaced || !slices.Contains(e.out.IDSpaces[IDKindEnumMember], space) {
+		return list
+	}
+	class := reflect.TypeFor[EnumMemberID]()
+	occurrences := make(map[string]int, len(enum.Members))
+	for _, m := range enum.Members {
+		key, keyed := EnumMemberKey(m.Value)
+		if !keyed {
+			continue
+		}
+		occurrences[key]++
+		if own, placed := EnumMemberIDFor(enum.ID, key, occurrences[key]); placed && own == m.ID {
+			list = append(list, declaredID{class: class, id: string(own)})
+		}
+	}
+	return list
+}

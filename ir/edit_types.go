@@ -23,8 +23,8 @@ func (e *Editor) Type(id TypeID) (TypeDef, bool) {
 //
 // It refuses an id holding no node, a nil change, a node that is nil, too deep
 // to copy or off its own ID's key, and a change moving the node or declaring
-// an ID it does not; one writing to or ending the edit is refused with the
-// call it made. A refused or panicking update changes nothing.
+// an ID it does not (Editor); one writing to or ending the edit is refused with
+// its call. A refused or panicking update changes nothing.
 func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 	current, ok := entryAt(e, e.types(), "update", id)
 	switch {
@@ -55,7 +55,8 @@ func typeKind() nodeKind[TypeDef] {
 //
 // It refuses a nil td, an ID the edit holds no node at, the edited document's
 // own node at that ID, which is either unchanged or changed in place, and a td
-// declaring an ID the node it replaces does not.
+// declaring an ID the node it replaces does not but an enum member's own
+// (Editor).
 func (e *Editor) ReplaceType(td TypeDef) {
 	if IsNilTypeDef(td) {
 		e.refuse("replace rejected: nil type definition")
@@ -76,6 +77,7 @@ func (e *Editor) ReplaceType(td TypeDef) {
 // replaceable reports whether td declares no ID current, the node the edit
 // holds at id, does not, refusing a replacement that does. Its own ID, which
 // its key holds to it, is not among them: current may be nil or off its key.
+// Nor is a member's own (withOwnMembers).
 func (e *Editor) replaceable(id TypeID, current, td TypeDef) bool {
 	c := &e.declared
 	c.node = c.scan(c.node[:0], current)
@@ -84,6 +86,7 @@ func (e *Editor) replaceable(id TypeID, current, td TypeDef) bool {
 	if i := slices.Index(c.change, own); i >= 0 {
 		c.change = slices.Delete(c.change, i, i+1)
 	}
+	c.node = e.withOwnMembers(c.node, td)
 	if added, n, found := c.excess(); found {
 		e.refuse("replace rejected: the node for %q declares %s; an edit adds no ID",
 			id, n.clause(added, "the node it replaces"))

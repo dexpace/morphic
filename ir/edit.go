@@ -14,16 +14,16 @@ import (
 // source.
 const EditRefused = "ir/edit-refused"
 
-// Editor is a copy-on-write edit of a [Document], the way a pass changes one.
+// Editor is a copy-on-write edit of a [Document], how a pass changes one.
 // It reads, changes and removes a type, service, group, operation, server,
 // channel, message or auth scheme by ID, and the document's own fields through
 // [Editor.UpdateDocument].
 //
-// It never writes the document it edits, and a read stays as it was. It keeps
-// each node at its ID's key and adds no ID, nested ones included, so every ID
-// stays in a namespace the document declares (invariant 3). A write breaking
-// either, or only a bug's, is refused, and [Editor.Finish] reports it. It is
-// not safe for concurrent use.
+// It never writes the document it edits; a read stays as it was. It keeps each
+// node at its ID's key and adds no ID at any depth but an enum member's own
+// ([EnumMemberIDFor]): none collides or leaves a declared namespace (invariant
+// 3). A write breaking either, or a bug's, is refused and [Editor.Finish]
+// reports it. It is not safe for concurrent use.
 type Editor struct {
 	// doc is the document edited, which nothing here writes.
 	doc *Document
@@ -84,8 +84,9 @@ type nodeKind[N any] struct {
 //
 // It refuses a nil change, a node too deep to copy, and a change that writes to
 // the edit or ends it, moves the node, sets a field kind.keyed names or
-// declares an ID the node does not, or one more often. A refused or panicking
-// change leaves the edit as it was.
+// declares an ID the node does not, or one more often, an enum member's own
+// aside (withOwnMembers). A refused or panicking change leaves the edit as it
+// was.
 func updated[N any](e *Editor, kind nodeKind[N], id string, at subject, node N, change func(N)) (N, bool) {
 	var none N
 	if change == nil {
@@ -110,6 +111,7 @@ func updated[N any](e *Editor, kind nodeKind[N], id string, at subject, node N, 
 			at, kind.keyed(next))
 	default:
 		e.declared.change = e.declared.scan(e.declared.change[:0], next)
+		e.declared.node = e.withOwnMembers(e.declared.node, next)
 		if added, n, ok := e.declared.excess(); ok {
 			e.refuse("update rejected: the change of %s declares %s; an edit adds no ID", at, n.clause(added, "the node"))
 			return none, false

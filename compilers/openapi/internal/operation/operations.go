@@ -38,7 +38,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	}
 	if info := c.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
-		svc.Name = compile.NamingFor(title)
+		svc.Name = ir.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
 	svcAuth, diags := schemes.Requirements(c, c.Doc.GetSecurity(), "")
@@ -241,7 +241,7 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 // the method and the route's key so emitters can synthesize a name.
 func operationName(src *soa.Operation, method, key string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
-		return compile.NamingFor(id)
+		return ir.NamingFor(id)
 	}
 	return compile.NamingHint(method + " " + key)
 }

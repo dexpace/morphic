@@ -1,0 +1,553 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "StringConstUnion",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "StringConstUnion",
+        "canonical": "string_const_union"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Color/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Color/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {
+        "summary": "Red",
+        "description": "The colour red."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Color/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "red"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Color/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Color/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "deprecation": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Color/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "green"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Level/anyOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Level/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Low."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Level/anyOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Level/anyOf/0/s:low",
+          "name": {
+            "source": "low",
+            "canonical": "low"
+          },
+          "value": {
+            "kind": "string",
+            "str": "low"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Level/anyOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Level/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Level/anyOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Level/anyOf/1/s:high",
+          "name": {
+            "source": "high",
+            "canonical": "high"
+          },
+          "value": {
+            "kind": "string",
+            "str": "high"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Pinned/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Pinned/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:pattern": {
+          "reason": "degraded_lowering",
+          "value": "^b$",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pinned/oneOf/0/pattern"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pinned/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "a"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Pinned/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Pinned/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pinned/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "c"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Shade/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Shade/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shade/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "dark"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Tier/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Tier/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tier/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "free"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Tier/oneOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Tier/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tier/oneOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Tier/oneOf/1/s:pro",
+          "name": {
+            "source": "pro",
+            "canonical": "pro"
+          },
+          "value": {
+            "kind": "string",
+            "str": "pro"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Tier/oneOf/1/s:enterprise",
+          "name": {
+            "source": "enterprise",
+            "canonical": "enterprise"
+          },
+          "value": {
+            "kind": "string",
+            "str": "enterprise"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Color": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Color",
+      "name": {
+        "source": "Color",
+        "canonical": "color"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Color"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Color/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Color/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Level": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Level",
+      "name": {
+        "source": "Level",
+        "canonical": "level"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Level"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Level/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Level/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Light": {
+      "kind": "literal",
+      "id": "t/openapi/components/schemas/Light",
+      "name": {
+        "source": "Light",
+        "canonical": "light"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Light"
+      },
+      "value": {
+        "kind": "string",
+        "str": "light"
+      },
+      "valueType": "string"
+    },
+    "t/openapi/components/schemas/Pinned": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Pinned",
+      "name": {
+        "source": "Pinned",
+        "canonical": "pinned"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pinned"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Pinned/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Pinned/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Shade": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Shade",
+      "name": {
+        "source": "Shade",
+        "canonical": "shade"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shade"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shade/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "light"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Light",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Tier": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Tier",
+      "name": {
+        "source": "Tier",
+        "canonical": "tier"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tier"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Tier/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Tier/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"literal\", which has no home for pattern declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pinned/oneOf/0"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "string-const-union.yaml",
+      "hash": "ebe62012fc0d0938828a11c7e8faf9d877e9898e49708879d5304bbacad0a2b2"
+    }
+  ]
+}

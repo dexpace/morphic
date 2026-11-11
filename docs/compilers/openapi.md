@@ -2557,12 +2557,25 @@ and what it finds no other settlement changes, whichever settles first. Two unio
 
 ### `string-const-union`
 
-A `oneOf` or `anyOf` whose every branch is a string `const` is to normalize to a closed `Enum` in a
-`pass/` normalization, not in the compiler, so that each branch's `Docs` survive until a pass
-chooses the collapse.
+A `oneOf` or `anyOf` whose every branch is a string `const` or an `enum` of strings is a closed set
+of strings in another spelling. The compiler lowers it as any union ([`union`](#union)), each branch
+to its `Literal` or `Enum` holding what the branch says of its values, and the engine's
+`const-unions` pass, not the compiler, normalizes it to the closed `Enum` of those values at the
+union's own ID, so an emitter meets one shape however the document wrote the set. Each member is
+identified and named as the same value in an `enum` is ([`enum-const`](#enum-const)), in branch
+order, and holds what its branch says of its one value: its docs, deprecation, availability,
+examples and kept constructs. A branch's type nothing else references goes with the union.
 
-- Status: not built: the compiler keeps such a union a `Union` of `Literal`s with each branch's
-  docs, and no pass normalizes it to an `Enum` (#990).
+The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
+its own that an `Enum` member is not; a value two branches hold, which a `oneOf` rejects and whose
+two branches may say two things of it; values typed by two primitives; a nullable branch; a
+construct a branch keeps verbatim for any reason but being a vendor extension, such as a constraint
+its `Literal` has no home for, which narrows the branch and would not narrow a member; one fact two
+places say of one value; and a fact a branch of several values says of them all. A union of
+numbers, or of values of several kinds, is outside this rule and stays a union.
+
+- Cases: `string-const-union`
+- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
 
 ### `enum-const`
 

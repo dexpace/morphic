@@ -121,8 +121,9 @@ Two boundaries were listed here as beyond that check and are no longer. The lett
 (`foo2bar` against `foo_2_bar`) is decidable from the neutral name alone. The camel-case split is
 not — lowercasing erases the case change that marked it — so the grammar itself moved to `ir`,
 beside the field whose doc comment already states it in prose, and `irverify` recomputes a canonical
-from the `Naming.Source` next to it. `compilers/compile` keeps `NamingFor`, the compiler-facing
+from the `Naming.Source` next to it. `compilers/compile` kept `NamingFor`, the compiler-facing
 constructor that pairs the two; what moved is the derivation, not the API a compiler calls.
+`NamingFor` followed it into `ir` once a pass, which imports `ir` alone, named an enum member.
 
 That matters because the architecture sweep reaches only this repository's own compilers. A
 `Document` arriving any other way — decoded from JSON, produced by a compiler outside this tree,

@@ -50,6 +50,36 @@ type Naming struct {
 	Aliases []string `json:"aliases,omitempty"`
 }
 
+// EmptyNameHint is the hint minted for an entity the source left unnamed: an
+// enum member whose value is "", a property or component keyed by it, a tag
+// declared as "". Each is a legal document an emitter still has to render an
+// identifier for, and a Naming with every channel empty gives it nothing
+// (GitHub #251).
+//
+// It is one neutral word rather than a positional index, which would say where
+// but not what; emitters resolve colliding names
+// (docs/emitters/refine/naming.md). Minting it is not an inference under
+// invariant 6: Hint already carries names no source wrote, like "variant_0" for
+// a bare oneOf branch.
+const EmptyNameHint = "empty"
+
+// NamingFor builds the neutral Naming of a name the source declares: the
+// spelling it used, plus the canonical word sequence derived from it.
+//
+// Use it wherever a source name becomes an IR name. The pairing is the
+// invariant: a Source with no Canonical leaves an emitter to segment the
+// spelling itself, the casing decision invariant 4 moves out of the compilers.
+//
+// An empty name declares no spelling to pair, so it yields EmptyNameHint
+// instead. A spelling of only non-word characters ("***") keeps its Source and
+// canonicalizes to no words, a name an emitter can still escape from.
+func NamingFor(source string) Naming {
+	if source == "" {
+		return Naming{Hint: EmptyNameHint}
+	}
+	return Naming{Source: source, Canonical: CanonicalWords(source)}
+}
+
 // CanonicalWords renders name as the neutral lower_snake word sequence
 // ir.Naming.Canonical promises: it splits on every non-word rune and on
 // camel-case and letter/digit boundaries, lowercases, and joins with "_"

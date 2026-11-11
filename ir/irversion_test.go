@@ -102,6 +102,9 @@ var generations = []generation{
 	{version: "0.40.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a discriminated union the OpenAPI compiler kept verbatim beside structure lowers typed, its discriminator routing the union; Discriminator.Inferred is set, and a union's Provenance.Inferred names discriminator-inference, where a policy reads a union's tags off what its variants pin"},
+	{version: "0.41.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a closed union of strings, every variant an anonymous string Literal or closed Enum of strings, is the closed Enum of its values at its own ID, each member holding what its branch said of its value, and the branch types nothing else references are gone"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

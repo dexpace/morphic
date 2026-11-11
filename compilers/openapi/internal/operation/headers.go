@@ -10,7 +10,6 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -87,7 +86,7 @@ func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, h
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
-		Name:       compile.NamingFor(name),
+		Name:       ir.NamingFor(name),
 		WireName:   name,
 		Type:       headerType,
 		Required:   h.GetRequired(),
