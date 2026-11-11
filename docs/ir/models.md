@@ -180,9 +180,10 @@ declares and the composition entries that name no model. Its rules:
   order: a `Positional` model's elements follow their `WireID`.
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
-  of that model takes, the content's type for an encoding key, so a consumer finds it on the member
-  itself. The OpenAPI compiler keys a part through the flattening, and tags a discriminator by an
-  own property, which the flattening takes. `pass.Validate` holds each only to a property the model
+  of that model takes, the content's type for an encoding key, or the first variant declaring the
+  part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler
+  keys a part through the flattening, and tags a discriminator by an own property, which the
+  flattening takes. `pass.Validate` holds each only to a property the model
   exposes, not yet to the one it takes, since a flattening per model it asks about grows
   quadratically down a deep hierarchy, which its cost tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
@@ -239,8 +240,8 @@ A `Model` says its value is an object, and `allOf: [{type: integer}, {type: inte
 admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
 the conjunct that decides it, short of the cases the OpenAPI compiler's rule
 [`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
-on a branch among them: a reference to its `$ref`, a node at an inline branch's own pointer, and an
-alias only where the position writes what no carrier holds.
+beside the `allOf` among them: a reference to its `$ref`, a node at an inline branch's own pointer,
+and an alias only where the position writes what no carrier holds.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 
@@ -302,9 +303,14 @@ Giving them the branch pointer's own ID would put two different types on one poi
 pointer from the other. That makes the IR depend on declaration order and can produce exactly the
 `Union` the next paragraph forbids.
 
-Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference — a branch
-must be a `$ref`, and that `$ref` must resolve. A union that cannot supply a referent for every
-branch is not distributed *at all* — never halfway, which would leave a `Union` whose variants
-disagree about whether they carry `S` with nothing in the IR saying which. Those cases degrade
-instead, enumerated by the OpenAPI compiler's rule
+Distribution needs a referent per branch, because `Base`/`Mixins` conjoin by reference: a `$ref`
+branch's target, which must resolve, or the node an inline branch lowers to at its own pointer,
+which is no synthesized node and so takes that pointer's ID. A union that cannot supply a referent
+for every branch is not distributed *at all* — never halfway, which would leave a `Union` whose
+variants disagree about whether they carry `S` with nothing in the IR saying which. Those cases
+degrade instead, enumerated by the OpenAPI compiler's rule
 [`union-beside-structure`](../compilers/openapi.md#union-beside-structure).
+
+Where `S` only restates what every branch already is, a `type: object` beside branches that are
+all objects among it, the conjunction is the union itself, so the node is a `Union` of the
+branches with nothing composed over them.

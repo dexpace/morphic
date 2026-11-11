@@ -330,19 +330,19 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 }
 
 // subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
-// its discriminator hierarchy, or "" when no ancestor anchors one
+// its hierarchy, false where none routes to it, "" being a tag
 // (docs/ir/models.md): the mapping key naming the subtype, else its schema name
 // as declared, not as its escaped pointer token spells it (GitHub #505). An
-// inline subtype has no name, so only a mapping entry can tag it (GitHub #517).
+// inline subtype has no name, so only a mapping entry tags it (GitHub #517).
 //
-// Every discriminated ancestor is asked, since an intermediate may declare none
+// Every discriminated ancestor is asked, as an intermediate may declare none
 // (GitHub #305). Of several mapping keys for the subtype the smallest in byte
-// order is elected, as a mapping is unordered (GitHub #410); the base's
+// order is elected, a mapping being unordered (GitHub #410); the base's
 // Discriminator keeps them all, and an info diagnostic reports it.
-func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, []ir.Diagnostic) {
+func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, bool, []ir.Diagnostic) {
 	ds := ancestorDiscriminators(c.Bindings(), s)
 	if len(ds) == 0 {
-		return "", nil
+		return "", false, nil
 	}
 	for _, d := range ds {
 		tags := mappingTagsFor(c, d, id)
@@ -350,9 +350,9 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, poi
 			continue
 		}
 		if len(tags) == 1 {
-			return tags[0], nil
+			return tags[0], true, nil
 		}
-		return tags[0], []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		return tags[0], true, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"the discriminator mapping names this schema under %d keys (%s); "+
 				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
 			len(tags), strings.Join(tags, ", "))}
@@ -360,9 +360,9 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, poi
 	// Read the state, not only the name: a top-level entry of another kind, such
 	// as components/x-shared/Cat, has none to read (GitHub #572).
 	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
-		return name, nil
+		return name, true, nil
 	}
-	return "", nil
+	return "", false, nil
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted

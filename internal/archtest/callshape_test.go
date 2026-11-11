@@ -63,7 +63,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/lowering": {
 		// Promoter.Referent and Remembered each call the function they are handed
 		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 9,
+		"compilers/openapi/internal/schema": 11,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:

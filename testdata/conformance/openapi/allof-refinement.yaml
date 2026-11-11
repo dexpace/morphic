@@ -142,3 +142,9 @@ components:
     Tags: {type: array, items: {type: string}}
     Mode: {type: string, enum: [get, set], description: What to do}
     Blob: {type: string, format: binary}
+    # A union on a branch is a conjunct admitting what its branches do, so this
+    # is the string the second branch says, and the anyOf adds nothing to it.
+    Needle:
+      allOf:
+        - anyOf: [{type: string}, {type: number}, {type: boolean}]
+        - {type: string, maxLength: 1000}

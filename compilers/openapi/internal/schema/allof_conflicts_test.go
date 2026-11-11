@@ -1490,7 +1490,7 @@ func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
 		ref("NotStr"), ref("ObjOneOf"), ref("ObjAnyOf"), ref("IfObj"), ref("AliasOneOf"),
 		"{$ref: '#/components/schemas/Empty', type: object}",
 		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
-		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}]}",
+		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
 		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#/components/schemas/Props'}",
 		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
 	} {

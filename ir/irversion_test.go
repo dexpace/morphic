@@ -96,6 +96,9 @@ var generations = []generation{
 	{version: "0.38.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "an inline branch of an allOf beside a oneOf, an anyOf or a $dynamicRef folds into the composition: what it says of the position reaches the Union a distributed union lowers to and its carriers, and a value bound each variant"},
+	{version: "0.39.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a union the OpenAPI compiler kept verbatim on an allOf branch, beside a model with inline branches or beside keywords its branches say lowers typed, and an encoding key on a union body names a part of its variants, the first variant declaring it"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

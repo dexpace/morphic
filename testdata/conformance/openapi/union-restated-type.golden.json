@@ -1,0 +1,550 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "UnionRestatedType",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnionRestatedType",
+        "canonical": "union_restated_type"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Entry/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Entry/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Entry/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Entry/oneOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Entry/oneOf/1/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Ttl/anyOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Ttl/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Ttl/anyOf/0"
+      },
+      "base": {
+        "target": "t/prim/number",
+        "nullable": false
+      },
+      "constraints": {
+        "min": "30",
+        "max": "86400",
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Ttl/anyOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Ttl/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Ttl/anyOf/1"
+      },
+      "valueType": "number",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Ttl/anyOf/1/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/composed/components/schemas/Target/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Target/oneOf/0",
+      "name": {
+        "hint": "target_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Target/oneOf/0"
+      },
+      "requires": [
+        "name"
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Item",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Address": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Address",
+      "name": {
+        "source": "Address",
+        "canonical": "address"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Address"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "v_4"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/V4",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "v_6"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/V6",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Entry": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Entry",
+      "name": {
+        "source": "Entry",
+        "canonical": "entry"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Entry"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "item"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Item",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Entry/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Item": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Item",
+      "name": {
+        "source": "Item",
+        "canonical": "item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Item"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Item/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Item/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MaybeAddress": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/MaybeAddress",
+      "name": {
+        "source": "MaybeAddress",
+        "canonical": "maybe_address"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybeAddress"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/V4",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Mixed/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Target": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Target",
+      "name": {
+        "source": "Target",
+        "canonical": "target"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Target"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "item"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Target/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Ttl": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Ttl",
+      "name": {
+        "source": "Ttl",
+        "canonical": "ttl"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Ttl"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Ttl/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Ttl/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/V4": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/V4",
+      "name": {
+        "source": "V4",
+        "canonical": "v_4"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/V4"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "ipv4"
+      }
+    },
+    "t/openapi/components/schemas/V6": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/V6",
+      "name": {
+        "source": "V6",
+        "canonical": "v_6"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/V6"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "ipv6"
+      }
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Target"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mixed"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "union-restated-type.yaml",
+      "hash": "63434fb749c19f6842af4e30afbf55a8112f3622dfebdaaeb6a3b78ce328af30"
+    }
+  ]
+}

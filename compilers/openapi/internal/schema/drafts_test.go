@@ -112,16 +112,30 @@ func TestRefSite_AKeywordBesideADraftsRefIsWarnedOf(t *testing.T) {
 
 // TestUnion_ABranchWritingAListOfItemsRestatesNothing pins that a union branch
 // writing `items` as a list, a tuple in a draft, restates no element the body
-// declares, so the union is kept as a constraint beside the body rather than
-// read as validation the body already says.
+// declares, so the union is distributed across the body rather than read as
+// validation the body already says.
 func TestUnion_ABranchWritingAListOfItemsRestatesNothing(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    U:\n      "+d4+"\n      type: object\n"+
 		"      properties: {p: {type: array, items: {type: string}}}\n"+
 		"      oneOf: [{properties: {p: {items: [{type: integer}]}}}, {properties: {p: {maxItems: 1}}}]\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	u := doc.Types[componentID("U")].Common().Unmodeled
-	assert.Equal(t, ir.ReasonDegradedLowering, u["openapi:oneOf"].Reason)
+	assert.Equal(t, readDistributed, unionReading(doc, "U"))
+}
+
+// TestUnion_AListOfItemsBesideTheBranchesIsNotSaid pins that a body writing
+// `items` as a list, a tuple in a draft, is said by no branch writing one
+// element schema, so the union keeps the body rather than lowering alone and
+// dropping the tuple (docs/compilers/openapi.md#union-beside-structure).
+func TestUnion_AListOfItemsBesideTheBranchesIsNotSaid(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    U:\n      "+d4+"\n      type: array\n"+
+		"      items: [{type: string}, {type: integer}]\n"+
+		"      anyOf: [{type: array, items: {type: string, format: uuid}}, {type: array, items: {type: string, format: date}}]\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, string(ir.ReasonDegradedLowering), unionReading(doc, "U"))
+	_, tuple := typeByName(doc, "U").(*ir.Tuple)
+	assert.True(t, tuple, "the body keeps its tuple; got %T", typeByName(doc, "U"))
 }
 
 // TestAllOf_ABranchUnderADraftsIDFoldsNothing pins that draft 4's `id` gives an

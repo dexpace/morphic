@@ -1,0 +1,795 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "UnionInlineBranches",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnionInlineBranches",
+        "canonical": "union_inline_branches"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Check/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Check/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Check/oneOf/0/properties/transferable",
+          "name": {
+            "source": "transferable",
+            "canonical": "transferable"
+          },
+          "wireName": "transferable",
+          "type": {
+            "target": "t/anon/components/schemas/Check/oneOf/0/properties/transferable",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Check/oneOf/0/properties/transferable"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Check/oneOf/0/properties/transferable": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Check/oneOf/0/properties/transferable",
+      "name": {
+        "hint": "transferable"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/0/properties/transferable"
+      },
+      "valueType": "bool",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Check/oneOf/0/properties/transferable/b:true",
+          "name": {
+            "source": "true",
+            "canonical": "true"
+          },
+          "value": {
+            "kind": "bool",
+            "bool": true
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Check/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Check/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Check/oneOf/1/properties/transferable",
+          "name": {
+            "source": "transferable",
+            "canonical": "transferable"
+          },
+          "wireName": "transferable",
+          "type": {
+            "target": "t/anon/components/schemas/Check/oneOf/1/properties/transferable",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Check/oneOf/1/properties/transferable"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Check/oneOf/1/properties/reasons",
+          "name": {
+            "source": "reasons",
+            "canonical": "reasons"
+          },
+          "wireName": "reasons",
+          "type": {
+            "target": "t/anon/components/schemas/Check/oneOf/1/properties/reasons",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Check/oneOf/1/properties/reasons"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Check/oneOf/1/properties/reasons": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Check/oneOf/1/properties/reasons",
+      "name": {
+        "hint": "reasons"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/1/properties/reasons"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Check/oneOf/1/properties/transferable": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Check/oneOf/1/properties/transferable",
+      "name": {
+        "hint": "transferable"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/1/properties/transferable"
+      },
+      "valueType": "bool",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Check/oneOf/1/properties/transferable/b:false",
+          "name": {
+            "source": "false",
+            "canonical": "false"
+          },
+          "value": {
+            "kind": "bool"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Placement/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Placement/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Placement/oneOf/0/properties/region",
+          "name": {
+            "source": "region",
+            "canonical": "region"
+          },
+          "wireName": "region",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Placement/oneOf/0/properties/region"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Placement/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Placement/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Placement/oneOf/1/properties/hostname",
+          "name": {
+            "source": "hostname",
+            "canonical": "hostname"
+          },
+          "wireName": "hostname",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Placement/oneOf/1/properties/hostname"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Check/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Check/oneOf/0",
+      "name": {
+        "hint": "check_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Check/properties/transferable",
+          "name": {
+            "source": "transferable",
+            "canonical": "transferable"
+          },
+          "wireName": "transferable",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Check/properties/transferable"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Check/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Check/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Check/oneOf/1",
+      "name": {
+        "hint": "check_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Check/properties/transferable",
+          "name": {
+            "source": "transferable",
+            "canonical": "transferable"
+          },
+          "wireName": "transferable",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Check/properties/transferable"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Check/oneOf/1",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Placement/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Placement/oneOf/0",
+      "name": {
+        "hint": "placement_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Placement/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Placement/properties/status"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Placement/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Placement/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Placement/oneOf/1",
+      "name": {
+        "hint": "placement_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Placement/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Placement/properties/status"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/Placement/oneOf/1",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Check": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Check",
+      "name": {
+        "source": "Check",
+        "canonical": "check"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Check/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Check/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MaybePlacement": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/MaybePlacement",
+      "name": {
+        "source": "MaybePlacement",
+        "canonical": "maybe_placement"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "properties": {
+                "region": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MaybePlacement/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybePlacement"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MaybePlacement/properties/status",
+          "name": {
+            "source": "status",
+            "canonical": "status"
+          },
+          "wireName": "status",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MaybePlacement/properties/status"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Placement": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Placement",
+      "name": {
+        "source": "Placement",
+        "canonical": "placement"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Placement/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Placement/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Region": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Region",
+      "name": {
+        "source": "Region",
+        "canonical": "region"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Region"
+      },
+      "base": {
+        "target": "t/anon/components/schemas/Placement/oneOf/0",
+        "nullable": false
+      }
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Placement"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Check"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MaybePlacement"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "union-inline-branches.yaml",
+      "hash": "fa60446d65f01fb8f4a3f516d34ea82587a0e9f8b7c190daa9287de3cb631deb"
+    }
+  ]
+}

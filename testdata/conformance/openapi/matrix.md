@@ -31,7 +31,8 @@ witnessing it.
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`, `union-restated-type`,
+  `union-inline-branches`, `allof-union-branch`
 
 ### `intersection`
 
@@ -39,7 +40,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `allof-refinement`, `codeclared-keywords`
+  `allof-refinement`, `codeclared-keywords`, `allof-union-branch`
 
 ### `negation`
 

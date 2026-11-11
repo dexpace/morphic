@@ -286,13 +286,29 @@ func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsonte
 // partMembers returns, by wire name, the declaration the flattening of the type
 // body denotes takes for each of its members
 // (docs/ir/models.md#the-flattening), which is the one an encoding key names:
-// what a reader of the body's flattened shape looks up. A body standing for no
-// model has none.
+// what a reader of the body's flattened shape looks up. A body standing for a
+// union, as one a composition is distributed across does, has its variants'
+// members, the first variant declaring each naming it (docs/ir/payloads.md). A
+// body standing for no model has none.
 func partMembers(reg ir.TypeRegistry, body ir.TypeID) map[string]*ir.Property {
-	flat := ir.FlattenedProperties(reg, body)
-	members := make(map[string]*ir.Property, len(flat.Properties))
-	for _, fp := range flat.Properties {
-		members[fp.Property.EffectiveWireName()] = fp.Property
+	holders := []ir.TypeID{body}
+	node := func(id ir.TypeID) (ir.TypeDef, bool) {
+		td, ok := reg[id]
+		return td, ok
+	}
+	if u, ok := bodyNode(node, body).(*ir.Union); ok && u != nil {
+		holders = holders[:0]
+		for _, v := range u.Variants {
+			holders = append(holders, v.Type.Target)
+		}
+	}
+	members := map[string]*ir.Property{}
+	for _, holder := range holders {
+		for _, fp := range ir.FlattenedProperties(reg, holder).Properties {
+			if name := fp.Property.EffectiveWireName(); members[name] == nil {
+				members[name] = fp.Property
+			}
+		}
 	}
 	return members
 }
@@ -488,25 +504,30 @@ const maxBodyAliasHops = 64
 // It reports ok=false for a body that stands for no model at all — a primitive,
 // an enum, an opaque scalar — where no pointer would name a property either.
 func bodyModel(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (ir.Provenance, bool) {
+	m, ok := bodyNode(node, body).(*ir.Model)
+	if !ok || m == nil {
+		return ir.Provenance{}, false
+	}
+	return m.Provenance, true
+}
+
+// bodyNode returns the node body stands for past the alias scalars a
+// $ref-with-siblings position hoists, nil where the chain reaches no node or
+// runs past maxBodyAliasHops.
+func bodyNode(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) ir.TypeDef {
 	id := body
 	for range maxBodyAliasHops {
 		td, found := node(id)
 		if !found {
-			return ir.Provenance{}, false
+			return nil
 		}
-		switch t := td.(type) {
-		case *ir.Model:
-			return t.Provenance, true
-		case *ir.Scalar:
-			if t.Base == nil {
-				return ir.Provenance{}, false
-			}
-			id = t.Base.Target
-		default:
-			return ir.Provenance{}, false
+		s, alias := td.(*ir.Scalar)
+		if !alias || s == nil || s.Base == nil {
+			return td
 		}
+		id = s.Base.Target
 	}
-	return ir.Provenance{}, false
+	return nil
 }
 
 // bodySchemaPointer returns the document and pointer partEncodings keys

@@ -26,8 +26,9 @@ components:
         - {$ref: '#/components/schemas/A'}
         - {$ref: '#/components/schemas/B'}
       minProperties: 2
-    # An inline branch names no referent to conjoin Base with, so this union is
-    # kept verbatim instead of half-distributed (docs/ir/boundaries.md#degraded-constructs).
+    # An inline branch is hoisted at its own pointer and conjoined as a $ref
+    # branch is, carried as written though it admits no object
+    # (docs/compilers/openapi.md#union-beside-structure).
     MixedKinds:
       type: object
       properties:
