@@ -36,7 +36,7 @@ func constEnum(types ir.TypeRegistry, spaces []string, u *ir.Union) (*ir.Enum, b
 	placed := make(map[ir.EnumMemberID]bool, len(members))
 	for i := range members {
 		key, keyed := ir.EnumMemberKey(members[i].Value)
-		id, ok := ir.EnumMemberIDFor(u.ID, key, 1)
+		id, ok := ir.EnumMemberIDFor(u.ID, key, 1 /* occurrence */)
 		if !keyed || !ok || placed[id] {
 			return nil, false
 		}

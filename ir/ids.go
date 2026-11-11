@@ -101,7 +101,7 @@ const IDSpaceUnresolved = "unresolved"
 // PrimTypeID returns the shared TypeID of the primitive of kind k.
 //
 // It is the one ID this package derives from no other, as an enum member's
-// extends its enum's (EnumMemberIDFor). Every other path is the compiler's own
+// extends its enum's ([EnumMemberIDFor]). Every other path is the compiler's own
 // — a JSON Pointer, a GraphQL path and a protobuf full name differ, and nothing
 // here can compute one — so compilers/compile owns those. A primitive has no
 // source position: its identity is its kind, so its derivation is here (#73).

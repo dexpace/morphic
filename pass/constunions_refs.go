@@ -21,7 +21,7 @@ var typeDefType = reflect.TypeFor[ir.TypeDef]()
 // and ctx's error once ctx is done. A walk the depth cap cut short read too
 // little to show any unreferenced, so it returns none.
 func unreferenced(ctx context.Context, doc *ir.Document, ids []ir.TypeID) ([]ir.TypeID, error) {
-	r := watching(ids)
+	r := refsTo(ids)
 	truncated, err := ir.WalkValuesContext(ctx, doc, ir.DocumentPath, r)
 	if err != nil || truncated {
 		return nil, err
@@ -29,8 +29,8 @@ func unreferenced(ctx context.Context, doc *ir.Document, ids []ir.TypeID) ([]ir.
 	return slices.DeleteFunc(slices.Clone(ids), func(id ir.TypeID) bool { return r.reached[id] }), nil
 }
 
-// watching returns a typeRefs watching ids, which no walk has shown a value.
-func watching(ids []ir.TypeID) *typeRefs {
+// refsTo returns the typeRefs of ids, which no walk has shown a value.
+func refsTo(ids []ir.TypeID) *typeRefs {
 	r := &typeRefs{
 		watched: make(map[ir.TypeID]bool, len(ids)),
 		reached: map[ir.TypeID]bool{},

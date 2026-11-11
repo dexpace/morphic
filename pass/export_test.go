@@ -122,7 +122,7 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 // TypeRefVisits is how many values a walk of doc for the references to ids
 // shows its visitor, which pruning holds to what can hold a TypeID.
 func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
-	r, n := watching(ids), 0
+	r, n := refsTo(ids), 0
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		n++
 		return r.Visit(v, at)

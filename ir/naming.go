@@ -70,7 +70,7 @@ const EmptyNameHint = "empty"
 // invariant: a Source with no Canonical leaves an emitter to segment the
 // spelling itself, the casing decision invariant 4 moves out of the compilers.
 //
-// An empty name declares no spelling to pair, so it yields EmptyNameHint
+// An empty name declares no spelling to pair, so it yields [EmptyNameHint]
 // instead. A spelling of only non-word characters ("***") keeps its Source and
 // canonicalizes to no words, a name an emitter can still escape from.
 func NamingFor(source string) Naming {

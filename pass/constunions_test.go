@@ -42,7 +42,7 @@ func pinned(id ir.TypeID, values ...string) *ir.Enum {
 // name a compiler gives it.
 func member(enum ir.TypeID, value string) ir.EnumMember {
 	key, _ := ir.EnumMemberKey(str(value))
-	id, _ := ir.EnumMemberIDFor(enum, key, 1)
+	id, _ := ir.EnumMemberIDFor(enum, key, 1 /* occurrence */)
 	return ir.EnumMember{ID: id, Name: ir.NamingFor(value), Value: str(value)}
 }
 

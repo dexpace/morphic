@@ -17,9 +17,9 @@ var _ Pass = ConstUnions{}
 // ConstUnionsName is the stable name of the [ConstUnions] pass.
 const ConstUnionsName = "const-unions"
 
-// ConstUnions rewrites a closed union of strings as the closed Enum of them, at
-// the union's own ID, so a consumer meets one closed set of strings in one
-// shape however the document spelled it
+// ConstUnions rewrites a closed union of strings as the closed [ir.Enum] of
+// them, at the union's own ID, so a consumer meets one closed set of strings in
+// one shape however the document spelled it
 // (docs/compilers/openapi.md#string-const-union). A variant holding one value,
 // a string Literal or a one-member Enum, gives its member what it says of the
 // value; one holding several gives its members. Where the Enum could not say
