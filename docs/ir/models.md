@@ -325,7 +325,7 @@ branches with nothing composed over them.
 A discriminator written beside the union routes the variants, the composed ones included: a
 mapping entry naming a branch's referent names the variant composed over it, and a route the
 source implies by the referent's name, which the composed variant does not carry, is written into
-the `Mapping`. Where a branch composes `S` in turn, as a subtype of a hierarchy `S` is the base of,
-the discriminator routes subtypes rather than variants, and the source's union is no union of them:
-`S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union verbatim
-([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
+the `Mapping`. Where a branch composes `S` in turn, a subtype of the hierarchy `S` is the base of,
+the discriminator routes subtypes rather than variants, and a union of them would leave them no
+base: `S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union
+verbatim ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).

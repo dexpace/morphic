@@ -73,7 +73,8 @@ A union whose source declares no discriminator may still name its variant in the
 every variant requires one property and pins it to a distinct value, that value tells them apart as
 validation does. A compiler policy may read such a tag in, as a `Discriminator` with `Inferred` set
 ([models](./models.md#discriminator)), and the union is then `WireTagged`, since the payload does
-name its variant; an emitter wanting only what the source declares reads it as untagged.
+name its variant. The mark keeps the reading auditable: a consumer taking only what the source
+declares reads such a union as untagged, which validation still decodes.
 
 ## Open unions
 
