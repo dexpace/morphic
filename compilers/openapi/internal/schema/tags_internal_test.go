@@ -193,30 +193,53 @@ func TestPinnedMember_ReadsEveryDeclaration(t *testing.T) {
 // TestUnionTags_FlattensTheOtherVariantsOnlyForACandidate pins what an
 // undeclared union whose first variant pins nothing costs: the first variant's
 // flattening, however many variants follow, which every closed union of a
-// document pays. Its allocations, the fewest of single runs, are counted at
-// two widths and must agree. It is not run in parallel: AllocsPerRun measures
-// the process.
+// document pays. Its allocations are counted at two widths and must agree. It
+// is not run in parallel: AllocsPerRun measures the process.
 func TestUnionTags_FlattensTheOtherVariantsOnlyForACandidate(t *testing.T) {
-	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
-	allocs := func(width int) float64 {
-		reg := ir.TypeRegistry{}
-		variants := make([]ir.Variant, width)
-		for i := range variants {
-			id := ir.TypeID(fmt.Sprintf("t/v%d", i))
-			reg[id] = &ir.Model{ID: id, Properties: []ir.Property{{
-				ID: ir.PropID(fmt.Sprintf("p/v%d", i)), Name: ir.Naming{Source: "kind"}, Required: true,
-				Type: ir.TypeRef{Target: "t/prim/string"},
-			}}}
-			variants[i] = ir.Variant{Type: ir.TypeRef{Target: id}}
-		}
-		reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants, Closed: true}
-		tags := unionTags{c: c, id: "t/u", pointer: "/components/schemas/U"}
-		fewest := math.Inf(1)
-		for range 20 {
-			fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(reg) }))
-		}
-		return fewest
-	}
-	narrow, wide := allocs(2), allocs(40)
+	narrow, wide := settleAllocs(t, 2, 0), settleAllocs(t, 40, 0)
 	assert.Equal(t, narrow, wide, "the other variants are flattened only once the first pins a candidate")
+}
+
+// TestUnionTags_FlattensTheOtherVariantsOnce pins that the other variants are
+// flattened and keyed by name once, however many candidates the first pins: a
+// candidate after the first costs a lookup in each. What a second candidate
+// adds is counted at two widths and must agree. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestUnionTags_FlattensTheOtherVariantsOnce(t *testing.T) {
+	narrow := settleAllocs(t, 2, 2) - settleAllocs(t, 2, 1)
+	wide := settleAllocs(t, 6, 2) - settleAllocs(t, 6, 1)
+	assert.Equal(t, narrow, wide, "a second candidate flattens no variant again")
+}
+
+// settleAllocs returns the allocations, the fewest of single runs, that the
+// discriminator-inference reading of an undeclared closed union of width
+// variants takes. Each variant requires four properties, the first pinned of
+// them held to one value every variant shares, so each is a candidate the
+// reading tries and refuses.
+func settleAllocs(t *testing.T, width, pinned int) float64 {
+	t.Helper()
+	reg := ir.TypeRegistry{"t/lit/x": &ir.Literal{ID: "t/lit/x", Value: ir.Value{Kind: ir.ValueString, Str: "x"}}}
+	variants := make([]ir.Variant, width)
+	for i := range variants {
+		id := ir.TypeID(fmt.Sprintf("t/v%d", i))
+		props := make([]ir.Property, 4)
+		for j := range props {
+			target := ir.TypeID("t/prim/string")
+			if j < pinned {
+				target = "t/lit/x"
+			}
+			props[j] = ir.Property{ID: ir.PropID(fmt.Sprintf("p/v%d/k%d", i, j)), Name: ir.Naming{Source: fmt.Sprintf("k%d", j)},
+				Required: true, Type: ir.TypeRef{Target: target}}
+		}
+		reg[id] = &ir.Model{ID: id, Properties: props}
+		variants[i] = ir.Variant{Type: ir.TypeRef{Target: id}}
+	}
+	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants, Closed: true}
+	tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u",
+		pointer: "/components/schemas/U"}
+	fewest := math.Inf(1)
+	for range 20 {
+		fewest = min(fewest, testing.AllocsPerRun(1, func() { tags.Settle(reg) }))
+	}
+	return fewest
 }
