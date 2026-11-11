@@ -659,10 +659,10 @@ func assertDiscriminatorDefaultMapping(t *testing.T, doc *ir.Document, diags []i
 // assertDiscriminatedUnionBesideModel pins where a discriminator goes when its
 // union is kept verbatim beside a model. Pet's routes are not subtypes of it,
 // so pass.Validate would reject the discriminator on the model; it moves whole
-// to Unmodeled beside the union. Vehicle's object variant holds one the same
-// way. Shape's and Animal's routes are true allOf subtypes, Bird's union kept
-// beside it rather than distributed, so each model keeps it, and the document
-// validates clean.
+// to Unmodeled beside the union. Vehicle, a type array, keeps it on the union
+// its types lower to, whose object variant holds none. Shape's and Animal's
+// routes are true allOf subtypes, Bird's union kept beside it rather than
+// distributed, so each model keeps it, and the document validates clean.
 func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)

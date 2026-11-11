@@ -965,7 +965,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminated-union-beside-model.yaml",
-      "hash": "6970c38df851bef82d6b3f6cb179936fb8e95ae797ac2d9a4e605303b97c5e32"
+      "hash": "8e0704805247c08a472e427c3eb2b340278a3a031226cde97169b3fe9bf2f5d3"
     }
   ]
 }
