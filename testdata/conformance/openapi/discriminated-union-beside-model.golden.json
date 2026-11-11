@@ -524,12 +524,64 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/openapi/components/schemas/Pet": {
+    "t/openapi/components/schemas/Kitten": {
       "kind": "model",
-      "id": "t/openapi/components/schemas/Pet",
+      "id": "t/openapi/components/schemas/Kitten",
       "name": {
-        "source": "Pet",
-        "canonical": "pet"
+        "source": "Kitten",
+        "canonical": "kitten"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kitten"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kitten/allOf/1/properties/age",
+          "name": {
+            "source": "age",
+            "canonical": "age"
+          },
+          "wireName": "age",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kitten/allOf/1/properties/age"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Mixed",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Kitten",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Mixed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Mixed",
+      "name": {
+        "source": "Mixed",
+        "canonical": "mixed"
       },
       "anonymous": false,
       "docs": {},
@@ -545,31 +597,79 @@
           },
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Pet/discriminator"
+            "pointer": "/components/schemas/Mixed/discriminator"
           }
         },
         "openapi:oneOf": {
           "reason": "degraded_lowering",
           "value": [
             {
-              "$ref": "#/components/schemas/Cat"
+              "$ref": "#/components/schemas/Kitten"
             },
             {
-              "$ref": "#/components/schemas/Dog"
+              "$ref": "#/components/schemas/Cat"
             }
           ],
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Pet/oneOf"
+            "pointer": "/components/schemas/Mixed/oneOf"
           }
         }
       },
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet"
+        "pointer": "/components/schemas/Mixed"
       },
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "cat"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Cat",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "dog"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Dog",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "kind",
+        "mapping": {
+          "cat": "t/openapi/components/schemas/Cat"
+        },
+        "inferred": false
+      },
+      "closed": true,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Shape": {
@@ -800,16 +900,16 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a declared discriminator binds the branches by name, which distributing them would break; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet"
+        "pointer": "/components/schemas/Mixed"
       }
     },
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a declared discriminator binds the branches by name, which distributing them would break; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Shape"
@@ -818,7 +918,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a declared discriminator binds the branches by name, which distributing them would break; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Animal"
@@ -848,7 +948,7 @@
       "message": "the discriminator routes to a type that is not a subtype of the model holding it, so it cannot stay there; kept verbatim under Unmodeled beside the union it was written for",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Pet/discriminator"
+        "pointer": "/components/schemas/Mixed/discriminator"
       }
     },
     {
@@ -865,7 +965,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminated-union-beside-model.yaml",
-      "hash": "bd31f4167741e7973492f23ccd5a8e06bed7744d1c3dbb49cb764f68e0dcdcfa"
+      "hash": "6970c38df851bef82d6b3f6cb179936fb8e95ae797ac2d9a4e605303b97c5e32"
     }
   ]
 }

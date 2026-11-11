@@ -325,7 +325,10 @@ type Discriminator struct {
 	// EnvelopeValueName is the wire name of the envelope's value property (default
 	// "value"); meaningful only when Envelope == "object".
 	EnvelopeValueName string `json:"envelopeValueName,omitempty"`
-	// Inferred marks a discriminator discovered heuristically, not declared.
+	// Inferred marks a discriminator discovered heuristically, not declared: its
+	// tag is read off what each variant pins. A heuristic filling only the
+	// Mapping of a declared one leaves it false, and names itself in the
+	// holder's Provenance.Inferred, as it does where it sets this.
 	Inferred bool `json:"inferred"`
 }
 

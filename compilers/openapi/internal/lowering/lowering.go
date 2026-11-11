@@ -79,9 +79,11 @@ type Ctx struct {
 	// shares it, and a resolve.Names lets none write to it.
 	schemas resolve.Names
 
-	// NullableWidening is the nullable-widening policy. It sits before foreign so
-	// the two share a word.
-	NullableWidening NullableWidening
+	// NullableWidening is the nullable-widening policy, and
+	// DiscriminatorInference the discriminator-inference policy. They sit
+	// before foreign so the three share a word.
+	NullableWidening       NullableWidening
+	DiscriminatorInference DiscriminatorInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -180,12 +182,13 @@ type ScopedPosition struct {
 // Policy is the caller's choice of how a source is lowered, as the compiler's
 // Options resolve it.
 type Policy struct {
-	Grouping         GroupingStrategy
-	Limits           Limits
-	Streaming        StreamingMedia
-	Binary           BinaryMedia
-	Promotions       ExtensionPromotions
-	NullableWidening NullableWidening
+	Grouping               GroupingStrategy
+	Limits                 Limits
+	Streaming              StreamingMedia
+	Binary                 BinaryMedia
+	Promotions             ExtensionPromotions
+	NullableWidening       NullableWidening
+	DiscriminatorInference DiscriminatorInference
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -198,17 +201,18 @@ type Policy struct {
 // is copied so no lowering can write through the context into the caller's map.
 func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 	return Ctx{
-		Doc:              doc.Doc,
-		Source:           doc.Source,
-		SrcIndex:         srcIndex,
-		Grouping:         p.Grouping,
-		Limits:           p.Limits,
-		schemas:          declaredSchemaNames(doc.Doc),
-		streaming:        streamingSet(p.Streaming),
-		binary:           binarySet(p.Binary),
-		promoter:         newPromoter(p.Promotions),
-		NullableWidening: p.NullableWidening,
-		overlay:          doc.Overlay,
+		Doc:                    doc.Doc,
+		Source:                 doc.Source,
+		SrcIndex:               srcIndex,
+		Grouping:               p.Grouping,
+		Limits:                 p.Limits,
+		schemas:                declaredSchemaNames(doc.Doc),
+		streaming:              streamingSet(p.Streaming),
+		binary:                 binarySet(p.Binary),
+		promoter:               newPromoter(p.Promotions),
+		NullableWidening:       p.NullableWidening,
+		DiscriminatorInference: p.DiscriminatorInference,
+		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),

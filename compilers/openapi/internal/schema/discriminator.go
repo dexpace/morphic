@@ -430,6 +430,36 @@ func ancestorDiscriminators(refs *typed.Bindings, s *oas3.Schema) []*oas3.Discri
 	return out
 }
 
+// composedByOf keys what branchesComposeBody read of one schema.
+type composedByOf struct {
+	schema *oas3.Schema
+}
+
+// branchesComposeBody reports whether a branch of the union s writes, the one
+// unionBranches elects, composes s through allOf at any depth, so that s's
+// discriminator routes to a subtype of s: s is then the base of a hierarchy,
+// which a union of its subtypes would no longer be
+// (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
+// discriminator among its ancestors' (ancestorDiscriminators). A schema
+// declaring no discriminator routes to nothing. Every reader of the position
+// asks, so it is read once a run.
+func branchesComposeBody(c lowering.Ctx, s *oas3.Schema) bool {
+	d := s.GetDiscriminator()
+	if d == nil {
+		return false
+	}
+	return lowering.Remembered(c, composedByOf{s}, func() bool {
+		branches, _, _ := unionBranches(s)
+		return slices.ContainsFunc(branches, func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+			target := b.GetSchema()
+			if isRefBranch(b) {
+				target = refBranchTarget(c.Bindings(), b)
+			}
+			return target != nil && slices.Contains(ancestorDiscriminators(c.Bindings(), target), d)
+		})
+	})
+}
+
 // unvisitedRefTargets returns the schemas s's $ref composition branches resolve
 // to, in source order, skipping those already seen and marking those it returns.
 // Marking as it enqueues rather than when the walk reaches them is what keeps a
@@ -490,15 +520,77 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	var named []ir.TypeID
 	for _, b := range branches {
-		at, ok := scope.Target(b)
-		if !ok || at.Doc != bind.Source {
-			continue
-		}
-		if id, state := scope.ComponentRef(at.Pointer); state == ids.NamedComponent {
+		if _, id, ok := componentNamed(scope, b); ok {
 			named = append(named, id)
 		}
 	}
 	return named
+}
+
+// componentNamed returns the source component the union branch b names by
+// $ref, by name and by ID: the route OpenAPI's implicit mapping takes to it. It
+// is false for a branch naming none, one written inline or a $ref to any other
+// position.
+func componentNamed(scope resolve.Scope, b *oas3.JSONSchema[oas3.Referenceable]) (string, ir.TypeID, bool) {
+	at, ok := scope.Target(b)
+	if !ok || at.Doc != bind.Source {
+		return "", "", false
+	}
+	id, state := scope.ComponentRef(at.Pointer)
+	if state != ids.NamedComponent {
+		return "", "", false
+	}
+	name, _ := ids.ComponentSchema(at.Pointer)
+	return name, id, true
+}
+
+// spellImplicitRoutes writes into the discriminator of u, the union holder
+// writes and its body distributes, the route OpenAPI implies to each variant
+// no mapping entry routes to: the name of the component its $ref branch
+// names, unless another branch names it too or an entry spells it already. The
+// IR reads a variant no entry names by the name of its type, which a composed
+// variant, named for its position, does not carry
+// (docs/compilers/openapi.md#union-beside-structure). Distribution declines a
+// null branch, so each branch has its variant; one without is a compiler bug,
+// reported at pointer.
+func spellImplicitRoutes(c lowering.Ctx, holder *oas3.Schema, u *ir.Union, pointer jsontext.Pointer) []ir.Diagnostic {
+	d := u.Discriminator
+	if d == nil {
+		return nil
+	}
+	branches, _, _ := unionBranches(holder)
+	if len(branches) != len(u.Variants) {
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+			"internal: the distributed union has %d variants for %d branches, so no route is written for them",
+			len(u.Variants), len(branches))}
+	}
+	scope := c.RefScope()
+	names := make([]string, len(branches))
+	count := map[string]int{}
+	for i, b := range branches {
+		if name, _, ok := componentNamed(scope, b); ok {
+			names[i] = name
+			count[name]++
+		}
+	}
+	routed := make(map[ir.TypeID]bool, len(d.Mapping))
+	for _, target := range d.Mapping {
+		routed[target] = true
+	}
+	for i, name := range names {
+		variant := u.Variants[i].Type.Target
+		if count[name] != 1 || routed[variant] {
+			continue
+		}
+		if _, spelled := d.Mapping[name]; spelled {
+			continue
+		}
+		if d.Mapping == nil {
+			d.Mapping = map[string]ir.TypeID{}
+		}
+		d.Mapping[name] = variant
+	}
+	return nil
 }
 
 // besideUnionDiscriminator settles a discriminator a model holds beside a

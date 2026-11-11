@@ -45,7 +45,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// also calls the build schema hands it before it returns: an immediate
 		// callback.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    4,
+		"compilers/openapi/internal/schema":    5,
 	},
 	"compilers/openapi/internal/bind": {
 		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
@@ -63,7 +63,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/lowering": {
 		// Promoter.Referent and Remembered each call the function they are handed
 		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 11,
+		"compilers/openapi/internal/schema": 12,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:

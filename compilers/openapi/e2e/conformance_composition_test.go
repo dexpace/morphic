@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -642,14 +643,21 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	require.NoError(t, err)
 	assert.Empty(t, found)
 
-	pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
-	require.True(t, ok)
-	assert.Nil(t, pet.Discriminator, "Pet routes to a non-subtype, so the model does not carry it")
-	entry, ok := pet.Unmodeled["openapi:discriminator"]
-	require.True(t, ok, "Pet keeps it verbatim instead")
+	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
+	require.True(t, ok, "Pet's branches compose no body, so Pet is their union; got %T", doc.Types[componentID("Pet")])
+	require.NotNil(t, pet.Discriminator, "which the discriminator routes")
+	assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat")}, pet.Discriminator.Mapping)
+	assert.Empty(t, pet.Unmodeled, "the type beside it is said by every branch")
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet"))
+
+	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Model)
+	require.True(t, ok, "Kitten composes Mixed, so Mixed stays a model")
+	assert.Nil(t, mixed.Discriminator, "Mixed routes to a non-subtype, so the model does not carry it")
+	entry, ok := mixed.Unmodeled["openapi:discriminator"]
+	require.True(t, ok, "Mixed keeps it verbatim instead")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.Contains(t, pet.Unmodeled, "openapi:oneOf", "beside the union it routes through")
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Pet/discriminator"))
+	assert.Contains(t, mixed.Unmodeled, "openapi:oneOf", "beside the union it routes through")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Mixed/discriminator"))
 
 	bird, ok := doc.Types[componentID("Bird")].(*ir.Model)
 	require.True(t, ok, "Bird writes allOf to Animal, whose route keeps it a subtype")
@@ -673,6 +681,101 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 	require.NotNil(t, shape.Discriminator, "every target is a subtype, so it stays")
 	assert.Equal(t, componentID("Circle"), shape.Discriminator.Mapping["circle"])
 	assert.NotContains(t, shape.Unmodeled, "openapi:discriminator")
+}
+
+// assertDiscriminatedUnionDistributed pins a discriminated union beside a body
+// its branches do not compose: the body distributes across the variants as it
+// does with no discriminator, and the discriminator routes the variants, each
+// mapping target to the variant composed over the branch naming it, and with
+// no mapping each branch's component name, written out. An extension the
+// discriminator writes stays on the union.
+func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
+
+	for name, keys := range map[string][2]string{"Payment": {"card", "bank"}, "Refund": {"Card", "Bank"}} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s distributes; got %T", name, doc.Types[componentID(name)])
+		require.Len(t, u.Variants, 2)
+		require.NotNil(t, u.Discriminator, name)
+		assert.True(t, u.WireTagged, name)
+		assert.Equal(t, map[string]ir.TypeID{keys[0]: u.Variants[0].Type.Target, keys[1]: u.Variants[1].Type.Target},
+			u.Discriminator.Mapping, "%s routes each tag to the variant composed over its branch", name)
+		assert.False(t, u.Discriminator.Inferred, name)
+		for i, branch := range []string{"Card", "Bank"} {
+			m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, m.Base)
+			assert.Equal(t, componentID(branch), m.Base.Target, "%s variant %d conjoins %s", name, i, branch)
+		}
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name))
+	}
+	payment := unionNamed(t, doc, "Payment")
+	require.Len(t, payment.Unmodeled, 1, "the union keeps the discriminator's extension and nothing else")
+	entry, ok := payment.Unmodeled["openapi:discriminator/x-note"]
+	require.True(t, ok, "got %v", payment.Unmodeled)
+	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
+	assert.Empty(t, unionNamed(t, doc, "Refund").Unmodeled, "Refund keeps nothing verbatim")
+}
+
+// assertDiscriminatorInferred pins the discriminator-inference policy: a
+// mapping read off the values each variant pins where the implicit mapping's
+// component names are not them, reported and marked inferred, a body beside
+// the union redeclaring the tag as a string included; none where the names are
+// them; a discriminator for an undeclared union whose variants each require a
+// property pinned to a distinct string; and none where a pinned value is no
+// string or no variant need carry the property.
+func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	found, err := pass.Validate(t.Context(), doc)
+	require.NoError(t, err)
+	assert.Empty(t, found)
+
+	format := unionNamed(t, doc, "Format")
+	require.NotNil(t, format.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"json": componentID("JsonFormat"), "text": componentID("TextFormat")},
+		format.Discriminator.Mapping)
+	assert.False(t, format.Discriminator.Inferred, "the discriminator is declared")
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, format.Provenance.Inferred, "its mapping is not")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Format/discriminator"), `"json" where it routes by "JsonFormat"`)
+
+	named := unionNamed(t, doc, "Named")
+	require.NotNil(t, named.Discriminator)
+	assert.Nil(t, named.Discriminator.Mapping, "the implicit mapping routes each variant by its pinned value")
+	assert.Empty(t, named.Provenance.Inferred)
+
+	untagged := unionNamed(t, doc, "Untagged")
+	assert.True(t, untagged.WireTagged)
+	assert.Equal(t, &ir.Discriminator{PropertyName: "type", Inferred: true, Mapping: map[string]ir.TypeID{
+		"json": componentID("JsonFormat"), "text": componentID("TextFormat"),
+	}}, untagged.Discriminator)
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, untagged.Provenance.Inferred)
+
+	styled := unionNamed(t, doc, "Styled")
+	require.Len(t, styled.Variants, 2)
+	require.NotNil(t, styled.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"json": styled.Variants[0].Type.Target, "text": styled.Variants[1].Type.Target},
+		styled.Discriminator.Mapping, "each branch's pin routes its composed variant, the body's string redeclaring it")
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, styled.Provenance.Inferred)
+
+	for _, name := range []string{"Coded", "Optional"} {
+		u := unionNamed(t, doc, name)
+		assert.Nil(t, u.Discriminator, name)
+		assert.False(t, u.WireTagged, name)
+		assert.Empty(t, u.Provenance.Inferred, name)
+	}
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+		"only the declared discriminators' mappings are reported")
+}
+
+// unionNamed returns the union the component name lowers to.
+func unionNamed(t *testing.T, doc *ir.Document, name string) *ir.Union {
+	t.Helper()
+	u, ok := doc.Types[componentID(name)].(*ir.Union)
+	require.True(t, ok, "%s lowers to a union; got %T", name, doc.Types[componentID(name)])
+	return u
 }
 
 // assertNullableUnionDiscriminator pins that a discriminator beside a oneOf or

@@ -485,7 +485,8 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
       type: object
       properties: {kind: {type: string}}
       discriminator: {propertyName: kind}
-      oneOf: [{$ref: '#/components/schemas/A'}]
+      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/Sub'}]
+    Sub: {allOf: [{$ref: '#/components/schemas/Discriminated'}]}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -494,7 +495,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 		"NotAModel":       "the body is not a model, so it carries no composition to distribute into",
 		"NullBranch":      "a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it",
 		"BothCombinators": "oneOf and anyOf are both declared, so distributing either would drop the other",
-		"Discriminated":   "a declared discriminator binds the branches by name, which distributing them would break",
+		"Discriminated":   "the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo",
 	} {
 		entry, ok := typeByName(doc, name).Common().Unmodeled["openapi:oneOf"]
 		require.True(t, ok, "%s keeps its union verbatim", name)
@@ -510,8 +511,8 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 	assert.Contains(t, string(nullBranch.Unmodeled["openapi:oneOf"].Value), `"null"`,
 		"a bare null branch blocks distribution rather than lifting to Nullable")
 	// One more is settling's, once the registry is whole: Discriminated's
-	// discriminator routes to no subtype of its model, so it stays beside the
-	// union it was written for.
+	// discriminator routes to A, no subtype of its model, so it stays beside
+	// the union it was written for.
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
 			"/components/schemas/Discriminated/discriminator"),

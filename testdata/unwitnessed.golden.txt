@@ -28,7 +28,6 @@ member 0 0 Deprecation.removalVersion
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
-member 0 0 Discriminator.inferred
 member 0 0 DocRef.endByte
 member 0 0 DocRef.startByte
 member 0 0 DocRef.type

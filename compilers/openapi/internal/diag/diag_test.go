@@ -156,6 +156,7 @@ func codes() []string {
 		diag.InvalidLocationKeyword, diag.InapplicableLocationKeyword,
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
+		diag.InferredDiscriminator,
 	}
 }
 

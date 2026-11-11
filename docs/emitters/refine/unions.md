@@ -39,10 +39,13 @@ fact base is identical. What a union holds when several variants of an `anyOf` a
 Within the untagged case, choosing *how* a variant is recognized on decode is refine's job, and
 ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in order, explicit
 discriminator → implicit discriminator (variant const/name) → JSON-type discrimination (variants
-distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
-ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
-generation. Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a
-refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
+distinguishable by JSON kind) → unique-field discrimination → value-based. A compiler may have read
+the implicit one in already: a `Discriminator` marked `Inferred`
+([unions](../../ir/unions.md#tag-modes)) tags the union, and refine reads it as an explicit one,
+since the payload names its variant by it all the same. The decisive divergence: ogen computes this
+*while building the Go model*, so a union it cannot discriminate aborts the whole generation.
+Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a refiner
+that finds no strategy emits a coded diagnostic and decodes every value into the fallback
 below, which keeps its bytes as they arrived — a degrade, never a whole-document failure
 ([T-7](../testing/mandatory-tests.md)). That graceful-degradation margin is exactly what the ABI
 seam buys and the fused-pipeline generator cannot have.
