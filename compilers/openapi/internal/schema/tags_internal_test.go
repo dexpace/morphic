@@ -159,22 +159,24 @@ func TestPinnedMember_ReadsEveryDeclaration(t *testing.T) {
 		return ir.PropertyDecl{Owner: "t/m", Property: &ir.Property{Name: ir.Naming{Source: "kind"},
 			Type: ir.TypeRef{Target: target, Nullable: nullable}}}
 	}
-	member := func(required bool, taken ir.PropertyDecl, overridden ...ir.PropertyDecl) ir.FlatProperty {
-		return ir.FlatProperty{PropertyDecl: taken, Overridden: overridden, Required: required}
+	ref := func(target ir.TypeID) ir.PropertyDecl { return decl(target, false /* nullable */) }
+	refOrNull := func(target ir.TypeID) ir.PropertyDecl { return decl(target, true /* nullable */) }
+	required := func(taken ir.PropertyDecl, overridden ...ir.PropertyDecl) ir.FlatProperty {
+		return ir.FlatProperty{PropertyDecl: taken, Overridden: overridden, Required: true}
 	}
-	str := decl("t/prim/string", false)
+	const str = "t/prim/string"
 	for name, tc := range map[string]struct {
 		p    ir.FlatProperty
 		want string // "" for no pin
 	}{
-		"taken":                          {member(true, decl("t/a", false)), "a"},
-		"overridden":                     {member(true, str, decl("t/a", false)), "a"},
-		"agreeing":                       {member(true, decl("t/a", false), str, decl("t/a", true)), "a"},
-		"disagreeing":                    {member(true, decl("t/a", false), decl("t/b", false)), ""},
-		"disagreeing, each admits null":  {member(true, decl("t/a", true), decl("t/b", true)), ""},
-		"a null another excludes":        {member(true, decl("t/a", true), str), "a"},
-		"a null every one admits":        {member(true, decl("t/a", true), decl("t/prim/string", true)), ""},
-		"optional where one is required": {member(false, decl("t/a", false)), ""},
+		"taken":                          {required(ref("t/a")), "a"},
+		"overridden":                     {required(ref(str), ref("t/a")), "a"},
+		"agreeing":                       {required(ref("t/a"), ref(str), refOrNull("t/a")), "a"},
+		"disagreeing":                    {required(ref("t/a"), ref("t/b")), ""},
+		"disagreeing, each admits null":  {required(refOrNull("t/a"), refOrNull("t/b")), ""},
+		"a null another excludes":        {required(refOrNull("t/a"), ref(str)), "a"},
+		"a null every one admits":        {required(refOrNull("t/a"), refOrNull(str)), ""},
+		"optional where one is required": {ir.FlatProperty{PropertyDecl: ref("t/a")}, ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -183,7 +185,7 @@ func TestPinnedMember_ReadsEveryDeclaration(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
-	got, ok := pinnedMember(reg, member(false, decl("t/a", false)), false /* required */)
+	got, ok := pinnedMember(reg, ir.FlatProperty{PropertyDecl: ref("t/a")}, false /* required */)
 	assert.True(t, ok, "an optional member pins where no requirement is asked")
 	assert.Equal(t, "a", got)
 }
