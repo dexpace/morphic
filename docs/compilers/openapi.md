@@ -2386,8 +2386,9 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType`,
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
-    `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
-  `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`
+  `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
+  `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`,
+  `schema.TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument`
 - Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
   body itself writes (#1423), a subtype a discriminator routes to keeps its union verbatim (#1694),

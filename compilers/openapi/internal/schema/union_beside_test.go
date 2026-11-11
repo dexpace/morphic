@@ -491,7 +491,7 @@ func variantModels(t *testing.T, doc *ir.Document, name string) []*ir.Model {
 // target or the default naming a branch's component routes to its variant, and
 // a variant no entry routes takes the component name its branch names, the
 // route OpenAPI implies, unless another branch names it too or an entry spells
-// that key.
+// that key. An inline branch names none, so its variant takes no route.
 func TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants(t *testing.T) {
 	t.Parallel()
 	const variants = "    A: {type: object, properties: {kind: {type: string}}}\n" +
@@ -516,6 +516,9 @@ func TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants(t *testing.T) {
 		{"one component twice", "3.1.0", "{propertyName: kind}",
 			"{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}",
 			map[string]int{"B": 2}, -1},
+		{"an inline branch", "3.1.0", "{propertyName: kind}",
+			"{$ref: '#/components/schemas/A'}, {type: object, properties: {kind: {type: string}}}",
+			map[string]int{"A": 0}, -1},
 		{"default", "3.2.0", "{propertyName: kind, mapping: {a: A}, defaultMapping: '#/components/schemas/B'}", ab,
 			map[string]int{"a": 0, "B": 1}, 1},
 	}
@@ -548,4 +551,34 @@ func TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument pins
+// that the route OpenAPI implies for a composed variant is the name of a
+// component in the document writing the union: a branch naming another
+// document's component takes none, though the union's own document declares
+// one of the same name.
+func TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t,
+		map[string]string{"other.yaml": "components:\n  schemas:\n    Cat: {type: object, properties: {kind: {type: string}}}\n"},
+		`openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    U:
+      type: object
+      properties: {note: {type: string}}
+      discriminator: {propertyName: kind}
+      oneOf: [{$ref: './other.yaml#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+    Cat: {type: object, properties: {meow: {type: string}}}
+    Dog: {type: object, properties: {kind: {type: string}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok, "the body distributes; got %T", typeByName(doc, "U"))
+	require.Len(t, u.Variants, 2)
+	require.NotNil(t, u.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"Dog": u.Variants[1].Type.Target}, u.Discriminator.Mapping)
 }
