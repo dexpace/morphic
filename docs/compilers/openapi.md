@@ -2481,7 +2481,9 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298).
+  type two variants alias, which a valid document can write (#1298); a mapping naming some variants
+  of a union leaves the routes OpenAPI implies for the others unwritten, where a distributed union's
+  carries them, and the IR does not say how a partial mapping routes (#1702).
 
 ### `discriminator-value`
 
