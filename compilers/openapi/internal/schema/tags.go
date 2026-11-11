@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"cmp"
 	"encoding/json/jsontext"
 	"slices"
 	"strconv"
@@ -115,7 +114,7 @@ func (t unionTags) mapDeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic
 	if len(t.implicit) != len(u.Variants) {
 		return t.invariant("has a variant no branch stands for")
 	}
-	tags, ok := pinnedTags(reg, flattenings(reg, u.Variants), d.PropertyName, false)
+	tags, ok := pinnedTags(reg, membersOf(reg, u.Variants), d.PropertyName, false /* required */)
 	if !ok || slices.Equal(tags, t.implicit) {
 		return nil
 	}
@@ -133,7 +132,9 @@ func (t unionTags) mapDeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic
 // of the first variant, in layout order, that every variant requires and pins
 // to a distinct value. A payload then names its variant by that value, as
 // validation would find it. An open union may meet a variant carrying any tag.
-// The other variants are flattened once, and only where the first pins one.
+// The other variants are flattened once, and only where the first pins one,
+// each keyed by wire name, so a candidate costs the same however many members
+// a variant has.
 func (t unionTags) inferUndeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic {
 	if u.Discriminator != nil {
 		return t.invariant("holds a discriminator, though its source declares none")
@@ -142,16 +143,16 @@ func (t unionTags) inferUndeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagno
 		slices.ContainsFunc(u.Variants, func(v ir.Variant) bool { return v.Type.Nullable }) {
 		return nil
 	}
-	var flats []ir.Flattening
+	var members []map[string]ir.FlatProperty
 	for _, p := range ir.FlattenedProperties(reg, u.Variants[0].Type.Target).Properties {
-		if _, ok := pinnedMember(reg, p, true); !ok {
+		if _, ok := pinnedMember(reg, p, true /* required */); !ok {
 			continue
 		}
-		if flats == nil {
-			flats = flattenings(reg, u.Variants)
+		if members == nil {
+			members = membersOf(reg, u.Variants)
 		}
-		name := wireNameOf(p.Property)
-		tags, ok := pinnedTags(reg, flats, name, true)
+		name := p.Property.EffectiveWireName()
+		tags, ok := pinnedTags(reg, members, name, true /* required */)
 		if !ok {
 			continue
 		}
@@ -163,30 +164,35 @@ func (t unionTags) inferUndeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagno
 	return nil
 }
 
-// flattenings returns the shape of each variant across its composition
-// (ir.FlattenedProperties), in variant order.
-func flattenings(reg ir.TypeRegistry, variants []ir.Variant) []ir.Flattening {
-	flats := make([]ir.Flattening, len(variants))
+// membersOf returns the members of each variant across its composition
+// (ir.FlattenedProperties), keyed by wire name, in variant order.
+func membersOf(reg ir.TypeRegistry, variants []ir.Variant) []map[string]ir.FlatProperty {
+	members := make([]map[string]ir.FlatProperty, len(variants))
 	for i, v := range variants {
-		flats[i] = ir.FlattenedProperties(reg, v.Type.Target)
+		props := ir.FlattenedProperties(reg, v.Type.Target).Properties
+		byName := make(map[string]ir.FlatProperty, len(props))
+		for _, p := range props {
+			byName[p.Property.EffectiveWireName()] = p
+		}
+		members[i] = byName
 	}
-	return flats
+	return members
 }
 
-// pinnedTags returns the tag each variant's flattening pins the property name
-// to, in variant order, and false unless every one pins one and no two pin the
-// same: a mapping routes a tag to one variant. Where required is set, each
-// variant must require the property too, as a tag no payload need carry names
-// no variant.
-func pinnedTags(reg ir.TypeRegistry, flats []ir.Flattening, name string, required bool) ([]string, bool) {
-	tags := make([]string, 0, len(flats))
-	seen := make(map[string]bool, len(flats))
-	for _, flat := range flats {
-		i := slices.IndexFunc(flat.Properties, func(p ir.FlatProperty) bool { return wireNameOf(p.Property) == name })
-		if i < 0 {
+// pinnedTags returns the tag each variant's member of the property name pins,
+// members holding them per variant (membersOf), in variant order, and false
+// unless every one pins one and no two pin the same: a mapping routes a tag to
+// one variant. Where required is set, each variant must require the property
+// too, as a tag no payload need carry names no variant.
+func pinnedTags(reg ir.TypeRegistry, members []map[string]ir.FlatProperty, name string, required bool) ([]string, bool) {
+	tags := make([]string, 0, len(members))
+	seen := make(map[string]bool, len(members))
+	for _, byName := range members {
+		p, ok := byName[name]
+		if !ok {
 			return nil, false
 		}
-		tag, ok := pinnedMember(reg, flat.Properties[i], required)
+		tag, ok := pinnedMember(reg, p, required)
 		if !ok || seen[tag] {
 			return nil, false
 		}
@@ -235,11 +241,6 @@ func pinnedValue(reg ir.TypeRegistry, id ir.TypeID) (string, bool) {
 	return v.Str, v.Kind == ir.ValueString
 }
 
-// wireNameOf is the name p takes on the wire.
-func wireNameOf(p *ir.Property) string {
-	return cmp.Or(p.WireName, p.Name.Source)
-}
-
 // tagMapping maps each tag to the variant pinning it, tags being in variant
 // order.
 func tagMapping(tags []string, variants []ir.Variant) map[string]ir.TypeID {
@@ -254,7 +255,7 @@ func tagMapping(tags []string, variants []ir.Variant) map[string]ir.TypeID {
 // not the one the implicit mapping routes them by, and how many more there are.
 func disagreements(tags, implicit []string) string {
 	var named []string
-	more := 0
+	var more int
 	for i, tag := range tags {
 		if tag == implicit[i] {
 			continue
