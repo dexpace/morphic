@@ -143,6 +143,51 @@ func TestPinnedValue_ReadsOneStringOnly(t *testing.T) {
 	}
 }
 
+// TestPinnedMember_ReadsEveryDeclaration pins that a member's tag is read off
+// every declaration it conjoins, as an instance meets them all: a pin the
+// taken declaration overrides stands, two pins of different values pin
+// nothing, null admitted by one declaration is excluded by another, and a
+// member every declaration lets hold null, or one a required tag needs and the
+// variant may leave out, pins nothing.
+func TestPinnedMember_ReadsEveryDeclaration(t *testing.T) {
+	t.Parallel()
+	reg := ir.TypeRegistry{
+		"t/a": &ir.Literal{ID: "t/a", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+		"t/b": &ir.Literal{ID: "t/b", Value: ir.Value{Kind: ir.ValueString, Str: "b"}},
+	}
+	decl := func(target ir.TypeID, nullable bool) ir.PropertyDecl {
+		return ir.PropertyDecl{Owner: "t/m", Property: &ir.Property{Name: ir.Naming{Source: "kind"},
+			Type: ir.TypeRef{Target: target, Nullable: nullable}}}
+	}
+	member := func(required bool, taken ir.PropertyDecl, overridden ...ir.PropertyDecl) ir.FlatProperty {
+		return ir.FlatProperty{PropertyDecl: taken, Overridden: overridden, Required: required}
+	}
+	str := decl("t/prim/string", false)
+	for name, tc := range map[string]struct {
+		p    ir.FlatProperty
+		want string // "" for no pin
+	}{
+		"taken":                          {member(true, decl("t/a", false)), "a"},
+		"overridden":                     {member(true, str, decl("t/a", false)), "a"},
+		"agreeing":                       {member(true, decl("t/a", false), str, decl("t/a", true)), "a"},
+		"disagreeing":                    {member(true, decl("t/a", false), decl("t/b", false)), ""},
+		"disagreeing, each admits null":  {member(true, decl("t/a", true), decl("t/b", true)), ""},
+		"a null another excludes":        {member(true, decl("t/a", true), str), "a"},
+		"a null every one admits":        {member(true, decl("t/a", true), decl("t/prim/string", true)), ""},
+		"optional where one is required": {member(false, decl("t/a", false)), ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := pinnedMember(reg, tc.p, true /* required */)
+			assert.Equal(t, tc.want != "", ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+	got, ok := pinnedMember(reg, member(false, decl("t/a", false)), false /* required */)
+	assert.True(t, ok, "an optional member pins where no requirement is asked")
+	assert.Equal(t, "a", got)
+}
+
 // TestUnionTags_FlattensTheOtherVariantsOnlyForACandidate pins what an
 // undeclared union whose first variant pins nothing costs: the first variant's
 // flattening, however many variants follow, which every closed union of a

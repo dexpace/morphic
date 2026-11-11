@@ -71,9 +71,9 @@ func implicitTags(c lowering.Ctx, s *oas3.Schema) []string {
 // policy, from the value each variant pins its tag property to: a mapping for
 // the discriminator written at at, which declares none, or, where at is empty,
 // a discriminator for a union declaring none. What it finds, a member's
-// declaration and its type, no other settlement changes: one swapping a model
-// for its map swaps one with no member, which pins nothing either way, so the
-// settling order changes no answer.
+// declarations and their types, no other settlement changes: one swapping a
+// model for its map swaps one with no member, which pins nothing either way,
+// so the settling order changes no answer.
 type unionTags struct {
 	c        lowering.Ctx
 	id       ir.TypeID
@@ -202,15 +202,37 @@ func pinnedTags(reg ir.TypeRegistry, members []map[string]ir.FlatProperty, name 
 	return tags, true
 }
 
-// pinnedMember returns the string the member p holds its value to: the
-// declaration it takes is a non-null reference to a string Literal or to a
-// closed Enum of one string member, read through alias scalars. Where required
-// is set, the member must be required.
+// pinnedMember returns the string the member p holds its value to, read off
+// every declaration it conjoins, the one it takes and those it overrides, as an
+// instance meets them all: one is a reference to a string Literal or to a
+// closed Enum of one string member, read through alias scalars, none pins
+// another, and not every one admits null. So a composed variant's body
+// redeclaring its tag as a string (docs/ir/models.md#composition-beside-a-union)
+// leaves its branch's pin in force. Where required is set, the member must be
+// required.
 func pinnedMember(reg ir.TypeRegistry, p ir.FlatProperty, required bool) (string, bool) {
-	if required && !p.Required || p.Property.Type.Nullable {
+	if required && !p.Required {
 		return "", false
 	}
-	return pinnedValue(reg, p.Property.Type.Target)
+
+	tag, pinned := pinnedValue(reg, p.Property.Type.Target)
+	nullable := p.Property.Type.Nullable
+	for _, d := range p.Overridden {
+		nullable = nullable && d.Property.Type.Nullable
+		other, pins := pinnedValue(reg, d.Property.Type.Target)
+		if !pins {
+			continue
+		}
+		if pinned && other != tag {
+			return "", false // no string meets both
+		}
+		tag, pinned = other, true
+	}
+
+	if !pinned || nullable {
+		return "", false
+	}
+	return tag, true
 }
 
 // pinnedValue returns the one string the type id admits, read through alias

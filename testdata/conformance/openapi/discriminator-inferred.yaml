@@ -14,6 +14,20 @@ components:
         - $ref: '#/components/schemas/TextFormat'
       discriminator:
         propertyName: type
+    # The properties beside the union redeclare the tag as a string, which
+    # each composed variant takes, but an instance meets every declaration of
+    # it, so each branch's pin still names the variant composed over it.
+    Styled:
+      type: object
+      required: [type]
+      properties:
+        type: {type: string}
+        indent: {type: integer}
+      discriminator:
+        propertyName: type
+      oneOf:
+        - $ref: '#/components/schemas/JsonFormat'
+        - $ref: '#/components/schemas/TextFormat'
     # Each variant pins its tag to its component's name, so the implicit
     # mapping already routes it, and nothing is read in.
     Named:

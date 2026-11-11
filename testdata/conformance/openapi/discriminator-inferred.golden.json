@@ -430,6 +430,160 @@
       },
       "valueType": "string"
     },
+    "t/composed/components/schemas/Styled/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Styled/oneOf/0",
+      "name": {
+        "hint": "styled_json_format"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Styled/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Styled/properties/type",
+          "name": {
+            "source": "type",
+            "canonical": "type"
+          },
+          "wireName": "type",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Styled/properties/type"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Styled/properties/indent",
+          "name": {
+            "source": "indent",
+            "canonical": "indent"
+          },
+          "wireName": "indent",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Styled/properties/indent"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/JsonFormat",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Styled/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Styled/oneOf/1",
+      "name": {
+        "hint": "styled_text_format"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Styled/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Styled/properties/type",
+          "name": {
+            "source": "type",
+            "canonical": "type"
+          },
+          "wireName": "type",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Styled/properties/type"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Styled/properties/indent",
+          "name": {
+            "source": "indent",
+            "canonical": "indent"
+          },
+          "wireName": "indent",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Styled/properties/indent"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/TextFormat",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Coded": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Coded",
@@ -654,6 +808,56 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Styled": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Styled",
+      "name": {
+        "source": "Styled",
+        "canonical": "styled"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Styled",
+        "inferred": "discriminator-inference"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "json_format"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Styled/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "text_format"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Styled/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": true,
+      "discriminator": {
+        "propertyName": "type",
+        "mapping": {
+          "json": "t/composed/components/schemas/Styled/oneOf/0",
+          "text": "t/composed/components/schemas/Styled/oneOf/1"
+        },
+        "inferred": false
+      },
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TextFormat": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TextFormat",
@@ -844,6 +1048,30 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
     }
   },
   "servers": {
@@ -862,11 +1090,29 @@
   "diagnostics": [
     {
       "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Styled"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/inferred-discriminator",
       "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant by the name of the component it names, a tag a variant pinning \"type\" to another value rejects (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the pinned values, marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Format/discriminator"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator declares no mapping, and OpenAPI's implicit mapping routes each variant by the name of the component it names, a tag a variant pinning \"type\" to another value rejects (\"json\" where it routes by \"JsonFormat\", \"text\" where it routes by \"TextFormat\"); mapped by the pinned values, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Styled/discriminator"
       }
     }
   ],
@@ -874,7 +1120,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminator-inferred.yaml",
-      "hash": "82063f2c04fbd63ca4e38bf773a1c1f152deecb568b2312168952bd4beb580b9"
+      "hash": "940f090d78d3dfa3d2b5d7107939deb2f401ff3a4a5143626cade8596ccc7182"
     }
   ]
 }

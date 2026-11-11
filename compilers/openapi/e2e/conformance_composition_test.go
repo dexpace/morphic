@@ -722,10 +722,11 @@ func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags [
 
 // assertDiscriminatorInferred pins the discriminator-inference policy: a
 // mapping read off the values each variant pins where the implicit mapping's
-// component names are not them, reported and marked inferred; none where the
-// names are them; a discriminator for an undeclared union whose variants each
-// require a property pinned to a distinct string; and none where a pinned
-// value is no string or no variant need carry the property.
+// component names are not them, reported and marked inferred, a body beside
+// the union redeclaring the tag as a string included; none where the names are
+// them; a discriminator for an undeclared union whose variants each require a
+// property pinned to a distinct string; and none where a pinned value is no
+// string or no variant need carry the property.
 func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
@@ -752,14 +753,21 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 	}}, untagged.Discriminator)
 	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, untagged.Provenance.Inferred)
 
+	styled := unionNamed(t, doc, "Styled")
+	require.Len(t, styled.Variants, 2)
+	require.NotNil(t, styled.Discriminator)
+	assert.Equal(t, map[string]ir.TypeID{"json": styled.Variants[0].Type.Target, "text": styled.Variants[1].Type.Target},
+		styled.Discriminator.Mapping, "each branch's pin routes its composed variant, the body's string redeclaring it")
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, styled.Provenance.Inferred)
+
 	for _, name := range []string{"Coded", "Optional"} {
 		u := unionNamed(t, doc, name)
 		assert.Nil(t, u.Discriminator, name)
 		assert.False(t, u.WireTagged, name)
 		assert.Empty(t, u.Provenance.Inferred, name)
 	}
-	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
-		"only the declared discriminator's mapping is reported")
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+		"only the declared discriminators' mappings are reported")
 }
 
 // unionNamed returns the union the component name lowers to.

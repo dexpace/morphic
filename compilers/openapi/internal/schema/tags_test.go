@@ -217,20 +217,36 @@ func TestDiscriminatorInference_DisabledReadsNothing(t *testing.T) {
 
 // TestDiscriminatorInference_ReadsADistributedUnion pins that the reading
 // meets a union whose variants compose the body beside it: each variant's tag
-// is read across its composition, and the mapping read off them replaces the
-// implicit one written out for the composed variants.
+// is read across its composition, the branch's pin standing where the body
+// redeclares the tag as a string, and the mapping read off them replaces the
+// implicit one written out for the composed variants, or tags a union
+// declaring no discriminator.
 func TestDiscriminatorInference_ReadsADistributedUnion(t *testing.T) {
 	t.Parallel()
-	union := "    U:\n      type: object\n      properties: {note: {type: string}}\n" +
-		"      discriminator: {propertyName: type}\n" +
-		"      oneOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"
-	for _, doc := range taggedOrders(t, union, taggedVariants) {
-		u := taggedUnion(t, doc)
-		require.Len(t, u.Variants, 2)
-		require.NotNil(t, u.Discriminator)
-		assert.Equal(t, map[string]ir.TypeID{"json": u.Variants[0].Type.Target, "text": u.Variants[1].Type.Target},
-			u.Discriminator.Mapping)
-		assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, u.Provenance.Inferred)
+	const disc = "      discriminator: {propertyName: type}\n"
+	cases := []struct {
+		name, body, disc string
+	}{
+		{"declared, the body writing another property", "{note: {type: string}}", disc},
+		{"declared, the body redeclaring the tag", "{type: {type: string}, note: {type: string}}", disc},
+		{"undeclared, the body redeclaring the tag", "{type: {type: string}, note: {type: string}}", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			union := "    U:\n      type: object\n      properties: " + c.body + "\n" + c.disc +
+				"      oneOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"
+			for _, doc := range taggedOrders(t, union, taggedVariants) {
+				u := taggedUnion(t, doc)
+				require.Len(t, u.Variants, 2)
+				require.NotNil(t, u.Discriminator)
+				assert.Equal(t, c.disc == "", u.Discriminator.Inferred, "only an undeclared discriminator is inferred")
+				assert.Equal(t, "type", u.Discriminator.PropertyName)
+				assert.Equal(t, map[string]ir.TypeID{"json": u.Variants[0].Type.Target, "text": u.Variants[1].Type.Target},
+					u.Discriminator.Mapping)
+				assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, u.Provenance.Inferred)
+			}
+		})
 	}
 }
 

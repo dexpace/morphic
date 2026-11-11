@@ -2513,13 +2513,16 @@ variant of a distributed union carries a tag.
 The discriminator-inference policy reads a union's tags off what its variants pin: the Go option
 `Options.DiscriminatorInference`, whose zero value is on and whose `Disabled` reads only what the
 document declares, and the text option `discriminator-inference`, which `false` turns off
-(invariant 6). A variant pins a property where the declaration its flattening takes
-(`ir.FlattenedProperties`) is a reference admitting no null to a string `Literal`, or to a closed
-`Enum` of one string member, read through alias scalars. A number, a boolean, or a value set of
-more than one pins nothing a `Mapping` holds, since a discriminator's tag is the wire string. The
-reading waits for every node to be interned (`compile.Settlement`), since a variant lowered after
-its union has no node while the union lowers, and what it finds no other settlement changes,
-whichever settles first. Two unions meet it:
+(invariant 6). A variant pins a property where the declarations its flattening reads of it
+(`ir.FlattenedProperties`), the one the member takes and those it overrides, hold it to one string,
+as an instance meets them all: one is a reference to a string `Literal`, or to a closed `Enum` of
+one string member, read through alias scalars, none pins another value, and not every one admits
+null. So a body beside a union that redeclares the tag as a string, which its composed variants
+take, leaves each branch's pin in force ([`union-beside-structure`](#union-beside-structure)). A
+number, a boolean, or a value set of more than one pins nothing a `Mapping` holds, since a
+discriminator's tag is the wire string. The reading waits for every node to be interned
+(`compile.Settlement`), since a variant lowered after its union has no node while the union lowers,
+and what it finds no other settlement changes, whichever settles first. Two unions meet it:
 
 1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
    `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant and names a tag
@@ -2546,7 +2549,8 @@ whichever settles first. Two unions meet it:
   `schema.TestDiscriminatorInference_LeavesALoneOrNullableVariant`,
   `schema.TestDiscriminatorInference_DisabledReadsNothing`,
   `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
-  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`
+  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`,
+  `schema.TestPinnedMember_ReadsEveryDeclaration`
 - Status: partly built: a subtype keeps the tag its component name gives it where it, or the union
   it composes, pins its tag to other values (#1699).
 
