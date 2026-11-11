@@ -218,6 +218,7 @@ func TestUnionTags_FlattensTheOtherVariantsOnce(t *testing.T) {
 // reading tries and refuses.
 func settleAllocs(t *testing.T, width, pinned int) float64 {
 	t.Helper()
+
 	reg := ir.TypeRegistry{"t/lit/x": &ir.Literal{ID: "t/lit/x", Value: ir.Value{Kind: ir.ValueString, Str: "x"}}}
 	variants := make([]ir.Variant, width)
 	for i := range variants {
@@ -235,6 +236,7 @@ func settleAllocs(t *testing.T, width, pinned int) float64 {
 		variants[i] = ir.Variant{Type: ir.TypeRef{Target: id}}
 	}
 	reg["t/u"] = &ir.Union{ID: "t/u", Variants: variants, Closed: true}
+
 	tags := unionTags{c: loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), id: "t/u",
 		pointer: "/components/schemas/U"}
 	fewest := math.Inf(1)
