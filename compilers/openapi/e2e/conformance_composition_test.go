@@ -687,7 +687,8 @@ func assertDiscriminatedUnionBesideModel(t *testing.T, doc *ir.Document, diags [
 // its branches do not compose: the body distributes across the variants as it
 // does with no discriminator, and the discriminator routes the variants, each
 // mapping target to the variant composed over the branch naming it, and with
-// no mapping each branch's component name, written out.
+// no mapping each branch's component name, written out. An extension the
+// discriminator writes stays on the union.
 func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	found, err := pass.Validate(t.Context(), doc)
 	require.NoError(t, err)
@@ -702,7 +703,6 @@ func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags [
 		assert.Equal(t, map[string]ir.TypeID{keys[0]: u.Variants[0].Type.Target, keys[1]: u.Variants[1].Type.Target},
 			u.Discriminator.Mapping, "%s routes each tag to the variant composed over its branch", name)
 		assert.False(t, u.Discriminator.Inferred, name)
-		assert.Empty(t, u.Unmodeled, "%s keeps nothing verbatim", name)
 		for i, branch := range []string{"Card", "Bank"} {
 			m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
 			require.True(t, ok)
@@ -712,6 +712,12 @@ func assertDiscriminatedUnionDistributed(t *testing.T, doc *ir.Document, diags [
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/"+name))
 		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name))
 	}
+	payment := unionNamed(t, doc, "Payment")
+	require.Len(t, payment.Unmodeled, 1, "the union keeps the discriminator's extension and nothing else")
+	entry, ok := payment.Unmodeled["openapi:discriminator/x-note"]
+	require.True(t, ok, "got %v", payment.Unmodeled)
+	assert.Equal(t, ir.ReasonVendorExtension, entry.Reason)
+	assert.Empty(t, unionNamed(t, doc, "Refund").Unmodeled, "Refund keeps nothing verbatim")
 }
 
 // assertDiscriminatorInferred pins the discriminator-inference policy: a

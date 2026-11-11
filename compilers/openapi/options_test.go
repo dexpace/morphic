@@ -177,6 +177,8 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"binary-media": want media types or +suffixes separated by commas, got ""`},
 		{"non-boolean binary inference", map[string]string{"binary-inference": "maybe"},
 			`option "binary-inference": want a boolean, got "maybe"`},
+		{"non-boolean discriminator inference", map[string]string{"discriminator-inference": "maybe"},
+			`option "discriminator-inference": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},

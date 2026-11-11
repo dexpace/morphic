@@ -341,16 +341,16 @@ func (o Options) withDefaults() Options {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping           = "grouping"
-	optAllowExternalRefs  = "allow-external-refs"
-	optOverlay            = "overlay"
-	optOverlayLax         = "overlay-lax"
-	optNullableWidening   = "nullable-widening"
-	optDiscriminators     = "discriminator-inference"
-	optStreamingMedia     = "streaming-media"
-	optStreamingInference = "streaming-inference"
-	optBinaryMedia        = "binary-media"
-	optBinaryInference    = "binary-inference"
+	optGrouping               = "grouping"
+	optAllowExternalRefs      = "allow-external-refs"
+	optOverlay                = "overlay"
+	optOverlayLax             = "overlay-lax"
+	optNullableWidening       = "nullable-widening"
+	optDiscriminatorInference = "discriminator-inference"
+	optStreamingMedia         = "streaming-media"
+	optStreamingInference     = "streaming-inference"
+	optBinaryMedia            = "binary-media"
+	optBinaryInference        = "binary-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -372,7 +372,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
-		optDiscriminators, optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
+		optDiscriminatorInference, optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -434,7 +434,7 @@ func (d *optionDecode) set(key, value string) error {
 		err := decodeBool(&on, key, value)
 		d.opts.NullableWidening.Disabled = !on
 		return err
-	case optDiscriminators:
+	case optDiscriminatorInference:
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.DiscriminatorInference.Disabled = !on

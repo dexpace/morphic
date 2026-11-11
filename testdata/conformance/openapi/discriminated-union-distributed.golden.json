@@ -416,6 +416,16 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator/x-note": {
+          "reason": "vendor_extension",
+          "value": "kept",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Payment/discriminator/x-note"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Payment"
@@ -566,7 +576,7 @@
     {
       "format": "openapi@3.1",
       "path": "discriminated-union-distributed.yaml",
-      "hash": "38f1d7a674ade4e93e222b97446e4cc540120b2ab2e2dae76dbced9e316f7c60"
+      "hash": "382d7b5a6980c8833b090bf0ce44be846c359918cb2da3b521cf89dc6c591e15"
     }
   ]
 }
