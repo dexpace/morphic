@@ -46,17 +46,17 @@ A parse method reads one request as it arrived, in an order a signature needs:
    authenticates to the receiver ([auth](auth.md)); an option passes when each of its schemes does,
    and the request when one option does. The receiver compares a credential itself, in constant
    time, where it sits in the request's text and the receiver was given the value: an `apiKey` with
-   `In` `header`, `query` or `cookie`, after its `Scheme` where it states one, an `http_basic` and an
-   `http_bearer` ([where a credential can be read](auth.md#where-a-credential-can-be-read)). Any
+   `In` `header`, `query` or `cookie`, after its `Scheme` where it states one, an `http_basic` and
+   an `http_bearer` ([where a credential can be read](auth.md#where-a-credential-can-be-read)). Any
    other scheme, and one of those whose value it was not given, passes only through the user's
    check, and with none configured the receiver refuses the request rather than pass what it has no
-   means to check: comparing a key it was never given with an absent one would pass a request carrying none.
-   The user's check, where configured, runs on every request, as the place to verify a signature,
-   for which no format the IR is designed against defines a scheme, and is handed the request: its
-   method and target, the query in it, its headers, the body's bytes as they arrived, and the
-   certificates the connection presented where the user's server exposes them, which a
-   `mutual_tls` or `x509` scheme is checked against. An operation stating no option, or an option
-   of no scheme, passes only where the user's check is configured or the receiver was built stating
+   means to check: comparing a key it was never given with an absent one would pass a request
+   carrying none. The user's check, where configured, runs on every request, as the place to verify
+   a signature, for which no format the IR is designed against defines a scheme, and is handed the
+   request: its method and target, the query in it, its headers, the body's bytes as they arrived,
+   and the certificates the connection presented where the user's server exposes them, which a
+   `mutual_tls` or `x509` scheme is checked against. An operation stating no option, or an option of
+   no scheme, passes only where the user's check is configured or the receiver was built stating
    that its operations admit an unauthenticated sender, so a receiver built with no setting parses
    no forged body. A request a check refuses is a verification failure, a value apart from a decode
    failure, so a handler answers it as such.
@@ -78,9 +78,10 @@ the parameters the operation declares, each once.
 `OpPlan` keeps its fields' meanings. `Return`, `Others` and `Errors` each plan a response the
 receiver may write, its content elected as for one a client reads, which is the content the
 response is written in, and `Errors` holds no `CommonErrors`, which are what the API answers its
-client. `RequestContent` is the content the mock server sends. `Auth` is the operation's own. `Effects` and the retry settings decide nothing, since nothing sends it again, so
-the operation's row of the runtime's settings holds only the bound its body is read to. The plan
-infers no `Page` and no `LRO` for an inbound operation, and a `Stream` on one is a warning
+client. `RequestContent` is the content the mock server sends. `Auth` is the operation's own.
+`Effects` and the retry settings decide nothing, since nothing sends it again, so the operation's
+row of the runtime's settings holds only the bound its body is read to. The plan infers no `Page`
+and no `LRO` for an inbound operation, and a `Stream` on one is a warning
 `emitters/<target>/unsupported-inbound-stream` with nothing generated for it, until a target designs
 a receiver reading frames.
 
