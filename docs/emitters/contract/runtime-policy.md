@@ -114,7 +114,8 @@ differs by operation is a table in the runtime binding, a row per operation, whi
 `BuildOperationSettings` fills ([steps](../refine/steps.md)): the operation's resolved settings,
 whether it retries an uncertain outcome, decided there from `WhenUncertain` and `OpPlan.Effects`,
 and the statuses it declares, none of which is followed as a redirect. A template renders the rows,
-and a method names only its own.
+each in its operation's unit, so the runtime's own unit names no operation ([output
+units](../refine/output-units.md#the-runtimes-unit)), and a method names only its own.
 
 ## Layers and operations
 

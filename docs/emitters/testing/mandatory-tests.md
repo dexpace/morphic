@@ -68,11 +68,14 @@ throughout these documents.
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
-    group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
-    in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
-    compile, the types those operations reach in the shared unit; and every partition error and
-    warning of [output units](../refine/output-units.md) has a fixture that draws it.
+    group reach; under `SplitByGroup`, and under `Partition` with a partition's model holding a
+    runtime type, the units' imports form no cycle and build, every group's operations failing with
+    the runtime's failure value; the runtime's declarations are in its unit, which imports none,
+    with either rule on and with both off; groups whose names render alike, or as a name the units'
+    scope reserves, get distinct units; a union with a variant in another unit compiles; two groups
+    whose operations `AlsoMount` puts in each other's client compile, the types those operations
+    reach in the shared unit; and every partition error and warning of [output
+    units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
@@ -80,13 +83,14 @@ throughout these documents.
     the standard-library packages its files import, after every units name and after each name a
     Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
     generates code that compiles on every target, with every template's declared names held to what
-    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
-    `wrapper` at the build's root leave every module's sources, no path the build writes, an
-    artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
-    framework links, its header giving each declaration the Swift name the naming policy chose, none
-    of them a type Swift's standard library or Foundation declares or a module's name, so a Swift
-    file that imports the framework and Foundation compiles its uses of both and qualifies a name by
-    either module ([Swift](../targets/kotlin/swift.md)).
+    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
+    options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
+    leave every module's sources, no path the build writes, an artifact's or a class file's, has a
+    Windows device name for a segment, and the Multiplatform framework links, its header giving each
+    declaration the Swift name the naming policy chose, none of them a type Swift's standard library
+    or Foundation declares or a module's name, so a Swift file that imports the framework and
+    Foundation compiles its uses of both and qualifies a name by either module
+    ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

@@ -28,8 +28,11 @@ exist, so 1.26 leaves support when 1.28 ships; from then on every supported rele
 
 ## Output units
 
-A Go [unit](../../refine/output-units.md) is a package, and a group's is `<root>/<group>`. Go's
-default [limit](../../refine/output-units.md#the-size-check) is 10,000 declarations. A synthetic
+A Go [unit](../../refine/output-units.md) is a package, a group's is `<root>/<group>`, and the
+[runtime's](../../refine/output-units.md#the-runtimes-unit) is `<root>/runtime`. What generated code
+in another package calls of the runtime is exported, since a Go package reaches no other's
+unexported names; that this makes it part of the SDK's API is #1730's. Go's default
+[limit](../../refine/output-units.md#the-size-check) is 10,000 declarations. A synthetic
 package of that many models, each with its codec and a `Validate`, peaked at about 1.6 GB of memory
 to build with Go 1.27.3 on darwin/arm64, and one of 30,000 at about 4.6 GB.
 
