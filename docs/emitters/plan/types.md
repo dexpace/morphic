@@ -15,8 +15,9 @@ type TypePlan struct {
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
     Composed   []ComposedVariant    // a model narrowing a union: each shape an instance takes, the
-                                    // model with a variant in the union's place; empty otherwise
-                                    // and where no distribution serves (below)
+                                    // model with a variant in the union's place; empty otherwise,
+                                    // for one adding nothing to its union, and where no
+                                    // distribution serves (below)
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Open       bool                 // a union, polymorphic base, model narrowing a union or enum
@@ -124,18 +125,21 @@ values it admits; one over a union tagged by a tuple index, whose values are no 
 whose entries, counted with what each one's walk reads, would number more than
 `plan.MaxComposedSize`, a fixed limit the plan package states ([overview](overview.md)), which
 `Build` reports as a warning `emitters/plan/composed-limit` naming the model. A walk reads each
-model and composition entry it passes, each alias scalar it reads through, each property and
-`Requires` name, and each type it reads a redaction off, which is what it costs ([the
-flattening](../../ir/models.md#the-flattening)) and what `ir`'s walk is to report beside the entry
-it flattens (#1734). Nested unions multiply the entries and each walk reads the whole composition
-again, so counting only the members the entries hold would leave that cost free: a 124 KB spec
-composing a chain of 1,000 models, each redeclaring one member, beside unions nested 14 deep holds
-81,918 entries and members where its walks take 83 million steps. On the golden spec the largest,
-`rulesets_ResponseRule`, counts 1,122 (spec @bc6fad24, morphic @ea70eba79). The SDK targets alias a
-model adding nothing, and degrade the others ([inheritance](../refine/models.md#inheritance)). An
-entry whose declarations of one member admit no value in common, as one over a variant pinning a tag
-the model pins otherwise does, is an entry like any, its member as the flattening takes it; whether
-to leave it out is #1739's.
+variant it takes in a union's place, each model and composition entry it passes, each alias scalar
+it reads through, each property and `Requires` name, and each type it reads a redaction off, which
+is what it costs ([the flattening](../../ir/models.md#the-flattening)) and what `ir`'s walk is to
+report beside the entry it flattens (#1734). Nested unions multiply the entries and each walk reads
+the whole composition again, so counting only the members the entries hold would leave that cost
+free: a 124 KB spec composing a chain of 1,000 models, each redeclaring one member, beside unions
+nested 14 deep holds 81,918 entries and members where its walks take 83 million steps. Counting each
+variant read keeps the entries' `Over` lists within the limit too: a 193 KB spec nesting unions
+1,000 deep, each beside one leaf, gives 1,000 entries whose `Over` lists hold 500,500 variants,
+while the entries and the rest of what their walks read count 10,000. On the golden spec the
+largest, `rulesets_ResponseRule`, counts 1,143 (spec @bc6fad24, morphic @ea70eba79). The SDK targets
+alias a model adding nothing, and degrade the others
+([inheritance](../refine/models.md#inheritance)). An entry whose declarations of one member admit no
+value in common, as one over a variant pinning a tag the model pins otherwise does, is an entry like
+any, its member as the flattening takes it; whether to leave it out is #1739's.
 
 The plan holds the entries because four artifacts read them: an SDK target declares a variant for
 each, the docs render a table for it, and the samples and a mock show values of it, which the

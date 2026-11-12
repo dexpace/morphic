@@ -501,9 +501,9 @@ throughout these documents.
     correlation key identifies it, a choice on a recurrence or past `MaxDepth` taking the first
     variant or member from which a value ends, so a required recursive union ends, and the same in
     the docs, the samples, an SDK's tests and the mock. A synthesized model holds for each member
-    the first value its own set, and then the sets of the declarations its flattening overrides,
-    hold that every declaration of it admits, else its own set's first, so a member a later conjunct
-    redeclares as a plain string keeps the value an earlier one pins and a failure schema's
+    the first value, of its own set and then of the sets of the declarations its flattening
+    overrides, that every declaration of it admits, else its own set's first, so a member a later
+    conjunct redeclares as a plain string keeps the value an earlier one pins and a failure schema's
     `success: false` stands over the success shape's `true`, a model narrowing a union a value of
     one of its entries, chosen as a variant is and the same in both declaration orders, so
     `rulesets_ResponseRule` has one carrying the tag routing to its variant, and a model adding
@@ -568,5 +568,6 @@ throughout these documents.
     narrowing two unions, one whose union has a variant composing it or reaches itself through its
     variants, one over a key-tagged, enveloped or index-tagged union, and one whose entries, with
     what their walks read, would pass `plan.MaxComposedSize`, among them one holding few members
-    over a long composition, which `Build` reports as `emitters/plan/composed-limit`, each draw a
-    diagnostic and degrade ([inheritance](../refine/models.md#inheritance)).
+    over a long composition and one over unions nested deep, each beside one leaf, which `Build`
+    reports as `emitters/plan/composed-limit`, each draw a diagnostic and degrade
+    ([inheritance](../refine/models.md#inheritance)).
