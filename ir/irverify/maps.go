@@ -53,6 +53,38 @@ func checkMapKeys(doc *ir.Document) []Violation {
 	return vs
 }
 
+// checkCatchAlls asserts each model's catch-all says one thing about the keys no
+// pattern matches (docs/ir/models.md#catch-alls). A Value of nil means no such
+// key is allowed, so one with no pattern beside it admits nothing and should be
+// no catch-all at all (ir/catch-all-empty). A closed model allows no such key, so
+// a Value beside it types keys its closure forbids, and two readers would admit
+// different payloads (ir/catch-all-closed).
+func checkCatchAlls(doc *ir.Document) []Violation {
+	var vs []Violation
+	for id, td := range doc.Types {
+		m, isModel := td.(*ir.Model)
+		if !isModel || m == nil || m.AdditionalProps == nil {
+			continue
+		}
+		extra := m.AdditionalProps
+		switch {
+		case extra.Value == nil && len(extra.Patterns) == 0:
+			vs = append(vs, Violation{
+				Code:    "ir/catch-all-empty",
+				Message: "catch-all types no key: it has neither a value nor a pattern",
+				Path:    typePath(id) + ".AdditionalProps",
+			})
+		case extra.Value != nil && m.Additional == ir.AdditionalClosed:
+			vs = append(vs, Violation{
+				Code:    "ir/catch-all-closed",
+				Message: "closed model types keys beyond its declared members and patterns, which its closure forbids",
+				Path:    typePath(id) + ".AdditionalProps.Value",
+			})
+		}
+	}
+	return vs
+}
+
 // catchAllKey returns the key td types its members under and the field
 // holding it, or nil when td types none: a MapT's Key, or the Key of a Model's
 // AdditionalProps.

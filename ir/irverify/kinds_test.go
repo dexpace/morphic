@@ -182,6 +182,53 @@ func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
 	}
 }
 
+// TestVerify_AnEnumsUndeclaredValueTypeIsAViolation holds an Enum's ValueType
+// to the declared kinds as a primitive's kind is held, at the field. An empty
+// one is undeclared too, since every member's value has a primitive.
+func TestVerify_AnEnumsUndeclaredValueTypeIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		vt    ir.PrimKind
+		paths []string
+	}{
+		{"an invented kind", "flt", []string{"types[t/x/E].ValueType"}},
+		{"none", "", []string{"types[t/x/E].ValueType"}},
+		{"a declared kind", ir.PrimInt64, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/E": &ir.Enum{ID: "t/x/E", ValueType: tc.vt}}}
+
+			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
+		})
+	}
+}
+
+// TestVerify_ALiteralsUndeclaredValueTypeIsAViolation holds a Literal's
+// ValueType to the declared kinds as a primitive's kind is held, at the field,
+// while an empty one, which says no primitive types the value, is sound.
+func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		vt    ir.PrimKind
+		paths []string
+	}{
+		{"an invented kind", "flt", []string{"types[t/x/L].ValueType"}},
+		{"a declared kind", ir.PrimDate, nil},
+		{"none", "", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
+				ID: "t/x/L", Value: ir.Value{Kind: ir.ValueString, Str: "a"}, ValueType: tc.vt,
+			}}}
+			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
+		})
+	}
+}
+
 // TestVerify_UndeclaredStabilityIsAViolation holds the check at both carriers a
 // walk meets, nested groups included: the field is held by its type, so a
 // carrier the check named by hand would be the one a new struct escapes.

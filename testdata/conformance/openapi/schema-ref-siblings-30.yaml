@@ -1,9 +1,9 @@
 openapi: 3.0.3
 # In OpenAPI 3.0 a schema written as a $ref is a Reference Object, which ignores
 # every key beside the $ref. OpenAPI 3.1 applies them as the schema's keywords,
-# and that is how they are read, each reported as a later version's construct.
-# The `nullable` beside `owner`'s $ref has an effect in no version, and is read
-# by the nullable-widening policy.
+# as the compiler does, reading each as 3.0 defines it and reporting it as a
+# later version's construct. The `nullable` beside `owner`'s $ref, with no `type`
+# beside it, has no effect, and is read by the nullable-widening policy.
 info: {title: SchemaRefSiblings30, version: "1.0.0"}
 paths: {}
 components:

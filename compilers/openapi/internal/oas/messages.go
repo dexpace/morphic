@@ -97,12 +97,14 @@ func (r *reporter) later(obj Object, key, value string, since Minor, ptr jsontex
 }
 
 // laterSibling adds the warning for key, written beside the $ref of obj in a
-// document declaring minor, which ignores it, where since applies it.
+// document declaring minor, which ignores it, where since applies it: it is
+// applied as since applies it and read as minor defines it.
 func (r *reporter) laterSibling(obj Object, key string, minor, since Minor, ptr jsontext.Pointer) {
 	r.add(diag.Newf(ir.SeverityWarning, diag.LaterVersionConstruct, r.locate(ptr),
 		"keyword %q beside the $ref of a %s is ignored by OpenAPI %s and applied by OpenAPI %s, "+
-			"and this document declares %s; it is lowered as in an OpenAPI %s document",
-		key, obj.Name, minor, since, r.declared, since), ptr)
+			"and this document declares %s; it is applied as in an OpenAPI %s document "+
+			"and read as in an OpenAPI %s one",
+		key, obj.Name, minor, since, r.declared, since, minor), ptr)
 }
 
 // repeated warns of each key the mapping at ptr writes more than once: the
@@ -135,6 +137,8 @@ func describeFormat(format Format) string {
 		ServerURL:         "a URL reference, its variables aside",
 		MediaRanges:       "a comma-separated list of media types and media type ranges",
 		AnchorName:        "a name of a letter or '_', then letters, digits, '-', '_' and '.'",
+		PlainName:         "a name of a letter, then letters, digits, '-', '_', ':' and '.'",
+		PlainNameURI:      "a URI reference whose fragment, where written alone and no JSON pointer, is a name of a letter, then letters, digits, '-', '_', ':' and '.'",
 		ResourceURI:       "a URI reference whose fragment, if any, is empty",
 	}[format]
 }

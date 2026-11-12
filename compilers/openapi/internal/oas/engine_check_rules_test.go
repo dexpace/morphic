@@ -353,7 +353,7 @@ func TestCheck_KeywordsHoldWhatJSONSchemaRequires(t *testing.T) {
 		{"vocabulary", "3.1.0", oas.Schema,
 			`{$vocabulary: {"https://e.com/v": true, rel: false, "https://e.com/w": "true"}}`,
 			[]finding{at(badFormat, "/$vocabulary/rel"), at(mismatch, "/$vocabulary/https:~1~1e.com~1w")}},
-		{"an id with a fragment", "3.1.0", oas.Schema, `{$id: "https://e.com/a#frag"}`, []finding{at(badFormat, "/$id")}},
+		{"an id with a fragment, its dialect's to judge", "3.1.0", oas.Schema, `{$id: "https://e.com/a#frag"}`, nil},
 		{"an id with an empty fragment", "3.1.0", oas.Schema, `{$id: "https://e.com/a#"}`, nil},
 	})
 	diags := run(t, "3.1.0", oas.Schema, `{required: [a, a]}`)

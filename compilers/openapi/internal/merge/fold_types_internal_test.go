@@ -93,17 +93,17 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/A":   declaring("t/A"),
-		"t/map": &ir.MapT{ID: "t/map"},
-		"t/any": &ir.Any{ID: "t/any"},
-		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
-		"t/opq": &ir.Scalar{ID: "t/opq"},
+		"t/list":  &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/str"}},
+		"t/tuple": &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{{Target: "t/str"}}},
+		"t/any":   &ir.Any{ID: "t/any"},
+		"t/str":   &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
+		"t/opq":   &ir.Scalar{ID: "t/opq"},
 	}
 	cases := []struct {
 		name                 string
 		dstTarget, srcTarget ir.TypeID
 	}{
-		{"a model and a map", "t/A", "t/map"},
+		{"a list and a tuple", "t/list", "t/tuple"},
 		{"an opaque scalar keeps the position", "t/opq", "t/str"},
 	}
 	for _, tc := range cases {
@@ -142,12 +142,12 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/A":   declaring("t/A"),
-		"t/map": &ir.MapT{ID: "t/map"},
+		"t/opq": &ir.Scalar{ID: "t/opq"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
 	src := ir.Property{
 		WireName:    "x",
-		Type:        ir.TypeRef{Target: "t/map"},
+		Type:        ir.TypeRef{Target: "t/opq"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
 		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
@@ -157,7 +157,7 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	dst = foldTwo(g, dst, src, written(`{"type":"object","default":{},"minProperties":1}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and a map are still not called a conflict")
+	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and an opaque scalar are not called a conflict")
 	assert.Nil(t, dst.Default, "the default describes the shape that was dropped")
 	assert.Nil(t, dst.Constraints, "so does minProperties")
 	assert.Empty(t, dst.Examples, "and so do the examples")
@@ -180,7 +180,7 @@ func TestFold_TheJudgmentsVerdictIsWhatIsReported(t *testing.T) {
 	}{
 		{"a literal against a kind it is disjoint from", "t/lit-x", "t/prim/integer", nil,
 			ir.SeverityWarning, diag.ConflictingRedecl, true},
-		{"lists whose elements overlap", "t/list-int", "t/list-i32-null", nil,
+		{"lists whose elements overlap", "t/list-i32", "t/list-u32", nil,
 			ir.SeverityInfo, diag.DegradedConstruct, true},
 		{"one target declared twice", "t/prim/integer", "t/prim/integer", &d, "", "", false},
 	} {
@@ -302,7 +302,7 @@ func enumRegistry() map[ir.TypeID]ir.TypeDef {
 // narrows wins; a bare kind or a Scalar node that admits one of its members
 // overlaps it, which is info and keeps the first declaration, as does a kind
 // with no judge; a kind that admits none of them warns, as does another
-// family; and two enums of one kind, each with members, overlap.
+// family, and another enum sharing none of them.
 func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
 	enum := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
@@ -319,7 +319,7 @@ func TestFold_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"enum of string and a uuid scalar", enum("t/enum/a"), enum("t/scalar/uuid"), ir.SeverityWarning, ""},
 		{"enum of string and a bytes scalar", enum("t/enum/a"), enum("t/scalar/bytes"), ir.SeverityInfo, ""},
 		{"enum of string and integer", enum("t/enum/a"), primRef(ir.PrimInteger), ir.SeverityWarning, ""},
-		{"enum of string and another enum", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityInfo, ""},
+		{"enum of string and another sharing no member", enum("t/enum/a"), enum("t/enum/b"), ir.SeverityWarning, ""},
 		{"enum of string and bare string", enum("t/enum/a"), primRef(ir.PrimString), "", "t/enum/a"},
 		{"enum of integer and number", enum("t/enum/big"), primRef(ir.PrimNumber), "", "t/enum/big"},
 	}

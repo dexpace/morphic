@@ -5,7 +5,6 @@ package merge
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -89,14 +88,14 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		pointer jsontext.Pointer
 	}{
 		{"no other node", []jsontext.Pointer{first, later}, nil, "p/test" + first, first},
-		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, "p/minted" + later, later},
-		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, "p/minted" + later, later},
+		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, mintedProp(later), later},
+		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, mintedProp(later), later},
 		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "p/test" + first, first},
 		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "p/test" + first, first},
 		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
 	} {
 		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
-		g.Interned = func(p jsontext.Pointer) bool { return slices.Contains(tc.nodes, p) }
+		g.walk.interned = tc.nodes
 
 		got := g.fold(declaredIn(tc.decls...))
 
@@ -116,11 +115,11 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		names ir.PropID
 		want  ir.PropID
 	}{
-		{"the folded field", "p/test" + first, "p/minted" + later},
+		{"the folded field", "p/test" + first, mintedProp(later)},
 		{"another field", "p/test/other", "p/test/other"},
 	} {
 		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
-		g.Interned = func(p jsontext.Pointer) bool { return p == "/s/allOf/0" }
+		g.walk.interned = []jsontext.Pointer{"/s/allOf/0"}
 		m := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
 		idx, settle := indexOver(m, g)
 		for _, d := range declaredIn(first, later) {

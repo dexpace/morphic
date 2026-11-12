@@ -12,14 +12,11 @@ policy](runtime-policy.md) and [shaping hints](shaping-hints.md), each a layer b
 ```go
 package embed
 
-type Mapping struct {
-    Keys     map[string]Target // an extension's key as Unmodeled holds it, such as
+type Mapping map[string]Target // an extension's key as Unmodeled holds it, such as
                                // "openapi:x-sdk-retries", → what it configures
-    Disabled bool              // reads nothing
-}
 
 type Target struct {
-    Tree string                // "policy" | "hint"
+    Tree Tree                  // the input the key configures
     Path []string              // the member path inside that tree's JSON form
                                // (runtime-policy.md#delivery, shaping-hints.md),
                                // such as ["retry", "maxAttempts"] or ["rename"]
@@ -29,6 +26,8 @@ type Layer struct {
     Policy policy.Layer                              // the lowest layer of runtime policy
     Hints  map[emitters.EntityID]emitters.ShapeHint  // the lowest layer of hints
 }
+
+type Tree string               // "policy" | "hint"
 
 func Read(doc *ir.Document, m Mapping) (Layer, []ir.Diagnostic)
 ```
@@ -52,30 +51,39 @@ tag's under `openapi:tags/<n>/`: it describes that object rather than the docume
 nothing until the IR carries it where the object lowers (#1221). Where two keys set one field of one
 node, an operation's own key beats its path item's, and any other pair is an error
 `emitters/embed/conflict` that sets the field from neither, since which to take is no fact the
-document states.
+document states. An operation's own key and its path item's both set the operation's entry, so a
+status one names in a retry list and the other in the other list would be one scope's status named
+twice; it stays only in the operation's list instead, as it would in a list set higher
+([retries](runtime-policy.md#the-canonical-vocabulary)).
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
-unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`
-at the extension and never coerced, since the document means something by the key that the field
-does not hold: a group is named by its ID, as `Remount` takes it, never by the words a document
-places it under. The entry stays in `Unmodeled` either way, as a promotion leaves it
+unknown member. A value of the wrong shape, or one outside the field's vocabulary or range
+([layers](runtime-policy.md#layers-and-operations)), is reported as a warning
+`emitters/embed/invalid-value` at the extension and never coerced, since the document means
+something by the key that the field does not hold: a group is named by its ID, as `Remount` takes
+it, never by the words a document places it under, and an attempt count of 0 may be another
+generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
-the entry instead.
+the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
+so it neither beats another key nor conflicts with one, and a path item's key sets a field its
+operation's own key could not.
 
 ## The mapping is a configuration
 
-The reader runs by default, and its default mapping is empty. The compiler's promotion policy ships
-keys whose reading is a convention independent of any generator, such as `x-deprecated-reason`
-([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No key for a retry, a
-timeout or an SDK method name has one: each is a generator's own spelling, and its value's shape is
-that generator's. So a configuration names the keys its documents use and what each one sets, and a
-key it does not name stays where it was.
+The reader runs by default, and its default mapping is empty, which is also how a configuration
+turns it off: no switch beside the mapping says the same thing a second way. The compiler's
+promotion policy ships keys whose reading is a convention independent of any generator, such as
+`x-deprecated-reason` ([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No
+key for a retry, a timeout or an SDK method name has one: each is a generator's own spelling, and
+its value's shape is that generator's. So a configuration names the keys its documents use and what
+each one sets, and a key it does not name stays where it was.
 
 A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only from entries
 of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,
 which the IR keeps for an emitter's policy layer to read, such as a call timeout or a client-shaping
 decorator ([boundaries](../../ir/boundaries.md#deliberate-exclusions)). No promotion moves either,
-which is the stability #429 asks the IR to state for them. A key under any other reason, such as
+which is the stability the IR states for them ([what a key
+promises](../../ir/unmodeled.md#what-a-key-promises)). A key under any other reason, such as
 `no_ir_home`, names a gap the IR may close or a construct that configures nothing, so where a
 document holds a key the mapping names under one, the key reads nothing and is reported as an error
 `emitters/embed/key-refused`, as is a `Target` naming no tree or a path no field has.
@@ -95,7 +103,12 @@ generator's own key: a method name and a sub-client on 3,761 of its 3,763 operat
 other sub-clients and method names on 44, and a name on 118 parameters and on 30 properties. It
 carries no retry or timeout key. A mapping reads the names into `Rename`, but no sub-client: each is
 a path of names, mostly dotted, such as `dns.domainconnect`, where `Remount` and `AlsoMount` take
-the ID of a group the IR has. Placing an operation by such a path is left to a compiler grouping
-that reads it, which #582 proposes, and the method names hold only beside one: read alone, 1,745 of
-the 3,761 share their name with another method of the group the IR places them in, which the
-collision resolver then renames ([naming](../refine/naming.md)).
+the ID of a group the IR has. Placing an operation by its sub-client's path is the compiler's
+grouping by extension ([`extension-groups`](../../compilers/openapi.md#extension-groups)), and the
+method names hold only beside it: under the default grouping by tags, 1,745 of the 3,761 share their
+name with another method of the group the IR places them in, which the collision resolver then
+renames ([naming](../refine/naming.md)). Grouped by the path, 94 of 3,792 do (spec @e411be7e, where
+1,751 do by tags), each one the document itself names alike under one sub-client. That grouping
+makes the groups of the paths operations are filed under, their prefixes among them, and no other,
+so 44 of the 48 aliases on 45 operations name a path it has no group for (spec @bc6fad24): an
+`AlsoMount` there names a group the IR does not have, which is reported (#1726).

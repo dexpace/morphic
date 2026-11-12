@@ -74,8 +74,8 @@ components:
     RefTargetObj: {type: object, properties: {a: {type: string}}}
     # Keywords the *elected* family's lowering never reads. A Model composed
     # from allOf carries no type token, so a non-object type states something the
-    # IR no longer holds; a Literal carries only its value, so neither an
-    # encoding nor a bound reaches a field.
+    # IR no longer holds. A Literal's ValueType holds the type and format its
+    # value fits, so ConstWithFormat keeps nothing, but no bound reaches a field.
     AllOfWithScalarType: {allOf: [{$ref: '#/components/schemas/RefTargetObj'}], type: string}
     # Its control, and the reason this cannot be decided from a keyword list:
     # `object` is exactly what the composed Model already asserts.

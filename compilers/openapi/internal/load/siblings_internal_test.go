@@ -23,7 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -70,7 +70,7 @@ func pathEntry(t *testing.T, doc *soa.OpenAPI, path string) *soa.ReferencedPathI
 func TestModelSiblings_ModelsWhatTheLibraryReadsAsAReference(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, faults := modelSiblings(t.Context(), doc, provenance.Tree{})
 	require.Empty(t, faults)
 
 	a, ok := sibs.Of(pathEntry(t, doc, "/a"))
@@ -141,7 +141,7 @@ func TestSiblingsFrom_AParserFaultIsReportedOnce(t *testing.T) {
 	faulting := func(context.Context, *yaml.Node) (*soa.PathItem, error) {
 		return nil, errors.New("parser panicked: boom")
 	}
-	sibs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), scan.InSource(0), faulting)
+	sibs, faults := siblingsFrom(t.Context(), soa.Walk(t.Context(), doc), provenance.Tree{}, faulting)
 	require.Len(t, faults, 1, "/a and its alias /d are one mapping")
 	assert.Equal(t, diag.Validation, faults[0].Code)
 	assert.Equal(t, ir.SeverityError, faults[0].Severity)
@@ -172,7 +172,7 @@ func TestSiblingsFrom_StopsWhereAWalkPanics(t *testing.T) {
 	}
 	var sibs Siblings
 	require.NotPanics(t, func() {
-		sibs, _ = siblingsFrom(t.Context(), panicking, scan.InSource(0), buildSibling)
+		sibs, _ = siblingsFrom(t.Context(), panicking, provenance.Tree{}, buildSibling)
 	})
 	_, ok := sibs.Of(pathEntry(t, doc, "/a"))
 	assert.True(t, ok, "what it found before the fault is kept")
@@ -203,7 +203,7 @@ func TestSiblings_UnreadIsFieldsNoModelHolds(t *testing.T) {
 	_, ok := none.Of(nil)
 	assert.False(t, ok)
 
-	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
 	assert.False(t, sibs.Unread(pathEntry(t, doc, "/a")), "a modelled use site is read")
 }
 
@@ -445,7 +445,7 @@ x-shared:
   /b:
     get: {responses: {"200": {description: ok}}}
 `)
-	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
 	_, err := pathEntry(t, doc, "/a").Resolve(t.Context(), soa.ResolveOptions{TargetLocation: "spec.yaml", RootDocument: doc, TargetDocument: doc})
 	require.NoError(t, err)
 	hop := pathEntry(t, doc, "/a").GetReferenceResolutionInfo().Object
@@ -467,7 +467,7 @@ func TestModelSiblings_DoesNotWalkADocumentWithNothingBesideARef(t *testing.T) {
 	}
 	doc := modelOf(t, spec.String())
 
-	allocs := testing.AllocsPerRun(10, func() { modelSiblings(t.Context(), doc, scan.InSource(0)) })
+	allocs := testing.AllocsPerRun(10, func() { modelSiblings(t.Context(), doc, provenance.Tree{}) })
 	assert.Less(t, allocs, 50.0, "a scan, not a walk of 200 path items")
 }
 
@@ -484,7 +484,7 @@ func TestSiblings_BesideNamesTheFieldAPointerPasses(t *testing.T) {
     $ref: '#/paths/~1b'
     <<: {patch: {responses: {"200": {description: ok}}}}
 `)
-	sibs, faults := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, faults := modelSiblings(t.Context(), doc, provenance.Tree{})
 	require.Empty(t, faults)
 
 	cases := []struct {
@@ -551,7 +551,7 @@ components:
 // quadratic in the pointer's length. Allocations count the work, since they do
 // not depend on the machine.
 func TestSiblings_BesideReadsAPointerInBoundedWork(t *testing.T) {
-	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), provenance.Tree{})
 	long := func(head string, tokens int) jsontext.Pointer {
 		return jsontext.Pointer(head + strings.Repeat("/x", tokens))
 	}

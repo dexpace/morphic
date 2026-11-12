@@ -250,17 +250,17 @@ func usageEdgeCases() map[string]usageEdge {
 	return map[string]usageEdge{
 		"property": {build: func(root ir.TypeID) ir.TypeDef { return useHolder(root, "x") }},
 		"additional value": {build: func(root ir.TypeID) ir.TypeDef {
-			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: useRef("x")} })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("x"))} })
 		}},
 		"additional key": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
-				m.AdditionalProps = &ir.AdditionalProps{Value: useRef("v"), Key: &ir.TypeRef{Target: "x"}}
+				m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("v")), Key: &ir.TypeRef{Target: "x"}}
 			})
 		}},
 		"additional pattern": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
 				m.AdditionalProps = &ir.AdditionalProps{
-					Value: useRef("v"), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
+					Value: new(useRef("v")), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
 				}
 			})
 		}},
@@ -431,10 +431,12 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 		bindings []ir.HTTPBinding
 		want     map[ir.TypeID]irfacts.UsageFlags
 	}{
-		"a named webhook":           {[]ir.HTTPBinding{{IsWebhook: true, WebhookName: "newPet"}}, inbound},
-		"an unnamed one":            {[]ir.HTTPBinding{{IsWebhook: true}}, inbound},
-		"one binding among several": {[]ir.HTTPBinding{{Method: "POST", URITemplate: "/pets"}, {IsWebhook: true}}, inbound},
+		"a named webhook":           {[]ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, WebhookName: "newPet"}}, inbound},
+		"an unnamed one":            {[]ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook}}, inbound},
+		"one binding among several": {[]ir.HTTPBinding{{Method: "POST", URITemplate: "/pets"}, {Inbound: ir.HTTPInboundWebhook}}, inbound},
 		"a path operation":          {[]ir.HTTPBinding{{Method: "POST", URITemplate: "/pets"}}, outbound},
+		// Marked though no binding lists it, so the mark alone decides.
+		"a marked callback": {[]ir.HTTPBinding{{Method: "POST", URITemplate: "{$url}", Inbound: ir.HTTPInboundCallback}}, inbound},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -463,7 +465,7 @@ func TestIndex_UsageSwapsSidesForAnOperationTheAPIStarts(t *testing.T) {
 	t.Run("a webhook's callback is no less inbound", func(t *testing.T) {
 		t.Parallel()
 		callback := op
-		callback.Bindings.HTTP = []ir.HTTPBinding{{IsWebhook: true, Callbacks: []ir.Callback{{Operations: []ir.OpID{"op"}}}}}
+		callback.Bindings.HTTP = []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, Callbacks: []ir.Callback{{Operations: []ir.OpID{"op"}}}}}
 		assert.Equal(t, inbound, usageOf(useDoc(callback, defs()...)))
 	})
 }
@@ -610,7 +612,7 @@ func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 		want     irfacts.UsageFlags
 	}{
 		"a path operation": {[]ir.HTTPBinding{{Method: "GET", URITemplate: "/pets"}}, useOut},
-		"a webhook":        {[]ir.HTTPBinding{{IsWebhook: true}}, useIn},
+		"a webhook":        {[]ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook}}, useIn},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

@@ -5,12 +5,16 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -20,25 +24,25 @@ import (
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
 // is a map and nothing else (objectNode): its value constraints, the
 // property-set cardinality among them, its own properties and which are
-// required, its catch-all (fillAdditional) and a declared discriminator. It
-// reads no annotations: attachDeclaredAnnotations does that for every
-// destination.
+// required, its catch-all (fillAdditional) and, where discriminated, the
+// discriminator it declares. It reads no annotations: attachDeclaredAnnotations
+// does that for every destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
-		diags = append(diags, discDiags...)
-		if d != nil {
+		if discriminated {
+			d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
+			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
 		return objectNode(m)
@@ -60,75 +64,132 @@ func objectNode(m *ir.Model) ir.TypeDef {
 	return m
 }
 
-// propIndex returns the index the walk fills m's properties through. A field
-// declared more than once folds once every lowering has returned
-// (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
-// that reads the merged field, such as a form part's flags, finds it folded.
-func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
-	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, ts: ts, fold: fold}) })
+// modelFields is how the walk fills one model's properties: the context the
+// model is lowered in, the types its nodes are registered with, and the index of
+// the properties it declares (merge.PropIndex). A field declared more than once
+// folds once every lowering has returned, as a completion
+// (compile.Types.Complete), queued at the model's first redeclaration: a
+// settlement that reads the merged field, such as a form part's flags, finds it
+// folded, and a fold mid-walk would follow the order the declarations lower in
+// (GitHub #898). It is the walk the fold asks (merge.Walk).
+type modelFields struct {
+	c   lowering.Ctx
+	ts  *compile.Types
+	idx *merge.PropIndex
 }
 
-// settledMerge is the folds of one model's redeclared fields, taken once every
-// node exists (compile.Settlement): a fold compares the nodes the declarations
-// name, so mid-walk it would follow the order they lower in (GitHub #898).
-type settledMerge struct {
-	c    lowering.Ctx
-	ts   *compile.Types
-	fold merge.Settle
+// newModelFields returns the fields of m, which holds no property yet, lowered
+// in c and registered with ts.
+func newModelFields(c lowering.Ctx, ts *compile.Types, m *ir.Model) modelFields {
+	return modelFields{c: c, ts: ts, idx: merge.NewPropIndex(m)}
 }
 
-// Settle takes the fold against reg and returns what it reports. The fold
-// rewrites the model's property, and adds a node only through mint.
-func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	s.fold(&merge.Merger{
-		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Mint:    s.mint,
-		Interned: func(pointer jsontext.Pointer) bool {
-			_, ok := s.ts.Lookup(s.c.IDs().Coordinate(pointer))
-			return ok
-		},
-		PropAt: s.c.IDs().ComposedProp,
-		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
-		},
-		Alike: s.alike,
-	})
-	return diags
+// merge lands p on the model, or records it as one more declaration of the
+// field its wire name names (merge.PropIndex.MergeProperty), queueing the
+// model's folds at its first redeclaration.
+func (f modelFields) merge(p ir.Property, source merge.Source, secretBy ir.Inferred) {
+	if f.idx.MergeProperty(p, source, secretBy) {
+		f.ts.Complete(f)
+	}
 }
 
-// alike is merge.Merger.Alike. Each site is read at s.c's position for its
-// pointer, as the model's own document holds it; a site in another document,
-// such as a component a $ref there reached, one c does not place, or one whose
-// base the bindings cannot tell, is no match.
-func (s settledMerge) alike(a, b ir.Provenance) bool {
+// Settle folds the model's redeclared fields against reg, the registry every
+// lowering left, and returns what the folds report (compile.Settlement). A
+// fold rewrites the model's property, and adds a node only through Mint.
+func (f modelFields) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	return f.idx.Fold(merge.Merger{Reg: reg, IDs: f.c.IDs(), Doc: f.c.Place(), Walk: f})
+}
+
+// Interned reports whether a node stands at pointer of the model's document
+// (merge.Walk.Interned).
+func (f modelFields) Interned(pointer jsontext.Pointer) bool {
+	_, ok := f.ts.Lookup(f.c.IDs().Coordinate(pointer))
+	return ok
+}
+
+// place returns where p is in the bindings' table, read at f.c's position for
+// its pointer, as the model's own document holds it, and false for a site in
+// another document, such as a component a $ref there reached, or one c does not
+// place.
+func (f modelFields) place(p ir.Provenance) (bind.Position, bool) {
+	at, placed := f.c.Position(p.Pointer)
+	return at, placed && p.Source == f.c.Place().At(p.Pointer).Source
+}
+
+// Alike is merge.Walk.Alike. A site place does not place, or one whose base the
+// bindings cannot tell, is no match.
+func (f modelFields) Alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {
-		at, placed := s.c.Position(p.Pointer)
-		uri, known := s.c.Bindings().Table().Base(at)
-		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+		at, placed := f.place(p)
+		uri, known := f.c.Bindings().Table().Base(at)
+		return uri, placed && known
 	}
 	ua, okA := base(a)
 	ub, okB := base(b)
 	return okA && okB && ua == ub
 }
 
-// mint registers node, the type of the field the declaration at pointer names.
-// That pointer denotes the declaration's own schema, so node takes the ID of a
-// node no schema occupies (ids.ComposedType) and points back at it, as a
-// distributed variant points at its branch. The variants of one distributed
-// union fold the same declarations, so each mints this one node, alike.
-func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
-	id := s.c.IDs().ComposedType(pointer)
-	site, common := commonFor(s.c, id, pointer), node.Common()
+// Untyped is merge.Walk.Untyped: the schema written at p states no instance
+// type, its own `type` and its allOf's read as allof-disjoint-conjuncts reads a
+// conjunct (conjunctTypes). A site place does not place, one holding no schema
+// object, and a read that runs out of its budget or passes over what could
+// refuse a value of some instance type, state one, which keeps the verdict a
+// structure had before its source was read.
+func (f modelFields) Untyped(p ir.Provenance) bool {
+	at, placed := f.place(p)
+	if !placed {
+		return false
+	}
+	js := f.c.Bindings().At(at)
+	if js == nil || js.GetSchema() == nil {
+		return false
+	}
+	r := conjunctTypes{refs: f.c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
+	return r.schema(js.GetSchema()) == anyInstance && !r.steps.Exhausted() && !r.passedOver
+}
+
+// Mint registers node, the type of the field the declaration at pointer names
+// (merge.Walk.Mint). That pointer denotes the declaration's own schema, so node
+// takes the ID of a node no schema occupies (ids.ComposedType) and points back
+// at it, as a distributed variant points at its branch. The variants of one
+// distributed union fold the same declarations, so each mints this one node,
+// alike.
+func (f modelFields) Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+	id := f.c.IDs().ComposedType(pointer)
+	site, common := commonFor(f.c, id, pointer), node.Common()
+	from := common.ID
 	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
-	s.ts.Register(id, node)
+	if e, ok := node.(*ir.Enum); ok {
+		e.Members = membersBeneath(e.Members, from, func(tail string) ir.EnumMemberID {
+			return f.c.IDs().ComposedMember(pointer, tail)
+		})
+	}
+	f.ts.Register(id, node)
 	return id
+}
+
+// membersBeneath returns a copy of ms, the members of the enum identified by
+// from, each identified beneath the enum a mint registers instead (idAt), by the
+// tail its ID adds to from's path. A member ID outside from's path keeps it, for
+// irverify to report (docs/ir/identity.md#enum-members).
+func membersBeneath(ms []ir.EnumMember, from ir.TypeID, idAt func(tail string) ir.EnumMemberID) []ir.EnumMember {
+	enumPath, ok := ir.IDPath(ir.IDKindType, string(from))
+	out := slices.Clone(ms)
+	for i, m := range out {
+		path, hasPath := ir.IDPath(ir.IDKindEnumMember, string(m.ID))
+		if ok && hasPath && strings.HasPrefix(path, enumPath+"/") {
+			out[i].ID = idAt(strings.TrimPrefix(path, enumPath))
+		}
+	}
+	return out
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
 // its full property-level detail (constraints, visibility, defaults, docs, ...).
 // Which are required is requireMembers' to say, once every property is in.
-func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merge.PropIndex, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields modelFields, s *oas3.Schema,
+	pointer jsontext.Pointer,
+) []ir.Diagnostic {
 	props := s.GetProperties()
 	if props == nil {
 		return nil
@@ -140,10 +201,10 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
-			Name:       compile.NamingFor(name),
+			Name:       ir.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
-			Provenance: c.ProvenanceAt(ppointer),
+			Provenance: c.Place().At(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
 		declared := p.Secret
@@ -152,7 +213,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 		if p.Secret && !declared {
 			secretBy = lowering.ExtensionPromotionHeuristic
 		}
-		idx.MergeProperty(p, redeclarationSource(js), secretBy)
+		fields.merge(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }
@@ -206,8 +267,8 @@ func requireMembers(m *ir.Model, required []string) {
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
 // beyond the declared ones are allowed. Only an absent keyword writes no
-// catch-all. Neither spelling touches Additional, which this sets only for
-// `false` and `unevaluatedProperties: false`.
+// catch-all, unless patterns need one. Neither spelling touches Additional,
+// which this sets only for `false` and `unevaluatedProperties: false`.
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
@@ -219,20 +280,41 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 	default:
 		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
-		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
+		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: ts.PrimRef(ir.PrimAny)}
+			// A key no pattern matches is unconstrained unless a closure says
+			// otherwise. Beside `unevaluatedProperties: false` it stays the top
+			// type, though JSON Schema then admits such a key only where
+			// composition evaluates it (GitHub #862).
+			top := ts.PrimRef(ir.PrimAny)
+			m.AdditionalProps = &ir.AdditionalProps{Value: &top}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
+	forbidRest(m)
 	if annotation.IsFalseSchema(s.GetUnevaluatedProperties()) {
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags
+}
+
+// forbidRest drops from a closed model's catch-all the value typing the keys no
+// pattern matches, which the closure allows none of, and the catch-all itself
+// when no pattern is left (docs/ir/models.md#catch-alls). Each writer of a
+// closure beside a catch-all calls it once the closure is decided.
+func forbidRest(m *ir.Model) {
+	if m.Additional != ir.AdditionalClosed || m.AdditionalProps == nil {
+		return
+	}
+
+	m.AdditionalProps.Value = nil
+	if len(m.AdditionalProps.Patterns) == 0 {
+		m.AdditionalProps = nil
+	}
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source

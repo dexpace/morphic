@@ -229,11 +229,47 @@ func reported(c Compiler) ([]SourceFormat, error) {
 	return slices.Clone(formats), nil
 }
 
-// Configure resolves the options one compiler would compile a source with. It
-// is asked per compiler because what configures a run is, in general, one
-// compiler's vocabulary — textual settings only that compiler can decode — and
-// which compiler a source belongs to is what detection is still finding out.
-type Configure func(c Compiler) (Options, error)
+// Configuration is what a registry resolves each compiler's options from,
+// compiler by compiler: textual settings are one compiler's vocabulary, which
+// only it can decode, and which compiler a source belongs to is what detection
+// is still finding out. It sets FormatOptions or Settings, not both, and Detect
+// and SourceLimit refuse one setting both. The zero Configuration gives every
+// compiler its defaults.
+type Configuration struct {
+	// FormatOptions is what each compiler is handed when Settings holds none.
+	FormatOptions any
+	// Settings, when it holds any, is decoded by each compiler asked
+	// (Compiler.DecodeOptions).
+	Settings OptionSet
+	// Reader reads, for every compiler alike, each document a compile reads
+	// beyond its sources (Options.Reader).
+	Reader DocumentReader
+}
+
+// errOptionChannels reports a Configuration setting both FormatOptions and
+// Settings. Which one a compiler is handed would be a precedence no caller can
+// see the effect of, and a configuration made two ways is a mistake in the
+// caller rather than a case to resolve.
+var errOptionChannels = errors.New("compilers: set FormatOptions or Settings, not both")
+
+// valid reports whether cfg sets at most one of FormatOptions and Settings.
+func (cfg Configuration) valid() bool {
+	return cfg.FormatOptions == nil || len(cfg.Settings.Settings) == 0
+}
+
+// optionsFor resolves the options c would compile a source with under cfg:
+// FormatOptions, or what c decodes Settings to. A decoder that fails leaves
+// the zero Options, as whatever it had got partway is not options.
+func optionsFor(c Compiler, cfg Configuration) (Options, error) {
+	if len(cfg.Settings.Settings) == 0 {
+		return Options{FormatOptions: cfg.FormatOptions, Reader: cfg.Reader}, nil
+	}
+	decoded, err := c.DecodeOptions(cfg.Settings)
+	if err != nil {
+		return Options{}, fmt.Errorf("decode: %w", err)
+	}
+	return Options{FormatOptions: decoded, Reader: cfg.Reader}, nil
+}
 
 // Detection is what Registry.Detect found for one source.
 type Detection struct {
@@ -246,8 +282,9 @@ type Detection struct {
 	// Recognition is what recognizing the source found. Its Format is the zero
 	// format when nothing recognized it; see Registry.Detect.
 	Recognition Recognition
-	// Options is what Compiler compiles the source with: the answer Configure
-	// gave for it, which the caller hands on rather than resolving again.
+	// Options is what Compiler compiles the source with, resolved from the
+	// Configuration Detect was handed, which the caller hands on rather than
+	// resolving again.
 	Options Options
 	// Declined collects what the compilers that declined the source had to say,
 	// in the order they were asked, and is meaningful only when none took it.
@@ -255,22 +292,23 @@ type Detection struct {
 }
 
 // Detect asks each registered compiler, in registration order, to recognize src
-// under the options configure gives it, zero Options for a nil configure. The
-// first format named decides: its owner is Detection.Compiler, configured for
-// itself, and a recognizer not owning it loses its parse.
+// under its own options from cfg. The first format named decides: its owner is
+// Detection.Compiler, configured for itself, and a recognizer not owning it
+// loses its parse.
 //
 // The bool reports whether a compiler takes src. Unrecognized src, empty Data
 // included, has the zero format, unlike src recognized but unsupported.
 //
-// It fails on a canceled ctx; on undecodable options for the compiler taking
-// src; and, wrapping ErrContract, on a claim or decline Compiler.Detect does
-// not admit and a Detect, configure or SourceLimit that panics.
-func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) (Detection, bool, error) {
+// It fails on a cfg setting FormatOptions and Settings, a canceled ctx, or
+// undecodable options for the compiler taking src; and, wrapping ErrContract,
+// on a claim or decline Compiler.Detect does not admit and a Detect,
+// DecodeOptions or SourceLimit that panics.
+func (r *Registry) Detect(ctx context.Context, src Source, cfg Configuration) (Detection, bool, error) {
+	if !cfg.valid() {
+		return Detection{}, false, errOptionChannels
+	}
 	if len(src.Data) == 0 {
 		return Detection{Source: src}, false, nil
-	}
-	if configure == nil {
-		configure = func(Compiler) (Options, error) { return Options{}, nil }
 	}
 
 	var declined []ir.Diagnostic
@@ -278,7 +316,7 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 		if err := ctx.Err(); err != nil {
 			return Detection{}, false, err
 		}
-		a, err := e.ask(ctx, src, configure)
+		a, err := e.ask(ctx, src, cfg)
 		if err != nil {
 			return Detection{}, false, err
 		}
@@ -303,7 +341,7 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 			return Detection{}, false, fmt.Errorf("compilers: detect by %s: claimed the source as %q: %w",
 				e.served(), a.rec.Format, ErrContract)
 		}
-		det, ok, err := r.claim(e, a, configure)
+		det, ok, err := r.claim(e, a, cfg)
 		if err != nil {
 			return Detection{}, false, err
 		}
@@ -314,18 +352,19 @@ func (r *Registry) Detect(ctx context.Context, src Source, configure Configure) 
 }
 
 // SourceLimit is the most bytes of a source any registered compiler reads,
-// each under the options configure gives it (Compiler.SourceLimit), and zero
-// when one reads any size or none is registered: how far a caller need read a
-// source it hands to Detect. A compiler whose options fail to decode is asked
-// under its defaults, as Detect asks it. It fails, wrapping ErrContract, on a
-// configure or SourceLimit that panics.
-func (r *Registry) SourceLimit(configure Configure) (int, error) {
-	if configure == nil {
-		configure = func(Compiler) (Options, error) { return Options{}, nil }
+// each under the options resolved for it from cfg (Compiler.SourceLimit), and
+// zero when one reads any size or none is registered: how far a caller need
+// read a source it hands to Detect. A compiler whose options fail to decode is
+// asked under its defaults, as Detect asks it. It fails on a cfg setting
+// FormatOptions and Settings, and, wrapping ErrContract, on a DecodeOptions or
+// SourceLimit that panics.
+func (r *Registry) SourceLimit(cfg Configuration) (int, error) {
+	if !cfg.valid() {
+		return 0, errOptionChannels
 	}
 	most := 0
 	for _, e := range r.ordered {
-		opts, _, err := e.configured(configure)
+		opts, _, err := e.configured(cfg)
 		if err != nil {
 			return 0, err
 		}
@@ -387,8 +426,8 @@ type answer struct {
 // ask configures e's compiler and asks it to recognize src, each behind a
 // barrier. A panic in either is a breach, and an error from configuring is not:
 // it is the answer a decoder gives to options that are another compiler's.
-func (e *registered) ask(ctx context.Context, src Source, configure Configure) (answer, error) {
-	opts, optsErr, err := e.configured(configure)
+func (e *registered) ask(ctx context.Context, src Source, cfg Configuration) (answer, error) {
+	opts, optsErr, err := e.configured(cfg)
 	if err != nil {
 		return answer{}, err
 	}
@@ -400,16 +439,13 @@ func (e *registered) ask(ctx context.Context, src Source, configure Configure) (
 	return a, nil
 }
 
-// configured resolves the options e's compiler compiles with. The error it
-// returns is a panic in configuring, a breach; what configuring itself failed
-// with comes back as the second result for the caller to judge, beside the
-// defaults: whatever a decoder that failed had got partway is not options.
-func (e *registered) configured(configure Configure) (opts Options, failed, breached error) {
-	if perr := barrier.Catch(func() { opts, failed = configure(e.c) }); perr != nil {
-		return Options{}, nil, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("configure", perr))
-	}
-	if failed != nil {
-		opts = Options{}
+// configured resolves the options e's compiler compiles with under cfg
+// (optionsFor), behind a barrier. The error it returns is a panic in
+// configuring, a breach; what configuring itself failed with comes back as the
+// second result for the caller to judge, beside the defaults.
+func (e *registered) configured(cfg Configuration) (opts Options, failed, breached error) {
+	if perr := barrier.Catch(func() { opts, failed = optionsFor(e.c, cfg) }); perr != nil {
+		return Options{}, nil, fmt.Errorf("compilers: detect by %s: %w", e.served(), breach("DecodeOptions", perr))
 	}
 	return opts, failed, nil
 }
@@ -426,7 +462,7 @@ func (e *registered) served() string {
 
 // claim resolves what e recognized into the compiler that will compile the
 // source and the options it compiles with. The caller records the source.
-func (r *Registry) claim(e *registered, a answer, configure Configure) (Detection, bool, error) {
+func (r *Registry) claim(e *registered, a answer, cfg Configuration) (Detection, bool, error) {
 	rec, opts, optsErr := a.rec, a.opts, a.optsErr
 	owner := r.byFormat[rec.Format]
 	if owner != e {
@@ -440,7 +476,7 @@ func (r *Registry) claim(e *registered, a answer, configure Configure) (Detectio
 	if owner != e {
 		// Nor are its options the owner's.
 		var err error
-		if opts, optsErr, err = owner.configured(configure); err != nil {
+		if opts, optsErr, err = owner.configured(cfg); err != nil {
 			return Detection{}, false, err
 		}
 	}

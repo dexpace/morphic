@@ -17,7 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -119,7 +119,7 @@ func TestExternalReads_OnceLeavesAFailureWhereAReadPanics(t *testing.T) {
 // document fell past it.
 func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 	t.Parallel()
-	at := pointerAt(0, overlay.Origin{})
+	at := provenance.Doc{}
 	r := newExternalReads(sourceDocument{}, budget.AtMost(1))
 	ok := func() answer { return answer{} }
 	r.once("a", ok)
@@ -132,7 +132,7 @@ func TestExternalReads_ExhaustedReportsOnceAtTheSource(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.BudgetExceeded, got[0].Code)
 	assert.Equal(t, ir.SeverityError, got[0].Severity)
-	assert.Equal(t, at(""), got[0].Provenance)
+	assert.Equal(t, at.At(""), got[0].Provenance)
 	assert.Equal(t, "external references name more documents than the 1-document budget; "+
 		"the $refs into the rest are reported unresolved", got[0].Message)
 	free := newExternalReads(sourceDocument{}, budget.Unbounded())

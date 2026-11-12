@@ -81,11 +81,13 @@ func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
 
 // TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef pins that only a conjunct
 // narrowing the $ref judges its target's default: one the target's own type leaves
-// out reads as a plain $ref reads it, where a conjunct excluding it drops it.
+// out reads as a plain $ref reads it, where a conjunct excluding it drops it. A
+// nullable beside the $ref adds null to what the $ref admits, as 3.0 reads it.
 func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Bare: {type: string, default: null}
     Nullable: {type: string, nullable: true, default: null}
+    Untyped: {default: null}
     Holder:
       type: object
       properties:
@@ -98,17 +100,21 @@ func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
         viaNarrow: {$ref: '#/components/schemas/Narrow', nullable: true}
         byValue: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}]}
         byValueOrNull: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}], nullable: true}
+        nullBeside: {allOf: [{$ref: '#/components/schemas/Untyped', type: string, nullable: true}], description: d}
+        nullBesideNarrowed: {allOf: [{$ref: '#/components/schemas/Untyped', type: string, nullable: true}, {type: string}]}
     Wrapper: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
     Narrow: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
     Mode: {type: string, enum: [a, b], default: b}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef", "reopened", "viaNarrow"} {
+	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef", "reopened", "viaNarrow", "nullBeside"} {
 		assert.NotNil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
 	}
 	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "byValue").Default, "the conjuncts together leave only a")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "byValueOrNull").Default, "a null is all that nullable adds")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "nullBesideNarrowed").Default,
+		"a string takes no null the nullable beside its $ref admits")
 }
 
 // TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what

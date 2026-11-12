@@ -40,6 +40,17 @@ whether the answer means anything.
   Grids writing no plain date left two defects for a later probe (#1226).
 - **Probe.** Count the positions passed and the answers given, not only the inputs.
 
+## Hold each shape a generator leaves out to what admits the input
+`generator-exclusions-are-claims`
+
+- **Rule.** Each shape a generator leaves out claims that no valid input takes it. Check that claim
+  against what admits the input, the format's grammar or the parser, never against a comment in
+  the code under test, which shares the blind spot the generator would then inherit.
+- **Why.** A review's generator wrote no alias to an ancestor because a comment said none could
+  reach the code, and #1508's input did (#1538).
+- **Probe.** The report lists each shape left out beside the grammar or parser behaviour that rules
+  it out.
+
 ## Probe the join, not only the output
 `invariant-probe`
 
@@ -171,6 +182,30 @@ whether the answer means anything.
   binary is replaced stores under the new build (#1318).
 - **Probe.** Plant a mutant behind a variable and run it set and unset over one cache directory:
   both runs print the first one's document.
+
+## A sweep reaches only the stages its compile flags run
+`sweep-reaches-the-changed-stage`
+
+- **Rule.** `scripts/sweep.py` runs `compile` with the flags after `--`, and a plain compile runs no
+  `irverify`, so a change under `ir/irverify` sweeps with `-- --verify`, and a change to any stage a
+  flag turns on with that flag. Its planted control
+  (`references/differentials.md#planted-control`) shows the sweep reaches the change.
+- **Why.** A plant making `irverify.Verify` report one violation for every document drew no
+  difference from a sweep with no flag, and exit 2 on four specs with `-- --verify` (#1513, #1553).
+- **Probe.** The planted control's sweep, with the flag, lists a difference.
+
+## Settle a change to no production code with two identical builds
+`identical-builds-for-no-production-change`
+
+- **Rule.** For a change that alters no production code, build `cmd/morphic` on both sides with
+  `go build -trimpath -buildvcs=false -o <file> ./cmd/morphic`: byte-identical builds settle every
+  angle reading output at once. Without both flags, two trees of one revision build different
+  binaries, as each records its path and its VCS state.
+- **Why.** Two unpacked copies of one revision, one with a `git init`, built different binaries
+  under a plain `go build` and under `-trimpath` alone, and one under both, and two reviews worked
+  this out unaided (#1381, #1515, #1554).
+- **Probe.** `cmp` of the two builds exits 0, and exits 1 with a production file planted on one
+  side.
 
 ## A real-world corpus guards against regressions; it does not prove a fix
 `corpus-is-a-guard`

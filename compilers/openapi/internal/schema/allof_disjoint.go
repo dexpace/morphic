@@ -4,11 +4,11 @@
 package schema
 
 import (
-	"encoding/json/jsontext"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -84,6 +84,11 @@ func declaredInstanceTypes(s *oas3.Schema) kindSet {
 type conjunctTypes struct {
 	refs  *typed.Bindings
 	steps budget.Budget
+	// passedOver is set where the read meets what can refuse a value of some
+	// instance type and that it does not read (passesOver), so anyInstance may
+	// claim more than the schema admits. A report reads anyInstance as stating
+	// nothing and needs no more; a merge narrowing a structure does.
+	passedOver bool
 }
 
 // schema is what s admits: its `type` conjoined with its allOf's entries. A
@@ -95,6 +100,7 @@ func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 	if s == nil || !r.steps.Spend(1) {
 		return anyInstance
 	}
+	r.passedOver = r.passedOver || passesOver(s)
 	out := declaredInstanceTypes(s)
 	entries := s.GetAllOf()
 	for _, b := range entries {
@@ -110,11 +116,49 @@ func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 // the schema it lands on. A keyword beside a $ref says nothing: 3.0 ignores it,
 // and reading it from 3.1 on, where it applies, is left open (GitHub #1390).
 // A boolean entry has no schema, so its `false` is applyFalseBranches' to report.
+// A keyword beside a $ref that could refuse a value of some instance type is
+// passed over (besideChain), as are a `false` entry and a $ref landing on no
+// schema.
 func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	if isRefBranch(b) {
-		return r.schema(refBranchTarget(r.refs, b))
+		target := refBranchTarget(r.refs, b)
+		r.passedOver = r.passedOver || target == nil || r.besideChain(b)
+		return r.schema(target)
 	}
+	r.passedOver = r.passedOver || annotation.IsFalseSchema(b)
 	return r.schema(b.GetSchema())
+}
+
+// besideChain reports whether b, an allOf entry writing a $ref, or an alias its
+// chain passes on the way to what branch reads, writes beside its $ref what can
+// refuse a value of some instance type. The hops are walked in a loop the
+// chain's own length bounds, as nulls.lands walks them; one the bindings do
+// not know has none.
+func (r *conjunctTypes) besideChain(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+	e, _ := r.refs.Entry(b)
+	hop := b
+	for i := 0; i < e.Chain.Hops && hop != nil; i++ {
+		if writesBesideRef(hop.GetSchema()) {
+			return true
+		}
+		hop = r.refs.Declared(hop)
+	}
+	return false
+}
+
+// passesOver reports whether s writes a keyword that can refuse a value of some
+// instance type and that conjunctTypes does not read: a union, a `not`, a
+// condition, an `enum` or a `const`, or a dynamic or recursive reference.
+func passesOver(s *oas3.Schema) bool {
+	return len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 || s.GetNot() != nil || s.GetIf() != nil ||
+		enumWritten(s) || s.GetConst() != nil || declaresDynamicRef(s) ||
+		annotation.RawPropertyNode(s, "$recursiveRef") != nil
+}
+
+// writesBesideRef reports whether s, a schema writing a $ref, writes beside it
+// anything that can refuse a value of some instance type.
+func writesBesideRef(s *oas3.Schema) bool {
+	return s != nil && (writesType(s) || len(s.GetAllOf()) > 0 || passesOver(s))
 }
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,
@@ -172,21 +216,17 @@ func (a allOfComposition) namedConjuncts(own kindSet, read []kindSet) []string {
 	return out
 }
 
-// diagDisjointConjuncts is the one report a composition whose conjuncts share
-// no value draws, at the schema that writes them.
-func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition) []ir.Diagnostic {
+// diagDisjointConjuncts is the one report an allOf whose conjuncts share no
+// value draws, at the schema that writes them, which lowered to shape: a
+// composition, or the value set an election passed it over for.
+func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) []ir.Diagnostic {
 	if len(comp.disjoint) == 0 {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
-		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which a composition cannot state",
-		strings.Join(comp.disjoint, ", "))}
+		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which %s cannot state",
+		strings.Join(comp.disjoint, ", "), shape)}
 }
 
-// readAllOf is allOfBranches of the schema written at pointer, with what its
-// conjuncts jointly admit read, for a lowering that composes it.
-func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
-	comp := allOfBranches(s, pointer)
-	comp.disjoint = disjointConjuncts(c, s, comp)
-	return comp
-}
+// composedShape is the shape a composition lowers to, for diagDisjointConjuncts.
+const composedShape = "a composition"

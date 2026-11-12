@@ -36,7 +36,8 @@ var deepMergeSpec = func() string {
 
 // TestOneResource_SaysWhyAPositionMayLieInAnother pins the verdict's three
 // answers: a schema in its document's own resource, one under an $id, and one a
-// merge past the bound may hide an $id above, which must not read as none.
+// merge past the bound may hide an identifier above, which must not read as
+// none.
 func TestOneResource_SaysWhyAPositionMayLieInAnother(t *testing.T) {
 	t.Parallel()
 	l, diags := LoweredFor(t, deepMergeSpec)
@@ -44,7 +45,7 @@ func TestOneResource_SaysWhyAPositionMayLieInAnother(t *testing.T) {
 	for at, want := range map[jsontext.Pointer]string{
 		"/components/schemas/Plain":        "",
 		"/components/schemas/Held/$defs/d": "starts a schema resource of its own",
-		"/components/schemas/Deep":         "may hide an $id",
+		"/components/schemas/Deep":         "may hide an identifier",
 	} {
 		why, ok := oneResource(l.Ctx, bind.Position{Pointer: at})
 		assert.Equal(t, want == "", ok, at)
@@ -177,15 +178,15 @@ func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
 		return allOfBranches(s, "").branches[0]
 	}
 	prov := func(name string) ir.Provenance {
-		return l.Ctx.ProvenanceAt(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
+		return l.Ctx.Place().At(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
 	}
 	w := newAdmission(l.Ctx)
-	merge := settledMerge{c: l.Ctx}
+	fields := modelFields{c: l.Ctx}
 
 	assert.True(t, w.sameText(at("Plain"), at("Twin")))
 	assert.False(t, w.sameText(at("Plain"), at("Deep")))
 	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
 	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
-	assert.True(t, merge.alike(prov("Plain"), prov("Twin")))
-	assert.False(t, merge.alike(prov("Plain"), prov("Deep")))
+	assert.True(t, fields.Alike(prov("Plain"), prov("Twin")))
+	assert.False(t, fields.Alike(prov("Plain"), prov("Deep")))
 }

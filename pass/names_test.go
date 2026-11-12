@@ -31,6 +31,14 @@ func collision(node, message string) ir.Diagnostic {
 		message+", so a target can tell them apart only by ID", ir.Provenance{Source: ir.NoSource, Node: node})
 }
 
+// brokenApart is the warning pass.Names reports at node about names whose
+// words differ only where they break.
+func brokenApart(node, message string) ir.Diagnostic {
+	return ir.NewDiagnostic(ir.SeverityWarning, "pass/name-collision", message+", which differ only where their "+
+		"words break, so a target that joins words or ignores letter case can tell them apart only by ID",
+		ir.Provenance{Source: ir.NoSource, Node: node})
+}
+
 // wordless is the info pass.Names reports at node.
 func wordless(node, message string) ir.Diagnostic {
 	return ir.NewDiagnostic(ir.SeverityInfo, "pass/name-without-words",
@@ -108,6 +116,32 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			Variants: []ir.Variant{{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/a"}},
 				{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/b"}}}}),
 			[]ir.Diagnostic{collision("t/u", `in union t/u, variants t/a and t/b share the neutral name "a_model"`)}},
+		{"a service's groups whose words break apart", &ir.Document{Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
+			{ID: "g/1", Name: named("custom-hostname")}, {ID: "g/2", Name: named("customhostname")}}}}},
+			[]ir.Diagnostic{brokenApart("s", `in service s, operation groups g/1 ("custom-hostname") and g/2 ("customhostname") `+
+				`have the neutral names "custom_hostname" and "customhostname"`)}},
+		{"a group's groups whose words break apart", inGroup(ir.OperationGroup{ID: "g/p", Groups: []ir.OperationGroup{
+			{ID: "g/p/1", Name: named("SetUp")}, {ID: "g/p/2", Name: named("Setup")}}}),
+			[]ir.Diagnostic{brokenApart("g/p", `in operation group g/p, operation groups g/p/1 ("SetUp") and g/p/2 ("Setup") `+
+				`have the neutral names "set_up" and "setup"`)}},
+		{"declared types whose words break apart, a hint and digits among them", withTypes(
+			&ir.Model{ID: "t/a", Name: named("Setup")},
+			&ir.Model{ID: "t/b", Name: named("v1.2")},
+			&ir.Model{ID: "t/c", Name: named("SetUp")},
+			&ir.Model{ID: "t/d", Name: named("v12")},
+			&ir.Model{ID: "t/e", Name: hinted("set_up")}),
+			[]ir.Diagnostic{
+				brokenApart("doc", `types t/a ("Setup"), t/c ("SetUp") and t/e have the neutral names "setup" and "set_up"`),
+				brokenApart("doc", `types t/b ("v1.2") and t/d ("v12") have the neutral names "v_1_2" and "v_12"`),
+			}},
+		{"a union's variants whose words break apart", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
+			Variants: []ir.Variant{{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "t/a"}},
+				{Name: hinted("creditcard"), Type: ir.TypeRef{Target: "t/b"}}}}),
+			[]ir.Diagnostic{brokenApart("t/u",
+				`in union t/u, variants t/a and t/b have the neutral names "credit_card" and "creditcard"`)}},
+		{"spellings with no word character, compared as they are where words are joined", withTypes(
+			&ir.Model{ID: "t/1", Name: named("_-")}, &ir.Model{ID: "t/2", Name: named("-")}),
+			[]ir.Diagnostic{wordless("doc", `type t/1 ("_-")`), wordless("doc", `type t/2 ("-")`)}},
 		{"auth schemes, in ID order", &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
 			"auth/b": {ID: "auth/b", Name: named("APIToken")}, "auth/a": {ID: "auth/a", Name: named("api_token")}}},
 			[]ir.Diagnostic{collision("doc",
@@ -177,6 +211,35 @@ func TestNames_LeavesWhatNoTargetRendersAlikeAlone(t *testing.T) {
 			"t/a": &ir.Model{ID: "t/a", Name: named("A"), Properties: []ir.Property{{ID: "p/a", Name: named("id")}}},
 			"t/b": &ir.Model{ID: "t/b", Name: named("B"), Properties: []ir.Property{{ID: "p/b", Name: named("id")}}},
 		}}},
+		{"words that break apart where a scope's targets keep the breaks", &ir.Document{
+			Services: []ir.Service{{ID: "s/1", Name: named("set_up"), Groups: []ir.OperationGroup{{ID: "g",
+				Operations: []ir.Operation{
+					{ID: "op/1", Name: named("setUp"), Params: []ir.Parameter{
+						{ID: "param/1", Name: named("page_size")}, {ID: "param/2", Name: named("pagesize")}}},
+					{ID: "op/2", Name: named("setup")},
+				}}}}, {ID: "s/2", Name: named("setup")}},
+			Types: ir.TypeRegistry{
+				"t/m": &ir.Model{ID: "t/m", Name: named("M"), Properties: []ir.Property{
+					{ID: "p/1", Name: named("user_name")}, {ID: "p/2", Name: named("username")}}},
+				"t/e": &ir.Enum{ID: "t/e", Name: named("E"), Members: []ir.EnumMember{
+					{ID: "e/1", Name: named("SET_UP")}, {ID: "e/2", Name: named("SETUP")}}},
+			},
+			Auth: map[ir.AuthID]ir.AuthScheme{
+				"auth/1": {ID: "auth/1", Name: named("api_key")}, "auth/2": {ID: "auth/2", Name: named("apikey")}},
+		}},
+		{"names whose joined words differ, where words are joined", &ir.Document{
+			Services: []ir.Service{{ID: "s", Groups: []ir.OperationGroup{
+				{ID: "g/1", Name: named("custom_host"), Groups: []ir.OperationGroup{
+					{ID: "g/1/1", Name: named("set_up")}, {ID: "g/1/2", Name: named("setups")}}},
+				{ID: "g/2", Name: named("customhostname")}}}},
+			Types: ir.TypeRegistry{
+				"t/a": &ir.Model{ID: "t/a", Name: named("SetUp")},
+				"t/b": &ir.Model{ID: "t/b", Name: named("Setups")},
+				"t/u": &ir.Union{ID: "t/u", Name: named("U"), Variants: []ir.Variant{
+					{Name: hinted("credit_card"), Type: ir.TypeRef{Target: "t/a"}},
+					{Name: hinted("credit_cards"), Type: ir.TypeRef{Target: "t/b"}}}},
+			},
+		}},
 		{"anonymous types sharing a hint, or a declared type's name", withTypes(
 			&ir.Model{ID: "t/1", Anonymous: true, Name: hinted("direction")},
 			&ir.Enum{ID: "t/2", Anonymous: true, Name: hinted("direction")},

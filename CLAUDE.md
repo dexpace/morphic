@@ -160,7 +160,8 @@ barrier/     Layer 0 — runs code its caller does not own, turns a panic in it 
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
-             usage, recursion), derived on demand and never stored. Imports ir only.
+             usage, recursion, correlation keys), derived on demand and never stored. Imports
+             ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.
@@ -285,6 +286,10 @@ These all exist already — extend them rather than building a parallel mechanis
   means lowering it (#558). And it holds every function a package declares, bar the test-support
   packages `testSupport` names, to a caller outside its tests: a binary's `main`, by a whole-program
   reachability analysis, or an `apiRoots` entry naming the caller the module does not have yet.
+  The calls each production package makes into one it does not import, which only a function, an
+  interface or a type argument handed to it can make, are held to `callShapeBaseline`, pair by
+  pair. A count rises only for a call of a kind the table keeps, a traversal callback or a designed
+  seam among them, and only with the table's edit (#1478).
 - **Lint rules and their plants**: a rule an off-the-shelf linter expresses lives in
   `.golangci.yml`; one about which package may build or spell a part of the IR is a go/analysis
   analyzer in `internal/lintrules`, which `make vet` runs through `cmd/morphic-vet`. Neither lives
@@ -348,7 +353,7 @@ departs from it, with what holds each difference.
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
   compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
   away: simplifying may remove only a check a second reader of the same concept already makes
-  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
+  (`.claude/skills/morphic-reviewing-prs/references/testing.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -418,7 +423,8 @@ departs from it, with what holds each difference.
 - **Logging:** `log/slog` only, injected — but note the stronger repo invariant: pipeline
   stages don't log at all; they return diagnostics.
 
-Before claiming any Go work done, run and pass the gate:
+Before claiming any Go work done, run and pass the gate, locally or through CI's run on the final
+head:
 
 ```bash
 make gate
@@ -547,8 +553,11 @@ context-switch between repos.
   logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
   request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
   cleanup or bug the change neither needs nor exposes is filed, not folded in.
-- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
-  and land what it finds as new commits, then rerun the passes those commits can affect.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it,
+  its second round when the first ran before the push, land what it finds as new commits, and run
+  the next round on them, until one finds no `issue:` or `nit:` and leaves no cell unreached or
+  reopened
+  (`.claude/skills/morphic-reviewing-prs/references/rounds.md#review-ends-with-nothing-left`).
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.

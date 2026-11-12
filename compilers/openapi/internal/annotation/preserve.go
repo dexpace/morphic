@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -68,15 +69,15 @@ func PreserveNodeInto(p *ir.Unmodeled, key string, node *yaml.Node,
 // no caller a way to have the census keep the keyword again under another key,
 // or report a collision with this entry.
 //
-// An absent keyword is no construct: it keeps nothing and asks locate nothing.
+// An absent keyword is no construct: it keeps and places nothing.
 func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	reason ir.UnmodeledReason, pointer jsontext.Pointer, locate Locator,
+	reason ir.UnmodeledReason, pointer jsontext.Pointer, doc provenance.Doc,
 ) (bool, []ir.Diagnostic) {
 	node := RawPropertyNode(s, keyword)
 	if node == nil {
 		return false, nil
 	}
-	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, locate(pointer+ids.Ptr(keyword)))
+	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, doc.At(pointer+ids.Ptr(keyword)))
 }
 
 // PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a validation-only
@@ -87,13 +88,13 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 // keywords has no such node and is not kept here but by Read, which attributes
 // it by the keywords it holds (GitHub #534).
 func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
-	pointer jsontext.Pointer, locate Locator,
+	pointer jsontext.Pointer, doc provenance.Doc,
 ) []ir.Diagnostic {
-	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, locate)
+	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonValidationOnly, pointer, doc)
 	if !kept {
 		return diags
 	}
-	return append(diags, validationOnlyNote(locate(pointer), keyword))
+	return append(diags, validationOnlyNote(doc.At(pointer), keyword))
 }
 
 // unpreservableDiag reports a construct the compiler could neither model nor

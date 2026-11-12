@@ -50,7 +50,9 @@ two together both ways.
 - **Rule.** When a parser, derivation, seed list or validity rule exists twice (two tokenizers, a
   writer and its verifier, a pre-scan and the resolver it stands in for), compute it once in a
   shared helper, or run both over a shared edge-case table and assert identical results. When the
-  writer starts refusing an input, the checker refuses it in the same change.
+  writer starts refusing an input, the checker refuses it in the same change. A guard sharing a
+  deliverer's predicate stays
+  (`.claude/skills/morphic-reviewing-prs/references/testing.md#guard-no-input-observes`).
 - **Why.** A lone `/` read as a token by one walk and as the root by another, and `irverify`
   accepted strings the encoder refuses (#362, #508). `irverify` and `pass` each kept a copy of the
   reference visitor, in step by hand (#1133).

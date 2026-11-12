@@ -4,8 +4,10 @@
 package ir_test
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,6 +160,128 @@ func TestEditor_ReplaceRefusesANodeAddingAnID(t *testing.T) {
 	assert.Equal(t, ir.KindPrimitive, out.Types["t/e"].Kind())
 	assert.Equal(t, ir.KindAny, out.Types["t/nil"].Kind())
 	assert.Equal(t, ir.TypeID("t/off"), out.Types["t/off"].Common().ID)
+}
+
+// membersDoc returns a document declaring the namespace x for types and enum
+// members, holding a union at t/x/u and an enum at t/x/e with the member a.
+// Each call builds new nodes.
+func membersDoc() *ir.Document {
+	return &ir.Document{
+		IRVersion: ir.IRVersion,
+		IDSpaces:  map[string][]string{ir.IDKindType: {"x"}, ir.IDKindEnumMember: {"x"}},
+		Types: ir.TypeRegistry{
+			"t/x/u": &ir.Union{ID: "t/x/u"},
+			"t/x/e": &ir.Enum{ID: "t/x/e", Members: []ir.EnumMember{member("e/x/e/s:a", "a")}},
+		},
+	}
+}
+
+// member returns the enum member identified by id holding the string value.
+func member(id ir.EnumMemberID, value string) ir.EnumMember {
+	return ir.EnumMember{ID: id, Value: ir.Value{Kind: ir.ValueString, Str: value}}
+}
+
+// TestEditor_TakesAnEnumMembersOwnID pins the one ID an edit may add: an enum
+// member's own, the one its enum's ID and its value give it, a repeat's
+// included. A union replaced by the enum of its values declares them, and so
+// does an update adding a member.
+func TestEditor_TakesAnEnumMembersOwnID(t *testing.T) {
+	t.Parallel()
+	enum := &ir.Enum{ID: "t/x/u", Members: []ir.EnumMember{
+		member("e/x/u/s:a", "a"), member("e/x/u/s:a/2", "a"), member("e/x/u/s:b", "b"),
+	}}
+	e := ir.NewEditor(membersDoc())
+	e.ReplaceType(enum)
+	e.UpdateType("t/x/e", func(td ir.TypeDef) {
+		added, _ := td.(*ir.Enum)
+		added.Members = append(added.Members, member("e/x/e/s:c", "c"))
+	})
+	out, diags := e.Finish()
+
+	require.Empty(t, diags)
+	assert.Same(t, enum, out.Types["t/x/u"])
+	updated, _ := out.Types["t/x/e"].(*ir.Enum)
+	assert.Equal(t, []ir.EnumMember{member("e/x/e/s:a", "a"), member("e/x/e/s:c", "c")}, updated.Members)
+}
+
+// TestEditor_RefusesAMemberIDNotItsOwn pins what keeps the exemption to the
+// member's own ID: one its value does not give it, alone or swapped with the
+// member it belongs to, one beneath another enum, a repeat's ID worn by the
+// first, a value with no key, and a namespace the document declares for types
+// but not for members are each refused, by a replacement and by an update
+// alike.
+func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
+	t.Parallel()
+	list := ir.Value{Kind: ir.ValueList}
+	tests := []struct {
+		name     string
+		members  []ir.EnumMember
+		memberNS []string
+		want     string
+	}{
+		{"another value's ID", []ir.EnumMember{member("e/x/u/s:a", "b")}, []string{"x"},
+			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
+		{"an ID beneath another enum", []ir.EnumMember{member("e/x/e/s:a", "a")}, []string{"x"},
+			`the ir.EnumMemberID "e/x/e/s:a", which %s does not`},
+		{"two values' IDs swapped", []ir.EnumMember{member("e/x/u/s:b", "a"), member("e/x/u/s:a", "b")},
+			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
+		{"the first value's ID worn by its repeat", []ir.EnumMember{member("e/x/u/s:a", "a"), member("e/x/u/s:a", "a")},
+			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a" 2 times, where %s does 1 times`},
+		{"a value with no key, under the ID an empty key gives", []ir.EnumMember{{ID: "e/x/u/", Value: list}},
+			[]string{"x"}, `the ir.EnumMemberID "e/x/u/", which %s does not`},
+		{"a namespace not declared for members", []ir.EnumMember{member("e/x/u/s:a", "a")}, []string{"y"},
+			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := membersDoc()
+			doc.IDSpaces[ir.IDKindEnumMember] = tc.memberNS
+			doc.Types["t/x/v"] = &ir.Enum{ID: "t/x/v"}
+			e := ir.NewEditor(doc)
+			e.ReplaceType(&ir.Enum{ID: "t/x/u", Members: tc.members})
+			e.UpdateType("t/x/v", func(td ir.TypeDef) {
+				enum, _ := td.(*ir.Enum)
+				enum.Members = slices.Clone(tc.members)
+				for i := range enum.Members {
+					enum.Members[i].ID = ir.EnumMemberID(strings.Replace(string(enum.Members[i].ID), "/u/", "/v/", 1))
+				}
+			})
+			out, diags := e.Finish()
+
+			replaced := fmt.Sprintf(tc.want, "the node it replaces")
+			changed := strings.ReplaceAll(fmt.Sprintf(tc.want, "the node"), "/u/", "/v/")
+			assert.Equal(t, []string{
+				`internal: edit: replace rejected: the node for "t/x/u" declares ` + replaced + `; an edit adds no ID`,
+				`internal: edit: update rejected: the change of "t/x/v" declares ` + changed + `; an edit adds no ID`,
+			}, refusals(t, diags))
+			assert.Equal(t, ir.KindUnion, out.Types["t/x/u"].Kind())
+			assert.Empty(t, out.Types["t/x/v"].(*ir.Enum).Members)
+		})
+	}
+}
+
+// TestEditor_RefusesAMemberIDItsNodeDeclaresAlready pins that a member's own
+// ID is one an edit may add only where its node does not declare it already: a
+// change wearing it a second time, on a repeat of its value or on another
+// value, is refused, by an update and by a replacement alike.
+func TestEditor_RefusesAMemberIDItsNodeDeclaresAlready(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(membersDoc())
+	e.UpdateType("t/x/e", func(td ir.TypeDef) {
+		enum, _ := td.(*ir.Enum)
+		enum.Members = append(enum.Members, member("e/x/e/s:a", "a"))
+	})
+	e.ReplaceType(&ir.Enum{ID: "t/x/e", Members: []ir.EnumMember{member("e/x/e/s:a", "a"), member("e/x/e/s:a", "b")}})
+	out, diags := e.Finish()
+
+	assert.Equal(t, []string{
+		`internal: edit: update rejected: the change of "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+			`where the node does 1 times; an edit adds no ID`,
+		`internal: edit: replace rejected: the node for "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+			`where the node it replaces does 1 times; an edit adds no ID`,
+	}, refusals(t, diags))
+	assert.Equal(t, irtest.Encoded(t, membersDoc()), irtest.Encoded(t, out))
 }
 
 // TestEditor_HoldsEachNodeToItsOwnIDs pins that the ID check starts afresh at

@@ -3,7 +3,7 @@
 # requires-python = ">=3.14"
 # ///
 """Hold the skills under .claude/skills to their frontmatter, their limits and the tree they
-describe.
+describe, and each rule a file outside them cites to the rule it names.
 
 Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
@@ -13,7 +13,8 @@ Each rule in a reference is held to the format morphic-curating-skills gives. Sc
 Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
 and a test_<name>.py beside each. A path the tree lacks may name the Go toolchain's sources, which
 `go env GOROOT` locates; where go cannot say, every path is held to the tree. A Go name spelled
-`Name` in `path/to/file.go` on one line is held to what that file declares.
+`Name` in `path/to/file.go` on one line is held to what that file declares. A SKILL.md body spells
+no $ before a digit, which the skill loader replaces with an argument.
 """
 
 import argparse
@@ -48,6 +49,11 @@ RULE_CITE = re.compile(
     r"((?:\.claude/skills/[a-z0-9-]+/)?references/[A-Za-z0-9_.-]+\.md)#([a-z0-9-]+)")
 # A bare code span of lowercase words joined by hyphens, which may be a rule key written alone.
 BARE_KEY = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
+# A rule key cited by #key alone, which names no file to hold it to: a span of a # and a key with a
+# letter in it, so an issue's #N stays apart.
+BARE_CITE = re.compile(r"#([a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*)")
+# The same in prose, where a word, a path or a link's text runs into the # of what it names.
+PROSE_CITE = re.compile(r"(?<![\w/.\][(&#])#[a-z0-9]*[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\w-])")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -79,6 +85,9 @@ HEADING = re.compile(r"#{1,6} +(.+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# A placeholder the skill loader replaces with an argument's word in a SKILL.md body, so a
+# command spelling awk's `$0` there reads the argument instead. References are read as files.
+POSITIONAL = re.compile(r"\$[0-9]")
 # A skill's name, as the Agent Skills specification gives it: 1 to MAX_NAME_CHARS lowercase
 # letters and digits, joined by single hyphens.
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -92,11 +101,14 @@ FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
 SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
-LINE_SUFFIX = re.compile(r":[0-9]+$")
+# What follows the colon of a suffix a path may carry: a line, a line and column, or a range.
+LINE = r"[0-9]+(?::[0-9]+|-[0-9]+)?$"
+LINE_SUFFIX = re.compile(":" + LINE)
 # A code span holding a "/" names a repository path unless its form marks it as something else:
-# a JSON pointer or device (/), a flag (-), a pathspec's magic (:(), a pattern (+ or [), a URL
-# (://), or a placeholder (<spec>, {owner}).
-NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
+# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a shell variable's value
+# ($), a placeholder (<spec>, {owner}), or a colon before anything but a line suffix, as a URL, a
+# refspec (main:refs/x) and a pathspec's magic (:/, :(top)) hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|\+|\$)|:(?!" + LINE + r")|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.
@@ -107,6 +119,7 @@ ELSEWHERE = {
     "golang.org": "a Go module",
     "runtime": "a Go package",
     "openapi": "a diagnostic code",
+    "refs": "a git ref",
 }
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
@@ -114,6 +127,8 @@ BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 # before it reads a command's words.
 GOROOT_SRC = re.compile(r"^GOROOT/src(?:/|$)")
 GO_ENV_GOROOT = "$(go env GOROOT)"
+# The one variable a word may start with and still name a path, the toolchain's own root.
+GOROOT_VAR = re.compile(r"^\$GOROOT(?:/|$)")
 
 
 def git(root: Path, *args: str) -> str:
@@ -163,8 +178,10 @@ def path_word(word: str) -> str:
     """Return what a word of a code span spells, for the checks a one-word span and a command's
     words share. A double quote, which leaves $GOROOT to expand, is no part of a path wherever it
     stands, so "$(go env GOROOT)"/src/... names the toolchain's src; a single quote and a shell's
-    punctuation around the word are none either."""
-    return word.replace('"', "").strip("'$();,")
+    punctuation around the word are none either. Any other variable keeps its $, which
+    NOT_A_PATH reads: $PWD/ir names no path in the tree."""
+    word = word.replace('"', "").strip("'();,")
+    return word if word.startswith("$") and not GOROOT_VAR.match(word) else word.strip("$")
 
 
 def declares(source: str, name: str) -> bool:
@@ -175,6 +192,11 @@ def declares(source: str, name: str) -> bool:
     if re.search(rf"^(?:func (?:\([^)]*\) )?|type |const |var ){n}\b", source, re.M):
         return True
     return any(re.search(rf"^\t{n}\b", body, re.M) for body in GO_BLOCK.findall(source))
+
+
+def cites_alone(key: str) -> str:
+    """Say that a span or prose cites a rule by its #key alone, naming no file to hold it to."""
+    return f"cites {key} by its key alone: cite references/<file>.md{key}"
 
 
 def names_a_path(tok: str) -> bool:
@@ -231,6 +253,7 @@ class Linter:
         # The tree a clone holds, as load_tree lists it, with each directory above a file: a path
         # on disk that git ignores, such as a local plan or a built binary, is in no clone.
         self.names = {f.rsplit("/", 1)[-1] for f in known}
+        self.known = sorted(known)
         self.paths = set(known)
         for f in known:
             parts = f.split("/")
@@ -252,6 +275,7 @@ class Linter:
         for f, line, key in self.citations:
             if key in self.keys:
                 self.report(f, line, f"cites rule {key} without the file that holds it")
+        self.check_cited_from_outside()
         for f in self.files:
             for i, line in enumerate(f.read_text(errors="replace").split("\n"), 1):
                 if MACHINE.search(line):
@@ -309,6 +333,11 @@ class Linter:
         words = len("\n".join(lines[end + 1:]).split())
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
+        for i, line in enumerate(lines[end + 1:], end + 2):
+            if POSITIONAL.search(line):
+                self.report(skill, i, "a $ before a digit is replaced by the skill's arguments "
+                                      "when it loads; spell an awk field $(N) and a shell "
+                                      "parameter ${N}")
 
     def check_front_keys(self, skill: Path, front: list[str]) -> None:
         """Hold each frontmatter key to the specification's fields, once each, and each plain
@@ -396,6 +425,8 @@ class Linter:
                 line = text.count("\n", 0, m.start()) + 1
                 self.report(f, line, "a § names no document: name it first, as in architecture §N")
         lines = text.split("\n")
+        # A SKILL.md's frontmatter is YAML, where `#` opens a comment, not prose.
+        prose_from = lines.index("---", 1) + 1 if lines[0] == "---" and "---" in lines[1:] else 0
         for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
@@ -403,21 +434,24 @@ class Linter:
                 self.citations += [(f, i, k) for k in BARE_KEY.findall(line)]
             for path, key in RULE_CITE.findall(line):
                 held = d / path if path.startswith("references/") else self.root / path
-                why = self.absent(path, held.relative_to(self.root).as_posix())
-                if why or f"\n`{key}`\n" not in "\n" + held.read_text():
-                    self.report(f, i, why or f"{path} holds no rule {key}")
+                self.check_cite(f, i, path, held, key)
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
                     word = path_word(word)
-                    if names_a_path(word) and (why := self.missing(d, word)):
+                    if BARE_CITE.fullmatch(word):
+                        self.report(f, i, cites_alone(word))
+                    elif names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
             # when its first segment is a tracked entry; one in a span is held whatever it starts
             # with.
-            for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
+            prose = LINK_TARGET.sub("]", ANY_SPAN.sub("", line))
+            for p in PROSE_PATH.findall(prose):
                 p = p.rstrip(".,;:)")
                 if self.first_is_tracked(p) and (why := self.missing(d, p)):
                     self.report(f, i, why)
+            for key in PROSE_CITE.findall(prose) if i > prose_from else ():
+                self.report(f, i, cites_alone(key))
             for target in LINK.findall(line):
                 if target.startswith(("http", "mailto:")):
                     continue
@@ -451,6 +485,9 @@ class Linter:
         shown, tok = tok, path_word(tok)
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
+        if BARE_CITE.fullmatch(tok):
+            self.report(f, line, cites_alone(tok))
+            return
         if tok.startswith("morphic-") and "/" not in tok:
             if not {f".claude/skills/{tok}", f"cmd/{tok}"} & self.paths:
                 self.report(f, line, f"no skill or command named {tok}")
@@ -466,16 +503,22 @@ class Linter:
 
     def missing(self, d: Path, p: str, shown: str = "") -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
-        skill for its own references/ and scripts/, to the repository otherwise. A path is held
-        up to a #entry, a :line or its first wildcard, and ./... names the module's packages. One
-        the tree lacks is None too when it names the Go toolchain's sources. The reason names
-        shown, the path as a span wrote it, where p has been read out of that spelling."""
+        skill for its own references/ and scripts/, then to the repository, which holds a scripts/
+        of its own, giving the skill's reason when neither holds it, and to the repository
+        otherwise. A path is held up to a #entry, a line suffix or its first wildcard, and ./...
+        names the module's packages. One the tree lacks is None too when it names the Go
+        toolchain's sources. The reason names shown, the path as a span wrote it, where p has been
+        read out of that spelling."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
             return None
         if rel.split("/", 1)[0] in ("references", "scripts"):
-            rel = (d / rel).relative_to(self.root).as_posix()
+            own = os.path.normpath((d / rel).relative_to(self.root).as_posix())
+            why = self.absent(shown or p, own)
+            if why is None or self.absent(shown or p, os.path.normpath(rel)) is None:
+                return None
+            return why
         rel = os.path.normpath(rel)
         why = self.absent(shown or p, rel)
         return None if why and self.in_toolchain(rel) else why
@@ -488,6 +531,29 @@ class Linter:
             return False
         rel = GOROOT_SRC.sub("", rel)
         return ".." not in rel.split("/") and (self.toolchain / rel).exists()
+
+    def check_cite(self, f: Path, line: int, path: str, held: Path, key: str) -> None:
+        """Report a citation of rule key by path, at line of f, unless held holds that rule."""
+        why = self.absent(path, held.relative_to(self.root).as_posix())
+        if why or f"\n`{key}`\n" not in "\n" + held.read_text():
+            self.report(f, line, why or f"{path} holds no rule {key}")
+
+    def check_cited_from_outside(self) -> None:
+        """Hold each rule a file outside the skills cites by its full path, as CLAUDE.md does, to
+        the rule its file holds: no other check reads those citations. Each file the tree holds,
+        as load_tree lists it, is read bar a binary one, and one never naming a skill's path has
+        its lines left unscanned, for speed alone."""
+        for rel in self.known:
+            if rel.startswith(".claude/skills/"):
+                continue
+            f = self.root / rel
+            data = f.read_bytes() if f.is_file() else b""
+            if b"\0" in data or b".claude/skills/" not in data:
+                continue
+            for i, line in enumerate(data.decode(errors="replace").split("\n"), 1):
+                for path, key in RULE_CITE.findall(line):
+                    if path.startswith(".claude/skills/"):
+                        self.check_cite(f, i, path, self.root / path, key)
 
     def absent(self, shown: str, rel: str) -> str | None:
         """Say why rel, a path from the repository root, is not in the tree a clone holds, naming
@@ -585,6 +651,18 @@ def main(argv: list[str] | None = None) -> int:
         sys.argv[1:] if argv is None else argv)
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+    except subprocess.CalledProcessError as e:
+        # git says why it found no work tree. An unpacked copy has none, and the tree is what git
+        # lists, so the hint says how to make one there; other causes keep git's own words.
+        said = next((line.strip() for line in e.stderr.splitlines() if line.strip()),
+                    f"git rev-parse exited {e.returncode}")
+        print(f"skills_lint: {said}; in a copy git archive unpacked, run git init and git add -A "
+              "first", file=sys.stderr)
+        return 2
+    except OSError as e:  # no git on PATH, or a working directory since removed
+        print(f"skills_lint: {e}", file=sys.stderr)
+        return 2
+    try:
         n, found = findings(root)
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)

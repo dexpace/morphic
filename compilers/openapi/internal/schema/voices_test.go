@@ -4,8 +4,12 @@
 package schema_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -15,15 +19,37 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// voicesDoc is a document of Base, an object, and a component S written as written.
+// voicesDoc is a document of Base, A and B, objects, Meta, an object anchored
+// dynamically, Holder, an object using S through a $ref, and a component S
+// written as written.
 func voicesDoc(written string) string {
 	return openapitest.ComponentSpecVer("3.1.0", "    Base: {type: object, properties: {id: {type: string}}}\n"+
+		"    A: {type: object, properties: {a: {type: string}}}\n"+
+		"    B: {type: object, properties: {b: {type: string}}}\n"+
+		"    Meta: {$dynamicAnchor: meta, type: object}\n"+
+		"    Holder: {type: object, properties: {s: {$ref: '#/components/schemas/S'}}}\n"+
 		"    S: "+written+"\n")
 }
 
+// besideTheAllOf is what S writes beside its allOf for each outcome the allOf
+// composes at: nothing, a union it distributes across, a oneOf and an anyOf kept
+// beside its Model, a union narrowing it alone
+// (docs/compilers/openapi.md#union-beside-structure), and a $dynamicRef it keeps
+// from expanding (docs/compilers/openapi.md#dynamic-ref). code is the report
+// showing the outcome reached, drawn at S or at the keyword at names below it.
+var besideTheAllOf = map[string]struct{ beside, code, at string }{
+	"alone":       {},
+	"distributed": {", oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]", diag.CompositionLowering, ""},
+	"beside a degraded union": {", oneOf: [{$ref: '#/components/schemas/A'}], anyOf: [{$ref: '#/components/schemas/B'}]",
+		diag.DegradedConstruct, ""},
+	"beside a narrowing union": {", oneOf: [{required: [a]}, {required: [b]}]", diag.ValidationOnlyKeyword, ""},
+	"beside a $dynamicRef":     {", $dynamicRef: '#meta'", diag.DegradedConstruct, "/$dynamicRef"},
+}
+
 // TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt holds a keyword on an inline
-// branch to the same keyword beside the allOf: for each one the two lower to the
-// same node, the branch's kept nowhere else and reported nowhere.
+// branch to the same keyword beside the allOf, at each outcome besideTheAllOf
+// names: for each one the two lower to the same nodes, a $ref use of S among them,
+// the branch's kept nowhere else and reported nowhere but where it is written.
 func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
@@ -31,6 +57,8 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 		"description":        "description: mine",
 		"externalDocs":       "externalDocs: {url: 'https://example.com'}",
 		"deprecated":         "deprecated: true",
+		"readOnly":           "readOnly: true",
+		"default":            "default: {id: a}",
 		"example":            "example: {id: a}",
 		"examples":           "examples: [{id: a}]",
 		"xml":                "xml: {name: mine}",
@@ -48,32 +76,143 @@ func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 		"propertyNames":      "propertyNames: {pattern: '^a'}",
 		"a redaction":        "format: password",
 	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			ref := "{$ref: '#/components/schemas/Base'}"
-			beside, besideDiags := parseFull(t, voicesDoc("{allOf: ["+ref+"], "+keyword+"}"))
-			branch, branchDiags := parseFull(t, voicesDoc("{allOf: ["+ref+", {"+keyword+"}]}"))
-			assert.Empty(t, withCode(branchDiags, diag.DegradedConstruct), "nothing is left to keep or report")
-			assert.Len(t, branchDiags, len(besideDiags))
-
-			got, ok := typeByName(branch, "S").(*ir.Model)
-			require.True(t, ok)
-			want, ok := typeByName(beside, "S").(*ir.Model)
-			require.True(t, ok)
-			assert.Equal(t, want.Docs, got.Docs)
-			assert.Equal(t, want.Deprecation, got.Deprecation)
-			assert.Equal(t, want.Sensitive, got.Sensitive)
-			assert.Equal(t, want.XML, got.XML)
-			assert.Equal(t, want.Constraints, got.Constraints)
-			require.Len(t, got.Examples, len(want.Examples))
-			assert.Len(t, got.Unmodeled, len(want.Unmodeled))
-			for key, entry := range want.Unmodeled {
-				if assert.Contains(t, got.Unmodeled, key) {
-					assert.JSONEq(t, string(entry.Value), string(got.Unmodeled[key].Value), key)
+		for shape, tc := range besideTheAllOf {
+			t.Run(shape+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				ref := "{$ref: '#/components/schemas/Base'}"
+				want, wantDiags := parseFull(t, voicesDoc("{allOf: ["+ref+"], "+keyword+tc.beside+"}"))
+				got, gotDiags := parseFull(t, voicesDoc("{allOf: ["+ref+", {"+keyword+"}]"+tc.beside+"}"))
+				if tc.code != "" {
+					require.True(t, openapitest.HasDiagCodeAt(gotDiags, tc.code, "/components/schemas/S"+tc.at),
+						"the outcome this row names; got %v", gotDiags)
 				}
-			}
-		})
+				assert.False(t, openapitest.HasDiagCodeAt(gotDiags, diag.DegradedConstruct, "/components/schemas/S/allOf/1"),
+					"nothing is left to keep or report; got %v", gotDiags)
+				assert.Equal(t, severityCodes(wantDiags), severityCodes(gotDiags))
+
+				holder := componentID("Holder")
+				assertNodeAlike(t, want.Types[holder], got.Types[holder])
+				id := componentID("S")
+				assertNodeAlike(t, want.Types[id], got.Types[id])
+				wantUnion, ok := want.Types[id].(*ir.Union)
+				if !ok {
+					return
+				}
+				gotUnion, ok := got.Types[id].(*ir.Union)
+				require.True(t, ok)
+				require.Len(t, gotUnion.Variants, len(wantUnion.Variants))
+				for i, v := range wantUnion.Variants {
+					target := gotUnion.Variants[i].Type.Target
+					require.Equal(t, v.Type.Target, target)
+					assertNodeAlike(t, want.Types[target], got.Types[target])
+				}
+			})
+		}
 	}
+}
+
+// assertNodeAlike holds got to want whole but for where provenance places each
+// part, which differs between the two spellings: what it marks inferred and
+// which document wrote it do not.
+func assertNodeAlike(t *testing.T, want, got ir.TypeDef) {
+	t.Helper()
+	require.NotNil(t, want)
+	require.NotNil(t, got)
+	at := cmpopts.IgnoreFields(ir.Provenance{}, "Pointer", "Position", "Node")
+	if diff := cmp.Diff(want, got, at); diff != "" {
+		t.Errorf("node mismatch (-beside the allOf +on a branch):\n%s", diff)
+	}
+}
+
+// severityCodes returns the severity and code of each of diags, sorted, so two
+// runs reporting alike at other pointers compare equal.
+func severityCodes(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, string(d.Severity)+" "+d.Code)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestVoices_KeptAndMetBranchesHoldAtEveryOutcome pins that what keeps a branch
+// whole, or meets two, holds at each outcome besideTheAllOf names as it does
+// alone (docs/compilers/openapi.md#allof-inline-residue): a branch disagreeing
+// with a conjunct, or reading a $ref against another base, stays whole on each
+// Model the composition lowers to, with one report saying why and nothing it
+// writes folded, and two bounds meet there in either order.
+func TestVoices_KeptAndMetBranchesHoldAtEveryOutcome(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	const n = "\n    N: {$id: 'https://ex.test/a/n.json', type: string}" // what `n.json` names under https://ex.test/a/
+	met := &ir.Constraints{MaxProps: new(int64(3))}
+	for name, tc := range map[string]struct {
+		branches string
+		kept     []string
+		why      string
+		cons     *ir.Constraints
+	}{
+		"a disagreement": {ref + ", {description: a}, {description: b}", []string{"allOf/1", "allOf/2"},
+			"the conjuncts of this allOf disagree", nil},
+		"a disagreement swapped": {"{description: b}, {description: a}, " + ref, []string{"allOf/0", "allOf/1"},
+			"the conjuncts of this allOf disagree", nil},
+		"another base": {ref + ", {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}",
+			[]string{"allOf/1"}, "reads its $refs against another base", nil},
+		"bounds meeting":         {ref + ", {maxProperties: 3}, {maxProperties: 5}", nil, "", met},
+		"bounds meeting swapped": {ref + ", {maxProperties: 5}, {maxProperties: 3}", nil, "", met},
+	} {
+		for shape, outcome := range besideTheAllOf {
+			t.Run(shape+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				doc, diags := parseFull(t, voicesDoc("{allOf: ["+tc.branches+"]"+outcome.beside+"}"+n))
+				openapitest.RequireNoErrorDiags(t, diags)
+				if outcome.code != "" {
+					require.True(t, openapitest.HasDiagCodeAt(diags, outcome.code, "/components/schemas/S"+outcome.at),
+						"the outcome this row names; got %v", diags)
+				}
+				for _, path := range tc.kept {
+					got := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+path)
+					assert.Contains(t, got, tc.why, path)
+				}
+				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing a kept branch writes folds")
+				for _, m := range composedModels(t, doc) {
+					assert.ElementsMatch(t, tc.kept, keptBranches(m), m.ID)
+					assert.Equal(t, tc.cons, m.Constraints, m.ID)
+				}
+			})
+		}
+	}
+}
+
+// composedModels returns the Models S's composition lowers to: S itself, or each
+// variant of the Union a distributed union lowers it to.
+func composedModels(t *testing.T, doc *ir.Document) []*ir.Model {
+	t.Helper()
+	s := typeByName(doc, "S")
+	u, distributed := s.(*ir.Union)
+	if !distributed {
+		m, ok := s.(*ir.Model)
+		require.True(t, ok, "S lowered to a %T, want a Model or a Union", s)
+		return []*ir.Model{m}
+	}
+	out := make([]*ir.Model, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		m, ok := doc.Types[v.Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %s lowered to a %T, want a Model", v.Type.Target, doc.Types[v.Type.Target])
+		out = append(out, m)
+	}
+	return out
+}
+
+// keptBranches returns the path of each allOf branch m keeps whole.
+func keptBranches(m *ir.Model) []string {
+	var out []string
+	for key := range m.Unmodeled {
+		if path, ok := strings.CutPrefix(key, "openapi:"); ok && strings.HasPrefix(path, "allOf/") {
+			out = append(out, path)
+		}
+	}
+	return out
 }
 
 // TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder pins that a keyword two
@@ -247,13 +386,6 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	got = openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/T/allOf/1")
 	assert.NotContains(t, got, disagreed, "a branch that folds keeps what it declares of a shape, disagreed on by nothing")
 
-	_, diags = parseFull(t, openapitest.ComponentSpec("    Obj: {type: object}\n    Other: {type: object}\n"+
-		"    T:\n      oneOf: [{$ref: '#/components/schemas/Other'}, {type: object}]\n"+
-		"      allOf: [{$ref: '#/components/schemas/Obj'}, {title: t}]\n"))
-	for _, d := range withCode(diags, diag.DegradedConstruct) {
-		assert.NotContains(t, d.Message, disagreed, "a distributed branch folds nowhere, so it disagrees with nothing")
-	}
-
 	deep := "{description: deep, allOf: [{type: object}]}"
 	for range schema.MaxAllOfFlattenDepth {
 		deep = "{allOf: [" + deep + "]}"
@@ -335,40 +467,32 @@ func TestVoices_UnevaluatedFalseStaysTheModels(t *testing.T) {
 	assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
 }
 
-// TestVoices_ADistributedCompositionKeepsEveryBranch pins that a branch distributed
-// across a union folds nothing: each variant keeps it whole, and the Union the
-// position lowers to takes nothing of it.
-func TestVoices_ADistributedCompositionKeepsEveryBranch(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc(`{allOf: [{$ref: '#/components/schemas/Base'}, {description: mine, properties: {c: {type: string}}}],
-      oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}
-    A: {type: object, properties: {a: {type: string}}}
-    B: {type: object, properties: {b: {type: string}}}`))
-	openapitest.RequireNoErrorDiags(t, diags)
-	u, ok := typeByName(doc, "S").(*ir.Union)
-	require.True(t, ok)
-	assert.Empty(t, u.Docs.Description)
-	for _, v := range u.Variants {
-		assert.Contains(t, doc.Types[v.Type.Target].Common().Unmodeled, "openapi:allOf/1")
-	}
-}
-
 // TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default
-// on a branch: a carrier holds them as beside the allOf, and with no carrier a node
-// the position owns keeps them verbatim, reported at the keyword.
+// on a branch: a carrier holds them as beside the allOf, a union distributed across
+// it or not, and with no carrier a node the position owns keeps them verbatim,
+// reported at the keyword.
 func TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Base: {type: object, properties: {id: {type: string}}}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
     Holder:
       type: object
       properties:
         f: {allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true, default: {id: a}}]}
+        g:
+          allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true, default: {id: a}}]
+          oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]
     Bare: {allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true}, {readOnly: true}], writeOnly: false}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	f := propertyOf(t, doc, "Holder", "f")
-	assert.NotEmpty(t, f.Visibility.Only)
-	assert.NotNil(t, f.Default)
+	for _, name := range []string{"f", "g"} {
+		p := propertyOf(t, doc, "Holder", name)
+		assert.NotEmpty(t, p.Visibility.Only, name)
+		assert.NotNil(t, p.Default, name)
+		assert.Empty(t, doc.Types[p.Type.Target].Common().Unmodeled, name)
+	}
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CompositionLowering, "/components/schemas/Holder/properties/g"))
 	bare, ok := typeByName(doc, "Bare").(*ir.Model)
 	require.True(t, ok)
 	entry, ok := bare.Unmodeled["openapi:readOnly"]
@@ -416,17 +540,4 @@ func TestVoices_ARefBranchIsNoVoice(t *testing.T) {
 	assert.Empty(t, m.Unmodeled)
 	require.NotNil(t, m.Base)
 	assert.Equal(t, "beside", doc.Types[m.Base.Target].Common().Docs.Description)
-}
-
-// TestVoices_AUnionBesideKeepsEveryBranch pins an allOf beside a union kept verbatim:
-// its Model is no use a branch can speak for, so each branch stays whole.
-func TestVoices_AUnionBesideKeepsEveryBranch(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, voicesDoc(`{allOf: [{$ref: '#/components/schemas/Base'}, {description: mine}],
-      oneOf: [{required: [a]}, {required: [b]}]}`))
-	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := typeByName(doc, "S").(*ir.Model)
-	require.True(t, ok)
-	assert.Empty(t, m.Docs.Description)
-	assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
 }

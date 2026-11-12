@@ -118,7 +118,7 @@ func TestExtensionsUnder_AttributesEachEntryAtItsOwnKey(t *testing.T) {
 	require.Len(t, got, 2)
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/o/x-a"}, got["openapi:x-a"].Provenance,
 		"the untouched sibling stays with the base")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/o/x-b"}, got["openapi:x-b"].Provenance,
+	assert.Equal(t, ir.Provenance{Pointer: "/o/x-b", WrittenBy: 1}, got["openapi:x-b"].Provenance,
 		"the overlaid entry names the overlay")
 }
 

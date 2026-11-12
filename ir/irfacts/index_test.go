@@ -505,6 +505,8 @@ type factsAnswers struct {
 	subtypes  []ir.TypeID
 	supers    map[ir.TypeID]bool
 	exposes   map[ir.PropID]bool
+	key       string // the type's correlation key
+	keyed     string // the entity that key names
 }
 
 // factsConcurrentProps are the properties the concurrency test asks each type
@@ -528,6 +530,8 @@ func factsAsk(facts *irfacts.Index, id ir.TypeID, universe []ir.TypeID) factsAns
 	for _, prop := range factsConcurrentProps {
 		got.exposes[prop] = facts.Exposes(id, prop)
 	}
+	got.key, _ = facts.Correlation(string(id))
+	got.keyed, _ = facts.Correlated(got.key)
 	return got
 }
 
@@ -558,6 +562,7 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 		"the document gives the index a hierarchy")
 	assert.True(t, want["deep"].exposes["p/kind"] && want["deep"].exposes["p/side"] && !want["base"].exposes["p/side"],
 		"the document gives the index properties to expose")
+	assert.Equal(t, "base", want["base"].keyed, "the document gives the index a correlation key to derive")
 	walked, walkedExposure := 0, 0
 	for _, target := range universe {
 		for _, base := range universe {
@@ -578,10 +583,11 @@ func TestIndex_EveryMethodIsSafeForConcurrentUse(t *testing.T) {
 // factsConcurrentDocument builds a document in which every fact has something
 // to derive: a discriminated hierarchy used by an operation, with a diamond,
 // which leaves some subtype and exposure question to the walk whichever side is
-// searched first; a cycle; an alias; and a type nothing reaches.
+// searched first; a cycle; an alias; a type nothing reaches; and a name to key.
 func factsConcurrentDocument() (*ir.Document, []ir.TypeID) {
 	doc := irtest.DocOf(
 		irtest.ModelOf("base", func(m *ir.Model) {
+			m.Name = ir.Naming{Source: "Base"}
 			m.Discriminator = &ir.Discriminator{}
 			m.Properties = []ir.Property{{ID: "p/kind"}}
 		}),

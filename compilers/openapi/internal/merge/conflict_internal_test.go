@@ -331,15 +331,15 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 	assert.NotContains(t, detail, "pattern", "the later-checked keyword is not also reported")
 }
 
-// TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
-// another literal or against a type with a primitive kind no held format
-// narrows is an overlap, never silent, while a scalar literal against a
-// structure still conflicts and a dangling target stays silent.
+// TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against a
+// type with a primitive kind no held format narrows is an overlap, never
+// silent, while a literal against another of a different value, or a scalar
+// literal against a structure, conflicts, and a dangling target stays silent.
 func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())
 
-	assert.Equal(t, relOverlap, judge(g).relate(ref("t/lit-a"), ref("t/lit-x")))
+	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/lit-a"), ref("t/lit-x")))
 	assert.Equal(t, relOverlap, judge(g).relate(ref("t/lit-1"), ref("t/enum-int")))
 	assert.Equal(t, relOverlap, judge(g).relate(ref("t/scalar-str"), ref("t/lit-a")))
 	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/lit-a"), ref("t/model")))

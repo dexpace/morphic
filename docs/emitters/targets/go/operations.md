@@ -23,10 +23,10 @@ The IR, the plan and what every target generates are in
 The IR, the plan and what every target generates are in [streaming](../../operations/streaming.md).
 
 `TailMetrics` has two methods: `func (c *Client) TailMetrics(ctx) (*MetricsPage, error)` and
-`func (c *Client) TailMetricsStream(ctx) (*Stream[Metrics], error)` — no request type, since the
-operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the runtime's:
-`Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the response, which
-a caller that stops early must do. What `T` is follows from `Recv`:
+`func (c *Client) TailMetricsStream(ctx) (*runtime.Stream[Metrics], error)` — no request type, since
+the operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the
+runtime's: `Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the
+response, which a caller that stops early must do. What `T` is follows from `Recv`:
 
 - an `Element` is what its type lowers to. A union's is its struct
   ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
@@ -57,6 +57,16 @@ operations](../../operations/long-running.md).
 `ExportPoller.PollUntilDone(ctx) (*Export, error)` loops until terminal and extracts `Export` from
 `ResultPath`. The poll loop's backoff between attempts is `lro.go.tmpl`. Printer emits
 `StartExport`, `StartExportParams`, and `ExportPoller` + `Poll()/PollUntilDone()`.
+
+## Stability
+
+Each method an `alpha` or `beta` operation lowers to, its `WithResponse` method among them, gives
+its tier a paragraph of its doc comment after the summary
+([stability](../../operations/stability.md)), such as `Beta: breaking changes are possible but not
+expected.`, so the comment still opens with the sentence summarizing the method, as a Go doc comment
+does, and `go doc` and an editor show the tier at the call. Go has no annotation a caller must
+acknowledge, and a build tag compiling an `alpha` method only under `-tags alpha` would split the
+package's API by tag, every test then building twice, so Go gates nothing.
 
 ## The client
 

@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -81,20 +82,19 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
 
 // UnknownKeywordsIn records on p the keywords s writes that no field of the
-// JSON Schema model names, and announces each.
-//
-// OpenAPI 3.1 schemas are JSON Schema 2020-12, where an unrecognized keyword is
-// legal input that an implementation must ignore. So this reports a decision,
-// not a fault (diag.UnknownSchemaKeyword grades it). The model keeps only its
-// name, so the value is read from the raw node
+// JSON Schema model names, and announces each: legal JSON Schema 2020-12 an
+// implementation must ignore, so a decision rather than a fault. The model
+// keeps only a keyword's name, so its value is read from the raw node
 // (docs/parser-library.md#unmodeled-keywords).
 //
-// It keeps only what no other reader kept, so it runs after all of them:
-// readers with more to say take `$vocabulary` and `dependentRequired`. A
-// keyword no reader leaves a trace of needs naming in DecidedKeywords.
-func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
+// It runs after every other reader and keeps what none kept: `$vocabulary`
+// and `dependentRequired` have readers of their own. A keyword no reader
+// leaves a trace of is named in DecidedKeywords, or in taken where only the
+// caller knows a reader took it.
+func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, taken ...string) []ir.Diagnostic {
 	keys, root := unknownSchemaKeys(s)
-	return census(p, keys, root, locate, pointer, "", keyClass{
+	keys = slices.DeleteFunc(keys, func(key string) bool { return slices.Contains(taken, key) })
+	return census(p, keys, root, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q has no field in the schema model this compiler lowers and no IR " +
@@ -140,12 +140,12 @@ func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
 // reads, and announces each as UnknownKeywordsIn announces a keyword the model
 // does not name: JSON Schema 2020-12 ignores the two alike. The caller says
 // which keywords those are, since only it knows the dialect and the policies.
-func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
+func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer jsontext.Pointer, doc provenance.Doc) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil
 	}
 	_, root := undeclaredKeys(s)
-	return census(p, keys, root, locate, pointer, "", keyClass{
+	return census(p, keys, root, doc, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
 		message: "keyword %q is not defined by the dialect this schema is read in, and no policy reads it " +
@@ -162,8 +162,8 @@ func UndefinedKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, keys []string, pointer
 // closed key set and requires extensions to be prefixed x-, so such a key is
 // usually a misspelling. It is kept all the same, because the IR is lossless
 // even for invalid input, and a misspelt key is the one most worth finding.
-func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
-	return UnknownKeysUnder(p, model, locate, owner, "", taken...)
+func UnknownKeysIn(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, taken ...string) []ir.Diagnostic {
+	return UnknownKeysUnder(p, model, doc, owner, "", taken...)
 }
 
 // UnknownKeysUnder is UnknownKeysIn with every entry keyed beneath scope, for
@@ -174,9 +174,9 @@ func UnknownKeysIn(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Po
 // the object. Several objects reach one map, where "openapi:status" from two of
 // them would be a single key and the entry that survived would depend on which
 // lowering ran last. taken lists keys a reader placed in a field (TakeString).
-func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext.Pointer, scope string, taken ...string) []ir.Diagnostic {
+func UnknownKeysUnder(p *ir.Unmodeled, model any, doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string) []ir.Diagnostic {
 	keys, root := undeclaredKeys(model)
-	return UnknownKeysNamed(p, keys, root, locate, owner, scope, taken...)
+	return UnknownKeysNamed(p, keys, root, doc, owner, scope, taken...)
 }
 
 // UnknownKeysNamed is UnknownKeysUnder for an object whose model keeps no
@@ -190,9 +190,9 @@ func UnknownKeysUnder(p *ir.Unmodeled, model any, locate Locator, owner jsontext
 // Its leftovers are graded as any undeclared key is, because UnknownKeysUnder
 // delegates here.
 func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	locate Locator, owner jsontext.Pointer, scope string, taken ...string,
+	doc provenance.Doc, owner jsontext.Pointer, scope string, taken ...string,
 ) []ir.Diagnostic {
-	return census(p, keys, root, locate, owner, scope, keyClass{
+	return census(p, keys, root, doc, owner, scope, keyClass{
 		code:     diag.UnknownObjectKey,
 		severity: ir.SeverityWarning,
 		skip:     taken,
@@ -211,7 +211,7 @@ func UnknownKeysNamed(p *ir.Unmodeled, keys []string, root *yaml.Node,
 // verbatim on p at the census's own entry, with a warning. root is read as the
 // parser reads it, through its `<<` merges (nodeview.Child).
 func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string) bool,
-	locate Locator, owner jsontext.Pointer, scope string,
+	doc provenance.Doc, owner jsontext.Pointer, scope string,
 ) (string, bool, []ir.Diagnostic) {
 	node := nodeview.Child(root, key)
 	if node == nil {
@@ -221,7 +221,7 @@ func TakeString(p *ir.Unmodeled, root *yaml.Node, key string, valid func(string)
 	if ok && (value == "" || valid == nil || valid(value)) {
 		return value, true, nil
 	}
-	at := locate(owner + ids.Ptr(key))
+	at := doc.At(owner + ids.Ptr(key))
 	kept, diags := PreserveNodeInto(p, EntryKey(scope, key), node, ir.ReasonDegradedLowering, at)
 	if !kept {
 		return "", true, diags
@@ -277,7 +277,7 @@ type keyClass struct {
 // since the reader that recorded it said it better (see unrecorded). That
 // happens before the bound applies (see MaxUnknownKeys).
 func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
-	locate Locator, owner jsontext.Pointer, scope string, cl keyClass,
+	doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass,
 ) []ir.Diagnostic {
 	if len(keys) == 0 {
 		return nil // the common case: most objects write no key their model misses
@@ -288,19 +288,19 @@ func census(p *ir.Unmodeled, keys []string, root *yaml.Node,
 	}
 	var diags []ir.Diagnostic
 	if len(fresh) > MaxUnknownKeys {
-		diags = append(diags, budgetDiag(len(fresh), locate(owner)))
+		diags = append(diags, budgetDiag(len(fresh), doc.At(owner)))
 		fresh = fresh[:MaxUnknownKeys]
 	}
 	for _, key := range fresh {
-		diags = append(diags, keep(p, root, key, locate, owner, scope, cl)...)
+		diags = append(diags, keep(p, root, key, doc, owner, scope, cl)...)
 	}
 	return diags
 }
 
 // keep writes one key's value under its entry and announces it, or says why it
 // could not.
-func keep(p *ir.Unmodeled, root *yaml.Node, key string, locate Locator, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
-	entry, at := EntryKey(scope, key), locate(owner+ids.Ptr(key))
+func keep(p *ir.Unmodeled, root *yaml.Node, key string, doc provenance.Doc, owner jsontext.Pointer, scope string, cl keyClass) []ir.Diagnostic {
+	entry, at := EntryKey(scope, key), doc.At(owner+ids.Ptr(key))
 	if taken, occupied := (*p)[entry]; occupied {
 		return []ir.Diagnostic{occupiedEntryDiag(entry, at, taken.Provenance.Pointer)}
 	}

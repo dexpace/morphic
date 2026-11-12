@@ -5,12 +5,11 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"path/filepath"
 
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 )
@@ -18,7 +17,7 @@ import (
 // sourceDocument is the source as its references' resolution reads it: the
 // path they are relative to, the bytes and the tree its model was built from,
 // what the table found in it, and where a finding about a node of that tree is
-// placed.
+// placed, at the $ref that reached it where the tree holds no node.
 //
 // A $ref from another document back into the source is answered from here,
 // not from the file, so it reaches what the compile holds: the tree an overlay
@@ -28,42 +27,33 @@ type sourceDocument struct {
 	data   []byte
 	root   *yaml.Node
 	judged judgment
-	tree   sourceTree
+	tree   provenance.Tree
 	// escapes holds the $ref values rewritten in the source's tree and in the
 	// trees of the documents it reads, or is nil for none (GitHub #911).
 	escapes *escapes
 }
 
-// sourceTree places a finding about a node of the source's patched tree as the
-// source's own findings are placed (see locator), and names the node's pointer
-// there. Its zero value holds no node, so every finding is placed at the $ref
-// that reached it, as one in a document no entry lists is.
-type sourceTree struct {
-	locate   scan.Locator
-	pointers func(*yaml.Node) (jsontext.Pointer, bool)
+// treeOf places the nodes of root in the document doc places, their pointers
+// indexed under ctx once a node is first asked about (scan.Pointers), so the
+// index stops where the load does.
+func treeOf(ctx context.Context, doc provenance.Doc, root *yaml.Node) provenance.Tree {
+	return provenance.Tree{Doc: doc, Pointers: scan.Pointers(ctx, root)}
 }
 
-// newSourceTree returns the places of the nodes of root, the patched tree,
-// under the overlay attribution origin, indexing root once for both, under ctx
-// (scan.Pointers).
-func newSourceTree(ctx context.Context, srcIndex int, origin overlay.Origin, root *yaml.Node) sourceTree {
-	pointers := scan.Pointers(ctx, root)
-	return sourceTree{locate: locator(srcIndex, origin, pointers), pointers: pointers}
-}
-
-// has reports whether the tree holds n.
-func (t sourceTree) has(n *yaml.Node) bool {
-	if t.pointers == nil {
+// treeHolds reports whether tree holds n, so a finding about n is placed in
+// tree's document. A tree with no pointers, such as the zero Tree, holds none.
+func treeHolds(tree provenance.Tree, n *yaml.Node) bool {
+	if tree.Pointers == nil {
 		return false
 	}
-	_, held := t.pointers(n)
+	_, held := tree.Pointers(n)
 	return held
 }
 
 // newSourceDocument returns the source at path, built from data into root,
 // which the table judged as judged, and whose findings tree places. esc holds
 // the $refs rewritten in root.
-func newSourceDocument(path string, data []byte, root *yaml.Node, judged judgment, tree sourceTree, esc *escapes,
+func newSourceDocument(path string, data []byte, root *yaml.Node, judged judgment, tree provenance.Tree, esc *escapes,
 ) sourceDocument {
 	return sourceDocument{path: path, data: data, root: root, judged: judged, tree: tree, escapes: esc}
 }

@@ -30,7 +30,32 @@ const (
 	GroupByTags = lowering.GroupByTags
 	// GroupByPathPrefix groups operations by the first path segment.
 	GroupByPathPrefix = lowering.GroupByPathPrefix
+	// GroupByExtension groups operations by the group path a vendor extension
+	// states, nesting a group for each segment, and an operation stating none by
+	// GroupingExtension.Fallback.
+	GroupByExtension = lowering.GroupByExtension
 )
+
+// GroupingExtension is what GroupByExtension reads: which extension states an
+// operation's group path, what a list there means, and how an operation stating
+// none is grouped. It is named here for the reason GroupingStrategy is.
+type GroupingExtension = lowering.GroupingExtension
+
+// ExtensionLists is what a list value of a grouping extension means.
+type ExtensionLists = lowering.ExtensionLists
+
+// The readings of a list value.
+const (
+	// ListsAreSegments reads a list as one path, each entry adding its segments.
+	ListsAreSegments = lowering.ListsAreSegments
+	// ListsAreGroups reads a list as several paths, filing the operation under
+	// the first.
+	ListsAreGroups = lowering.ListsAreGroups
+)
+
+// DefaultGroupingExtension returns the extension GroupByExtension reads where
+// the caller names none. It is exported so a caller can start from it.
+func DefaultGroupingExtension() GroupingExtension { return lowering.DefaultGroupingExtension() }
 
 // StreamingMedia is the media-type streaming policy: which media types imply
 // that a body is a sequence of frames when the document declares nothing that
@@ -79,8 +104,14 @@ const (
 	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
-	// TargetEnumOpen clears ir.Enum.Closed.
+	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy.
+	TargetDeprecationReplacedBy = lowering.TargetDeprecationReplacedBy
+	// TargetEnumOpen clears ir.Enum.Closed, or ir.Union.Closed on the union a
+	// mixed enum lowers to.
 	TargetEnumOpen = lowering.TargetEnumOpen
+	// TargetUnionOpen clears ir.Union.Closed on a union a oneOf or anyOf lowers
+	// to.
+	TargetUnionOpen = lowering.TargetUnionOpen
 	// TargetStability fills ir.Operation.Stability.
 	TargetStability = lowering.TargetStability
 	// TargetRedaction asks for a value to be redacted.
@@ -96,6 +127,19 @@ type NullableWidening = lowering.NullableWidening
 // NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
 // reference whose null the nullable-widening policy read in.
 const NullableWideningHeuristic = lowering.NullableWideningHeuristic
+
+// DiscriminatorInference is the discriminator-inference policy: whether a
+// union's tag is read off the value each variant pins its tag property to,
+// where the document declares no mapping or no discriminator, and a subtype's
+// off the values it admits, where it is routed by name. It is another
+// injectable-policy seam (architecture principle 6), and is named here rather
+// than restated for the reason GroupingStrategy is.
+type DiscriminatorInference = lowering.DiscriminatorInference
+
+// DiscriminatorInferenceHeuristic is the name a union's Provenance.Inferred
+// carries where the discriminator-inference policy filled its discriminator,
+// and a subtype's where it read its tag.
+const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
@@ -115,6 +159,12 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
+	// GroupingExtension is what GroupByExtension reads, set as text by the
+	// options grouping-key, grouping-lists and grouping-fallback, and refused
+	// with any other strategy. Naming neither Key nor Lists reads
+	// DefaultGroupingExtension's, and naming one without the other is refused,
+	// since conventions disagree on a list. Fallback defaults to GroupByTags.
+	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
 	// StreamingMedia selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
@@ -133,6 +183,12 @@ type Options struct {
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
 	NullableWidening NullableWidening `json:"nullableWidening"`
+	// DiscriminatorInference selects whether a union's tag is read off the
+	// value each variant pins its tag property to, where the document declares
+	// no mapping or no discriminator, and a subtype's routed by name off the
+	// values it admits, what it reads marked as inferred. The zero value is on;
+	// a caller who wants only what the document declares disables it.
+	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -266,14 +322,14 @@ type Limits struct {
 	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
 	// neither (docs/parser-library.md#resolution-unbounded).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
-	// MaxReferenceExpansion bounds what lowering copies through $refs. A
-	// declaration a $ref names, a schema or a link aside, lowers again at every
-	// $ref naming it, so each such $ref is charged what its chain's declarations
-	// weigh, each component alias included: one for each YAML node, a YAML alias
-	// as a copy of what it names, and one for each byte of scalar text, but one
-	// for a schema, which lowers once. A document whose $refs copy past it is
-	// refused as openapi/budget-exceeded, compiling to no Document. The other
-	// budgets bound references and declarations apart, not their product.
+	// MaxReferenceExpansion bounds what lowering copies through $refs and path
+	// items. A declaration a $ref names, a schema aside, lowers again at every
+	// $ref naming it, so each is charged what its chain's declarations weigh,
+	// each component alias included: one for each YAML node, a YAML alias as a
+	// copy of what it names, and one for each byte of scalar text, but one for a
+	// schema, which lowers once. Each additionalOperations entry is charged its
+	// copy of what its path item declares. A document past it is refused as
+	// openapi/budget-exceeded, compiling to no Document.
 	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
 }
 
@@ -313,22 +369,65 @@ func (o Options) withDefaults() Options {
 	if o.Grouping == "" {
 		o.Grouping = GroupByTags
 	}
+	if o.Grouping != GroupByExtension {
+		return o
+	}
+	if o.GroupingExtension.Key == "" && o.GroupingExtension.Lists == "" {
+		def := DefaultGroupingExtension()
+		def.Fallback = o.GroupingExtension.Fallback
+		o.GroupingExtension = def
+	}
+	if o.GroupingExtension.Fallback == "" {
+		o.GroupingExtension.Fallback = GroupByTags
+	}
 	return o
+}
+
+// checkGrouping refuses a grouping extension o cannot read as asked, o having
+// its defaults: one beside another strategy, a key naming no extension, a key
+// or list reading without the other, and a fallback that is not a strategy an
+// operation stating no path can be grouped by. Each error names the text
+// option setting the field, as GroupingExtension's doc pairs them.
+func (o Options) checkGrouping() error {
+	ext := o.GroupingExtension
+	if o.Grouping != GroupByExtension {
+		if ext != (GroupingExtension{}) {
+			return fmt.Errorf("openapi: options %q, %q and %q apply only with %q set to %q",
+				optGroupingKey, optGroupingLists, optGroupingFallback, optGrouping, GroupByExtension)
+		}
+		return nil
+	}
+	if !strings.HasPrefix(ext.Key, "x-") {
+		return fmt.Errorf("openapi: option %q: want an extension name starting \"x-\", got %q", optGroupingKey, ext.Key)
+	}
+	if ext.Lists != ListsAreSegments && ext.Lists != ListsAreGroups {
+		return fmt.Errorf("openapi: option %q: want %q or %q beside %q, as conventions disagree on what a list means, got %q",
+			optGroupingLists, ListsAreSegments, ListsAreGroups, optGroupingKey, ext.Lists)
+	}
+	if ext.Fallback != GroupByTags && ext.Fallback != GroupByPathPrefix {
+		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
+			optGroupingFallback, GroupByTags, GroupByPathPrefix, ext.Fallback)
+	}
+	return nil
 }
 
 // The option names Options answers to as text. They are this compiler's own
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping           = "grouping"
-	optAllowExternalRefs  = "allow-external-refs"
-	optOverlay            = "overlay"
-	optOverlayLax         = "overlay-lax"
-	optNullableWidening   = "nullable-widening"
-	optStreamingMedia     = "streaming-media"
-	optStreamingInference = "streaming-inference"
-	optBinaryMedia        = "binary-media"
-	optBinaryInference    = "binary-inference"
+	optGrouping               = "grouping"
+	optGroupingKey            = "grouping-key"
+	optGroupingLists          = "grouping-lists"
+	optGroupingFallback       = "grouping-fallback"
+	optAllowExternalRefs      = "allow-external-refs"
+	optOverlay                = "overlay"
+	optOverlayLax             = "overlay-lax"
+	optNullableWidening       = "nullable-widening"
+	optDiscriminatorInference = "discriminator-inference"
+	optStreamingMedia         = "streaming-media"
+	optStreamingInference     = "streaming-inference"
+	optBinaryMedia            = "binary-media"
+	optBinaryInference        = "binary-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -349,8 +448,9 @@ func limitOptions(l *Limits) map[string]*int {
 // as the vocabulary grows.
 func optionNames() []string {
 	names := []string{
-		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
-		optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
+		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
+		optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia, optStreamingInference,
+		optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -390,6 +490,8 @@ func (d *optionDecode) set(key, value string) error {
 	switch key {
 	case optGrouping:
 		return decodeGrouping(&d.opts.Grouping, value)
+	case optGroupingKey, optGroupingLists, optGroupingFallback:
+		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
 	case optOverlay:
@@ -411,6 +513,11 @@ func (d *optionDecode) set(key, value string) error {
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.NullableWidening.Disabled = !on
+		return err
+	case optDiscriminatorInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.DiscriminatorInference.Disabled = !on
 		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
@@ -434,9 +541,32 @@ func (d *optionDecode) set(key, value string) error {
 		key, strings.Join(optionNames(), ", "))
 }
 
+// groupingExtension reads one of the settings that fill GroupingExtension. An
+// empty value is refused rather than read as unset, which would take a default
+// the caller did not ask for; what a value must be is checked once the set is
+// whole (checkGrouping), as one field's validity can turn on another's.
+func (d *optionDecode) groupingExtension(key, value string) error {
+	if value == "" {
+		return fmt.Errorf("openapi: option %q: want a value, got an empty one", key)
+	}
+	ext := &d.opts.GroupingExtension
+	switch key {
+	case optGroupingKey:
+		ext.Key = value
+	case optGroupingLists:
+		ext.Lists = ExtensionLists(value)
+	default:
+		ext.Fallback = GroupingStrategy(value)
+	}
+	return nil
+}
+
 // finish assembles the decoded Options, naming the overlay document a setting
 // named, for the compile to read.
 func (d *optionDecode) finish() (Options, error) {
+	if err := d.opts.withDefaults().checkGrouping(); err != nil {
+		return Options{}, err
+	}
 	if d.overlayPath == "" {
 		if d.laxSet {
 			return Options{}, fmt.Errorf("openapi: option %q applies only with %q",
@@ -452,12 +582,12 @@ func (d *optionDecode) finish() (Options, error) {
 // string the JSON form uses.
 func decodeGrouping(out *GroupingStrategy, value string) error {
 	switch strategy := GroupingStrategy(value); strategy {
-	case GroupByTags, GroupByPathPrefix:
+	case GroupByTags, GroupByPathPrefix, GroupByExtension:
 		*out = strategy
 		return nil
 	default:
-		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
-			optGrouping, GroupByTags, GroupByPathPrefix, value)
+		return fmt.Errorf("openapi: option %q: want %q, %q or %q, got %q",
+			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, value)
 	}
 }
 

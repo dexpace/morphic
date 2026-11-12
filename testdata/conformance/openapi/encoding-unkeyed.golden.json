@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -116,8 +118,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -186,8 +187,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -273,8 +273,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -349,8 +348,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -420,8 +418,7 @@
                       "application/x-www-form-urlencoded"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -608,7 +605,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/paths/~1union/post/requestBody/content/multipart~1form-data/schema/oneOf/0": {
       "kind": "model",

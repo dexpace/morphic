@@ -101,9 +101,8 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 // TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead covers the keywords
 // the winning lowering never reads (GitHub #268). lower() elects one keyword
 // family per position, and what the elected form has no field for must be kept:
-// a Model has no type token, a Literal no encoding or Constraints, none of
-// which a keyword list shows, only the node that was built, which is what the
-// census asks.
+// a Model has no type token, a Literal no Constraints and no type or format its
+// value does not fit. Only the built node shows it, which the census asks.
 //
 // The kept set is asserted whole, so a census that keeps too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a
@@ -119,12 +118,15 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 			ir.KindModel, []string{"openapi:type"}},
 		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
 			ir.KindModel, nil},
+		// The value fits the type and format, so the literal's ValueType holds both.
 		{"format beside const", "{const: 5, type: integer, format: int32}",
-			ir.KindLiteral, []string{"openapi:format", "openapi:type"}},
+			ir.KindLiteral, nil},
 		{"contradictory type beside const", "{const: 5, type: string}",
 			ir.KindLiteral, []string{"openapi:type"}},
+		// The literal's ValueType holds the type its value fits; no bound reaches
+		// a field.
 		{"value constraint beside const", "{const: ab, type: string, maxLength: 1}",
-			ir.KindLiteral, []string{"openapi:maxLength", "openapi:type"}},
+			ir.KindLiteral, []string{"openapi:maxLength"}},
 		// A collection bound is homed by the Constraints of a List or a Tuple and
 		// by nothing else, so an object keeps it here and the tuple, its control,
 		// keeps nothing.
@@ -272,14 +274,14 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 
 // TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a
 // model that routes by its discriminator holds it, so nothing is kept verbatim
-// and nothing is reported. A type array lowers each type as a variant of the
-// same schema, so its object variant holds one.
+// and nothing is reported. A model needs no type to hold one: properties alone
+// make it.
 func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(cat + dog +
 		"    U: {oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}], discriminator: {propertyName: kind}}\n" +
 		"    Base: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
-		"    Multi: {type: [object, string], properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
+		"    Untyped: {properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
@@ -287,12 +289,11 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.NotNil(t, u.Discriminator)
-	base, ok := typeByName(doc, "Base").(*ir.Model)
-	require.True(t, ok)
-	assert.NotNil(t, base.Discriminator)
-	variant, ok := doc.Types["t/anon/components/schemas/Multi/type/0"].(*ir.Model)
-	require.True(t, ok)
-	assert.NotNil(t, variant.Discriminator)
+	for _, name := range []string{"Base", "Untyped"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, name)
+		assert.NotNil(t, m.Discriminator, name)
+	}
 	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
 }

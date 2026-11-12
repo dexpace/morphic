@@ -64,6 +64,16 @@ func TestKeywordHome_AnUnknownKeywordIsHomedNowhere(t *testing.T) {
 		"a keyword with no arm has no home on any node")
 }
 
+// TestLiteralTyped_AnUnknownKindIsTypedByNothing reaches the arm no lowering
+// can: a value kind ir does not declare. Answering that no type holds it keeps
+// the `type` keyword verbatim beside the literal, noisy but never lossy.
+func TestLiteralTyped_AnUnknownKindIsTypedByNothing(t *testing.T) {
+	t.Parallel()
+	lit := &ir.Literal{Value: ir.Value{Kind: "bogus"}, ValueType: ir.PrimString}
+	s := &oas3.Schema{Type: oas3.NewTypeFromString(oas3.SchemaTypeString)}
+	assert.False(t, literalTyped(lit, s), "a kind with no arm is held by no declared type")
+}
+
 // TestKeywordHome_EveryCensusKeywordHasANodeThatCarriesIt pins the agreement
 // censusKeywords and keywordHome's switch have to keep, in the direction the
 // default cannot fake.

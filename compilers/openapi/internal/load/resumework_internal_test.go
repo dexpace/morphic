@@ -19,7 +19,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,14 +34,14 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	readyForModel(t.Context(), tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
-	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, tree), nil)
+	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, treeOf(t.Context(), provenance.Doc{}, tree), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	ext.work.steps = budget.New(budget.AtMost(limit))
-	at := pointerAt(0, overlay.Origin{})
+	at := provenance.Doc{}
 	pass := newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)
 	pass.run(t.Context(), doc)
-	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
+	return ext.work, append(pass.diags(places{source: at}), crossed(at, &ext)...)
 }
 
 // TestSettle_TheResumedWorkIsBounded pins maxResumeWork's bound. Two chains

@@ -40,6 +40,8 @@ type Index struct {
 	root           *yaml.Node
 	nodes          int
 	nesting        int
+	written        int
+	pointers       int
 	anchorCycles   []*yaml.Node
 	taggedMappings []*yaml.Node
 	truncated      bool
@@ -85,6 +87,20 @@ func (x Index) Nodes() int { return x.nodes }
 // its own ancestor expands without end, and counts here as far as one turn.
 func (x Index) Nesting() int { return x.nesting }
 
+// Written is how many bytes the tree's nodes write before any alias is
+// substituted: each node's own text and one byte for the node, so a mapping's
+// keys count and a document's layout does not. It is meaningful only when
+// Truncated is false.
+func (x Index) Written() int { return x.written }
+
+// PointerBytes is how many bytes the JSON pointers naming the tree's nodes total,
+// every alias expanded: for each node, the keys and indexes on the way to it
+// from the root, each with a '/'. A compile names each node it reads by its
+// pointer, and the IR's IDs embed them, so this grows with each node's depth
+// times its keys' lengths, which neither Nesting nor Nodes bounds. It saturates
+// at math.MaxInt and is meaningful as Nesting is.
+func (x Index) PointerBytes() int { return x.pointers }
+
 // AnchorCycles lists, in document order, every alias whose target is one of
 // its own ancestors — a recursive YAML anchor that expands without bound.
 // Legal anchor reuse, where an alias names a node that is not an ancestor, is
@@ -116,13 +132,21 @@ func (x Index) TaggedMappings() []*yaml.Node { return slices.Clone(x.taggedMappi
 func (x Index) Truncated() bool { return x.truncated }
 
 // walker is one walk's working state: the ancestors of the node being visited,
-// the deepest nesting met so far under each node still open, and the measure
-// an alias's target is taken from.
+// each node still open with the shape of its children finished so far, and the
+// measure an alias's target is taken from.
 type walker struct {
 	x         *Index
 	ancestors map[*yaml.Node]bool
-	tallest   []int
+	open      []openNode
 	measure   *Measure
+}
+
+// openNode is a node the walk has entered and not left: the shape of the
+// children it has finished, and the index in its Content of the next.
+type openNode struct {
+	n     *yaml.Node
+	shape shape
+	next  int
 }
 
 // walk visits every node once, in document order, counting and measuring as
@@ -148,18 +172,19 @@ func (x *Index) walk(ctx context.Context, maxNodes int) {
 // node is opened, for leave to close once its children are measured.
 func (w *walker) visit(ctx context.Context, n *yaml.Node, depth int) nodeview.Step {
 	w.x.recordTag(n)
+	w.x.written = sum(w.x.written, len(n.Value)+1)
 	tracked := depth <= maxTrackedDepth
 	if n.Kind == yaml.AliasNode {
 		if tracked {
 			w.x.recordAlias(n, w.ancestors)
 		}
-		w.finish(w.measure.Of(ctx, n))
+		w.finish(w.measure.shapeOf(ctx, n))
 		return nodeview.Prune
 	}
 	if tracked {
 		w.ancestors[n] = true
 	}
-	w.tallest = append(w.tallest, 0)
+	w.open = append(w.open, openNode{n: n, shape: shape{nodes: 1}})
 	return nodeview.Descend
 }
 
@@ -168,20 +193,26 @@ func (w *walker) leave(n *yaml.Node, depth int) {
 	if depth <= maxTrackedDepth {
 		delete(w.ancestors, n)
 	}
-	tallest := w.tallest[len(w.tallest)-1]
-	w.tallest = w.tallest[:len(w.tallest)-1]
-	w.finish(tallest + Level(n))
+	done := w.open[len(w.open)-1].shape
+	w.open = w.open[:len(w.open)-1]
+	done.nesting += Level(n)
+	w.finish(done)
 }
 
-// finish hands a finished node's nesting to the node holding it, or to the
-// index when it is the root.
-func (w *walker) finish(nesting int) {
-	if len(w.tallest) == 0 {
-		w.x.nesting = nesting
+// finish hands a finished node's shape to the node holding it, under the
+// pointer that node's Content index gives it, or to the index when it is the
+// root. The walk visits no nil child, so the index skips those first.
+func (w *walker) finish(s shape) {
+	if len(w.open) == 0 {
+		w.x.nesting, w.x.pointers = s.nesting, s.pointers
 		return
 	}
-	top := &w.tallest[len(w.tallest)-1]
-	*top = max(*top, nesting)
+	top := &w.open[len(w.open)-1]
+	for top.next < len(top.n.Content) && top.n.Content[top.next] == nil {
+		top.next++
+	}
+	top.shape = top.shape.holding(s, edge(top.n, top.next))
+	top.next++
 }
 
 // recordTag keeps every mapping whose tag is not MapTag. The comparison is the

@@ -40,10 +40,9 @@ drew it (`references/lossless-and-diagnostics.md`).
 
 ## Traps that recur
 
-Each is a rule in the references below, with its evidence and probe.
-
 - One construct has several readers: before changing how a keyword is read, find every reader of
-  it (`references/openapi-lessons.md#every-reader`).
+  it (`references/openapi-lessons.md#every-reader`), and before changing a position's node kind,
+  the old kind's readers (`references/openapi-lessons.md#readers-of-a-changed-kind`).
 - A reading the library already implements is called, not re-derived
   (`references/openapi-lessons.md#reuse-library-readings`), but two schemas are compared by
   rendering their raw nodes, as the model misses keywords
@@ -53,8 +52,9 @@ Each is a rule in the references below, with its evidence and probe.
   (`references/lossless-and-diagnostics.md#one-defect-one-finding`).
 - A version's specification text decides validity, not its published JSON Schemas
   (`references/openapi-lessons.md#spec-text`).
-- A new bound's outcome, refusal or warning, comes from the rule entry for its kind
-  (`references/openapi-lessons.md#bound-outcome-from-the-rules`).
+- A new bound's outcome comes from the rule entry for its kind
+  (`references/openapi-lessons.md#bound-outcome-from-the-rules`), or from what its cut changes
+  (`references/openapi-lessons.md#bound-of-another-kind`).
 - A refusal made after a `$ref` has read a document keeps each finding in its source table
   (`references/openapi-lessons.md#refusal-findings-in-its-table`).
 - A new entry in `ids.Namespaces` rewrites every golden document

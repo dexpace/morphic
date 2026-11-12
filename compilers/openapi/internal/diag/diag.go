@@ -36,6 +36,18 @@ const (
 	// after which what was named is gone, so accepting this finding accepts no
 	// lost reference with it.
 	UnresolvedSecurityScheme = "openapi/unresolved-security-scheme"
+	// InvalidLink reports a link, at the link, whose target, a parameter it
+	// names or a value it reads names nothing the document declares, names it
+	// ambiguously or breaks the runtime-expression grammar. The link is kept
+	// verbatim (docs/compilers/openapi.md#links). A warning, as a broken rule
+	// the validator finds is: nothing is lost, and the rest of the document
+	// stands.
+	InvalidLink = "openapi/invalid-link"
+	// UntypedLink reports a link, at the link, that reads a value no
+	// ir.LinkValue spells, such as an operation of another document or a member
+	// reached through an array index, and is kept verbatim. An info: the
+	// document is sound, and the IR has no field for what it says.
+	UntypedLink = "openapi/untyped-link"
 	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
 	// before the parser library overflows its stack on it
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
@@ -145,12 +157,14 @@ const (
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see boundLiteralDiag).
+	// number, at every schema the load phase's check reads (error severity:
+	// Morphic owns these keywords, so this is the sole diagnostic for the
+	// defect — see load.ownedFinding).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
-	// form is wrong for the document's dialect (a boolean under 2020-12, or a
-	// number under 3.0) — see exclusiveFormDiag.
+	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
+	// number under 3.0's or draft 4's), at every schema the load phase's check
+	// reads — see load.ownedFinding.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -198,9 +212,10 @@ const (
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
 	// the top type), or dropped — an annotation like a default or example, or
 	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion reports it for an extension kept but read into no field
-	// (lowering.Promoter). It marks the lossy lowerings the compiler reports, not
-	// a guarantee that every lossy lowering is reported.
+	// promotion or grouping by extension reports it for an extension kept but
+	// read into no field or group (lowering.Promoter, operation.extensionLevels).
+	// It marks the lossy lowerings the compiler reports, not a guarantee that
+	// every one is.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -253,12 +268,21 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
+	// PointerAmplification reports a document whose nodes' JSON pointers, the
+	// keys and indexes on the way to each, total past a fixed multiple of the
+	// bytes it writes (scan's maxPointerAmplification, with a floor for small
+	// documents). A compile spells a pointer for every node of the model it
+	// reads, and the IR's IDs embed them, so long keys nested deep cost gigabytes
+	// inside every other bound (GitHub #931). It refuses the document before the
+	// parser builds it, at the document, and like AliasAmplification no setting
+	// admits one. Values kept verbatim are counted too (GitHub #1499).
+	PointerAmplification = "openapi/pointer-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
-	// enum's members (GitHub #75), external documents, what $refs copy. Fixed
-	// bounds cover load's schema $refs, chains through other documents and rule
-	// checks, detection's merges, and the declarations of one field the allOf
-	// merge judges.
+	// enum's members (GitHub #75), external documents, what $refs and path
+	// items copy. Fixed bounds cover load's schema $refs, chains through other
+	// documents and rule checks, detection's merges, and the declarations of one
+	// field the allOf merge judges.
 	//
 	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
 	// error: the document is refused, validation stops, an enum loses its members
@@ -427,14 +451,15 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, or a keyword beside a 3.0 schema's $ref, which 3.1 applies. It is
-	// lowered as in a document declaring that minor, the reading that loses the
-	// least: from the lowering and this diagnostic a consumer can set it aside,
-	// while from a verbatim copy it could not recover the lowering
+	// on, lowered as in a document declaring that minor, or a keyword beside a
+	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
+	// versions apply one and read in its schema's minor and dialect. Either
+	// reading loses least: a consumer can set the construct aside, and could not
+	// recover the lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
-	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
-	// document is invalid for the version it declares, but it still lowers.
+	// A warning: the construct lowers, though the version or dialect it is
+	// written in reads it otherwise.
 	LaterVersionConstruct = "openapi/later-version-construct"
 	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
 	// document, so it has no sequence of items to describe
@@ -464,6 +489,29 @@ const (
 	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
 	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
+	// UnreadDialect reports a `$schema` on a schema resource root, or a
+	// jsonSchemaDialect, naming a JSON Schema dialect the rule table has no
+	// rows for, at it: the schemas it governs are read in the dialect their
+	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).
+	// Warning: a keyword written in that dialect may read otherwise there.
+	UnreadDialect = "openapi/unread-dialect"
+	// InvalidItemsList reports `items` written as a list, a tuple as JSON
+	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
+	// no list there, at it. The rule table's check leaves such a list to the
+	// load phase, which knows the schema's dialect once its references are
+	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
+	// is.
+	InvalidItemsList = "openapi/invalid-items-list"
+	// InferredDiscriminator reports a mapping the discriminator-inference
+	// policy reads off the tag values a union's variants pin, where the
+	// discriminator declares none and the component names OpenAPI's implicit
+	// mapping routes by are not those values, at the discriminator; and a
+	// subtype's tag it reads off the values the subtype admits, where they rule
+	// out the name it is routed by, at the subtype. The node is marked Inferred
+	// (docs/compilers/openapi.md#discriminator-inference).
+	// Info, as InferredNullable is: the reading is the document's evident
+	// intent, and the mark keeps the declared one.
+	InferredDiscriminator = "openapi/inferred-discriminator"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

@@ -9,15 +9,13 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/ir"
 )
 
 // binaryCtx builds a context carrying nothing but the binary policy.
 func binaryCtx(policy lowering.BinaryMedia) lowering.Ctx {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, policy,
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Binary: policy})
 }
 
 // TestMediaTypeBinary_AnswersFromThePolicy pins every answer the policy gives:

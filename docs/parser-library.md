@@ -173,6 +173,29 @@ components:
 - Code:
   - `load.resolvable` hands the resolver every reference object, cycles included.
 
+### `reference-chain-walk`
+
+A reference object's object and root node are its chain's end, though its resolution record names
+the next hop. Asked of a reference, `GetObject` and `GetRootNode` walk every hop from it, checking
+each against the hops walked before with a linear scan and keeping them in a slice past the first
+eight. So one answer costs the square of the chain's length in time, and asking each reference of
+a chain costs the cube, though every answer is the same end.
+
+```yaml
+components:
+  parameters:
+    P0: {$ref: '#/components/parameters/P1'}
+    P1: {$ref: '#/components/parameters/P2'}
+    P2: {name: q, in: query}
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/reference-chain-walk`
+- Code:
+  - `load.chain.end` is read once a chain, off the object its last hop reached.
+  - `load.chainEnds` answers the reached-object check from the records a resolution keeps,
+    remembering ends across chains past their hop bound.
+
 ### `trailing-empty-token`
 
 Through raw YAML, a pointer whose last token is empty names the node the walk has reached, not a
@@ -643,6 +666,30 @@ components:
 - Code:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
   - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
+
+### `failure-beneath-itself`
+
+A schema holding a keyword that fails to decode beneath one of its own name decodes as the boolean
+`false` schema, though its node is the mapping written there: an `items` above a list of `items`,
+which a JSON Schema draft writes as a tuple, or above one through `properties`, and a `not` above a
+`not` written as a number. Decoded on its own, the mapping is the schema it writes, the keyword that
+failed alone `false`, so in a chain of such schemas the next one down decodes as `false` in turn. A
+property above a list of `items` decodes as written.
+
+```yaml
+components:
+  schemas:
+    A: {type: array, items: {type: array, items: [{type: string}]}}
+    N: {not: {required: [a], not: 5}}
+```
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/failure-beneath-itself`
+- Code:
+  - `bind/typed.Builder.mend` decodes each such schema again, in place, up to `typed.MaxMends` of
+    them one below another, once `Build` has built the landings.
+  - `schema.unmended` tells one left past that bound, which the lowering reports and lowers as the
+    top type.
 
 ### `null-type-is-empty`
 

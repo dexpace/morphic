@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -110,8 +112,7 @@
                     "method": "GET",
                     "uriTemplate": "/items",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -193,7 +194,8 @@
       "value": {
         "kind": "string",
         "str": "2021-01-01"
-      }
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/R": {
       "kind": "model",

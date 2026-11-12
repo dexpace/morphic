@@ -18,9 +18,10 @@ type Tuple struct   { TypeCommon; Elems []TypeRef; Rest *TypeRef; Constraints *C
                     // prefixItems + items, TypeSpec tuples, Erlang tuples
                     // Rest: the type of every element past Elems; nil = none may follow
                     // Constraints: minItems/maxItems/uniqueItems over the whole instance
-type Literal struct { TypeCommon; Value Value }
+type Literal struct { TypeCommon; Value Value; ValueType PrimKind }
                     // const, a source's literal types, Erlang atoms;
-                    // a one-member enum is an Enum (docs/ir/enums.md)
+                    // a one-member enum is an Enum (docs/ir/enums.md);
+                    // ValueType as an Enum's, "" for a null, list or object
 type External struct{ TypeCommon; Identity string; Package string; MinVersion string } // resolve to a well-known library type (TCGC external)
 type Any struct     { TypeCommon }                                         // schemaless
 ```
@@ -29,6 +30,16 @@ Containers are real type nodes with IDs (hoisted like all anonymous types), not 
 references — Kiota's `CollectionKind` flag couldn't express nested collections or constrained
 lists cleanly. `External` also carries opaque runtime handles that no target can structurally
 model (`erlang:pid`, `erlang:fun` — see [boundaries](./boundaries.md#degraded-constructs)).
+
+## Literals
+
+A `Literal` is one value, and `ValueType` is the primitive the source types it as, read as an
+enum's `ValueType` is ([enums](./enums.md)): the primitive a declared type and format select where
+the value is one of it, else the declared type's, else the primitive the value's own kind declares.
+The `Value` alone cannot say it: `80` declared an integer and `80` declared a number are one
+`Value`, as are a string and a date of one text, and an emitter typing the literal needs the
+difference. A null, a list and an object are of no primitive, so their `ValueType` is empty, and a
+type a composite value already is, `object` beside an object, says nothing the value does not.
 
 ## Maps
 

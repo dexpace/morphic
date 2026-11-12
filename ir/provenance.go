@@ -41,6 +41,11 @@ type Provenance struct {
 	// whole document, so a node with no single place in any source, such as a
 	// shared primitive, is on NoSource rather than at the root of one.
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
+	// WrittenBy indexes, into Source's table, the input that wrote what Pointer
+	// addresses when that is not Source: an overlay, which writes into the
+	// document it patches, at that document's positions. 0 = Source wrote it,
+	// since entry 0, the document compiled, writes into no other.
+	WrittenBy int `json:"writtenBy,omitzero"`
 	// Position is where the construct starts inside Source, for a finding made
 	// on a raw node: beside the node's Pointer when the tree holds it, alone for
 	// a part of the source no pointer reaches and for the document's top-level
@@ -210,10 +215,10 @@ func SourceHash(data []byte) string {
 const OverlayFormat = "overlay"
 
 // IsOverlay reports whether s is an overlay applied to the source. A construct
-// an overlay wrote into the document it patched is credited to the overlay at
-// its position in that document, so a Provenance naming an overlay can spell
-// a position of either document. Another document a split source reads names
-// its own positions alone.
+// an overlay wrote into the document it patched names that document as its
+// Source and the overlay as its Provenance.WrittenBy, so a Provenance whose
+// Source is an overlay spells a position of the overlay itself, as another
+// document a split source reads names its own positions alone.
 func (s SourceInfo) IsOverlay() bool {
 	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }

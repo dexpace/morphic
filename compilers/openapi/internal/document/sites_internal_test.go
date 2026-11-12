@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 )
 
@@ -35,7 +36,7 @@ func TestSites_ListEveryObjectAroundTheMetadata(t *testing.T) {
 		scope string
 		owner jsontext.Pointer
 	}
-	all := sites(lowering.Ctx{Doc: doc})
+	all := sites(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 	got := make([]keyed, 0, len(all))
 	for _, s := range all {
 		got = append(got, keyed{s.scope, s.owner})

@@ -24,6 +24,20 @@ type Policy struct {
                                        // (../refine/unions.md)
     ProtocolEffects bool               // default on: an operation stating no effects takes
                                        // what its binding's protocol defines (below)
+    Examples        ExamplePolicy      // default both on, depth 3, 2 items: what may be made where
+                                       // no example is declared (../docs-and-mock.md)
+}
+
+type ExamplePolicy struct {
+    Synthesize bool                    // off leaves an entity with none declared without one
+    Assemble   bool                    // off leaves an operation declaring no success scenario
+                                       // without one built from its inputs' sets, a message's
+                                       // payload unpaired and an example Shown unfilled
+    MaxDepth   int                     // how many models deep a value fills optional members,
+                                       // its own the first; required ones go as deep as needed
+    MaxItems   int                     // how many entries a list or map holds, raised to its
+                                       // minItems or minProps, lowered to its maxItems or maxProps;
+                                       // deeper than MaxDepth or on a recurrence, its minimum
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"
@@ -34,16 +48,17 @@ guard against a heuristic silently defaulting on and quietly making the plan non
 
 ## The policy is data
 
-Every field is a value from a closed vocabulary the plan package defines, and none is a function.
-So a policy encodes, compares and hashes as what it says, and `Plan.Version` hashes it
-([the plan](overview.md#the-plans-version)). A function has no bytes to hash: its printed form is
-an address that changes every run, and skipping it gives two policies that pick different responses
-one version. A heuristic the vocabulary lacks is added to it, in this package, so it ships in a new
-build, which the plan cache keys on ([the plan](overview.md#the-plans-version)). A strategy
-registered from outside by name and version was weighed and refused: a function may close over what
-a run sets, so neither its name and version nor the build fixes what it does, and two runs that pick
-differently would share a key. So was a caller-supplied ID hashed in the policy's place, which fails
-the same way when the caller forgets to change it.
+Every field is a value from a closed vocabulary the plan package defines, or a count such as an
+example bound, and none is a function. So a policy encodes, compares and hashes as what it says, and
+`Plan.Version` hashes it ([the plan](overview.md#the-plans-version)). A function has no bytes to
+hash: its printed form is an address that changes every run, and skipping it gives two policies that
+pick different responses one version. A heuristic the vocabulary lacks is added to it, in this
+package, so it ships in a new build, which the plan cache keys on ([the
+plan](overview.md#the-plans-version)). A strategy registered from outside by name and version was
+weighed and refused: a function may close over what a run sets, so neither its name and version nor
+the build fixes what it does, and two runs that pick differently would share a key. So was a
+caller-supplied ID hashed in the policy's place, which fails the same way when the caller forgets to
+change it.
 
 A configuration is read as a target's options are ([target options](../contract/options.md)):
 strictly, and over the defaults of the version it states, which `DefaultPolicy(version)` returns,
@@ -52,8 +67,8 @@ One that states no version is refused, and so is an absent one, as a target's ar
 defaults apply must not be guessed. The comments above name the current version's defaults. The
 zero `Policy` is not the default: it turns every switch off and lists nothing, so no rule picks a
 primary response and every operation returns `void`. A `Policy` built in Go meets no decoder, so
-`Build` reports a rule outside the vocabulary or listed twice as an error
-`emitters/plan/policy-invalid`, and plans as if it were left out.
+`Build` reports a rule outside the vocabulary or listed twice, and a negative example bound, as an
+error `emitters/plan/policy-invalid`, and plans as if the rule were left out and the bound 0.
 
 ## The default response is classed here
 
@@ -74,15 +89,21 @@ summarizes only the streams an operation's success responses declare, so no `Str
 ## A union a client reads is open
 
 An API that adds a variant must not break every SDK already deployed on the first response carrying
-it, so under `OpenUnions` a union or polymorphic base is `Open` wherever `Facts.Usage` marks it
-`Output`, marked `Inferred`. A value no variant recognizes is then kept rather than refused
-([unions](../refine/unions.md)). That covers a type read and written alike: a response can carry it
-whatever else the type does, and a kept value a caller sends back goes out as it came. A type only
-ever written stays closed, and no SDK decodes one. Turning the policy off closes every union. The IR
-has no field saying a union is open or closed (#664); once it does, a declared answer wins, as
-[precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has it. The
-plan records the choice so that docs and a mock agree with the SDK ([docs and
-mocks](../docs-and-mock.md)).
+it, so under `OpenUnions` a closed union, a polymorphic base, or a model narrowing a closed union,
+which the three targets lower as that union ([inheritance](../refine/models.md#inheritance)), is
+`Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
+then kept rather than refused ([unions](../refine/unions.md)). That covers a type read and written
+alike: a response can carry it whatever else the type does, and a kept value a caller sends back
+goes out as it came. A union the IR declares open, `Closed` false as a Smithy union lowers or a
+promoted key makes one, is `Open` wherever it is used, and so is a model narrowing one, unmarked
+since the IR states it, as
+[precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
+declared fact win. A closed one only ever written stays closed, and no SDK decodes one. Turning the
+policy off leaves every union as the IR says, and every polymorphic base and every model narrowing a
+closed union closed. Opening a closed union no more overrides `Union.Closed` than opening an enum
+overrides `Enum.Closed` (below): it says what this version of the API admits, not what a later one
+will add ([open unions](../../ir/unions.md#open-unions)). The plan records the choice so that docs
+and a mock agree with the SDK ([docs and mocks](../docs-and-mock.md)).
 
 ## An enum a client reads is open
 
@@ -181,9 +202,11 @@ admitting no value `Succeeds` lists, keeps from matching is passed over, since r
 every call, so the next envelope may match it, and an envelope never reads a body worse than no
 envelope does. Such a body that no envelope then matches is read as with none and draws a warning
 `emitters/plan/envelope-flag-mismatch`, once, so a configuration whose later entry reads it draws
-none. An `Except` or `Bases` entry naming nothing in the document, and an envelope no body matches,
-are reported as a warning `emitters/plan/envelope-unused`, since one policy may serve several
-documents.
+none. An envelope no body matches is reported as a warning `emitters/plan/envelope-unused`, since
+one policy may serve several documents. An `Except` or `Bases` entry naming nothing in the document
+is passed over by `Build`, since the engine reported it before `Build` ran, as a warning
+`emitters/unmatched-key` for the same reason ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)).
 
 `Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
 JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A

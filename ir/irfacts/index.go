@@ -25,16 +25,18 @@ type Index struct {
 	subtypeWalks  atomic.Int64 // steps left to walk subtype questions before indexing the hierarchy
 	exposureWalks atomic.Int64 // steps left to walk exposure questions before indexing them
 
-	hierarchyOnce  sync.Once
-	hierarchy      *hierarchy
-	exposureOnce   sync.Once
-	exposure       *exposure
-	graphOnce      sync.Once
-	graph          *typeGraph
-	usageOnce      sync.Once
-	usage          map[ir.TypeID]UsageFlags
-	componentsOnce sync.Once
-	components     *components
+	hierarchyOnce   sync.Once
+	hierarchy       *hierarchy
+	exposureOnce    sync.Once
+	exposure        *exposure
+	graphOnce       sync.Once
+	graph           *typeGraph
+	usageOnce       sync.Once
+	usage           map[ir.TypeID]UsageFlags
+	componentsOnce  sync.Once
+	components      *components
+	correlationOnce sync.Once
+	correlation     *correlations
 }
 
 // New returns the index of doc's facts. It builds nothing: each index is built

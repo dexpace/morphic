@@ -581,7 +581,7 @@ func resourcesTable(t *testing.T) *bind.Table {
 // TestBase_ReadsTheURIAReferenceResolvesAgainst pins, on the resource
 // fixture, the base each position's references read against: its document's
 // where no $id at or above it names another URI, and that $id's otherwise. A
-// schema past the merge bound may hide an $id, so its base is not known.
+// schema past the merge bound may hide an identifier, so its base is not known.
 func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	t.Parallel()
 	table := resourcesTable(t)

@@ -41,10 +41,40 @@ func checkProvenance(doc *ir.Document) walkCheck {
 				})
 			}
 			vs = appendLocatorViolations(vs, v, src, at)
+			vs = appendWriterViolation(vs, doc.Sources, src, int(v.FieldByName("WrittenBy").Int()), at)
 			return false // Provenance holds no nested Provenance
 		},
 		report: reporting(&vs),
 	}
+}
+
+// appendWriterViolation reports a WrittenBy that names no overlay writing into
+// src (docs/ir/provenance.md): 0 says src wrote it, and any other index must be
+// an overlay entry of sources other than src itself, since only an overlay
+// writes into a document it is not. On ir.NoSource there is no document to
+// write into, so any writer is reported.
+func appendWriterViolation(vs []Violation, sources []ir.SourceInfo, src, writer int, at ir.WalkPath) []Violation {
+	if writer == 0 {
+		return vs
+	}
+	why := ""
+	switch {
+	case writer < 0 || writer >= len(sources):
+		why = "addresses none of " + strconv.Itoa(len(sources)) + " declared sources"
+	case src == ir.NoSource:
+		why = "names a writer for a provenance that names no source to write into"
+	case writer == src:
+		why = "names the source itself, which 0 already says"
+	case !sources[writer].IsOverlay():
+		why = "names a source that is no overlay, and only an overlay writes into another document"
+	default:
+		return vs
+	}
+	return append(vs, Violation{
+		Code:    "ir/provenance-writer",
+		Message: "provenance writer " + strconv.Itoa(writer) + " " + why,
+		Path:    at.String() + ".WrittenBy",
+	})
 }
 
 // appendLocatorViolations reports the locators prov cannot hold: a pointer that
