@@ -68,9 +68,9 @@ throughout these documents.
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
-    group reach; under `SplitByGroup`, and under `Partition` with a partition's model holding a
-    runtime type, the units' imports form no cycle and build, every group's operations failing with
-    the runtime's failure value; the runtime's declarations are in its unit, which imports none,
+    group reach; under `SplitByGroup` with every group's operations failing with the runtime's
+    failure value, and under `Partition` with a partition's model holding a runtime type, the units'
+    imports form no cycle and build; the runtime's declarations are in its unit, which imports none,
     with either rule on and with both off; groups whose names render alike, or as a name the units'
     scope reserves, get distinct units; a union with a variant in another unit compiles; two groups
     whose operations `AlsoMount` puts in each other's client compile, the types those operations
