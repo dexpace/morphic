@@ -4,16 +4,17 @@ How each [return shape](../../operations/returns.md) lowers in Go.
 
 - **A scalar, a list, a map or a union.** `func (c *Client) Count(ctx) (int64, error)`, `Labels`
   returning `map[string]string`, `GetPet` returning the struct `Pet` ([unions](unions.md)).
-- **A file.** `func (c *Client) Download(ctx) (*RawBody, error)`, where the runtime's `RawBody`
-  holds the response's `io.ReadCloser` and the media type it arrived as, and the caller closes it.
+- **A file.** `func (c *Client) Download(ctx) (*runtime.RawBody, error)`, where the runtime's
+  `RawBody` holds the response's `io.ReadCloser` and the media type it arrived as, and the caller
+  closes it.
 - **No body.** The method returns `error` alone.
 - **Declared headers.** `GetZone` returns `*Zone` whatever the response declares, and a response
   that declares headers adds
-  `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`. The
+  `func (c *Client) GetZoneWithResponse(ctx) (*runtime.Response[*Zone, GetZoneHeaders], error)`. The
   `Response`'s `Body` is `struct{}` for `void`, and its `Headers` is `struct{}` where they declare
   none.
 - **An envelope.** `GetZone` returns `*Zone`, and `GetZoneWithResponse` returns
-  `*EnvelopedResponse[*Zone, GetZoneHeaders, *GetZoneResponse]`. The runtime's
+  `*runtime.EnvelopedResponse[*Zone, GetZoneHeaders, *GetZoneResponse]`. The runtime's
   `EnvelopedResponse[T, H, E]` embeds `Response[T, H]` and adds `Envelope E`, so the envelope's
   `Messages` need no type assertion. A response the method returns with no envelope, such as a
   `204`, leaves `Envelope` nil, which `*GetZoneResponse` already holds, and `E` is `any` only where
@@ -49,4 +50,4 @@ func (r *OtherResponse) Unwrap() error { return r.BodyErr }
 
 It takes Go's `error` path because the method's result has no place for it, and it is no
 `*APIError`, so `errors.Is` answers neither fault, no retry reads it, and
-`errors.AsType[*sdk.OtherResponse](err)` finds it.
+`errors.AsType[*runtime.OtherResponse](err)` finds it.
