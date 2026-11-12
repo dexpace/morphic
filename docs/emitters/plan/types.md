@@ -102,20 +102,21 @@ targets lower a union there as [inheritance](../refine/models.md#inheritance) sa
 A model whose `Unflattened` holds a union that does not list it narrows that union, a union its
 composition reaches at any distance: each of its instances is an instance of one of the union's
 variants with the rest of the composition beside it
-([models](../../ir/models.md#a-union-a-composition-names)). `Unflattened` lists an entry's target as
-written, so where it names an alias scalar, as a 3.1 `$ref` beside a `description` hoists one
-([composition entries](../../ir/models.md#composition-entries)), the union is the one the alias
-stands for, read through as the flattening reads every entry. `Composed` holds an entry for each
-shape that gives: the composition with a variant in the union's place, flattened by `ir`'s walk
-reading that variant where it meets the union ([the flattening](../../ir/models.md#the-flattening),
-#1734), never by a walk of the plan's own, so the variant's members are laid out, overridden and
-required as any conjunct's are. Where that composition narrows a union in turn, as a variant that is
-a union or narrows one makes it, the entry gives way to one for each of that union's variants, its
-`Over` one longer, so no entry narrows a union, and the entries follow each union's variants in
-source order, depth first. An entry's `Shapes` are the model's, each with the model's filter and
-patch and the `Props` the entry's `Flattened` shows there. In each shape the model is inclusive and
-strict where its union is ([inheritance](../refine/models.md#inheritance)), which the union's own
-plan says, so no entry repeats it.
+([models](../../ir/models.md#a-union-a-composition-names)). `Unflattened` lists a composition
+entry's target as written, so where it names an alias scalar, as a 3.1 `$ref` beside a `description`
+hoists one ([composition entries](../../ir/models.md#composition-entries)), the union is the one the
+alias stands for, read through as the flattening reads every composition entry. `Composed` holds an
+entry for each shape that gives: the composition with a variant in the union's place, flattened by
+`ir`'s walk reading that variant where it meets the union ([the
+flattening](../../ir/models.md#the-flattening), #1734), never by a walk of the plan's own, so the
+variant's members are laid out, overridden and required as any conjunct's are. Where that
+composition narrows a union in turn, as a variant that is a union or narrows one makes it, the entry
+gives way to one for each of that union's variants, its `Over` one longer, so no entry narrows a
+union, and the entries follow each union's variants in source order, depth first. An entry's
+`Shapes` are the model's, each with the model's filter and patch and the `Props` the entry's
+`Flattened` shows there. In each shape the model is inclusive and strict where its union is
+([inheritance](../refine/models.md#inheritance)), which the union's own plan says, so no entry
+repeats it.
 
 `Composed` is empty for a model adding nothing to its union, which is that union, and for one no
 distribution serves: a model narrowing two unions, itself or through an entry; one whose union has a
@@ -141,10 +142,11 @@ alias a model adding nothing, and degrade the others
 value in common, as one over a variant pinning a tag the model pins otherwise does, is an entry like
 any, its member as the flattening takes it; whether to leave it out is #1739's.
 
-The plan holds the entries because four artifacts read them: an SDK target declares a variant for
-each, the docs render a table for it, and the samples and a mock show values of it, which the
-example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)). Two of them
-reading the shapes apart would show members another lacks, which is the third test of [plan or
+The plan holds the entries because several artifacts read them: an SDK target declares a variant for
+each, the docs render a table for it, a CLI gives flags for its members ([a command-line
+target](../docs-and-mock.md#a-command-line-target)), and the samples and a mock show values of it,
+which the example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)). Two of
+them reading the shapes apart would show members another lacks, which is the third test of [plan or
 refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir` and
 `ir/irfacts` ([packages](../packages.md)), so no refine helper can serve it. A target with
 intersection types writes the composition as it stands and need not read `Composed`, as a
