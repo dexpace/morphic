@@ -31,7 +31,8 @@ func (p Promoter) Maps(target ExtensionTarget) bool {
 }
 
 // replacementReading reads a value as the names of replacements, held as the
-// value's text so two sources compare as firstStated compares any value.
+// text of their list so two sources compare as firstStated compares any value,
+// a name and a list holding it alone stating one replacement.
 func replacementReading() reading[string] {
 	return reading[string]{
 		target: TargetDeprecationReplacedBy,
@@ -44,10 +45,20 @@ func replacementReading() reading[string] {
 			case len(names) == 0:
 				return "", statesNothing
 			default:
-				return string(raw), states
+				return string(asList(raw)), states
 			}
 		},
 	}
+}
+
+// asList returns raw, one name or a list of names, as a list. raw is in the
+// IR's canonical form, which writes a list of one name as that name between
+// brackets.
+func asList(raw ir.RawValue) ir.RawValue {
+	if raw[0] != '"' {
+		return raw
+	}
+	return slices.Concat(ir.RawValue("["), raw, ir.RawValue("]"))
 }
 
 // replacementNames decodes raw as one name or a list of names, false for any

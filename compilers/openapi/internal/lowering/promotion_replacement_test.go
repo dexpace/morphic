@@ -68,3 +68,30 @@ func TestPromoter_MapsTellsAMappedTarget(t *testing.T) {
 	assert.False(t, promoter(lowering.ExtensionPromotions{}).Maps(lowering.TargetDeprecationReplacedBy),
 		"the default mapping names no replacement key")
 }
+
+// TestPromoter_ReplacementSourcesCompareTheirNames pins that two sources the
+// policy maps agree when they name the same replacements, however each spells
+// them, and disagree, the later reported, when they name others.
+func TestPromoter_ReplacementSourcesCompareTheirNames(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, first, second string
+		disagree            bool
+	}{
+		{"a name and a list of it", `"v2"`, `["v2"]`, false},
+		{"a list of a name and the name", `["v2"]`, `"v2"`, false},
+		{"two names", `"v2"`, `"v3"`, true},
+		{"a name and a longer list", `"v2"`, `["v2","v3"]`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := promoter(mapping(lowering.TargetDeprecationReplacedBy, lowering.ExtensionSource{Key: "x-a"},
+				lowering.ExtensionSource{Key: "x-b"}))
+			names, _, diags := p.Replacements(ir.Unmodeled{
+				"openapi:x-a": vendorExtension(tc.first), "openapi:x-b": vendorExtension(tc.second),
+			})
+			assert.Equal(t, []string{"v2"}, names, "the first source is read")
+			assert.Equal(t, tc.disagree, len(diags) == 1, "the later source is reported only where it differs: %v", diags)
+		})
+	}
+}
