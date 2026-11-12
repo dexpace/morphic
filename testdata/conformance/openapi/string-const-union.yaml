@@ -1,0 +1,42 @@
+openapi: 3.1.0
+info: {title: StringConstUnion, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A oneOf of string consts is a string enum in another spelling. The
+    # compiler keeps it a union of literals, each holding what its branch says
+    # of its value, for pass.ConstUnions to normalize.
+    Color:
+      oneOf:
+        - {const: red, title: Red, description: The colour red.}
+        - {const: green, deprecated: true}
+    # OpenAPI 3.0 writes a pinned value as a one-member enum.
+    Level:
+      anyOf:
+        - {type: string, enum: [low], description: Low.}
+        - {type: string, enum: [high]}
+    # A branch holding several values is a set of its own, which the enum of
+    # the union's values would copy, so the union stays.
+    Tier:
+      oneOf:
+        - {const: free}
+        - {type: string, enum: [pro, enterprise]}
+    # A union of one value is that value in another spelling, so a union naming
+    # it is normalized with it, in one run.
+    Direction:
+      oneOf:
+        - oneOf: [{const: up}]
+        - {const: down}
+    # A branch naming a component is a type of its own, so the union stays.
+    Shade:
+      oneOf:
+        - {const: dark}
+        - $ref: '#/components/schemas/Light'
+    Light:
+      const: light
+    # A constraint the const's Literal has no home for narrows the branch, which
+    # no enum member could, so the union stays.
+    Pinned:
+      oneOf:
+        - {const: a, pattern: "^b$"}
+        - {const: c}

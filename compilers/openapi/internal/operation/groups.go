@@ -61,7 +61,7 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 func (g *serviceGroups) groupFor(c lowering.Ctx, src *soa.Operation, path string) []groupLevel {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: compile.NamingFor(seg)}}
+		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
 	}
 	for _, tag := range src.GetTags() {
 		if g.tags.navigational(tag) {
@@ -151,7 +151,7 @@ func (x tagIndex) levels(tag string) []groupLevel {
 	chain := x.chain(tag)
 	out := make([]groupLevel, 0, len(chain))
 	for _, t := range chain {
-		out = append(out, groupLevel{id: ids.TagGroup(t), name: compile.NamingFor(t), docs: tagDocsFrom(x[t])})
+		out = append(out, groupLevel{id: ids.TagGroup(t), name: ir.NamingFor(t), docs: tagDocsFrom(x[t])})
 	}
 	return out
 }

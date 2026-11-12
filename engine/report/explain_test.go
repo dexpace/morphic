@@ -345,7 +345,7 @@ func TestWriteExplanation_RendersEachShape(t *testing.T) {
 			"the root with nothing interned there",
 			report.Explanation{},
 			"coordinate \"\" (the whole document)\n" +
-				"  no type node was interned at this coordinate\n" +
+				"  the document holds no type node at this coordinate\n" +
 				"  diagnostics (0):\n",
 		},
 		{
@@ -362,7 +362,7 @@ func TestWriteExplanation_RendersEachShape(t *testing.T) {
 				Below:   []report.Interned{{Pointer: "/c/x", ID: "t/x", Kind: ir.KindEnum}},
 			},
 			"coordinate /c\n" +
-				"  no type node was interned at this coordinate\n" +
+				"  the document holds no type node at this coordinate\n" +
 				"  interned below it (1):\n" +
 				"    /c/x -> t/x (enum)\n" +
 				"  diagnostics (0):\n",

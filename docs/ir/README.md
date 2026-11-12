@@ -33,7 +33,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
 | [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |
-| [enums](./enums.md) | `Enum`, `EnumMember` and member identity |
+| [enums](./enums.md) | `Enum`, `EnumMember`, member identity, and the union of strings that becomes an `Enum` |
 | [containers](./containers.md) | `List`, `MapT`, `Tuple`, `Literal`, `External`, `Any` |
 | [properties](./properties.md) | `Property` and `Visibility` |
 | [constraints](./constraints.md) | `Constraints`, `Encoding`, `XMLHints` |

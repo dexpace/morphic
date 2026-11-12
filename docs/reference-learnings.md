@@ -398,7 +398,11 @@ naming they can't be turned off or audited"; openapi-generator steers behavior v
 interacting flags. **Recommendation:** implement the *recipes* (they're genuinely useful) but as
 **injectable policy that sets `Inferred=true` and keys output by TypeID**:
 - **Discriminator inference** — const-property-on-every-variant detection, single-string-const-union →
-  enum collapse (oagen/datamodel/ogen `implicitDiscriminatorKey`). Disableable, auditable.
+  enum collapse (oagen/datamodel/ogen `implicitDiscriminatorKey`). Disableable, auditable. The
+  collapse is built as the `const-unions` pass
+  ([`string-const-union`](compilers/openapi.md#string-const-union)), and it marks nothing
+  `Inferred`: it reads only the values the document declares and keeps the union wherever an `Enum`
+  would drop a fact, so it is a normalization rather than an inference, and disableable by name.
 - **Pagination** — cursor if a query param ∈ {cursor, after, before, starting_after, ending_before,
   page_token, next_token} (priority-ordered so `after` wins), offset if offset+limit present (oagen
   `pagination.ts`). Target Morphic's path-based fields.

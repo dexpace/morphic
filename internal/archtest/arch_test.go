@@ -325,7 +325,7 @@ var rules = map[string][]string{
 	// the compiler's run lowers the schemes, and the service and operation walks
 	// lower the requirements against them. It reads a field the model names no
 	// member for off the raw node, through nodeview.
-	"compilers/openapi/internal/auth": {module + "/ir", module + "/compilers/compile",
+	"compilers/openapi/internal/auth": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
