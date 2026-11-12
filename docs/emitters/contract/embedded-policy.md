@@ -77,8 +77,10 @@ unknown member. A value of the wrong shape, or one outside the field's vocabular
 ([layers](runtime-policy.md#layers-and-operations)), is reported as a warning
 `emitters/embed/invalid-value` at the extension and never coerced, since the document means
 something by the key that the field does not hold: a group is named by its ID, as `Remount` takes
-it, never by the words a document places it under, and an attempt count of 0 may be another
-generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
+it, never by the words a document places it under, an attempt count of 0 may be another
+generator's count of retries, and a timeout of `30` states no unit, which is why a duration is
+written with one ([what a layer writes](runtime-policy.md#what-a-layer-writes)). The entry stays
+in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
 the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
 so it neither beats another key nor conflicts with one (above).

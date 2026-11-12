@@ -68,20 +68,23 @@ case-insensitive file system makes two that differ in letter case alone one file
 `Setup` and `SetUp` in a package `p`, Kotlin 2.4.0 wrote one `p/Setup.class`, and with variants
 `Card` and `CARD` of a sealed interface `Payment` one `p/Payment$Card.class`; each program built
 without a diagnostic and failed to load the class it had lost (`NoClassDefFoundError: p/Payment$Card
-(wrong name: p/Payment$CARD)`), as classes `Straße` and `Strasse` did. So one of each pair takes
-a suffix, as one of two names that render alike does, and a source file named for its class is
-held apart with it. A template writing a file
-in a unit, as the one writing each operation's row of the runtime's settings does ([runtime
-policy](../../contract/runtime-policy.md#delivery)), names it for a name it declares there, which
-the unit reserves, so no spec class's file meets it. An inclusive union's variants are properties,
-not classes, and compare folded all the same, so a union whose kind a revision changes keeps the
-comparison its variants' names shipped under. A model's properties are no class, so they keep names
-apart by case, and so do a class's methods, though kotlinc writes a class for each `suspend` one,
-since it numbers them in their class: Kotlin 2.4.0 wrote `Client$getA$1.class` and
-`Client$geta$2.class` for methods `getA` and `geta`, and both ran. A failure kind's exception is a
-class too, named for its kind in `Policy.Errors` ([failures](errors.md)), and a name a template
-declares never yields, so two kinds that differ in letter case alone would share a class file;
-whether a configuration may give two such kinds is #1471's.
+(wrong name: p/Payment$CARD)`), as classes `Straße` and `Strasse` did. So one of each pair takes a
+suffix, as one of two names that render alike does, and a source file named for its class is held
+apart with it. A template writing a file in a unit, as the one writing each operation's row of the
+runtime's settings does ([runtime policy](../../contract/runtime-policy.md#delivery)), names it for
+a name it declares there, which the unit reserves, so no spec class's file meets it. An inclusive
+union's variants are properties, not classes, and compare folded all the same, so a union whose kind
+a revision changes keeps the comparison its variants' names shipped under. A model's properties are
+no class, so they keep names apart by case, and so do a class's methods, though kotlinc writes a
+class for each `suspend` one, since it numbers them in their class: Kotlin 2.4.0 wrote
+`Client$getA$1.class` and `Client$geta$2.class` for methods `getA` and `geta`, and both ran. A
+failure kind's exception is a class too, named for its kind in `Policy.Errors`
+([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
+letter case alone would share a class file: measured with Kotlin 2.4.0 on a file system that ignores
+case, `NotFoundException` and `NotfoundException` compiled to the one file
+`NotFoundException.class`, and loading the first failed (`NoClassDefFoundError: p/NotFoundException
+(wrong name: p/NotfoundException)`). So a kind is one name whatever its letter case, on every target
+([what a layer writes](../../contract/runtime-policy.md#what-a-layer-writes)).
 
 A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into
 paths, a method's in its continuation's class file, so each is held to the length cap

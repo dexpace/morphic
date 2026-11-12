@@ -34,7 +34,19 @@ throughout these documents.
    resolved retry lists name stays only in the one a higher layer set, while one a layer moves into
    a list a higher layer replaces stays in the other
    ([layers](../contract/runtime-policy.md#layers-and-operations),
-   [retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
+   [retries](../contract/runtime-policy.md#the-canonical-vocabulary)). Every leaf of the record
+   has a value it takes and, each an error naming the leaf's path and leaving the layers below to
+   set it, a value of another JSON type, `null`, its zero where zero is no value, a value past each
+   end of its range or outside its grammar, a duration with no unit and one in a unit the record
+   lacks, a ratio with a fourth fraction digit or an exponent, a list naming an entry twice or
+   holding more than it may, a `Backoff` or a `Kinds` row written in part and a `Backoff` whose
+   `Initial` passes its `Max`; so are a member the record does not declare, a member named twice,
+   an operation's entry writing a member that is the client's, a kind named for a fault, and two
+   spellings of one kind that one layer alone writes, while a kind a lower layer spells in another
+   letter case takes that spelling and draws an info, whatever order the rows are read in. A leaf
+   written at its zero, an empty list among them, replaces the layer below where one left out does
+   not, and a schedule of waits under a fractional `Multiplier` is the same number of milliseconds
+   on every target ([what a layer writes](../contract/runtime-policy.md#what-a-layer-writes)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -281,11 +293,12 @@ throughout these documents.
     key to set it and a path item's conflicting keys its operation's own key or the layer's
     document-wide value, under every order of the keys and of the mapping's entries; a key on a node
     it cannot configure, a tag's key the document holds, a value of the wrong shape or outside its
-    field's vocabulary or range, a group named by words rather than its ID, a conflict and a key the
-    document holds under a reason the reader refuses are each reported under their codes, the entry
-    staying in `Unmodeled` and an operation's key whose value is invalid, or which the reader
-    refuses, leaving its path item's to set the field; and the default mapping, which is empty,
-    reads nothing ([embedded policy](../contract/embedded-policy.md)).
+    field's vocabulary or range, a duration written as a bare number, which is read in no unit, a
+    group named by words rather than its ID, a conflict and a key the document holds under a reason
+    the reader refuses are each reported under their codes, the entry staying in `Unmodeled` and an
+    operation's key whose value is invalid, or which the reader refuses, leaving its path item's to
+    set the field; and the default mapping, which is empty, reads nothing ([embedded
+    policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form
@@ -318,7 +331,10 @@ throughout these documents.
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
     a `POST`; a 500, a 502, a 504 and a request that got no response are sent again for a `PUT` and
     never for a `POST`; a request whose body was a stream is not sent again after a 503; a
-    `Retry-After` is waited for up to `Backoff.Max`, and one past it returns the response. A 307
+    `Retry-After` is waited for up to the `Max` of the backoff that applies, `Throttled`'s after a
+    429 no error case marks and `Backoff`'s after a 503, one past it returns the response, one
+    shorter than the backoff's own wait waits the backoff's, and one that is no count of seconds
+    and no date is read as absent. A 307
     sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 302
     the operation declares, a 301 to a `POST`, a 307 whose body was a stream, a redirect from
     `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
