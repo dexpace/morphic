@@ -421,5 +421,6 @@ it sees. Changes made together in one bump are listed together under it.
   `oneOf` or `anyOf` kept verbatim, where a mapping, a default or a `$ref` branch moved it to the
   `Union`. Nothing can name the variant, so no type is its subtype: a mapping to a subtype of the
   schema failed validation, and a route by a subtype's component name went unread. An object variant
-  holding a catch-all and nothing else now lowers to a `MapT`, as that object alone does. A consumer
-  pinned to 0.40.0 that read the variant's `Discriminator` no longer finds it there.
+  that held the discriminator beside a catch-all and nothing else now lowers to a `MapT`, as that
+  object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
+  finds it there.

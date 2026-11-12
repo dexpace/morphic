@@ -2175,7 +2175,7 @@ half where its `allOf` names the schema, and `Base` names what the source wrote
 ([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
 discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
 `Union` base into its object variant would part from that relation, and teaching the relation the
-step would change it for every document.
+step would change what it means for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
