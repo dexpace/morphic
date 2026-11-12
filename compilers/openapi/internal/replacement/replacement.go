@@ -52,12 +52,14 @@ type resolver struct {
 }
 
 // fill reads the names own gives the replacements of its node, self, into dep,
-// marking prov, each resolved by find. A node that is not deprecated takes
-// none, as a deprecation member beside none annotates nothing. The names fill
-// the field all or none: one naming nothing, or self, is reported and leaves it
-// unset, so no list a consumer reads holds less than the source names.
+// marking prov, each resolved by find, which returns how many entities a name
+// matches and the entity, read only where that is one. A node that is not
+// deprecated takes none, as a deprecation member beside none annotates
+// nothing. The names fill the field all or none: one naming nothing, several
+// entities or self is reported and leaves it unset, so no list a consumer reads
+// holds less than the source names, or one entity picked from several.
 func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenance, self ir.EntityRef,
-	class string, find func(string) (ir.EntityRef, bool),
+	class string, find func(string) (ir.EntityRef, int),
 ) []ir.Diagnostic {
 	names, at, diags := r.p.Replacements(own)
 	if len(names) == 0 || dep == nil {
@@ -65,11 +67,15 @@ func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenan
 	}
 	refs := make([]ir.EntityRef, 0, len(names))
 	for _, name := range names {
-		ref, found := find(name)
+		ref, matched := find(name)
 		switch {
-		case !found:
+		case matched == 0:
 			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"replacement %q names no %s, so it does not fill %s", name, class, lowering.TargetDeprecationReplacedBy))
+		case matched > 1:
+			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
+				"replacement %q names more than one %s, so it does not fill %s", name, class,
+				lowering.TargetDeprecationReplacedBy))
 		case ref == self:
 			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"replacement %q names the %s it sits on, so it does not fill %s", name, class, lowering.TargetDeprecationReplacedBy))
@@ -81,23 +87,25 @@ func (r *resolver) fill(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenan
 	return diags
 }
 
-// scheme finds the security scheme the document declares under name.
-func (r *resolver) scheme(name string) (ir.EntityRef, bool) {
+// scheme finds the security schemes the document declares under name.
+func (r *resolver) scheme(name string) (ir.EntityRef, int) {
+	var found ir.EntityRef
+	matched := 0
 	for id, s := range r.doc.Auth {
 		if s.Name.Source == name {
-			return ir.EntityRef{Auth: id}, true
+			found, matched = ir.EntityRef{Auth: id}, matched+1
 		}
 	}
-	return ir.EntityRef{}, false
+	return found, matched
 }
 
 // schema finds the schema components/schemas declares under name.
-func (r *resolver) schema(name string) (ir.EntityRef, bool) {
+func (r *resolver) schema(name string) (ir.EntityRef, int) {
 	id := r.c.IDs().NamedType(ids.Ptr("components", "schemas", name))
 	if _, declared := r.doc.Types[id]; !declared {
-		return ir.EntityRef{}, false
+		return ir.EntityRef{}, 0
 	}
-	return ir.EntityRef{Type: id}, true
+	return ir.EntityRef{Type: id}, 1
 }
 
 // typeDef fills td's own replacements, and those of a model's properties.
@@ -109,13 +117,13 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 		return diags
 	}
 	flat := ir.FlattenedProperties(r.doc.Types, m.ID)
-	member := func(name string) (ir.EntityRef, bool) {
+	member := func(name string) (ir.EntityRef, int) {
 		for i := range flat.Properties {
 			if p := flat.Properties[i].Property; p.EffectiveWireName() == name {
-				return ir.EntityRef{Property: p.ID}, true
+				return ir.EntityRef{Property: p.ID}, 1
 			}
 		}
-		return ir.EntityRef{}, false
+		return ir.EntityRef{}, 0
 	}
 	for i := range m.Properties {
 		p := &m.Properties[i]
@@ -124,15 +132,19 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	return diags
 }
 
-// headers fills each header's replacements, among the headers beside it.
+// headers fills each header's replacements, among the headers beside it. A
+// name matches a header in any case, as HTTP compares header names, so one
+// matching two headers whose names differ only in case (#635) names both.
 func (r *resolver) headers(hs []ir.Header) []ir.Diagnostic {
-	sibling := func(name string) (ir.EntityRef, bool) {
+	sibling := func(name string) (ir.EntityRef, int) {
+		var found ir.EntityRef
+		matched := 0
 		for i := range hs {
 			if strings.EqualFold(hs[i].EffectiveWireName(), name) {
-				return ir.EntityRef{Property: hs[i].ID}, true
+				found, matched = ir.EntityRef{Property: hs[i].ID}, matched+1
 			}
 		}
-		return ir.EntityRef{}, false
+		return found, matched
 	}
 	diags := make([]ir.Diagnostic, 0, len(hs))
 	for i := range hs {

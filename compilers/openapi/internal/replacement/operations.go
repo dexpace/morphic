@@ -18,11 +18,12 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 			byName[name] = append(byName[name], op.ID)
 		}
 	}
-	operation := func(name string) (ir.EntityRef, bool) {
-		if found := byName[name]; len(found) == 1 {
-			return ir.EntityRef{Operation: found[0]}, true
+	operation := func(name string) (ir.EntityRef, int) {
+		found := byName[name]
+		if len(found) != 1 {
+			return ir.EntityRef{}, len(found)
 		}
-		return ir.EntityRef{}, false
+		return ir.EntityRef{Operation: found[0]}, 1
 	}
 	var diags []ir.Diagnostic
 	for _, op := range ops {
@@ -45,9 +46,9 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 // params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 	ix := lowering.IndexParams(op)
-	param := func(name string) (ir.EntityRef, bool) {
+	param := func(name string) (ir.EntityRef, int) {
 		id, matched := ix.Named(name)
-		return ir.EntityRef{Param: id}, matched == 1
+		return ir.EntityRef{Param: id}, matched
 	}
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {

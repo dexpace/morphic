@@ -4383,10 +4383,11 @@ operation by its `operationId`, a parameter of the same operation as a link's ke
 in any case, a property by its name within its model, a schema by its name under
 `components/schemas`, and a security scheme by its key. The names are resolved once the document is
 whole, since a replacement may be declared after what it replaces, and they fill the field all or
-none: a name that names nothing, or names the node itself, leaves the field unset and is reported as
-an info `openapi/degraded-construct` at the key. As a deprecation's other members, a replacement on
-a node that is not deprecated annotates nothing, and it is read from the node's own keys alone,
-never lent by a `$ref`'s target, whose class is another.
+none: a name that names nothing, names more than one entity, or names the node itself, leaves the
+field unset and is reported as an info `openapi/degraded-construct` at the key, as no entity is
+picked from several. As a deprecation's other members, a replacement on a node that is not
+deprecated annotates nothing, and it is read from the node's own keys alone, never lent by a
+`$ref`'s target, whose class is another.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
@@ -4406,6 +4407,7 @@ never lent by a `$ref`'s target, whose class is another.
   `lowering.TestPromoter_ReadsReplacementNames`, `lowering.TestParamIndex_NamedReadsALocationQualifiedName`,
   `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
   `replacement.TestResolve_ANameNamingNothingFillsNothing`,
+  `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
   `e2e.TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
@@ -4423,8 +4425,10 @@ never lent by a `$ref`'s target, whose class is another.
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
   `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a mapping naming a
-  target nothing reads is accepted in silence (#1281).
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; a mapping naming a target
+  nothing reads is accepted in silence (#1281); and header parameters or response headers whose
+  names differ only in case lower as two, so a replacement naming either names both and fills
+  nothing (#635).
 
 ### `mutually-exclusive-parameters`
 

@@ -4,6 +4,8 @@
 package replacement_test
 
 import (
+	"fmt"
+	"slices"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -136,6 +138,70 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 		op := doc.Services[0].Groups[0].Operations[0]
 		assert.Empty(t, op.Deprecation.ReplacedBy, value)
 		assert.Empty(t, op.Errors[0].Headers[0].Deprecation.ReplacedBy, value)
+	}
+}
+
+// severalV2 makes "v2" name two entities of each class replacementDoc names it
+// for, bar a schema and a property, which one name declares once: another
+// operation, a header parameter, a header whose name differs from the other
+// only in case in each response, and a security scheme. first places each
+// second entity before the first.
+func severalV2(doc *ir.Document, first bool) {
+	add := func(hs []ir.Header, id ir.PropID, name string) []ir.Header {
+		h := ir.Header{ID: id, WireName: name}
+		if first {
+			return append([]ir.Header{h}, hs...)
+		}
+		return append(hs, h)
+	}
+	group := &doc.Services[0].Groups[0]
+	group.Operations = append(group.Operations, ir.Operation{ID: "op/v2-again", Name: ir.Naming{Source: "v2"}})
+	op := &group.Operations[0]
+	op.Params = append(op.Params, ir.Parameter{ID: "param/v2-header", Name: ir.Naming{Source: "v2"}})
+	bindings := &op.Bindings.HTTP[0].ParamBindings
+	*bindings = append(*bindings, ir.HTTPParamBinding{Param: "param/v2-header", Location: ir.HTTPLocationHeader})
+	op.Responses[0].Headers = add(op.Responses[0].Headers, "p/h/v2-lower", "v2")
+	op.Errors[0].Headers = add(op.Errors[0].Headers, "p/e/v2-upper", "V2")
+	op.Default.Headers = add(op.Default.Headers, "p/d/v2-upper", "V2")
+	doc.Auth["auth/v2-again"] = ir.AuthScheme{ID: "auth/v2-again", Name: ir.Naming{Source: "v2"}}
+}
+
+// TestResolve_ANameNamingSeveralFillsNothing pins that a name matching more
+// than one entity of its node's class picks none, in either declaration order,
+// and is reported as naming more than one rather than none: two operations,
+// parameters, headers whose names differ only in case, or security schemes.
+func TestResolve_ANameNamingSeveralFillsNothing(t *testing.T) {
+	t.Parallel()
+	for _, first := range []bool{false, true} {
+		c := mapped()
+		doc := replacementDoc(c, `"v2"`)
+		severalV2(doc, first)
+		diags := replacement.Resolve(c, doc)
+
+		messages := make([]string, 0, len(diags))
+		for _, d := range diags {
+			assert.Equal(t, diag.DegradedConstruct, d.Code)
+			messages = append(messages, d.Message)
+		}
+		const several = "replacement \"v2\" names more than one %s, so it does not fill deprecation.replacedBy"
+		for _, class := range []string{"operation", "parameter", "header", "header", "header", "security scheme"} {
+			assert.Contains(t, messages, fmt.Sprintf(several, class), "first %t", first)
+		}
+		assert.Len(t, diags, 6, "first %t: the schema and the property each name one", first)
+
+		op := doc.Services[0].Groups[0].Operations[0]
+		at := func(hs []ir.Header, id ir.PropID) *ir.Deprecation {
+			i := slices.IndexFunc(hs, func(h ir.Header) bool { return h.ID == id })
+			require.GreaterOrEqual(t, i, 0, id)
+			return hs[i].Deprecation
+		}
+		for name, dep := range map[string]*ir.Deprecation{
+			"operation": op.Deprecation, "parameter": op.Params[0].Deprecation,
+			"response header": at(op.Responses[0].Headers, "p/h/old"), "error header": at(op.Errors[0].Headers, "p/e/old"),
+			"default header": at(op.Default.Headers, "p/d/old"), "security scheme": doc.Auth["auth/old"].Deprecation,
+		} {
+			assert.Empty(t, dep.ReplacedBy, "first %t: %s", first, name)
+		}
 	}
 }
 
