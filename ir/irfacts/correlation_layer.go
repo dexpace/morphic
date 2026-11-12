@@ -344,14 +344,25 @@ func indexPartHeaders(services []ir.Service, ops []*ir.Operation) map[ir.PropID]
 }
 
 // headers offers each header of hs its key, key then the header's name in
-// lower case, and, when it takes it, keys its type and what its encoding
-// decodes to.
+// lower case, or its prefix for one under a prefix, and, when it takes it, keys
+// its type and what its encoding decodes to.
 func (c *correlator) headers(key string, hs []ir.Header) {
 	for i := range hs {
 		h := &hs[i].Property
-		c.offer(child(key, "header", strings.ToLower(h.EffectiveWireName())), string(h.ID), func(c *correlator, key string) {
+		c.offer(headerKey(key, &hs[i]), string(h.ID), func(c *correlator, key string) {
 			c.ref(part(key, "type"), &h.Type)
 			c.decoded(key, h.Encoding)
 		})
 	}
+}
+
+// headerKey extends key by what names h on the wire, in lower case: its name,
+// or the prefix of one under a prefix, which names no field of its own
+// (docs/ir/responses.md#prefix-headers). The two segments differ in kind, so a
+// prefix and a header of the same name never share a key.
+func headerKey(key string, h *ir.Header) string {
+	if h.Prefix != nil {
+		return child(key, "prefix", strings.ToLower(*h.Prefix))
+	}
+	return child(key, "header", strings.ToLower(h.EffectiveWireName()))
 }

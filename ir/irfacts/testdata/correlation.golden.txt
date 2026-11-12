@@ -101,6 +101,13 @@ positions	t/anon/rh	route:GET ~1a/response:200,400-499/header:retry-after/type
 positions	t/anon/rhd	route:GET ~1a/response:200,400-499/header:retry-after/decoded
 positions	t/anon/rpc	route:GET ~1a/input
 positions	t/anon/text	route:GET ~1a/request/content:text~1plain
+prefixes	g/default	group:g~1default
+prefixes	op/test/a	route:GET ~1a
+prefixes	p/test/all	route:GET ~1a/error:500/prefix:
+prefixes	p/test/meta	route:GET ~1a/response:200/prefix:x-meta-
+prefixes	p/test/named	route:GET ~1a/response:200/header:x-meta-
+prefixes	s/test/0	-
+prefixes	t/anon/meta	route:GET ~1a/response:200/prefix:x-meta-/type
 routes	g/default	group:g~1default
 routes	op/test/a	route:GET ~1a
 routes	op/test/b	route:GET ~1b~1{}~1c{}

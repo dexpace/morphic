@@ -464,3 +464,9 @@ it sees. Changes made together in one bump are listed together under it.
   ([replacements](./annotations.md#replacements)). The OpenAPI compiler fills it only through a
   promotion mapping naming the `deprecation.replacedBy` target, which no default does. A consumer
   pinned to 0.44.0 refuses a document whose deprecation names a replacement.
+- **0.46.0** — `Header` gained `Prefix`, which makes a response's, an error's or a part's header a
+  map of every field under the prefix, the empty prefix taking every field, as Smithy's
+  `@httpPrefixHeaders` binds one on an output or an error ([prefix
+  headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
+  wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
+  fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.

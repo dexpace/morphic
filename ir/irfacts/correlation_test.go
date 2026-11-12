@@ -21,6 +21,7 @@ var correlationFixtures = map[string]func() *ir.Document{
 	"routes":     routesFixture,
 	"params":     paramsFixture,
 	"positions":  positionsFixture,
+	"prefixes":   prefixesFixture,
 	"parts":      partsFixture,
 	"layer":      layerFixture,
 	"callbacks":  callbacksFixture,
@@ -197,6 +198,37 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 		"t/anon/rpc":   "route:GET ~1a/input",
 		"t/anon/poll":  "route:GET ~1a/polling",
 		"t/anon/final": "route:GET ~1a/final",
+	})
+}
+
+// prefixesFixture holds a header under a prefix beside a header named as the
+// prefix is, and a header under the empty prefix.
+func prefixesFixture() *ir.Document {
+	op := namedOp("op/test/a", "getA", "/a")
+	op.Responses = []ir.Response{{
+		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}}},
+		Headers: []ir.Header{
+			{ID: "p/test/named", WireName: "X-Meta-"},
+			{ID: "p/test/meta", Name: ir.Naming{Source: "meta"}, Type: ir.TypeRef{Target: "t/anon/meta"}, Prefix: new("X-Meta-")},
+		},
+	}}
+	op.Errors = []ir.ErrorCase{{
+		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 500, To: 500}}},
+		Headers:    []ir.Header{{ID: "p/test/all", Name: ir.Naming{Source: "all"}, Prefix: new("")}},
+	}}
+	return opsDoc([]ir.Operation{op}, withAnonymous(nil, "t/anon/meta")...)
+}
+
+// TestCorrelation_KeysAHeaderUnderAPrefixByItsPrefix holds a header under a
+// prefix to its prefix rather than its name, apart from a header named as the
+// prefix is, and keys the empty prefix too (docs/ir/responses.md#prefix-headers).
+func TestCorrelation_KeysAHeaderUnderAPrefixByItsPrefix(t *testing.T) {
+	t.Parallel()
+	assertKeys(t, prefixesFixture(), map[string]string{
+		"p/test/named": "route:GET ~1a/response:200/header:x-meta-",
+		"p/test/meta":  "route:GET ~1a/response:200/prefix:x-meta-",
+		"t/anon/meta":  "route:GET ~1a/response:200/prefix:x-meta-/type",
+		"p/test/all":   "route:GET ~1a/error:500/prefix:",
 	})
 }
 
