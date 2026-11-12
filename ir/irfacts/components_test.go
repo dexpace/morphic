@@ -54,6 +54,7 @@ var notParts = map[reflect.Type]string{
 	reflect.TypeFor[ir.Discriminator]():         "a discriminator routes to a type; only a subtype is one a value may be",
 	reflect.TypeFor[ir.TemplateInstantiation](): "a template argument made the type; a value of it holds none",
 	reflect.TypeFor[ir.DocRef]():                "prose naming a type holds no value of it",
+	reflect.TypeFor[ir.EntityRef]():             "a deprecation naming its replacement holds no value of it",
 }
 
 // notPartFields are fields that name a type that is none of the parts, with the

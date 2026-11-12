@@ -137,22 +137,22 @@
                       "style": "simple"
                     }
                   ],
-                  "docs": {
-                    "description": "ok"
-                  },
-                  "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "self": {
-                          "operationId": "getMerged"
-                        }
+                  "links": [
+                    {
+                      "name": {
+                        "source": "self",
+                        "canonical": "self"
                       },
+                      "operation": "op/openapi/paths/~1merged/get",
+                      "docs": {},
                       "provenance": {
                         "source": 0,
-                        "pointer": "/paths/~1merged/get/responses/200/links"
+                        "pointer": "/paths/~1merged/get/responses/200/links/self"
                       }
                     }
+                  ],
+                  "docs": {
+                    "description": "ok"
                   }
                 }
               ],

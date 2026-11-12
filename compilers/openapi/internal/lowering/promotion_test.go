@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -362,7 +363,7 @@ func TestPromoter_MemberReadsOneFactOfAnObject(t *testing.T) {
 				at = append(at, d.Provenance.Pointer)
 			}
 			assert.ElementsMatch(t, tc.at, at, "each report names the key or member at fault")
-			if tc.want == (ir.Deprecation{}) {
+			if cmp.Equal(tc.want, ir.Deprecation{}) {
 				assert.Empty(t, prov.Inferred, "nothing was read, so nothing is marked")
 			}
 		})
@@ -469,7 +470,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
 			diags := p.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
-			return *dep != (ir.Deprecation{}), diags
+			return !cmp.Equal(*dep, ir.Deprecation{}), diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			enum := ir.Enum{Closed: true}
@@ -488,6 +489,10 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 			var prov ir.Provenance
 			diags := p.Stability(unmodeled, &tier, &prov)
 			return tier != ir.StabilityUnstated, diags
+		},
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			names, _, diags := p.Replacements(unmodeled)
+			return len(names) > 0, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var redact bool
@@ -535,6 +540,7 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetDeprecationSince:          {"Deprecation.Since"},
 	lowering.TargetDeprecationRemovalVersion: {"Deprecation.RemovalVersion"},
 	lowering.TargetDeprecationRemovalDate:    {"Deprecation.RemovalDate"},
+	lowering.TargetDeprecationReplacedBy:     {"Deprecation.ReplacedBy"},
 	lowering.TargetEnumOpen:                  {"Enum.Closed"},
 	lowering.TargetUnionOpen:                 {"Union.Closed"},
 	lowering.TargetStability:                 {"Operation.Stability"},

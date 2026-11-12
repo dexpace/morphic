@@ -77,22 +77,22 @@
                       }
                     ]
                   },
-                  "docs": {
-                    "description": "reached from the paths"
-                  },
-                  "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "next": {
-                          "$ref": "#/components/links/Next"
-                        }
+                  "links": [
+                    {
+                      "name": {
+                        "source": "next",
+                        "canonical": "next"
                       },
+                      "operation": "op/openapi/paths/~1a/get",
+                      "docs": {},
                       "provenance": {
                         "source": 0,
-                        "pointer": "/components/responses/Used/links"
+                        "pointer": "/components/links/Next"
                       }
                     }
+                  ],
+                  "docs": {
+                    "description": "reached from the paths"
                   }
                 }
               ],
@@ -179,16 +179,6 @@
         "pointer": "/components/headers/Unused"
       }
     },
-    "openapi:components/links/Next": {
-      "reason": "no_ir_home",
-      "value": {
-        "operationId": "getA"
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/links/Next"
-      }
-    },
     "openapi:components/links/Unused": {
       "reason": "no_ir_home",
       "value": {
@@ -272,7 +262,7 @@
     {
       "format": "openapi@3.2",
       "path": "unreferenced-components.yaml",
-      "hash": "701e5bf3b25a7ce164defa4523e17ee46cca28b70d1edb26e96bcc5b951f17ea"
+      "hash": "73c20b0a22613f4f672d4239b54e847042f3e0f0b54c213fc85baa17cf34b9d2"
     }
   ]
 }

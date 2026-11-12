@@ -35,6 +35,7 @@ streaming-server	Streaming: server (SSE/chunk)
 streaming-client	Streaming: client / bidi
 events-channels	Events / pub-sub channels
 callbacks	Callbacks / request-reply
+operation-links	Links from a response to the operation it leads to
 pagination	Pagination (first-class)
 long-running-operations	Long-running operations
 idempotency	Idempotency

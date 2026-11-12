@@ -259,7 +259,9 @@ func TestResponses_HeadersLowered(t *testing.T) {
 	assert.Equal(t, ir.PropID("p/openapi/paths/~1h/get/responses/200/headers/X-Rate-Limit"), h.ID)
 }
 
-func TestResponses_LinksPreserved(t *testing.T) {
+// TestResponses_LinksLowerOntoTheResponse pins that a response's links lower
+// onto it, its links map kept under no key of its own.
+func TestResponses_LinksLowerOntoTheResponse(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /l:
     get:
@@ -269,15 +271,18 @@ func TestResponses_LinksPreserved(t *testing.T) {
           description: ok
           links:
             GetUserByUserId: {operationId: getUser}
+  /u:
+    get:
+      operationId: getUser
+      responses: {"200": {description: ok}}
 `)
-	_, svc, diags := compileService(t, spec)
+	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	op := openapitest.FirstOp(t, svc)
-	require.Len(t, op.Responses, 1)
-	raw, ok := op.Responses[0].Unmodeled["openapi:links"]
-	require.True(t, ok, "response links preserved raw for later promotion")
-	assert.Contains(t, string(raw.Value), "GetUserByUserId")
-	assert.Equal(t, ir.ReasonNoIRHome, raw.Reason)
+	resp := openapitest.FindOp(t, doc, "l").Responses[0]
+	require.Len(t, resp.Links, 1)
+	assert.Equal(t, "GetUserByUserId", resp.Links[0].Name.Source)
+	assert.Equal(t, openapitest.FindOp(t, doc, "getUser").ID, resp.Links[0].Operation)
+	assert.Empty(t, resp.Unmodeled, "nothing of the links map is kept verbatim beside them")
 }
 
 const componentResponseRefSpec = `openapi: 3.1.0
