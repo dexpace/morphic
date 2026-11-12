@@ -23,8 +23,9 @@ send it to. A target generates instead, for each service holding an inbound oper
   receiver imports as the client imports its sub-clients.
 - **A response type for each response it declares**, `Return`, each of `Others` and each of
   `Errors` alike, since the receiver chooses which to answer: its status, its declared headers and
-  its body, with a method writing them. A range's type holds a status the range admits, and refuses
-  one outside it. Nothing raises on a failure status, and no envelope wraps a body
+  its body, with a method writing them, landing beside the request type. A range's type holds a
+  status the range admits, and a `Default`'s one no other response of the operation declares, and
+  each refuses any other. Nothing raises on a failure status, and no envelope wraps a body
   ([envelopes](../plan/responses.md#envelopes)), since the receiver writes the response rather than
   reads it.
 
@@ -43,15 +44,22 @@ A parse method reads one request as it arrived, in an order a signature needs:
    neither a decoded value nor its encoding again reproduces them.
 3. **The checks.** The operation's own `Auth`, as `OpPlan.Auth` holds it, says how the API
    authenticates to the receiver ([auth](auth.md)); an option passes when each of its schemes does,
-   and the request when one option does, and an operation stating none checks nothing. An `apiKey`
-   scheme's value, in the header, query parameter or cookie it names, and an `http` `basic` or
-   `bearer` scheme's credentials are compared with the ones the receiver is configured with, in
-   constant time. Any other scheme, `mutualTLS`, `oauth2`, `openIdConnect`, another `http` scheme
-   or one of kind `unresolved`, is the user's to check, so the receiver calls the user's check for
-   it, and refuses the request where none is configured rather than pass what it cannot check. The
-   user's check then runs over the headers and the bytes, as the place to verify a signature, for
-   which no format the IR is designed against defines a scheme. A request a check refuses is a
-   verification failure, a value apart from a decode failure, so a handler answers it as such.
+   and the request when one option does. The receiver compares a credential itself, in constant
+   time, where it sits in the request's text and the receiver was given the value: an `apiKey` with
+   `In` `header`, `query` or `cookie`, after its `Scheme` where it states one, an `http_basic` and an
+   `http_bearer` ([where a credential can be read](auth.md#where-a-credential-can-be-read)). Any
+   other scheme, and one of those whose value it was not given, passes only through the user's
+   check, and with none configured the receiver refuses the request rather than pass what it has no
+   means to check: comparing a key it was never given with an absent one would pass a request carrying none.
+   The user's check, where configured, runs on every request, as the place to verify a signature,
+   for which no format the IR is designed against defines a scheme, and is handed the request: its
+   method and target, the query in it, its headers, the body's bytes as they arrived, and the
+   certificates the connection presented where the user's server exposes them, which a
+   `mutual_tls` or `x509` scheme is checked against. An operation stating no option, or an option
+   of no scheme, passes only where the user's check is configured or the receiver was built stating
+   that its operations admit an unauthenticated sender, so a receiver built with no setting parses
+   no forged body. A request a check refuses is a verification failure, a value apart from a decode
+   failure, so a handler answers it as such.
 4. **The parameters** are read from their text as their locations' rules say, as the mock server
    reads a request's ([docs and mocks](../docs-and-mock.md)), a required one absent refused.
 5. **The body** decodes through the content whose media type the request's `Content-Type` names
@@ -69,8 +77,8 @@ the parameters the operation declares, each once.
 
 `OpPlan` keeps its fields' meanings. `Return`, `Others` and `Errors` each plan a response the
 receiver may write, its content elected as for one a client reads, which is the content the
-response is written in. `RequestContent` is the content the mock server sends. `Auth` is the
-operation's own. `Effects` and the retry settings decide nothing, since nothing sends it again, so
+response is written in, and `Errors` holds no `CommonErrors`, which are what the API answers its
+client. `RequestContent` is the content the mock server sends. `Auth` is the operation's own. `Effects` and the retry settings decide nothing, since nothing sends it again, so
 the operation's row of the runtime's settings holds only the bound its body is read to. The plan
 infers no `Page` and no `LRO` for an inbound operation, and a `Stream` on one is a warning
 `emitters/<target>/unsupported-inbound-stream` with nothing generated for it, until a target designs
@@ -114,3 +122,7 @@ T-71 holds this document on every target.
 - **A server the SDK runs** would tie the SDK to one HTTP server, where each target takes the
   request as its servers hand it over.
 - **Decoding before the checks** acts on a body nothing has verified.
+- **Checking nothing where nothing is declared or configured.** A receiver built with no setting
+  answered a forged body 200 for an operation stating no security, and a request with no key for an
+  `apiKey` scheme the receiver held no key for, since an absent key equals an unset one; a check
+  handed the headers and body alone could not read a client certificate or a key in the query.

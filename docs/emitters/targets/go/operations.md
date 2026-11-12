@@ -85,14 +85,20 @@ package's API by tag, every test then building twice, so Go gates nothing.
 
 A service's receiver ([operations the API sends](../../operations/inbound.md)) is `Receiver`, built
 by `NewReceiver(opts ...ReceiverOption)` with an option for each scheme its operations check, named
-for the scheme as the client's are, and `WithVerify(func(http.Header, []byte) error)` for the user's
-check. A parse method takes the `*http.Request` every Go HTTP server hands a handler, `func (r
-*Receiver) ParseZoneCreated(req *http.Request) (*webhooks.ZoneCreatedRequest, error)`, and a refused
-check is an error `errors.Is` matches to the runtime's `ErrUnverified`. A response type writes
-itself with `func (resp *ZoneCreated200Response) WriteTo(w http.ResponseWriter) error`. With Go
-1.27.3, a handler built from them across a root and a group package answered a valid request 200, a
-wrong key and a wrong HMAC signature 401, and a valid body past the bound 400, which with the bound
-removed it answered 200.
+for the scheme as the client's are, `WithVerify(func(req *http.Request, body []byte) error)` for the
+user's check, which reads the method, the target, the headers and `req.TLS.PeerCertificates` from
+`req` and the bytes from `body`, `req.Body` having been read, and `WithUnauthenticated()`, stating
+that an operation declaring no security admits any sender. A parse method takes the `*http.Request`
+every Go HTTP server hands a handler, `func (r *Receiver) ParseZoneCreated(req *http.Request)
+(*webhooks.ZoneCreatedRequest, error)`, and a refused check is an error `errors.Is` matches to the
+runtime's `ErrUnverified`. A response type writes itself with `func (resp *ZoneCreated200Response)
+WriteTo(w http.ResponseWriter) error`. With Go 1.27.3, a handler built from them across a root and a
+group package answered a valid request 200, a wrong key and a wrong HMAC signature 401, and a valid
+body past the bound 400, which with the bound removed it answered 200. Under `httptest` over TLS, a
+check reading `req.TLS.PeerCertificates` accepted the client certificate the API presented and
+refused a connection presenting none; a receiver given no key for a query `apiKey`, and one given no
+setting for an operation declaring no security, refused a request, both of which answered 200 when
+the receiver compared the absent key or checked nothing.
 
 ## The client
 

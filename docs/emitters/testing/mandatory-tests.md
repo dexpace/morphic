@@ -1052,9 +1052,16 @@ throughout these documents.
     `read` projection, while a wrong method, an undeclared content type, a wrong key, a body past
     the bound, read no further than it, a failing user check, and a scheme the receiver cannot check
     with no user check configured are each refused, a refused check a verification failure apart
-    from a decode failure; the user's check reads the body's bytes as they arrived, so an HMAC over
-    them verifies; each declared response writes its status, headers and body with no envelope, a
-    range's refusing a status outside it; a Swift caller catches a refusal; the mock server sends a
+    from a decode failure; an `apiKey` in a header, a query parameter and a cookie, and basic and
+    bearer credentials, are each refused, a request carrying none among them, by a receiver given no
+    value for that scheme and no check; an operation declaring no security, and an option of no
+    scheme, are refused by a receiver given neither a check nor the unauthenticated setting and
+    parse with either; the user's check reads the body's bytes as they arrived, so an HMAC over them
+    verifies, and the request's target and, over TLS, the client certificate, so a `mutual_tls`
+    check and a query key verify; each declared response writes its status, headers and body with
+    no envelope, a range's refusing a status outside it and a `Default`'s one another response
+    declares, none of them a `CommonErrors` entry; a Swift caller builds a receiver and catches a
+    refusal; the mock server sends a
     callback once, after its answer, to the URL its expression resolves to, follows no redirect and
     gives up past `SendTimeout`, never dials an address outside `SendTo`, a name resolving outside
     it included, and with 200 requests naming one loopback URL has no more than `MaxSends` sends in

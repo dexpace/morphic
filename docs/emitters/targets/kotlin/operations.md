@@ -39,15 +39,22 @@ setting](../../operations/client.md#client-settings) is one more,
 ## Operations the API sends
 
 A service's receiver ([operations the API sends](../../operations/inbound.md)) is a class `Receiver`
-built with a value for each scheme its operations check and `verify: (InboundRequest) -> Boolean`
-for the user's check. A parse method takes the runtime's `InboundRequest(method, headers, body:
-ByteArray)`, since Kotlin has no request type every server hands over, and returns the request
-type, throwing the runtime's `InboundException` on a refused check and a decode failure apart from
-it. Each parse method carries `@Throws(InboundException::class)`: without it Kotlin/Native 2.4.0
-exports the method with no `error:` parameter, and a refusal terminates a Swift caller's process,
-while with it Swift calls `try receiver.parseZoneCreated(request:)` and catches the refusal, as a
-Swift caller of the framework did. A response type's `encode()` returns the runtime's
-`OutboundResponse(status, headers, body)`, which the user's server writes.
+built with a value for each scheme its operations check, `verify: ((InboundRequest) -> Boolean)?`
+for the user's check and `allowUnauthenticated: Boolean`, stating that an operation declaring no
+security admits any sender, each unset by default. A parse method takes the runtime's
+`InboundRequest(method, target, headers, body: ByteArray, peerCertificates: List<ByteArray>)`, the
+target its path and query as received and each certificate its DER bytes, the client's first and
+none where the server exposes none, since Kotlin has no request type every server hands over, and a
+JVM certificate type would not reach Swift; it returns the request type, throwing the runtime's
+`InboundException` on a refused check and a decode failure apart from it. Each parse method carries
+`@Throws(InboundException::class)`: without it Kotlin/Native 2.4.0 exports the method with no
+`error:` parameter, and a refusal terminates a Swift caller's process, while with it Swift calls
+`try receiver.parseZoneCreated(request:)` and catches the refusal, as a Swift caller of the
+framework did, building the receiver with every parameter, since Swift sees no default, and the
+check as a closure returning `KotlinBoolean`; on the JVM and from Swift, a receiver given no key for
+a query `apiKey`, or no setting for an operation declaring no security, refused the request. A
+response type's `encode()` returns the runtime's `OutboundResponse(status, headers, body)`, which
+the user's server writes.
 
 ## Stability
 

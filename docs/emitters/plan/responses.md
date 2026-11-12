@@ -183,7 +183,8 @@ own form ([failures](../operations/errors.md)).
 ## Errors
 
 `Errors` holds every failure the operation declares: its `ErrorCase`s, then its service's
-`CommonErrors`, then its `Default` where the policy takes it as a failure ([plan
+`CommonErrors`, save for an operation the API sends ([inbound](../operations/inbound.md)), then its
+`Default` where the policy takes it as a failure ([plan
 policy](policy.md)), whose condition is the catch-all. Entries that agree on everything but
 `Conditions` collapse into one. `Response` follows the rules above with one exception: a failure is
 read whole, so a content that streams is `raw`. `Type` may be of any kind, since an error body may
