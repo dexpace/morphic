@@ -58,7 +58,8 @@ type HTTPParamBinding struct {
                                   // validate the pattern drop it with a diagnostic
     Prefix     string             // map-typed param spread as prefixed wire entries:
                                   // prefixed headers (Smithy @httpPrefixHeaders) or catch-all
-                                  // query maps (@httpQueryParams with Prefix "")
+                                  // query maps (@httpQueryParams with Prefix ""); "" is also
+                                  // no prefix, so neither catch-all has a spelling yet (#1748)
     ContentType string            // param serialized as a media type (OpenAPI content-style params)
     BodyPath   []PropID           // for body_property: where in the body model it lands (TypeSpec HttpProperty)
 }

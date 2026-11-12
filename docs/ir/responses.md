@@ -111,17 +111,17 @@ is the resource the `resource-hierarchy` row plans, not this shape.
 A header can stand for every field whose name starts with a prefix rather than for one field, as
 Smithy's `@httpPrefixHeaders` binds a map of strings on a member of an operation's output or error,
 and an object store returns its user metadata under one prefix that way. On a request a binding
-holds the prefix ([HTTP binding](./http-binding.md)); on a response's, an error's or a part's header,
-`Header.Prefix` does.
+holds the prefix ([HTTP binding](./http-binding.md)); on a response's, an error's or a part's
+header, `Header.Prefix` does.
 
 **A set `Prefix` makes the header a map.** Each field whose name starts with the prefix, compared
 without case as HTTP compares a field name (RFC 9110 §5.1), is an entry keyed by the rest of its
-name, a field another header names included, and its value is read as `Style` and `Explode` say one
-header's is. The empty prefix takes every field of the message, as Smithy's protocol tests read one
-beside a header of its own, and a message with no field under the prefix holds an empty map. The
-header's `Type` is a map (`MapT`), directly or through a [decorator](./annotations.md#decorators),
-whose values are the fields'. It names no field of its own, so it sets no `WireName`, and its `Name`
-only presents it.
+name, a field another header names included, and each value is read as a one-field header's is. The
+empty prefix takes every field of the message, as Smithy's protocol tests read one beside a header
+of its own. A message with no field under the prefix holds the map empty: no field can say it is
+absent, so its absence and its emptiness are one wire state. The header's `Type` is a map (`MapT`),
+directly or through a [decorator](./annotations.md#decorators), whose values are the fields'. It
+names no field of its own, so it sets no `WireName`, and its `Name` only presents it.
 
 **The empty prefix is a prefix, so `Prefix` is a pointer.** Smithy allows `@httpPrefixHeaders("")`,
 and its protocol tests bind one on an output. Two designs not taken lose it, and a third costs every
