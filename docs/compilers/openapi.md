@@ -4026,8 +4026,9 @@ A link that does not lower whole is kept verbatim on its response under `openapi
    operation of another document or one mounted more than once, a request value no parameter of the
    operation answered binds, a header the response does not declare once, a body the document does
    not describe, a member reached through an array index, a map, a union or any type but a model,
-   members the contents of a body disagree on, a string an expression is substituted into, or a
-   constant the IR has no value for.
+   members the contents of a body disagree on, a string an expression is substituted into, whether
+   it is the value or sits within a list or an object the value holds, or a constant the IR has no
+   value for.
 
 - Cases: `response-links`
 - Codes: `openapi/invalid-link`, `openapi/untyped-link`

@@ -133,6 +133,7 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 		{"a union's member", "src", "{operationId: target, parameters: {path.id: '$response.body#/u/id'}}", diag.UntypedLink, "no chain of members"},
 		{"a member no model declares", "src", "{operationId: target, parameters: {path.id: '$response.body#/gone'}}", diag.UntypedLink, "no chain of members"},
 		{"a template", "src", "{operationId: target, parameters: {path.id: 'item-{$response.body#/id}'}}", diag.UntypedLink, "an expression is substituted into"},
+		{"a template within an object", "src", "{operationId: target, requestBody: {a: 1, b: {c: [x, 'item-{$url}']}, d: '{$method}'}}", diag.UntypedLink, `holding "item-{$url}"`},
 		{"a value under a custom tag", "src", "{operationId: target, parameters: {path.id: !acme thing}}", diag.UntypedLink, "no constant for"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

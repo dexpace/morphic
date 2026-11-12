@@ -24,13 +24,18 @@ type exchange struct {
 
 // value lowers one value a link passes as node writes it: a runtime
 // expression whole is a value of the exchange, any other value a constant. A
-// string an expression is substituted into is a value no ir.LinkValue spells.
+// string an expression is substituted into is a value no ir.LinkValue spells,
+// written alone or anywhere within a list or an object: a constant holding one
+// would pass on its braces as written.
 func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
 	v, err := value.FromNode(node)
 	if err != nil {
 		return ir.LinkValue{}, untyped("passes a value the IR has no constant for: %v", err)
 	}
 	if v.Kind != ir.ValueString {
+		if s, ok := substitutedString(&v); ok {
+			return ir.LinkValue{}, untyped("passes a value holding %q, a string an expression is substituted into", s)
+		}
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
 	}
 	e, isExpression, err := parseExpression(v.Str)
@@ -44,6 +49,38 @@ func (ex exchange) value(node *yaml.Node) (ir.LinkValue, *linkFailure) {
 	default:
 		return ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}, nil
 	}
+}
+
+// substitutedString returns the first string within v, in source order, that
+// an expression is substituted into, and false for none. It walks with a
+// stack of its own rather than recursing, so v's depth, which value.FromNode
+// bounds, bounds no call stack here.
+func substitutedString(v *ir.Value) (string, bool) {
+	stack := []*ir.Value{v}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch top.Kind {
+		case ir.ValueString:
+			if embedsExpression(top.Str) {
+				return top.Str, true
+			}
+		case ir.ValueList:
+			for i := len(top.List) - 1; i >= 0; i-- {
+				stack = append(stack, &top.List[i])
+			}
+		case ir.ValueObject:
+			for i := len(top.Object) - 1; i >= 0; i-- {
+				stack = append(stack, &top.Object[i].Value)
+			}
+		case ir.ValueNull, ir.ValueBool, ir.ValueNumber, ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind,
+			ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+			// value.FromNode builds none of these holding a string.
+		default:
+			// Nor a kind ir does not declare.
+		}
+	}
+	return "", false
 }
 
 // read lowers the value e reads of the exchange.
