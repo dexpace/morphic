@@ -37,6 +37,10 @@ type Example struct {
 // and left out.
 const MaxExampleValues = 10_000
 
+// MaxComposedVariants bounds the entries of one TypePlan.Composed; a model whose entries would
+// pass it is reported and composes none (types.md#a-model-narrowing-a-union).
+const MaxComposedVariants = 1_000
+
 // The sets of the positions Examples has no key for: a content's and a variant's declared
 // examples that Build's check admits, else their type's set, and a message's, else those of its
 // payload's contents paired with its headers' set. Build reports what it refuses, so these report
