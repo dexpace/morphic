@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -302,7 +301,7 @@ paths:
 `)
 	assert.Equal(t, svc.Auth[0].Schemes[0].Scheme, onlyOperation(t, svc).Auth[0].Schemes[0].Scheme)
 	assert.Empty(t, cmp.Diff(map[ir.AuthID]ir.AuthScheme{ids.UnresolvedAuth("missing"): {
-		ID: ids.UnresolvedAuth("missing"), Name: compile.NamingFor("missing"), Kind: ir.AuthKindUnresolved,
+		ID: ids.UnresolvedAuth("missing"), Name: ir.NamingFor("missing"), Kind: ir.AuthKindUnresolved,
 	}}, doc.Auth))
 }
 

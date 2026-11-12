@@ -201,7 +201,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
-			Name:       compile.NamingFor(name),
+			Name:       ir.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
 			Provenance: c.Place().At(ppointer),

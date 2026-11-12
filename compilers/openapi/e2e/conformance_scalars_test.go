@@ -35,6 +35,42 @@ func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "only", pinned.Members[0].Value.Str)
 }
 
+// assertStringConstUnion pins what the compiler keeps of a union of string
+// values for pass.ConstUnions to normalize (docs/compilers/openapi.md#string-const-union):
+// the union, its variants naming the types each branch lowers to, a const's
+// Literal holding what its branch says of its value, a constraint it has no
+// home for included. A oneOf branch lowers to a union of its own, and a branch
+// naming a component to that component, as any $ref does.
+func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	color, ok := doc.Types[componentID("Color")].(*ir.Union)
+	require.True(t, ok, "the compiler keeps a oneOf of consts a union")
+	require.Len(t, color.Variants, 2)
+	red, ok := doc.Types[color.Variants[0].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "red"}, red.Value)
+	assert.Equal(t, ir.Docs{Summary: "Red", Description: "The colour red."}, red.Docs)
+	green, ok := doc.Types[color.Variants[1].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.NotNil(t, green.Deprecation, "a branch's deprecation stays on its literal")
+
+	for _, name := range []string{"Level", "Tier", "Direction", "Shade", "Pinned"} {
+		_, ok := doc.Types[componentID(name)].(*ir.Union)
+		assert.True(t, ok, "%s lowers to a union", name)
+	}
+	direction, _ := doc.Types[componentID("Direction")].(*ir.Union)
+	require.Len(t, direction.Variants, 2)
+	_, ok = doc.Types[direction.Variants[0].Type.Target].(*ir.Union)
+	assert.True(t, ok, "a oneOf branch lowers to a union of its own")
+	shade, _ := doc.Types[componentID("Shade")].(*ir.Union)
+	require.Len(t, shade.Variants, 2)
+	assert.Equal(t, componentID("Light"), shade.Variants[1].Type.Target)
+	pinned, _ := doc.Types[componentID("Pinned")].(*ir.Union)
+	require.Len(t, pinned.Variants, 2)
+	a, ok := doc.Types[pinned.Variants[0].Type.Target].(*ir.Literal)
+	require.True(t, ok)
+	assert.Contains(t, a.Unmodeled, "openapi:pattern", "the Literal keeps the constraint it has no home for")
+}
+
 func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	e, ok := doc.Types[componentID("BigCodes")].(*ir.Enum)
 	require.True(t, ok)

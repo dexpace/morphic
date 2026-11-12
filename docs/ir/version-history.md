@@ -424,7 +424,15 @@ it sees. Changes made together in one bump are listed together under it.
   that held the discriminator beside a catch-all and nothing else now lowers to a `MapT`, as that
   object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
   finds it there.
-- **0.42.0** — no shape change. The OpenAPI compiler tags a subtype by its component name only where
+- **0.42.0** — no shape change. The engine's `const-unions` pass, on by default, rewrites a closed
+  union whose every variant names an anonymous string `Literal`, a closed `Enum` of one string or a
+  union of one value in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
+  the closed `Enum` of its values at the union's own ID, each member holding what its branch said of
+  its value, and removes the branch types nothing else references
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to 0.41.0
+  that read such a position as a `Union` finds an `Enum` there, and no longer finds the types its
+  variants named.
+- **0.43.0** — no shape change. The OpenAPI compiler tags a subtype by its component name only where
   a discriminator routes it by name
   ([`discriminator-value`](../compilers/openapi.md#discriminator-value)): one written beside a
   `oneOf` or `anyOf` routes only what that union lists, so a schema composing a discriminated union
@@ -436,5 +444,5 @@ it sees. Changes made together in one bump are listed together under it.
   ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): admitting one
   string other than its name, it carries that string, and admitting several or none, no tag, the
   subtype's `Provenance.Inferred` naming `discriminator-inference` either way. A consumer pinned to
-  0.41.0 that wrote or routed such a subtype's tag by its name no longer finds the name there, and
+  0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name there, and
   one that read a union kept verbatim beside such a schema finds the schema a `Union` instead.

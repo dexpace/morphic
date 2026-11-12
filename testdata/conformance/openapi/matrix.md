@@ -49,7 +49,8 @@ witnessing it.
 
 ### `enums-string`
 
-- Witnesses: `codeclared-keywords`, `enum-string`, `nullable-enum-31`, `enum-member-identity`
+- Witnesses: `codeclared-keywords`, `enum-string`, `nullable-enum-31`, `enum-member-identity`,
+  `string-const-union`
 
 ### `enums-numeric`
 

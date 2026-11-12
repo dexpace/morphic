@@ -10,7 +10,6 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -119,7 +118,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 ) (ir.AuthScheme, []ir.Diagnostic) {
 	scheme := ir.AuthScheme{
 		ID:         ids.Auth(name),
-		Name:       compile.NamingFor(name),
+		Name:       ir.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
 		Provenance: c.Place().At(entry),
 	}

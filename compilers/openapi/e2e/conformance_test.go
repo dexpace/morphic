@@ -201,6 +201,7 @@ func conformanceCases() []conformanceCase {
 		{"type-array-discriminator", assertTypeArrayDiscriminator},
 		{"enum-string", assertEnumString},
 		{"enum-numeric", assertEnumNumeric},
+		{"string-const-union", assertStringConstUnion},
 		{"empty-enum", assertEmptyEnum},
 		{"missing-array-items", assertMissingArrayItems},
 		{"scalar-format", assertScalarFormat},

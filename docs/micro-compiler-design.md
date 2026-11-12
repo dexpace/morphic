@@ -91,7 +91,7 @@ promotion requires evidence from all three, not two and an expectation.
 |---|---|---|---|---|
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
-| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
+| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `NamingFor` the constructor a compiler calls, since moved beside it |
 | ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space`, except the primitives: see §3.4 |
 | Bounded-recursion guard | `depth`, cap 256 | `depth`, cap 256 | `depth`, cap 32 | **do not promote** — see §3.2 |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
@@ -121,8 +121,9 @@ Two boundaries were listed here as beyond that check and are no longer. The lett
 (`foo2bar` against `foo_2_bar`) is decidable from the neutral name alone. The camel-case split is
 not — lowercasing erases the case change that marked it — so the grammar itself moved to `ir`,
 beside the field whose doc comment already states it in prose, and `irverify` recomputes a canonical
-from the `Naming.Source` next to it. `compilers/compile` keeps `NamingFor`, the compiler-facing
+from the `Naming.Source` next to it. `compilers/compile` kept `NamingFor`, the compiler-facing
 constructor that pairs the two; what moved is the derivation, not the API a compiler calls.
+`NamingFor` followed it into `ir` once a pass, which imports `ir` alone, named an enum member.
 
 That matters because the architecture sweep reaches only this repository's own compilers. A
 `Document` arriving any other way — decoded from JSON, produced by a compiler outside this tree,
