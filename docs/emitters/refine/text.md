@@ -35,23 +35,25 @@ An array or an object is arranged from its elements' and its members' texts as t
 and `Explode` say in OpenAPI's terms (§4.12.3, Appendix C): a model's members in the order
 `TypePlan.Flattened` holds them, each under its `WireName`, or the name `WireNameByFormat` gives it
 for a form body's media type, and a map's entries in the order of their keys' texts, compared by
-UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a list of objects or of
-lists sends, which OpenAPI leaves undefined, is #1731's. A member holding its style's own delimiter
-where expansion writes it as it writes the delimiter, a `.` under an exploded `label`, a space under
-`spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a `deepObject` key, reads back as that
-delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A `Prefix` binding,
-and a response header whose `Prefix` is set, writes each entry of its map, in that order, as a field
-of its own, named by the prefix followed by the entry's key, its value the entry's text, and an
-entry naming a field another binding writes, in any case for a header, gives way to it, as Smithy
-has a client and a server do. Two entries naming one header field, as keys `A` and `a` do, fail the
-call before anything is sent, as a reader would hold one of them. An empty prefix on a request's
-binding, Smithy's catch-all for every header or query parameter, has no spelling yet (#1748). A map
-a `form` or `cookie` style explodes into parameters of its own is a catch-all the same way: an entry
-naming a parameter another binding writes gives way to it, and its reader holds every parameter its
-location carries, as Smithy's protocol tests have a client and a server treat its query map. A
-parameter whose `ContentType` names a media type ([bindings](../plan/bindings.md)), and a form field
-or part of another content type, carries that media type's serialization of the value instead, so as
-JSON a string keeps its quotes.
+UTF-8 bytes, so a Go map's unordered iteration never reaches a request. In a cookie, a `form` style
+that explodes a list or an object joins its pairs with `; `, as the `cookie` style does, since the
+`&` it writes in a query would leave one cookie holding them all (Appendix D.1). What a list of
+objects or of lists sends, which OpenAPI leaves undefined, is #1731's. A member holding its style's
+own delimiter where expansion writes it as it writes the delimiter, a `.` under an exploded `label`,
+a space under `spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a `deepObject` key, reads
+back as that delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A
+`Prefix` binding, and a response header whose `Prefix` is set, writes each entry of its map, in that
+order, as a field of its own, named by the prefix followed by the entry's key, its value the entry's
+text, and an entry naming a field another binding writes, in any case for a header, gives way to it,
+as Smithy has a client and a server do. Two entries naming one header field, as keys `A` and `a` do,
+fail the call before anything is sent, as a reader would hold one of them. An empty prefix on a
+request's binding, Smithy's catch-all for every header or query parameter, has no spelling yet
+(#1748). A map a `form` or `cookie` style explodes into parameters of its own is a catch-all the
+same way: an entry naming a parameter another binding writes gives way to it, and its reader holds
+every parameter its location carries, as Smithy's protocol tests have a client and a server treat
+its query map. A parameter whose `ContentType` names a media type ([bindings](../plan/bindings.md)),
+and a form field or part of another content type, carries that media type's serialization of the
+value instead, so as JSON a string keeps its quotes.
 
 ## Null and empty
 
@@ -152,7 +154,9 @@ segment: within one segment, ending where a literal after it there first follows
 `AllowReserved` across the longest run of segments the template leaves it, as Smithy matches a
 greedy label. A text is percent-decoded as its location's rules say (Appendix E.5): a `+` as a space
 in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as itself in a
-path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A header's text is every
+path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A parameter a query or a
+cookie repeats where its `Style` and `Explode` write it once, as a scalar's or an unexploded list's
+is written, is a text that does not parse, since no one value writes two. A header's text is every
 line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar `Set-Cookie`'s, each of whose
 lines is one element since its values hold commas, as OpenAPI's Header Object has it (§4.21.3), and
 only a list's or an object's split drops anything, the whitespace beside a comma and an empty
