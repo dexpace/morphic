@@ -2549,8 +2549,8 @@ since a union would be no subtype, so no variant of a distributed union carries 
   `schema.TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists`,
   `schema.TestRoutesByName_ReadsAUnionsListOnce`,
   `schema.TestDiscriminatorValue_AUnionListsTheSchemaItsBranchEndsOn`
-- Status: partly built: a schema composing a discriminated union that does not list it lowers to a
-  `Model` whose `Base` is the union, where it may lower as the union narrowed (#1716).
+- Status: partly built: a schema composing a discriminated union that does not list it composes the
+  union as it would any other, where it may lower as the union narrowed (#1716).
 
 ### `discriminator-inference`
 
