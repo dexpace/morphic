@@ -5,6 +5,7 @@ package pass
 
 import (
 	"fmt"
+	"hash/maphash"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,18 +19,42 @@ import (
 type nameReader struct {
 	// parties are the names of the scope being read, in its order.
 	parties []party
-	// seen maps a name the scope compares to the parties so far that have it.
-	seen reusedMap[string, chain]
-	// later holds, for each party, the next party sharing its name, or -1
-	// where none does.
+	// seen maps the hash of a name the scope compares to the first party of
+	// the last set read whose name has that hash. A hash is its key rather
+	// than the name, since a name compared joined is not a string the scope
+	// holds.
+	seen reusedMap[uint64, int]
+	// hash makes the keys of seen, under one seed for the whole run, and
+	// joined holds the words it hashes with their separators left out.
+	hash   maphash.Hash
+	joined []byte
+	// later holds, for each party, the next party named alike, or -1 where
+	// none is.
 	later []int
-	// shared holds the first party of each name two or more share, in the
-	// order their second parties were read.
+	// last holds, for the first party of each set, the set's last party so
+	// far, and other the first party of the set read before it whose name has
+	// the same hash, or -1.
+	last, other []int
+	// shared holds the first party of each set of two or more named alike, in
+	// the order their second parties were read.
 	shared []int
 	// bare holds the parties whose name has no word character.
 	bare  []int
 	diags []ir.Diagnostic
 }
+
+// comparison is how a scope's check tells two names with words apart, as the
+// targets render the scope (docs/ir/naming.md#names-one-scope-shares).
+type comparison uint8
+
+const (
+	// byWords compares the neutral words as they are.
+	byWords comparison = iota
+	// byJoinedWords compares the neutral words joined with no separator, so
+	// set_up meets setup, for a scope a first target renders as a package's
+	// name or a class file's.
+	byJoinedWords
+)
 
 // party is what a scope's check reads of one entity's name: the neutral words
 // a target renders it from, Canonical or else Hint, and the spelling Source
@@ -45,12 +70,6 @@ func partyOf(n ir.Naming) party {
 		words = n.Hint
 	}
 	return party{words: words, source: n.Source}
-}
-
-// chain is the first and the last of the parties read so far that share a
-// name.
-type chain struct {
-	first, last int
 }
 
 // scope says how to report on the parties a nameReader read: what holds them,
@@ -108,54 +127,125 @@ func (sc scope) lead(b *strings.Builder) {
 	fmt.Fprintf(b, "in %s %s, ", sc.in, sc.id)
 }
 
-// readScope reads n names, the ith through name, as one scope, and reports
-// whether it found anything to report. A name is read by index, never through
-// an element's address or a generic over the service tree, which
-// servicetreewrites refuses outside ir and the compilers.
-func (r *nameReader) readScope(n int, name func(i int) ir.Naming) bool {
+// readScope reads n names, the ith through name, as one scope whose names
+// compare under by, and reports whether it found anything to report. A name is
+// read by index, never through an element's address or a generic over the
+// service tree, which servicetreewrites refuses outside ir and the compilers.
+func (r *nameReader) readScope(by comparison, n int, name func(i int) ir.Naming) bool {
 	r.parties = r.parties[:0]
 	for i := range n {
 		r.parties = append(r.parties, partyOf(name(i)))
 	}
-	return r.read()
+	return r.read(by)
 }
 
-// read finds, among r.parties, the names two or more parties share and the
-// parties whose name has no word character, and reports whether it found
-// either. A name with no word character is compared by its spelling, which
-// every target names alike and no neutral name equals, as each holds a letter
-// or digit. A party with neither words nor a source names nothing, which
-// irverify reports as ir/naming-absent, so it is passed over here.
-func (r *nameReader) read() bool {
-	seen := r.seen.emptied()
-	r.later = slices.Grow(r.later[:0], len(r.parties))[:len(r.parties)]
+// read finds, among r.parties, each set of two or more whose names compare
+// alike under by and the parties whose name has no word character, and reports
+// whether it found either. A party with neither words nor a source names
+// nothing, which irverify reports as ir/naming-absent, so it is passed over
+// here.
+func (r *nameReader) read(by comparison) bool {
+	seen, n := r.seen.emptied(), len(r.parties)
+	r.later, r.last, r.other = sized(r.later, n), sized(r.last, n), sized(r.other, n)
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
 	for i, p := range r.parties {
 		r.later[i] = -1
-		key := p.words
-		if key == "" {
+		if p.words == "" {
 			if p.source == "" {
 				continue
 			}
 			r.bare = append(r.bare, i)
-			key = p.source
 		}
-		c, ok := seen[key]
-		if !ok {
-			seen[key] = chain{first: i, last: i}
-			continue
-		}
-		if c.first == c.last {
-			r.shared = append(r.shared, c.first)
-		}
-		r.later[c.last] = i
-		seen[key] = chain{first: c.first, last: i}
+		r.place(by, seen, r.sum(by, p), i)
 	}
 	return len(r.shared) > 0 || len(r.bare) > 0
 }
 
-// report appends what read found in sc, at what holds it: for each shared
-// name a pass/name-collision warning naming every party that has it,
+// sized returns s holding n elements, reusing its array where it can.
+func sized(s []int, n int) []int {
+	return slices.Grow(s[:0], n)[:n]
+}
+
+// sum hashes the name by compares p by: its words, joined where by joins them,
+// or else its spelling.
+func (r *nameReader) sum(by comparison, p party) uint64 {
+	r.hash.Reset()
+	switch {
+	case p.words == "":
+		r.hash.WriteString(p.source)
+	case by == byJoinedWords:
+		r.joined = r.joined[:0]
+		for i := range len(p.words) {
+			if p.words[i] != '_' {
+				r.joined = append(r.joined, p.words[i])
+			}
+		}
+		r.hash.Write(r.joined)
+	default:
+		r.hash.WriteString(p.words)
+	}
+	return r.hash.Sum64()
+}
+
+// place puts party i, whose name hashes to sum, in the set of the parties
+// before it named alike under by, or starts a set of its own where none is.
+func (r *nameReader) place(by comparison, seen map[uint64]int, sum uint64, i int) {
+	head, ok := seen[sum]
+	if !ok {
+		head = -1
+	}
+	if first := r.setOf(by, head, i); first >= 0 {
+		if r.last[first] == first {
+			r.shared = append(r.shared, first)
+		}
+		r.later[r.last[first]] = i
+		r.last[first] = i
+		return
+	}
+	r.last[i], r.other[i] = i, head
+	seen[sum] = i
+}
+
+// setOf returns the first party of the set whose name party i's compares
+// alike to under by, among the sets from head on that share its name's hash,
+// or -1 where none does. A set past the first is that of a name that differs
+// though its hash agrees.
+func (r *nameReader) setOf(by comparison, head, i int) int {
+	for first := head; first >= 0; first = r.other[first] {
+		if alike(by, r.parties[first], r.parties[i]) {
+			return first
+		}
+	}
+	return -1
+}
+
+// alike reports whether by compares the names of a and b alike. A name with no
+// word character is compared by its spelling alone, which every target names
+// alike and no neutral name equals, as each holds a letter or digit.
+func alike(by comparison, a, b party) bool {
+	switch {
+	case a.words == "" || b.words == "":
+		return a.words == b.words && a.source == b.source
+	case by == byJoinedWords:
+		return joinedEqual(a.words, b.words)
+	default:
+		return a.words == b.words
+	}
+}
+
+// joinedEqual reports whether a and b are equal with every underscore
+// removed, without making either. Each step drops one byte of each, and an
+// underscore is one byte that no other rune's encoding holds.
+func joinedEqual(a, b string) bool {
+	a, b = strings.TrimLeft(a, "_"), strings.TrimLeft(b, "_")
+	for a != "" && b != "" && a[0] == b[0] {
+		a, b = strings.TrimLeft(a[1:], "_"), strings.TrimLeft(b[1:], "_")
+	}
+	return a == "" && b == ""
+}
+
+// report appends what read found in sc, at what holds it: for each set of
+// parties named alike a pass/name-collision warning naming every party in it,
 // and for each party with no word character a pass/name-without-words info
 // naming that party.
 func (r *nameReader) report(sc scope) {
@@ -171,31 +261,62 @@ func (r *nameReader) report(sc scope) {
 	}
 }
 
-// collision is the message for the parties sharing first's name, in scope
-// order, each named with the spelling its source gave it.
+// collision is the message for the parties named alike from first, in scope
+// order, each named with the spelling its source gave it, and then the neutral
+// name they share or, in a scope that compares names joined, the neutral names
+// that differ only where their words break.
 func (r *nameReader) collision(sc scope, first int) string {
 	var b strings.Builder
 	sc.lead(&b)
 	b.WriteString(sc.many)
+	b.WriteByte(' ')
 	for i := first; i >= 0; i = r.later[i] {
-		switch {
-		case i == first:
-			b.WriteByte(' ')
-		case r.later[i] < 0:
-			b.WriteString(" and ")
-		default:
-			b.WriteString(", ")
-		}
+		b.WriteString(separator(i == first, r.later[i] < 0))
 		b.WriteString(sc.label(i))
 		if src := r.parties[i].source; src != "" {
 			fmt.Fprintf(&b, " (%q)", src)
 		}
 	}
-	if words := r.parties[first].words; words != "" {
-		fmt.Fprintf(&b, " share the neutral name %q", words)
-	} else {
+	who := "a target"
+	switch words := r.wordsOf(first); len(words) {
+	case 0:
 		fmt.Fprintf(&b, " share the spelling %q, which has no word character", r.parties[first].source)
+	case 1:
+		fmt.Fprintf(&b, " share the neutral name %q", words[0])
+	default:
+		b.WriteString(" have the neutral names ")
+		for k, w := range words {
+			b.WriteString(separator(k == 0, k == len(words)-1))
+			fmt.Fprintf(&b, "%q", w)
+		}
+		b.WriteString(", which differ only where their words break")
+		who = "a target that joins words or ignores letter case"
 	}
-	b.WriteString(", so a target can tell them apart only by ID")
+	fmt.Fprintf(&b, ", so %s can tell them apart only by ID", who)
 	return b.String()
+}
+
+// wordsOf lists the neutral words of the parties named alike from first, each
+// once, in scope order: none where their names have no word character.
+func (r *nameReader) wordsOf(first int) []string {
+	var words []string
+	for i := first; i >= 0; i = r.later[i] {
+		if w := r.parties[i].words; w != "" && !slices.Contains(words, w) {
+			words = append(words, w)
+		}
+	}
+	return words
+}
+
+// separator is what precedes an item of an English list: nothing before the
+// first, "and" before the last, and a comma before any other.
+func separator(first, last bool) string {
+	switch {
+	case first:
+		return ""
+	case last:
+		return " and "
+	default:
+		return ", "
+	}
 }
