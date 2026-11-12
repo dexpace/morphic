@@ -54,10 +54,8 @@ type HTTPParamBinding struct {
                                   // deepObject)
     PathPattern string            // multi-segment path pattern constraint for this param
                                   // (gRPC transcoding {name=shelves/*/books/*}); "" = single segment.
-                                  // A value under one of several segments is escaped as
-                                  // google.api.http escapes it, not by RFC 6570's reserved
-                                  // expansion (../emitters/refine/text.md#escaping); emitters
-                                  // that cannot validate the pattern drop it with a diagnostic
+                                  // The URI template uses reserved expansion; emitters that cannot
+                                  // validate the pattern drop it with a diagnostic
     Prefix     string             // map-typed param spread as prefixed wire entries:
                                   // prefixed headers (Smithy @httpPrefixHeaders) or catch-all
                                   // query maps (@httpQueryParams with Prefix ""); "" is also
