@@ -47,6 +47,8 @@ type Capabilities struct {
                                     // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
     WritesSamples   bool            // returns EmitterOutput.Samples, so a docs target may name it
     Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
+    RPCSystems      []string        // the RPCBinding.System values it lowers; set exactly when
+                                    // Protocols lists "rpc"
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does
 }
@@ -56,7 +58,14 @@ type Capabilities struct {
 samples of the targets its options name, and when the engine runs it, and `WritesSamples` that it
 returns samples, so a docs target naming one that does not is refused
 (`engine/sample-target-invalid`); the registry refuses a target that sets `CrossVersion` without
-implementing `Router` ([the contract](emitter.md)). `Lifecycle` is the one field the engine acts on
+implementing `Router` ([the contract](emitter.md)). `RPCSystems` is there because one RPC arm holds
+every RPC system and a target lowering gRPC need not lower JSON-RPC: a binding of a system the list
+omits is one the target does not cover ([bindings](../plan/bindings.md)). The registry refuses a
+target listing `rpc` with no system, which would cover no RPC binding while claiming the arm, one
+naming a system without listing `rpc`, and a protocol outside the vocabulary. A message binding's
+system is each of its channel's servers' `Protocol`, such as `kafka` or `mqtt`, and capabilities
+name none until a messaging target needs to ([open question 4](../open-questions.md)), since no
+compiler lowers a channel yet. `Lifecycle` is the one field the engine acts on
 otherwise, and only to tell the user, never to change an artifact. The states are a target's life in
 order. A `hidden` target is under construction: it is left out of every listing — help, completion,
 the targets a misspelt name is answered with — and runs only when named, with the `experimental`

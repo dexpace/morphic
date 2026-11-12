@@ -707,3 +707,11 @@ throughout these documents.
     declaration the manifest records. On Go, a model whose fields and methods are named after each
     package its file imports compiles ([Kotlin](../targets/kotlin/naming.md#imports),
     [Go](../targets/go/naming.md#imports)).
+85. **T-85 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
+    field's `Protocol`, an RPC binding of every `System` `rpc` with the system in `RPC.System`; an
+    operation bound as a gRPC method and an HTTP transcoding of it lowers through the transcoding on
+    a target listing `http` alone and through gRPC on one listing `rpc` with `grpc`, and a JSON-RPC
+    method on the second draws `emitters/<target>/unsupported-binding` and generates no method; the
+    registry refuses `rpc` without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside
+    the vocabulary ([bindings](../plan/bindings.md),
+    [capabilities](../contract/registry.md#capabilities)).

@@ -11,7 +11,7 @@ RPC/OTP single-response ops with empty conditions are handled uniformly.
 
 ```go
 type BindingView struct {
-    Primary  ProtoBinding    // the binding a single-protocol SDK uses
+    Primary  ProtoBinding    // All[0], the binding the source states first
     All      []ProtoBinding  // every binding, primary first (transcoding, dual HTTP+RPC)
 }
 type ProtoBinding struct {
@@ -35,13 +35,24 @@ type ParamBind struct {
     BodyPath []ir.PropID     // body_property: where in the body model the param lands
 }
 type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir.Reply; Messages []ir.MessageID }
-type Protocol string         // "http" | "grpc" | "message" | "graphql" | "otp"
+type Protocol string         // "http" | "rpc" | "message" | "graphql" | "otp"
 ```
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the
 type so the second-protocol emitter ([open question 4](../open-questions.md)) does not force a plan
 schema change (INV9). Channels and messages ([messaging](../../ir/messaging.md)) reach an emitter
 through `MsgView`; a messaging target consumes them the same way an HTTP target consumes `HTTP`.
+
+A `Protocol` names the `OpBindings` field a binding comes from, never the system speaking it: `rpc`
+is every `RPCBinding`, gRPC, Connect, JSON-RPC and Smithy RPC alike, and its `RPC.System` says which
+([RPC binding](../../ir/rpc-binding.md)). A label for each system was rejected: `System` is an open
+string, so the vocabulary would be open too and no switch over `Protocol` could be complete, while
+labelling every system `grpc`, as the vocabulary once did, handed a gRPC target a JSON-RPC method to
+lower as gRPC. A target lowers the first binding of `All` its
+[capabilities](../contract/registry.md#capabilities) cover, so an HTTP target reaches a gRPC method
+through its transcoding binding, and an operation none of whose bindings it covers is a warning
+`emitters/<target>/unsupported-binding` naming the operation and its bindings, with no method
+generated for it (T-85 holds both).
 
 `Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
 *declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL
