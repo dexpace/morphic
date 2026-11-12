@@ -9,16 +9,30 @@ shape or request type holding it, an enum's constant, a variant's wrapper. `Mark
 it once the declarations exist ([step list](steps.md)). Nothing deprecated changes what is sent or
 read, so the mock server reads none of it.
 
+A mark counts only where the target's tools show it at a use in another output unit, the caller's.
+Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
+the text where the caller reads it instead: Kotlin 2.4.0 shows no use in another module of an enum
+entry's `@Deprecated`, on the JVM or on Native ([Kotlin](../targets/kotlin/lowering.md)), and the
+Swift export marks a class on its initializers alone and an enum entry nowhere
+([Swift](../targets/kotlin/swift.md)). No target marks a parameter, so a path parameter passed
+positionally ([request shaping](requests.md)), which is no field, has its text in its method's
+documentation of it: a Go doc comment has no place on a parameter, and Kotlin 2.4.0 refuses
+`@Deprecated` on one, `this annotation is not applicable to target 'value parameter'`.
+
 ## The text
 
 The deprecation's text is its fields in one order: `Message` as written, escaped for where it is
 written ([emit rules](../emit/rules.md)); a sentence naming each replacement (below); and a sentence
 saying since when and until when, from `Since`, `RemovalVersion` and `RemovalDate`, each as the
-source wrote it and each only where it is set. The message keeps whatever replacement its prose
-names, as the IR keeps it there: on the golden spec 308 of 778 deprecations carry a message and
-none names a replacement in `ReplacedBy` (spec @bc6fad24, morphic @fa253fe19), while 179 of the 187
-`x-stainless-deprecation-message` values name one by its method and path, as `Use GET
-/events/event-categories/by-id/{category_id} before 2026-11-28.` does.
+source wrote it and each only where it is set. A deprecation setting none of them, as an OpenAPI
+`deprecated: true` alone does, reads `The API no longer recommends it.` on every target: gopls
+v0.24.0 reports a use only where text follows `Deprecated:`, so a bare marker would mark nothing in
+Go. The message keeps whatever replacement its prose names, as the IR keeps it there. On the golden
+spec (spec @bc6fad24, morphic @fa253fe19), 465 of 778 deprecations set no field and 308 carry a
+message, none names a replacement in `ReplacedBy`, and of the 187 operations'
+`x-stainless-deprecation-message` values, 175 name a replacement operation: 147 by a Markdown link
+to its page, 26 by its method and path, as `Use GET /events/event-categories/by-id/{category_id}
+before 2026-11-28.` does, and 2 by its path alone.
 
 ## Each replacement
 
@@ -46,13 +60,15 @@ does a span ([routes and links](../docs-and-mock.md#routes-and-links)).
 
 A mechanical rewrite is written only where it holds whatever the caller wrote: the deprecation names
 one replacement; an operation's is a method of the same client taking the same parameters, by name
-and type, in order; a property's or parameter's is a field of the same holder of the same type; a
-member's is a member of the same enum; and a type's is a type of the same kind declaring each
-member the deprecated one declares, under the same name and type, so a caller's use of a member
-still resolves. Under any other, the text names the replacement and nothing rewrites the call: with
-Kotlin 2.4.0, `getOrder(request: GetOrderRequest)` rewritten as `getOrderV2(request)` fails to
-compile, `argument type mismatch`, since each operation's request type is its own. T-70 holds these
-rules on every target.
+and type, in order, and returning the same type; and a property's or parameter's is a field of the
+same holder of the same type. Under any other, and for a type or an enum member, the text names the
+replacement and nothing rewrites the use. With Kotlin 2.4.0, `getOrder(request: GetOrderRequest)`
+rewritten as `getOrderV2(request)` fails to compile, `argument type mismatch`, since each
+operation's request type is its own; `val o: Order = client.getOrder(id)` rewritten to a method
+returning `OrderV2` fails, `initializer type mismatch`, as does a type's rewrite wherever a caller
+declares a value the API returns, `val z: ZoneV2 = client.getZone(id)`; and a closed enum's entry
+rewritten in an exhaustive `when` leaves no branch for it, `'when' expression must be exhaustive`.
+T-70 holds these rules on every target.
 
 ## Rejected
 

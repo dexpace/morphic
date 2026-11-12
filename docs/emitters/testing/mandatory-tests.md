@@ -1030,16 +1030,21 @@ throughout these documents.
     ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
 70. **T-70 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
     enum member and union variant each carry the target's mark on every declaration they lower to,
-    each method of an operation and each shape of a model among them; its text holds the message
-    escaped, each replacement as it renders after a collision renamed it, linked within its unit and
-    from another, and the removal; a replacement with no declaration is named as text, never as a
-    link that resolves to nothing, and a deprecated one is named and not followed, two naming each
-    other included; on Go, `go/doc` parses each link and gopls reports each use; on Kotlin, a file
-    using each deprecated declaration as the samples do, its members included, compiles with a
-    deprecation warning, and with each `ReplaceWith` applied as an IDE applies it, the call replaced
-    by the expression with the arguments for the parameters and the imports added, compiles with
-    none, while a replacement of another signature, a second replacement and one on another client
-    get none; and a Swift caller of the Multiplatform framework is shown the message
+    each method of an operation and each shape of a model among them, a positional path parameter
+    its text in its method's documentation, and one setting no field the shared sentence; its text
+    holds the message escaped, each replacement as it renders after a collision renamed it, linked
+    within its unit and from another, and the removal; a replacement with no declaration is named as
+    text, never as a link that resolves to nothing, and a deprecated one is named and not followed,
+    two naming each other included; on Go, `go/doc` parses each link and gopls reports each use from
+    another package, a deprecation stating nothing and one whose message holds a blank line
+    included; on Kotlin, a file in another module using each deprecated declaration as the samples
+    do, its members included, compiles with a deprecation warning, an enum entry's excepted, whose
+    text its enum's KDoc holds, and with each `ReplaceWith` applied as an IDE applies it, the call
+    replaced by the expression with the arguments for the parameters and the imports added, compiles
+    with none, while a replacement of another signature or result type, a type's, an enum member's,
+    a second replacement and one on another client get none; and a Swift caller of the Multiplatform
+    framework is shown the message at each function, property and initializer, and the header holds
+    a deprecated class's text and, in its enum's documentation, a deprecated entry's
     ([deprecations](../refine/deprecation.md)).
 71. **T-71 · Operations the API sends** — on every target, a webhook and a callback get no client
     method and one receiver for their service, with a parse method each; a request of each content

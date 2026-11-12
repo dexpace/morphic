@@ -105,5 +105,10 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   ([operations](operations.md#operations-the-api-sends)).
 - `@Deprecated` reaches Swift as `__attribute__((deprecated("…")))` holding its message alone, so a
   Swift caller is shown the message as written and no `ReplaceWith`, which is why the message names
-  each replacement in plain text ([deprecations](../../refine/deprecation.md)). A `@RequiresOptIn`
+  each replacement in plain text ([deprecations](../../refine/deprecation.md)). Kotlin/Native 2.4.0
+  writes it on a function, a property and a class's initializers alone: a Swift caller naming a
+  deprecated class as a type, or an enum entry, which the header marks nowhere, is shown nothing.
+  So the framework is built with `-Xexport-kdoc`, which writes a class's KDoc, its deprecation's
+  text among it, above it in the header, where Xcode's Quick Help shows it, and an enum's KDoc names
+  each deprecated entry with its text, since no entry's KDoc is exported. A `@RequiresOptIn`
   annotation does not reach Swift at all ([stability](operations.md#stability)).
