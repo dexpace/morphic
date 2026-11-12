@@ -45,7 +45,10 @@ of its own, named by the prefix followed by the entry's key, its value the entry
 entry naming a field another binding writes, in any case for a header, gives way to it, as Smithy
 has a client and a server do. Two entries naming one header field, as keys `A` and `a` do, fail the
 call before anything is sent, as a reader would hold one of them. An empty prefix on a request's
-binding, Smithy's catch-all for every header or query parameter, has no spelling yet (#1748). A
+binding, Smithy's catch-all for every header or query parameter, has no spelling yet (#1748). A map
+a `form` or `cookie` style explodes into parameters of its own is a catch-all the same way: an entry
+naming a parameter another binding writes gives way to it, and its reader holds every parameter its
+location carries, as Smithy's protocol tests have a client and a server treat its query map. A
 parameter whose `ContentType` names a media type ([bindings](../plan/bindings.md)), and a form field
 or part of another content type, carries that media type's serialization of the value instead, so as
 JSON a string keeps its quotes.
@@ -108,6 +111,12 @@ such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..
 before it, as RFC 3986's dot-segment removal does (§5.2.4), while Go and the JDK send it as it is,
 so one call would send two paths, and `fetch`'s would name the collection above the item.
 
+A path parameter whose text holds the literal its template sets after it in the same segment fails
+before anything is sent too, and a reader ends the parameter's text where that literal first follows
+it, so every text sent reads back into its parts: at the revisions above, the golden spec's
+`{event_t}.{event_n}` binds two `number`s, and `1.5` and `3` would send `1.5.3`, which reads as `1`
+and `5.3`.
+
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
 (§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
 character other than a tab, or a space or a tab at either end, which no field value carries
@@ -137,17 +146,18 @@ Whatever reads a text reads it by the same rule backwards: an SDK reading a resp
 SDK reading a request the API sends it ([inbound
 operations](../../ir/http-binding.md#inbound-operations)). A list's or an object's text is split as
 its `Style` and `Explode` arrange it before each part is percent-decoded, so a `%2C` stays in its
-element (Appendix C.2). A path parameter's text is the segments its expression in the template
-matches, cut from the path at its unencoded `/`s before any is percent-decoded, so a `%2F` stays in
-its segment: one segment, or under `AllowReserved` the longest run of them the template leaves it,
-as Smithy matches a greedy label. A text is percent-decoded as its location's rules say
-(Appendix E.5): a `+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL
-does (§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie's not at all
-(§4.12.2.2). A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins
-them, bar `Set-Cookie`'s, each of whose lines is one element since its values hold commas, as
-OpenAPI's Header Object has it (§4.21.3), and only a list's or an object's split drops anything, the
-whitespace beside a comma and an empty element (RFC 9110 §5.6.1), so a string header keeps its own
-whitespace. A `Prefix` binding's map, and a response header's whose `Prefix` is set ([prefix
+element (Appendix C.2). A path parameter's text is what its expression in the template matches, read
+from the path cut at its unencoded `/`s before anything is percent-decoded, so a `%2F` stays in its
+segment: within one segment, ending where a literal after it there first follows, or under
+`AllowReserved` across the longest run of segments the template leaves it, as Smithy matches a
+greedy label. A text is percent-decoded as its location's rules say (Appendix E.5): a `+` as a space
+in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as itself in a
+path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A header's text is every
+line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar `Set-Cookie`'s, each of whose
+lines is one element since its values hold commas, as OpenAPI's Header Object has it (§4.21.3), and
+only a list's or an object's split drops anything, the whitespace beside a comma and an empty
+element (RFC 9110 §5.6.1), so a string header keeps its own whitespace. A `Prefix` binding's map,
+and a response header's whose `Prefix` is set ([prefix
 headers](../../ir/responses.md#prefix-headers)), holds every field whose name starts with the
 prefix, a header's in any case (RFC 9110 §5.1), a field another binding reads included, as Smithy's
 protocol tests read one, keyed by the rest of the name in lower case, as HTTP/2 carries every field
@@ -207,6 +217,9 @@ which keys its row as any encoding does: an emitter never reads which format a d
   holding `a?b` to `a`, and the second encodes the percent-encoded triples OpenAPI has a caller
   write before reserved expansion (§4.12.4), sending a key written `100%25` as `100%2525`.
 - **A dot segment percent-encoded**: WHATWG URL reads `%2e` as `.`, so `fetch` still removes it.
+- **A parameter's text holding its template's next literal sent as it is**, as a member holding its
+  style's delimiter is: OpenAPI gives no escaping for it, and a `number` has no spelling of its
+  fraction without a `.`.
 - **Refusing a segment an `AllowReserved` slash leaves empty**: a path-like key ending in `/` would
   be unreachable, where a dot segment is refused because the client itself rewrites it.
 - **A header's text trimmed**, as each target's HTTP library trims it: two texts differing only in
