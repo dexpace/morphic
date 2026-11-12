@@ -81,21 +81,37 @@ package's API by tag, every test then building twice, so Go gates nothing.
 ## Operations the API sends
 
 A service's receiver ([operations the API sends](../../operations/inbound.md)) is `Receiver`, built
-by `NewReceiver(opts ...ReceiverOption)` with an option for each scheme its operations check, named
-for the scheme as the client's are, `WithVerify(func(req *http.Request, body []byte) error)` for the
-user's check, which reads the method, the target, the headers and `req.TLS.PeerCertificates` from
-`req` and the bytes from `body`, `req.Body` having been read, and `WithUnauthenticated()`, stating
-that an operation declaring no security admits any sender. A parse method takes the `*http.Request`
-every Go HTTP server hands a handler, `func (r *Receiver) ParseZoneCreated(req *http.Request)
-(*webhooks.ZoneCreatedRequest, error)`, and a refused check is an error `errors.Is` matches to the
+by `NewReceiver(cfg ReceiverConfig)`. `ReceiverConfig` is a struct holding a field for each scheme
+its operations name that the receiver can compare, named for the scheme, its zero value giving none;
+`Verify func(req *http.Request, body []byte, check runtime.InboundCheck) error` for the caller's
+check; and `Unauthenticated bool`, stating that an operation declaring no security admits any
+sender. The check reads the method, the target, the headers and `req.TLS.PeerCertificates` from
+`req`, the bytes from `body`, `req.Body` having been read, and from `check` what it stands in for:
+`Operation`, the parse method as the SDK names it, as an event names a call's ([what an event
+holds](../../contract/runtime-policy.md#what-an-event-holds)), and `Scheme`, the name the document
+gives the scheme, empty for an alternative naming none. The fields are a scope of the struct's own,
+where a scheme's field meets only `Verify` and `Unauthenticated` and yields to them, so the unit
+gains `Receiver`, `NewReceiver` and `ReceiverConfig` whatever the schemes are called. Options named
+as the client's are, `WithVerify` and one for each scheme, were rejected: the receiver sits in the
+client's unit, which already declares the client's option for a scheme of that name (`WithAPIKey
+redeclared in this block`), and a prefix only moves where they meet, a client's scheme `receiver
+key` and the receiver's `key` both rendering `WithReceiverKey`.
+
+A parse method takes the `*http.Request` every Go HTTP server hands a handler, `func (r *Receiver)
+ParseZoneCreated(req *http.Request) (*webhooks.ZoneCreatedRequest, error)`, reading its body no
+further than a byte past the bound, and a refused check is an error `errors.Is` matches to the
 runtime's `ErrUnverified`. A response type writes itself with `func (resp *ZoneCreated200Response)
 WriteTo(w http.ResponseWriter) error`. With Go 1.27.3, a handler built from them across a root and a
 group package answered a valid request 200, a wrong key and a wrong HMAC signature 401, and a valid
-body past the bound 400, which with the bound removed it answered 200. Under `httptest` over TLS, a
-check reading `req.TLS.PeerCertificates` accepted the client certificate the API presented and
-refused a connection presenting none; a receiver given no key for a query `apiKey`, and one given no
-setting for an operation declaring no security, refused a request, both of which answered 200 when
-the receiver compared the absent key or checked nothing. T-71 holds this section.
+body past the bound 400, which with the bound removed it answered 200. Under `httptest` over TLS,
+for an operation stating `[{http_basic}, {mutual_tls}]`, a receiver given the basic credentials and
+a check verifying the client certificate answered correct credentials with no certificate 200, the
+check not called, wrong ones with a certificate 200, the check told `mutual_tls`, and wrong ones
+with none 401; a check for an operation stating no security was told no scheme and verified an HMAC
+over the body; and a receiver given no key for an `apiKey`, and one given no setting for an
+operation declaring no security, refused a request, both of which answered 200 when the receiver
+compared the absent key or checked nothing. The same package declared the client's `WithAPIKey` and,
+for a scheme named `verify`, its `WithVerify`. T-71 holds this section.
 
 ## The client
 

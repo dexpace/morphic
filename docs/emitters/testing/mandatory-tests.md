@@ -1109,18 +1109,31 @@ throughout these documents.
     method and one receiver for their service, with a parse method each; a request of each content
     the operation declares, carrying a valid API key or basic or bearer credentials, parses into the
     `read` projection, while a wrong method, an undeclared content type, a wrong key, a body past
-    the bound, read no further than it, a failing user check, and a scheme the receiver cannot check
-    with no user check configured are each refused, a refused check a verification failure apart
-    from a decode failure; an `apiKey` in a header, a query parameter and a cookie, and basic and
+    the bound, a failing check, and a scheme the receiver cannot compare with no check configured
+    are each refused, a refused check a verification failure apart from a decode failure; of a 64
+    MiB body sent to a bound of 1,024 bytes no more than 1,025 are read or held, by Go's parse
+    method and by a JVM server reading to the Kotlin receiver's `maxBodyBytes`, a body of exactly
+    the bound parses, and a parse method refuses a body past its own operation's bound where another
+    operation's is larger; an `apiKey` in a header, a query parameter and a cookie, and basic and
     bearer credentials, are each refused, a request carrying none among them, by a receiver given no
-    value for that scheme and no check; an operation declaring no security, and an option of no
+    value for that scheme and no check; an operation declaring no security, and an alternative of no
     scheme, are refused by a receiver given neither a check nor the unauthenticated setting and
-    parse with either; the user's check reads the body's bytes as they arrived, so an HMAC over them
-    verifies, and the request's target and, over TLS, the client certificate, so a `mutual_tls`
-    check and a query key verify; each declared response writes its status, headers and body with no
-    envelope, a range's refusing a status outside it and a `Default`'s one another response
-    declares, none of them a `CommonErrors` entry; a Swift caller builds a receiver and catches a
-    refusal; the mock server sends a callback once, after its answer, to the URL its expression
+    parse with either; for an operation stating two alternatives, basic credentials and
+    `mutual_tls`, a receiver given the credentials and a check verifying the certificate passes
+    right credentials over a connection presenting no certificate with the check not called, passes
+    wrong ones with a certificate, the check told that operation and `mutual_tls`, and refuses wrong
+    ones with none; of two schemes in one alternative both must hold; a check standing in for a
+    scheme the receiver was given no value for is told that scheme, and one for an operation
+    declaring no security is told none; the check reads the body's bytes as they arrived, so an HMAC
+    over them verifies, and the request's target and, over TLS, the client certificate, so a
+    `mutual_tls` check and a query key verify; a query input no style arranges is read as the pairs
+    its binding owns, in the order sent, and no pair another parameter owns; on Go, the receiver's
+    unit also declares a client whose schemes are named for each of the config's fields, `verify`
+    among them, and builds, a caller in another package building both; each declared response writes
+    its status, headers and body with no envelope, a range's refusing a status outside it and a
+    `Default`'s one another response declares, none of them a `CommonErrors` entry; a Swift caller
+    builds a receiver, reads its `maxBodyBytes`, passes a check that is told the scheme, and catches
+    a refusal; the mock server sends a callback once, after its answer, to the URL its expression
     resolves to, follows no redirect and gives up past `SendTimeout`, never dials an address outside
     `SendTo`, a name resolving outside it included, and with 200 requests naming one loopback URL
     has no more than `MaxSends` sends in flight, and sends a webhook only through its control route,
