@@ -85,19 +85,15 @@ func TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists(t *testing.T
 // union written in another document lists: the schemas its $ref branches end
 // on there, as discriminatedAncestors reads a $ref, so a subtype it lists is
 // routed by its name and one it does not is not
-// (docs/compilers/openapi.md#discriminator-value).
+// (docs/compilers/openapi.md#discriminator-value), in either declaration order.
 func TestDiscriminatorValue_AUnionListsTheSchemaItsBranchEndsOn(t *testing.T) {
 	t.Parallel()
-	doc, diags, _ := compileBeside(t, map[string]string{"pets.yaml": `components:
-  schemas:
-    Pet:
-      type: object
-      properties: {kind: {type: string}}
-      discriminator: {propertyName: kind}
-      oneOf: [{$ref: '#/components/schemas/Cat'}]
-    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}, {properties: {meow: {type: boolean}}}]}
-    Bird: {allOf: [{$ref: '#/components/schemas/Pet'}, {properties: {wings: {type: integer}}}]}
-`}, `openapi: 3.1.0
+	const pet = "    Pet:\n      type: object\n      properties: {kind: {type: string}}\n" +
+		"      discriminator: {propertyName: kind}\n      oneOf: [{$ref: '#/components/schemas/Cat'}]\n"
+	const subtypes = "    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}, {properties: {meow: {type: boolean}}}]}\n" +
+		"    Bird: {allOf: [{$ref: '#/components/schemas/Pet'}, {properties: {wings: {type: integer}}}]}\n"
+	for _, schemas := range []string{pet + subtypes, subtypes + pet} {
+		doc, diags, _ := compileBeside(t, map[string]string{"pets.yaml": "components:\n  schemas:\n" + schemas}, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 components:
@@ -108,11 +104,12 @@ components:
         cat: {$ref: './pets.yaml#/components/schemas/Cat'}
         bird: {$ref: './pets.yaml#/components/schemas/Bird'}
 `)
-	openapitest.RequireNoErrorDiags(t, diags)
-	for name, tag := range map[string]string{"Cat": "Cat", "Bird": ""} {
-		m, ok := doc.Types[ir.TypeID("t/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
-		require.True(t, ok, "%s lowers to a model", name)
-		assert.Equal(t, tag, m.DiscriminatorValue, name)
+		openapitest.RequireNoErrorDiags(t, diags)
+		for name, tag := range map[string]string{"Cat": "Cat", "Bird": ""} {
+			m, ok := doc.Types[ir.TypeID("t/openapi@pets.yaml/components/schemas/"+name)].(*ir.Model)
+			require.True(t, ok, "%s lowers to a model", name)
+			assert.Equal(t, tag, m.DiscriminatorValue, name)
+		}
 	}
 }
 
