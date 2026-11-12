@@ -174,10 +174,20 @@ the document, which determines it.
   `2` up, that does not: `v1`, `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. Every run
   reads `Document.Versions` whole, so each derives the same directories; a version added after the
   others moves none, and one removed can return a later label to its own name. A set of the folded
-  directories taken, each base holding the next number to try, keeps this linear in the labels.
-  Refusing two labels that differ in letter case alone, as this rule once did, failed a run on a
-  valid document whose author could part them only by renaming a version of the API, the reason two
-  names that fold alike are told apart rather than refused
+  directories taken, each base holding the next number to try, keeps this linear in the labels. Each
+  directory so named, its suffix included, is held to what every path segment is ([emit
+  rules](../emit/rules.md)): one past 255 bytes, a Windows device name up to its first dot, or one
+  holding a character Windows refuses or ending in `.` or a space is the same error, naming the
+  label and the rule it breaks, before any run, where the check of artifact paths would refuse it
+  only once every target had generated. Such a label is refused where two that fold alike are told
+  apart: a suffix leaves the label whole in its directory and in every link, and a directory escaped
+  or cut to length would be a version's address under a name the API never gave it. Keeping a
+  label's directory from the prior manifest while it stays free, as a shipped name keeps its symbol,
+  was not taken either: it serves only two labels that fold alike once the earlier is removed, and
+  each run would then need the manifest to derive what it now reads off the document. Refusing two
+  labels that differ in letter case alone, as this rule once did, failed a run on a valid document
+  whose author could part them only by renaming a version of the API, the reason two names that fold
+  alike are told apart rather than refused
   ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Any other
   target, an SDK, a mock server, a CLI or a validator, writes one snapshot: the one whose label
   `RunOptions.Version` names, else the last `Document.Versions` lists, as the newest. It writes it

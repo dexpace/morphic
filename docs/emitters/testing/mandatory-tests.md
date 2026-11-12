@@ -480,9 +480,13 @@ throughout these documents.
     pruning the other's, all of them one generation whose manifest holds each run's under its label,
     a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and a
     label that is no single path segment `engine/snapshot-label-invalid`, `.` and `..` among them,
-    labels `v1`, `V1` and `V1-2`, in that order, writing under `v1`, `V1-2` and `V1-2-2`, the
-    switcher showing `V1` and linking `V1-2`, and a document of `V1` alone under `V1`, a label with
-    `#` or `?`
+    labels `v1`, `V1` and `V1-2`, in that order, writing under `v1`, `V1-2` and `V1-2-2`, labels
+    `v1-2`, `v1` and `V1` under `v1-2`, `v1` and `V1-3`, and `Straße` and `STRASSE` under `Straße`
+    and `STRASSE-2`, the switcher showing `V1` and linking `V1-2`, and a document of `V1` alone
+    under `V1`, a label that is a Windows device name before a first dot, one holding a character
+    Windows refuses, as a `:` is, or ending in a dot or a space, and two of 255 bytes that fold
+    alike, the second's directory passing the limit, each drawing `engine/snapshot-label-invalid`
+    before any target runs, naming the label and the rule it breaks, a label with `#` or `?`
     percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
     document writing the one snapshot T-69 says, run for samples alone on each other, and the last
     label's run taking a prior's `""` entry when the document gains versions; only the run of the

@@ -60,8 +60,10 @@ T-25 gives each a test.
   `<`, `>`, `:`, `"`, `\`, `|`, `?`, `*` or one below U+0020, or ends in `.` or a space. A path
   breaking one is an error `engine/artifact-path-unportable` naming the artifact's `Origins` and the
   segment, before any write. This is a backstop as well: each target renders the names it writes as
-  paths so that a valid spec reaches it only through a snapshot label, which the engine takes as the
-  document writes it ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
+  paths so that no spec name reaches it, and a snapshot label, which the engine takes as the
+  document writes it, is held to these rules before any run ([contract
+  rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
+  [naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
   [Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
   [docs](../docs-and-mock.md#routes-and-links)). T-25 holds it.
 - **Formatter failures.** A formatter that fails is the located, hard diagnostic of the [format
