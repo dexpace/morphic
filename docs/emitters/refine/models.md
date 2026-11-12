@@ -53,19 +53,26 @@ in: each instance of the model is an instance of one of the union's variants, wi
 composition beside it ([models](../../ir/models.md#a-union-a-composition-names)). So each of the
 three targets lowers the model as the union it narrows, distributing the composition over the
 union's variants as [models](../../ir/models.md#composition-beside-a-union) distributes a union
-written beside one: a variant for each of the union's, the model with that variant in the union's
-place, flattened and lowered as any model is, and by this rule where that composes a union in turn.
-A target with intersection types may write the composition as it stands instead, so the distribution
-is a shared refine helper rather than a plan fact ([plan or refine](../plan/plan-or-refine.md)), run
-by `LowerModels` before the steps projecting shapes and lowering unions and discriminators reach the
-variants ([steps](steps.md)). The model takes the union's wire shape, a discriminator on the union
-routing each tag to the variant composed over the one the tag names. A composed variant has no
-`TypeID`, so `Ctx.Syms` keys it by the model's and its variant's, which name it from one generation
-to the next ([naming](naming.md#collisions-and-the-names-a-generation-shipped)), and it goes to the
-model's output unit ([output units](output-units.md)). A model adding nothing to its union is that
-union, which each target's lowering table aliases ([Go](../targets/go/lowering.md),
-[Kotlin](../targets/kotlin/lowering.md)), and one with two unions in `Unflattened`, or whose union
-has a variant composing the model in turn, is a diagnosed degrade. T-46 holds the rule.
+written beside one: a variant for each of the union's, the model with that variant's type in the
+union's place, flattened and lowered as any model is, and by this rule where that composes a union
+in turn. A target with intersection types may write the composition as it stands instead, so the
+distribution is a shared refine helper rather than a plan fact ([plan or
+refine](../plan/plan-or-refine.md)), run by `LowerModels` before the steps projecting shapes and
+lowering unions and discriminators reach the variants ([steps](steps.md)). The model takes the
+union's wire shape, a discriminator on the union routing each tag, and its default, to the variant
+composed over the one it names. In each shape it is inclusive and strict where the union is, since
+two variants the union keeps apart stay apart once composed, and it is open as `TypePlan.Open` says
+of the model ([policy](../plan/policy.md#a-union-a-client-reads-is-open)). Every path to a composed
+variant passes through the model, which a target declares as a union, so it breaks a cycle through
+the variant as a union does ([recursive references](#recursive-references)). A composed variant has
+no `TypeID`, so `Ctx.Syms` keys it by the model's and its variant's, which name it from one
+generation to the next ([naming](naming.md#collisions-and-the-names-a-generation-shipped)), and it
+goes to the model's output unit ([output units](output-units.md)). A model adding nothing to its
+union is that union, which each target's lowering table aliases ([Go](../targets/go/lowering.md),
+[Kotlin](../targets/kotlin/lowering.md)). A model with two unions in `Unflattened`, one whose union
+has a variant composing the model in turn, one over a key-tagged or enveloped union, whose variants
+are not the values it admits, and one over a union tagged by a tuple index, whose values are no
+objects, are each a diagnosed degrade. T-46 holds the rule.
 
 ## Unknown members
 

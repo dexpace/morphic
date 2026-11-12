@@ -16,9 +16,10 @@ type TypePlan struct {
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
-    Open       bool                 // a union, polymorphic base or enum keeps a value no variant or
-                                    // member recognizes rather than refusing it (policy.md,
-                                    // ../refine/unions.md, ../refine/enums.md)
+    Open       bool                 // a union, polymorphic base, model composing a union or enum
+                                    // keeps a value no variant or member recognizes rather than
+                                    // refusing it (policy.md, ../refine/unions.md,
+                                    // ../refine/enums.md)
     Inclusive  bool                 // an any_of union two of whose variants can admit one value in
                                     // the declaration no shape projects (below); false otherwise
     Strict     bool                 // a one_of union refuses a value two variants admit unless its
