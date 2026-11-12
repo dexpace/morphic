@@ -25,7 +25,7 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** A lowering that changes the kind of node a position lowers to, such as a `Model`
   becoming a `Union`, has readers no getter search finds: code outside the changed package reading
   the old kind's facts off the IR. Ask each what the new kind gives it, `<Kind>` the old one:
-  `git grep -nE '\(\*ir\.<Kind>\)|case \*ir\.<Kind>|ir\.Kind<Kind>|FlattenedProperties|Exposes\(' -- compilers pass ':!*_test.go'`.
+  `git grep -nE '\(\*ir\.<Kind>\)|case \*ir\.<Kind>|ir\.Kind<Kind>|FlattenedProperties|Exposes\(' -- compilers pass ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
   Then compile the position as each consumer names it
   (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
 - **Why.** A union distributed across a form body's `allOf` made the body a `Union`: the multipart

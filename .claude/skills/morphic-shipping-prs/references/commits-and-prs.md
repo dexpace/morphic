@@ -149,9 +149,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Open a pull request without labels
 `pr-takes-no-labels`
 
-- **Rule.** `gh pr create` takes no `--label`. The `type:`, `priority:` and `security` labels are
-  an issue's, set as `CLAUDE.md`'s "Filing issues" says, and a merged pull request carries none bar
-  Dependabot's `dependencies`.
+- **Rule.** `gh pr create` takes no `--label`: labels are an issue's, set as `CLAUDE.md`'s "Filing
+  issues" says, and a merged pull request carries none bar Dependabot's `dependencies`.
 - **Why.** A labelled pull request shows in the label listings issue triage and tier audits read,
   and with no rule saying otherwise, #1691 was opened with an issue's labels (#1693).
 - **Probe.** `gh pr list --state merged --limit 40 --json number,labels --jq '.[] | select(.labels | length > 0) | "\(.number) \(.labels | map(.name) | join(","))"'`
