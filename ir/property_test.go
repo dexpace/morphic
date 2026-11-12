@@ -70,6 +70,11 @@ func TestHeader_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Header{}, property+`}`, populatedHeader())
 	assertZeroValueShape(t, ir.Header{Explode: new(false)}, property+`,"explode":false}`)
 	assertZeroValueShape(t, ir.Header{Prefix: new("")}, property+`,"prefix":""}`)
+
+	var decoded ir.Header
+	require.NoError(t, json.Unmarshal([]byte(property+`,"prefix":""}`), &decoded))
+	require.NotNil(t, decoded.Prefix, "the empty prefix decodes as a prefix, not as none")
+	assert.Empty(t, *decoded.Prefix)
 }
 
 // TestProperty_WireNameByFormatDeterministic pins Class C for Property's
