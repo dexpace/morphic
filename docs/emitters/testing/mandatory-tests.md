@@ -655,3 +655,10 @@ throughout these documents.
     pass; writes plain digits; reads a parameter's and a header's text by the same table, in an SDK
     and in a mock; and leaves a caller's own decoder for an integer type its precedence at any
     depth ([type table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
+71. **T-71 · Bytes compare by content** — on both Kotlin targets and from a Swift caller, two values
+    decoded from the same `bytes` text are equal and hash alike as themselves, in a scalar's
+    declaration over `bytes`, as a model's member, as a list's element, as a map's value and key and
+    as a union's variant, and a model holding each equals its twin and finds it in a set; changing
+    the array a value was built from, or the one it hands out, changes neither the value nor its
+    hash; and a `bytes` member still writes and reads its row's base64
+    ([Kotlin](../targets/kotlin/types.md#bytes)).

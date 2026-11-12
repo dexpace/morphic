@@ -31,10 +31,37 @@ kotlinx alone and 1.90 ms through the serializer (Kotlin 2.4.0, kotlinx-serializ
 JVM 25). kotlinx offers no cheaper seam: its `Long` decoder cannot be asked to try and fall back,
 since a refused literal has already been consumed.
 
+## Bytes
+
+A `ByteArray` equals only itself, and no declaration holding one repairs that. A value class over
+one compares by identity, and Kotlin reserves `equals` on a value class (`member name 'equals' is
+reserved for future releases`, Kotlin 2.4.0). A model that compares the member with `contentEquals`
+still compares a list of them, a map's values, a union's variant and a value class over them by
+identity. A `data class` copies the reference, so a copy's array is the original's. So the built-in
+row for `bytes` is the runtime's `Bytes`: a final class over an array it copied in, with `size`,
+`get`, a `toByteArray()` that copies out, `equals` and `hashCode` over the content, and a
+`toString` that shows only its size. With it two values holding the same bytes are equal as
+themselves, in a value class, in a model's generated `equals`, in a list, as a map's key and as a
+union's variant, and hash alike; the Swift export gives the class the same `==` and `hash`, so it
+keys a `Dictionary`, where a `KotlinByteArray` compares by identity as it does in Kotlin
+(Kotlin/JVM and Kotlin/Native 2.4.0, Swift 6.2).
+
+The copies are the price, one in and one out, on values that arrive as base64 inside a JSON text; a
+body that is bytes whole is a file or a stream ([return shapes](returns.md)) and no `bytes`
+position, and the raw body a failure holds stays a `ByteArray`, compared by identity as its
+exception is. Three alternatives lost. Content equality in each generated member needs a rule for
+every position bytes can sit in, and has none for a bare value class: on the golden spec (spec
+@bc6fad24, morphic @fa253fe19) `bytes`, or one of the 25 scalars over it, types 24 model properties,
+8 lists' elements, 4 maps' values and 2 union variants. A `typealias` over `ByteArray` leaves
+identity everywhere. And `kotlinx-io`'s `ByteString` is this type as a dependency every SDK would
+take for one class. A configuration that maps `bytes` to `ByteArray` takes its identity with it
+([type table](../../contract/type-table.md)). T-71 holds this.
+
 ## A declaration over a root
 
 Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a value class over
-`Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
+`Boolean`, a number, `String` or the runtime's `Bytes`, and a `typealias` over any other root,
+which leaves
 the root's type, and its serializer, in every signature. A value class over a sensitive chain, and a
 sensitive enum's class, whose entry's name would spell its member, override `toString` to show
 `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)), while their serializers and
@@ -70,8 +97,8 @@ An open one is a value class, which equals as its underlying value does, since K
 `equals` and `hashCode` on a value class, so it holds the member's wire text, `val wire: String`,
 wherever Kotlin can write no `const val` of the row's type, and its `value` is decoded through the
 row's codec when read, as a closed entry's is. A value class over the row's type would tell members
-apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
-`ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
+apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two,
+and a `Uuid` or a time type reads two texts as one value, a `uuid`
 in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.
 
 On Multiplatform an open enum is a final class instead, comparing by generated `equals` and
