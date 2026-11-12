@@ -685,7 +685,7 @@ func TestPartEncodings_ReadsTheFlattenedComposition(t *testing.T) {
 					}
 					msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, string(bodyPtr))
 					assert.Equal(t, fmt.Sprintf("form body composition is nested past the flattening depth of %d, "+
-						"so a part reached only below it has no encoding entry", schema.MaxAllOfFlattenDepth), msg,
+						"so a part reached only below it has no Content.Encoding key", schema.MaxAllOfFlattenDepth), msg,
 						"a walk cut short by the bound says so")
 					if tc.shape == shapeBesideNote {
 						note := ir.PropID("p/openapi" + bodyPtr + ids.Ptr("properties", "note"))
@@ -738,7 +738,7 @@ components:
 	msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/paths/~1u/post/requestBody/content/multipart~1form-data/schema")
 	assert.Equal(t, fmt.Sprintf("form body composition follows $refs past %d hops, "+
-		"so a part reached only beyond them has no encoding entry", operation.MaxPartRefHops), msg,
+		"so a part reached only beyond them has no Content.Encoding key", operation.MaxPartRefHops), msg,
 		"the bound is named at the body schema")
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	assert.Empty(t, content.Encoding, "the part beyond it has no entry")
@@ -1089,12 +1089,18 @@ func (e unkeyedEntry) token() string {
 	return e.name
 }
 
-// unkeyedMessage is the message announcing the entry named name, spelled out
-// here and not derived from the code under test.
+// unkeyedMessage is the message announcing the entry named name on a form
+// body, spelled out here and not derived from the code under test.
 func unkeyedMessage(name string) string {
-	return fmt.Sprintf("encoding entry %q names no part the form body declares on the schema its $ref chain ends on "+
-		"or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; "+
-		"kept verbatim under Unmodeled", name)
+	return fmt.Sprintf("encoding entry %q matches no property read from the form body's schema or its allOf branches, "+
+		"so Content.Encoding has no key for it; kept verbatim under Unmodeled", name)
+}
+
+// unkeyedFileMessage is the message announcing the entry named name on a file
+// body, spelled out here and not derived from the code under test.
+func unkeyedFileMessage(name string) string {
+	return fmt.Sprintf("encoding entry %q belongs to a body that is file content, which has no parts, "+
+		"so Content.Encoding has no key for it; kept verbatim under Unmodeled", name)
 }
 
 // formDoc spells a document of the given version, "" being 3.1.0, whose POST /u
@@ -1462,18 +1468,17 @@ components:
 				assert.JSONEq(t, e.value, string(rec.Value), "%s: kept as written", e.name)
 				assert.Equal(t, jsontext.Pointer(at), rec.Provenance.Pointer, "%s: located at the entry", e.name)
 				msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at)
-				assert.Equal(t, unkeyedMessage(e.name), msg, "%s: the one announcement", e.name)
+				want := unkeyedMessage(e.name)
+				if tc.file {
+					want = unkeyedFileMessage(e.name)
+				}
+				assert.Equal(t, want, msg, "%s: the one announcement, naming the body's kind", e.name)
 			}
 			slices.Sort(wantNames)
 			assert.Equal(t, wantNames, keptEncodingNames(content.Unmodeled),
 				"the only records under openapi:encoding/ are the entries kept whole")
-			var gotPointers []jsontext.Pointer
-			for _, d := range diags {
-				if strings.HasPrefix(string(d.Provenance.Pointer), tc.media+"/encoding/") {
-					gotPointers = append(gotPointers, d.Provenance.Pointer)
-				}
-			}
-			assert.Equal(t, wantPointers, gotPointers, "one finding per entry kept, in source order, and nothing else beneath the entries")
+			assert.Equal(t, wantPointers, diagPointersUnder(diags, tc.media+"/encoding/"),
+				"one finding per entry kept, in source order, and nothing else beneath the entries")
 		})
 	}
 }
@@ -1482,6 +1487,7 @@ components:
 // whole to being one record and one finding: its header schema registers no
 // type, and its unknown key, extension and nested encoding draw no finding and
 // no record of their own, which the same entry under a part's name does draw.
+// The rule records why it is not judged (#1662).
 func TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares(t *testing.T) {
 	t.Parallel()
 	const entry = "{contentType: image/png, headers: {X-A: {schema: {type: object, properties: {k: {type: string}}}}}, " +

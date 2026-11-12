@@ -159,7 +159,7 @@ func keepFileBodyEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsonte
 	if !isFormContent(mt) {
 		return nil, nil
 	}
-	return keepUnkeyedEncodings(c, media, mediaPtr, nil)
+	return keepUnkeyedEncodings(c, media, mediaPtr, nil, unkeyedFileEntry)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

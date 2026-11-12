@@ -743,7 +743,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"*\" names no part the form body declares on the schema its $ref chain ends on or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"*\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1assets/post/requestBody/content/multipart~1form-data/encoding/*"
@@ -752,7 +752,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"file\" names no part the form body declares on the schema its $ref chain ends on or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"file\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1union/post/requestBody/content/multipart~1form-data/encoding/file"
@@ -761,7 +761,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"ghost\" names no part the form body declares on the schema its $ref chain ends on or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"ghost\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1ghost/post/requestBody/content/multipart~1form-data/encoding/ghost"
@@ -770,7 +770,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"file\" names no part the form body declares on the schema its $ref chain ends on or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"file\" belongs to a body that is file content, which has no parts, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1file/post/requestBody/content/multipart~1form-data/encoding/file"
@@ -779,7 +779,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "encoding entry \"ghost\" names no part the form body declares on the schema its $ref chain ends on or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; kept verbatim under Unmodeled",
+      "message": "encoding entry \"ghost\" matches no property read from the form body's schema or its allOf branches, so Content.Encoding has no key for it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ghost"

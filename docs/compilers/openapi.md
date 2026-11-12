@@ -3870,16 +3870,24 @@ conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. The `allOf` is read a
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
 is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
 target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
-since a part reached only past it has no entry. A part is a property the schema the body's `$ref`
-chain ends on declares, or one an `allOf` branch the walk reaches does, and an entry whose key names
-none keys nothing in `Content.Encoding`: the key of a map's or a catch-all's entry, a property only
-a `oneOf` or `anyOf` branch declares, a part past a bound, and any entry of a body declaring no
-property, a file body ([`file-bodies`](#file-bodies)) among them. Each such entry is kept whole, as
-written, under the content's `Unmodeled` at `openapi:encoding/<key>` (the key escaped as a JSON
-Pointer token) with reason `no_ir_home`, located at the entry, and reported there as an info
-`openapi/degraded-construct`. Nothing it declares is lowered: its header schemas register no type,
-and its `x-*`, unknown keys and nested encodings have no record of their own. An entry that is no
-object is kept nowhere and draws only the `openapi/validation` error that load reports for it.
+since a part reached only past it has no `Content.Encoding` key. A part is a property the schema the
+body's `$ref` chain ends on declares, or one an `allOf` branch the walk reaches does, and an entry
+whose key names none keys nothing in `Content.Encoding`: a key naming no property, the key of a
+map's or a catch-all's entry, a property only a `oneOf` or `anyOf` branch declares, a part past a
+bound, and any entry of a body declaring no property, such as one with no schema, one whose schema
+`$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Each such entry is kept
+whole, as written, under the content's `Unmodeled` at `openapi:encoding/<key>` (the key escaped as a
+JSON Pointer token) with reason `no_ir_home`, located at the entry, and reported there as an info
+`openapi/degraded-construct`. The info says that the entry matches no property read from the body's
+schema or its `allOf` branches, or, on a file body, that the body has no parts, and names no other
+cause, since the walk cannot tell a misspelt key from a catch-all's or a union branch's. A key
+naming no property and an entry of a file body are ones OpenAPI gives no effect, 3.2 saying such an
+entry "SHALL be ignored". No reason states that, so they keep `no_ir_home` rather than be dropped,
+and stay where a union branch's entry and a catch-all's leave once keyed. Nothing a kept entry
+declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
+nested encodings have no record of their own, and neither an unknown key nor a reserved header name
+in it is reported, though load still validates its fields. An entry that is no object is kept
+nowhere and draws only the `openapi/validation` error that load reports for it.
 `contentType` lowers to `ContentTypes`, split on `,`
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
@@ -3954,12 +3962,14 @@ without its parameters and in any case.
   `operation.TestPartEncodings_AKeptEntryNeverTakesAPartsRecord`,
   `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWholeInCallbacksAndWebhooks`,
   `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`
-- Status: partly built: an entry naming a property only a `oneOf` or `anyOf` branch holds is kept
-  whole and not keyed to it, and on a multi-typed body the entry is keyed by a property no node
-  holds, which validation then refuses (#744); an entry naming one a catch-all governs has no typed
-  home (#NEW-CATCHALL); a part's own `format: byte`, and a part of a url-encoded body, is marked as
-  carrying a filename (#1214); and an encoding under a media type it does not apply to is kept in no
-  form (#1047).
+- Status: partly built: a part only a `oneOf` or `anyOf` branch declares is not keyed, its entry
+  kept whole (#1771); an entry naming one a catch-all governs has no typed home (#1770); a key
+  naming no property draws only the info (#1661); a kept entry's unknown keys and reserved header
+  names go unreported, as in the other objects kept whole (#1662); a part of a body declaring
+  `properties` beside a keyword that lowers it to no model is keyed by a property no node holds,
+  which validation then refuses (#1772); a part's own `format: byte`, and a part of a url-encoded
+  body, is marked as carrying a filename (#1214); and an encoding under a media type it does not
+  apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`
 
@@ -4309,10 +4319,12 @@ service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathIt
 `openapi:externalDocs/x-*`; and on a security scheme, `openapi:flows/x-*`. `<part>` and `<name>` are
 escaped as RFC 6901 tokens, so a name the document chooses stays one segment
 ([unmodeled](../ir/unmodeled.md#keys)). A Link Object lowers to a link that holds its own, and one
-kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)); a path item
-that mounts no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`
-([`path-item-servers`](#path-item-servers)). An extension whose value converts to no JSON reaches
-the IR in no form, reported as an `openapi/degraded-construct` warning at the object holding it.
+kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)), as an encoding
+entry naming no part keeps its own inside its `openapi:encoding/<key>` entry
+([`multipart-encoding`](#multipart-encoding)); a path item that mounts no operation keeps its own
+under `openapi:pathItem/<item pointer>/x-*` ([`path-item-servers`](#path-item-servers)). An
+extension whose value converts to no JSON reaches the IR in no form, reported as an
+`openapi/degraded-construct` warning at the object holding it.
 
 - Cases: `extensions-x`, `inline-annotations`
 - Codes: `openapi/degraded-construct`
@@ -4343,7 +4355,9 @@ Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
 `openapi/unknown-key-unreachable`, where the key is merged in through a `<<` chain deeper than the
 compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
-kept and reported as a written one is.
+kept and reported as a written one is. An object a rule keeps whole without reading it, such as an
+encoding entry naming no part ([`multipart-encoding`](#multipart-encoding)), is not judged: its
+unknown keys ride inside its entry, unreported.
 
 - Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
@@ -4355,7 +4369,7 @@ kept and reported as a written one is.
   `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
   `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396).
+  (#396); an object kept whole without being read reports none of its unknown keys (#1662).
 
 ### `extension-promotion`
 

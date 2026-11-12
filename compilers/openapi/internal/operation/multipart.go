@@ -33,7 +33,7 @@ import (
 func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	bodyWalk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := bodyWalk.parts
-	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, parts)
+	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, parts, unkeyedFormEntry)
 	diags := append(diagPartWalkCut(c, bodyWalk, mediaPtr+ids.Ptr("schema")), keptDiags...)
 	if len(parts) == 0 {
 		return nil, unmodeled, diags
@@ -57,14 +57,23 @@ func partEncodings(c lowering.Ctx, w walk, media *soa.MediaType, mt string, medi
 	return keys.out, unmodeled, diags
 }
 
+// unkeyedFormEntry and unkeyedFileEntry say why an encoding entry keys
+// nothing, in its info: the first on a form body, where the walk cannot tell a
+// misspelt key from a catch-all's or a union branch's, the second on a file body.
+const (
+	unkeyedFormEntry = "matches no property read from the form body's schema or its allOf branches"
+	unkeyedFileEntry = "belongs to a body that is file content, which has no parts"
+)
+
 // keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
 // names none of parts, under Unmodeled at annotation.EntryKey("encoding", key),
-// with one info each (docs/compilers/openapi.md#multipart-encoding). Nothing it
-// declares is lowered. An entry that is no object is skipped, since load
-// reports it. A key naming a property only a union body's variant holds is not
-// keyed to it (#744), and one naming an entry a catch-all governs has no typed
-// home (#NEW-CATCHALL).
-func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, parts []bodyPart) (ir.Unmodeled, []ir.Diagnostic) {
+// with one info each, which why completes
+// (docs/compilers/openapi.md#multipart-encoding). Nothing it declares is lowered
+// or judged: its unknown keys and reserved header names go unreported, as in the
+// other objects kept whole #1662 lists. An entry that is no object is skipped,
+// since load reports it. A union branch's part is not keyed (#1771), nor a
+// catch-all's entry (#1770).
+func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, parts []bodyPart, why string) (ir.Unmodeled, []ir.Diagnostic) {
 	walked := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
 		walked[part.name] = struct{}{}
@@ -85,9 +94,7 @@ func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontex
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"encoding entry %q names no part the form body declares on the schema its $ref chain ends on "+
-				"or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; "+
-				"kept verbatim under Unmodeled", name))
+			"encoding entry %q %s, so Content.Encoding has no key for it; kept verbatim under Unmodeled", name, why))
 	}
 	return kept, diags
 }
@@ -272,12 +279,12 @@ func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagn
 	var out []ir.Diagnostic
 	if w.capped {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no encoding entry",
+			"form body composition is nested past the flattening depth of %d, so a part reached only below it has no Content.Encoding key",
 			schema.MaxAllOfFlattenDepth))
 	}
 	if w.hopsSpent {
 		out = append(out, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-			"form body composition follows $refs past %d hops, so a part reached only beyond them has no encoding entry",
+			"form body composition follows $refs past %d hops, so a part reached only beyond them has no Content.Encoding key",
 			maxPartRefHops))
 	}
 	return out
