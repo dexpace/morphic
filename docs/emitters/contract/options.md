@@ -42,7 +42,9 @@ Per-target heuristics live here too, beside the target's other choices, rather t
 parameter-passing shape ([request shaping](../refine/requests.md)), the type-table rows that give an
 unbounded number a width ([type table](type-table.md)), and the naming tables
 ([naming](../refine/naming.md)) — the acronyms, the character names that give words to a name with
-none, and the leading words an identifier that would begin with a digit takes. The target-AST nodes
+none, and the leading words an identifier takes that would begin with what its role cannot. Which
+characters an identifier cannot hold is a table of the options version as well, but one the
+target's toolchain fixes, so no configuration replaces it. The target-AST nodes
 a default shapes carry `Inferred` provenance ([target AST](../refine/target-ast.md)), as INV6
 requires. How a failure reaches its caller is a setting here as well
 ([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).

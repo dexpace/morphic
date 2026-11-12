@@ -11,7 +11,10 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   than the exporter's. `@ObjCName` is experimental in Kotlin 2.4.0, and a file using it without an
   opt-in fails to compile, so each such file opts in with
   `@file:OptIn(ExperimentalObjCName::class)`. No caller inherits that, and no signature carries it
-  ([the language floor](overview.md#the-language-floor)).
+  ([the language floor](overview.md#the-language-floor)). `@ObjCName` takes ASCII letters, digits
+  and `_` alone, a digit never first, in its name and its Swift name alike (Kotlin/Native 2.4.0's
+  `FirNativeObjCNameChecker`; `'@ObjCName' contains illegal characters`), so an explicit name for a
+  declaration whose name holds a character past ASCII is written in ASCII (below).
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
   letter case cannot mark
   ([naming](../../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)): measured
@@ -19,8 +22,25 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   declares second taking a trailing `_`, so which value a Swift caller's `value10` named followed
   their order. An entry whose words hold such a break takes an explicit name, its words cased as a
   camel role cases them, and with one `VALUE_1_0` exported as `value1_0` beside `VALUE_10`'s
-  `value10`. `@ObjCName` refuses a name holding a character past ASCII, so `A_日本` and `A日本`
-  cannot take one and export as `a日本` and `a日本_` (#1765).
+  `value10`. Entries `A_日本` and `A日本` exported as `a日本` and `a日本_`, the second in
+  declaration order taking the `_`, and with `A_日本`'s explicit name, which is in ASCII (below), as
+  `aU65e5u672c` and `a日本`.
+- A name holding a character past ASCII reaches Swift by its Objective-C name, since clang drops a
+  `swift_name` holding one (`'swift_name' attribute has invalid identifier for the base name`).
+  Measured with Kotlin 2.4.0 and Swift 6.2.3, a class `A日本` was `ProbeA日本` in Swift, `A日本()`
+  failing (`cannot find 'A日本' in scope`); a property `名前` kept its name; a method `取得(値: Int)`
+  was `取得値(_:)`, its selector `取得値:`, so `取得(値: 1)` failed; and an ASCII class kept its
+  Swift name beside a member `café`. That Objective-C name is the declaration's Swift name, which
+  the policy reads as the export forms it, and resolves in the namespace every unit shares (below).
+  A declaration past ASCII that takes an explicit name by a rule here takes one in ASCII, its words
+  cased as its role cases them and each character past ASCII written as the character-name table
+  writes one it does not hold, `u` and its code point in lowercase hex
+  ([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)). So
+  does one whose exported name would hold U+2E2F, which no header can: `@ObjCName("Au2e2f")` on a
+  class `Aⸯ` built a module a Swift file called (`Au2e2f()`). Giving every declaration past ASCII
+  an explicit ASCII name was not taken: it writes each such name in code points, `u540du524d` for
+  `名前`, where the export's names read as the spec's. Nor was writing those characters by name in
+  the Kotlin name, which would cost a JVM caller the spec's name for Swift's sake.
 - The export drops a declaration's package and joins a nested one's name to its outer's, so every
   unit's declarations, nested ones among them, share one namespace, and of two that share a name it
   appends `_` to one. Measured with Kotlin 2.4.0, within one module and across modules the framework

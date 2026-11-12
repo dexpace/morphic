@@ -342,7 +342,11 @@ throughout these documents.
     suffix, a letter beside a digit taking no `_`, as a schema `10_gbps_to_100_gbps` renders
     `Type10GbpsTo100Gbps`, and on Multiplatform the entries of `1.0` and `10` export to Swift as
     `value1_0` and `value10`, while of `V12` and `v12`, one name, the second takes its suffix after
-    `_` (Go's `V12_2`); and on Multiplatform a type added in another unit, its ID sorting first,
+    `_` (Go's `V12_2`); names of different words that render alike, `iOSVersion` beside
+    `IOSVersion` under a policy reading spellings, `user_id` beside `user_i_d` under an acronym
+    `ID`, `ıd` beside `id` and a property `1000` beside one spelled `field_1000`, each draw one
+    `emitters/naming/collision` on a target rendering them alike, naming both and what each was
+    given, two of one neutral name drawing none; and on Multiplatform a type added in another unit, its ID sorting first,
     leaves an incumbent's Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
@@ -670,3 +674,18 @@ throughout these documents.
     encodes, prints, hashes and compares on that thread; an opening bracket inside a string counts
     for nothing; and Go's encoder refuses a value a caller nests past its limit and one that holds
     itself ([models](../refine/models.md#how-deep-a-value-nests)).
+55. **T-55 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation,
+    an enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's
+    lexer does not know, U+0870 and past the BMP U+10570, and with names whose first letter Go does
+    not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, generates code that
+    compiles on every target, each character a role cannot hold written by its name and every Go
+    import path in ASCII, and a caller in another unit, a Go package or a Kotlin module, sets and
+    reads each property and calls each operation by its rendered name; a name holding U+2E2F links
+    into a Multiplatform framework whose header clang compiles, and a Swift file importing the
+    framework reaches each declaration by the Swift name the policy chose, past ASCII its
+    Objective-C name, as `ProbeA日本` for a class `A日本` in a framework `Probe`, or an explicit name
+    in ASCII where it takes one, as enum entries `A_日本` and `A日本` are `aU65e5u672c` and `a日本`
+    in both declaration orders
+    ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
+    [leading words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
+    [Swift](../targets/kotlin/swift.md)).
