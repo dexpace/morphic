@@ -459,7 +459,7 @@ throughout these documents.
     switcher showing `V1` and linking `V1-2`, and a document of `V1` alone under `V1`, a label with
     `#` or `?`
     percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
-    document `engine/target-unversioned` while run for samples alone on each snapshot, and the last
+    document writing the one snapshot T-86 says, run for samples alone on each other, and the last
     label's run taking a prior's `""` entry when the document gains versions; only the run of the
     last label `Routes` keys writes the site-scope `llms.txt`, at the output root, one routed under
     a label's directory refused as a collision, neither pruned nor taken for an edit when another
@@ -489,7 +489,8 @@ throughout these documents.
     or a message the client receives, has no sample and no diagnostic; a docs target run alone shows
     the samples of the targets its options name, which the engine runs for it with the configuration
     and prior manifest each would run with, writing none of their artifacts the run does not name
-    and running one the run does name once on each snapshot, one with no configuration refused; an
+    and running one the run does name once on each snapshot, with its artifacts on the one T-86
+    says, one with no configuration refused; an
     operation with no success scenario has no sample, drawing no diagnostic where `Assemble` off
     chose that and `sample-unrendered` where a required input held no example; a named target the
     registry lacks, without `WritesSamples` or that reads samples, and a `ReadsSamples` target whose
@@ -721,3 +722,11 @@ throughout these documents.
     registry refuses `rpc` without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside
     the vocabulary ([bindings](../plan/bindings.md),
     [capabilities](../contract/registry.md#capabilities)).
+86. **T-86 · One snapshot for a target without `CrossVersion`** — on a document sliced into three
+    versions, the Go, Kotlin and mock-server targets each write the last label's snapshot at the
+    output root, its `Snapshot` that label, and with `RunOptions.Version` naming the first, that
+    one; an SDK and its mock server in one run read one version; a label the document lacks is
+    `engine/snapshot-unknown` before any run; each such target is run on the other snapshots for
+    its samples alone, writing nothing there; and a regeneration moving the label keeps the name of
+    every entity both snapshots hold and prunes the files of one only the first held
+    ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).

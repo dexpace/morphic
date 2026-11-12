@@ -385,8 +385,9 @@ is an error `engine/sample-target-invalid`, which the engine reports since the d
 see the registry, and one with no configuration is refused as an absent configuration always is. The
 engine runs a named target for its samples even when its generation writes nothing ([write /
 integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
-them, and, when the run names it too, runs it once with its artifacts, which on a sliced document
-only a cross-version target may be (#1531). A run made for samples alone reports what any run of
+them, and, when the run names it too, runs it once with its artifacts, on a sliced document on the
+one snapshot such a target writes ([the contract](contract/emitter.md)). A run made for samples
+alone reports what any run of
 that target reports, and the engine decides as for any run whether that is fatal: the docs show that
 SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
 for every operation its callers call, whatever its `Scope`, which gates its artifacts alone, since
