@@ -77,8 +77,8 @@ required on the composed model. A name `Requires` lists that no flattened proper
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
-not hold what it admits, so each refiner lowers it or degrades with a code of its own, and lowers a
-union there as the three targets do ([inheritance](../refine/models.md#inheritance)).
+not hold what it admits, so each refiner lowers it or degrades with a code of its own; the three
+targets lower a union there as [inheritance](../refine/models.md#inheritance) says.
 
 ## Variants that can share a value
 
@@ -227,7 +227,7 @@ declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)
 answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
 every member but those `Visibility.None` hides, requires only the required members no filter can
 leave out, and `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it
-narrows, too, every value of the model being one of that union's variants
+narrows, too, every value of the model being a value of one of that union's variants
 ([inheritance](../refine/models.md#inheritance)).
 
 ## A model with lifecycle visibility

@@ -91,12 +91,12 @@ summarizes only the streams an operation's success responses declare, so no `Str
 An API that adds a variant must not break every SDK already deployed on the first response carrying
 it, so under `OpenUnions` a closed union, a polymorphic base, or a model narrowing a closed union,
 which the three targets lower as that union ([inheritance](../refine/models.md#inheritance)), is
-`Open` wherever `Facts.Usage` marks it
-`Output`, marked `Inferred`. A value no variant recognizes is then kept rather than refused
-([unions](../refine/unions.md)). That covers a type read and written alike: a response can carry it
-whatever else the type does, and a kept value a caller sends back goes out as it came. A union the
-IR declares open, `Closed` false as a Smithy union lowers or a promoted key makes one, is `Open`
-wherever it is used, and so is a model narrowing one, unmarked since the IR states it, as
+`Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
+then kept rather than refused ([unions](../refine/unions.md)). That covers a type read and written
+alike: a response can carry it whatever else the type does, and a kept value a caller sends back
+goes out as it came. A union the IR declares open, `Closed` false as a Smithy union lowers or a
+promoted key makes one, is `Open` wherever it is used, and so is a model narrowing one, unmarked
+since the IR states it, as
 [precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
 declared fact win. A closed one only ever written stays closed, and no SDK decodes one. Turning the
 policy off leaves every union as the IR says, and every polymorphic base and every model narrowing a
