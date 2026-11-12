@@ -150,18 +150,18 @@ case, the pass also reports names whose words join alike (below).
 - **Words joined, where a target joins them.** Two names whose words differ only where they break,
   `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
   first target does so in some scopes. Go and Kotlin name a group's package by its words in
-  lowercase, joined ([Kotlin](../emitters/targets/kotlin/naming.md#reserved-names)). Kotlin writes a
-  declared type, a sub-client and a closed union's variant each to a class file of its name, and a
-  file system that ignores case makes one file of `SetUp.class` and `Setup.class`; it compares an
-  inclusive union's variants, which are properties, as it does a closed union's, so a union whose
-  kind changes keeps its variants' names (#1491). So a service's groups, a group's groups, the
-  declared types and a union's variants compare their words joined with no separator, and a finding
-  there names each neutral name it joins. Every other scope compares the words as they are. In a
-  group's operations, an operation's parameters, a model's properties and an enum's members, each
-  first target marks a break by letter case or a separator wherever its casing can (below):
-  properties `set_up` and `setup` are Go's `SetUp` and `Setup` and Kotlin's `setUp` and `setup`. No
-  target's design says yet what it names from a service, nor what Kotlin names from an auth scheme,
-  so those compare as they are until one does.
+  lowercase, joined. Kotlin writes a declared type, a sub-client and a closed union's variant each
+  to a class file of its name, and a file system that ignores case makes one file of `SetUp.class`
+  and `Setup.class`; it compares an inclusive union's variants, which are properties, as it does a
+  closed union's, so a union whose kind changes keeps its variants' names
+  ([Kotlin](../emitters/targets/kotlin/naming.md#reserved-names)). So a service's groups, a group's
+  groups, the declared types and a union's variants compare their words joined with no separator,
+  and a finding there names each neutral name it joins. Every other scope compares the words as
+  they are. In a group's operations, an operation's parameters, a model's properties and an enum's
+  members, each first target marks a break by letter case or a separator wherever its casing can
+  (below): properties `set_up` and `setup` are Go's `SetUp` and `Setup` and Kotlin's `setUp` and
+  `setup`. No first target's design says yet what it names from a service, nor what Kotlin names
+  from an auth scheme, so those compare as they are until one does.
 - **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
   options, never by its namespace, and by default places every type in one unit
   ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
@@ -210,6 +210,9 @@ Left out, each for its reason:
   `user_id` and `user_i_d` both render `UserID` under an acronym `ID` (#1751). No such scope of the
   golden spec (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`) holds two names that
   differ only at a break before such a character.
+- **Names a file system folds alike beyond ASCII**, in a scope that compares words joined, whose
+  words do not join alike: groups `Straße` and `Strasse`, of words `straße` and `strasse`, are one
+  directory on macOS. Which fold artifact paths are compared by beyond ASCII is #1729's.
 - **A group beside an operation of the same parent.** Whether a sub-client and a method share a
   namespace is the target's: a Go struct cannot hold a field and a method of one name, while a
   Kotlin class can hold a property and a function.
