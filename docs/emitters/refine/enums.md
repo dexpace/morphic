@@ -29,9 +29,9 @@ compares, whatever `format` says: numbers by value, exactly unless a row's width
 differing only in case are two. Members holding one value, as `allow_alias` declares and `0.1`
 beside `0.10` do, are one: a value matching any of their wire forms decodes as the first of them,
 and each writes the first's, since slice order names the canonical one for serialization. Where text
-carries a member, in a parameter, a header or a form field, it travels as its wire form's text, a
-string's characters or a number's or a boolean's literal, never as a name the target gives the
-member, and is read back by the same comparison.
+carries a member, in a parameter, a header or a form field, it travels as its wire form's text
+([values as text](text.md)), never as a name the target gives the member, and is read back by the
+same comparison.
 
 A target whose enum form holds only some value types lowers the others over the wire form
 ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), never over a form

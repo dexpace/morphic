@@ -3,7 +3,8 @@
 `ExtractInterfaces` derives per-language interfaces from `Implements`, plus client interfaces for
 testability from the `OperationGroup` structure; a union's and a polymorphic base's interface is
 `LowerUnions`' ([unions](unions.md)). `BuildRequestShaping` turns the plan's `BindingView` into
-request builders, and passes an operation's inputs positionally or inside an options object —
+request builders, which write each input outside the body as its value's text ([values as
+text](text.md)), and passes an operation's inputs positionally or inside an options object —
 RequestBuilder-style constructs are generator-side, out of the IR (prior-art §2). `OperationGroup`
 nesting becomes sub-clients / fluent navigation.
 

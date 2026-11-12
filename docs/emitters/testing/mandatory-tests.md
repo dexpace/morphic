@@ -530,3 +530,19 @@ throughout these documents.
     two unions, one whose union has a variant composing it or reaches itself through its variants,
     and one over a key-tagged, enveloped or index-tagged union each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
+47. **T-47 · Values as text** — on every target, under T-12's interception, a value of each
+    primitive sent in a path, a query, a header, a cookie and a form field is the text [values as
+    text](../refine/text.md) gives it: a `float64` 1 as `1` and 10²¹ in plain notation, a `float32`
+    `0.1` as `0.1`, a `decimal` `0.10` as `0.1`, a `datetime_offset` at a whole minute with its
+    seconds, at a zero offset with `Z` and at `+02:00` in a query as `%2B02%3A00`, a `uuid` given in
+    upper case as lower case, `bytes` as padded base64 percent-encoded in a path and as it is in a
+    header, a space as `%20`, a `Prefix` map as a field per entry, a string under `ContentType`
+    `application/json` with its quotes, and a value class and an `enum class` entry as their wire
+    forms, never their `toString()`. A null query input is sent as an absent one, and a path
+    parameter or a `host` label holding null or an empty string, a header holding a CR LF, a NaN, a
+    year past 9999, an offset with seconds and a `decimal` `1E+999999999` each fail before anything
+    is sent. The mock server reads each such request back to the values sent, as an SDK reads an
+    inbound request's parameters. A response header of each primitive reads `+00:00`, a fraction of
+    each length, one finer than its type's precision cut to it, an upper-case `uuid` and a list sent
+    on two lines, while a leap second leaves its field unset with `RawHeader` holding the text (T-26)
+    ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
