@@ -1051,8 +1051,9 @@ A Reference Object's own siblings are the annotations of the use site. OpenAPI l
 writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use* of
 the referenced object rather than the object. Where the IR has a docs field at the position — a
 parameter, a response or error case, a header, an example, a request body, a security scheme, a
-body's media type — both are read off the entry and folded over the declaration's docs field by
-field, a sibling the entry writes winning and one it omits leaving the declaration's value standing.
+body's media type, a link — both are read off the entry and folded over the declaration's docs field
+by field, a sibling the entry writes winning and one it omits leaving the declaration's value
+standing.
 A parameter's or header's content entry has no docs field of its own, so what the fold takes there
 is kept verbatim under `no_ir_home`, each from the position writing it, with an info
 `openapi/degraded-construct`; one an alias of the chain writes in another document, which this
@@ -1073,7 +1074,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
-  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
+  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`
 - Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
   no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
   declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
@@ -3996,7 +3998,9 @@ Response Object, so a construct kept on only one would make a declaration surviv
 status code alone. A link is resolved once every operation has lowered and the type registry is
 whole, since it may name an operation declared after it and a member of a type the registry builds
 last. Each `$ref` in the map is followed, so the `components/links` entry it names lowers there and
-is not also kept on the document ([`unreferenced-components`](#unreferenced-components)).
+is not also kept on the document ([`unreferenced-components`](#unreferenced-components)), and the
+`summary` and `description` beside it fold over the link's docs
+([`reference-object-siblings`](#reference-object-siblings)).
 
 1. Its target is the operation its `operationId` names, or the one its `operationRef` points to
    in this document: the operation mounted at that position, else the one declared there when it is
@@ -4033,6 +4037,8 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`, `operation.TestParseExpression_ReadsTheGrammar`,
   `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
+- Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
+  dropped with no record, as beside any other reference (#1321).
 
 ## 12. Webhooks and callbacks
 

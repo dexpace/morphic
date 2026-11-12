@@ -272,6 +272,34 @@ components:
 	}
 }
 
+// TestLinks_UseSiteDocsFoldOverTheDeclaration pins that the summary and
+// description written beside a link's $ref describe that use of it, each
+// overriding the declaration's field it names and leaving the other standing.
+func TestLinks_UseSiteDocsFoldOverTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          links:
+            Told: {$ref: '#/components/links/L', summary: use summary, description: use description}
+            Bare: {$ref: '#/components/links/L'}
+components:
+  links:
+    L: {operationId: a, description: declared description}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	links := openapitest.FindOp(t, doc, "a").Responses[0].Links
+	require.Len(t, links, 2)
+	assert.Equal(t, ir.Docs{Summary: "use summary", Description: "use description"}, links[0].Docs)
+	assert.Equal(t, ir.Docs{Description: "declared description"}, links[1].Docs)
+}
+
 // TestLinks_MediaTypesDisagreeingOnAMember pins that a body read is typed only
 // when every content walks it to the same members: the value is one whichever
 // media type arrives.
