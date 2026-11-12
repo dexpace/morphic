@@ -23,15 +23,15 @@ canary. A behaviour found that the page lacks is added there.
 `readers-of-a-changed-kind`
 
 - **Rule.** A lowering changing a position's node kind, as a `Model` becoming a `Union`, has
-  readers outside the changed package no getter search finds, of the old kind or a fact `ir`
-  derives from it. Ask each what the new kind gives it, `<Kind>` the old one:
-  `git grep -nE '\*(ir\.)?<Kind>([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
-  a hit in `ir` serves a fact, as `IsSubtype`, whose callers are readers too. Then compile the
-  position as each consumer names it
+  readers outside the changed package that no getter search finds. List them, `<Kind>` the old one
+  as `ir.Kind<Kind>` names it, `T?` reaching `MapT`:
+  `git grep -nE '\*(ir\.)?<Kind>T?([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
+  a hit in `ir` serves a fact, as `IsSubtype`, whose callers read the kind too. Ask each what the
+  new kind gives it, then compile the position as each consumer names it
   (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
 - **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
-  reader and `pass`'s `encoding` check read for properties, in files no getter search named (#1688,
-  #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
+  reader and `pass`'s `encoding` check read for properties, though no getter search named them
+  (#1688, #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
 - **Probe.** List in the PR body each hit with its answer.
 
 ## Compile a position whose node kind changes as each consumer names it

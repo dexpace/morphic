@@ -93,7 +93,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--base", action="append", default=[], metavar="REF",
                    help=f"a ref whose commits are not the branch's own, beside {BASE}; repeatable")
     p.add_argument("--pushed", metavar="REF",
-                   help="the branch as pushed, whose commits are counted but refuse nothing")
+                   help="the branch as pushed, whose commits are counted but refuse nothing, "
+                        "bar a branch's one commit")
     p.add_argument("number", type=int, help="the PR's number, or the one it will get")
     p.add_argument("title", help="the PR's title")
     args = p.parse_args(argv)
