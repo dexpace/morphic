@@ -31,7 +31,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `Visibility` sets | a class per `ModelShape.Name`, a `typealias` of the type's own beside a factory function where `ModelShape.Alias` is set ([models](models.md#a-shape-that-is-an-alias)); a patch shape → optional ([TypePlan](../../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic |
 | `Constraints` | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic |
-| `Discriminator{Mapping→ID}` | tag-dispatch `KSerializer` that reads the wire key first and writes each variant's tag ([unions](unions.md#discriminators)) |
+| `Discriminator{Mapping→ID}` | tag-dispatch `KSerializer` that reads the wire key first, compares a tag carried as a number by value ([unions](../../refine/unions.md#discriminators)), and writes each variant's tag ([unions](unions.md#discriminators)) |
 | `Pagination` (PropPaths) | `Flow<T>`; item unwrap from plan; pacing from policy |
 | `Streaming` + `StreamDetail` | a method per shape offered; `Flow` of elements received, a send channel for a client stream; no frame for an `Initial` over HTTP; direction from core, framing from plan |
 | `LongRunning` | poller with `suspend` `poll()`/`pollUntilDone()`; result from `ResultPath`; pacing from policy |

@@ -11,8 +11,9 @@ every projection; a patch shape makes properties optional, and a `PATCH` body's 
 its binding or its media type says so ([TypePlan](../plan/types.md#what-a-patch-relaxes)). A model
 used as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for
 GraphQL inputs) may emit two shapes. Each shape's declaration takes the name the plan gives it,
-`ModelShape.Name` after the type's own: `User` for every shape that projects what a read does, and
-`UserCreate`, `UserCreateUpdate`, `UserUpdate` or `UserUpdatePatch` for one that does not
+`ModelShape.Name` after the type's own: `User` for the read shape, and `UserCreate`,
+`UserCreateUpdate`, `UserUpdate` or `UserUpdatePatch` for any other, an alias of `User` where
+`ModelShape.Alias` says the shape projects what a read does
 ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)). Shapes sharing a name share the
 declaration, and no target names or merges them otherwise, since the docs and a mock name the same
 declarations from the same plan.

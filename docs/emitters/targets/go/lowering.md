@@ -29,7 +29,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Visibility` sets | a struct per `ModelShape.Name`, an alias of the type's own where `ModelShape.Alias` is set ([models](models.md#a-shape-that-is-an-alias)); a patch shape → optional ([TypePlan](../../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable ([recursive references](models.md#recursive-references)) |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
+| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct, a tag carried as a number compared by value ([unions](../../refine/unions.md#discriminators)), + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy |
 | `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; no frame for an `Initial` over HTTP; direction from core, framing from plan |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy |
