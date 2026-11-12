@@ -125,15 +125,16 @@ verifier and codecs must reach.
 `pointer-field-ends-value-equality`
 
 - **Rule.** When a value field of a struct becomes a pointer, `==` on the struct still compiles and
-  compares that field by address. Find every comparison of the struct, or of one holding it by
+  compares that field by address. Find every comparison of the struct, or one holding it by
   value, map keys and `comparable` type arguments included, and make each meaning value equality
   compare deeply. A merge of `main` reruns the sweep
   (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merged-code-meets-a-changed-type`).
-- **Why.** #1370 made `XMLHints.Wrapped` a `*bool`, and merging `main` brought in #1656's fold
-  judging two declarations' hints by `*a == *b`. Build, vet, archtest and the goldens passed the
+- **Why.** #1370 made `XMLHints.Wrapped` a `*bool`, and merging `main` brought in #1656's
+  `*a == *b` over two declarations' hints. Build, vet, archtest and the goldens passed the
   merge, while identical hints drew a report (#1677).
-- **Probe.** Add `_ [0]func()` to the struct and run `go vet -gcflags=-e ./...`: each error saying
-  `cannot be compared`, `invalid map key` or `comparable` is a site.
+- **Probe.** Add `_ [0]func()` to the struct and run `go vet -gcflags=-e ./...`: each
+  `cannot be compared`, `invalid map key` or `comparable` error is a site. Rewrite those and rerun
+  until none prints, as a failing package hides its importers' sites.
 
 ## Sweep the predicates that name a struct's fields when it grows one
 `predicates-that-list-fields`

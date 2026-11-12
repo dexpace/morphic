@@ -122,7 +122,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** Test plans named a generator project's spec, by repository and file, as a check's input,
   and counted the generator suites a corpus was drawn from; the push checklist's greps passed them,
   and only a later read caught each (#553, #1690).
-- **Probe.** `gh pr view N --json title,body --jq '.title, .body' | grep -nE 'https?://|[[:alnum:]_.-]+/[[:alnum:]_.-]+\.(ya?ml|json)'`
+- **Probe.** `gh pr view N --json title,body --jq '.title, .body' | grep -nE 'https?://|[[:alnum:]_.-]+\.(ya?ml|json|proto|graphql|tsp|smithy)([^[:alnum:]]|$)'`
   lists each link and spec file named; read each for the source it identifies.
 
 ## Hold a commit body when it is pushed and the landing body at merge

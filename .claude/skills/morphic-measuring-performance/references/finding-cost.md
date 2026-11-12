@@ -252,8 +252,8 @@ how to measure so the number means what the claim says.
 
 - **Rule.** For a reader whose loops nest, name each dimension they iterate, such as a union's
   variants and each variant's members, and generate a shape growing each alone at n, 2n and 4n
-  with the others held, beside one growing them together. A cost claim names every dimension it grew: widening the one a generator
-  happens to vary reads linear while another is quadratic.
+  with the others held, beside one growing them together. A cost claim names every dimension it
+  grew: widening the one a generator happens to vary reads linear while another is quadratic.
 - **Why.** On #1700, tag inference read linear as its union widened, while two variants each
   pinning the same P properties cost P², which no union width showed (#1703).
 - **Probe.** Instructions retired at each step on both builds
