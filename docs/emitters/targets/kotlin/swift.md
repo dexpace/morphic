@@ -52,6 +52,28 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   among them, took the same Objective-C name, and the framework failed to link (`Linking globals
   named 'OBJC_METACLASS_$_ProbeNumber': symbol multiply defined!`). With an explicit `@ObjCName` it
   linked, so each of these names is reserved ([naming](naming.md#reserved-names)).
+- The export's own classes take `Kotlin` before their names in Swift (`KotlinBase`, `KotlinInt`),
+  and each class, object and interface of the standard library the framework reaches takes it in
+  both languages (`ProbeKotlinThrowable`, `KotlinThrowable` in Swift), a nested one's name joined to
+  its outer's (`KotlinEnumCompanion`). Measured with Kotlin 2.4.0 and Swift 6.2.3, a spec class
+  `KotlinInt` linked, and a caller's `let b: KotlinInt? = Client().boxed()`, of a function returning
+  `Int?`, failed (`'KotlinInt' is ambiguous for type lookup in this context`). With a spec class
+  `KotlinThrowable` the export named the standard library's class `KotlinThrowable_`, so a caller's
+  `e.kotlinException as? KotlinThrowable` was `nil` for an exception the SDK threw, and with
+  `@ObjCName("KotlinThrowable_")` on the spec's class the standard library's kept its name and the
+  cast matched. A spec class `KotlinEnum` kept its name until the SDK declared an enum, which
+  brought the standard library's `KotlinEnum`, `KotlinEnumCompanion`, `KotlinComparable`,
+  `KotlinArray` and `KotlinIterator` in and renamed the spec's `KotlinEnum_`, and once a function
+  returned the spec's class the standard library's became `KotlinEnum_` instead. The standard
+  library's interfaces and objects meet spec names the same way: beside an enum `Color`, a spec
+  class `KotlinComparable` became `KotlinComparable_` in Swift, and once a function returned the
+  class the export named the interface `KotlinComparable_` instead, so a caller's `let c: any
+  KotlinComparable = Client().color()` failed (`cannot convert value of type 'Color' to specified
+  type 'KotlinComparable'`); a spec class `KotlinUnit` became `KotlinUnit_` beside the object `Unit`
+  that a `List<Unit>` reached. So the name the export declares for each class of its own and each
+  public class, object and interface of the standard library is reserved, not only those the
+  framework reaches, which a declaration the spec adds can grow
+  ([naming](naming.md#reserved-names)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
