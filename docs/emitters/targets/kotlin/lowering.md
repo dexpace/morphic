@@ -12,6 +12,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `bool`, `string`, `bytes`, `url` | `Boolean`, `String`, the runtime's `Bytes` through its base64 serializer ([bytes](types.md#bytes)), `String` |
 | `uuid` | the standard library's `kotlin.uuid.Uuid` on both ([the language floor](overview.md#the-language-floor)) |
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` ([Multiplatform](multiplatform.md)); a runtime ISO 8601 `Duration` on both |
+| a primitive under an encoding with a row ([a row keyed by an encoding](../../contract/type-table.md#a-row-keyed-by-an-encoding)) | the primitive's own type on both, under the runtime's serializer for that encoding as the row's `Codec` ([types](types.md#what-a-mapped-type-must-do)): `ByteArray` for `base64url`, `OffsetDateTime` for `http-date`, written and read in common code |
 | `any`, `Any` | `JsonElement` |
 | nil `*TypeRef` | `Unit` |
 | `Scalar{Base}` chain | `@JvmInline value class` over a `Boolean`, number, `String` or `Bytes` root, a `typealias` over any other ([declarations over a root](types.md#a-declaration-over-a-root)); nil base → value class over the wire form |

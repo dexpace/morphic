@@ -34,7 +34,9 @@ differ reports ([surface verification](../surface-verification.md)). A dynamic t
 differ — Python's keyword arguments are additive as they stand — which is why the shape is
 per-target rather than a plan fact.
 
-The body is what its content's `Type` lowers to, unless that content is a file (`Content.File`):
+The body is what its content's `Type` lowers to, or a string where that content is a `text/plain`
+one whose type has no text ([values as text](text.md#a-value-no-style-arranges)), as an input
+`ParamBind.Text` marks is, unless that content is a file (`Content.File`):
 then it is a byte source among the request's inputs, as a `bytes` side a client writes is
 ([streaming](../operations/streaming.md)), whatever its `Type`. `Type` holds what the source
 declares of the file ([payloads](../../ir/payloads.md)), which need not be bytes, as a type array

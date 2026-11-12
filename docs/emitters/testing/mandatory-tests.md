@@ -61,8 +61,8 @@ throughout these documents.
     classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
-    row under its key whole; an encoding with no row falls back to its primitive's and is reported
-    once; a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a Go
+    row under its key whole; an encoding with no row is typed as its value travels and reported
+    once (T-76); a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a Go
     `Codec` is an options error; and two rows that spell one name for two packages generate code
     that compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
@@ -822,3 +822,51 @@ throughout these documents.
     `text/plain` body reads `42` after a byte-order mark and does not decode under
     `charset=iso-8859-1`, and a leap second leaves its field unset with `RawHeader` holding the text
     (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
+73. **T-73 · A value no style arranges** — on every target, under T-12's interception, a query
+    parameter whose list holds objects, one whose list holds lists, a `deepObject` parameter with a
+    list member, a `spaceDelimited` parameter of one string, a header list of objects and a
+    `text/plain` request body of an object are each a string in the SDK, reported as
+    `emitters/plan/unarranged-value`, and the string
+    `[{"field":"value","op":"in","value":["evil.com","bad.org"]}]` is sent once under the
+    parameter's name, percent-encoded as a string's text is, whatever its `Explode`, and as the
+    body's UTF-8 octets. The mock server and an inbound request's reader give back the string sent,
+    for `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, and read the parameter sent twice as
+    a text that does not parse. A `text/plain` response declaring an object returns its text as a
+    string. The same parameter declaring `content` as `application/json` is typed as its list and
+    sends that JSON text, a `string | list of string` parameter keeps both arrangements, an `any`
+    parameter holding a list fails before anything is sent, a `text/plain` content of an object
+    beside an `application/json` one the ranking elects draws no diagnostic, and a declared example
+    of such a parameter is refused as `emitters/plan/example-refused` ([values as
+    text](../refine/text.md#a-value-no-style-arranges)).
+74. **T-74 · A date in a header** — on every target, a response header declared `datetime_offset`
+    with no encoding reads `2023-10-21T07:28:00Z`, `Sun, 06 Nov 1994 08:49:37 GMT`, `Sunday,
+    06-Nov-94 08:49:37 GMT` and `Sun Nov  6 08:49:37 1994` each as its instant at a zero offset,
+    reads `Wed, 21 Oct 2023 07:28:00 GMT`, whose day name is not its date's, and leaves its field
+    unset with `RawHeader` holding the text for `Wed, 21 Oct 2023 07:28:60 GMT`, `Wed, 31 Feb 2023
+    07:28:00 GMT`, a date ending `UTC` and a day name alone (T-26). With the reader's clock at
+    2026-11-12T00:00:00Z, `Thursday, 12-Nov-76 00:00:00 GMT` reads as 2076 and the same date one
+    second later as 1976. A header list of such dates sent as `Sun, 06 Nov 1994 08:49:37 GMT, Sun
+    Nov  6 08:49:37 1994, 1994-11-06T08:49:37Z`, on one line and on three, reads as three elements,
+    and one holding an empty element reads without it. The mock server reads a request header the
+    same way, a `datetime_offset` header an SDK or the mock writes is RFC 3339 text, and a `date`,
+    a `time` and a `datetime` header read no HTTP-date ([values as
+    text](../refine/text.md#reading-a-text)).
+75. **T-75 · A path pattern** — on every target, under T-12's interception, a path parameter whose
+    binding's `PathPattern` is `shelves/*/books/*` or `**` sends `shelves/s1/books/b2` with its
+    slashes, `a:b%41?c` as `a%3Ab%2541%3Fc`, `a b/é` as `a%20b/%C3%A9` and `a//b` as written, with
+    `AllowReserved` set or unset, and fails before anything is sent for `a/../b`, a null and an
+    empty string; one whose pattern is `*` sends `a/b` as `a%2Fb`. The mock server reads each text
+    back as sent, and reads a path another client sent as `a%2Fb/c` as the text `a%2Fb/c` ([values
+    as text](../refine/text.md#escaping)).
+76. **T-76 · A row keyed by an encoding** — each target's built-in table has, at every options
+    version, a row for every key the type table lists for an encoding. On every target, `bytes`
+    `fb ff` under `base64url` is written `-_8=` in a body and in a header and `-_8%3D` in a path,
+    and reads back from `-_8=` and from `-_8`, while `+/8=` does not parse; a `datetime_offset` under `http-date` at `2020-02-29T23:59:59.999+02:00` is written
+    `Sat, 29 Feb 2020 21:59:59 GMT` in a header and as a body's string, reads back at a zero
+    offset, and at `9999-12-31T23:59:59-01:00` fails before anything is sent; and `base64`,
+    `rfc3339` and `iso8601` write what their primitives' rows do. A `bytes` scalar under an
+    encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
+    `WireType`, are each a string in the SDK that is sent as given, with a warning
+    `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
+    `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
+    ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).

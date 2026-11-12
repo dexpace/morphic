@@ -16,6 +16,7 @@ IR bug (INV9), not a compiler change.
 | `bool`, `string`, `bytes`, `url` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
 | `uuid` | canonical text |
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
+| a primitive under an encoding with a row ([a row keyed by an encoding](../contract/type-table.md#a-row-keyed-by-an-encoding)) | the spelling its encoding names, `-_8=` and never `+/8=` under `base64url`; under an encoding with no row, the wire form as the caller gave it |
 | `any`, `Any` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | — |
 | `Scalar{Base}` chain | encoding triple; the root's codec |

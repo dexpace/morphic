@@ -92,7 +92,10 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@timestampFormat`, and the text an HTTP binding gives a position by default, `http-date` for a
   timestamp in a header, `date-time` for one in a label or a query and base64 for a `@mediaType`
   string in a header, → that position's Encoding ([values as
-  text](../emitters/refine/text.md#other-formats))
+  text](../emitters/refine/text.md#other-formats)), under the names the IR documents, `http-date`
+  and `rfc3339` ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows; the
+  `@mediaType` string waits on the IR telling a string to encode from one already encoded ([a row
+  keyed by an encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
 - waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`,

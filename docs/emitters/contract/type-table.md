@@ -40,14 +40,19 @@ type Dependency struct {
   resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
   to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
   by the declaration its reference names.
-- **Lookup.** `{prim, encoding}`, then `{prim, ""}`. An encoding with no row of its own falls back
-  to its primitive's: the encoding stays in the IR and the SDK types it as the primitive, reported
-  once per key as an info `emitters/<target>/unmapped-encoding` at the first type in ID order that
-  uses it. An `External` with no row takes the opaque strategy of [external
-  types](../refine/scalars.md), with a warning.
+- **Lookup.** `{prim, encoding}`, then the default row of the primitive the value travels as: the
+  one its encoding's `WireType` names, else `string` where `prim` is a string-spelled kind
+  ([below](#what-a-built-in-row-writes)), whose encoding names another spelling of it, else `prim`
+  itself. So an encoding with no row of its own stays in the IR and the SDK types the value as the
+  wire carries it, never writing it in a spelling the encoding did not name ([a row keyed by an
+  encoding](#a-row-keyed-by-an-encoding)). It is reported once per key as
+  `emitters/<target>/unmapped-encoding` at the first type in ID order that uses it, a warning where
+  that primitive is not `prim` and an info where it is. An `External` with no row takes the opaque
+  strategy of [external types](../refine/scalars.md), with a warning.
 - **Built-in rows are defaults of an options version.** Every target's built-in table has a row for
-  every `PrimKind` at every options version, so the fallback always lands; T-17 holds each table to
-  the kinds `ir` declares. Each target's lowering table lists version 1's rows
+  every `PrimKind` at every options version, so the fallback always lands, and for every key [a row
+  keyed by an encoding](#a-row-keyed-by-an-encoding) lists; T-17 holds each table to the kinds `ir`
+  declares and to those keys. Each target's lowering table lists version 1's rows
   ([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)). Changing one changes
   what existing SDKs generate, so it is a new options version ([target options](options.md)). A
   built-in row that gives an arbitrary-precision primitive a width — `integer` as a 64-bit integer,
@@ -165,3 +170,65 @@ call fails before anything is sent. A fraction finer than its type's precision i
 refused, as Go's `time.Time` reads one, while a value its type cannot hold at all, such as a leap
 second, is one the row refuses to read, and a text its format does not admit one it may refuse or
 read as its codec does.
+
+## A row keyed by an encoding
+
+An encoding names how a value travels where that is not its primitive's own spelling
+([encodings](../../ir/constraints.md#encodings)), so a row keyed by one writes and reads that
+spelling, in a body and as text alike. Every target's built-in table has these rows, each typing the
+value as its primitive's default row does unless the target's lowering table says otherwise:
+
+| Key | Writes | Reads besides |
+|---|---|---|
+| `{bytes, "base64"}` | as `bytes` | — |
+| `{bytes, "base64url"}` | RFC 4648 §5 base64, the URL and filename safe alphabet, padded | unpadded |
+| `{datetime_offset, "rfc3339"}` | as `datetime_offset` | as `datetime_offset` |
+| `{duration, "iso8601"}` | as `duration` | — |
+| `{datetime_offset, "http-date"}` | RFC 9110's IMF-fixdate (§5.6.7) of the value's instant: `Sun, 06 Nov 1994 08:49:37 GMT` | an rfc850-date and an asctime-date |
+
+- **`base64url`.** RFC 4648 has an encoder pad unless the specification naming it says otherwise
+  (§3.2), which neither JSON Schema's `contentEncoding` nor the IR does, and lets the pad be skipped
+  where the length is known (§5), so the row writes it and reads a text with or without it. In a
+  path or a query the `=` is percent-encoded as any text's is ([values as
+  text](../refine/text.md#escaping)). The targets' own decoders disagree here: Go's
+  `base64.URLEncoding` refuses an unpadded text that the JDK's `Base64.getUrlDecoder` and this row
+  read (Go 1.27, JDK 25).
+- **`http-date`.** The row writes the instant in GMT with the fraction of its second cut, since the
+  format holds neither an offset nor a fraction and a caller's clock reading has both, so two values
+  of one instant write one text and read back at a zero offset. An instant whose year in GMT is
+  outside 0000 to 9999 is one it refuses to write. It reads the three forms RFC 9110 has a recipient
+  accept: the day name for its spelling alone, never compared with the date, and an rfc850-date's
+  two-digit year in the reader's century, or the one before where that would be more than 50 years
+  ahead of the reader's clock, so that reading alone depends on when it is made. On the golden spec
+  (spec @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21 Oct
+  2023 07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the JDK's
+  `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
+  IMF-fixdate, and Go's `http.ParseTime` reads it and reads an rfc850-date's `70` as 1970 at any
+  date (Go 1.27, JDK 25). A header list of such dates splits around the comma each holds ([values as
+  text](../refine/text.md#reading-a-text)).
+- **No row.** The IR's `unixTimestamp` and `seconds` have none yet: TypeSpec writes whole seconds
+  in an integer type and Smithy a number with a fraction, no compiler lowers either, and what each
+  puts in `WireType` decides what a row writes. Until one does, the lookup above types such a value
+  as its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64` of seconds its caller
+  fills, which is written right. A value so typed is checked against none of its constraints, which
+  speak of the value and not of its wire form, as a mapped type's are not. `varint`, `zigzag` and
+  `fixed` name a binary layout, which no JSON value or text shows, so the number's own row writes
+  one. A row added for an encoding at a later options version types its values anew, which is that
+  version's break to state ([target options](options.md)).
+- **A string under an encoding** is the encoded text already, as OpenAPI's `contentEncoding` beside
+  no `format` lowers it ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so
+  no row encodes a `string`. A string that is the text to encode, as Smithy has a `@mediaType`
+  string in a header, has no spelling in the IR apart from that one, so a compiler lowering one
+  waits on the IR telling them apart.
+
+Each target's lowering table names the type and the codec of each
+([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), and T-76 holds the rows
+and the lookup. The designs it was weighed against:
+
+- **The primitive's row with an info**, as the lookup once fell back: Go's `[]byte` row writes the
+  bytes `fb ff` under `base64url` as `+/8=`, where the encoding names `-_8=`, and the plan reads
+  such a scalar's JSON kinds from its `WireType` while the codec writes its primitive's
+  ([TypePlan](../plan/types.md#variants-that-can-share-a-value)).
+- **The same fallback at warning**: the severity changes nothing a server receives.
+- **A row for every name the IR documents**: a name a compiler invents later would still fall to
+  the wrong spelling, where typing by the wire form is right for a name no table knows.

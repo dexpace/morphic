@@ -76,7 +76,9 @@ in a second channel. The first rule that applies decides:
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
 4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets
    `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
-   paginated operation's `Return.Type` is one page, from which `Page` takes the items.
+   paginated operation's `Return.Type` is one page, from which `Page` takes the items. A
+   `text/plain` content whose type is no leaf has no text to decode, so its `Type` is `string`,
+   the body as it arrived ([values as text](../refine/text.md#a-value-no-style-arranges)).
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around

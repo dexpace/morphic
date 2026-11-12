@@ -10,6 +10,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, which json/v2 writes as base64, `string` |
 | `uuid` | the standard library's `uuid.UUID` |
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` |
+| a primitive under an encoding with a row ([a row keyed by an encoding](../../contract/type-table.md#a-row-keyed-by-an-encoding)) | `base64`, `rfc3339` and `iso8601`: the primitive's own type; `base64url`: the runtime `Base64URL`, a `[]byte`; `http-date`: the runtime `HTTPDate`, over a `time.Time`; each of the two codes itself through `MarshalText` and `UnmarshalText` ([types](types.md#what-a-mapped-type-must-do)) |
 | `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown |
 | nil `*TypeRef` | void |
 | `Scalar{Base}` chain | over the chain's root (`TypePlan.Scalar`), typed by the type table's row for the root and the chain's encoding ([type table](../../contract/type-table.md)): a defined type with a `Validate` for merged constraints where the root's type has no methods (a predeclared type, a slice, a map), an alias (`type X = Root`) over any other, its constraints checked where it is used ([declarations over a root](types.md#a-declaration-over-a-root)); nil base → newtype |

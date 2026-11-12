@@ -38,7 +38,8 @@ for a form body's media type, and a map's entries in the order of their keys' te
 UTF-8 bytes, so a Go map's unordered iteration never reaches a request. In a cookie, a `form` style
 that explodes a list or an object joins its pairs with `; `, as the `cookie` style does, since the
 `&` it writes in a query would leave one cookie holding them all (Appendix D.1). What a list of
-objects or of lists sends, which OpenAPI leaves undefined, is #1731's. A member holding its style's
+objects or of lists sends, which OpenAPI leaves undefined, is
+[below](#a-value-no-style-arranges). A member holding its style's
 own delimiter where expansion writes it as it writes the delimiter, a `.` under an exploded `label`,
 a space under `spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a `deepObject` key, reads
 back as that delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A
@@ -105,8 +106,22 @@ path at a `?` and a query at a `#` (§3), so a path holding `a?b` would reach `a
 or `]` in neither, which the JDK's `URI` refuses in a path while Go and `fetch` send it. A `/` still
 passes in a path, though OpenAPI forbids one unescaped in a path parameter's value (§4.8.2), as
 gRPC's multi-segment variables and Smithy's greedy labels pass it, and as the golden spec's three R2
-`object_key` parameters ask at the revisions above. What a `PathPattern` binding's text sends, which
-gRPC percent-encodes but for a `/` and RFC 3986's unreserved characters, is #1755's.
+`object_key` parameters ask at the revisions above.
+
+A `PathPattern` binding whose pattern names more than one segment, one holding a `/` or a `**`,
+writes its text as google.api.http has a client write such a variable (`google/api/http.proto`,
+"Path template syntax"): every character percent-encoded but a `/` and RFC 3986's unreserved ones
+(§2.3), a `%` among them, so a triple in the value is encoded again and `a:b%41?c` travels as
+`a%3Ab%2541%3Fc`, each `/` cutting a segment. `AllowReserved` beside such a pattern changes nothing,
+since the pattern's format gives the rule, and what `AllowReserved` says of an empty segment and
+this section of a dot segment hold for it as for any path parameter. A pattern of one segment, `*`
+or a literal, is written as a binding with none is. A reader takes the text its pattern matches in
+the path, cut at the unencoded `/`s, and decodes each triple but `%2F` and `%2f`, which it keeps as
+the three characters they are, as google.api.http has a server do, so every text written reads back
+and a `%2F` another client sent is never taken for a separator. A `PathPattern` is carried to a
+refiner as `ParamBind.PathPattern` ([bindings](../plan/bindings.md)), and whether a value matches
+its pattern is not checked before it is sent ([HTTP bindings](../../ir/http-binding.md)). T-75 holds
+it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -139,7 +154,7 @@ binding's media type names another fails before anything is sent. For a Latin-1 
 versions, Go's body holds a byte that is no UTF-8, `fetch`'s `text()` gives U+FFFD and the JDK's
 `ofString` gives `é`, and Go and the JDK keep a leading mark that `fetch` drops, so a body of `42`
 after one would parse on one target alone. What such a body holding a list or an object sends, which
-OpenAPI leaves undefined (Appendix B), is #1763's.
+OpenAPI leaves undefined (Appendix B), is [below](#a-value-no-style-arranges).
 
 ## Reading a text
 
@@ -178,9 +193,83 @@ its variants' JSON kinds never separate, so `123` is admitted by both variants o
 kind to read it by. A text its codec does not read is a value that does not parse, and a response
 header's leaves its field unset and `RawHeader` holding what arrived
 ([T-26](../testing/mandatory-tests.md)). At the revisions above, the golden spec declares one
-`Last-Modified` header `date-time` and gives an HTTP-date as its example, so that field stays unset;
-whether such a header reads an HTTP-date, and how a list of them splits around the comma each holds,
-is #1732's.
+`Last-Modified` header `date-time` and gives an HTTP-date as its example, which the next rule reads.
+
+A header's text read as a `datetime_offset` that no encoding spells is read by that row and, where
+the row does not read it, as an HTTP-date, as the `{datetime_offset, "http-date"}` row reads one
+([type table](../contract/type-table.md#a-row-keyed-by-an-encoding)): the instant it names, at a
+zero offset. The two never read one text, since an RFC 3339 `date-time` opens with a digit and an
+HTTP-date with a letter, so a text gains a value only where it had none. RFC 9110 spells every date
+its own fields carry so, `Last-Modified` among them (§8.8.2), and encourages a recipient to be
+robust in parsing a timestamp (§5.6.7). Nothing but that reading changes: the field's type stays the
+document's, and a `datetime_offset` header an SDK or the mock writes is the RFC 3339 text its
+document declares, though RFC 9110 has a server ignore an `If-Modified-Since` or an
+`If-Unmodified-Since` that is no HTTP-date (§13.1.3, §13.1.4), which only a compiler lowering those
+fields under `http-date` changes; the golden spec's one `If-Modified-Since` is a `string` (spec
+@bc6fad24, morphic @fa253fe19). A `date`, a `time` and a `datetime` read none, since an HTTP-date
+names an instant and they hold none.
+
+A header list whose elements read an HTTP-date, by that rule or under `http-date`, is split at its
+commas as any list is, and then a part that is a day name alone, `Sun` or `Sunday`, takes the part
+after it, joined by `, `: an IMF-fixdate and an rfc850-date each hold one comma, after the day name,
+an asctime-date holds none (§5.6.7), and no date in any form a header reads is a day name alone. So
+`Sun, 06 Nov 1994 08:49:37 GMT, Sun Nov  6 08:49:37 1994, 1994-11-06T08:49:37Z` is three elements,
+on one line or on three. In an object only a part read as the value of a member of such a type takes
+the next, so a key spelled `Sun`, and a string member holding it, stay whole. The split and each
+date's reading are one pass over the field, so a server controls no more than the field's length. At
+those revisions the golden spec declares no header list at all. T-74 holds both rules.
+
+## A value no style arranges
+
+A style arranges a leaf, a list of leaves and an object of leaves, and nothing deeper: OpenAPI's
+styles take a primitive, an array and an object of primitives (§4.12.3), as RFC 6570's composite
+values are a list of strings and an associative array of them (§2.3), and OpenAPI gives nothing
+else a text (§4.12.6, §4.12.7). A leaf is a type whose value travels as one string, number or
+boolean: a primitive, `any` and the `Any` type among them, an enum, a literal, an `External`, a
+scalar over one of these, and a union of them. So whether an input has an arrangement is a fact of
+its type, read through `TypePlan.Alias` and its scalar chain, and of where it is bound:
+
+- under a `Style`, a parameter's, a header's or a form field's, it has one where its type is a leaf,
+  a list or a tuple of leaves, a model whose `TypePlan.Flattened` members and catch-all are leaves,
+  a map of leaves, or a union each of whose variants is one of these, and OpenAPI's table gives that
+  shape a text under that `Style` and `Explode` (§4.12.6): it gives a leaf none under
+  `spaceDelimited`, `pipeDelimited` or `deepObject`, a list none under `deepObject`, and a list or
+  an object none where either delimited style explodes it;
+- a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
+- a `host` label and a `text/plain` body or part have one where their type is a leaf.
+
+An input with none is its text: the SDK types it a string, which the caller writes as the API
+documents it, and sends it as a string's text is sent, once under its binding's name whatever its
+`Explode` says, as its header's value, or as the body's octets. Whatever reads one reads the string
+that arrived, so a mock checks nothing of what it holds, and one a query repeats does not parse, as
+any text written once. Nothing is guessed, since nothing in the IR says which of the spellings in
+use a server reads. The plan decides it once for every target, as `ParamBind.Text` for a parameter
+([bindings](../plan/bindings.md)) and by the same test for a header, a form field and an elected
+content, whose reader's `Type` is then `string` ([body shapes](../plan/responses.md#body-shapes)),
+and reports each as a warning `emitters/plan/unarranged-value` at its binding, its header or its
+content. A content no election picks is not reported, and no election passes over one. A declared
+example of such an input holds its value, not its text, so it is refused as one its type refuses is
+([docs and mocks](../docs-and-mock.md)).
+
+A document that means JSON says so: a parameter declaring `content` with `application/json` in
+place of `schema` (§4.12.2.3), as an overlay can make it, lowers to `ContentType`, which types the
+input as the list it is and sends its JSON text, and a body does by offering `application/json`,
+which the default ranking elects. A leaf's own value can still hold a list or an object, as an
+`any`'s and an `External`'s can: one that does has no text, and the call fails before anything is
+sent ([above](#the-text-of-a-value)). A type that gains a list or an object where it held leaves
+turns its input from typed to text, a break the surface differ reports ([surface
+verification](../surface-verification.md)).
+
+At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, each a query list
+under an exploded `form` whose elements are objects or lists, and no other parameter, header or form
+field. The descriptions of ten call theirs JSON, one array in one parameter, as in
+`search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's string
+sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE
+/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say nothing of their text, and a
+`DELETE` whose filter the server did not read would delete as one given none. It has two such
+bodies, the `text/plain;charset=UTF-8` requests of `POST /accounts/{account_id}/one/integrations`
+and its `PATCH`, each an object beside an `application/json` content of the same schema. T-73 holds
+the rule.
 
 ## Other formats
 
@@ -188,7 +277,8 @@ A compiler lowers the text a format's binding gives a position by default, as Sm
 give a timestamp in a header an HTTP-date, as an `Encoding` at that position, a header's own or that
 of a scalar hoisted to type a parameter ([planned lowerings](../../compilers/planned-lowerings.md)),
 which keys its row as any encoding does: an emitter never reads which format a document came from
-(INV1). What an encoding with no row of its own writes is #1733's.
+(INV1). An encoding with no row of its own types the value as the wire carries it, never in its
+primitive's spelling ([type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 
 ## The designs it was weighed against
 
@@ -233,3 +323,32 @@ which keys its row as any encoding does: an emitter never reads which format a d
 - **A `text/plain` body read by the charset it names, or as UTF-8 whatever it names**: the targets
   decode different sets of charsets, and the second reads a Latin-1 `é` as U+FFFD with nothing
   failing.
+- **A list of objects sent as JSON**, as a parameter declaring `content` sends one: OpenAPI defines
+  no such text for a `schema` parameter, a server reading brackets or a format of its own would be
+  sent a filter it does not read, and the golden spec's two undescribed `filters` sit on a `DELETE`.
+  Where the document means JSON, declaring `content` says so for that parameter alone.
+- **Each object as JSON under the list's own `Style`**, as OpenAPI's Encoding Object defaults a form
+  field's array items to `application/json` (§4.15.1): it sends `search={…}&search={…}`, where each
+  of the golden spec's ten descriptions asks for one array.
+- **Brackets**, `filters[0][key]=id`: OpenAPI leaves such syntaxes out because they "are not
+  standards, and often contradict each other" (§4.12.7), so choosing one is a guess too.
+- **A policy switch choosing a spelling**: it would turn every such parameter of a document at
+  once, the undescribed with the described, where an overlay names the parameters it is true of.
+- **The list kept, each element taken as text**: no description on the golden spec gives an element
+  a pair of its own, and the type would promise a structure the wire need not have.
+- **A `text/plain` body of an object sent as JSON**: it labels JSON as plain text on a guess, where
+  the document offering `application/json` already says it.
+- **Failing the call, or passing over such a content in the election**: the first fails every call
+  for a fact fixed at generation, and the second overrides a ranking its user wrote.
+- **A `datetime_offset` header reading only RFC 3339**: the golden spec's one such header would
+  never be read, for a text that names its instant exactly.
+- **An HTTP-date read by a field's name**, `Last-Modified` and the others RFC 9110 defines: a list
+  of names to keep, which leaves a field of an API's own unread, where the texts tell themselves
+  apart.
+- **A list of HTTP-dates split at every second comma**: an asctime-date and an RFC 3339 text hold
+  no comma, so a list mixing forms would pair the wrong parts.
+- **Each target's own HTTP-date reader**: at Go 1.27 and JDK 25, the JDK's `RFC_1123_DATE_TIME`
+  refuses the golden spec's example, whose day name is not its date's, and writes `6 Nov` with one
+  digit, and Go's `http.ParseTime` reads an rfc850-date's year `70` as 1970 at any date.
+- **A `PathPattern` text under RFC 6570's reserved expansion**, as the IR's field once described
+  it: `a:b%41?c` would travel as written and read as `a:bA` with a query of `c`.
