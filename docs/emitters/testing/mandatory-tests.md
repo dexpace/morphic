@@ -38,9 +38,11 @@ throughout these documents.
    has a value it takes and, each an error naming the leaf's path and leaving the layers below to
    set it, a value of another JSON type, `null`, its zero where zero is no value, a value past each
    end of its range or outside its grammar, a duration with no unit and one in a unit the record
-   lacks, a ratio with a fourth fraction digit or an exponent, a list naming an entry twice or
-   holding more than it may, a `Backoff` or a `Kinds` row written in part and a `Backoff` whose
-   `Initial` passes its `Max`; so are a member the record does not declare, a member named twice,
+   lacks, a ratio with a fourth fraction digit, a sign or an exponent, `-0` among them, a
+   `Template` holding a `{` or a `}` outside its two placeholders, a `Guards.Keys` entry that is
+   empty or holds a space, a list naming an entry twice or holding more than it may, a `Backoff`
+   or a `Kinds` row written in part and a `Backoff` whose `Initial` passes its `Max`; so are a
+   member the record does not declare, a `Kinds` row keyed `0404` among them, a member named twice,
    an operation's entry writing a member that is the client's, a kind named for a fault, and two
    spellings of one kind that one layer alone writes, while a kind a lower layer spells in another
    letter case takes that spelling and draws an info, whatever order the rows are read in. A leaf
@@ -938,7 +940,9 @@ throughout these documents.
     `*url.Error` in Go and no exception of the HTTP library's in Kotlin, a call past
     `Timeout.Request` and a stream past `Timeout.Idle` among the failures. Each event's `URL` is
     the URL as shown, a redirect's the origin and the marker, and what a redacted parameter
-    expanded to in the path the marker; an `end` event's `Cause` is a type's name; a `RequestID`
+    expanded to in the path the marker; an `end` event's `Cause` is a type's name; a Go hook is
+    handed the context its caller gave the method, and the events of two overlapping calls are
+    told apart by `Call`; a `RequestID`
     longer than 128 bytes or holding a line break is empty; a parameter in the slot of a scheme
     its operation's options name is no input of the request type, and the slot goes out once;
     one in the slot of a scheme they do not name, and a header parameter named `Authorization`
