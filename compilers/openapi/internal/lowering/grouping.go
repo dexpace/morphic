@@ -56,7 +56,7 @@ type GroupingExtension struct {
 	// names none.
 	Lists ExtensionLists `json:"lists,omitempty"`
 	// Fallback groups an operation Key states no path for: GroupByTags or
-	// GroupByPathPrefix, the former where it is empty.
+	// GroupByPathPrefix, any other value, empty included, grouping by tags.
 	Fallback GroupingStrategy `json:"fallback,omitempty"`
 }
 

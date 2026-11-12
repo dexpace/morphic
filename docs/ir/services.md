@@ -56,9 +56,9 @@ type ResourceInfo struct {
 }
 ```
 
-OpenAPI compilers build groups from tags (policy-controllable: by tag, by path prefix, or by the group
-path a vendor extension states);
-TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL yields three groups
-(query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one group per module.
-How a tag builds a group, and nests it under a declared parent, is the OpenAPI compiler's rule
-[`tag-groups`](../compilers/openapi.md#tag-groups).
+OpenAPI compilers build groups by policy: by tag (the default), by path prefix, or by the group path
+a vendor extension states; TypeSpec from interfaces/namespaces; Smithy from resources; GraphQL
+yields three groups (query/mutation/subscription); Protobuf one group per `service`; Erlang/OTP one
+group per module. How a tag builds a group, and nests it under a declared parent, is the OpenAPI
+compiler's rule [`tag-groups`](../compilers/openapi.md#tag-groups), and how an extension's path
+does, [`extension-groups`](../compilers/openapi.md#extension-groups).

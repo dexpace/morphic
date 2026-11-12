@@ -3488,7 +3488,8 @@ it; group and sibling order are first-seen from the operations, as under tags.
 An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
 `GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
 So is one whose value names no path: one that is neither text nor a list of text, or whose path has
-an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. That bound is over
+an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
+whole, so under `groups` an entry after the first that names no path is enough. That bound is over
 twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
 spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
 reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
