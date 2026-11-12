@@ -183,9 +183,10 @@ Camel and Pascal case mark where a word begins by upper-casing its first charact
 the first targets does but two: a package, whose words join with no separator, and a Kotlin
 constant, which writes `_` between every two (`VALUE_10002`). Upper-casing leaves some characters as
 they are — a digit, a letter of no case such as `日`, one already upper-case such as `ℤ` — so a word
-beginning with one is not marked. `v_1_2` and `v_12` would both be Go's field `V12`, and an enum's
-members `1_0` and `10` both its constant `Version10`, though their words differ, and words are what
-the `names` pass compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
+beginning with one is not marked. `v_1_2` and `v_12` would both be Go's field `V12`, and an enum
+`Version`'s members `1_0` and `10` both its constant `Version10`, though their words differ, and
+words are what the `names` pass compares ([names one scope
+shares](../../ir/naming.md#names-one-scope-shares)).
 
 Where a word begins with such a character, `Case` writes `_` before it, unless one of the two
 characters the break falls between is a letter and the other a digit: the grammar breaks wherever
