@@ -4019,9 +4019,10 @@ is not also kept on the document ([`unreferenced-components`](#unreferenced-comp
 A link that does not lower whole is kept verbatim on its response under `openapi:links/<name>`
 (`no_ir_home`), as it resolved, with a finding at its entry in the links map:
 
-1. An `openapi/invalid-link` warning when it names its operation both ways or neither, or its target,
-   a parameter it names or a value it reads names nothing the document declares or names it more
-   than once, or a value breaks the runtime-expression grammar or reads a response's query or path.
+1. An `openapi/invalid-link` warning when it names its operation both ways or neither, or by an
+   `operationRef` that is no JSON pointer, or its target, a parameter it names or a value it reads
+   names nothing the document declares or names it more than once, or a value breaks the
+   runtime-expression grammar or reads a response's query or path.
 2. An `openapi/untyped-link` info when the link is sound but reads what no link value spells: an
    operation of another document or one mounted more than once, a request value no parameter of the
    operation answered binds, a header the response does not declare once, a body the document does

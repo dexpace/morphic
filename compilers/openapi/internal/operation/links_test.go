@@ -114,6 +114,8 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 		{"an operationId nothing declares", "src", "{operationId: nope}", diag.InvalidLink, `operationId "nope", which no operation`},
 		{"an operationId two declare", "src", "{operationId: dup}", diag.InvalidLink, `operationId "dup", which 2 operations declare`},
 		{"an operationRef to no operation", "src", "{operationRef: '#/components/schemas/M'}", diag.InvalidLink, "which no operation"},
+		{"an operationRef to the whole document", "src", "{operationRef: '#'}", diag.InvalidLink, "no JSON pointer"},
+		{"an operationRef to an anchor", "src", "{operationRef: '#op'}", diag.InvalidLink, "no JSON pointer"},
 		{"a parameter the target lacks", "src", "{operationId: target, parameters: {nope: a}}", diag.InvalidLink, `parameter "nope"`},
 		{"a name two locations share", "src", "{operationId: target, parameters: {id: a}}", diag.InvalidLink, "declares in 2 locations"},
 		{"a dotted name no location starts", "src", "{operationId: target, parameters: {x.id: a}}", diag.InvalidLink, `parameter "x.id"`},

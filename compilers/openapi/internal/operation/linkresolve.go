@@ -10,6 +10,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
@@ -207,11 +208,15 @@ func (ix opIndex) target(d *linkDraft) (*ir.Operation, *linkFailure) {
 }
 
 // byReference returns the operation d's operationRef names: the one mounted at
-// the position it points to, else the one declared there. A reference into
-// another document names an operation this compile does not lower, and a
+// the position it points to, else the one declared there. A reference whose
+// fragment is no JSON pointer, a bare `#` among them, names no operation; one
+// into another document names an operation this compile does not lower; and a
 // declaration mounted more than once names several.
 func (ix opIndex) byReference(d *linkDraft) (*ir.Operation, *linkFailure) {
 	ref := *d.operationRef
+	if _, ok := resolve.FragmentPointer(ref); !ok {
+		return nil, invalid("names operationRef %q, which is no JSON pointer to an operation", ref)
+	}
 	pointer, internal := d.c.RefScope().InternalPointer(ref)
 	if !internal {
 		return nil, untyped("names operation %q, which is not one this document declares", ref)
