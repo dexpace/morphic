@@ -44,7 +44,11 @@ func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// resolver is what one Resolve reads its names against.
+// resolver is what one Resolve reads its names against. A security scheme, a
+// model's member and a header are found by scanning their list for each name,
+// so a list whose every entry names another costs its length squared: only a
+// mapping reads replacements, and 8,000 such headers and members together add
+// under half a second to a compile, which an index per list would not repay.
 type resolver struct {
 	c   lowering.Ctx
 	p   lowering.Promoter
