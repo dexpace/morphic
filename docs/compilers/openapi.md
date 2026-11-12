@@ -2280,9 +2280,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
 6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
    as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
    lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
-   `pass/validate` holds a mapping to), so it stays a `Model` under it, tagged. One written beside a
-   union routes by name only what that union lists, so beside a schema it does not list, and no
-   `mapping` key names, a union distributes.
+   `pass/validate` holds a mapping to), so it stays a `Model` under it, with the tag that rule gives
+   it, if any. One written beside a union routes by name only what that union lists, so beside a
+   schema it does not list, and no `mapping` key names, a union distributes.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
