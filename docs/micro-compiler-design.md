@@ -91,7 +91,7 @@ promotion requires evidence from all three, not two and an expectation.
 |---|---|---|---|---|
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
-| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
+| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `NamingFor` the constructor a compiler calls, since moved beside it |
 | ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space`, except the primitives: see §3.4 |
 | Bounded-recursion guard | `depth`, cap 256 | `depth`, cap 256 | `depth`, cap 32 | **do not promote** — see §3.2 |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |

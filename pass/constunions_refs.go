@@ -89,7 +89,7 @@ func (r *typeRefs) canCarry(t reflect.Type) bool {
 	}
 	seen := map[reflect.Type]bool{t: true}
 	queue := []reflect.Type{t}
-	carries := false
+	var carries bool
 	for len(queue) > 0 && !carries {
 		next := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]

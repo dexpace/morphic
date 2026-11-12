@@ -250,7 +250,7 @@ func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// Its switch has one arm per ir.ValueKind, as enumMemberKey's does; the
+// Its switch has one arm per ir.ValueKind, as ir.EnumMemberKey's does; the
 // exhaustive linter fails when ir adds a kind either lacks. The default arm
 // refuses a kind rather than assert a type the source never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
@@ -326,9 +326,9 @@ func entryKey(node values.Value) (string, bool) {
 const maxValueKeyDepth = 128
 
 // valueKey returns the key an enum entry is compared by. A scalar's is its
-// enumMemberKey. A list's and an object's are built from their elements' keys,
-// each prefixed with its length (lengthPrefixed), and an object's members are
-// sorted first, since JSON Schema compares instances regardless of member
+// ir.EnumMemberKey. A list's and an object's are built from their elements'
+// keys, each prefixed with its length (lengthPrefixed), and an object's members
+// are sorted first, since JSON Schema compares instances regardless of member
 // order. A number at any depth reads as its canonical decimal, so [1] repeats
 // [1.0].
 //
