@@ -14,8 +14,9 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`references/claims-and-process.md#run-prescribed-commands`), with the flags a neighbouring rule
    passes the same tool (`references/claims-and-process.md#command-keeps-its-neighbours-flags`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
-   and text; then hold title, commits, body, closing keywords and scope to
-   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs to
+   and text; then hold title, commits, body, labels and scope to
+   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, closing keywords to
+   `.claude/skills/morphic-shipping-prs/references/closing-issues.md`, and open PRs to
    `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a
    cap they share at each head
    (`.claude/skills/morphic-shipping-prs/references/merging-main.md#cap-two-prs-share`). An edited
@@ -23,17 +24,17 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#send-only-what-the-fetch-produced`).
 3. **Closed issues.** Read each issue the PR closes whole against the diff, its state, comments and
    out-of-scope items included
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole`),
+   (`.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-read-whole`),
    its title and Direction against the head
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-met-at-its-site`),
+   (`.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-met-at-its-site`),
    its reproduction run on the base and on the head
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-reproduction-reruns`),
+   (`.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-reproduction-reruns`),
    what in the tree still cites it
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-cited-in-the-tree`)
+   (`.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-cited-in-the-tree`)
    and what in the tracker does
    (`references/claims-and-process.md#tracker-on-what-cites-a-closing-issue`),
    a sidebar link to it
-   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-sidebar-link`),
+   (`.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-sidebar-link`),
    and each choice resting on an open issue against the open PRs settling it
    (`references/claims-and-process.md#open-issue-against-open-prs`).
 

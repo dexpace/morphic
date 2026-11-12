@@ -23,6 +23,8 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
    (`references/correctness.md#ported-check-grammar`), a CI or cache change
    (`references/correctness.md#simulate-ci-runs`) or a dependency update
    (`references/correctness.md#dependency-update-differential`).
+6. Where a position lowers to a node of another kind, compile it as each consumer names it
+   (`.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#changed-kind-at-each-consumer`).
 
 A normative document has no output to compare: run its rules as a program
 (`references/design.md#review-design-rules`). The matrix is each altered output with its spec and

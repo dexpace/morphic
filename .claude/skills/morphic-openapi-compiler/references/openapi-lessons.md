@@ -19,6 +19,33 @@ canary. A behaviour found that the page lacks is added there.
   branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
   encoding a part inside the changed shape.
 
+## Find the readers of a node whose kind a lowering changes
+`readers-of-a-changed-kind`
+
+- **Rule.** A lowering that changes the kind of node a position lowers to, such as a `Model`
+  becoming a `Union`, has readers no getter search finds: code outside the changed package reading
+  the old kind's facts off the IR. Ask each what the new kind gives it, `<Kind>` the old one:
+  `git grep -nE '\(\*ir\.<Kind>\)|case \*ir\.<Kind>|ir\.Kind<Kind>|FlattenedProperties|Exposes\(' -- compilers pass ':!*_test.go'`.
+  Then compile the position as each consumer names it
+  (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
+- **Why.** A union distributed across a form body's `allOf` made the body a `Union`: the multipart
+  reader keyed parts by flattened properties a union has none of, and `pass` refused an `encoding`
+  key no union exposes. A search by getter named neither file (#1688, #1687).
+- **Probe.** List in the PR body each hit with its answer.
+
+## Compile a position whose node kind changes as each consumer names it
+`changed-kind-at-each-consumer`
+
+- **Rule.** For each position whose node kind a change alters, compile it as each consumer of the
+  old kind names it: a discriminator's `mapping` and its implicit route by component name, an
+  `allOf` composing it as a `Base`, a `$ref` from another position, and a form body's `encoding`
+  key. Run `validate --verify` on `main` and the branch and read every diagnostic. A consumer the
+  branch fails is a finding even where `main` fails a sibling spelling, filed or not.
+- **Why.** Distributing a union on an `allOf` branch made a mapped subtype a `Union`, which
+  `pass.Validate` refused as no variant of its base. `main` failed the same for `$ref` branches,
+  unfiled, so the tracker searches found nothing (#1688, #1696).
+- **Probe.** List in the PR body each position and consumer, with both builds' exit codes.
+
 ## Enumerate a source object's fields against their readers
 `fields-vs-readers`
 
