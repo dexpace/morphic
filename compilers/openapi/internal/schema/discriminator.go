@@ -408,9 +408,10 @@ type listedBy struct {
 // oneOf or anyOf routes every schema composing a through allOf. One beside
 // either routes the schemas its union lists, every possible one listed there
 // (docs/compilers/openapi.md#discriminator-value): those a $ref branch of the
-// union unionBranches elects ends on, the reading discriminatedAncestors makes
-// of a $ref, read once a run, as every subtype of a asks. Any other schema
-// composing a narrows that union, each instance carrying its variant's tag.
+// union unionBranches elects ends on, as discriminatedAncestors reads a $ref,
+// read once a run, as every subtype of a asks. Any other schema composing a
+// narrows that union, each instance carrying its variant's tag, though it
+// lowers as a model based on it (#1716).
 func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(a)
 	if len(branches) == 0 {
