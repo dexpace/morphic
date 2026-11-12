@@ -176,10 +176,10 @@ func (n idCount) clause(d declaredID, from string) string {
 
 // withOwnMembers appends to list, the IDs a node is held to, the ID of each of
 // node's members, where node is an enum, that its enum's ID and its value give
-// it (EnumMemberIDFor) in a namespace the edited document declares for members.
-// Only that member can hold such an ID, so it collides with nothing (invariant
-// 3), and a change may declare it once: a pass building an enum needs IDs for
-// its members.
+// it (EnumMemberIDFor) in a namespace the edited document declares for members,
+// unless list holds it already. Only that member can hold such an ID, so it
+// collides with nothing (invariant 3), and a change may declare it once: a
+// pass building an enum needs IDs for its members.
 func (e *Editor) withOwnMembers(list []declaredID, node any) []declaredID {
 	enum, isEnum := node.(*Enum)
 	if !isEnum || enum == nil {
@@ -189,6 +189,10 @@ func (e *Editor) withOwnMembers(list []declaredID, node any) []declaredID {
 	if !spaced || !slices.Contains(e.out.IDSpaces[IDKindEnumMember], space) {
 		return list
 	}
+	held := make(map[declaredID]bool, len(list))
+	for _, d := range list {
+		held[d] = true
+	}
 	class := reflect.TypeFor[EnumMemberID]()
 	occurrences := make(map[string]int, len(enum.Members))
 	for _, m := range enum.Members {
@@ -197,8 +201,10 @@ func (e *Editor) withOwnMembers(list []declaredID, node any) []declaredID {
 			continue
 		}
 		occurrences[key]++
-		if own, placed := EnumMemberIDFor(enum.ID, key, occurrences[key]); placed && own == m.ID {
-			list = append(list, declaredID{class: class, id: string(own)})
+		own, placed := EnumMemberIDFor(enum.ID, key, occurrences[key])
+		d := declaredID{class: class, id: string(own)}
+		if placed && own == m.ID && !held[d] {
+			list = append(list, d)
 		}
 	}
 	return list

@@ -258,6 +258,29 @@ func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
 	}
 }
 
+// TestEditor_RefusesAMemberIDItsNodeDeclaresAlready pins that a member's own
+// ID is one an edit may add only where its node does not declare it already: a
+// change wearing it a second time, on a repeat of its value or on another
+// value, is refused, by an update and by a replacement alike.
+func TestEditor_RefusesAMemberIDItsNodeDeclaresAlready(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(membersDoc())
+	e.UpdateType("t/x/e", func(td ir.TypeDef) {
+		enum, _ := td.(*ir.Enum)
+		enum.Members = append(enum.Members, member("e/x/e/s:a", "a"))
+	})
+	e.ReplaceType(&ir.Enum{ID: "t/x/e", Members: []ir.EnumMember{member("e/x/e/s:a", "a"), member("e/x/e/s:a", "b")}})
+	out, diags := e.Finish()
+
+	assert.Equal(t, []string{
+		`internal: edit: update rejected: the change of "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+			`where the node does 1 times; an edit adds no ID`,
+		`internal: edit: replace rejected: the node for "t/x/e" declares the ir.EnumMemberID "e/x/e/s:a" 2 times, ` +
+			`where the node it replaces does 1 times; an edit adds no ID`,
+	}, refusals(t, diags))
+	assert.Equal(t, irtest.Encoded(t, membersDoc()), irtest.Encoded(t, out))
+}
+
 // TestEditor_HoldsEachNodeToItsOwnIDs pins that the ID check starts afresh at
 // each call: an ID the last node updated or replaced declares is one the next
 // node, which does not, still may not add.
