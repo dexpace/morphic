@@ -424,3 +424,17 @@ it sees. Changes made together in one bump are listed together under it.
   that held the discriminator beside a catch-all and nothing else now lowers to a `MapT`, as that
   object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
   finds it there.
+- **0.42.0** — no shape change. The OpenAPI compiler tags a subtype by its component name only where
+  a discriminator routes it by name
+  ([`discriminator-value`](../compilers/openapi.md#discriminator-value)): one written beside a
+  `oneOf` or `anyOf` routes only what that union lists, so a schema composing a discriminated union
+  that does not list it, a narrowing of the union, has no `DiscriminatorValue`, where it had carried
+  its name, which the union's discriminator routes to no variant, and a union written beside such a
+  schema's `allOf` distributes over it, as beside any schema no route names, where it was kept
+  verbatim under `openapi:oneOf` or `openapi:anyOf`. Its discriminator-inference policy reads what a
+  subtype routed by name admits for the tag
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): admitting one
+  string other than its name, it carries that string, and admitting several or none, no tag, the
+  subtype's `Provenance.Inferred` naming `discriminator-inference` either way. A consumer pinned to
+  0.41.0 that wrote or routed such a subtype's tag by its name no longer finds the name there, and
+  one that read a union kept verbatim beside such a schema finds the schema a `Union` instead.

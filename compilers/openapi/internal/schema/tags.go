@@ -238,15 +238,8 @@ func pinnedMember(reg ir.TypeRegistry, p ir.FlatProperty, required bool) (string
 // pinnedValue returns the one string the type id admits, read through alias
 // scalars: a Literal's, or the member of a closed Enum of one.
 func pinnedValue(reg ir.TypeRegistry, id ir.TypeID) (string, bool) {
-	for range maxTagAliasHops {
-		base, alias := ir.AliasBase(reg, id)
-		if !alias {
-			break
-		}
-		id = base
-	}
 	var v ir.Value
-	switch n := reg[id].(type) {
+	switch n := reg[throughAliases(reg, id)].(type) {
 	case *ir.Literal:
 		if n == nil {
 			return "", false
@@ -261,6 +254,19 @@ func pinnedValue(reg ir.TypeRegistry, id ir.TypeID) (string, bool) {
 		return "", false
 	}
 	return v.Str, v.Kind == ir.ValueString
+}
+
+// throughAliases returns the type the alias scalars from id stand over, at
+// most maxTagAliasHops of them read.
+func throughAliases(reg ir.TypeRegistry, id ir.TypeID) ir.TypeID {
+	for range maxTagAliasHops {
+		base, alias := ir.AliasBase(reg, id)
+		if !alias {
+			break
+		}
+		id = base
+	}
+	return id
 }
 
 // tagMapping maps each tag to the variant pinning it, tags being in variant

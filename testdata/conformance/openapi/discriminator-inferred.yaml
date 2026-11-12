@@ -62,6 +62,22 @@ components:
         - type: object
           properties:
             kind: {const: b}
+    # A subtype the discriminator routes by its name pins its tag to another
+    # value, so its name is no tag it carries: it carries the pinned one.
+    Shape:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+    Circle:
+      allOf:
+        - $ref: '#/components/schemas/Shape'
+        - type: object
+          properties:
+            kind: {const: circle}
+            radius: {type: number}
     JsonFormat:
       type: object
       required: [type]

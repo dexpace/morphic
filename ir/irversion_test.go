@@ -105,6 +105,9 @@ var generations = []generation{
 	{version: "0.41.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "the object variant of a type array the OpenAPI compiler lowers holds no Discriminator, so one holding only a catch-all is a MapT; the discriminator is kept verbatim under openapi:discriminator on the union"},
+	{version: "0.42.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a schema composing a discriminated union that does not list it has no DiscriminatorValue, and a union beside it distributes; one a policy reads admitting only other tags than its name carries the one it admits, or none, its Provenance.Inferred naming discriminator-inference"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

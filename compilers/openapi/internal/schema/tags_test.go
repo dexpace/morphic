@@ -192,13 +192,16 @@ func TestDiscriminatorInference_LeavesALoneOrNullableVariant(t *testing.T) {
 }
 
 // TestDiscriminatorInference_DisabledReadsNothing pins that the policy turned
-// off leaves both readings undone: the unmapped discriminator routes by name
-// and the undeclared union stays untagged, nothing marked or reported.
+// off leaves every reading undone: the unmapped discriminator routes by name,
+// the undeclared union stays untagged, and a subtype routed by name keeps its
+// name as its tag, whatever it pins, nothing marked or reported.
 func TestDiscriminatorInference_DisabledReadsNothing(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpecVer("3.1.0", "    U:\n      discriminator: {propertyName: type}\n"+
 		"      oneOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"+
-		"    V: {anyOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]}\n"+taggedVariants)
+		"    V: {anyOf: [{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]}\n"+taggedVariants+
+		"    Base: {type: object, properties: {type: {type: string}}, discriminator: {propertyName: type}}\n"+
+		"    Sub: {allOf: [{$ref: '#/components/schemas/Base'}, {properties: {type: {const: sub}}}]}\n")
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(src)},
 		compilers.Options{FormatOptions: openapi.Options{DiscriminatorInference: openapi.DiscriminatorInference{Disabled: true}}})
 	require.NoError(t, err)
@@ -212,6 +215,10 @@ func TestDiscriminatorInference_DisabledReadsNothing(t *testing.T) {
 	for _, n := range []*ir.Union{u, v} {
 		assert.Empty(t, n.Provenance.Inferred)
 	}
+	sub, ok := typeByName(doc, "Sub").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "Sub", sub.DiscriminatorValue)
+	assert.Empty(t, sub.Provenance.Inferred)
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo))
 }
 

@@ -80,6 +80,17 @@ with none, names itself in the `Provenance.Inferred` of the node holding the dis
 ([provenance](./provenance.md)), as every heuristic does. `Inferred` alone says which half was
 read in: the tag itself, or only where its values route.
 
+A subtype's `DiscriminatorValue` is the tag every instance of it carries, by which its base's
+discriminator routes to it. It is empty on a model no one tag routes to: one no discriminator
+routes, as none routes a schema composing a discriminated union that does not list it, each of its
+instances carrying the tag of the variant it is, or one whose instances may carry several tags. A
+heuristic reading the tag off what the subtype admits, rather than off what the source maps or
+names, names itself in the subtype's `Provenance.Inferred`. Two subtypes may carry one tag, where
+the instances of each carry only it, as every subtype of a base pinning its tag to one value does,
+and that tag then routes to more than one. A reading that declined there, as one filling a
+`Mapping`, which keys one target per tag, must, would leave each a tag its own instances reject for
+an encoder to write.
+
 ## Composition
 
 `Properties` contains only the model's *own* properties. Consumers walk

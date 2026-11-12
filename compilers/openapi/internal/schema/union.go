@@ -359,7 +359,7 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 		classifyBranchSet(c, holder) != unionDistributed {
 		return branchUnionIndex{}
 	}
-	if _, refines := refinementOf(c, s, ""); refines || len(ancestorDiscriminators(c.Bindings(), s)) > 0 {
+	if _, refines := refinementOf(c, s, ""); refines || len(discriminatedAncestors(c.Bindings(), s)) > 0 {
 		return branchUnionIndex{}
 	}
 	return branchUnionIndex{index: index, ok: true}
@@ -621,8 +621,8 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poin
 // component, the tag its lowering takes (subtypeDiscriminatorValue). That
 // lowering reports the tag's own diagnostics, so this reading drops them.
 func routedSubtype(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) bool {
-	_, routed, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer)
-	return routed
+	tag, _ := subtypeDiscriminatorValue(c, s, c.IDs().ForPointer(pointer), pointer)
+	return tag.routed
 }
 
 // classifyBranchSet is the part of classifyUnionSiblings that reads the union
