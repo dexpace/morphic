@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"maps"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -536,5 +537,26 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 		for _, d := range *recorded {
 			assert.Contains(t, d.Message, "give its openapi:not differently", tc.value)
 		}
+	}
+}
+
+// TestSameDeprecation_ReadsEveryField holds sameDeprecation to every field
+// ir.Deprecation declares: two deprecations differing in any one field alone
+// are two, so a field the IR gains fails here until the comparison reads it.
+func TestSameDeprecation_ReadsEveryField(t *testing.T) {
+	t.Parallel()
+	assert.True(t, sameDeprecation(&ir.Deprecation{}, &ir.Deprecation{}), "two empty deprecations are one")
+	for field := range reflect.TypeFor[ir.Deprecation]().Fields() {
+		var other ir.Deprecation
+		v := reflect.ValueOf(&other).Elem().FieldByIndex(field.Index)
+		switch v.Kind() {
+		case reflect.String:
+			v.SetString("x")
+		case reflect.Slice:
+			v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+		default:
+			require.Failf(t, "unset field", "Deprecation.%s is a %s, which this test cannot set", field.Name, v.Kind())
+		}
+		assert.False(t, sameDeprecation(&ir.Deprecation{}, &other), "a deprecation differing only in %s", field.Name)
 	}
 }
