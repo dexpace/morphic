@@ -191,7 +191,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
 		var filed filing
 		if route.groups != nil {
-			filed = route.groups.file(l.in, po.src, opCtx.ptrs.decl, route.key)
+			filed = route.groups.filingFor(l.in, po.src, opCtx.ptrs.decl, route.key)
 			opCtx.inferred = filed.inferred
 			diags = append(diags, filed.diags...)
 		}

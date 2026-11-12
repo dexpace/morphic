@@ -62,15 +62,15 @@ type filing struct {
 	diags    []ir.Diagnostic
 }
 
-// file resolves where the active strategy files src, declared at decl in c's
-// document and mounted at path. A group is resolved by identity: its ID is its
-// key here and in the IR, so two operations share a group exactly when they
+// filingFor resolves where the active strategy files src, declared at decl in
+// c's document and mounted at path. A group is resolved by identity: its ID is
+// its key here and in the IR, so two operations share a group exactly when they
 // share an ID. The untagged group's hint stays "default" beside a tag of that
 // name: the IDs differ, the emitter resolves name collisions by ID
 // (docs/emitters/refine/naming.md), and the names pass reports this one. By
 // tags, the group is the first navigational tag's, nested under the tags its
 // declared parents name (GitHub #613).
-func (g *serviceGroups) file(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
+func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
 	strategy := c.Grouping
 	var diags []ir.Diagnostic
 	if strategy == lowering.GroupByExtension {
