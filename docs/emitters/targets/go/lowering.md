@@ -24,7 +24,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `External` | the type-table row for its `Identity` ([type table](../../contract/type-table.md)): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic |
 | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](../../refine/redaction.md)) | `[REDACTED]` in the holder's `String`, `GoString` and `LogValue`, each on a value receiver ([`User`](models.md#user-in-go)), and a sensitive defined type's own ([declarations over a root](types.md#a-declaration-over-a-root)), in logging hooks and in error messages, a transport failure's `*url.Error` among them, which `net/http` writes with the URL it sent |
 | `Operation.Stability`, `OperationGroup.Stability` ([stability](../../operations/stability.md)) | a doc-comment paragraph naming the tier and what it means ([stability](operations.md#stability)) |
-| `Visibility` sets | N structs from `ModelShape`; PATCH → optional |
+| `Visibility` sets | a struct per `ModelShape.Name`; a patch shape → optional ([TypePlan](../../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable ([recursive references](models.md#recursive-references)) |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |
 | `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
@@ -50,7 +50,7 @@ lowers to in Go.
 | `LowerContainers` | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic |
 | `LowerLiterals` | typed constant / single-value newtype (incl. `symbol`) |
 | `LowerModels` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` ([`User`](models.md#user-in-go)), a union the model narrows lowered as that union ([inheritance](../../refine/models.md#inheritance)) and any other `Unflattened` conjunct lowered or degraded with a code |
-| `ProjectVisibilityShapes` | `User` / `UserCreate` / `UserPatch` structs |
+| `ProjectVisibilityShapes` | `User` / `UserCreate` / `UserUpdatePatch` structs, one per `ModelShape.Name` |
 | `LowerOptionality` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer ([recursive references](models.md#recursive-references)) |
 | `LowerConstraints` | field-level `validate` tags + a refine-built `Validate()` method structure |
 | `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one; on an inclusive union, a struct with a pointer per variant |

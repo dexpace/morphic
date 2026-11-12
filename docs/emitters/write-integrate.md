@@ -14,8 +14,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), so only the
   structural tier of [open question 5](../ir/open-questions.md) could carry it. A
   symbol derived from an entity keys under it, as `User.ID#create` does
-  ([`User`](targets/go/models.md#user-in-go)), a union's wrappers, fallback and inclusive fields
-  among them, so no two symbols share a key. Write/integrate and surface verification
+  ([`User`](targets/go/models.md#user-in-go)), a shape's declaration under its lifecycles and its
+  patch ([TypePlan](plan/types.md#the-declaration-a-shape-takes)), a union's wrappers, fallback
+  and inclusive fields among them, so no two symbols share a key. Write/integrate and surface
+  verification
   (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips

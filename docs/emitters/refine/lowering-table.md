@@ -30,7 +30,7 @@ IR bug (INV9), not a compiler change.
 | `External` | — |
 | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](redaction.md)) | the value on the wire, untouched |
 | `Operation.Stability`, `OperationGroup.Stability` ([stability](../operations/stability.md)) | — |
-| `Visibility` sets | — |
+| `Visibility` sets | the members each shape's declaration holds and requires, a `PATCH` body's as its schema states them unless it is a patch shape ([TypePlan](../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | — |
 | `Constraints` | numeric bounds as decimal |
 | `Discriminator{Mapping→ID}` | discriminator wire key |

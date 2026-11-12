@@ -24,6 +24,8 @@ type Policy struct {
                                        // (../refine/unions.md)
     ProtocolEffects bool               // default on: an operation stating no effects takes
                                        // what its binding's protocol defines (below)
+    MergePatch      bool               // default on: a PATCH body sent as a merge patch relaxes
+                                       // the members its schema requires (below)
     Examples        ExamplePolicy      // default both on, depth 3, 2 items: what may be made where
                                        // no example is declared (../docs-and-mock.md)
 }
@@ -172,6 +174,19 @@ weighed against:
   it only writes, so this differs from opening it in nothing a caller can observe.
 
 T-22 and T-36 hold what each policy opens, and T-65 that no operation moves a declaration.
+
+## A merge patch relaxes what its schema requires
+
+A `PATCH` body sent as `application/merge-patch+json` carries only the members it changes (RFC 7396
+§1), and documents commonly give it the schema of the resource it edits, required members and all.
+Under `MergePatch` such a body's shape is a patch shape, every member optional, where its binding's
+`PatchImplicitOptionality` is nil, and the shape's `Inferred` marks its `Patch`
+([TypePlan](types.md#what-a-patch-relaxes)). A binding stating the field decides for itself, as
+[precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
+declared fact win: `true` relaxes whatever the media type, unmarked, and `false` relaxes nothing.
+Turning the policy off leaves every body requiring what its schema requires. No other media type is
+read this way: a JSON Patch (`application/json-patch+json`) is a list of operations, and a `PATCH`
+sent as `application/json` says nothing about the members it leaves out.
 
 ## An operation's effects come from its binding
 

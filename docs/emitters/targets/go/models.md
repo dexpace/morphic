@@ -52,7 +52,8 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   `json:",embed"`, which receives the undeclared members whatever the options say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` ([file
   names](naming.md#file-names)) in the root unit ([output units](../../refine/output-units.md)).
-  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
+  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key
+  ([the declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
 
 ## Recursive references
 

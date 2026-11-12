@@ -26,7 +26,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `External` | the type-table row for its `Identity`, each platform's own; no row → diagnostic |
 | `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](../../refine/redaction.md)) | `[REDACTED]` in the holder's `toString` and a sensitive value class's own ([declarations over a root](types.md#a-declaration-over-a-root)), in logging hooks and in exception messages, a Ktor timeout's among them, which quotes the URL it sent: the runtime throws its own failure quoting the redacted URL, holding no exception that quotes the original |
 | `Operation.Stability`, `OperationGroup.Stability` ([stability](../../operations/stability.md)) | KDoc naming the tier and what it means, and an opt-in annotation per tier ([stability](operations.md#stability)) |
-| `Visibility` sets | N classes from `ModelShape`; PATCH → optional |
+| `Visibility` sets | a class per `ModelShape.Name`; a patch shape → optional ([TypePlan](../../plan/types.md#what-a-patch-relaxes)) |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic |
 | `Constraints` | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic |
 | `Discriminator{Mapping→ID}` | tag-dispatch `KSerializer` that reads the wire key first |

@@ -7,10 +7,15 @@ create/read/update/patch declarations the target needs — Speakeasy's "public t
 (de)serialize shape" split made explicit — for every type a shape reaches, so a union or a container
 holding a projected model is projected with it, as a model holding one is
 ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
-every projection; PATCH shapes make properties optional unless the binding disables it. A model used
-as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL
-inputs) may emit two shapes. How each shape's declaration is named, beyond `User`, `UserCreate` and
-`UserPatch`, is not stated yet (#1405).
+every projection; a patch shape makes properties optional, and a `PATCH` body's is one only where
+its binding or its media type says so ([TypePlan](../plan/types.md#what-a-patch-relaxes)). A model
+used as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for
+GraphQL inputs) may emit two shapes. Each shape's declaration takes the name the plan gives it,
+`ModelShape.Name` after the type's own: `User` for every shape that projects what a read does, and
+`UserCreate`, `UserCreateUpdate`, `UserUpdate` or `UserUpdatePatch` for one that does not
+([TypePlan](../plan/types.md#the-declaration-a-shape-takes)). Shapes sharing a name share the
+declaration, and no target names or merges them otherwise, since the docs and a mock name the same
+declarations from the same plan.
 
 ## Optionality × Nullability × Presence (INV8)
 

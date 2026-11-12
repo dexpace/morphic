@@ -63,11 +63,13 @@ content first within each, and those choices order the page and decide nothing e
 rendered once for each projection its `TypePlan.Shapes` gives it
 ([ModelShape](plan/types.md#modelshape--visibility-projection)), each table holding the members
 visible in that shape and marking those it requires, and shapes whose projections coincide share one
-table, as they share one declaration
-([models](refine/models.md#visibility-projections--n-wire-shapes)). So a write-only property is in
+table, which names each declaration an SDK gives them
+([the declaration a shape takes](plan/types.md#the-declaration-a-shape-takes)). So a write-only
+property is in
 no read shape's table and a read-only one in no create shape's, and a model one operation creates
-and another patches has a table for each, since a patch body's members are optional and a member
-visible only at creation is absent from it. A direction alone would merge those two. A model whose
+and another patches has a table for each where the patch relaxes its members ([what a patch
+relaxes](plan/types.md#what-a-patch-relaxes)) or a member is visible only at creation. A direction
+alone would merge those two. A model whose
 own members and those of the models it holds carry no visibility marker has one table for every
 shape, a patch's apart only where it or a model it holds requires a member or gives one a default,
 since a patch relaxes what is required and carries no default onto the wire, so its table shows
@@ -90,7 +92,8 @@ in the byte order of their `TypeID`s, of a model whose flattening holds it. Each
 of its own for each shape it shows, a table coinciding shapes share carrying one for each of them,
 named through the page's ID-keyed resolution from its model and its shape, as identifiers are
 ([naming](refine/naming.md)), so it never takes a member's or another table's anchor, as a member
-named `create` beside a create table would; how a shape is named is #1405's to settle. A switcher
+named `create` beside a create table would; a shape's words are its key's, its lifecycles and its
+patch ([the declaration a shape takes](plan/types.md#the-declaration-a-shape-takes)). A switcher
 links a model's page in another version, never one of its tables, since a table's anchor is resolved
 within its own page and a version's page may resolve it otherwise, and links the page holding an
 anonymous model's table where that version gives the model no page of its own, and a link to the

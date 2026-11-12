@@ -199,8 +199,8 @@ throughout these documents.
     shares a kind with every variant, and `Inclusive` is the same in either order the unions are
     planned. An `anyOf` of `string` and `integer` that a query parameter carries is inclusive, and a
     mock reads `since=-10` into both. A union of two models a required member separates, sent in a
-    `PATCH` body and read in a response, is inclusive in its patch shape and a closed sum where it
-    is read, and adding the `PATCH` operation changes no other declaration; sent as a `PATCH` body's
+    merge-patch body and read in a response, is inclusive in its patch shape and a closed sum where
+    it is read, and adding the `PATCH` operation changes no other declaration; sent as that body's
     list, its elements keep the member and it stays closed. A required member no shape holds
     (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
     positions and one with one and no `Rest`, each admits only its own length. A `null` that two
@@ -624,3 +624,24 @@ throughout these documents.
     reads a value the SDK kept ([plan
     policy](../plan/policy.md#neither-policy-reads-which-way-a-type-travels),
     [Swift](../targets/kotlin/swift.md)).
+68. **T-68 · What a patch relaxes** — on every target, in the docs and in a mock, a `PATCH` body
+    sent as `application/json` requires each member its schema requires, a builder refusing a
+    request without one and a mock one arriving without it; the same type sent as
+    `application/merge-patch+json`, spelled in any letter case and with a parameter, is a patch
+    shape whose members are optional and whose `Inferred` marks `Patch`, the members of a model it
+    holds relaxed and a list's elements not; a binding whose `PatchImplicitOptionality` points at
+    `true` relaxes an `application/json` body unmarked, and one pointing at `false` relaxes no
+    merge patch; turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a
+    `POST` sent as a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes)).
+69. **T-69 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
+    read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
+    as `User`, `UserCreate`, `UserCreateUpdate`, `UserUpdate` and `UserUpdatePatch` on every target,
+    in the docs' tables and in the manifest's keys, and a union and a model holding it are declared
+    under the same words; a model no member of which carries a visibility is declared once however
+    it travels; a model only a `PUT` writes, with a `readOnly` member, is `UserCreateUpdate` with no
+    `User` beside it, and adding a `POST`, then an operation returning it, renames no declaration
+    and regenerates the earlier ones byte for byte; a custom lifecycle `<class>:<member>` gives its
+    class's words and then its member's; a filter an operation names for its view is named as a
+    method's is; a component the source calls `UserCreate` keeps that name in either declaration
+    order and the shape takes a suffix; and two lifecycles whose keys would join alike, one holding
+    a `,`, key apart ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).

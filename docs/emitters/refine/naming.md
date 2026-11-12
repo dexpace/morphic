@@ -88,7 +88,9 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set
    apart from a name ending in a digit as its role sets two digit words apart ([a break letter case
    cannot mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is
-   `V12_2`.
+   `V12_2`. The declaration a visibility shape adds to a type is named after every type's own in
+   its scope, in the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)),
+   so a name the plan derives never takes one the source gives.
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
 names that differ in letter case alone collide too. A file system that ignores case, as macOS's and
