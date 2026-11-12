@@ -456,8 +456,10 @@ func TestConstUnions_KeepsABranchOfSeveralValuesARenameKeys(t *testing.T) {
 	doc := constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"), pinned("t/x/U/1", "green", "blue"))
 	doc.Services = []ir.Service{{ID: "s/x", Renames: map[ir.TypeID]ir.Naming{"t/x/U/1": named("Colors")}}}
 
-	assert.Same(t, doc, collapsed(t, doc), "the union is kept, and the document with it")
-	assert.Contains(t, doc.Types, ir.TypeID("t/x/U/1"))
+	out := collapsed(t, doc)
+
+	assert.Same(t, doc, out, "the union is kept, and the document with it")
+	assert.Contains(t, out.Types, ir.TypeID("t/x/U/1"), "the type the rename names was removed")
 }
 
 // TestConstUnions_KeepsAUnionNamingABranchUnionThatSaysDocs pins that a branch
@@ -578,10 +580,10 @@ func TestConstUnions_KeepsABranchWhoseMemberIsNamed(t *testing.T) {
 }
 
 // TestConstUnions_WalksOnlyWhatCanNameAType holds the walk for references to
-// what can hold a TypeID: a model whose property also carries provenance, kept
-// constructs, a constraint and a name in every channel shows it no more values
-// than one carrying none of them, while a doc ref, which can name a type, is
-// shown.
+// what can hold a TypeID or a member's ID: a model whose property also carries
+// provenance, kept constructs, a constraint and a name in every channel shows
+// it no more values than one carrying none of them, while a doc ref, which can
+// name a type, is shown.
 func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	t.Parallel()
 	model := func() *ir.Model {
@@ -614,8 +616,9 @@ func TestConstUnions_WalksWhatCanNameAMember(t *testing.T) {
 }
 
 // TestConstUnions_ReadsEachGoTypeOnce pins what the walk's pruning costs:
-// whether a Go type can hold a TypeID is read once, however many values have
-// it, so a document of many models reads no more types than one of one.
+// whether a Go type can hold a TypeID or a member's ID is read once, however
+// many values have it, so a document of many models reads no more types than
+// one of one.
 func TestConstUnions_ReadsEachGoTypeOnce(t *testing.T) {
 	t.Parallel()
 	models := make([]ir.TypeDef, 0, 50)
