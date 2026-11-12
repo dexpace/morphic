@@ -91,8 +91,8 @@ func (lk *lookups) bound(op *ir.Operation, location ir.HTTPLocation, name string
 	return ix.find(location, name)
 }
 
-// header returns the headers of the response at that name declares under
-// name, in any case.
+// header returns the headers the response at declares under name, its case
+// aside, as HTTP compares header names.
 func (lk *lookups) header(at responseView, name string) []ir.PropID {
 	byName, indexed := lk.headers[at.key]
 	if !indexed {

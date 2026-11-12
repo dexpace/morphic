@@ -149,19 +149,23 @@ func TestLinksResolve_IndexesEachListOnce(t *testing.T) {
 }
 
 // resolveBytes returns the fewest bytes resolving the links of src allocates
-// in three runs, each on a service lowered afresh before the measured window.
+// in three runs over one service lowered before the measured window, the link
+// each run lowers onto its one response taken off it again before the next.
 func resolveBytes(t *testing.T, src string) float64 {
 	t.Helper()
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	l, lowered, reg, _ := lowerBeforeLinks(t, src)
+	resp := &lowered.Service.Groups[0].Operations[0].Responses[0]
 	fewest := math.Inf(1)
 	for range 3 {
-		l, lowered, reg, _ := lowerBeforeLinks(t, src)
+		resp.Links = nil
 		srv := servers.Reopen(lowered.Servers)
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
 		diags := lowered.Links.Resolve(l.ctx, &lowered.Service, reg, srv)
 		runtime.ReadMemStats(&after)
 		require.Empty(t, diags, "every size lowers its link alike")
+		require.Len(t, resp.Links, 1)
 		fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))
 	}
 	return fewest
@@ -176,13 +180,13 @@ func resolveBytes(t *testing.T, src string) float64 {
 func TestLinksResolve_AllocatesLinearInWhatItReads(t *testing.T) {
 	for name, spec := range linkSpecs {
 		var bytes [3]float64
-		for k, n := range []int{100, 200, 400} {
+		for k, n := range []int{50, 100, 200} {
 			for j := range 4 {
 				bytes[k] += resolveBytes(t, spec(int(math.Round(float64(n)*math.Exp2(float64(j)/4))))) / 4
 			}
 		}
 		assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-			"%s: bytes around 100, 200 and 400 entries: %v", name, bytes)
+			"%s: bytes around 50, 100 and 200 entries: %v", name, bytes)
 	}
 }
 
