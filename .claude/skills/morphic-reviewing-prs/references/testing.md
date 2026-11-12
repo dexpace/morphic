@@ -114,8 +114,9 @@ function-by-class cells and the mutants planted, killed and judged equivalent, e
   `TestIndex_EveryMethodIsSafeForConcurrentUse`, which asked neither: an unsynchronized build
   behind them passed `go test -race` until it asked both (#1623, #1354 at aa62909a2 and
   cf810cca9).
-- **Probe.** For the set's package, `go doc <package> <Type>` and
+- **Probe.** For the set's package, `go doc <package> <Type>`,
   `git grep -nE 'func Test[[:alnum:]_]*((Every|Each|All|Any|No|Never|Only|Always)[A-Z]|Complete)' -- '<directory>/*_test.go'`
+  and `git grep -niE 'fully( populated|$)|every (field|member|method|kind)' -- '<directory>/*_test.go'`
   list candidates.
 
 ## Cross a function holding a path with each spelling of the working directory
@@ -135,15 +136,31 @@ function-by-class cells and the mutants planted, killed and judged equivalent, e
 ## Revert each rewritten site to find redundant guards
 `redundant-guard`
 
-- **Rule.** When a PR adds one predicate at many sites, revert each site to `main`'s spelling on its
-  own. For any guard whose revert or mutant survives, ask whether removing it changes an outcome,
-  the reader it falls through to included. Where one changes, even if only in the function's own
+- **Rule.** When a PR adds one predicate at many sites, revert each site to `main`'s spelling alone.
+  For any guard whose revert or mutant survives, ask whether removing it changes an outcome, the
+  reader it falls through to included. Where one changes, even if only in the function's own
   result before a later stage masks it, keep the guard and pin it directly. Where none can, a second
-  reader already makes the check: delete the guard, and let a test reach the branch, which fails
-  loudly if that reader changes.
+  reader already makes the check: delete the guard, bar one
+  `references/testing.md#guard-no-input-observes` keeps, and let a test reach the branch,
+  which fails if that reader changes.
 - **Why.** Five survivors in #1066 were covered by a choke point; one in #1140 was the function's
   own grammar. A nil check before a nil-safe library getter had nothing to pin, while the same check
   beside it kept a test from panicking (#742, #1189).
+
+## A guard no input observes stands where it keeps a reading whole
+`guard-no-input-observes`
+
+- **Rule.** A guard whose removal no input observes stands, with a comment at its line saying why
+  (`references/rounds.md#oddity-needs-a-comment`), where it holds a consumer to the predicate
+  another reader delivers by
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree`),
+  or keeps a function right over an input class no caller sends yet, which a direct call pins.
+- **Why.** On #1689, forcing `readAllOf`'s `allOfDecides` guard open changed no output, but deleting
+  it leaves consumption on one predicate and delivery on two, so a drift between them drops a
+  keyword silently. On #1688, `branchesSay` over no branches would say every keyword a schema
+  writes (#1692).
+- **Probe.** `git grep -nF '<predicate>('` for another reader gating the same data by it, and a
+  direct call with the input class no caller sends.
 
 ## A test that two mechanisms each keep green proves neither
 `two-mechanisms-one-test`

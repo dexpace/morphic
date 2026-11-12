@@ -290,6 +290,49 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 	assert.Empty(t, withCode(validated(t, doc), "ir/encoding-key-unknown-property"))
 }
 
+// TestValidate_EncodingKeyThroughAUnionBody pins a body that is a union, as one
+// a composition is distributed across is: a key naming a property a variant
+// exposes, the body's own on every variant or a branch's on one, names a part,
+// read through an alias over the union too, and one no variant exposes names
+// none, nor one on an alias chain closing on itself before any union
+// (docs/ir/payloads.md).
+func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		target ir.TypeID
+		key    ir.PropID
+		parts  bool
+	}{
+		"the body's own, on each variant":  {"t/u", "p/m/a", true},
+		"a branch's, on one variant":       {"t/u", "p/other/b", true},
+		"through an alias over the union":  {"t/alias", "p/other/b", true},
+		"one no variant exposes":           {"t/u", "p/nowhere", false},
+		"an alias cycle reaching no union": {"t/loop/a", "p/nowhere", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc := validDoc()
+			doc.Types["t/other"] = &ir.Model{ID: "t/other", Base: &ir.TypeRef{Target: "t/m"},
+				Properties: []ir.Property{{ID: "p/other/b", WireName: "b", Type: ir.TypeRef{Target: "t/prim/string"}}}}
+			doc.Types["t/u"] = &ir.Union{ID: "t/u", Closed: true,
+				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/other"}}}}
+			doc.Types["t/alias"] = &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}}
+			doc.Types["t/loop/a"] = &ir.Scalar{ID: "t/loop/a", Base: &ir.TypeRef{Target: "t/loop/b"}}
+			doc.Types["t/loop/b"] = &ir.Scalar{ID: "t/loop/b", Base: &ir.TypeRef{Target: "t/loop/a"}}
+			c := requestContent(doc)
+			c.Type = ir.TypeRef{Target: tc.target}
+			c.Encoding = map[ir.PropID]ir.PartEncoding{tc.key: {Multi: true}}
+
+			found := withCode(validated(t, doc), "ir/encoding-key-unknown-property")
+			if tc.parts {
+				assert.Empty(t, found)
+				return
+			}
+			assert.Len(t, found, 1)
+		})
+	}
+}
+
 // TestValidate_EncodingKeyOnTypeWithoutParts covers the targets that expose no
 // part at all: a type that is no model, an opaque alias standing for nothing, a
 // registry entry holding a typed nil — which must be reported rather than

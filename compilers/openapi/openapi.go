@@ -289,10 +289,11 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
 			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
 		},
-		Streaming:        o.StreamingMedia,
-		Binary:           o.BinaryMedia,
-		Promotions:       o.Promotions,
-		NullableWidening: o.NullableWidening,
+		Streaming:              o.StreamingMedia,
+		Binary:                 o.BinaryMedia,
+		Promotions:             o.Promotions,
+		NullableWidening:       o.NullableWidening,
+		DiscriminatorInference: o.DiscriminatorInference,
 	})
 }
 

@@ -95,9 +95,11 @@ var schemaRecursion = []string{
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
-	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
+	"lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
-	"resolveAt", "resolveBeaten", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes", "resolveMappingTarget",
+	"resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -448,9 +450,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyUnionSiblings":     "isInlineBranch",
-		"unionBranchesDeclareShape": "branchDeclaresShape",
-		"oneOfAnyOfHasNull":         "isNullSchema",
+		"classifyBranchSet": "isNullSchema",
+		"setsDeclareShape":  "branchDeclaresShape",
+		"oneOfAnyOfHasNull": "isNullSchema",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

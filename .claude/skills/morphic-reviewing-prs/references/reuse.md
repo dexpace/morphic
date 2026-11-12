@@ -10,7 +10,9 @@ and where code with no domain lives.
    library that could own each piece that is not Morphic's concern
    (`references/reuse.md#maintained-library-first`).
 2. For each behaviour two sites share, weigh one implementation
-   (`.claude/skills/morphic-designing-code/references/design-rules.md#share-only-what-means-the-same`).
+   (`.claude/skills/morphic-designing-code/references/design-rules.md#share-only-what-means-the-same`),
+   and for each reader a new caller reuses, whether its fallback suits that caller's decision
+   (`.claude/skills/morphic-designing-code/references/design-rules.md#fallback-suits-the-decision`).
 3. Separate each domain-free piece from the domain code around it
    (`.claude/skills/morphic-designing-code/references/design-rules.md#domain-free-code-lives-apart`).
 

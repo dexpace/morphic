@@ -201,6 +201,57 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/StoredPet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StoredPet",
+      "name": {
+        "source": "StoredPet",
+        "canonical": "stored_pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StoredPet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StoredPet/allOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StoredPet/allOf/1/properties/id"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/bool": {
       "kind": "primitive",
       "id": "t/prim/bool",
@@ -212,6 +263,18 @@
         "source": -1
       },
       "prim": "bool"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
     }
   },
   "servers": {
@@ -231,7 +294,7 @@
     {
       "format": "openapi@3.1",
       "path": "oneof-discriminated.yaml",
-      "hash": "6fba7a3874df5b46ebba7b337e1c0c52f1fe8404384fe7e11a53b8a68294669e"
+      "hash": "306e1b8a3160a719bb110c9e532e77a94fca1831cc195038069c180a6a9fe632"
     }
   ]
 }

@@ -7,7 +7,6 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -115,7 +114,7 @@ func resolveLink(ix opIndex, reg ir.TypeRegistry, from *ir.Operation, at respons
 		return ir.OperationLink{}, failed
 	}
 	link := ir.OperationLink{
-		Name: compile.NamingFor(d.name), Operation: target.ID, Docs: d.docs,
+		Name: ir.NamingFor(d.name), Operation: target.ID, Docs: d.docs,
 		Provenance: d.c.Place().At(d.ptr), Unmodeled: d.extra,
 	}
 	ex := exchange{reg: reg, from: from, at: at}

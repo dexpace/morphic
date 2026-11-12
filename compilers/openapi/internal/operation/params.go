@@ -68,7 +68,7 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 	name, in := p.GetName(), p.GetIn()
 	param := ir.Parameter{
 		ID:         id,
-		Name:       compile.NamingFor(name),
+		Name:       ir.NamingFor(name),
 		Required:   p.GetRequired() || in == soa.ParameterInPath,
 		Provenance: c.Place().At(pptr),
 	}

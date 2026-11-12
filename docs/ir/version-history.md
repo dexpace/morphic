@@ -377,7 +377,77 @@ it sees. Changes made together in one bump are listed together under it.
     source's index with the overlay as its writer, where `Source` had named the overlay at a
     position of another document. A consumer pinned to 0.36.0 reading such a pointer against the
     overlay's file reads it at the wrong place.
-- **0.38.0** — a response's links gained a typed home ([links](./responses.md#links)):
+- **0.38.0** — no shape change: an inline branch of an `allOf` beside a `oneOf`, an `anyOf` or a
+  `$dynamicRef` folds what it writes for the position into the composition, as a composing `allOf`'s
+  branch does with none of them there, where the OpenAPI compiler had kept it whole under
+  `Unmodeled["openapi:allOf/<n>"]`
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). Where a union
+  distributes ([models](./models.md#composition-beside-a-union)), the branch's docs, deprecation,
+  examples, secrecy and XML hints reach the `Union`, what a use binds its carriers, and a value
+  bound each composed variant, and a branch with no residue left is kept on no variant; beside a
+  union or a `$dynamicRef` kept verbatim they reach the `Model`, as in a composition with neither
+  beside it. A consumer pinned to 0.37.0 that read the branch under that key no longer finds it, and
+  refuses the document as another generation's.
+- **0.39.0** — no shape change. The OpenAPI compiler lowers four spellings of a union it had kept
+  verbatim under `Unmodeled`: one on an inline branch of a composing `allOf`, distributed across the
+  rest of the composition as one beside the `allOf` is, and one on a branch of an `allOf` no object
+  satisfies, read as a conjunct, where it kept the branch under `openapi:allOf/<n>`; one beside a
+  model with inline branches, each conjoined by the node it lowers to at its own pointer, and one
+  beside keywords its every branch already says, lowered as the union alone, where it kept the
+  branches under `openapi:oneOf` or `openapi:anyOf`
+  ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). `Content.Encoding`
+  on a body that is a union, as a distributed one is, keys each part by the property of the first
+  variant declaring it, where its keys were defined only against a body model and `pass.Validate`
+  refused them. A consumer pinned to 0.38.0 that read such a union under those keys no longer finds
+  it there, and one looking such an encoding key up among the union's own members finds none.
+- **0.40.0** — no shape change. The OpenAPI compiler lowers a `oneOf` or `anyOf` with a
+  `discriminator` beside structure, where no branch composes the schema, as it lowers one with
+  none, a union of its branches where they say the keywords beside it and a union of composed
+  variants otherwise, the discriminator routing the union, where it kept the branches under
+  `openapi:oneOf` or `openapi:anyOf` and the discriminator under `openapi:discriminator` beside a
+  model ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Its
+  discriminator-inference policy, on by default, reads a union's tags off the string each variant
+  pins ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): it fills the
+  `Mapping` of a discriminator declaring none where OpenAPI's implicit mapping by component name
+  would route a variant by a tag it rejects, and gives a union declaring none a `Discriminator` with
+  `Inferred` set, the union `WireTagged`, where every variant requires a property pinned to a
+  distinct string. The union's `Provenance.Inferred` names `discriminator-inference` either way. A
+  consumer pinned to 0.39.0 no longer finds those keys on such a schema, reads an undeclared union
+  it read as untagged as tagged, and routes a declared one by a mapping it had read as nil.
+- **0.41.0** — no shape change. The OpenAPI compiler lowers a `type` listing more than one type with
+  no `Discriminator` on its `object` variant, keeping the schema's `discriminator` verbatim under
+  `Unmodeled["openapi:discriminator"]` on the `Union` the type array lowers to
+  ([`type-arrays`](../compilers/openapi.md#type-arrays)). The variant had held it except beside a
+  `oneOf` or `anyOf` kept verbatim, where a mapping, a default or a `$ref` branch moved it to the
+  `Union`. Nothing can name the variant, so no type is its subtype: a mapping to a subtype of the
+  schema failed validation, and a route by a subtype's component name went unread. An object variant
+  that held the discriminator beside a catch-all and nothing else now lowers to a `MapT`, as that
+  object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
+  finds it there.
+- **0.42.0** — no shape change. The engine's `const-unions` pass, on by default, rewrites a closed
+  union whose every variant names an anonymous string `Literal`, a closed `Enum` of one string or a
+  union of one value in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
+  the closed `Enum` of its values at the union's own ID, each member holding what its branch said of
+  its value, and removes the branch types nothing else references
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to 0.41.0
+  that read such a position as a `Union` finds an `Enum` there, and no longer finds the types its
+  variants named.
+- **0.43.0** — no shape change. The OpenAPI compiler tags a subtype by its component name only where
+  a discriminator routes it by name
+  ([`discriminator-value`](../compilers/openapi.md#discriminator-value)): one written beside a
+  `oneOf` or `anyOf` routes only what that union lists, so a schema composing a discriminated union
+  that does not list it, a narrowing of the union, has no `DiscriminatorValue`, where it had carried
+  its name, which the union's discriminator routes to no variant, and a union written beside such a
+  schema's `allOf` distributes over it, as beside any schema no route names, where it was kept
+  verbatim under `openapi:oneOf` or `openapi:anyOf`. Its discriminator-inference policy reads what a
+  subtype routed by name admits for the tag
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): admitting only
+  strings other than its name, it carries the one it admits, or no tag where it admits several or
+  none, the subtype's `Provenance.Inferred` naming `discriminator-inference` either way. A consumer
+  pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
+  there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
+  instead.
+- **0.44.0** — a response's links gained a typed home ([links](./responses.md#links)):
   - `Response` and `ErrorCase` gained `Links`, each an `OperationLink` naming the operation it leads
     to, the value it gives each of that operation's parameters and its body, and the server it is
     called on. A `LinkValue` is a constant, the URL, method or status of the exchange, or a value of
@@ -387,5 +457,5 @@ it sees. Changes made together in one bump are listed together under it.
     path, a link's among them, to an operation that sends a body.
   - The OpenAPI compiler lowers a link it resolves whole and keeps any other verbatim under
     `openapi:links/<name>`, with an `openapi/invalid-link` or `openapi/untyped-link` finding, where it
-    had kept the whole map under `openapi:links`. A consumer pinned to 0.37.0 refuses a document with
+    had kept the whole map under `openapi:links`. A consumer pinned to 0.43.0 refuses a document with
     a link, and finds no `openapi:links` entry where it read one.

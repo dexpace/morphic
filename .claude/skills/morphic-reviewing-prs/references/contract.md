@@ -10,7 +10,8 @@ or not at all. It loads `morphic-changing-the-ir` and `morphic-shipping-prs`.
    moving to the next
    (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#version-collisions`). So
    does a change to a name an emitter renders, which `TestIRVersion_PinsTheNames` holds.
-2. A field holding a new value, or a new field, is read by each of its consumers
+2. A field holding a new value, a new field, or one a lowering stops filling at a position, is read
+   by each of its consumers
    (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#widened-field-values`,
    `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#widened-field-consumers`).
 3. Each diagnostic code the change adds, removes or re-ranks is listed under its rule in

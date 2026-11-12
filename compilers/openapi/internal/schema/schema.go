@@ -238,12 +238,17 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
-		if hasUnionSiblings(schema) {
+		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 			return ref, append(unionDiags, nullDiags...)
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
+	}
+	if u, ok := branchUnion(c, schema, pointer); ok {
+		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
+		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
+		return ref, append(unionDiags, nullDiags...)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
@@ -315,7 +320,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, depth, s, pointer)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
@@ -328,7 +333,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, depth, s, pointer)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }
@@ -375,10 +380,13 @@ func enumWritten(s *oas3.Schema) bool {
 
 // dispatch records how lower() resolved a schema's competing keyword families:
 // the one it lowered, and the ones it passed over. won is "" when the schema
-// declares none of them and the type set decides the lowering instead.
+// declares none of them and the type set decides the lowering instead. said
+// names the keywords a union's branches all say already (branchesSay), which
+// the position consumes though its node has no field for them.
 type dispatch struct {
 	won     string
 	skipped []string
+	said    []string
 }
 
 // besideAllOf returns the election lower() makes of the keywords beside s's
@@ -487,37 +495,60 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 	return out
 }
 
-// declaresShape reports whether a schema declares data shape — a type, a
-// property set, a value set, composition, or a catch-all — rather than only
-// narrowing what an already-declared shape accepts. The narrowing keywords are
-// narrowsInstance's, which hasUnionSiblings and dynamicRefSiblings add to it
-// (docs/compilers/openapi.md#union-beside-structure).
-func declaresShape(s *oas3.Schema) bool {
-	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return true
-	}
-	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
-		return true
-	}
-	if annotation.Written(s.GetAdditionalProperties()) {
-		return true
-	}
-	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
-		return true
-	}
-	return len(effectiveTypes(s)) > 0
+// siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
+// leaves something for the position to carry, with how a schema writes it.
+type siblingKeyword struct {
+	key    string
+	writes func(*oas3.Schema) bool
 }
 
-// narrowsInstance reports whether s writes a keyword that constrains an instance
-// without declaring a shape to build: `required`, `items`, `prefixItems`.
-//
-// These sit on the narrowing side of declaresShape's line, and that line is about
-// what to *build*. Wherever the question is instead whether a lowering can carry
-// what the position wrote, the distinction does not apply: an ir.Union has no
-// element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
-// it would lose a co-declared property set. An `items` list narrows too, read
-// off the raw node, since nothing documents what the parser's model holds there.
-func narrowsInstance(s *oas3.Schema) bool {
-	_, listed := listedItems(s)
-	return len(s.GetRequired()) > 0 || listed || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
+// shapeKeywords are the keywords that declare data shape — a type, a property
+// set, a value set, composition, or a catch-all — rather than only narrowing
+// what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
+var shapeKeywords = []siblingKeyword{
+	{"properties", func(s *oas3.Schema) bool { props := s.GetProperties(); return props != nil && props.Len() > 0 }},
+	{"const", func(s *oas3.Schema) bool { return s.GetConst() != nil }},
+	{"enum", enumWritten},
+	{"allOf", func(s *oas3.Schema) bool { return len(s.GetAllOf()) > 0 }},
+	{"additionalProperties", func(s *oas3.Schema) bool { return annotation.Written(s.GetAdditionalProperties()) }},
+	{"patternProperties", func(s *oas3.Schema) bool { pp := s.GetPatternProperties(); return pp != nil && pp.Len() > 0 }},
+	{"type", func(s *oas3.Schema) bool { return len(effectiveTypes(s)) > 0 }},
+}
+
+// narrowingKeywords are the keywords that constrain an instance without
+// declaring a shape to build. They sit on the narrowing side of shapeKeywords'
+// line, and that line is about what to *build*. Wherever the question is
+// instead whether a lowering can carry what the position wrote, the distinction
+// does not apply: an ir.Union has no element type, so
+// `{oneOf: [...], items: {...}}` loses the `items` as surely as it would lose a
+// co-declared property set. An `items` list narrows too, read off the raw node,
+// since nothing documents what the parser's model holds there.
+var narrowingKeywords = []siblingKeyword{
+	{"required", func(s *oas3.Schema) bool { return len(s.GetRequired()) > 0 }},
+	{"items", func(s *oas3.Schema) bool {
+		_, listed := listedItems(s)
+		return listed || annotation.Written(s.GetItems())
+	}},
+	{"prefixItems", func(s *oas3.Schema) bool { return len(s.GetPrefixItems()) > 0 }},
+}
+
+// siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords
+// that s writes, in that order.
+func siblingKeywords(s *oas3.Schema) []string {
+	var out []string
+	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
+		for _, k := range set {
+			if k.writes(s) {
+				out = append(out, k.key)
+			}
+		}
+	}
+	return out
+}
+
+// writesSiblingKeyword reports whether siblingKeywords(s) holds any keyword,
+// without building the list, as most schemas a reader asks of write one.
+func writesSiblingKeyword(s *oas3.Schema) bool {
+	writes := func(k siblingKeyword) bool { return k.writes(s) }
+	return slices.ContainsFunc(shapeKeywords, writes) || slices.ContainsFunc(narrowingKeywords, writes)
 }

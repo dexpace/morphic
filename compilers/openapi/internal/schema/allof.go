@@ -41,10 +41,6 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
 		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
-		if allOfDecides(c, s) {
-			v := voicingOf(c, s)
-			comp.speaks, comp.rebased = v.speaks, v.rebased
-		}
 		fields := newModelFields(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
@@ -57,8 +53,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 			m.Discriminator = d
 		}
 		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
-		m.DiscriminatorValue = tag
+		m.DiscriminatorValue = tag.value
 		diags = append(diags, tagDiags...)
+		deferSubtypeTag(c, ts, tag, common.ID, pointer)
 		return objectNode(m)
 	})
 	return id, diags
@@ -167,10 +164,14 @@ type allOfComposition struct {
 	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong), and
 	// rebased each whose folding keywords write a relative $ref it reads against
-	// another base, so it does not. They are nil for a composition distributed
-	// across a union, whose variants each keep every branch.
+	// another base, so it does not. They are nil where the allOf is not what the
+	// position lowers (allOfDecides).
 	speaks  []bool
 	rebased []bool
+	// distributes is the pointer of the branch whose union the position
+	// distributes across its variants (branchUnion), whose merge consumes it,
+	// and empty where no branch's is.
+	distributes jsontext.Pointer
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -189,6 +190,22 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper, capped: st.capped})
 	}
 	return allOfComposition{pointer: pointer, branches: out}
+}
+
+// readAllOf is allOfBranches of the schema written at pointer, with what its
+// conjuncts jointly admit read and, where the allOf is what the position lowers,
+// which branches fold there (voicingOf), for a lowering that composes it. That
+// gate is positionVoices', so a branch gives up a keyword only where a reader
+// of the position takes it up; both composers pass it, and the report of an
+// allOf the election passed over does not.
+func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
+	comp := allOfBranches(s, pointer)
+	comp.disjoint = disjointConjuncts(c, s, comp)
+	if allOfDecides(c, s) {
+		v := voicingOf(c, s)
+		comp.speaks, comp.rebased = v.speaks, v.rebased
+	}
+	return comp
 }
 
 // allOfRefBranches yields the $ref branches of s's allOf after flattening,
@@ -390,8 +407,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
+	distributed := comp.distributes != "" && e.pointer == comp.distributes
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true}))
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
+			(distributed && declaresUnionKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
@@ -504,6 +523,11 @@ func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	default:
 		return false
 	}
+}
+
+// declaresUnionKeyword reports whether keyword is oneOf or anyOf.
+func declaresUnionKeyword(keyword string) bool {
+	return keyword == "oneOf" || keyword == "anyOf"
 }
 
 // declaresObjectOnly reports whether the branch's declared type is exactly

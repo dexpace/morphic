@@ -165,6 +165,9 @@ a merge mints) and beneath its path, so it needs no namespace of its own: only e
 `irverify` holds it there (`ir/member-id-scope`); a member records no pointer for the agreement
 below to compare, so that scope is what ties the two IDs together. The key, and the number a
 repeated value appends after it, are described in [enums](./enums.md#member-identity).
+`ir.EnumMemberIDFor` derives the ID from the enum's ID and the key `ir.EnumMemberKey` reads off the
+value, so a compiler and a pass building an enum reach one ID, and an `ir.Editor` lets an edit add
+it, as only that member can hold it ([architecture](../architecture.md) §2.2).
 
 ## What irverify holds
 

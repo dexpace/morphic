@@ -98,6 +98,17 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   co-declared keyword the diagnostic still said was kept (#363).
 - **Probe.** `git grep -n '<callee>(' origin/main` for every caller and what each passes.
 
+## Sweep what main added against a type the branch changed
+`merged-code-meets-a-changed-type`
+
+- **Rule.** A type change that keeps compiling draws no conflict, so code `main` added meets it only
+  in the merge. After each merge, rerun on the merged tree the sweep each type change of the branch
+  calls for: for a value field turned pointer, the comparison sweep of
+  `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#pointer-field-ends-value-equality`.
+- **Why.** Merging `main` into #1370 brought in #1656's `*a == *b` over hints whose `Wrapped` the
+  branch had made a pointer; build, vet, archtest and the goldens passed the merge (#1677).
+- **Probe.** `git diff origin/main...HEAD -- '*.go' ':!*_test.go'` shows each type the branch changed.
+
 ## Read the normative text before changing a test the merge reddens
 `norm-main-adopted`
 

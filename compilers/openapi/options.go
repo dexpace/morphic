@@ -101,6 +101,19 @@ type NullableWidening = lowering.NullableWidening
 // reference whose null the nullable-widening policy read in.
 const NullableWideningHeuristic = lowering.NullableWideningHeuristic
 
+// DiscriminatorInference is the discriminator-inference policy: whether a
+// union's tag is read off the value each variant pins its tag property to,
+// where the document declares no mapping or no discriminator, and a subtype's
+// off the values it admits, where it is routed by name. It is another
+// injectable-policy seam (architecture principle 6), and is named here rather
+// than restated for the reason GroupingStrategy is.
+type DiscriminatorInference = lowering.DiscriminatorInference
+
+// DiscriminatorInferenceHeuristic is the name a union's Provenance.Inferred
+// carries where the discriminator-inference policy filled its discriminator,
+// and a subtype's where it read its tag.
+const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -137,6 +150,12 @@ type Options struct {
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
 	NullableWidening NullableWidening `json:"nullableWidening"`
+	// DiscriminatorInference selects whether a union's tag is read off the
+	// value each variant pins its tag property to, where the document declares
+	// no mapping or no discriminator, and a subtype's routed by name off the
+	// values it admits, what it reads marked as inferred. The zero value is on;
+	// a caller who wants only what the document declares disables it.
+	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -324,15 +343,16 @@ func (o Options) withDefaults() Options {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping           = "grouping"
-	optAllowExternalRefs  = "allow-external-refs"
-	optOverlay            = "overlay"
-	optOverlayLax         = "overlay-lax"
-	optNullableWidening   = "nullable-widening"
-	optStreamingMedia     = "streaming-media"
-	optStreamingInference = "streaming-inference"
-	optBinaryMedia        = "binary-media"
-	optBinaryInference    = "binary-inference"
+	optGrouping               = "grouping"
+	optAllowExternalRefs      = "allow-external-refs"
+	optOverlay                = "overlay"
+	optOverlayLax             = "overlay-lax"
+	optNullableWidening       = "nullable-widening"
+	optDiscriminatorInference = "discriminator-inference"
+	optStreamingMedia         = "streaming-media"
+	optStreamingInference     = "streaming-inference"
+	optBinaryMedia            = "binary-media"
+	optBinaryInference        = "binary-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -354,7 +374,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
-		optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
+		optDiscriminatorInference, optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -415,6 +435,11 @@ func (d *optionDecode) set(key, value string) error {
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.NullableWidening.Disabled = !on
+		return err
+	case optDiscriminatorInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.DiscriminatorInference.Disabled = !on
 		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)

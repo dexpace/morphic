@@ -186,6 +186,30 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 	assert.Equal(t, file.ID, members["file"].ID)
 }
 
+// TestPartMembers_AUnionBodyHasItsVariantsMembers pins a body standing for a
+// union, as one a composition is distributed across does, through an alias
+// too: its members are its variants', the first variant declaring a name naming
+// it, so a key names the body's own property on every variant.
+func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
+	t.Parallel()
+	shared := ir.Property{ID: "p/body/file", WireName: "file"}
+	first := ir.Property{ID: "p/one/x", WireName: "x"}
+	reg := ir.TypeRegistry{
+		"t/one":   &ir.Model{ID: "t/one", Properties: []ir.Property{shared, first}},
+		"t/two":   &ir.Model{ID: "t/two", Properties: []ir.Property{shared, {ID: "p/two/x", WireName: "x"}}},
+		"t/u":     &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/one"}}, {Type: ir.TypeRef{Target: "t/two"}}}},
+		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}},
+		"t/nil":   (*ir.Union)(nil),
+	}
+	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
+		members := partMembers(reg, body)
+		require.Len(t, members, 2, "%s", body)
+		assert.Equal(t, shared.ID, members["file"].ID, "%s", body)
+		assert.Equal(t, first.ID, members["x"].ID, "the first variant declaring x names it: %s", body)
+	}
+	assert.Empty(t, partMembers(reg, "t/nil"), "a typed nil union stands for no members")
+}
+
 // TestBodyParts_RefHopBound covers the walk's $ref hop bound: past it the walk
 // stops and says so.
 func TestBodyParts_RefHopBound(t *testing.T) {

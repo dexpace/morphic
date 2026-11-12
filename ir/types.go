@@ -258,7 +258,8 @@ type Model struct {
 	ExtensionRanges []WireIDRange `json:"extensionRanges,omitempty"`
 	// Discriminator is set on the polymorphic base.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
-	// DiscriminatorValue is set on each subtype: its wire tag value.
+	// DiscriminatorValue is set on each subtype one tag routes to: that wire tag
+	// value (docs/ir/models.md#discriminator).
 	DiscriminatorValue string `json:"discriminatorValue,omitempty"`
 	// InputOnly marks GraphQL input types, which have distinct identity from
 	// output types.
@@ -313,8 +314,9 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype; nil = infer by type name; no value is
-	// empty.
+	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
+	// it routes by type name. In a model hierarchy, each subtype's
+	// DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.
@@ -325,7 +327,10 @@ type Discriminator struct {
 	// EnvelopeValueName is the wire name of the envelope's value property (default
 	// "value"); meaningful only when Envelope == "object".
 	EnvelopeValueName string `json:"envelopeValueName,omitempty"`
-	// Inferred marks a discriminator discovered heuristically, not declared.
+	// Inferred marks a discriminator discovered heuristically, not declared: its
+	// tag is read off what each variant pins. A heuristic filling only the
+	// Mapping of a declared one leaves it false, and names itself in the
+	// holder's Provenance.Inferred, as it does where it sets this.
 	Inferred bool `json:"inferred"`
 }
 

@@ -76,7 +76,7 @@ type decision struct {
 // the bindings, never the registry, so a decision turns on no lowering order, and
 // each position's many readers share one reading.
 func refinementOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	if !allOfConjoins(s) {
+	if !allOfMayRefine(s) {
 		return refinement{}, false
 	}
 	d := lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
@@ -114,8 +114,8 @@ func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
 // refinableBranches reports whether every branch of comp can be read as a
 // conjunct of a refinement. A second $ref stays composing: dropping a reference
 // for another would drop a branch the source wrote
-// (docs/ir/models.md#composition-entries). A union on a branch stays too, until
-// lowering its branches gives it a home (GitHub #661).
+// (docs/ir/models.md#composition-entries). A union on a branch is a conjunct
+// admitting what its branches do (inlineConjunct).
 func refinableBranches(comp allOfComposition) bool {
 	if len(comp.branches) > maxRefinedConjuncts {
 		return false
@@ -123,7 +123,7 @@ func refinableBranches(comp allOfComposition) bool {
 	refs := 0
 	for _, e := range comp.branches {
 		bs := e.schema.GetSchema()
-		if e.capped || annotation.IsFalseSchema(e.schema) || declaresUnion(bs) ||
+		if e.capped || annotation.IsFalseSchema(e.schema) ||
 			declaresDynamicRef(bs) || annotation.DeclaresAny(bs, objectKeywords) {
 			return false
 		}
@@ -148,10 +148,23 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 		case isRefBranch(e.schema):
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
-			out = append(out, conjunct{branch: e, read: w.written(bs, w.nullable), says: saysKind(bs)})
+			out = append(out, conjunct{branch: e, read: inlineConjunct(w, bs), says: saysKind(bs) || declaresUnion(bs)})
 		}
 	}
 	return out
+}
+
+// inlineConjunct is what the inline branch bs admits as w reads it: its own
+// keywords and the oneOf and anyOf it writes, whose branches name the kinds it
+// admits. Its allOf is read apart, since its entries are conjuncts of their own.
+func inlineConjunct(w *admission, bs *oas3.Schema) admitted {
+	read := w.written(bs, w.nullable)
+	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{bs.GetOneOf(), bs.GetAnyOf()} {
+		if len(branches) > 0 {
+			read = read.and(w.union(branches))
+		}
+	}
+	return read
 }
 
 // saysKind reports whether s writes what kind of value it admits.
@@ -388,14 +401,50 @@ func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeD
 }
 
 // said reports whether the principal of r already says what s's keyword key
-// does: what it admits holds it, or it is a format the value set it lowered to,
-// typed, holds in its ValueType (typeValueSet), that format's primitive or a
-// narrower one. A type that ValueType holds, its values hold too.
+// does: what it admits holds it, a union one of whose branches it restates
+// (unionHeld), or it is a format the value set it lowered to, typed, holds in
+// its ValueType (typeValueSet), that format's primitive or a narrower one. A
+// type that ValueType holds, its values hold too.
 func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
-	if w.holds(r.held, s, key) {
+	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
 		return true
 	}
 	return typed != nil && key == "format" && formatHome(typed, s)
+}
+
+// unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
+// the keyword key names: a branch says nothing r's principal does not
+// (admission.restates), and for a oneOf one alone, sharing no kind with any
+// other, so that exactly one admits each of its values. A branch is compared
+// keyword by keyword, as what it admits leaves its bounds and annotations unread,
+// and one writing what no reading compares says more. A read cut short says no.
+func unionHeld(w *admission, r refinement, s *oas3.Schema, key string) bool {
+	var branches []*oas3.JSONSchema[oas3.Referenceable]
+	switch key {
+	case "oneOf":
+		branches = s.GetOneOf()
+	case "anyOf":
+		branches = s.GetAnyOf()
+	default:
+		return false
+	}
+	var principal *oas3.JSONSchema[oas3.Referenceable]
+	if r.principal != nil {
+		principal = r.principal.schema
+	}
+	within, overlaps := 0, 0
+	for _, b := range branches {
+		switch {
+		case w.restates(r.held, principal, b):
+			within++
+		case r.held.kinds&w.whole(b).kinds != 0:
+			overlaps++
+		}
+	}
+	if w.incomplete() || within == 0 {
+		return false
+	}
+	return key == "anyOf" || (within == 1 && overlaps == 0)
 }
 
 // recordOn keeps k on the node owner names.

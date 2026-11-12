@@ -121,30 +121,62 @@ verifier and codecs must reach.
 - **Probe.** In a test, build a document holding what the old type could not and assert
   `irverify.Verify` reports it.
 
+## Sweep the comparisons of a struct whose field becomes a pointer
+`pointer-field-ends-value-equality`
+
+- **Rule.** When a value field of a struct becomes a pointer, `==` on the struct still compiles and
+  compares that field by address. Find every comparison of the struct, or one holding it by
+  value, map keys and `comparable` type arguments included, and make each meaning value equality
+  compare deeply. A merge of `main` reruns the sweep
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merged-code-meets-a-changed-type`).
+- **Why.** #1370 made `XMLHints.Wrapped` a `*bool`, and merging `main` brought in #1656's
+  `*a == *b` over two declarations' hints. Build, vet, archtest and the goldens passed the
+  merge, while identical hints drew a report (#1677).
+- **Probe.** Add `_ [0]func()` to the struct and run `go vet -gcflags=-e ./...`: each
+  `cannot be compared`, `invalid map key` or `comparable` error is a site. Rewrite those and rerun
+  until none prints, as a failing package hides its importers' sites.
+
 ## Sweep the predicates that name a struct's fields when it grows one
 `predicates-that-list-fields`
 
 - **Rule.** When an `ir` struct gains a field, find the code that names its siblings one by one (an
   emptiness test, an equality, a comparison with the zero literal) and give each such predicate a
-  reflection test that sets every field alone, so the next field added fails there.
+  reflection test that sets every field alone, so the next field added fails there. A value a test
+  calls fully populated takes `references/ir-lessons.md#populated-value-sets-every-field`.
 - **Why.** A part-encoding emptiness check named each field, so an encoding declaring only the new
   `allowReserved` would have been dropped, with every golden and conformance test green (#1144).
 - **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
   field's name and `<Struct>` the struct's.
 
-## Read what the documents assume of a field before widening its values
+## Hold a value a test calls fully populated to every field
+`populated-value-sets-every-field`
+
+- **Rule.** A value a test calls populated in full names a struct's fields by hand, so a field the
+  struct gains is left zero there with every round trip green. Hold it with
+  `assertNoFieldZero` in `ir/helpers_test.go`, which `assertJSONContract` and
+  `assertTypeDefRoundTrip` there call, naming each field it leaves zero with the reason. A struct no
+  test hands `assertNoFieldZero`, as one round-tripped arm by arm or held only inside another, is
+  held by none until the check of #1679 lands: until then, set each field it gains in a round-trip
+  value.
+- **Why.** #1367's four fields went unset in two values their contract tests called fully
+  populated, so a `json:"-"` tag on any of them passed both (#1670).
+- **Probe.** Each test whose comment `git grep -niE 'fully( populated|$)' -- 'ir/*_test.go'` hits
+  calls one of those three.
+
+## Read what the documents assume of a field before changing its values
 `widened-field-values`
 
-- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
-  media type), grep the field and its old values across `docs/`, read each normative statement for
-  one that assumes the old set, and change it or name the gap where it stands. No emitter reads the
-  value yet, so no test objects, but it is a change of meaning, which `docs/ir/ir-version.md` bumps
-  for.
+- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, mode or
+  media type), or stops filling it at a position, grep the field and its old values across
+  `docs/`, find each normative statement that assumes the old set, and change it or name the gap
+  there. No emitter reads the value yet, so no test objects, but it changes meaning,
+  which `docs/ir/ir-version.md` bumps for.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
 - **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
-  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers` and
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-prose-a-meaning-change-falsifies`.
 
 ## A verdict landing on another node changes no meaning
 `verdict-on-another-node`
@@ -159,14 +191,32 @@ verifier and codecs must reach.
 - **Probe.** `git show <merge> --stat -- ir/document.go docs/ir/version-history.md` lists neither
   file for #1181's `20017d99b` or #1307's `7cf3f95fc`.
 
-## Ask each consumer of a widened field what it did with the old value
+## Ask each reader of a widened or unfilled field what it did with the old value
 `widened-field-consumers`
 
-- **Rule.** When a field's values widen, list each consumer that reads the field and ask what it did
-  with the old value, since one may depend on it with no sentence saying so.
+- **Rule.** When a field's values widen, or a lowering stops filling it at a position, list the
+  field's readers in every package, `ir`'s predicates included, and ask what each did with the old
+  value: one may depend on it with no sentence saying so, or decide a node's kind on it.
 - **Why.** A file body's `Content.Type` held only `bytes`, so a plain upload needed no rule and had
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
-- **Probe.** List in the PR body each consumer asked, and its answer.
+  #1706 stopped filling `Model.Discriminator` on a type array's `object` variant, so `mapOnly` made
+  one holding only a catch-all a map, past five review rounds (#1710).
+- **Probe.** `git grep -nE '\.<Field>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go'`; list in the PR
+  body each reader asked, and its answer.
+
+## Say which declarations a reader of a flattened member needs
+`flattened-member-declarations`
+
+- **Rule.** A flattened member (`ir.FlattenedProperties`) takes every facet bar `Required` and
+  `Secret`, which accumulate, from one declaration, and lists the rest in `Overridden`. A new
+  reader's comment says which its question needs, and it reads those: what an instance carries
+  conjoins every declaration, while what the member renders as is the taken one. Whether
+  deprecation accumulates is #1628's to decide.
+- **Why.** A redaction an overridden declaration asked for was dropped (#1211). On #1700, tag
+  inference read only the taken declaration, so a body redeclaring the tag as a plain string hid
+  each variant's pin, and the mapping was keyed by component names (#1704).
+- **Probe.** Compile a composition that redeclares the member more loosely than what it composes,
+  and read the reader's result.
 
 ## Check a design rule against every input it reads
 `design-rule-over-its-document`

@@ -151,6 +151,236 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/RenderTagged/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/RenderTagged/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderTagged/oneOf/0/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/oneOf/0/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/RenderTagged/oneOf/0/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/0/properties/kind"
+      },
+      "value": {
+        "kind": "string",
+        "str": "html"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/RenderTagged/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/RenderTagged/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderTagged/oneOf/1/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/oneOf/1/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/RenderTagged/oneOf/1/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/1/properties/kind"
+      },
+      "value": {
+        "kind": "string",
+        "str": "url"
+      },
+      "valueType": "string"
+    },
+    "t/composed/components/schemas/RenderTagged/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/RenderTagged/oneOf/0",
+      "name": {
+        "hint": "render_tagged_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/properties/kind"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/RenderTagged/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/RenderTagged/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/RenderTagged/oneOf/1",
+      "name": {
+        "hint": "render_tagged_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/properties/kind"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/RenderTagged/oneOf/1",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Render": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Render",
@@ -1220,7 +1450,7 @@
       }
     },
     "t/openapi/components/schemas/RenderTagged": {
-      "kind": "model",
+      "kind": "union",
       "id": "t/openapi/components/schemas/RenderTagged",
       "name": {
         "source": "RenderTagged",
@@ -1229,68 +1459,35 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "properties": {
-                "kind": {
-                  "const": "html",
-                  "type": "string"
-                }
-              }
-            },
-            {
-              "properties": {
-                "kind": {
-                  "const": "url",
-                  "type": "string"
-                }
-              }
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RenderTagged/oneOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RenderTagged"
       },
-      "properties": [
+      "variants": [
         {
-          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
           "name": {
-            "source": "kind",
-            "canonical": "kind"
+            "hint": "variant_0"
           },
-          "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/composed/components/schemas/RenderTagged/oneOf/0",
             "nullable": false
           },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
           },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/RenderTagged/properties/kind"
-          }
+          "type": {
+            "target": "t/composed/components/schemas/RenderTagged/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
         }
       ],
-      "abstract": false,
-      "positional": false,
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
       "inputOnly": false
     },
     "t/prim/any": {
@@ -1382,8 +1579,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Unmodeled",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RenderTagged"
@@ -1448,7 +1645,7 @@
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "f74c1f501d4d3f5691439b4e32a4555cee72b48d14b73d89bf005580fdc8538e"
+      "hash": "bdb364a53332b36797d472784209bdce952911ba466d02a563b9262020cc2858"
     }
   ]
 }

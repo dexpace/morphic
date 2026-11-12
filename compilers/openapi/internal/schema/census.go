@@ -329,13 +329,13 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
 		return unhomedKeywords(s, nil, nil), expandedShape
 	}
-	if hasUnionSiblings(s) {
+	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
 	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
 		return nil, ""
 	}
-	return unhomedKeywords(s, nil, nil), collapsedShape
+	return unhomedKeywords(s, nil, branchesSay(c, s)), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -357,7 +357,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
-	unhomed := unhomedKeywords(s, td, d.skipped)
+	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
@@ -406,7 +406,8 @@ const distributedShape = "a union of models conjoining its body with each branch
 // Union has no field for what they consume, so the census asks them; handled is
 // as unhomedKeywords takes it. A constraint reaches each variant that has the
 // field, one it cannot constrain included (GitHub #1310), so it is kept only
-// where none does.
+// where none does. A discriminator the Union holds is homed there, routing its
+// variants.
 func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
@@ -416,6 +417,9 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if !isUnion {
 		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: type %q is not the union its variants were built for", id))
+	}
+	if discriminatorHome(u) {
+		handled = append(slices.Clip(handled), "discriminator")
 	}
 	nodes := make([]ir.TypeDef, 0, len(u.Variants))
 	for _, v := range u.Variants {

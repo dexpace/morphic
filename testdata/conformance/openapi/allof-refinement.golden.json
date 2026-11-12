@@ -641,6 +641,29 @@
       "closed": true,
       "flags": false
     },
+    "t/openapi/components/schemas/Needle": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Needle",
+      "name": {
+        "source": "Needle",
+        "canonical": "needle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Needle"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 1000,
+        "uniqueItems": false
+      }
+    },
     "t/openapi/components/schemas/Owner": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Owner",
@@ -1359,7 +1382,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "5569e428abcc60c76b996f40ab43601babeab29830f408bac74a815ea387f82e"
+      "hash": "c8cb5cd5feaff1c79343a10847b912ea47e8801a0ff4fcb6bd2acd95bb6e016b"
     }
   ]
 }

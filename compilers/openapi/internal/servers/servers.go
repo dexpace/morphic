@@ -152,7 +152,7 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 // sequence), as two enum members can; an emitter uniquifies.
 func serverName(s *soa.Server) ir.Naming {
 	if name := s.GetName(); name != "" {
-		return compile.NamingFor(name)
+		return ir.NamingFor(name)
 	}
 	if words := ir.CanonicalWords(s.GetURL()); words != "" {
 		return compile.NamingHint(words)

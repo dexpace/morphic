@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"encoding/json/jsontext"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -231,11 +230,3 @@ func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition, shape string) 
 
 // composedShape is the shape a composition lowers to, for diagDisjointConjuncts.
 const composedShape = "a composition"
-
-// readAllOf is allOfBranches of the schema written at pointer, with what its
-// conjuncts jointly admit read, for a lowering that composes it.
-func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
-	comp := allOfBranches(s, pointer)
-	comp.disjoint = disjointConjuncts(c, s, comp)
-	return comp
-}

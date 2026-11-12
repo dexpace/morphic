@@ -4,6 +4,8 @@
 package servers_test
 
 import (
+	"maps"
+	"slices"
 	"testing"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -380,6 +382,24 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 	first := reg.Servers()
 	delete(first, "server/default")
 	assert.Contains(t, reg.Servers(), ir.ServerID("server/default"))
+}
+
+// TestRegistry_ReopenRegistersBesideWhatItHolds pins that a reopened registry
+// holds the servers it was handed and registers a later one beside them,
+// writing nothing into the caller's map.
+func TestRegistry_ReopenRegistersBesideWhatItHolds(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	first := servers.NewRegistry()
+	_, diags := first.Root(c)
+	require.Empty(t, diags)
+	held := first.Servers()
+
+	reg := servers.Reopen(held)
+	id, diags := reg.At(c, &soa.Server{URL: "https://next.example"}, "/x/server")
+	require.Empty(t, diags)
+	assert.Equal(t, []ir.ServerID{"server/default", id}, slices.Sorted(maps.Keys(reg.Servers())))
+	assert.Equal(t, []ir.ServerID{"server/default"}, slices.Sorted(maps.Keys(held)), "the caller's map is untouched")
 }
 
 // TestServerVariables_AnEmptyDefaultIsNotNone pins that a variable's default is

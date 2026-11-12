@@ -24,14 +24,14 @@ import (
 // lowerModel hoists an object schema as a Model, or as a MapT when the object
 // is a map and nothing else (objectNode): its value constraints, the
 // property-set cardinality among them, its own properties and which are
-// required, its catch-all (fillAdditional) and a declared discriminator. It
-// reads no annotations: attachDeclaredAnnotations does that for every
-// destination.
+// required, its catch-all (fillAdditional) and, where discriminated, the
+// discriminator it declares. It reads no annotations: attachDeclaredAnnotations
+// does that for every destination.
 //
 // Cardinality is read here rather than on lowerComponentSchema's internAlias
 // fallback because an object-shaped schema owns its node before that fallback
 // would run, so the fallback never fires for one (GitHub #129).
-func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
@@ -40,9 +40,9 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		diags = append(diags, fillModelProperties(c, ts, depth, newModelFields(c, ts, m), s, pointer)...)
 		requireMembers(m, s.GetRequired())
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
-		diags = append(diags, discDiags...)
-		if d != nil {
+		if discriminated {
+			d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
+			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
 		return objectNode(m)
@@ -201,7 +201,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, fields mo
 		diags = append(diags, refDiags...)
 		p := ir.Property{
 			ID:         c.IDs().Prop(ppointer),
-			Name:       compile.NamingFor(name),
+			Name:       ir.NamingFor(name),
 			WireName:   name,
 			Type:       ref,
 			Provenance: c.Place().At(ppointer),

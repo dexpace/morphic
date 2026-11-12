@@ -18,7 +18,8 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
                         ┌── IR passes (IR → IR) ───┐
                         │  link · dedup · filter   │
                         │  version-slice · overlay │
-                        │  names · validate        │
+                        │  const-unions · names    │
+                        │  validate                │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -262,14 +263,17 @@ changed since the last one. An update hands its change a deep copy of the node's
 nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
 services and registries, are left out of the copy and changed by their own IDs. The edit keeps each
 node at the key its own ID names and adds no ID, a nested one included, so every ID stays in a
-namespace the document already declares (invariant 3). A write that would break either, or that only
-a bug makes, is refused, and `Finish` returns each refusal as an `ir/edit-refused` error beside the
-document, so it fails the run at the default threshold instead of passing unseen. A removal removes
-what its ID names, with what that holds, and nothing else: a group or a service its last member
-leaves stays, for the pass to remove when its own rule says so. Whether a removal leaves a reference
-dangling is not the edit's to judge: `validate` reports one. Adding a node is not an edit's either:
-the first pass to mint one, `link`, brings that, with a namespace of its own (invariant 3's
-corollary).
+namespace the document already declares (invariant 3). The one exception is an enum member's own ID,
+the one its enum's ID and its value give it (`ir.EnumMemberIDFor`,
+[identity](./ir/identity.md#enum-members)) in a namespace the document declares for members: only
+that member can hold it, so an enum a pass builds takes IDs that collide with nothing. A write that
+would break either, or that only a bug makes, is refused, and `Finish` returns each refusal as an
+`ir/edit-refused` error beside the document, so it fails the run at the default threshold instead of
+passing unseen. A removal removes what its ID names, with what that holds, and nothing else: a group
+or a service its last member leaves stays, for the pass to remove when its own rule says so. Whether
+a removal leaves a reference dangling is not the edit's to judge: `validate` reports one. Adding a
+node is not an edit's either: the first pass to mint one, `link`, brings that, with a namespace of
+its own (invariant 3's corollary).
 
 Two rules in `internal/lintrules` hold the containers to the editor: `registrywrites` refuses
 building a registry, or writing one of its entries, anywhere but `ir` and the compilers (the type
@@ -346,6 +350,13 @@ engine refuses there.
 
 Built, and in the default list:
 
+- **const-unions** — a closed union of strings, every variant a string `Literal`, a one-member
+  `Enum` or a union of one value, is rewritten as the closed `Enum` of its values at the union's own
+  ID, each member holding what its variant and branch say of its value, and each branch type nothing
+  else references is removed ([`string-const-union`](./compilers/openapi.md#string-const-union)). A
+  transform, it runs first. It is no convenience simplification of reference-learnings.md §B0, which
+  are off by default: it loses nothing, keeping the union wherever an `Enum` could not say all it
+  does, so it is on, and `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
   something the document declares (a `TypeRef` target against the type registry, an `OpID` against

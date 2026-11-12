@@ -314,7 +314,7 @@ type valueVerdicts struct {
 // at each reference would cost the references times the members.
 func valueNulls(c lowering.Ctx, s *oas3.Schema) valueVerdicts {
 	return lowering.Remembered(c, valueNullsOf{s}, func() valueVerdicts {
-		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullVerdict(s)}
+		return valueVerdicts{constant: constNullVerdict(s), enum: enumNullVerdict(s), union: unionNullVerdict(c, s)}
 	})
 }
 
@@ -449,8 +449,8 @@ func isNullValue(node values.Value) bool {
 //
 // It never forbids: a union with no null branch says nothing about a null that
 // a sibling keyword admits, as in `{nullable: true, oneOf: [...]}`.
-func unionNullVerdict(s *oas3.Schema) nullVerdict {
-	if oneOfAnyOfHasNull(s) && !hasUnionSiblings(s) {
+func unionNullVerdict(c lowering.Ctx, s *oas3.Schema) nullVerdict {
+	if oneOfAnyOfHasNull(s) && !hasUnionSiblings(c, s) {
 		return nullAdmitted
 	}
 	return nullSilent

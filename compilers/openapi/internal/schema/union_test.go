@@ -641,12 +641,16 @@ func TestLower_AllOfWithOneOfKeepsBoth(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	m, ok := doc.Types[componentID("Combo")].(*ir.Model)
-	require.True(t, ok, "allOf composition survives (Model), oneOf preserved raw")
-	require.NotNil(t, m.Base, "the allOf $ref becomes Base")
-	assert.Equal(t, componentID("Base"), m.Base.Target)
-	_, ok = m.Unmodeled["openapi:oneOf"]
-	assert.True(t, ok, "the oneOf is kept verbatim under Unmodeled")
+	u, ok := doc.Types[componentID("Combo")].(*ir.Union)
+	require.True(t, ok, "the oneOf is the value, the composition distributed across it")
+	require.Len(t, u.Variants, 2)
+	for i, prim := range []ir.TypeID{"t/prim/string", "t/prim/integer"} {
+		m, ok := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
+		require.True(t, ok, "variant %d is a composed model", i)
+		require.NotNil(t, m.Base, "the allOf $ref becomes Base")
+		assert.Equal(t, componentID("Base"), m.Base.Target)
+		assert.Equal(t, []ir.TypeRef{{Target: prim}}, m.Mixins, "the branch is carried as written")
+	}
 }
 
 func TestLower_MultiTypeUnion(t *testing.T) {
@@ -710,6 +714,123 @@ func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
 	assert.False(t, u.Exclusive)
 }
 
+// TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion pins that a type array's
+// object variant holds no discriminator (GitHub #853): no type can be its
+// subtype, so the census keeps the discriminator on the union, whatever it
+// routes to and whether or not a union is written beside it. A subtype keeps
+// the union as its Base and the tag the discriminator gives it.
+func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
+	t.Parallel()
+	const pet, holder = "/components/schemas/Pet", "/components/schemas/Holder/properties/pet"
+	multi := func(discriminator, rest string) string {
+		return "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: " + discriminator + "\n" + rest
+	}
+	const mapped = "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"
+	cases := []struct {
+		name, version, schema, rest, want string
+		at                                jsontext.Pointer
+		union                             ir.TypeID
+		variant                           ir.TypeKind
+		tags                              map[string]string
+	}{
+		{"mapped", "3.1.0", multi(mapped, ""), subtypes, `"mapping"`, pet, componentID("Pet"), ir.KindModel,
+			map[string]string{"Cat": "cat", "Dog": "Dog"}},
+		{"named by its subtypes", "3.1.0", multi("{propertyName: kind}", ""), subtypes, `"kind"`, pet, componentID("Pet"),
+			ir.KindModel, map[string]string{"Cat": "Cat", "Dog": "Dog"}},
+		{"default", "3.2.0", multi("{propertyName: kind, defaultMapping: '#/components/schemas/Cat'}", ""), subtypes,
+			`"defaultMapping"`, pet, componentID("Pet"), ir.KindModel, map[string]string{"Cat": "Cat"}},
+		{"no route", "3.1.0", multi("{propertyName: kind}", ""), "", `"kind"`, pet, componentID("Pet"), ir.KindModel, nil},
+		{"a map", "3.1.0", "    Pet:\n      type: [object, string]\n      additionalProperties: {type: string}\n" +
+			"      discriminator: " + mapped + "\n", subtypes, `"mapping"`, pet, componentID("Pet"), ir.KindMap,
+			map[string]string{"Cat": "cat"}},
+		{"beside a union, mapped", "3.1.0", multi(mapped, petBranches), cat + dog, `"mapping"`, pet, componentID("Pet"),
+			ir.KindModel, nil},
+		{"beside a union, no route", "3.1.0", multi("{propertyName: kind}",
+			"      oneOf: [{type: object, properties: {kind: {type: string}}}, {type: string}]\n"), "", `"kind"`, pet,
+			componentID("Pet"), ir.KindModel, nil},
+		{"a property", "3.1.0", "    Holder:\n      type: object\n      properties:\n        pet:\n" +
+			"          type: [object, string]\n          properties: {kind: {type: string}}\n" +
+			"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n",
+			"    Cat: {allOf: [{$ref: '#/components/schemas/Holder/properties/pet'}], type: object}\n", `"mapping"`,
+			holder, "t/anon" + holder, ir.KindModel, map[string]string{"Cat": "cat"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range discriminatedOrders(t, c.version, c.schema, c.rest) {
+				assertKeptOnTheUnion(t, doc, c.union, c.at, c.want, c.variant)
+				for name, tag := range c.tags {
+					sub, ok := typeByName(doc, name).(*ir.Model)
+					require.True(t, ok, "%s is a model", name)
+					require.NotNil(t, sub.Base, name)
+					assert.Equal(t, c.union, sub.Base.Target, "%s composes the union", name)
+					assert.Equal(t, tag, sub.DiscriminatorValue, name)
+				}
+			}
+		})
+	}
+}
+
+// TestLower_ATypeArrayResolvesItsDiscriminatorRoutes pins that a type array
+// admitting an object resolves its discriminator's routes though its union
+// keeps the discriminator verbatim: a position only a mapping names is
+// lowered, in either order, and a target naming nothing is reported once, at
+// its entry. One admitting no object resolves nothing, as no node keeping a
+// discriminator verbatim does (GitHub #1662, #1708).
+func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
+	t.Parallel()
+	const reached = "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
+		"      $defs: {Sub: {type: object, properties: {s: {type: string}}}}\n" +
+		"      discriminator: {propertyName: kind, mapping: {sub: '#/components/schemas/Pet/$defs/Sub'}}\n"
+	for _, doc := range discriminatedOrders(t, "3.1.0", reached, cat) {
+		_, ok := doc.Types["t/anon/components/schemas/Pet/$defs/Sub"].(*ir.Model)
+		assert.True(t, ok, "the position only the mapping names is lowered")
+	}
+
+	const dangling = "{propertyName: kind, mapping: {a: '#/components/schemas/Nope'}}"
+	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.2.0",
+		"    Obj: {type: [object, string], properties: {kind: {type: string}}, discriminator: "+dangling+"}\n"+
+			"    Def: {type: [object, string], properties: {kind: {type: string}}, "+
+			"discriminator: {propertyName: kind, defaultMapping: '#/components/schemas/Nope'}}\n"+
+			"    NoObj: {type: [string, integer], discriminator: "+dangling+"}\n"))
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.ElementsMatch(t, []jsontext.Pointer{
+		"/components/schemas/Obj/discriminator/mapping/a", "/components/schemas/Def/discriminator/defaultMapping",
+	}, at)
+}
+
+// assertKeptOnTheUnion requires the union at id, lowered from the type array
+// at pointer, to keep its discriminator whole, holding want, and reported once
+// by the census, and its object variant, of kind variant, to hold none.
+func assertKeptOnTheUnion(t *testing.T, doc *ir.Document, id ir.TypeID, pointer jsontext.Pointer, want string, variant ir.TypeKind) {
+	t.Helper()
+	u, ok := doc.Types[id].(*ir.Union)
+	require.True(t, ok, "a type array lowers to a union; got %T", doc.Types[id])
+	entry, ok := u.Unmodeled["openapi:discriminator"]
+	require.True(t, ok, "the union keeps the discriminator")
+	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	assert.Equal(t, pointer+"/discriminator", entry.Provenance.Pointer)
+	assert.Contains(t, string(entry.Value), `"propertyName":"kind"`, "the whole object is kept")
+	assert.Contains(t, string(entry.Value), want)
+
+	node := doc.Types[ir.TypeID("t/anon"+string(pointer)+"/type/0")]
+	require.False(t, ir.IsNilTypeDef(node), "the object variant is interned")
+	assert.Equal(t, variant, node.Kind())
+	if m, isModel := node.(*ir.Model); isModel {
+		assert.Nil(t, m.Discriminator, "the object variant holds none")
+	}
+	assert.NotContains(t, node.Common().Unmodeled, "openapi:discriminator", "nor keeps it")
+	reports := censusReports(doc.Diagnostics, pointer)
+	require.Len(t, reports, 1, "the census reports it once")
+	assert.Contains(t, reports[0], "discriminator")
+}
+
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A:
@@ -730,7 +851,10 @@ func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, name := range []string{"A", "B", "C", "D"} {
+	// A's body is a model, so its union is distributed across it; the others'
+	// is none, so each keeps its union verbatim.
+	assert.Equal(t, readDistributed, unionReading(doc, "A"))
+	for _, name := range []string{"B", "C", "D"} {
 		td := typeByName(doc, name)
 		require.NotNil(t, td, "type %s present", name)
 		c := td.Common()

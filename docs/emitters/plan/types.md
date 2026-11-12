@@ -16,9 +16,10 @@ type TypePlan struct {
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
-    Open       bool                 // a union, polymorphic base or enum keeps a value no variant or
-                                    // member recognizes rather than refusing it (policy.md,
-                                    // ../refine/unions.md, ../refine/enums.md)
+    Open       bool                 // a union, polymorphic base, model narrowing a union or enum
+                                    // keeps a value no variant or member recognizes rather than
+                                    // refusing it (policy.md, ../refine/unions.md,
+                                    // ../refine/enums.md)
     Inclusive  bool                 // an any_of union two of whose variants can admit one value in
                                     // the declaration no shape projects (below); false otherwise
     Strict     bool                 // a one_of union refuses a value two variants admit unless its
@@ -76,7 +77,8 @@ required on the composed model. A name `Requires` lists that no flattened proper
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
-not hold what it admits, so each refiner lowers it or degrades with a code of its own.
+not hold what it admits, so each refiner lowers it or degrades with a code of its own; the three
+targets lower a union there as [inheritance](../refine/models.md#inheritance) says.
 
 ## Variants that can share a value
 
@@ -224,7 +226,9 @@ coincide, every model it reaches holding and requiring the same members in both,
 declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)), so they take one
 answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
 every member but those `Visibility.None` hides, requires only the required members no filter can
-leave out, and `TypePlan.Inclusive` decides it.
+leave out, and `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it
+narrows, too, every value of the model being a value of one of that union's variants
+([inheritance](../refine/models.md#inheritance)).
 
 ## A model with lifecycle visibility
 

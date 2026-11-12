@@ -32,15 +32,15 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 	cases := []struct {
 		name, version, discriminator, rest, want string
 	}{
-		{"mapped", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}", cat + dog, `"mapping"`},
-		{"named by branch", "3.1.0", "{propertyName: kind}", cat + dog, `"propertyName"`},
+		{"mapped", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}", cat + subDog, `"mapping"`},
+		{"named by branch", "3.1.0", "{propertyName: kind}", cat + subDog, `"propertyName"`},
 		{"one mapped subtype and one branch that is not", "3.1.0",
 			"{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
 			"    Cat: " + viaPet + "}\n" + dog, `"mapping"`},
 		{"default", "3.2.0", "{propertyName: kind, defaultMapping: '#/components/schemas/Other'}",
 			subtypes + "    Other: {type: object}\n", `"defaultMapping"`},
 		{"mixin only", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
-			"    Cat: {allOf: [{$ref: '#/components/schemas/Dog'}, {$ref: '#/components/schemas/Other'}]}\n" +
+			"    Cat: {allOf: [{$ref: '#/components/schemas/Other'}, {$ref: '#/components/schemas/Pet'}]}\n" +
 				dog + "    Other: {type: object}\n", `"mapping"`},
 		{"position declaring an inline object", "3.1.0",
 			"{propertyName: kind, mapping: {cat: '#/components/schemas/Holder/properties/pet'}}",
@@ -55,9 +55,6 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 		{"lowers to an alias over its $ref", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
 			"    Cat: {$ref: '#/components/schemas/Other', allOf: [{$ref: '#/components/schemas/Pet'}]}\n" +
 				"    Other: {type: object}\n" + subDog, `"mapping"`},
-		{"lowers to a distributed union", "3.1.0", "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}",
-			"    Cat: " + viaPet + ", oneOf: [{$ref: '#/components/schemas/House'}, {$ref: '#/components/schemas/Wild'}]}\n" +
-				"    House: {type: object}\n    Wild: {type: object}\n" + subDog, `"mapping"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -75,7 +72,7 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 // (docs/ir/containers.md).
 func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	t.Parallel()
-	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+dog) {
+	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+subDog) {
 		assertMovedToMap(t, typeByName(doc, "Pet"))
 		assert.Empty(t, censusReports(doc.Diagnostics, "/components/schemas/Pet"),
 			"the map holds all the census asked about, and the move keeps the discriminator itself")
@@ -92,7 +89,7 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
 	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
 		"          additionalProperties: {type: string}\n          discriminator: {propertyName: kind}\n" +
-		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n"
+		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}, {type: 'null'}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
 		assertMovedToMap(t, doc.Types["t/anon"+at])
 		assert.Contains(t, openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo, at+"/discriminator"),
@@ -105,7 +102,7 @@ func TestDiscriminatorBesideUnion_SettlesAMapAReferenceNamesFirst(t *testing.T) 
 // whose catch-all sits beside a required name its properties do not declare:
 // the name is in Model.Requires, which no map holds, so the discriminator's
 // move leaves a Model, nothing kept verbatim for want of a home. It holds for
-// a plain object, a composed one, and the object variant of a multi-typed body.
+// a plain object and a composed one.
 func TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel(t *testing.T) {
 	t.Parallel()
 	const (
@@ -118,11 +115,10 @@ func TestDiscriminatorBesideUnion_ARequiredNameKeepsTheBodyAModel(t *testing.T) 
 	}{
 		{"plain", "    Pet:\n      type: object\n" + body, componentID("Pet")},
 		{"composed", "    Pet:\n      allOf: [{type: object}]\n" + body, componentID("Pet")},
-		{"variant", "    Pet:\n      type: [object, string]\n" + body, "t/anon" + pointer + "/type/0"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			for _, doc := range discriminatedOrders(t, "3.1.0", tc.pet, cat+dog) {
+			for _, doc := range discriminatedOrders(t, "3.1.0", tc.pet, cat+subDog) {
 				m, ok := doc.Types[tc.node].(*ir.Model)
 				require.True(t, ok, "a required name keeps the body a Model; got %T", doc.Types[tc.node])
 				assert.Nil(t, m.Discriminator, "the discriminator moved")
@@ -147,15 +143,18 @@ func TestDiscriminatorBesideUnion_KeepsARoutingMapAModel(t *testing.T) {
 
 // TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype pins the case the
 // model keeps its discriminator beside a kept union: every route is a subtype,
-// at any distance and however it is spelled. A branch no name reaches, inline
-// or a position, is no route, so it does not move the discriminator either.
+// at any distance and however it is spelled, a route writing a union beside
+// its allOf among them, which the route keeps a subtype. A branch no name
+// reaches, inline or a position, is no route, so it does not move the
+// discriminator either, an inline one composing Pet keeping Pet a model.
 func TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype(t *testing.T) {
 	t.Parallel()
 	const grand = "    Cat: {allOf: [{$ref: '#/components/schemas/Mid'}], type: object}\n" +
 		"    Mid: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}\n" +
 		"    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object}\n"
 	unnamed := "    Pet:\n      type: object\n      discriminator: {propertyName: kind}\n" +
-		"      oneOf: [{type: object, properties: {kind: {type: string}}}, {$ref: '#/components/schemas/Holder/properties/pet'}]\n"
+		"      oneOf: [{allOf: [{$ref: '#/components/schemas/Pet'}], properties: {kind: {type: string}}}, " +
+		"{$ref: '#/components/schemas/Holder/properties/pet'}]\n"
 	cases := []struct {
 		name, version, pet, rest string
 	}{
@@ -168,6 +167,11 @@ func TestDiscriminatorBesideUnion_StaysWhenEveryRouteIsASubtype(t *testing.T) {
 		{"grandchild", "3.1.0", petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"), grand},
 		{"default", "3.2.0", petWith("{propertyName: kind, defaultMapping: '#/components/schemas/Dog'}"), subtypes},
 		{"branches no name reaches", "3.1.0", unnamed, cat + "    Holder: {type: object, properties: {pet: {type: object}}}\n"},
+		{"a union beside its allOf, which a route keeps undistributed", "3.1.0",
+			petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"),
+			"    Cat: {allOf: [{$ref: '#/components/schemas/Pet'}], " +
+				"oneOf: [{$ref: '#/components/schemas/House'}, {$ref: '#/components/schemas/Wild'}]}\n" +
+				"    House: {type: object}\n    Wild: {type: object}\n" + subDog},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -201,7 +205,7 @@ func TestDiscriminatorBesideUnion_StaysForASubtypeAtAnyDepth(t *testing.T) {
 func TestDiscriminatorBesideUnion_ReportsTheMoveOnce(t *testing.T) {
 	t.Parallel()
 	pet := petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}")
-	for _, src := range []string{pet + cat + dog, cat + dog + pet} {
+	for _, src := range []string{pet + cat + subDog, cat + subDog + pet} {
 		_, diags := parseFull(t, openapitest.ComponentSpec(src))
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, movedPointer),
 			"not a subtype of the model holding it")
@@ -235,52 +239,8 @@ func TestDiscriminatorBesideUnion_AllOfBodyIsSettled(t *testing.T) {
 	t.Parallel()
 	pet := "    Pet:\n      allOf: [{$ref: '#/components/schemas/Base'}]\n" +
 		"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" + petBranches
-	for _, doc := range discriminatedOrders(t, "3.1.0", pet, cat+dog+"    Base: {type: object}\n") {
+	for _, doc := range discriminatedOrders(t, "3.1.0", pet, cat+subDog+"    Base: {type: object}\n") {
 		assertMoved(t, doc, `"mapping"`)
-	}
-}
-
-// TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled pins the other model a
-// discriminator beside a kept union can sit on: a multi-typed body lowers to a
-// union whose object variant lowerUnion builds from the same schema, so the
-// variant holds it. Routed to a non-subtype, it moves to the node keeping the
-// union; with no route at all, it stays on the variant.
-func TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled(t *testing.T) {
-	t.Parallel()
-	const variant = ir.TypeID("t/anon/components/schemas/Pet/type/0")
-	multi := func(discriminator, branches string) string {
-		return "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
-			"      discriminator: " + discriminator + "\n" + branches
-	}
-	cases := []struct {
-		name, pet string
-		moves     bool
-	}{
-		{"mapped to a non-subtype", multi("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}", petBranches), true},
-		{"no route", multi("{propertyName: kind}", "      oneOf: [{type: object, properties: {kind: {type: string}}}, {type: string}]\n"), false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-			for _, doc := range discriminatedOrders(t, "3.1.0", c.pet, cat+dog) {
-				owner, ok := doc.Types[componentID("Pet")].(*ir.Union)
-				require.True(t, ok, "a multi-typed body lowers to a union")
-				assert.Contains(t, owner.Unmodeled, "openapi:oneOf", "the union is kept on it")
-				held, ok := doc.Types[variant].(*ir.Model)
-				require.True(t, ok, "its object variant is a model")
-				assert.NotContains(t, held.Unmodeled, "openapi:discriminator", "the variant never keeps it verbatim")
-				if !c.moves {
-					assert.NotNil(t, held.Discriminator, "nothing routes anywhere, so it stays")
-					assert.NotContains(t, owner.Unmodeled, "openapi:discriminator")
-					continue
-				}
-				assert.Nil(t, held.Discriminator)
-				entry, ok := owner.Unmodeled["openapi:discriminator"]
-				require.True(t, ok, "it is kept beside the union it was written for")
-				assert.Equal(t, ir.Provenance{Pointer: movedPointer}, entry.Provenance)
-				assert.Contains(t, string(entry.Value), `"mapping"`)
-			}
-		})
 	}
 }
 
@@ -293,14 +253,14 @@ func TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled(t *testing.T) {
 func TestDiscriminatorBesideUnion_MovesOnlyWhatItCopied(t *testing.T) {
 	t.Parallel()
 	const disc = "{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}"
-	written, _ := parseFull(t, openapitest.ComponentSpec(cat+dog+petWith(disc)))
-	merged, diags := parseFull(t, openapitest.ComponentSpec(cat+dog+
+	written, _ := parseFull(t, openapitest.ComponentSpec(cat+subDog+petWith(disc)))
+	merged, diags := parseFull(t, openapitest.ComponentSpec(cat+subDog+
 		"    Pet:\n      <<: {discriminator: "+disc+"}\n      type: object\n"+petBranches))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, cmp.Diff(typeByName(written, "Pet"), typeByName(merged, "Pet")),
 		"a merged discriminator lowers as a written one")
 
-	doc, diags := parseFull(t, openapitest.ComponentSpec(cat+dog+
+	doc, diags := parseFull(t, openapitest.ComponentSpec(cat+subDog+
 		petWith("{propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}, x-weight: .nan}")))
 	pet := petModel(t, doc)
 	require.NotNil(t, pet.Discriminator, "the model read it, so it is not lost")
@@ -395,7 +355,7 @@ paths:
             schema:
               type: object
               discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-              oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+              oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}, {type: 'null'}]
       responses:
         "204": {description: none}
 components:
@@ -418,7 +378,7 @@ func TestDiscriminatorBesideUnion_SettlesAPositionAReferenceNamesFirst(t *testin
 	outside := "    Outside: {$ref: '#/components/schemas/Holder/properties/pet'}\n"
 	holder := "    Holder:\n      type: object\n      properties:\n        pet:\n          type: object\n" +
 		"          discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" +
-		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]\n"
+		"          oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}, {type: 'null'}]\n"
 	for _, doc := range discriminatedOrders(t, "3.1.0", outside, holder+cat+dog) {
 		pet, ok := doc.Types["t/anon"+at].(*ir.Model)
 		require.True(t, ok)
@@ -515,15 +475,16 @@ var degradedShapes = []struct {
 	name     string
 	branches string
 }{
-	{"inline branch", "      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: object, properties: {kind: {type: string}}}]\n"},
+	{"null branch", "      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: 'null'}]\n"},
 	{"oneOf beside anyOf", "      oneOf: [{$ref: '#/components/schemas/Cat'}]\n      anyOf: [{$ref: '#/components/schemas/Dog'}]\n"},
 	{"validation-only branches", "      oneOf: [{required: [kind]}, {required: [x]}]\n"},
 }
 
 // degradedPet declares Pet, a model whose discriminator maps cat to Cat,
-// beside the branches given.
+// beside the branches given, with a property no branch says, so the body is
+// one whatever the branches are.
 func degradedPet(branches string) string {
-	return "    Pet:\n      type: object\n" +
+	return "    Pet:\n      type: object\n      properties: {name: {type: string}}\n" +
 		"      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}\n" + branches
 }
 

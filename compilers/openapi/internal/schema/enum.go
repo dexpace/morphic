@@ -55,7 +55,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 		}
 		distinct, repeatDiags := enumRepeats(c, s.GetEnum(), pointer)
 		diags = append(diags, repeatDiags...)
-		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
+		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), common.ID)
 		if !ok {
 			def, enumDiags := enumAsUnion(c, ts, s, common, distinct, pointer)
 			diags = append(diags, enumDiags...)
@@ -101,9 +101,10 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 // kept. The PrimKind is the one every kept member maps to, meaningful only when
 // ok.
 //
-// Each member's ID is keyed by its value under the enum at pointer, and a
-// repeated value is kept, its ID numbered by occurrence; enumRepeats reports it.
-func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer jsontext.Pointer) ([]ir.EnumMember, ir.PrimKind, bool) {
+// Each member's ID is keyed by its value beneath enum, the enum's ID, and a
+// repeat is kept, numbered; enumRepeats reports it. An ID no member fits under
+// keeps none.
+func enumMembers(nodes []values.Value, dropNull bool, enum ir.TypeID) ([]ir.EnumMember, ir.PrimKind, bool) {
 	members := make([]ir.EnumMember, 0, len(nodes))
 	occurrences := make(map[string]int, len(nodes))
 	var kind ir.ValueKind
@@ -117,8 +118,10 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 			continue
 		}
 		memberPrim, text, admissible := enumMemberForm(val)
-		key, keyed := enumMemberKey(val)
-		if !admissible || !keyed {
+		key, keyed := ir.EnumMemberKey(val)
+		occurrences[key]++
+		id, placed := ir.EnumMemberIDFor(enum, key, occurrences[key])
+		if !admissible || !keyed || !placed {
 			return nil, "", false
 		}
 		if len(members) == 0 {
@@ -126,10 +129,9 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 		} else if val.Kind != kind {
 			return nil, "", false
 		}
-		occurrences[key]++
 		members = append(members, ir.EnumMember{
-			ID:    d.EnumMember(pointer, key, occurrences[key]),
-			Name:  compile.NamingFor(text),
+			ID:    id,
+			Name:  ir.NamingFor(text),
 			Value: val,
 		})
 	}
@@ -248,7 +250,7 @@ func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
 // the kind has no place in an Enum, and the caller degrades the whole enum to a
 // Union of Literals with a diagnostic.
 //
-// Its switch has one arm per ir.ValueKind, as enumMemberKey's does; the
+// Its switch has one arm per ir.ValueKind, as ir.EnumMemberKey's does; the
 // exhaustive linter fails when ir adds a kind either lacks. The default arm
 // refuses a kind rather than assert a type the source never wrote.
 func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
@@ -275,46 +277,6 @@ func enumMemberForm(v ir.Value) (ir.PrimKind, string, bool) {
 	default:
 		return "", "", false
 	}
-}
-
-// enumMemberKey returns the key an enum member is identified by: a one-letter
-// tag for the kind of value and the value itself, so the string "1" and the
-// number 1 are two members. A number is keyed by its canonical decimal
-// (numberKey), so 10 and 1e1 are one value.
-//
-// The key reads the value, never the name or the position.
-//
-// ok is false for a list, object, reference or constructor: no enum holds one.
-func enumMemberKey(v ir.Value) (key string, ok bool) {
-	var tag, payload string
-	switch v.Kind {
-	case ir.ValueString:
-		tag, payload = "s", v.Str
-	case ir.ValueSymbol:
-		tag, payload = "y", v.Str
-	case ir.ValueNumber:
-		tag, payload = "n", numberKey(v.Num)
-	case ir.ValueBool:
-		tag, payload = "b", strconv.FormatBool(v.Bool)
-	case ir.ValueBytes:
-		tag, payload = "x", base64.RawURLEncoding.EncodeToString(v.Bytes)
-	case ir.ValueNull:
-		tag = "z"
-	case ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
-		return "", false
-	default:
-		return "", false
-	}
-	return tag + ":" + payload, true
-}
-
-// numberKey returns n's canonical decimal, or n as spelled when no Decimal holds
-// it. Every canonical decimal reads as one, so the two never meet as one key.
-func numberKey(n ir.BigVal) string {
-	if d, err := n.Decimal(); err == nil {
-		return d.String()
-	}
-	return string(n)
 }
 
 // enumRepeats reports each entry of the enum at pointer whose value an earlier
@@ -364,9 +326,9 @@ func entryKey(node values.Value) (string, bool) {
 const maxValueKeyDepth = 128
 
 // valueKey returns the key an enum entry is compared by. A scalar's is its
-// enumMemberKey. A list's and an object's are built from their elements' keys,
-// each prefixed with its length (lengthPrefixed), and an object's members are
-// sorted first, since JSON Schema compares instances regardless of member
+// ir.EnumMemberKey. A list's and an object's are built from their elements'
+// keys, each prefixed with its length (lengthPrefixed), and an object's members
+// are sorted first, since JSON Schema compares instances regardless of member
 // order. A number at any depth reads as its canonical decimal, so [1] repeats
 // [1.0].
 //
@@ -378,7 +340,7 @@ func valueKey(v ir.Value, depth int) (key string, ok bool) {
 	}
 	switch v.Kind {
 	case ir.ValueString, ir.ValueSymbol, ir.ValueNumber, ir.ValueBool, ir.ValueBytes, ir.ValueNull:
-		return enumMemberKey(v)
+		return ir.EnumMemberKey(v)
 	case ir.ValueList:
 		return listKey(v.List, depth)
 	case ir.ValueObject:
