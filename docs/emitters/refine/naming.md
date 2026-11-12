@@ -100,7 +100,8 @@ units](output-units.md)), and each target names its others
 [docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
 as Go writes two declarations to one file, compares that scope's names as they are. The engine's
 refusal of two paths that fold alike is the backstop rather than the rule, since a refusal would
-fail a run on a valid spec.
+fail a run on a valid spec. Such a pair draws no `pass/name-collision`, which compares neutral names
+exactly (#1742).
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's
