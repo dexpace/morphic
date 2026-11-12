@@ -281,8 +281,7 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 // TestCompile_GroupingExtensionDefaultsAndRefusals pins the Go caller's side of
 // the grouping extension: a zero GroupingExtension takes the default key and
 // its list reading, a fallback the caller names stays beside them, and one the
-// compile cannot read as asked is refused as the text spelling of it is,
-// before anything is read.
+// compile cannot read as asked is refused as the text spelling of it is.
 func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 	t.Parallel()
 	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
