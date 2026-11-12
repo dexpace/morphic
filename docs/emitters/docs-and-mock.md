@@ -32,8 +32,8 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   declared `Closed` of a union or an enum to say whether a request may carry a variant or a value
   the document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a mock
   accepts](#what-a-mock-accepts)), `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the
-  `BindingView` to route requests, `Stream` to answer each stream as its sides frame it and `Page`
-  to end each page walk a pager makes ([the mock's streams and page
+  binding it lowers ([bindings](plan/bindings.md)) to route requests, `Stream` to answer each stream
+  as its sides frame it and `Page` to end each page walk a pager makes ([the mock's streams and page
   walks](#the-mocks-streams-and-page-walks)), and the visibility projections to honor the same wire
   shapes an SDK sends/receives. Refine lowers into a server-routing AST (routes from
   `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
@@ -613,15 +613,15 @@ the API rightly.
   `FrameMembers` the element's `event`, `id` and `retry` are those fields and its `data` the data,
   one with no `data` writing an empty `data:` line, since a reader dispatches no event without one
   (§9.2.6), and otherwise the data is the element's encoding, or its text where its root is
-  `string`.
-  `json_lines` writes each frame's encoding and a line feed, a text frame holding line breaks
-  arriving as one frame per line, as the wire divides it. `json_seq` writes a record separator, the
-  encoding and a line feed (RFC 7464). `multipart` writes a part per frame, typed as the side's
-  `ItemEncoding` says and otherwise by its element's codec, under a boundary derived from the parts'
-  bytes and lengthened until no part holds it. `bytes` sends the content's value as the body, a file
-  having no frames. `protocol` frames are the binding's own, and the mock routes HTTP bindings
-  alone, so an operation whose primary binding is another has no route there and draws a warning
-  `emitters/mock/binding-unserved`, never an answer its SDK would not read.
+  `string`. `json_lines` writes each frame's encoding and a line feed, a text frame holding line
+  breaks arriving as one frame per line, as the wire divides it. `json_seq` writes a record
+  separator, the encoding and a line feed (RFC 7464). `multipart` writes a part per frame, typed as
+  the side's `ItemEncoding` says and otherwise by its element's codec, under a boundary derived from
+  the parts' bytes and lengthened until no part holds it. `bytes` sends the content's value as the
+  body, a file having no frames. `protocol` frames are another protocol's own, and the mock covers
+  `http` alone, so it routes the binding an HTTP SDK lowers, and an operation with no HTTP binding
+  has no route there and draws `emitters/mock/unsupported-binding` ([bindings](plan/bindings.md)),
+  never an answer its SDK would not read.
 - **A side the client writes.** The mock reads it as the SDK writes it: by its `Framing`, each frame
   validated against `Element` as a body is, until the body ends or a frame whose data is its
   `Terminator` arrives, after which a frame is refused; a `bytes` side is read to its end; and one

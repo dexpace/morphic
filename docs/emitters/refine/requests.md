@@ -12,15 +12,16 @@ navigation.
 The parameter shape is each target's ([plan or refine](../plan/plan-or-refine.md)), with a default
 rule marked `Inferred` and overridable through the target's options ([target
 options](../contract/options.md)). The three first targets share one default: path parameters are
-positional, in the order the primary binding's URI template names them (`HTTPBinding.URITemplate`),
-never in the order `Operation.Params` holds them, which follows the source's declarations rather
-than the URL; and every other input — query, header and cookie parameters and the body — is a field
-of one request type for the operation, which it takes when it has any such input. A parameter in
-the slot of a scheme the operation's options name is no input at all
-([auth](../operations/auth.md#a-parameter-in-a-credentials-slot)). A parameter a
-client setting fills ([client settings](../operations/client.md#client-settings)) is an optional
-field of the request type, whatever its location, since a call may leave it to the client. Each
-target declares that type its own way ([Go](../targets/go/operations.md#the-request-type),
+positional, in the order the URI template of the binding the target lowers names them
+([bindings](../plan/bindings.md), `HTTPBinding.URITemplate`), a binding of another protocol having
+none, never in the order `Operation.Params` holds them, which follows the source's declarations
+rather than the URL; and every other input — query, header and cookie parameters and the body — is a
+field of one request type for the operation, which it takes when it has any such input. A parameter
+in the slot of a scheme the operation's options name is no input at all
+([auth](../operations/auth.md#a-parameter-in-a-credentials-slot)). A parameter a client setting
+fills ([client settings](../operations/client.md#client-settings)) is an optional field of the
+request type, whatever its location, since a call may leave it to the client. Each target declares
+that type its own way ([Go](../targets/go/operations.md#the-request-type),
 [Kotlin](../targets/kotlin/operations.md#the-request-type)). Two properties decide the rule:
 
 1. **Only the wire may fix an order.** A path template orders its parameters and a parameter list

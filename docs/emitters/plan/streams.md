@@ -37,11 +37,15 @@ record one on `Content` must keep it apart from a declared `Item`, which `Elemen
 `Operation.Streaming`, a primary `Default` that streams, which `Streaming` does not summarize,
 counting as a server side: `server`, or `bidi` beside a `Send`. A `StreamSide` holds:
 
-- **`Framing`**, the first that applies: `protocol` under a primary binding other than HTTP, which
-  frames its own messages; `bytes` for a file, which has no frames; what `plan.Policy.Framings` maps
-  the media type to; and otherwise `bytes`, reported once as a warning
+- **`Framing`**, the first that applies: `protocol` for an operation with no HTTP binding, whose
+  protocol frames its own messages; `bytes` for a file, which has no frames; what
+  `plan.Policy.Framings` maps the media type to; and otherwise `bytes`, reported once as a warning
   `emitters/plan/unframed-stream`, for an `Item` on a media type the table does not name or a media
-  type only a compiler option names.
+  type only a compiler option names. `Framing` is the HTTP wire's, and a target lowering another
+  binding ([bindings](bindings.md)) frames each side as its protocol does, whatever it holds: a gRPC
+  method with a transcoding is framed by its content under the transcoding and by gRPC under gRPC.
+  The plan, which every target shares, cannot hold one target's binding, and holding `protocol`
+  wherever an operation has a binding other than HTTP framed such a transcoding as gRPC.
 - **`Element`**: `Content.Item` where the content declares one; else, on a side framed by its media
   type, the `Elem` of a content `Type` whose root ([TypePlan](types.md)), read through `Alias`, is a
   list; else `StreamDetail.Events`; else the content's `Type`, of any kind. OpenAPI applies `schema`

@@ -975,19 +975,19 @@ throughout these documents.
     set declares and `example-missing` where it declares none, a synthesized terminal variant never
     before the last, and an `Initial` message on an HTTP binding writing and reading no frame; a
     side the client writes is read to its end or its `Terminator`, a frame after the `Terminator`
-    and one failing validation refused, a body past `MaxRequestBytes` refused as too large and
-    never as a frame that does not decode, one whose `RequiresLength` is set refused (411) with no
-    length, and then answered as `Return` reads; a `bidi` exchange ends, each frame the mock read
-    before its side ended validated, for a caller that writes first, one that reads to the end
-    before ending its side and one that alternates, over HTTP/2, and over HTTP/1.1 where the
-    target's transport delivers a response while its request is open, one that does not running
-    the first caller alone; an exchange in which no byte moves for `IdleTimeout` is ended, over
-    HTTP/2 beside a walk on its connection, which other requests keep using; an operation whose
-    primary binding is not HTTP draws `emitters/mock/binding-unserved`; and one request gets the
-    same bytes on every run. A mock holding a stream open, ending a `bidi` response only once the
-    client's side ends, answering one in lockstep, or bounding idleness per connection, which leaves
-    a stalled stream open beside a walk, fails it ([what the mock
-    streams](../docs-and-mock.md#what-the-mock-streams), [the mock's
+    and one failing validation refused, a body past `MaxRequestBytes` refused as too large and never
+    as a frame that does not decode, one whose `RequiresLength` is set refused (411) with no length,
+    and then answered as `Return` reads; a `bidi` exchange ends, each frame the mock read before its
+    side ended validated, for a caller that writes first, one that reads to the end before ending
+    its side and one that alternates, over HTTP/2, and over HTTP/1.1 where the target's transport
+    delivers a response while its request is open, one that does not running the first caller alone;
+    an exchange in which no byte moves for `IdleTimeout` is ended, over HTTP/2 beside a walk on its
+    connection, which other requests keep using; a gRPC method with an HTTP transcoding is routed
+    through the transcoding, and an operation with no HTTP binding draws
+    `emitters/mock/unsupported-binding`; and one request gets the same bytes on every run. A mock
+    holding a stream open, ending a `bidi` response only once the client's side ends, answering one
+    in lockstep, or bounding idleness per connection, which leaves a stalled stream open beside a
+    walk, fails it ([what the mock streams](../docs-and-mock.md#what-the-mock-streams), [the mock's
     options](../docs-and-mock.md#the-mocks-options)).
 67. **T-67 · The mock's page walks** — on every target, under each strategy and each set of `Stop`
     conditions, with no limit and limits of 0, 1, 2 and a billion, a continuation member optional,
@@ -1007,13 +1007,17 @@ throughout these documents.
     0, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
-    field's `Protocol`, an RPC binding of every `System` `rpc` with the system in `RPC.System`; an
-    operation bound as a gRPC method and an HTTP transcoding of it lowers through the transcoding on
-    a target listing `http` alone and through gRPC on one listing `rpc` with `grpc`, and a JSON-RPC
-    method on the second draws `emitters/<target>/unsupported-binding` and generates no method; the
-    registry refuses `rpc` without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside
-    the vocabulary ([bindings](../plan/bindings.md),
-    [capabilities](../contract/registry.md#capabilities)).
+    field's `Protocol` and its binding, a GraphQL and an OTP one as the IR types it and not as
+    `RawConfig`, an RPC binding of every `System` `rpc` with the system in `RPC.System`; `All` holds
+    the HTTP bindings in their order, then the RPC, message, GraphQL and OTP ones, whatever order
+    the source declared them in; an operation bound as a gRPC method and two HTTP transcodings of it
+    lowers through the first transcoding on a target listing `http` alone and on one listing `http`
+    and `rpc` with `grpc`, its path parameters in that template's order and its server stream framed
+    by its content, the mock routing that one transcoding, and through gRPC on one listing `rpc`
+    with `grpc` alone, its stream framed as gRPC; a JSON-RPC method on the last draws
+    `emitters/<target>/unsupported-binding` and generates no method; the registry refuses `rpc`
+    without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside the vocabulary
+    ([bindings](../plan/bindings.md), [capabilities](../contract/registry.md#capabilities)).
 69. **T-69 · One snapshot for a target without `CrossVersion`** — on a document sliced into three
     versions, the Go, Kotlin and mock-server targets each write the last label's snapshot at the
     output root, its `Snapshot` that label, and with `RunOptions.Version` naming the first, that
