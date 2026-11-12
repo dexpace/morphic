@@ -83,15 +83,14 @@ highlights, and the list moves to a specification of its own when the compiler l
 - service `rename`/`version` → Service.Renames/Version
 - resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl.
   put/@noReplace, instance vs collection ops)
-- http traits → HTTPBinding incl. a greedy label `{name+}` → PathPattern `**` with no
-  AllowReserved, since Smithy percent-encodes every character of one but a `/` and the unreserved
-  ones, a `%` among them ([values as text](../emitters/refine/text.md#escaping)),
-  `@endpoint`/`@hostLabel` → HostPrefix/host location (additive
-  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings on an input, the empty
-  prefix and `@httpQueryParams` once #1748 gives them a spelling, and `@httpPrefixHeaders` → a
-  Header's Prefix on an output or an error ([prefix headers](../ir/responses.md#prefix-headers)),
-  `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression,
-  `@httpChecksumRequired` → ChecksumRequired
+- http traits → HTTPBinding incl. a greedy label `{name+}` → PathPattern `**` with no AllowReserved,
+  since Smithy percent-encodes every character of one but a `/` and the unreserved ones, a `%` among
+  them ([values as text](../emitters/refine/text.md#escaping)), `@endpoint`/`@hostLabel` →
+  HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix
+  bindings on an input, the empty prefix and `@httpQueryParams` once #1748 gives them a spelling,
+  and `@httpPrefixHeaders` → a Header's Prefix on an output or an error ([prefix
+  headers](../ir/responses.md#prefix-headers)), `@httpResponseCode` → Response.StatusCodeProp,
+  `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType
@@ -101,9 +100,9 @@ highlights, and the list moves to a specification of its own when the compiler l
   position's Encoding ([values as text](../emitters/refine/text.md#other-formats)), under the names
   the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
   `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
-  `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on
-  the IR telling a string to encode from one already encoded (#1778, [a row
-  keyed by an encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
+  `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on the
+  IR telling a string to encode from one already encoded (#1778, [a row keyed by an
+  encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
 - waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`,

@@ -91,9 +91,9 @@ are typed in the IR, so the plan hands them over by reference as it does HTTP's 
 `RawConfig` reaches a target only where the IR declares one, a message binding's per-protocol
 `Bindings` (kafka's `groupId`, say), whose shape the IR deliberately leaves open. The `Unmodeled`
 map each binding struct carries (the [binding documents](../../ir/bindings.md)) is the other thing
-entirely: the escape hatch for constructs the IR does *not* model — a directive applied to a
-GraphQL entry-point field, say — where `Reason` and `Provenance` are exactly what a policy layer
-selects on. A refiner reads both, for different purposes.
+entirely: the escape hatch for constructs the IR does *not* model — a directive applied to a GraphQL
+entry-point field, say — where `Reason` and `Provenance` are exactly what a policy layer selects on.
+A refiner reads both, for different purposes.
 
 Sub-clients and fluent navigation are built from the `OperationGroup` tree itself — its nesting,
 names, operations and Smithy `Resource` — which the IR states, so the plan mirrors none of it ([plan

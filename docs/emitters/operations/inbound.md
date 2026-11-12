@@ -1,31 +1,31 @@
 # Operations the API sends
 
-An operation whose HTTP binding is `Inbound`, a `webhook` or a `callback`
-([inbound operations](../../ir/http-binding.md#inbound-operations)), is a request the API sends and
-the SDK's user receives. The other documents under `operations/` read an operation from the side of
-a caller sending it; this one reads it from the side receiving it. The OpenAPI compiler lowers both
-kinds (its `webhooks` and `callbacks` cases); the golden spec declares neither, 0 of its 3,794
-operations being inbound (spec @bc6fad24, morphic @fa253fe19).
+An operation whose HTTP binding is `Inbound`, a `webhook` or a `callback` ([inbound
+operations](../../ir/http-binding.md#inbound-operations)), is a request the API sends and the SDK's
+user receives. The other documents under `operations/` read an operation from the side of a caller
+sending it; this one reads it from the side receiving it. The OpenAPI compiler lowers both kinds
+(its `webhooks` and `callbacks` cases); the golden spec declares neither, 0 of its 3,794 operations
+being inbound (spec @bc6fad24, morphic @fa253fe19).
 
 ## What an SDK generates
 
-No client method: the caller does not send the request, and a webhook has no URL a method could
-send it to. A target generates instead, for each service holding an inbound operation:
+No client method: the caller does not send the request, and a webhook has no URL a method could send
+it to. A target generates instead, for each service holding an inbound operation:
 
 - **A receiver**, one type beside the service's client and in its unit, configured with the checks
   below, holding one parse method for each inbound operation of the service. It needs none of the
-  client's transport, servers or credentials, since a credential the API presents to the receiver
-  is not the one the client presents to the API ([auth](../../ir/auth.md#inbound-operations)).
+  client's transport, servers or credentials, since a credential the API presents to the receiver is
+  not the one the client presents to the API ([auth](../../ir/auth.md#inbound-operations)).
 - **The operation's request type**, as [request shaping](../refine/requests.md) builds it, in the
   `read` projection the API's side gives it
   ([shapes](../plan/types.md#a-shape-reaches-what-it-holds)), holding its parameters and its body.
   It lands in the operation's group's unit ([output units](../refine/output-units.md)), which the
   receiver imports as the client imports its sub-clients.
-- **A response type for each response it declares**, `Return`, each of `Others` and each of
-  `Errors` alike, since the receiver chooses which to answer: its status, its declared headers and
-  its body, with a method writing them, landing beside the request type. A range's type holds a
-  status the range admits, and a `Default`'s one no other response of the operation declares, and
-  each refuses any other. Nothing raises on a failure status, and no envelope wraps a body
+- **A response type for each response it declares**, `Return`, each of `Others` and each of `Errors`
+  alike, since the receiver chooses which to answer: its status, its declared headers and its body,
+  with a method writing them, landing beside the request type. A range's type holds a status the
+  range admits, and a `Default`'s one no other response of the operation declares, and each refuses
+  any other. Nothing raises on a failure status, and no envelope wraps a body
   ([envelopes](../plan/responses.md#envelopes)), since the receiver writes the response rather than
   reads it.
 
@@ -76,12 +76,12 @@ the parameters the operation declares, each once. T-71 holds this section.
 ## What the plan holds for one
 
 `OpPlan` keeps its fields' meanings. `Return`, `Others` and `Errors` each plan a response the
-receiver may write, its content elected as for one a client reads, which is the content the
-response is written in, and `Errors` holds no `CommonErrors`, which are what the API answers its
-client. `RequestContent` is the content the mock server sends. `Auth` is the operation's own.
-`Effects` and the retry settings decide nothing, since nothing sends it again, so the operation's
-row of the runtime's settings holds only the bound its body is read to. The plan infers no `Page`
-and no `LRO` for an inbound operation, and a `Stream` on one is a warning
+receiver may write, its content elected as for one a client reads, which is the content the response
+is written in, and `Errors` holds no `CommonErrors`, which are what the API answers its client.
+`RequestContent` is the content the mock server sends. `Auth` is the operation's own. `Effects` and
+the retry settings decide nothing, since nothing sends it again, so the operation's row of the
+runtime's settings holds only the bound its body is read to. The plan infers no `Page` and no `LRO`
+for an inbound operation, and a `Stream` on one is a warning
 `emitters/<target>/unsupported-inbound-stream` with nothing generated for it, until a target designs
 a receiver reading frames.
 

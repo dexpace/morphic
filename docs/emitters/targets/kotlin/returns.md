@@ -19,9 +19,9 @@ How each [return shape](../../operations/returns.md) lowers in Kotlin.
 the way a failure does ([what a failure prints](errors.md#what-a-failure-prints)): in private
 `@Transient` fields read through `rawHeaders()` and `rawBody()`, in a class that is never a `data
 class`. The `toString` of `Response` and of `EnvelopedResponse` shows the status and the body
-through the body's own ([redaction](../../refine/redaction.md#a-redacted-value)), and no raw
-header, as [Go's](../go/returns.md#what-a-response-prints) do. `OtherResponse` and the failures
-keep a class's `toString`, which prints neither, and their exceptions carry no message.
+through the body's own ([redaction](../../refine/redaction.md#a-redacted-value)), and no raw header,
+as [Go's](../go/returns.md#what-a-response-prints) do. `OtherResponse` and the failures keep a
+class's `toString`, which prints neither, and their exceptions carry no message.
 
 ## `OtherResponse`
 

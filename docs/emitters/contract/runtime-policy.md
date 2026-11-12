@@ -172,19 +172,19 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past the `Max` of the backoff that applies, `Throttled`'s after a throttling failure and
   `Backoff`'s after any other, so a server cannot park a caller indefinitely; a value past it ends
-  the retries and returns the response. A value shorter than the wait the backoff drew waits
-  that, so the header only lengthens what a client would wait without it and a `Retry-After: 0`
-  changes nothing. The floor is the wait drawn and not the schedule's: held to the schedule's,
-  every client a server answered `Retry-After: 0` would come back at one instant, which `Jitter`
-  is there to prevent. A value that is neither a count of seconds nor an HTTP date (RFC 9110
-  §10.2.3) is read as absent.
-- **The wait before attempt *n*+1** is the *n*th wait of the schedule of the backoff that applies
-  to how attempt *n* failed, a backoff's schedule being `Initial` and then each wait the one
-  before it times `Multiplier`, capped at `Max`. The step is the attempt's number and never a
-  count of one backoff's own failures, so under the defaults and a `MaxAttempts` of 5 a call
-  failing 503, 503, 429, 429 waits 500ms, 1s, 4s and 8s, less what `Jitter` draws, rather than
-  start `Throttled` at its `Initial` after the third failure. `Jitter` then draws the wait,
-  evenly over the whole milliseconds of its range.
+  the retries and returns the response. A value shorter than the wait the backoff drew waits that,
+  so the header only lengthens what a client would wait without it and a `Retry-After: 0` changes
+  nothing. The floor is the wait drawn and not the schedule's: held to the schedule's, every client
+  a server answered `Retry-After: 0` would come back at one instant, which `Jitter` is there to
+  prevent. A value that is neither a count of seconds nor an HTTP date (RFC 9110 §10.2.3) is read as
+  absent.
+- **The wait before attempt *n*+1** is the *n*th wait of the schedule of the backoff that applies to
+  how attempt *n* failed, a backoff's schedule being `Initial` and then each wait the one before it
+  times `Multiplier`, capped at `Max`. The step is the attempt's number and never a count of one
+  backoff's own failures, so under the defaults and a `MaxAttempts` of 5 a call failing 503, 503,
+  429, 429 waits 500ms, 1s, 4s and 8s, less what `Jitter` draws, rather than start `Throttled` at
+  its `Initial` after the third failure. `Jitter` then draws the wait, evenly over the whole
+  milliseconds of its range.
 - **A throttling failure** is one whose error case the IR marks `Throttling`, and where the IR
   states nothing, one whose status `Throttling` lists. Without the list `Throttled` would select
   nothing on a document that cannot state the fact: of the golden spec's operations 175 declare a
@@ -194,9 +194,9 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
   against: at most `MaxAttempts` attempts, each following at most `Redirects.Max` redirects and
   bounded with them by `Timeout.Request`, with no wait between attempts past the longer `Max`, a
   failure's body read no further than `Errors.MaxBody`, and a body handed over unread waiting no
-  longer than `Timeout.Idle` for its next bytes. A walk fetches at most `Pagination.MaxPages`
-  pages and a poller polls at most `Polling.MaxPolls` times, each a call so bounded. Every one has
-  an upper bound of its own, so no configuration removes a limit by writing a large one.
+  longer than `Timeout.Idle` for its next bytes. A walk fetches at most `Pagination.MaxPages` pages
+  and a poller polls at most `Polling.MaxPolls` times, each a call so bounded. Every one has an
+  upper bound of its own, so no configuration removes a limit by writing a large one.
 - **A redirect** is followed where following it keeps what the request asks, as RFC 9110 §15.4
   allows: 307 and 308 send the method and body again, 303 sends a `GET`, or a `HEAD` for a `HEAD`,
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
@@ -220,26 +220,26 @@ its author writes ([unions](../plan/policy.md#a-union-keeps-a-variant-it-does-no
 ## Delivery
 
 Canonical `Defaults(version)` + deep-partial overrides ([what a layer
-writes](#what-a-layer-writes)). Arrays replace entirely (not concat) — an
-explicit, documented rule — so each retry list resolves on its own, and only then does `Resolve`
-keep a status both name in the one set higher ([retries](#the-canonical-vocabulary)). Placing it at
-each merge instead would lose one a layer moves into a list a higher layer then replaces, leaving it
-in neither. A layer a configuration writes is read as a target's options are ([target
-options](options.md)): strictly, as JSON naming each field in lower camel case
-(`retry.maxAttempts`), and over the defaults of the version the project's configuration states, so a
-default that changes is a new version and an existing configuration keeps generating what it did.
-Policy is delivered resolved, per operation, in `EmitterInput.Policy`; refiners read it via
-`Ctx.Policy`, and it shapes only the generated *runtime binding* (the retry loop, transport config,
-user-agent string, telemetry headers, pagination pacing) behind the `Transport`/`Serializer`
-abstraction. It never enters the typed structural model ([runtime
-abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). The methods hold no
-policy and a template holds no branch ([structure and boilerplate](../emit/templates.md)), so what
-differs by operation is a table in the runtime binding, a row per operation, which
-`BuildOperationSettings` fills ([steps](../refine/steps.md)): the operation's resolved settings,
-whether it retries an uncertain outcome, decided there from `WhenUncertain` and `OpPlan.Effects`,
-and the statuses it declares, none of which is followed as a redirect. A template renders the rows,
-each beside the methods that read it, so the runtime's own unit names no operation ([output
-units](../refine/output-units.md#the-runtimes-unit)), and a method names only its own.
+writes](#what-a-layer-writes)). Arrays replace entirely (not concat) — an explicit, documented rule
+— so each retry list resolves on its own, and only then does `Resolve` keep a status both name in
+the one set higher ([retries](#the-canonical-vocabulary)). Placing it at each merge instead would
+lose one a layer moves into a list a higher layer then replaces, leaving it in neither. A layer a
+configuration writes is read as a target's options are ([target options](options.md)): strictly, as
+JSON naming each field in lower camel case (`retry.maxAttempts`), and over the defaults of the
+version the project's configuration states, so a default that changes is a new version and an
+existing configuration keeps generating what it did. Policy is delivered resolved, per operation, in
+`EmitterInput.Policy`; refiners read it via `Ctx.Policy`, and it shapes only the generated *runtime
+binding* (the retry loop, transport config, user-agent string, telemetry headers, pagination pacing)
+behind the `Transport`/`Serializer` abstraction. It never enters the typed structural model
+([runtime abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). The
+methods hold no policy and a template holds no branch ([structure and
+boilerplate](../emit/templates.md)), so what differs by operation is a table in the runtime binding,
+a row per operation, which `BuildOperationSettings` fills ([steps](../refine/steps.md)): the
+operation's resolved settings, whether it retries an uncertain outcome, decided there from
+`WhenUncertain` and `OpPlan.Effects`, and the statuses it declares, none of which is followed as a
+redirect. A template renders the rows, each beside the methods that read it, so the runtime's own
+unit names no operation ([output units](../refine/output-units.md#the-runtimes-unit)), and a method
+names only its own.
 
 ## What a layer writes
 
@@ -261,29 +261,28 @@ the longest, with neither layer wrong. `Set` is what tells a leaf written at its
 out, `"statuses": []` from no `statuses`, which a struct of plain members cannot.
 
 Each leaf's comment above gives its type, its default and its range, and a value is invalid
-([layers](#layers-and-operations)) where it is any of these. A reader written from the record,
-over `encoding/json/jsontext` in Go 1.27.3, refused each for every leaf it applies to, and T-9
-holds it:
+([layers](#layers-and-operations)) where it is any of these. A reader written from the record, over
+`encoding/json/jsontext` in Go 1.27.3, refused each for every leaf it applies to, and T-9 holds it:
 
 - of another JSON type than the leaf's, `null` and a number in quotes among them: no leaf reads
   `null` as its default, since a layer leaves a member out to say that;
 - outside the range its comment gives, or a string outside its grammar: a header's name is an RFC
   9110 token and an environment variable's a letter or `_` followed by letters, digits and `_`, so
   neither holds a space, a line break or a `:`;
-- a list holding an entry twice, or more entries than its comment allows, and a status below 300
-  or past 599;
+- a list holding an entry twice, or more entries than its comment allows, and a status below 300 or
+  past 599;
 - a `Backoff` or a `Kinds` row naming a member it does not have or leaving out one it must name,
   `fault` alone being optional, and a `Backoff` whose `Initial` is past its `Max`;
 - a member the record does not declare, and a member named twice in one object.
 
 **A duration states its unit.** `"30s"`, `"500ms"` and `"10m"` are durations; `30` is none, and
-neither is `"30"`, `"1.5s"` or `"1h"`. One unit throughout, a count of milliseconds, was weighed
-and reads a wrong value as a right one: the keys a document embeds are other generators' spellings
+neither is `"30"`, `"1.5s"` or `"1h"`. One unit throughout, a count of milliseconds, was weighed and
+reads a wrong value as a right one: the keys a document embeds are other generators' spellings
 ([embedded policy](embedded-policy.md#the-mapping-is-a-configuration)), some counting seconds and
 some milliseconds, so a timeout of `30` meant as seconds would decode, pass every range check and
 give each request 30 ms. Read as it is here, the bare number is a value of the wrong shape, which
-the embedded reader reports and never coerces. A `Ratio` is a JSON number written with at most
-three fraction digits, no sign and no exponent, so `-0` is none, read from its text and held in
+the embedded reader reports and never coerces. A `Ratio` is a JSON number written with at most three
+fraction digits, no sign and no exponent, so `-0` is none, read from its text and held in
 thousandths, so a backoff's schedule is integer arithmetic and the same on every target: each wait
 is the one before it times `Multiplier`, rounded down to a millisecond and capped at `Max`.
 
@@ -293,12 +292,11 @@ is the one before it times `Multiplier`, rounded down to a millisecond and cappe
 `MaxAttempts` of 0 sends nothing, a `Timeout.Request` or a `Backoff.Initial` of `"0ms"` bounds
 nothing, and a `MaxBody` of 0 reads no failure's body. No member spells "no limit".
 
-**The client's members and an operation's.** An operation's entry
-([layers](#layers-and-operations)) may write `Retry`, `Redirects`, `Timeout.Request`,
-`Timeout.Idle`, `Errors.MaxBody`, `Idempotency`, `Pagination` and, where it starts a long-running
-operation, `Polling`. `Errors.Kinds`, `Telemetry`, `Logging`,
-`UserAgent`, `Timeout.Env` and `Guards` are what a client declares or sends alike on every call,
-the kinds being declarations of the runtime's unit, which names no operation ([output
+**The client's members and an operation's.** An operation's entry ([layers](#layers-and-operations))
+may write `Retry`, `Redirects`, `Timeout.Request`, `Timeout.Idle`, `Errors.MaxBody`, `Idempotency`,
+`Pagination` and, where it starts a long-running operation, `Polling`. `Errors.Kinds`, `Telemetry`,
+`Logging`, `UserAgent`, `Timeout.Env` and `Guards` are what a client declares or sends alike on
+every call, the kinds being declarations of the runtime's unit, which names no operation ([output
 units](../refine/output-units.md#the-runtimes-unit)), so an operation's entry writing one is
 invalid.
 
@@ -311,11 +309,11 @@ as an info `emitters/policy/kind-respelled` naming both, so no layer changes a k
 alone. Two rows of one layer spelling a kind two ways that nothing below spells are both invalid,
 since which was meant is no fact the layer states. The resolved table then holds one spelling of
 each kind, whatever order a layer's rows are read in. Refusing the later spelling instead was
-weighed: the status it leaves falls back to the row below, whose kind can differ in letter case
-from one the same layer validly wrote, so the table would need resolving again. `Client` and
-`Server`, in any letter case, name the two faults on every target and are no kind's name. A kind
-whose declaration would take a name a target's runtime already declares, as `Api` would take
-Kotlin's `ApiException`, is that target's to report ([a setting that cannot
+weighed: the status it leaves falls back to the row below, whose kind can differ in letter case from
+one the same layer validly wrote, so the table would need resolving again. `Client` and `Server`, in
+any letter case, name the two faults on every target and are no kind's name. A kind whose
+declaration would take a name a target's runtime already declares, as `Api` would take Kotlin's
+`ApiException`, is that target's to report ([a setting that cannot
 apply](#a-setting-that-cannot-apply)).
 
 **What each member does** where no other document says:
@@ -323,67 +321,65 @@ apply](#a-setting-that-cannot-apply)).
 - `Timeout.Env` and `UserAgent.AgentEnv` name variables the client reads once, when it is built.
   `Env`'s value replaces the document's `Request` and no operation's own. A value that is no
   duration in range refuses the client, naming the variable, rather than run with a timeout nobody
-  chose. Of an `AgentEnv` variable only whether it is set is
-  read: its value is never sent, since an environment holds credentials.
-- `UserAgent.Template` is printable ASCII in which `{sdk}` and `{target}` are the placeholders,
-  each written any number of times or not at all, so `acme/1.4` is a template. Any other `{` or
-  `}` is invalid, there being no escape for one, and a placeholder for the SDK's version waits
-  for the options that name a version. The caller's
-  application name and version are each an RFC 9110 token, refused when the client is built
-  otherwise, so neither can add a header.
+  chose. Of an `AgentEnv` variable only whether it is set is read: its value is never sent, since an
+  environment holds credentials.
+- `UserAgent.Template` is printable ASCII in which `{sdk}` and `{target}` are the placeholders, each
+  written any number of times or not at all, so `acme/1.4` is a template. Any other `{` or `}` is
+  invalid, there being no escape for one, and a placeholder for the SDK's version waits for the
+  options that name a version. The caller's application name and version are each an RFC 9110 token,
+  refused when the client is built otherwise, so neither can add a header.
 - `Idempotency.Generate` `declared` gives a call a key, where its operation's `Idempotency` names a
   token parameter and the caller gave none, in that parameter; `unsafe` also sends one in `Header`
   on each operation whose `Effects` are neither safe nor idempotent, which makes none of them
-  idempotent ([above](#the-canonical-vocabulary)); `never` generates none. A key is a version 4
-  UUID (RFC 9562), drawn once for a call and sent on each of its attempts.
-- `Guards.Keys` is read by a target whose request is a map its caller fills, where an option
-  written among the parameters would be sent to the server, and compared there with a parameter's
-  name as written. Each first target declares its request types, so none has a place for the
-  mistake: one given a key reports it as a setting it cannot apply
-  ([below](#a-setting-that-cannot-apply)), rather than read none in silence.
+  idempotent ([above](#the-canonical-vocabulary)); `never` generates none. A key is a version 4 UUID
+  (RFC 9562), drawn once for a call and sent on each of its attempts.
+- `Guards.Keys` is read by a target whose request is a map its caller fills, where an option written
+  among the parameters would be sent to the server, and compared there with a parameter's name as
+  written. Each first target declares its request types, so none has a place for the mistake: one
+  given a key reports it as a setting it cannot apply ([below](#a-setting-that-cannot-apply)),
+  rather than read none in silence.
 - `Timeout.Idle` bounds what `Request` leaves: a body the runtime hands its caller unread, a
   stream's frames or a file's bytes ([streaming](../operations/streaming.md)), and a stream the
-  caller writes. A read that gets no byte for `Idle`, or a write of which the transport takes
-  none, fails with a timeout. The count starts again with each byte moved, not each frame, so a
-  server's keep-alive, the comment line of an event stream among them, holds a quiet stream open
-  and a peer gone silent ends it. While its caller writes a stream `Request` does not run: it
-  counts from the stream's close to the response's headers. Each target times both itself and
-  sets no timeout of its HTTP library, whose own would end a stream with its request and whose
-  messages quote the request ([Go](../targets/go/operations.md#streaming),
-  [Kotlin](../targets/kotlin/operations.md#timeouts)). No document says how long its streams
-  stay silent, so the default is a choice, and 60m is the longest silence a configuration admits.
+  caller writes. A read that gets no byte for `Idle`, or a write of which the transport takes none,
+  fails with a timeout. The count starts again with each byte moved, not each frame, so a server's
+  keep-alive, the comment line of an event stream among them, holds a quiet stream open and a peer
+  gone silent ends it. While its caller writes a stream `Request` does not run: it counts from the
+  stream's close to the response's headers. Each target times both itself and sets no timeout of its
+  HTTP library, whose own would end a stream with its request and whose messages quote the request
+  ([Go](../targets/go/operations.md#streaming), [Kotlin](../targets/kotlin/operations.md#timeouts)).
+  No document says how long its streams stay silent, so the default is a choice, and 60m is the
+  longest silence a configuration admits.
 - `Pagination.MaxPages` is the pages one walk fetches. The fetch after the last is refused unsent
-  and the walk fails naming the member; it never ends as a walk that reached the end does, since
-  a caller told so would act on part of a collection as the whole. It bounds a server whose
-  continuations never end, which the walk's own rules cannot always tell from one with more to
-  give ([pagination](../operations/pagination.md)).
-- `Polling` paces a poller ([long-running operations](../operations/long-running.md)), and the
-  entry of the operation that starts it sets it. `Backoff` is read as `Retry.Backoff` is, its
-  first wait preceding the first poll and its *n*th the *n*th. Under `Retry.RetryAfter`, a poll's
-  response stating `Retry-After` waits that where it is longer than the wait drawn, and `Max`
-  where it is past `Max`: polling early costs a request and no result. `MaxPolls` is the polls
-  one wait for the result makes; past it the wait fails naming the member, and the poller is
-  still its caller's to poll. Each poll is a call, with attempts of its own under the polled
-  operation's settings. The golden spec states no long-running operation (`grep -c
-  '"longRunning"'` over its IR finds none; spec @bc6fad24, morphic @fa253fe19), so these
-  defaults rest on no measurement of it.
+  and the walk fails naming the member; it never ends as a walk that reached the end does, since a
+  caller told so would act on part of a collection as the whole. It bounds a server whose
+  continuations never end, which the walk's own rules cannot always tell from one with more to give
+  ([pagination](../operations/pagination.md)).
+- `Polling` paces a poller ([long-running operations](../operations/long-running.md)), and the entry
+  of the operation that starts it sets it. `Backoff` is read as `Retry.Backoff` is, its first wait
+  preceding the first poll and its *n*th the *n*th. Under `Retry.RetryAfter`, a poll's response
+  stating `Retry-After` waits that where it is longer than the wait drawn, and `Max` where it is
+  past `Max`: polling early costs a request and no result. `MaxPolls` is the polls one wait for the
+  result makes; past it the wait fails naming the member, and the poller is still its caller's to
+  poll. Each poll is a call, with attempts of its own under the polled operation's settings. The
+  golden spec states no long-running operation (`grep -c '"longRunning"'` over its IR finds none;
+  spec @bc6fad24, morphic @fa253fe19), so these defaults rest on no measurement of it.
 
-A documentation link per failure, which the vocabulary this began from carries, is left out: no
-rule reads one, and a failure's page is the docs emitter's to link ([docs and
+A documentation link per failure, which the vocabulary this began from carries, is left out: no rule
+reads one, and a failure's page is the docs emitter's to link ([docs and
 mocks](../docs-and-mock.md)).
 
 ## What an event holds
 
-The hook a client takes is handed one value per step of a call, of the kinds `Logging.Events`
-lists. A hook is a client setting ([the client](../operations/client.md)): Go's
-`WithHook(func(context.Context, runtime.Event))`, handed the context its caller gave the method,
-and the Kotlin builder's `hook { event -> … }`, called in the call's coroutine. So a tracer finds
-there the span the call belongs under, and `Call` pairs a call's events where calls overlap:
-measured with Go 1.27.3, a hook keeping a span per `Call` parented each of two calls' spans under
-the value its own context held. The runtime calls the hook where the step happens and waits for
-it. A hook changes nothing of the request, so a header a tracer propagates is a `Transport`
-wrapper's to write ([auth](../operations/auth.md#where-a-credential-can-be-read)). What a hook is
-handed is the same on each target:
+The hook a client takes is handed one value per step of a call, of the kinds `Logging.Events` lists.
+A hook is a client setting ([the client](../operations/client.md)): Go's
+`WithHook(func(context.Context, runtime.Event))`, handed the context its caller gave the method, and
+the Kotlin builder's `hook { event -> … }`, called in the call's coroutine. So a tracer finds there
+the span the call belongs under, and `Call` pairs a call's events where calls overlap: measured with
+Go 1.27.3, a hook keeping a span per `Call` parented each of two calls' spans under the value its
+own context held. The runtime calls the hook where the step happens and waits for it. A hook changes
+nothing of the request, so a header a tracer propagates is a `Transport` wrapper's to write
+([auth](../operations/auth.md#where-a-credential-can-be-read)). What a hook is handed is the same on
+each target:
 
 ```go
 type Event struct {          // the runtime's: one step of one call
@@ -409,40 +405,39 @@ type FailureClass string     // "status" | "transport" | "timeout" | "canceled" 
 `attempt` precedes each send, `response` follows a response's status and headers, `wait` precedes
 the wait before another attempt, `redirect` precedes a redirect's following and carries where it
 leads, and `end` reports what the call returned. A page of a pager, a poll of a poller and the
-opening of a stream are each a call; a stream's elements draw no event. An `end` names the class
-of its cause and never its text: `Cause` is `*net.OpError` or `java.net.ConnectException` under a
+opening of a stream are each a call; a stream's elements draw no event. An `end` names the class of
+its cause and never its text: `Cause` is `*net.OpError` or `java.net.ConnectException` under a
 `transport` failure and the decoder's error type under a `decode`, so a metric tells a refused
 connection from a reset one, and a type's name is the program's text, never the request's.
 
-**An event holds no value it would have to hide.** It has no member for a header, a body, a
-request, a response or an error value, so nothing printing, encoding or copying one can show a
-credential: there is none in it. The alternative, an event holding the request with each
-credential in a type that prints as the marker, was prototyped and leaks. In Go 1.27.3 such a
-type's `String` and `GoString` are not asked under `%d`, nor under any verb once the value sits in
-an unexported field or behind a pointer to its holder, where `fmt` and `log/slog`'s text handler
-read the field itself; in Kotlin 2.4.0 a data class's `toString` showed the marker while its
-`copy`, its `componentN` and a reader of its fields each handed on the credential. An event of
-plain members leaked in no form either language has. And a list of headers to hide fails the
-header it does not name: a caller's `Authenticator` may write any
-([auth](../operations/auth.md#where-a-credential-can-be-read)).
+**An event holds no value it would have to hide.** It has no member for a header, a body, a request,
+a response or an error value, so nothing printing, encoding or copying one can show a credential:
+there is none in it. The alternative, an event holding the request with each credential in a type
+that prints as the marker, was prototyped and leaks. In Go 1.27.3 such a type's `String` and
+`GoString` are not asked under `%d`, nor under any verb once the value sits in an unexported field
+or behind a pointer to its holder, where `fmt` and `log/slog`'s text handler read the field itself;
+in Kotlin 2.4.0 a data class's `toString` showed the marker while its `copy`, its `componentN` and a
+reader of its fields each handed on the credential. An event of plain members leaked in no form
+either language has. And a list of headers to hide fails the header it does not name: a caller's
+`Authenticator` may write any ([auth](../operations/auth.md#where-a-credential-can-be-read)).
 
 **The URL as shown** is text the runtime builds, never a URL it sends:
 
 - for a request the operation's bindings built, the scheme, host and port it goes to, the path, and
-  the operation's declared query parameters, with what a redacted parameter expanded to, in the
-  path as in the query, as `[REDACTED]`
-  ([redaction](../refine/redaction.md#a-redacted-value)). It is built before the auth step runs
-  ([auth](../operations/auth.md#where-a-credential-can-be-read)), so a key an injector or an
-  `Authenticator` writes into the query is not in it, and neither is the user and password, the
-  query or the fragment of a base URL the caller gave, which may hold a proxy's or a signature's;
+  the operation's declared query parameters, with what a redacted parameter expanded to, in the path
+  as in the query, as `[REDACTED]` ([redaction](../refine/redaction.md#a-redacted-value)). It is
+  built before the auth step runs ([auth](../operations/auth.md#where-a-credential-can-be-read)), so
+  a key an injector or an `Authenticator` writes into the query is not in it, and neither is the
+  user and password, the query or the fragment of a base URL the caller gave, which may hold a
+  proxy's or a signature's;
 - for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
-  poll, the scheme, host and port, then `/[REDACTED]`. A server signs such a URL in its query, as
-  a link to stored bytes is, or in its path, and nothing the document declares says which part is
-  the signature.
+  poll, the scheme, host and port, then `/[REDACTED]`. A server signs such a URL in its query, as a
+  link to stored bytes is, or in its path, and nothing the document declares says which part is the
+  signature.
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
-ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response.
-T-65 holds an event to all of this.
+ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response. T-65
+holds an event to all of this.
 
 ## Layers and operations
 
@@ -524,11 +519,10 @@ silent.
 
 ## A setting that cannot apply
 
-A setting the plan or a target cannot honor is reported, never dropped and never quietly replaced
-by a stricter behavior: a `Redirects.Max` a target's transport cannot bound, a per-operation
-`Timeout` on a runtime that keeps one per client, a `Timeout.Env` or a `UserAgent.AgentEnv` on a
-platform with no environment, as a browser is, a `UserAgent.Template` where the platform fixes the
-header, a `Guards.Keys` naming a key where the target declares its request types, or a kind whose
-name the target's runtime declares already. The report is a coded
-diagnostic of the target's,
-naming the setting and the operation, and the engine decides whether it is fatal (INV5).
+A setting the plan or a target cannot honor is reported, never dropped and never quietly replaced by
+a stricter behavior: a `Redirects.Max` a target's transport cannot bound, a per-operation `Timeout`
+on a runtime that keeps one per client, a `Timeout.Env` or a `UserAgent.AgentEnv` on a platform with
+no environment, as a browser is, a `UserAgent.Template` where the platform fixes the header, a
+`Guards.Keys` naming a key where the target declares its request types, or a kind whose name the
+target's runtime declares already. The report is a coded diagnostic of the target's, naming the
+setting and the operation, and the engine decides whether it is fatal (INV5).

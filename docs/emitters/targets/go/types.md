@@ -38,11 +38,11 @@ can declare no method, so only its holders redact it.
 
 ## Integers
 
-json/v2 reads only plain digits into an integer and has no option for more, so the runtime carries
-a reader for each fixed-width integer type that decides [by
-value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value), and every codec
-the SDK generates decodes under it. A model's `UnmarshalJSONFrom` decodes its members under the
-readers beside the `RejectUnknownMembers` it pins ([`User`](models.md#user-in-go)), joined after the
+json/v2 reads only plain digits into an integer and has no option for more, so the runtime carries a
+reader for each fixed-width integer type that decides [by
+value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value), and every codec the
+SDK generates decodes under it. A model's `UnmarshalJSONFrom` decodes its members under the readers
+beside the `RejectUnknownMembers` it pins ([`User`](models.md#user-in-go)), joined after the
 caller's own unmarshalers as an inclusive union joins its own ([unions](unions.md)), so a caller's
 `json.Unmarshal` into a model reads `1.0` too, through a box, a slice, a map and a nested model, and
 a caller's unmarshaler for `int64` keeps its precedence. The runtime joins once for a caller's set

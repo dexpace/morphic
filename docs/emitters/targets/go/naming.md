@@ -8,20 +8,20 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies;
   `main`, which makes a package a program, and `init`, which names only a function, so neither
   imports under its name (with Go 1.27.3, `import "example.com/sdk/main" is a program, not an
-  importable package` and `cannot import package as init - init must be a func`); `documentation`,
-  a package clause `go/build` ignores, so its directory builds nothing (`build constraints exclude
-  all Go files`); a keyword, which no package clause takes (`expected 'IDENT', found 'type'`); and
-  each Windows device name ([emit rules](../../emit/rules.md)), which the `go` command refuses as an
+  importable package` and `cannot import package as init - init must be a func`); `documentation`, a
+  package clause `go/build` ignores, so its directory builds nothing (`build constraints exclude all
+  Go files`); a keyword, which no package clause takes (`expected 'IDENT', found 'type'`); and each
+  Windows device name ([emit rules](../../emit/rules.md)), which the `go` command refuses as an
   element of an import path on every host (`malformed import path "example.com/sdk/aux": "aux"
   disallowed as path element component on Windows`). A unit so named takes the escape, `main_`,
   `documentation_`, `type_` or `aux_`, which each built.
-- **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which
-  no function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)),
-  and in the unit holding a service's receiver, `Receiver`, `NewReceiver`, `ReceiverOption`,
+- **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which no
+  function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)), and
+  in the unit holding a service's receiver, `Receiver`, `NewReceiver`, `ReceiverOption`,
   `WithVerify`, `WithUnauthenticated` and the option named for each scheme ([operations the API
-  sends](operations.md#operations-the-api-sends)).
-  The runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`,
-  `Response` and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
+  sends](operations.md#operations-the-api-sends)). The runtime's names, `APIError`, `Body`,
+  `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response` and `Stream` among them, are its own
+  unit's, which holds no spec name ([the runtime's
   unit](../../refine/output-units.md#the-runtimes-unit)), and code elsewhere writes them qualified,
   `runtime.APIError`, so they meet no spec name.
 - **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `Format`, `String`,
@@ -95,17 +95,16 @@ value, as `go list` showed on each of the 47 ports.
 A unit's package name is its directory's, the last element of its import path, so a caller writes
 the name its import ends in. An import path takes ASCII letters, digits and `-._~+` alone: with Go
 1.27.3, a root importing a unit `straße` failed (`malformed import path "example.com/sdk/straße":
-invalid char 'ß'`). So a unit's name is rendered as a declaration's file is
-([above](#file-names)): its words joined, folded by the path fold, and each character outside
-`a`–`z` and `0`–`9` written as `u` and its hex code point. A group `Straße` is the package
-`strasse`, `日本` the package `u65e5u672c`, and both built where `straße` did not; on the golden
-spec, whose groups' names are ASCII, the rule renders each as its words joined in lowercase. A
-package clause that kept the name and a directory that escaped it, `package straße` in `strasse`,
-would have each caller write a name its import does not show. The units' scope compares the names
-so rendered, so `Straße` and `Strasse` collide there as `Webhooks` and `webhooks` do ([output
-units](../../refine/output-units.md)). A package name is the one Go identifier written into a path,
-so it is the one Go role held to the length cap
-([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+invalid char 'ß'`). So a unit's name is rendered as a declaration's file is ([above](#file-names)):
+its words joined, folded by the path fold, and each character outside `a`–`z` and `0`–`9` written as
+`u` and its hex code point. A group `Straße` is the package `strasse`, `日本` the package
+`u65e5u672c`, and both built where `straße` did not; on the golden spec, whose groups' names are
+ASCII, the rule renders each as its words joined in lowercase. A package clause that kept the name
+and a directory that escaped it, `package straße` in `strasse`, would have each caller write a name
+its import does not show. The units' scope compares the names so rendered, so `Straße` and `Strasse`
+collide there as `Webhooks` and `webhooks` do ([output units](../../refine/output-units.md)). A
+package name is the one Go identifier written into a path, so it is the one Go role held to the
+length cap ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 
 A name the options give, the root's module path or a partition's unit, never yields, so one that
 `golang.org/x/mod/module.CheckPath` refuses, or whose last element is a units name above, is an
@@ -116,32 +115,31 @@ section.
 
 ## The escape
 
-Go's casing lifts exported names clear of its keywords, so only a local, a parameter and a unit
-can meet one: a keyword (`type`, `default`), a predeclared identifier a parameter would shadow
+Go's casing lifts exported names clear of its keywords, so only a local, a parameter and a unit can
+meet one: a keyword (`type`, `default`), a predeclared identifier a parameter would shadow
 (`string`, `error`), a package its file imports (`time`, `url`), a name the method's body binds
 (`ctx`, `params`) or a name of its unit the body writes, such as its operation's row of the
 runtime's settings, takes a trailing underscore, and so does an exported name the target declares
-itself (`Client`) and a unit named for a units name (`internal_`, `type_`). A parameter shadowing
-a package-level name its body reads failed (`cannot use operationSettings["list"] (value of type
-byte) as int value`).
+itself (`Client`) and a unit named for a units name (`internal_`, `type_`). A parameter shadowing a
+package-level name its body reads failed (`cannot use operationSettings["list"] (value of type byte)
+as int value`).
 
 ## Imports
 
 Go's exported names cannot meet its lowercase package names, and where two packages one Go file
 imports share a name — the standard library's `time` and a group unit named `time`, the standard
-library's `runtime` and the runtime's unit, or two rows' `decimal` — one takes a name of its own
-in that file. A parameter or a local can hide one, `time.Second` failing beside a parameter `time`
-(`time.Second undefined (type string has no field or method Second)`), so it takes the escape
-above. An import in turn yields to a name the generated code binds, which never yields, and to a
+library's `runtime` and the runtime's unit, or two rows' `decimal` — one takes a name of its own in
+that file. A parameter or a local can hide one, `time.Second` failing beside a parameter `time`
+(`time.Second undefined (type string has no field or method Second)`), so it takes the escape above.
+An import in turn yields to a name the generated code binds, which never yields, and to a
 predeclared identifier its file writes: with Go 1.27.3, a unit `ctx` imported beside a parameter
 `ctx context.Context` failed (`ctx.Thing is not a type`), as a unit `error` did in a file returning
 `error` (`error (package name) is not a type`), and each built imported as `ctx2` and `error2`. Of
-two imports sharing a name, one the target's own code names, a standard library's or the
-runtime's, keeps it, two such, as the standard library's `runtime` and the runtime's unit, being
-named apart by the template writing them, and of two of the spec's units, the one whose group's ID
-sorts first keeps it. Nothing
-else a Go file declares takes a name its references begin with: Go nests no
-type, a struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an
-exported name meets no package's and no predeclared identifier, all of which are lowercase. With Go
-1.27.3, a struct with fields `Time`, `JSON`, `time` and `json` and a method `Json` built beside
-imports of `time` and `encoding/json`, and its methods reached both packages. T-55 holds it.
+two imports sharing a name, one the target's own code names, a standard library's or the runtime's,
+keeps it, two such, as the standard library's `runtime` and the runtime's unit, being named apart by
+the template writing them, and of two of the spec's units, the one whose group's ID sorts first
+keeps it. Nothing else a Go file declares takes a name its references begin with: Go nests no type,
+a struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an exported
+name meets no package's and no predeclared identifier, all of which are lowercase. With Go 1.27.3, a
+struct with fields `Time`, `JSON`, `time` and `json` and a method `Json` built beside imports of
+`time` and `encoding/json`, and its methods reached both packages. T-55 holds it.

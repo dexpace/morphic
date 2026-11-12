@@ -33,8 +33,8 @@ as an array of `KotlinPair` whose `first` and `second` are optionals (Kotlin/Nat
 The client's settings ([the client](../../operations/client.md)) are setters on the client's
 builder, `hook { event -> … }` for the hook its events go to among them ([what an event
 holds](../../contract/runtime-policy.md#what-an-event-holds)). A [client
-setting](../../operations/client.md#client-settings) is one more,
-`accountId("…")`, and the request type's property for it is nullable, null taking the client's.
+setting](../../operations/client.md#client-settings) is one more, `accountId("…")`, and the request
+type's property for it is nullable, null taking the client's.
 
 ## Operations the API sends
 

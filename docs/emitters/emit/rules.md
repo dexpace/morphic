@@ -34,28 +34,28 @@ T-25 gives each a test.
   canonical decomposition (NFD) with each character upper-cased by its simple mapping, then folded
   by `golang.org/x/text/cases.Fold`, Unicode's full case folding. It is to join every pair a file
   system Morphic writes to makes one path, and each step is there for a measurement, on APFS (macOS
-  26.5.2, Go 1.27.3, `golang.org/x/text` 0.43.0, Unicode 17.0.0), of every spelling of each
-  assigned character (the character, its NFC, NFD, NFKC, NFKD, upper, lower, title and folded
-  forms) behind an `a`, 173,237 names that APFS made 158,204 files, and of 209,214 names of one to
-  four characters drawn from those that case folding, composition or mark order acts on, which it
-  made 183,414. The fold parted no two names APFS made one file in either, while joining some it
-  kept apart, such as `aı` and `ai`, which costs a name a suffix where folding less would lose a
-  file. Decomposing the whole name comes first because APFS joins a composed `é` with a decomposed
-  one, and two marks in either order: decomposing each character alone, which reorders no marks,
-  split the names of one file 832 times, `q` with U+0323 and U+0307 against them reversed among
-  them. Upper-casing comes before folding because `cases.Fold` alone, Unicode's canonical caseless
-  match over these tables, split them 86 times in the first and 687 in the second, each Cherokee
-  letter against its other case among them, as that function maps each to the other, and a letter
-  newer than its tables; Go's own tables upper-case both alike first. A final NFD, as the canonical
-  caseless match ends with, changed no answer in either, so it is not taken, and a fold of ASCII
-  letters alone split them 14,692 and 23,554 times. `strings.EqualFold` parts `Straße` from
-  `Strasse` and a composed `é` from a decomposed one, which APFS makes one path (#1729). That the
-  fold joins every pair NTFS makes one path is an assumption, not a measurement: NTFS compares names
-  through an upper-case table each volume stores, which no run here read, and the same two sweeps on
-  an NTFS volume would settle it. A file system that tells case apart joins fewer. Unicode's
-  stability policies keep the case folding and decomposition of a string of assigned characters
-  across its versions, so a toolchain moving Unicode refolds only a name holding a character the
-  older one left unassigned. T-52 holds it.
+  26.5.2, Go 1.27.3, `golang.org/x/text` 0.43.0, Unicode 17.0.0), of every spelling of each assigned
+  character (the character, its NFC, NFD, NFKC, NFKD, upper, lower, title and folded forms) behind
+  an `a`, 173,237 names that APFS made 158,204 files, and of 209,214 names of one to four characters
+  drawn from those that case folding, composition or mark order acts on, which it made 183,414. The
+  fold parted no two names APFS made one file in either, while joining some it kept apart, such as
+  `aı` and `ai`, which costs a name a suffix where folding less would lose a file. Decomposing the
+  whole name comes first because APFS joins a composed `é` with a decomposed one, and two marks in
+  either order: decomposing each character alone, which reorders no marks, split the names of one
+  file 832 times, `q` with U+0323 and U+0307 against them reversed among them. Upper-casing comes
+  before folding because `cases.Fold` alone, Unicode's canonical caseless match over these tables,
+  split them 86 times in the first and 687 in the second, each Cherokee letter against its other
+  case among them, as that function maps each to the other, and a letter newer than its tables; Go's
+  own tables upper-case both alike first. A final NFD, as the canonical caseless match ends with,
+  changed no answer in either, so it is not taken, and a fold of ASCII letters alone split them
+  14,692 and 23,554 times. `strings.EqualFold` parts `Straße` from `Strasse` and a composed `é` from
+  a decomposed one, which APFS makes one path (#1729). That the fold joins every pair NTFS makes one
+  path is an assumption, not a measurement: NTFS compares names through an upper-case table each
+  volume stores, which no run here read, and the same two sweeps on an NTFS volume would settle it.
+  A file system that tells case apart joins fewer. Unicode's stability policies keep the case
+  folding and decomposition of a string of assigned characters across its versions, so a toolchain
+  moving Unicode refolds only a name holding a character the older one left unassigned. T-52 holds
+  it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
   directory among them, is at most 255 bytes of UTF-8, the least any file system takes: ext4
   documents 255 bytes, and APFS, as NTFS documents, 255 UTF-16 units, which on macOS 26.5.2 took 255

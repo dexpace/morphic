@@ -89,27 +89,26 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
    reserve: a suffix can make a reserved name, as `com2` is a Windows device name the units of Go
    and Kotlin reserve ([Go](../targets/go/naming.md#reserved-names),
-   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set
-   apart from a name ending in a digit as its role sets two digit words apart ([a break letter case
-   cannot mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is
-   `V12_2`. The declaration a visibility shape adds to a type is named after every type's own in
-   its scope, in the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)),
-   so among the names this rule gives, one the plan derives never takes one the source gives. A
-   shape's name rule 1 keeps is kept like any other, against a source name added since.
+   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set apart from
+   a name ending in a digit as its role sets two digit words apart ([a break letter case cannot
+   mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is `V12_2`. The
+   declaration a visibility shape adds to a type is named after every type's own in its scope, in
+   the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)), so among the
+   names this rule gives, one the plan derives never takes one the source gives. A shape's name rule
+   1 keeps is kept like any other, against a source name added since.
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
 names that fold alike collide too. A file system that ignores case, as macOS's and Windows' do by
 default, makes them one path: on macOS, Kotlin 2.4.0 wrote classes `Setup` and `SetUp` of one
-package to a single `p/Setup.class`, and the program then failed to load it
-(`NoClassDefFoundError: p/Setup (wrong name: p/SetUp)`), as it did classes `Straße` and `Strasse`
-(`wrong name: p/Strasse`). Such a scope compares names case-folded, by the fold the engine compares
-artifact paths by ([the path fold](../emit/rules.md)), in both rules: a
-name held, shipped or reserved there meets every name that folds as it does, and a suffix is chosen
-against them so. This holds for a reserved name that is no path too, such as a name Kotlin imports
-by default, since one comparison per scope is the simpler rule and errs toward a suffix rather than
-a lost file. A target compares each scope one way whatever the spec says, so two symbols rule 1
-keeps were apart under the comparison they shipped under. The units' scope is one ([output
-units](output-units.md)), and each target names its others
+package to a single `p/Setup.class`, and the program then failed to load it (`NoClassDefFoundError:
+p/Setup (wrong name: p/SetUp)`), as it did classes `Straße` and `Strasse` (`wrong name: p/Strasse`).
+Such a scope compares names case-folded, by the fold the engine compares artifact paths by ([the
+path fold](../emit/rules.md)), in both rules: a name held, shipped or reserved there meets every
+name that folds as it does, and a suffix is chosen against them so. This holds for a reserved name
+that is no path too, such as a name Kotlin imports by default, since one comparison per scope is the
+simpler rule and errs toward a suffix rather than a lost file. A target compares each scope one way
+whatever the spec says, so two symbols rule 1 keeps were apart under the comparison they shipped
+under. The units' scope is one ([output units](output-units.md)), and each target names its others
 ([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
 [docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
 as Go writes two declarations to one file, compares that scope's names as they are. The engine's
@@ -223,11 +222,11 @@ $   dollar                  ?   question_mark           .   period          ,   
 
 ## A character a target cannot write is written by its name
 
-The word grammar keeps a combining mark in the word of the letter it follows, and takes every
-letter and decimal digit Go's Unicode tables hold
-([the word grammar](../../ir/naming.md#the-word-grammar)), and no first target can write each of
-them in an identifier as it stands. Measured over every one past ASCII, the 145,620 letters, 2,543
-marks and 760 digits of Unicode 17.0.0:
+The word grammar keeps a combining mark in the word of the letter it follows, and takes every letter
+and decimal digit Go's Unicode tables hold ([the word
+grammar](../../ir/naming.md#the-word-grammar)), and no first target can write each of them in an
+identifier as it stands. Measured over every one past ASCII, the 145,620 letters, 2,543 marks and
+760 digits of Unicode 17.0.0:
 
 - **Go** 1.27.3 takes every letter, and every decimal digit after the first character, and no mark:
   `go/token.IsIdentifier` refuses each of the 2,543 marks, and a field `Café` spelled with U+0301
@@ -408,8 +407,8 @@ whole, a first word too long alone being cut at a character's end, and the node 
 provenance, `shortened` (INV6), with a warning `emitters/<target>/name-shortened` naming the entity
 and both names. The shortened name reads nothing but the name, so it moves only with it, and two
 names that keep the same words still differ in their last. A path the target names apart from any
-identifier, as Go names a declaration's file, is shortened as its target says, and the identifier
-is not ([Go](../targets/go/naming.md#file-names)).
+identifier, as Go names a declaration's file, is shortened as its target says, and the identifier is
+not ([Go](../targets/go/naming.md#file-names)).
 
 The cap measures the identifier as it is written, backticks aside, and the hash reads that
 identifier whole rather than `Naming.Canonical`, which a name with no words and a type named from a
@@ -427,16 +426,15 @@ method's name, which a class kotlinc copies from an inline function's lambda doe
 one for the function, as in `$$inlined$filterIsInstance$1$1`, 30 bytes, and failed to write it at
 the cap (`error while writing`). So a method's body hands each lambda to a function that is not
 inline, as the runtime's pager and stream are and as `flow` is, and only the runtime's unit, whose
-names are its own, calls an inline function that writes a class. No name of the golden spec
-reaches the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may
-add, and its longest union and variant joined by `$` 156, by `jq` over its compiled IR
-(`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the target's own code
-makes kotlinc add beyond that room is held by T-53, which lowers the cap in the options version
-adding it.
+names are its own, calls an inline function that writes a class. No name of the golden spec reaches
+the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may add, and
+its longest union and variant joined by `$` 156, by `jq` over its compiled IR
+(`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the target's own code makes
+kotlinc add beyond that room is held by T-53, which lowers the cap in the options version adding it.
 
-Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only
-the readability of a name no reader takes in whole. Nor was a cap on the segment rather than the
-name, since a nested name's room would read its outer's length, so renaming a union would shorten
-its variants, and an outer near the limit would leave its variants none. Nor was cutting with no
-hash: two names that keep the same leading words would meet, and `Ctx.Syms` would part them by ID
-order, giving each a name that reads as the other's.
+Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only the
+readability of a name no reader takes in whole. Nor was a cap on the segment rather than the name,
+since a nested name's room would read its outer's length, so renaming a union would shorten its
+variants, and an outer near the limit would leave its variants none. Nor was cutting with no hash:
+two names that keep the same leading words would meet, and `Ctx.Syms` would part them by ID order,
+giving each a name that reads as the other's.

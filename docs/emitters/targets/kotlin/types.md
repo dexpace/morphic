@@ -39,12 +39,12 @@ reserved for future releases`, Kotlin 2.4.0). A model that compares the member w
 still compares a list of them, a map's values, a union's variant and a value class over them by
 identity. A `data class` copies the reference, so a copy's array is the original's. So the built-in
 row for `bytes` is the runtime's `Bytes`: a final class over an array it copied in, with `size`,
-`get`, a `toByteArray()` that copies out, `equals` and `hashCode` over the content, and a
-`toString` that shows only its size. With it two values holding the same bytes are equal as
-themselves, in a scalar's class, in a model's generated `equals`, in a list, as a map's key and as a
-union's variant, and hash alike; the Swift export gives the class the same `==` and `hash`, so it
-keys a `Dictionary`, where a `KotlinByteArray` compares by identity as it does in Kotlin
-(Kotlin/JVM and Kotlin/Native 2.4.0, Swift 6.2).
+`get`, a `toByteArray()` that copies out, `equals` and `hashCode` over the content, and a `toString`
+that shows only its size. With it two values holding the same bytes are equal as themselves, in a
+scalar's class, in a model's generated `equals`, in a list, as a map's key and as a union's variant,
+and hash alike; the Swift export gives the class the same `==` and `hash`, so it keys a
+`Dictionary`, where a `KotlinByteArray` compares by identity as it does in Kotlin (Kotlin/JVM and
+Kotlin/Native 2.4.0, Swift 6.2).
 
 The copies are the price, one in and one out, on values that arrive as base64 inside a JSON text; a
 body that is bytes whole is a file or a stream ([return shapes](returns.md)) and no `bytes`

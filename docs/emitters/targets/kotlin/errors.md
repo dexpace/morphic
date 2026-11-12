@@ -62,27 +62,27 @@ common code may write and the other platforms ignore. T-65 holds this section.
 
 ## A transport's failure
 
-An exception the HTTP library raises, in a send or while a request is built for it, never reaches
-a caller and is never a `cause`. The runtime throws its own:
+An exception the HTTP library raises, in a send or while a request is built for it, never reaches a
+caller and is never a `cause`. The runtime throws its own:
 
 ```kotlin
 class TransportException(val method: String, val url: String,   // the URL as shown
                          val causes: List<String>) : Exception("$method $url")
 ```
 
-`causes` holds the qualified names of the classes in the library's chain, outermost first: a
-class's name is the program's text, and a message is the library's, built from what it was
-handed. Measured with Ktor 3.2.3's CIO engine on Kotlin 2.4.0 and a key in the query, the messages
-of the library's request, connect and socket timeouts each held the URL with the key (`Request
-timeout has expired [url=http://…?limit=5&api_key=…`), and so did each one's stack trace. With
-none of them set ([timeouts](operations.md#timeouts)), a refused connection raised
-`java.net.ConnectException: Connection refused` and the runtime's own bound a
-`TimeoutCancellationException` saying how long it waited, neither with the URL. Keeping a cause
-whose class is the platform's and dropping the library's was weighed, and the socket timeout is
-why not: its class is `java.net.SocketTimeoutException` and its message Ktor's. The cost is the
-library's stack trace, which a caller who wants it reads in a `Transport` wrapper
-([auth](../../operations/auth.md#where-a-credential-can-be-read)). A caller's own cancelling
-passes through as the `CancellationException` it is. T-65 holds this section.
+`causes` holds the qualified names of the classes in the library's chain, outermost first: a class's
+name is the program's text, and a message is the library's, built from what it was handed. Measured
+with Ktor 3.2.3's CIO engine on Kotlin 2.4.0 and a key in the query, the messages of the library's
+request, connect and socket timeouts each held the URL with the key (`Request timeout has expired
+[url=http://…?limit=5&api_key=…`), and so did each one's stack trace. With none of them set
+([timeouts](operations.md#timeouts)), a refused connection raised `java.net.ConnectException:
+Connection refused` and the runtime's own bound a `TimeoutCancellationException` saying how long it
+waited, neither with the URL. Keeping a cause whose class is the platform's and dropping the
+library's was weighed, and the socket timeout is why not: its class is
+`java.net.SocketTimeoutException` and its message Ktor's. The cost is the library's stack trace,
+which a caller who wants it reads in a `Transport` wrapper
+([auth](../../operations/auth.md#where-a-credential-can-be-read)). A caller's own cancelling passes
+through as the `CancellationException` it is. T-65 holds this section.
 
 ## A failure's place
 

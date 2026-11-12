@@ -24,10 +24,10 @@ terminal that extracts the final type from `ResultPath`. `FinalStateVia` selects
 finds the monitor URL (status-monitor vs `operation-location` header vs original-URI). The poller
 *type* and result extraction are typed AST; the poll loop's backoff between attempts is boilerplate
 parameterised by policy — the same structure/runtime line as the iterator
-([pagination](pagination.md)) and the stream reader ([streaming](streaming.md)). The loop is
-bounded as well as paced: past `Polling.MaxPolls` polls the wait for a result fails naming the
-member, and the poller is still its caller's to poll. Smithy waiters are
-*not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Unmodeled`
+([pagination](pagination.md)) and the stream reader ([streaming](streaming.md)). The loop is bounded
+as well as paced: past `Polling.MaxPolls` polls the wait for a result fails naming the member, and
+the poller is still its caller's to poll. Smithy waiters are *not* folded in here: their
+acceptor/JMESPath lists arrive verbatim in `Operation.Unmodeled`
 ([interaction-patterns](../../ir/interaction-patterns.md)) and a waiter-aware refiner is a separate,
 opt-in step.
 

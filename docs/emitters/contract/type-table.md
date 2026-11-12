@@ -114,8 +114,8 @@ A JSON number is its value and not its digits, which is how JSON Schema counts `
 how the plan already compares values when it separates a union's variants
 ([TypePlan](../plan/types.md#variants-that-can-share-a-value)). Producers write these spellings for
 whole numbers held as floats: Python's and Ruby's JSON encoders write `1.0` and `1e+16`, and
-JavaScript's `1e+21`. Neither first target's library reads them unaided, and the two disagree
-(Go 1.27.3; kotlinx-serialization-json 1.11.0 on Kotlin 2.4.0):
+JavaScript's `1e+21`. Neither first target's library reads them unaided, and the two disagree (Go
+1.27.3; kotlinx-serialization-json 1.11.0 on Kotlin 2.4.0):
 
 | JSON | json/v2 into `int64` | kotlinx into `Long` | this rule |
 |---|---|---|---|
@@ -133,14 +133,13 @@ and it fails a whole response over how a server spelled a count, leaves an `inte
 reading as zero.
 
 The reader decides on the literal's text, in time linear in its length, and builds no number wider
-than the row: it compares the digits with the exponent, so `1e1000000000` is refused as out of
-range without being expanded, and a literal a megabyte long is read in one pass. A row a
-configuration maps to an exact type reads through that type's own codec, which the SDK does not
-wrap: Go's `*big.Int` reads plain digits alone, and a codec that expands an exponent bounds it
-itself, since thirteen bytes can name a billion digits. `number`, `float` and `decimal` rows read
-every spelling already. Each target says how its rows read
-([Go](../targets/go/types.md#integers), [Kotlin](../targets/kotlin/types.md#integers)), and T-61
-holds the rule.
+than the row: it compares the digits with the exponent, so `1e1000000000` is refused as out of range
+without being expanded, and a literal a megabyte long is read in one pass. A row a configuration
+maps to an exact type reads through that type's own codec, which the SDK does not wrap: Go's
+`*big.Int` reads plain digits alone, and a codec that expands an exponent bounds it itself, since
+thirteen bytes can name a billion digits. `number`, `float` and `decimal` rows read every spelling
+already. Each target says how its rows read ([Go](../targets/go/types.md#integers),
+[Kotlin](../targets/kotlin/types.md#integers)), and T-61 holds the rule.
 
 ## What a built-in row writes
 
@@ -212,18 +211,17 @@ value as its primitive's default row does unless the target's lowering table say
   decided on its fields, its year less 50 and then its month, day and time against the clock's in
   GMT, never by adding years to the clock, which Go's `AddDate` and the JDK's `plusYears` do
   differently on 29 February (Go 1.27, JDK 25). The reader takes the clock's instant as an argument,
-  which the codec fills from the system clock, so a test reads at an instant it names.
-  On the golden spec
-  (spec @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21 Oct
-  2023 07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the JDK's
-  `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
+  which the codec fills from the system clock, so a test reads at an instant it names. On the golden
+  spec (spec @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21
+  Oct 2023 07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the
+  JDK's `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
   IMF-fixdate, and Go's `http.ParseTime` reads it and reads an rfc850-date's `70` as 1970 at any
   date (Go 1.27, JDK 25). A header list of such dates splits around the comma each holds ([values as
   text](../refine/text.md#reading-a-text)).
-- **No row.** The IR's `unixTimestamp` and `seconds` have none yet: TypeSpec writes whole seconds
-  in an integer type and Smithy a number with a fraction, no compiler lowers either, and what each
-  puts in `WireType` decides what a row writes. Until one does, the lookup above types such a value
-  as its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64` of seconds its caller
+- **No row.** The IR's `unixTimestamp` and `seconds` have none yet: TypeSpec writes whole seconds in
+  an integer type and Smithy a number with a fraction, no compiler lowers either, and what each puts
+  in `WireType` decides what a row writes. Until one does, the lookup above types such a value as
+  its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64` of seconds its caller
   fills, which is written right. A value so typed is checked against none of its constraints, which
   speak of the value and not of its wire form, as a mapped type's are not. `varint`, `zigzag` and
   `fixed` name a binary layout, which no JSON value or text shows, so the number's own row writes
@@ -235,14 +233,14 @@ value as its primitive's default row does unless the target's lowering table say
   string in a header, has no spelling in the IR apart from that one, so a compiler lowering one
   waits on the IR telling them apart.
 
-Each target's lowering table names the type and the codec of each
-([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows
-and the lookup. The designs it was weighed against:
+Each target's lowering table names the type and the codec of each ([Go](../targets/go/lowering.md),
+[Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows and the lookup. The designs it was
+weighed against:
 
 - **The primitive's row with an info**, as the lookup once fell back: Go's `[]byte` row writes the
   bytes `fb ff` under `base64url` as `+/8=`, where the encoding names `-_8=`, and the plan reads
   such a scalar's JSON kinds from its `WireType` while the codec writes its primitive's
   ([TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 - **The same fallback at warning**: the severity changes nothing a server receives.
-- **A row for every name the IR documents**: a name a compiler invents later would still fall to
-  the wrong spelling, where typing by the wire form is right for a name no table knows.
+- **A row for every name the IR documents**: a name a compiler invents later would still fall to the
+  wrong spelling, where typing by the wire form is right for a name no table knows.

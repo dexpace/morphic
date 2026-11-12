@@ -110,10 +110,10 @@ too. Each target says how ([Go](../targets/go/models.md#user-in-go),
 
 ## How deep a value nests
 
-A server decides how deeply a value nests wherever a type can hold itself and wherever a position
-is typed `any`, and a decoder that recurses spends stack on every level. So every target reads a
-JSON text to a stated depth and no further, a level being one object or array inside another, and a
-text nested past it is a body that does not decode
+A server decides how deeply a value nests wherever a type can hold itself and wherever a position is
+typed `any`, and a decoder that recurses spends stack on every level. So every target reads a JSON
+text to a stated depth and no further, a level being one object or array inside another, and a text
+nested past it is a body that does not decode
 ([responses](../plan/responses.md#a-body-that-does-not-decode)): the caller gets the status, the
 bytes and a decode error, never a crash. The depth is runtime policy's `Nesting.MaxDepth`, 64 unless
 a configuration sets another ([runtime

@@ -43,22 +43,22 @@ A key configures the node holding it. An object that lowers to no node has its k
 nearest node that does, under a spelling of their own ([keys](../../ir/unmodeled.md#keys)): an
 OpenAPI path item's `x-sdk-retries` reaches each of its operations as
 `openapi:pathItem/x-sdk-retries`, beside an operation's own `openapi:x-sdk-retries`, and so
-configures each of them. A mapping names each spelling it reads, the enclosing object's with
-`Outer` set. The reader derives no spelling from another: where a scope ends in a key is each
-compiler's ([`vendor-extensions`](../../compilers/openapi.md#vendor-extensions)), an operation's own
-`x-a/b` being `openapi:x-a/b`, so stripping a scope would make the reader know the format (INV1),
-and stripping any would read an operation's `openapi:responses/x-…` key, its responses object's, as
-the operation's. A `policy` key on the document
-configures every operation, and one on an operation configures that operation, `Layer.Policy.Ops`
-keyed by its `OpID` ([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the
-node's own ID, so a key mapped to `rename` on a parameter renames that parameter, on an operation
-that method, and on a service that client. A `hint` key on the document configures its service where
-it has only one, as every OpenAPI document does, since the document holds what its root writes;
-where it has several, the key is misplaced. A key a mapping names on any other node, such as a
-`policy` key on a property, configures nothing and is reported as a warning
-`emitters/embed/misplaced`. So does a key the document holds for one of several objects, such as a
-tag's under `openapi:tags/<n>/`: it describes that object rather than the document, and configures
-nothing until the IR carries it where the object lowers (#1221).
+configures each of them. A mapping names each spelling it reads, the enclosing object's with `Outer`
+set. The reader derives no spelling from another: where a scope ends in a key is each compiler's
+([`vendor-extensions`](../../compilers/openapi.md#vendor-extensions)), an operation's own `x-a/b`
+being `openapi:x-a/b`, so stripping a scope would make the reader know the format (INV1), and
+stripping any would read an operation's `openapi:responses/x-…` key, its responses object's, as the
+operation's. A `policy` key on the document configures every operation, and one on an operation
+configures that operation, `Layer.Policy.Ops` keyed by its `OpID`
+([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the node's own ID, so a
+key mapped to `rename` on a parameter renames that parameter, on an operation that method, and on a
+service that client. A `hint` key on the document configures its service where it has only one, as
+every OpenAPI document does, since the document holds what its root writes; where it has several,
+the key is misplaced. A key a mapping names on any other node, such as a `policy` key on a property,
+configures nothing and is reported as a warning `emitters/embed/misplaced`. So does a key the
+document holds for one of several objects, such as a tag's under `openapi:tags/<n>/`: it describes
+that object rather than the document, and configures nothing until the IR carries it where the
+object lowers (#1221).
 
 Two keys of one node conflict only over a leaf both write: runtime policy's leaf ([what a layer
 writes](runtime-policy.md#what-a-layer-writes)), or a `ShapeHint` field, an `Extra` entry each. A
@@ -66,16 +66,16 @@ key whose `Path` names a member above leaves writes those its value holds, so on
 `["retry"]` beside one mapped to `["retry", "maxAttempts"]` meet at `maxAttempts` alone. Of two
 writing one leaf, a key with `Outer` unset beats one with it set, two whose values for the leaf are
 equal set it together, and any other pair is an error `emitters/embed/conflict` that sets the leaf
-from neither, since which to take is no fact the document states. Values are equal as the leaf
-reads them: a scalar by its decoded value, a `Backoff` member by member, the status lists, `Events`
-and `Keys` as sets, since nothing reads their order, so `[429, 503]` agrees with `[503, 429]`, and
-any other list item for item. Two generators' keys for one fact often sit on one operation and
-agree: of the golden spec's 291 operations carrying both `x-stability` and `x-fern-availability`
-(spec @bc6fad24, morphic @fa253fe19), 229 write one value alike, 2 spell one tier two ways,
-`stable` and `generally-available`, 52 name two tiers and 8 set `x-fern-availability` to
-`deprecated`, which names none. So agreeing keys are no conflict to report, and mapped to one field
-of the IR's tiers none of the 291 would conflict: `generally-available` and `deprecated` lie outside
-that vocabulary, draw `emitters/embed/invalid-value` and leave `x-stability` to set the field.
+from neither, since which to take is no fact the document states. Values are equal as the leaf reads
+them: a scalar by its decoded value, a `Backoff` member by member, the status lists, `Events` and
+`Keys` as sets, since nothing reads their order, so `[429, 503]` agrees with `[503, 429]`, and any
+other list item for item. Two generators' keys for one fact often sit on one operation and agree: of
+the golden spec's 291 operations carrying both `x-stability` and `x-fern-availability` (spec
+@bc6fad24, morphic @fa253fe19), 229 write one value alike, 2 spell one tier two ways, `stable` and
+`generally-available`, 52 name two tiers and 8 set `x-fern-availability` to `deprecated`, which
+names none. So agreeing keys are no conflict to report, and mapped to one field of the IR's tiers
+none of the 291 would conflict: `generally-available` and `deprecated` lie outside that vocabulary,
+draw `emitters/embed/invalid-value` and leave `x-stability` to set the field.
 
 A key that sets nothing beats no other key: each of a conflicting pair, one whose value draws the
 warning below, and one the reader refuses ([the mapping](#the-mapping-is-a-configuration)). So where
@@ -98,13 +98,13 @@ unknown member. A value of the wrong shape, or one outside the field's vocabular
 ([layers](runtime-policy.md#layers-and-operations)), is reported as a warning
 `emitters/embed/invalid-value` at the extension and never coerced, since the document means
 something by the key that the field does not hold: a group is named by its ID, as `Remount` takes
-it, never by the words a document places it under, an attempt count of 0 may be another
-generator's count of retries, and a timeout of `30` states no unit, which is why a duration is
-written with one ([what a layer writes](runtime-policy.md#what-a-layer-writes)). The entry stays
-in `Unmodeled` either way, as a promotion leaves it
-([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
-the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
-so it neither beats another key nor conflicts with one (above).
+it, never by the words a document places it under, an attempt count of 0 may be another generator's
+count of retries, and a timeout of `30` states no unit, which is why a duration is written with one
+([what a layer writes](runtime-policy.md#what-a-layer-writes)). The entry stays in `Unmodeled`
+either way, as a promotion leaves it ([promotion](../../ir/unmodeled.md#promotion)), so a consumer
+that disagrees with the mapping reads the entry instead. A key whose value draws that warning sets
+nothing, as a refused key does (below), so it neither beats another key nor conflicts with one
+(above).
 
 ## The mapping is a configuration
 

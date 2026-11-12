@@ -77,9 +77,9 @@ in a second channel. The first rule that applies decides:
 
 1. **`void`** — nothing is read: the operation has no primary response ([plan policy](policy.md)),
    the response carries no content, or the method of `HTTP[0]`, the binding every target covering
-   `http` lowers ([bindings](bindings.md)), is `HEAD`, whose response has no body
-   (RFC 9110 §9.3.2). An operation with no primary response returns only an error, and "Which entry
-   answers" below says which statuses raise one.
+   `http` lowers ([bindings](bindings.md)), is `HEAD`, whose response has no body (RFC 9110 §9.3.2).
+   An operation with no primary response returns only an error, and "Which entry answers" below says
+   which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the
    body reaches the caller unread, a byte stream beside the media type it arrived as, and nothing
    decodes it.
@@ -88,8 +88,8 @@ in a second channel. The first rule that applies decides:
 4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets
    `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
    paginated operation's `Return.Type` is one page, from which `Page` takes the items. A
-   `text/plain` content whose type is no leaf has no text to decode, so its `Type` is `string`,
-   the body as it arrived ([values as text](../refine/text.md#a-value-no-style-arranges)).
+   `text/plain` content whose type is no leaf has no text to decode, so its `Type` is `string`, the
+   body as it arrived ([values as text](../refine/text.md#a-value-no-style-arranges)).
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
@@ -104,10 +104,10 @@ end in a default; [Return shapes](../operations/returns.md) traces each through 
 ## Envelopes
 
 A `value` body that one of `plan.Policy.Envelopes` matches ([plan policy](policy.md#envelopes)) is
-read through it, and `Envelope` records how, marked `Inferred` as the policy says. Only a body
-the client receives is matched: the response a webhook or a callback answers with is the SDK's to
-send, and no envelope wraps it ([operations the API sends](../operations/inbound.md)). A matched
-body is read as follows:
+read through it, and `Envelope` records how, marked `Inferred` as the policy says. Only a body the
+client receives is matched: the response a webhook or a callback answers with is the SDK's to send,
+and no envelope wraps it ([operations the API sends](../operations/inbound.md)). A matched body is
+read as follows:
 
 - **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
   `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
@@ -194,12 +194,11 @@ own form ([failures](../operations/errors.md)).
 
 `Errors` holds every failure the operation declares: its `ErrorCase`s, then its service's
 `CommonErrors`, save for an operation the API sends ([inbound](../operations/inbound.md)), then its
-`Default` where the policy takes it as a failure ([plan
-policy](policy.md)), whose condition is the catch-all. Entries that agree on everything but
-`Conditions` collapse into one. `Response` follows the rules above with one exception: a failure is
-read whole, so a content that streams is `raw`. `Type` may be of any kind, since an error body may
-be a union, a list or a primitive as well as a model, and where each lands in the SDK is in
-[failures](../operations/errors.md).
+`Default` where the policy takes it as a failure ([plan policy](policy.md)), whose condition is the
+catch-all. Entries that agree on everything but `Conditions` collapse into one. `Response` follows
+the rules above with one exception: a failure is read whole, so a content that streams is `raw`.
+`Type` may be of any kind, since an error body may be a union, a list or a primitive as well as a
+model, and where each lands in the SDK is in [failures](../operations/errors.md).
 
 ## Which entry answers
 

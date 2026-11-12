@@ -22,9 +22,9 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   declares second taking a trailing `_`, so which value a Swift caller's `value10` named followed
   their order. An entry whose words hold such a break takes an explicit name, its words cased as a
   camel role cases them, and with one `VALUE_1_0` exported as `value1_0` beside `VALUE_10`'s
-  `value10`. Entries `A_日本` and `A日本` exported as `a日本` and `a日本_`, the second in
-  declaration order taking the `_`, and with `A_日本`'s explicit name, which is in ASCII (below), as
-  `a_u65e5u672c` and `a日本`.
+  `value10`. Entries `A_日本` and `A日本` exported as `a日本` and `a日本_`, the second in declaration order
+  taking the `_`, and with `A_日本`'s explicit name, which is in ASCII (below), as `a_u65e5u672c` and
+  `a日本`.
 - A declaration reaches Swift by its Objective-C name wherever the `swift_name` the export writes
   for it would hold a character past ASCII, in or out of backticks, since clang drops that
   attribute: in the declaration's own name (`'swift_name' attribute has invalid identifier for the
@@ -50,14 +50,13 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   hold, `u` and its code point in lowercase hex
   ([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)). So
   does one whose exported name would hold U+2E2F, which no header can: `@ObjCName("Au2e2f")` on a
-  class `Aⸯ` built a module a Swift file called (`Au2e2f()`). Giving every declaration past ASCII
-  an explicit ASCII name was not taken: it writes each such name in code points, `u540du524d` for
-  `名前`, where the export's names read as the spec's. Nor was giving one to each parameter past
-  ASCII, though it kept a method its Swift name (`fetch2(id:u540du524d:)` under
-  `@ObjCName("u540du524d")`): a caller would read a label in code points beside a property in the
-  spec's script, and a method named past ASCII would still be Swift's to name. Nor was writing those
-  characters by name in the Kotlin name, which would cost a JVM caller the spec's name for Swift's
-  sake.
+  class `Aⸯ` built a module a Swift file called (`Au2e2f()`). Giving every declaration past ASCII an
+  explicit ASCII name was not taken: it writes each such name in code points, `u540du524d` for `名前`,
+  where the export's names read as the spec's. Nor was giving one to each parameter past ASCII,
+  though it kept a method its Swift name (`fetch2(id:u540du524d:)` under `@ObjCName("u540du524d")`):
+  a caller would read a label in code points beside a property in the spec's script, and a method
+  named past ASCII would still be Swift's to name. Nor was writing those characters by name in the
+  Kotlin name, which would cost a JVM caller the spec's name for Swift's sake.
 - The export drops a declaration's package and joins a nested one's name to its outer's, so every
   unit's declarations, nested ones among them, share one namespace, and of two that share a name it
   appends `_` to one. Measured with Kotlin 2.4.0, within one module and across modules the framework
@@ -106,12 +105,11 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   Swift caller is shown the message as written and no `ReplaceWith`, which is why the message names
   each replacement in plain text ([deprecations](../../refine/deprecation.md)). Kotlin/Native 2.4.0
   writes it on a function, a property and a class's initializers alone: a Swift caller naming a
-  deprecated class as a type, or an enum entry, which the header marks nowhere, is shown nothing.
-  So the framework is built with `-Xexport-kdoc`, which writes a class's KDoc, its deprecation's
-  text among it, above it in the header, the documentation a Swift caller's tools read, and an
-  enum's KDoc names each deprecated entry with its text, since Kotlin/Native 2.4.0 exports no
-  entry's KDoc. A `@RequiresOptIn`
-  annotation does not reach Swift at all ([stability](operations.md#stability)).
+  deprecated class as a type, or an enum entry, which the header marks nowhere, is shown nothing. So
+  the framework is built with `-Xexport-kdoc`, which writes a class's KDoc, its deprecation's text
+  among it, above it in the header, the documentation a Swift caller's tools read, and an enum's
+  KDoc names each deprecated entry with its text, since Kotlin/Native 2.4.0 exports no entry's KDoc.
+  A `@RequiresOptIn` annotation does not reach Swift at all ([stability](operations.md#stability)).
 
 ## No value class
 

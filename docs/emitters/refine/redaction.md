@@ -35,19 +35,17 @@ header where `Document.Auth` holds an `http_basic`, an `http_bearer`, an `oauth2
 `openid_connect` scheme, or a `custom` one stating an HTTP `Scheme`, as OpenAPI's `scheme: digest`
 lowers. No other kind's credential sits where a parameter can
 ([auth](../operations/auth.md#where-a-credential-can-be-read)). A document may declare such a
-parameter beside its scheme, and the compiler keeps an `Authorization` header
-parameter OpenAPI says to ignore
-([`reserved-header-names`](../../compilers/openapi.md#reserved-header-names)), so the request type
-holding it would print a credential. Where one of the operation's own options names the scheme
-the parameter gets no input at all, and a header parameter named `Authorization` or
+parameter beside its scheme, and the compiler keeps an `Authorization` header parameter OpenAPI says
+to ignore ([`reserved-header-names`](../../compilers/openapi.md#reserved-header-names)), so the
+request type holding it would print a credential. Where one of the operation's own options names the
+scheme the parameter gets no input at all, and a header parameter named `Authorization` or
 `Proxy-Authorization` is redacted whatever the schemes are
 ([auth](../operations/auth.md#a-parameter-in-a-credentials-slot)). The rule reads every scheme of
-the document, not those an operation requires, since a caller may send one an operation does not
-ask for. It marks nothing on
-the golden spec, none of whose 11,994 parameters is `Secret` or sits in a slot of its four declared
-schemes; what it does not reach is a credential only a name suggests, the `R2-Secret-Access-Key`
-header two of its operations declare, which stays the document's to mark (spec @bc6fad24, morphic
-@fa253fe19).
+the document, not those an operation requires, since a caller may send one an operation does not ask
+for. It marks nothing on the golden spec, none of whose 11,994 parameters is `Secret` or sits in a
+slot of its four declared schemes; what it does not reach is a credential only a name suggests, the
+`R2-Secret-Access-Key` header two of its operations declare, which stays the document's to mark
+(spec @bc6fad24, morphic @fa253fe19).
 
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
 text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's
@@ -65,29 +63,27 @@ one encoding it as JSON, as logrus's JSON formatter and zap's `Reflect` do, or r
 as Node's `console.log` and `JSON.stringify` do a JavaScript object's, a Kotlin/JS one's among them,
 since no form a type declares reaches either. A credential an auth injector writes is no IR fact
 this reads: it is kept out of every rendering by where the auth step runs, not by a mark
-([auth](../operations/auth.md#where-a-credential-can-be-read)). A redacted collection shows
-the marker alone, not its length, since how many tokens or keys a value holds can be what a reader
-must not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds
-the wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted
-position, showing its decoded, redacted form instead. The docs emitter marks a redacted parameter or
-property secret and shows a placeholder for its example
-([docs](../docs-and-mock.md#what-the-docs-render)).
+([auth](../operations/auth.md#where-a-credential-can-be-read)). A redacted collection shows the
+marker alone, not its length, since how many tokens or keys a value holds can be what a reader must
+not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the
+wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted position,
+showing its decoded, redacted form instead. The docs emitter marks a redacted parameter or property
+secret and shows a placeholder for its example ([docs](../docs-and-mock.md#what-the-docs-render)).
 
 ## What the runtime holds raw
 
 What the runtime keeps as it arrived or as it is sent has no mark to read, and any of it may be a
-credential ([auth](../operations/auth.md#where-a-credential-can-be-read)): a response's headers
-and body, a request, a URL a response supplied, the client's base URL and what it was configured
-with. So no type the runtime declares, and no generated type holding a client, a pager's, a
-poller's or a stream's state, shows any of it in any form, whichever positions the document
-redacts. The rule is on where the value is held, not on a form the type declares, since a form
-answers only the reader that asks for it: such a type holds the value where neither the target's
-formatting nor an encoder walking a value's members reaches it, and hands it to a caller through
-a function the caller calls ([Go](../targets/go/returns.md#what-a-response-prints),
-[Kotlin](../targets/kotlin/errors.md#what-a-failure-prints)). A form the type does declare shows
-its status and its decoded `Body` and `Headers`, each through its own form, and no raw header,
-one its entry does not redact included, since a response carries headers no document lists. What
-a caller takes out, the headers `RawHeader` returns or the bytes `RawBody` does, is the caller's
-value and renders as the target renders it. A debugger, or a library that reads memory past what
-the language exports, shows what the process holds, and no declaration answers it. T-65 holds the
-rule.
+credential ([auth](../operations/auth.md#where-a-credential-can-be-read)): a response's headers and
+body, a request, a URL a response supplied, the client's base URL and what it was configured with.
+So no type the runtime declares, and no generated type holding a client, a pager's, a poller's or a
+stream's state, shows any of it in any form, whichever positions the document redacts. The rule is
+on where the value is held, not on a form the type declares, since a form answers only the reader
+that asks for it: such a type holds the value where neither the target's formatting nor an encoder
+walking a value's members reaches it, and hands it to a caller through a function the caller calls
+([Go](../targets/go/returns.md#what-a-response-prints),
+[Kotlin](../targets/kotlin/errors.md#what-a-failure-prints)). A form the type does declare shows its
+status and its decoded `Body` and `Headers`, each through its own form, and no raw header, one its
+entry does not redact included, since a response carries headers no document lists. What a caller
+takes out, the headers `RawHeader` returns or the bytes `RawBody` does, is the caller's value and
+renders as the target renders it. A debugger, or a library that reads memory past what the language
+exports, shows what the process holds, and no declaration answers it. T-65 holds the rule.

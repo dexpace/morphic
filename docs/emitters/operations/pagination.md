@@ -28,8 +28,8 @@ legitimate boilerplate seam ([structure and boilerplate](../emit/templates.md)).
 
 ## What a pager sends next
 
-A pager's next request is the one before it with the continuation in place, every other input as
-the caller set it, so a filter and a limit hold across the walk:
+A pager's next request is the one before it with the continuation in place, every other input as the
+caller set it, so a filter and a limit hold across the walk:
 
 - **`cursor` and `token`**: the value `CursorOut` read, at `CursorIn`.
 - **`offset`**: the offset the last request sent, 0 where it sent none, plus the items its page
@@ -49,8 +49,8 @@ the caller set it, so a filter and a limit hold across the walk:
   minimum, 0 in three; 5 of the 254 are strings. Two `POST`s take one too, each defaulting to 1.
 - **`next_link` and `link_header`**: a `GET` of the link, whatever the operation's method, resolved
   against the URL of the page that gave it (RFC 3986 §5), which carries the inputs itself, so no
-  body is sent and each header input the caller set is sent again, since a link carries none. It
-  is sent with credentials only where a redirect to it would carry them ([runtime
+  body is sent and each header input the caller set is sent again, since a link carries none. It is
+  sent with credentials only where a redirect to it would carry them ([runtime
   policy](../contract/runtime-policy.md)), since the server chose where it points.
 
 The mock answers each of these as the page after ([a page walk on the
@@ -78,7 +78,7 @@ sooner, so the pager reads no item fewer than the source's own rule would, and a
 which states no rule, ends there alone: the pager reads none into the shape. T-45 holds this
 section.
 
-A server whose continuations differ and never end meets none of these, so a walk is bounded as
-well: it fetches at most the runtime policy's `Pagination.MaxPages` pages and then fails, never
-ending as a walk that reached its end does ([runtime policy](../contract/runtime-policy.md)). T-37
-holds the bound.
+A server whose continuations differ and never end meets none of these, so a walk is bounded as well:
+it fetches at most the runtime policy's `Pagination.MaxPages` pages and then fails, never ending as
+a walk that reached its end does ([runtime policy](../contract/runtime-policy.md)). T-37 holds the
+bound.

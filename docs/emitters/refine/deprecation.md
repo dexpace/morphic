@@ -2,12 +2,12 @@
 
 A `Deprecation` ([annotations](../../ir/annotations.md#replacements)) marks a type, a property, a
 parameter, an operation, an enum member, a union variant, an auth scheme or a channel. Each
-declaration the entity lowers to carries it in the mechanism its language's tools read: every
-method an operation lowers to, its `WithResponse` method, a pager and each method `AlsoMount` gives
-it among them, every shape a model projects, the field a property or parameter becomes in each
-shape or request type holding it, an enum's constant, a variant's wrapper. `MarkDeprecation` adds
-it once the declarations exist ([step list](steps.md)). Nothing deprecated changes what is sent or
-read, so the mock server reads none of it.
+declaration the entity lowers to carries it in the mechanism its language's tools read: every method
+an operation lowers to, its `WithResponse` method, a pager and each method `AlsoMount` gives it
+among them, every shape a model projects, the field a property or parameter becomes in each shape or
+request type holding it, an enum's constant, a variant's wrapper. `MarkDeprecation` adds it once the
+declarations exist ([step list](steps.md)). Nothing deprecated changes what is sent or read, so the
+mock server reads none of it.
 
 A mark counts only where the target's tools show it at a use in another output unit, the caller's.
 Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
@@ -72,9 +72,9 @@ T-70 holds these rules on every target.
 
 ## Rejected
 
-- **A rewrite wherever the names line up.** An expression naming the replacement with the
-  deprecated call's arguments compiles for one operation and not its neighbour, and an IDE applying
-  one that does not compile leaves the caller a broken build where it had a warning.
+- **A rewrite wherever the names line up.** An expression naming the replacement with the deprecated
+  call's arguments compiles for one operation and not its neighbour, and an IDE applying one that
+  does not compile leaves the caller a broken build where it had a warning.
 - **Following a chain to its last replacement.** It names what the document did not, and a chain
   that loops needs a bound for no gain over naming the next one.
 - **Only the message, no replacement.** A replacement the IR states would then reach a caller only

@@ -35,21 +35,20 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   ([optionality](#optionality)), so an absent email stays apart from an empty one. `RenderCasing`
   turns `["email"]`→`Email`, and the tag is `Tag:json:"email,omitzero"`: the name from `WireName`,
   never the identifier, and `omitzero` because an unset box written without it would send
-  `"email":null`. `password` is `Secret`, so `User`'s `String()`, `GoString()` and `LogValue()`
-  show it as `[REDACTED]`, as they would a member whose type is `Sensitive`
+  `"email":null`. `password` is `Secret`, so `User`'s `String()`, `GoString()` and `LogValue()` show
+  it as `[REDACTED]`, as they would a member whose type is `Sensitive`
   ([redaction](../../refine/redaction.md)), and it is excluded from the read shape. `LogValue` is
   what `log/slog` reads: its JSON handler writes any other value as JSON, the wire form, and
   resolves a `slog.LogValuer` only on the value it is handed, never on a list's elements, so
   `LogValue` writes each redacted position as the marker itself. All three take a value receiver: a
   pointer receiver's methods are not in a `User`'s method set, so `fmt` and `log/slog` would print
-  field by field a `User` held by value, as `ListUsers` yields one and a slice holds one.
-  `User` declares `Format(fmt.State, rune)` beside them, writing what `String` does, since `fmt`
-  asks `String` and `GoString` under some verbs alone: measured with Go 1.27.3, `%d` of a model
-  declaring the three printed each field, the secret in full, and of 58 renderings 27 held it,
-  where with `Format` the 7 left were `%p` of a value, under which `fmt` asks no method, and the
-  encoders, which read fields.
-  `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
-  `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
+  field by field a `User` held by value, as `ListUsers` yields one and a slice holds one. `User`
+  declares `Format(fmt.State, rune)` beside them, writing what `String` does, since `fmt` asks
+  `String` and `GoString` under some verbs alone: measured with Go 1.27.3, `%d` of a model declaring
+  the three printed each field, the secret in full, and of 58 renderings 27 held it, where with
+  `Format` the 7 left were `%p` of a value, under which `fmt` asks no method, and the encoders,
+  which read fields. `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members
+  under `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
   rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
   value below the call that sets it, so a closed model would otherwise make an open model nested in
   it strict, and a strict caller would reach a model the spec leaves open. A catch-all
@@ -57,8 +56,8 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   `json:",embed"`, which receives the undeclared members whatever the options say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` ([file
   names](naming.md#file-names)) in the root unit ([output units](../../refine/output-units.md)).
-  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key
-  ([the declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
+  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key ([the
+  declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
 
 ## A shape that is an alias
 

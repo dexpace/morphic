@@ -76,13 +76,13 @@ stream ends with its connection.
 
 **An initial message is no frame over HTTP.** `Initial` is the message preceding a stream. Smithy,
 the one format declaring one, forms it from the operation's input or output members other than the
-stream, and under an HTTP binding maps an initial request's members to the request's headers and
-URI and an initial response's to its headers (Smithy 2.0, streaming), which the binding states as it
+stream, and under an HTTP binding maps an initial request's members to the request's headers and URI
+and an initial response's to its headers (Smithy 2.0, streaming), which the binding states as it
 states any parameter or response header. So on a side an HTTP binding carries, whatever its
-`Framing`, no frame is written or read for `Initial`: an SDK sends and reads those members where
-the binding places them, as the mock does. Under `protocol` the binding frames it with the rest,
-as its protocol defines. Sending it as the first frame was weighed and refused: no format places one
-there, so a reader expecting one would take every API's first element for it.
+`Framing`, no frame is written or read for `Initial`: an SDK sends and reads those members where the
+binding places them, as the mock does. Under `protocol` the binding frames it with the rest, as its
+protocol defines. Sending it as the first frame was weighed and refused: no format places one there,
+so a reader expecting one would take every API's first element for it.
 
 **A stream sent only when asked is two calls.** A side whose `Condition` is set streams only when
 its input holds the condition's value; otherwise that side carries the operation's non-streaming

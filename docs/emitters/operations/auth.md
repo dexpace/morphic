@@ -44,17 +44,17 @@ of its own: the document's diagnostics already carry it.
 ## A declared credential shape
 
 `AuthScheme.Credentials` names the type of what a caller configures where a scheme's credential is
-several fields combined into a request ([auth](../../ir/auth.md)). Nil, which every compiler
-writes today, changes nothing here. Where a scheme states one, whatever its `Kind`:
+several fields combined into a request ([auth](../../ir/auth.md)). Nil, which every compiler writes
+today, changes nothing here. Where a scheme states one, whatever its `Kind`:
 
-- **refine.** The scheme's option takes the caller's `Authenticator`, as an unresolved scheme's
-  does ([above](#unresolved-schemes)): the IR says what the fields are and nothing of where each
-  goes, so the kind's own injector, which writes one value, does not apply. The type is declared
-  as any registered type is, for that `Authenticator` to be built from, and no option takes the
-  value itself, which nothing generated would read.
-- **redaction.** A value of the type is a credential whole, so every form of it shows
-  `[REDACTED]`, as a sensitive type's does ([redaction](../refine/redaction.md#a-redacted-value)),
-  whatever its members mark.
+- **refine.** The scheme's option takes the caller's `Authenticator`, as an unresolved scheme's does
+  ([above](#unresolved-schemes)): the IR says what the fields are and nothing of where each goes, so
+  the kind's own injector, which writes one value, does not apply. The type is declared as any
+  registered type is, for that `Authenticator` to be built from, and no option takes the value
+  itself, which nothing generated would read.
+- **redaction.** A value of the type is a credential whole, so every form of it shows `[REDACTED]`,
+  as a sensitive type's does ([redaction](../refine/redaction.md#a-redacted-value)), whatever its
+  members mark.
 
 T-65 holds this section.
 
@@ -64,10 +64,10 @@ A document may declare as a parameter what a scheme already sends: an `X-Api-Key
 beside the `apiKey` scheme naming that header, or an `Authorization` header parameter, which the
 OpenAPI compiler keeps and reports
 ([`reserved-header-names`](../../compilers/openapi.md#reserved-header-names)). A **slot** is a
-header, its name compared without case, a query parameter or a cookie, and a scheme owns the one
-its row [below](#where-a-credential-can-be-read) names. Left as declared, the request type and the
-scheme's injector both write it. What a parameter in a slot lowers to follows from who else
-writes there:
+header, its name compared without case, a query parameter or a cookie, and a scheme owns the one its
+row [below](#where-a-credential-can-be-read) names. Left as declared, the request type and the
+scheme's injector both write it. What a parameter in a slot lowers to follows from who else writes
+there:
 
 - **A scheme one of the operation's options names owns it** (`OpPlan.Auth`). The slot is the auth
   step's alone: `BuildRequestShaping` gives the parameter no input, whatever its `Required`, its
@@ -75,21 +75,21 @@ writes there:
   client's to configure once, and a required field would ask every call for it. An option left
   unconfigured sends nothing in the slot, and the request is refused where no option remains
   ([above](#unresolved-schemes)).
-- **A scheme of the document owns it, and none of the operation's options names that scheme**, as
-  on an operation the document makes public. No injector writes there for this operation, so the
-  parameter is an input like any other, the one way its caller sends the value, and it is
-  redacted ([redaction](../refine/redaction.md#a-redacted-value)).
-- **No scheme owns it.** It is an input like any other, redacted only where its declaration says
-  so, save one case: a header parameter named `Authorization` or `Proxy-Authorization` is
-  redacted whatever the document's schemes, since RFC 9110 §11.6.2 and §11.7.2 define each
-  field's value as credentials.
+- **A scheme of the document owns it, and none of the operation's options names that scheme**, as on
+  an operation the document makes public. No injector writes there for this operation, so the
+  parameter is an input like any other, the one way its caller sends the value, and it is redacted
+  ([redaction](../refine/redaction.md#a-redacted-value)).
+- **No scheme owns it.** It is an input like any other, redacted only where its declaration says so,
+  save one case: a header parameter named `Authorization` or `Proxy-Authorization` is redacted
+  whatever the document's schemes, since RFC 9110 §11.6.2 and §11.7.2 define each field's value as
+  credentials.
 
-An `Authenticator` the caller wrote may write any slot, a kept parameter's among them. The auth
-step runs last and sets what it writes, never adding a second value
-([below](#where-a-credential-can-be-read)), so no request carries a slot twice. An operation the
-API sends keeps such a parameter: its receiver reads the slot to check it
-([operations the API sends](inbound.md)), and the parsed request holds it redacted. The docs
-show a parameter the auth step writes with its scheme, and among no operation's inputs.
+An `Authenticator` the caller wrote may write any slot, a kept parameter's among them. The auth step
+runs last and sets what it writes, never adding a second value
+([below](#where-a-credential-can-be-read)), so no request carries a slot twice. An operation the API
+sends keeps such a parameter: its receiver reads the slot to check it ([operations the API
+sends](inbound.md)), and the parsed request holds it redacted. The docs show a parameter the auth
+step writes with its scheme, and among no operation's inputs.
 
 Two other rules were weighed. Dropping every parameter in a scheme's slot, as OpenAPI says of
 `Authorization`, leaves an operation whose options name no scheme unable to send what it declares.
@@ -100,8 +100,8 @@ reports ([surface verification](../surface-verification.md)). The rule reads `Do
 `OpPlan.Auth` and nothing a name suggests, and on the golden spec it finds nothing: no parameter
 sits in a slot of its four schemes ([redaction](../refine/redaction.md#a-redacted-value)) and no
 header parameter is named `Authorization` or `Proxy-Authorization` (`jq '[paths(objects) as $p |
-getpath($p) | select(.in? == "header" and (.name? // "" | ascii_downcase |
-IN("authorization", "proxy-authorization")))] | length'` gives 0; spec @bc6fad24). T-65 holds it.
+getpath($p) | select(.in? == "header" and (.name? // "" | ascii_downcase | IN("authorization",
+"proxy-authorization")))] | length'` gives 0; spec @bc6fad24). T-65 holds it.
 
 ## Where a credential can be read
 
@@ -119,49 +119,47 @@ scheme's `Kind`:
 | any other `custom`, `unresolved`, and a scheme of any kind stating `Credentials` | wherever the caller's `Authenticator` writes: any header, query parameter or cookie |
 
 A call holds secrets no scheme put there too: the user and password, or a signed query, of a base
-URL its caller gave; a URL a response supplies already signed, in a redirect's `Location`, a link
-to the next page or a place to poll; a response's `Set-Cookie`; and a body's fields. So the rule
-names no header and no parameter: a list would miss the header an `Authenticator` invents and the
-one the next scheme adds.
+URL its caller gave; a URL a response supplies already signed, in a redirect's `Location`, a link to
+the next page or a place to poll; a response's `Set-Cookie`; and a body's fields. So the rule names
+no header and no parameter: a list would miss the header an `Authenticator` invents and the one the
+next scheme adds.
 
 **The auth step runs last, and only writes.** For each attempt the runtime builds the request from
 the operation's bindings, fixes what it will show of it ([the URL as
 shown](../contract/runtime-policy.md#what-an-event-holds)), and only then lets the selector's
 injectors and the caller's `Authenticator`s write into it and sends it. A write sets its slot,
-replacing what the request builder put there, and adds no second value. Nothing the runtime
-renders as text reads the request after that step, on a retry as on the first attempt, each of
-which runs the step again. So a credential reaches the transport and nothing else, wherever it was
-written:
+replacing what the request builder put there, and adds no second value. Nothing the runtime renders
+as text reads the request after that step, on a retry as on the first attempt, each of which runs
+the step again. So a credential reaches the transport and nothing else, wherever it was written:
 
 - **An event** has no member a credential fits ([what an event
   holds](../contract/runtime-policy.md#what-an-event-holds)).
 - **A failure's message** quotes a status, or a method and the URL as shown, never a header or a
-  body. A failure a response caused holds that response's headers and body for its caller to
-  read, a `Set-Cookie` among them, and shows neither in any form, whatever reads the value
-  ([redaction](../refine/redaction.md#what-the-runtime-holds-raw)). A request refused unsent
-  names its scheme ([above](#unresolved-schemes)), which is the document's name for it.
+  body. A failure a response caused holds that response's headers and body for its caller to read, a
+  `Set-Cookie` among them, and shows neither in any form, whatever reads the value
+  ([redaction](../refine/redaction.md#what-the-runtime-holds-raw)). A request refused unsent names
+  its scheme ([above](#unresolved-schemes)), which is the document's name for it.
 - **A transport's failure** is the library's, and a library quotes what it was sent. Measured with
-  Go 1.27.3, a request to a closed port with a key in its query came back from `net/http` as
-  `Get "http://127.0.0.1:1/v1/things?limit=5&pw=…": dial tcp 127.0.0.1:1: connect: connection
-  refused`, the value in full, in a `*url.Error` whose `URL` member holds it too. With Ktor 3.2.3
-  on Kotlin 2.4.0, each of the library's timeouts, the request's, the connection's and the
-  socket's, wrote `[url=http://…?limit=5&api_key=…` into its message with the key in full, the
-  last as a `java.net.SocketTimeoutException`, so an exception's class does not tell the
-  platform's text from the library's. So on every target the runtime returns a failure of its
-  own, holding the method, the URL as shown and, of the library's failure, only what the target's
-  document shows to hold nothing of the request. In Go that is the cause under the library's
-  wrapper, the `Err` of a `*url.Error`, and never the wrapper: with that, the same request's
-  message was `GET http://127.0.0.1:1/v1/things?limit=5&pw=[REDACTED]: dial tcp 127.0.0.1:1:
-  connect: connection refused`, and `errors.As` found no `*url.Error` in the chain. That cause's
-  own text stays the library's, which the runtime cannot hold by construction, so T-65 sweeps it
-  for each failure the behavior server can provoke. In Kotlin it is the names of the classes in
-  the library's chain and none of its exceptions, and the runtime sets none of the library's
-  timeouts, so the library builds no such message
-  ([Kotlin](../targets/kotlin/errors.md#a-transports-failure)).
-- **No dump.** The runtime declares no rendering of a request or a response as sent, a wire log
-  or a command line that would replay it. A caller who wants one wraps the `Transport`, which is
-  handed each request as it goes out, credentials included, since it sends it; what such a wrapper
-  prints is its author's.
+  Go 1.27.3, a request to a closed port with a key in its query came back from `net/http` as `Get
+  "http://127.0.0.1:1/v1/things?limit=5&pw=…": dial tcp 127.0.0.1:1: connect: connection refused`,
+  the value in full, in a `*url.Error` whose `URL` member holds it too. With Ktor 3.2.3 on Kotlin
+  2.4.0, each of the library's timeouts, the request's, the connection's and the socket's, wrote
+  `[url=http://…?limit=5&api_key=…` into its message with the key in full, the last as a
+  `java.net.SocketTimeoutException`, so an exception's class does not tell the platform's text from
+  the library's. So on every target the runtime returns a failure of its own, holding the method,
+  the URL as shown and, of the library's failure, only what the target's document shows to hold
+  nothing of the request. In Go that is the cause under the library's wrapper, the `Err` of a
+  `*url.Error`, and never the wrapper: with that, the same request's message was `GET
+  http://127.0.0.1:1/v1/things?limit=5&pw=[REDACTED]: dial tcp 127.0.0.1:1: connect: connection
+  refused`, and `errors.As` found no `*url.Error` in the chain. That cause's own text stays the
+  library's, which the runtime cannot hold by construction, so T-65 sweeps it for each failure the
+  behavior server can provoke. In Kotlin it is the names of the classes in the library's chain and
+  none of its exceptions, and the runtime sets none of the library's timeouts, so the library builds
+  no such message ([Kotlin](../targets/kotlin/errors.md#a-transports-failure)).
+- **No dump.** The runtime declares no rendering of a request or a response as sent, a wire log or a
+  command line that would replay it. A caller who wants one wraps the `Transport`, which is handed
+  each request as it goes out, credentials included, since it sends it; what such a wrapper prints
+  is its author's.
 - **Docs and the mock.** A sample sets a credential from a placeholder the SDK target writes
   ([docs](../docs-and-mock.md#samples-come-from-the-sdk-emitters)), a scheme having no example in
   the IR to copy, and a mock server that logs a request logs what an event holds of it, so a key a

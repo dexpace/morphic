@@ -24,12 +24,12 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
     `Authenticator`, `Transport`, `InboundRequest`, `OutboundResponse`, and the opt-in annotations
     `AlphaApi`, `BetaApi` and `InternalSdkApi` ([stability](operations.md#stability)) among them,
-    and on Multiplatform `Decimal` and
-    `OffsetDateTime`. A file naming one beside a spec class of its name imports one under a name of
-    its own ([imports](#imports)), so no generated file needs these reserved, while a caller's
-    does: with Kotlin 2.4.0, a file importing a unit and the runtime's with `*` found a class both
-    declared ambiguous where it named it ("overload resolution ambiguity between candidates"), so a
-    spec class named `Response` would cost each such caller an explicit import.
+    and on Multiplatform `Decimal` and `OffsetDateTime`. A file naming one beside a spec class of
+    its name imports one under a name of its own ([imports](#imports)), so no generated file needs
+    these reserved, while a caller's does: with Kotlin 2.4.0, a file importing a unit and the
+    runtime's with `*` found a class both declared ambiguous where it named it ("overload resolution
+    ambiguity between candidates"), so a spec class named `Response` would cost each such caller an
+    explicit import.
   - Each class Kotlin's default imports give a file on a platform the target builds for, such as
     `List`, `Result`, `Error`, `System` and, on Native, `Platform`, a table of the options version
     as the Swift names below are, read from the Kotlin release and the JDK it is measured on. A
@@ -54,10 +54,9 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
-    runtime's among them, in every unit, bar `AlphaApi`, `BetaApi` and `InternalSdkApi`,
-    annotation classes Kotlin/Native 2.4.0 leaves out of the header; the joined name of each
-    public class the target
-    nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
+    runtime's among them, in every unit, bar `AlphaApi`, `BetaApi` and `InternalSdkApi`, annotation
+    classes Kotlin/Native 2.4.0 leaves out of the header; the joined name of each public class the
+    target nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
     `PaymentUnknown` beside a union `Payment`; and the names the export gives classes of its own,
     `Base`, `MutableSet`, `MutableDictionary`, `Number` and each boxed number's, such as `Int`,
     `Double` and `ULong`.
@@ -94,19 +93,18 @@ a name it declares there, which the unit reserves, so no spec class's file meets
 union's variants are properties, not classes, and compare folded all the same, so a union whose kind
 a revision changes keeps the comparison its variants' names shipped under. kotlinc names each class
 it writes for a method's body after the method, and sets two apart only where their names differ in
-letter case alone: Kotlin 2.4.0 wrote `Client$getA$1.class` and `Client$geta$2.class` for
-methods `getA` and `geta`, but `Client$straße$1.class` alone for `straße` and `strasse`, and one
-file for `café` composed and decomposed, and the program failed to load the class it had lost
-(`NoClassDefFoundError: p/Client$straße$1 (wrong name: p/Client$strasse$1)`); a class it copies
-from an inline function, `Client$mapA$$inlined$map$1`, is numbered within its method, so methods
-`mapA` and `mapa` met as well. On the golden spec no two operations of one group fold alike unless
-their words do, so this renames none (spec @bc6fad24, morphic @fa253fe19, each operation's words
-joined). A model's properties are no class, and a builder's setters, named for them, hold no
-lambda, so both keep names apart by case. A file holding a declaration that is no class, a
-`typealias`, gets a class of kotlinc's named for the file, `MoneyKt` for `Money.kt`, which a spec
-class `MoneyKt` beside it met ("duplicate JVM class name 'p/MoneyKt'"); so that file names it for
-the alias with `@file:JvmName("Money")`, a name the unit already holds apart, which built beside
-`MoneyKt`. A
+letter case alone: Kotlin 2.4.0 wrote `Client$getA$1.class` and `Client$geta$2.class` for methods
+`getA` and `geta`, but `Client$straße$1.class` alone for `straße` and `strasse`, and one file for
+`café` composed and decomposed, and the program failed to load the class it had lost
+(`NoClassDefFoundError: p/Client$straße$1 (wrong name: p/Client$strasse$1)`); a class it copies from
+an inline function, `Client$mapA$$inlined$map$1`, is numbered within its method, so methods `mapA`
+and `mapa` met as well. On the golden spec no two operations of one group fold alike unless their
+words do, so this renames none (spec @bc6fad24, morphic @fa253fe19, each operation's words joined).
+A model's properties are no class, and a builder's setters, named for them, hold no lambda, so both
+keep names apart by case. A file holding a declaration that is no class, a `typealias`, gets a class
+of kotlinc's named for the file, `MoneyKt` for `Money.kt`, which a spec class `MoneyKt` beside it
+met ("duplicate JVM class name 'p/MoneyKt'"); so that file names it for the alias with
+`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. A
 failure kind's exception is a class too, named for its kind in `Policy.Errors`
 ([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
 letter case alone would share a class file: measured with Kotlin 2.4.0 on a file system that ignores
@@ -115,21 +113,21 @@ case, `NotFoundException` and `NotfoundException` compiled to the one file
 (wrong name: p/NotfoundException)`). So a kind is one name whatever its letter case, on every target
 ([what a layer writes](../../contract/runtime-policy.md#what-a-layer-writes)).
 
-A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into
-paths, a method's in the class kotlinc writes for its body, so each is held to the length cap
+A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into paths,
+a method's in the class kotlinc writes for its body, so each is held to the length cap
 ([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)); a source file is named
 for its class, so the cap holds it too, and a Gradle module's directory is its unit's name.
 
-A unit's name is its package segment, its module's project and artifact and that module's
-directory alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)):
-its words joined with no separator, folded by the path fold, each character outside `a`–`z` and
-`0`–`9` written as `u` and its hex code point, so `useraccounts`, `strasse` for `Straße` and
-`u65e5u672c` for `日本`; a partition's is the name the options give it. A Maven artifact's name
-takes ASCII letters, digits and `_-.` alone: Gradle 9.8.2 built a module `straße` and refused to
-publish it (`artifactId (straße) is not a valid Maven identifier ([A-Za-z0-9_\-.]+)`), and
-published it once its artifact was `strasse`. Escaping only the artifact, which published too, was
-not taken, as it gives a unit two names, the package a caller imports and the artifact its build
-depends on. So two groups whose words break differently render alike and collide ([output
+A unit's name is its package segment, its module's project and artifact and that module's directory
+alike, rendered as Go renders a package's ([Go](../go/naming.md#package-directories)): its words
+joined with no separator, folded by the path fold, each character outside `a`–`z` and `0`–`9`
+written as `u` and its hex code point, so `useraccounts`, `strasse` for `Straße` and `u65e5u672c`
+for `日本`; a partition's is the name the options give it. A Maven artifact's name takes ASCII
+letters, digits and `_-.` alone: Gradle 9.8.2 built a module `straße` and refused to publish it
+(`artifactId (straße) is not a valid Maven identifier ([A-Za-z0-9_\-.]+)`), and published it once
+its artifact was `strasse`. Escaping only the artifact, which published too, was not taken, as it
+gives a unit two names, the package a caller imports and the artifact its build depends on. So two
+groups whose words break differently render alike and collide ([output
 units](../../refine/output-units.md)), as two that fold alike do; a name the options give a unit
 that this rendering would change, two partitions' names that fold alike among them, is an options
 error, and a group whose name folds as a partition's yields to it.
@@ -187,19 +185,19 @@ the `serializer()` it gives the class, a member, an enum entry, a type parameter
 local and each member of a lambda's receiver, which the template writing the lambda declares as it
 declares what it binds. A declaration the file names whose name one of them takes is imported under
 a name of its own, which the collision rule gives it as it gives any name that yields
-([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)):
-`import com.acme.shared.Dog as Dog2` beside a variant `Dog`, `import kotlin.collections.List as
-List2` beside a variant `List`, `import kotlin.error as error2` beside an operation `error`, and
-`import com.acme.users.Pet as Pet2` in the file declaring a union `Pet` with a variant `Pet`. The
+([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)): `import
+com.acme.shared.Dog as Dog2` beside a variant `Dog`, `import kotlin.collections.List as List2`
+beside a variant `List`, `import kotlin.error as error2` beside an operation `error`, and `import
+com.acme.users.Pet as Pet2` in the file declaring a union `Pet` with a variant `Pet`. The
 declaration's own name then resolves nowhere in that file: with `import p.Dog as DogValue`,
 `Dog("x")` there was an unresolved reference, though `p` declares `Dog`, so every reference to it in
-the file goes through the alias. Of two imports sharing a name, one the target's own code writes,
-a library's or the runtime's, keeps it, and of two of the spec's declarations, the one whose ID
-sorts first. No declaration of the file yields to an import, since a caller writes its classes and
-members by name, and its parameters too, in a named argument and as a Swift argument label. Nothing
-is written qualified by its package. A property takes no call unless its type declares `invoke`, so
-comparing every member's name gives some imports an alias no reference needed, `kotlin.error`
-beside a property `error`; one comparison is kept all the same, since such an alias costs no caller
+the file goes through the alias. Of two imports sharing a name, one the target's own code writes, a
+library's or the runtime's, keeps it, and of two of the spec's declarations, the one whose ID sorts
+first. No declaration of the file yields to an import, since a caller writes its classes and members
+by name, and its parameters too, in a named argument and as a Swift argument label. Nothing is
+written qualified by its package. A property takes no call unless its type declares `invoke`, so
+comparing every member's name gives some imports an alias no reference needed, `kotlin.error` beside
+a property `error`; one comparison is kept all the same, since such an alias costs no caller
 anything.
 
 An alias is its file's alone. The class files and the framework's header name each class by its own
@@ -210,19 +208,18 @@ name, the same sources built for JS, and a Swift caller built `PetDog(value: Dog
 Removing an alias failed a build, though the one a wrapper `Pet.List` took for a model `List` only
 in the consumer, the SDK building with its wrapper holding itself, and without `error2` the client
 built and its call to `error` called the operation; writing a declaration qualified instead failed
-in an expression beside a property named as the package's first segment, and resolved in a type.
-A KDoc link names its target as code does, labelled with the declaration's own name,
-`[Dog][Dog2]`: Dokka 2.3.0 rendered a link `[Dog2]` as `Dog2` and took a bare `[Dog]` in the
-union's KDoc to the wrapper `Pet.Dog`, while `[Dog][Dog2]` rendered `Dog` and opened the model's
-page. So the rule renames no declaration, and what an additive change brings into a file moves at
-most which of its imports take an alias, which no caller sees. On the golden spec, each
-declaration named as rule 2 names it in one unit and each class counted as its words join in
-PascalCase, the files of 250 of its 1,003 unions import 1,117 declarations under an alias: a
-variant takes the name of the type it holds, while the type takes a suffix wherever another of its
-name comes first in ID order, as most anonymous types sharing a hint do (spec @bc6fad24, morphic
-@fa253fe19). One variant is named as its union, no model holds a type named `Builder` or
-`Companion`, and the 3 properties named `org` and the 3 named `app` keep their names under a root
-that begins with either. T-55 holds it.
+in an expression beside a property named as the package's first segment, and resolved in a type. A
+KDoc link names its target as code does, labelled with the declaration's own name, `[Dog][Dog2]`:
+Dokka 2.3.0 rendered a link `[Dog2]` as `Dog2` and took a bare `[Dog]` in the union's KDoc to the
+wrapper `Pet.Dog`, while `[Dog][Dog2]` rendered `Dog` and opened the model's page. So the rule
+renames no declaration, and what an additive change brings into a file moves at most which of its
+imports take an alias, which no caller sees. On the golden spec, each declaration named as rule 2
+names it in one unit and each class counted as its words join in PascalCase, the files of 250 of its
+1,003 unions import 1,117 declarations under an alias: a variant takes the name of the type it
+holds, while the type takes a suffix wherever another of its name comes first in ID order, as most
+anonymous types sharing a hint do (spec @bc6fad24, morphic @fa253fe19). One variant is named as its
+union, no model holds a type named `Builder` or `Companion`, and the 3 properties named `org` and
+the 3 named `app` keep their names under a root that begins with either. T-55 holds it.
 
 Four other designs were weighed, and each fails an input:
 

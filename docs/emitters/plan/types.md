@@ -248,13 +248,13 @@ admitting no value in common, by these rules, and a pair none of them separates 
   that redeclare `id` as different one-value enums. A `readOnly` member separates in a read shape
   and not in a create one, none separates in a patch shape, which relaxes its members
   ([below](#what-a-patch-relaxes)), and none `ClientOptional` marks, which a client treats as
-  optional. The declaration no shape projects is
-  decided for every filter at once: a member separates only where no filter can leave it out, its
-  `Visibility` the zero value, and a declaration some filter leaves out separates only where its
-  model is closed as well. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does
-  ([catch-alls](../../ir/models.md#catch-alls)), so the closure alone separates nothing, and a
-  polymorphic base, which holds its subtypes' values and the members they add, counts as open.
+  optional. The declaration no shape projects is decided for every filter at once: a member
+  separates only where no filter can leave it out, its `Visibility` the zero value, and a
+  declaration some filter leaves out separates only where its model is closed as well. A catch-all
+  beside a closure holds the members it governs, as `patternProperties` beside
+  `additionalProperties: false` does ([catch-alls](../../ir/models.md#catch-alls)), so the closure
+  alone separates nothing, and a polymorphic base, which holds its subtypes' values and the members
+  they add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through a
 finite chain of separated members, and a cycle of models separates nothing by itself. The plan
@@ -299,8 +299,8 @@ type.
 One logical model produces N wire shapes across the lifecycle. A shape is a visibility filter, the
 lifecycles a member must be visible in one of, and whether it is a patch shape, a `PATCH` body's
 that relaxes the members it holds ([below](#what-a-patch-relaxes)). `ModelShape(type, shape)` is a
-**computed traversal in the plan layer**; the IR stores only
-the single logical model plus visibility facts and never the projected variants (INV2;
+**computed traversal in the plan layer**; the IR stores only the single logical model plus
+visibility facts and never the projected variants (INV2;
 [properties](../../ir/properties.md#visibility)). The plan keeps one `ModelShape` for each shape the
 document exercises a type in, in the type's `TypePlan.Shapes`, sorted by filter, lifecycle by
 lifecycle, and then by patch, so a refiner knows exactly which shapes to build: those entries are
@@ -325,27 +325,27 @@ type ModelShape struct {
 `Props` are drawn from `TypePlan.Flattened`, so a composed model's shapes hold what it inherits and
 mixes in, each member visible as the declaration it takes says
 ([models](../../ir/models.md#the-flattening)). A member is visible when its `Only` names a lifecycle
-of the filter, or none of the filter's class: `readOnly → Only:[read, delete, query]`;
-`writeOnly → Only:[create, update]` ([properties](../../ir/properties.md#visibility));
-`Visibility.None` → excluded from every projection (distinct from the zero value). A patch shape
-makes every property it holds optional ([below](#what-a-patch-relaxes)), and no shape carries a
-property's default onto the wire ([values](../refine/values.md)). Unknown visibility classes are
-opaque filters evaluated per class ([properties](../../ir/properties.md#visibility)).
+of the filter, or none of the filter's class: `readOnly → Only:[read, delete, query]`; `writeOnly →
+Only:[create, update]` ([properties](../../ir/properties.md#visibility)); `Visibility.None` →
+excluded from every projection (distinct from the zero value). A patch shape makes every property it
+holds optional ([below](#what-a-patch-relaxes)), and no shape carries a property's default onto the
+wire ([values](../refine/values.md)). Unknown visibility classes are opaque filters evaluated per
+class ([properties](../../ir/properties.md#visibility)).
 
 ## What a patch relaxes
 
 A `PATCH` body requires the members its schema requires, as any other body does. Its shape is a
-patch shape, every member optional, only where something says the body describes the resource
-rather than the request:
+patch shape, every member optional, only where something says the body describes the resource rather
+than the request:
 
-- its binding's `PatchImplicitOptionality` points at `true`, which a format lowers where it asks
-  for the transform, as TypeSpec's `@patch(#{implicitOptionality: true})` does;
+- its binding's `PatchImplicitOptionality` points at `true`, which a format lowers where it asks for
+  the transform, as TypeSpec's `@patch(#{implicitOptionality: true})` does;
 - or the field is nil and the content's media type is `application/merge-patch+json`, compared
-  without parameters and without regard to letter case. A merge patch names only what it changes
-  and leaves every absent member as it was (RFC 7396 §1), so a schema requiring a member there
-  describes the resource the patch is applied to. This reading is inferred, so it is
-  `plan.Policy.MergePatch`, on by default, and the shape's `Inferred` marks its `Patch`
-  ([plan policy](policy.md#a-merge-patch-relaxes-what-its-schema-requires)).
+  without parameters and without regard to letter case. A merge patch names only what it changes and
+  leaves every absent member as it was (RFC 7396 §1), so a schema requiring a member there describes
+  the resource the patch is applied to. This reading is inferred, so it is `plan.Policy.MergePatch`,
+  on by default, and the shape's `Inferred` marks its `Patch` ([plan
+  policy](policy.md#a-merge-patch-relaxes-what-its-schema-requires)).
 
 `false` relaxes nothing, whatever the media type. The shape belongs to the content, so an operation
 offering one type as `application/json` and as a merge patch declares it in two shapes. It sends the
@@ -358,8 +358,8 @@ No compiler sets the field today, and the plan reads nil as stating nothing, sin
 binding and never the format behind it (INV1), so one default has to serve every format. The IR's
 own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
 optional)" ([http-binding](../../ir/http-binding.md),
-[properties](../../ir/properties.md#visibility)), which #1775 is to settle; until then an
-emitter follows this document.
+[properties](../../ir/properties.md#visibility)), which #1775 is to settle; until then an emitter
+follows this document.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings leaves
 the field nil. Their bodies have 269 contents, 257 of them `application/json` and 6 a merge patch,
@@ -373,8 +373,8 @@ would make every edit of a Worker restate six members. Each of the six merge pat
 smaller key would elect: without the election above no request would go out relaxed, and an edit of
 a Worker would still restate its six. Four readings lost to this one:
 
-- **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of
-  the 78, and over all a patch shape reaches it relaxes 359 members of 217 models.
+- **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of the
+  78, and over all a patch shape reaches it relaxes 359 members of 217 models.
 - **None does unless the binding says so.** It is wrong for the two merge patches and for any
   document reusing a resource's schema that way, and the caller it fails has no way to send a
   partial edit.
@@ -402,9 +402,8 @@ What the client reads takes `read`. What it writes takes its HTTP method's lifec
 a webhook or a callback, which the API starts, takes `read`, and a message takes the side its
 binding's direction gives it. A `PATCH` body's shape is a patch shape where [its binding or its
 media type](#what-a-patch-relaxes) says so. A `readOnly` member, visible in `read`, `delete` and
-`query`,
-thus reaches a `GET`'s parameters and a `DELETE`'s body, and never the body of a `POST` or a `PUT`
-the client sends.
+`query`, thus reaches a `GET`'s parameters and a `DELETE`'s body, and never the body of a `POST` or
+a `PUT` the client sends.
 
 A shape reaches every type a position of it holds, in that same shape: each member the shape holds,
 a catch-all's values, a union's variants, a polymorphic base's subtypes, a map's values, and a

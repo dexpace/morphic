@@ -24,9 +24,8 @@ scope and a unit's what a unit or a top-level declaration cannot be named:
 - **A function**: its receiver, its context and request parameters, every local its body binds,
   every name of its unit the body writes unqualified, as its operation's row of the runtime's
   settings, and on Go the package names its file imports. Whatever builds a body declares the names
-  it binds beside it —
-  the refine step that builds it as typed nodes, or the template that renders it, whose declaration
-  the template lint holds to what the rendering binds ([template
+  it binds beside it — the refine step that builds it as typed nodes, or the template that renders
+  it, whose declaration the template lint holds to what the rendering binds ([template
   guards](../emit/templates.md#two-guards-on-the-boilerplate-templates)) — so no list is kept apart
   from the code it describes.
 
@@ -47,9 +46,9 @@ depth, and no scope reserves an import. An import has no ID, so which of two kee
 target's to say from what they import. That is why `ComputeImports` runs before the naming steps
 ([the refiner contract](pipeline.md)): what a file imports is fixed by where declarations landed,
 and what the file calls each import is a name like any other. Names that collide once cased are
-`Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that fold
-alike ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds
-every scope's set, the names with no words and the names that begin with a digit to code that
-compiles, and names that fold alike to paths that do not; T-54 holds names holding a character a
-target cannot write, or beginning with one its role cannot begin with, to code that compiles and a
-caller in another unit that reaches each; and T-55 holds each reference to the declaration it means.
+`Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that fold alike
+([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's set,
+the names with no words and the names that begin with a digit to code that compiles, and names that
+fold alike to paths that do not; T-54 holds names holding a character a target cannot write, or
+beginning with one its role cannot begin with, to code that compiles and a caller in another unit
+that reaches each; and T-55 holds each reference to the declaration it means.

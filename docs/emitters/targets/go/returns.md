@@ -37,28 +37,28 @@ func (r Raw) RawBody() []byte        // the body, up to Policy.Errors' bound
 ```
 
 `state.Raw` is a struct whose one field is a function returning both ([the
-runtime](overview.md#what-a-caller-reaches-of-the-runtime)), so no form shows either, whatever
-reads the value. Measured with Go 1.27.3: a failure as a pointer, as a value and in an exported
-and an unexported field of a caller's struct, the other three types, a sub-client and the client
-were rendered under 23 `fmt` verbs and flags, `%O` and `%p` among them, `Sprint`, `encoding/json`,
-`encoding/json/v2`, both `log/slog` handlers and `encoding/gob`, and none of the 464 renderings
-held a header's value, the body's bytes or the base URL's password in any spelling, where 66 of
-87 did for a struct holding the same as plain fields. `encoding/json/v2` refuses the types (`Go
-struct has no exported fields`) and `encoding/json` writes their other members. What a type
-declares beyond that shows only what has a form of its own: `Response` and `EnvelopedResponse`
-declare `String`, `GoString` and `LogValue`, showing the status and `Body` and `Headers` through
-theirs ([redaction](../../refine/redaction.md#a-redacted-value)), and `OtherResponse` and
-`APIError` are Go errors, whose `Error` quotes neither.
+runtime](overview.md#what-a-caller-reaches-of-the-runtime)), so no form shows either, whatever reads
+the value. Measured with Go 1.27.3: a failure as a pointer, as a value and in an exported and an
+unexported field of a caller's struct, the other three types, a sub-client and the client were
+rendered under 23 `fmt` verbs and flags, `%O` and `%p` among them, `Sprint`, `encoding/json`,
+`encoding/json/v2`, both `log/slog` handlers and `encoding/gob`, and none of the 464 renderings held
+a header's value, the body's bytes or the base URL's password in any spelling, where 66 of 87 did
+for a struct holding the same as plain fields. `encoding/json/v2` refuses the types (`Go struct has
+no exported fields`) and `encoding/json` writes their other members. What a type declares beyond
+that shows only what has a form of its own: `Response` and `EnvelopedResponse` declare `String`,
+`GoString` and `LogValue`, showing the status and `Body` and `Headers` through theirs
+([redaction](../../refine/redaction.md#a-redacted-value)), and `OtherResponse` and `APIError` are Go
+errors, whose `Error` quotes neither.
 
-Three other holders were built, and each leaks to some reader. Plain fields, with a `Format`
-method on each type beside `GoString`, answer every verb `fmt` is handed the value under, and
-nothing once the value is a field of a caller's struct that `fmt` cannot ask, nor an encoder.
-Unexported fields print as exported ones do. A pointer to them prints as an address under `%v`
-and in full under a verb `fmt` has no form for: `%O` of a failure began `%!O(*state.raw=&{map[
-Set-Cookie:[…`. The function's cost is that two responses holding equal bytes are unequal to
-`reflect.DeepEqual`, which never finds two functions equal, so a test compares what `RawHeader`
-and `RawBody` return. A `RawBody` and a `Stream`, which hold a response still open, are declared
-over state structs as a sub-client is, and read it through their methods. T-65 holds this section.
+Three other holders were built, and each leaks to some reader. Plain fields, with a `Format` method
+on each type beside `GoString`, answer every verb `fmt` is handed the value under, and nothing once
+the value is a field of a caller's struct that `fmt` cannot ask, nor an encoder. Unexported fields
+print as exported ones do. A pointer to them prints as an address under `%v` and in full under a
+verb `fmt` has no form for: `%O` of a failure began `%!O(*state.raw=&{map[ Set-Cookie:[…`. The
+function's cost is that two responses holding equal bytes are unequal to `reflect.DeepEqual`, which
+never finds two functions equal, so a test compares what `RawHeader` and `RawBody` return. A
+`RawBody` and a `Stream`, which hold a response still open, are declared over state structs as a
+sub-client is, and read it through their methods. T-65 holds this section.
 
 ## `OtherResponse`
 
