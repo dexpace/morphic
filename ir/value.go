@@ -34,6 +34,14 @@ const (
 	// ValueCtor is a value built by a named scalar constructor, carried in
 	// Value.Ctor (TypeSpec scalar constructors such as plainDate.fromISO).
 	ValueCtor ValueKind = "ctor"
+	// ValueInf is IEEE 754 positive infinity, which no BigVal holds and which
+	// carries no payload (a protobuf `[default = inf]`).
+	ValueInf ValueKind = "inf"
+	// ValueNegInf is IEEE 754 negative infinity, carrying no payload.
+	ValueNegInf ValueKind = "neginf"
+	// ValueNaN is an IEEE 754 not-a-number, carrying no payload: the IR keeps
+	// no NaN payload bits, which no source format states.
+	ValueNaN ValueKind = "nan"
 )
 
 // Value is typed data kept separate from the type graph: defaults, constants,

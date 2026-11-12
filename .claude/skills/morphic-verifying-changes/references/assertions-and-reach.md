@@ -119,6 +119,17 @@ it.
   (wrong example, different key, fresh hash, duplicate at one key and none at another) and confirm
   the test reddens; grep tests for `_ = ` on compiled results.
 
+## Assert absence on the field, not on an encoding
+`absence-on-the-field`
+
+- **Rule.** Assert that a value is absent by reading the field that would hold it, not by
+  searching an encoding of the document: a spelling the encoder never writes matches nothing, on
+  any document. Where the encoding is the subject, assert the same spelling present in a control
+  first, so the search is shown to match.
+- **Why.** `NotContains` of a spaced `"minItems": 1` in compact JSON passed whatever the document
+  held, and a planted bound survived until the assertion read the node's field (#1302).
+- **Probe.** Plant the value where the assertion looks; it reddens.
+
 ## Assert every output a change writes or preserves
 `assert-every-output-the-change-touches`
 

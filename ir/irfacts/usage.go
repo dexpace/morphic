@@ -126,7 +126,7 @@ func (r usageRoots) document(doc *ir.Document) {
 	}
 	callbacks := callbackOperations(doc)
 	ir.ForEachOperation(doc, func(op ir.Operation) {
-		r.operation(doc, &op, callbacks[op.ID] || isWebhook(&op))
+		r.operation(doc, &op, callbacks[op.ID] || isInbound(&op))
 	})
 	for i := range doc.Services {
 		for j := range doc.Services[i].CommonErrors {
@@ -157,10 +157,11 @@ func callbackOperations(doc *ir.Document) map[ir.OpID]bool {
 	return callbacks
 }
 
-// isWebhook reports whether op is an inbound webhook. The binding's IsWebhook
-// says so; its WebhookName may be empty, since an empty webhooks key is legal.
-func isWebhook(op *ir.Operation) bool {
-	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.IsWebhook })
+// isInbound reports whether a binding of op marks it a request the API sends:
+// a webhook or a callback. Its WebhookName may be empty, since an empty
+// webhooks key is legal.
+func isInbound(op *ir.Operation) bool {
+	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
 // operation records what op sends and what comes back. The client writes a

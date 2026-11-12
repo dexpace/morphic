@@ -12,20 +12,21 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
 // promoter builds the promoter a context carrying nothing but policy hands out.
 func promoter(policy lowering.ExtensionPromotions) lowering.Promoter {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, policy, lowering.NullableWidening{}, overlay.Origin{}).Promoter()
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy}).Promoter()
 }
 
 // mapping is a policy reading target from sources, in the order given.
@@ -362,7 +363,7 @@ func TestPromoter_MemberReadsOneFactOfAnObject(t *testing.T) {
 				at = append(at, d.Provenance.Pointer)
 			}
 			assert.ElementsMatch(t, tc.at, at, "each report names the key or member at fault")
-			if tc.want == (ir.Deprecation{}) {
+			if cmp.Equal(tc.want, ir.Deprecation{}) {
 				assert.Empty(t, prov.Inferred, "nothing was read, so nothing is marked")
 			}
 		})
@@ -469,19 +470,29 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
 			diags := p.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
-			return *dep != (ir.Deprecation{}), diags
+			return !cmp.Equal(*dep, ir.Deprecation{}), diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			enum := ir.Enum{Closed: true}
 			var prov ir.Provenance
-			diags := p.EnumOpenness(unmodeled, &enum, &prov)
+			diags := p.EnumOpenness(unmodeled, &enum.Closed, &prov)
 			return !enum.Closed, diags
+		},
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			u := ir.Union{Closed: true}
+			var prov ir.Provenance
+			diags := p.UnionOpenness(unmodeled, &u.Closed, &prov)
+			return !u.Closed, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var tier ir.Stability
 			var prov ir.Provenance
 			diags := p.Stability(unmodeled, &tier, &prov)
 			return tier != ir.StabilityUnstated, diags
+		},
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			names, _, diags := p.Replacements(unmodeled)
+			return len(names) > 0, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var redact bool
@@ -529,7 +540,9 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetDeprecationSince:          {"Deprecation.Since"},
 	lowering.TargetDeprecationRemovalVersion: {"Deprecation.RemovalVersion"},
 	lowering.TargetDeprecationRemovalDate:    {"Deprecation.RemovalDate"},
+	lowering.TargetDeprecationReplacedBy:     {"Deprecation.ReplacedBy"},
 	lowering.TargetEnumOpen:                  {"Enum.Closed"},
+	lowering.TargetUnionOpen:                 {"Union.Closed"},
 	lowering.TargetStability:                 {"Operation.Stability"},
 	lowering.TargetRedaction:                 {"TypeCommon.Sensitive", "Property.Secret", "Parameter.Secret"},
 }
@@ -600,7 +613,7 @@ func TestPromoterEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 			enum := ir.Enum{Closed: true}
 			var prov ir.Provenance
 			promoter(lowering.ExtensionPromotions{}).EnumOpenness(
-				ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(tc.value)}, &enum, &prov)
+				ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(tc.value)}, &enum.Closed, &prov)
 
 			assert.False(t, enum.Closed, "the key says the member set is open")
 			assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
@@ -618,10 +631,10 @@ func TestPromoterEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.
 	enum := ir.Enum{Closed: true}
 	prov := ir.Provenance{Inferred: "an-earlier-heuristic"}
 
-	c.EnumOpenness(unmodeled, &enum, &prov)
+	c.EnumOpenness(unmodeled, &enum.Closed, &prov)
 	assert.Equal(t, ir.Inferred("an-earlier-heuristic,extension-promotion"), prov.Inferred)
 
-	c.EnumOpenness(unmodeled, &enum, &prov)
+	c.EnumOpenness(unmodeled, &enum.Closed, &prov)
 	assert.Equal(t, ir.Inferred("an-earlier-heuristic,extension-promotion"), prov.Inferred,
 		"a second reading of the same node adds no second marker")
 }
@@ -633,7 +646,7 @@ func TestPromoterEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.
 func TestPromoterEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
-	promoter(lowering.ExtensionPromotions{}).EnumOpenness(unmodeled, new(ir.Enum{Closed: true}), &ir.Provenance{})
+	promoter(lowering.ExtensionPromotions{}).EnumOpenness(unmodeled, new(true), &ir.Provenance{})
 
 	entry, kept := unmodeled["openapi:x-extensible-enum"]
 	require.True(t, kept, "the entry survives its own promotion")
@@ -674,7 +687,7 @@ func TestPromoterEnumOpenness_WritesNothing(t *testing.T) {
 			t.Parallel()
 			enum := ir.Enum{Closed: true}
 			var prov ir.Provenance
-			promoter(tc.policy).EnumOpenness(tc.unmodeled, &enum, &prov)
+			promoter(tc.policy).EnumOpenness(tc.unmodeled, &enum.Closed, &prov)
 
 			assert.True(t, enum.Closed, "the enum stays as the format declared it")
 			assert.Empty(t, prov.Inferred, "nothing was inferred, so nothing is marked")
@@ -693,7 +706,7 @@ func TestPromoterEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
 	c.EnumOpenness(unmodeled, nil, &ir.Provenance{})
 
 	enum := ir.Enum{Closed: true}
-	c.EnumOpenness(unmodeled, &enum, nil)
+	c.EnumOpenness(unmodeled, &enum.Closed, nil)
 	assert.True(t, enum.Closed, "with nowhere to record the guess, none is made")
 }
 
@@ -708,7 +721,7 @@ func TestPromoterEnumOpenness_FirstStatedDecides(t *testing.T) {
 		lowering.ExtensionSource{Key: "x-a"}, lowering.ExtensionSource{Key: "x-b"})).EnumOpenness(ir.Unmodeled{
 		"openapi:x-a": vendorExtension(`false`),
 		"openapi:x-b": vendorExtension(`["a"]`),
-	}, &enum, &prov)
+	}, &enum.Closed, &prov)
 
 	assert.True(t, enum.Closed)
 	assert.Empty(t, prov.Inferred)
@@ -1100,23 +1113,16 @@ func TestPromoter_ReferentReadsEachSchemaOnce(t *testing.T) {
 	assert.Equal(t, 2, reads)
 }
 
-// TestPromoter_ReferentReadsNothingOffPolicy holds the two promoters with no key
-// to look for: neither reads the schema, so a compile that turned promotion off
-// spends nothing on a $ref. A zero context has the disabled policy.
+// TestPromoter_ReferentReadsNothingOffPolicy holds the promoter with no key to
+// look for: it reads no schema, so a compile that turned promotion off spends
+// nothing on a $ref.
 func TestPromoter_ReferentReadsNothingOffPolicy(t *testing.T) {
 	t.Parallel()
-	for name, p := range map[string]lowering.Promoter{
-		"disabled": promoter(lowering.ExtensionPromotions{Disabled: true}),
-		"zero":     (lowering.Ctx{}).Promoter(),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, lowering.Referent{}, p.Referent(bind.Position{}, true, func() ir.Unmodeled {
-				t.Error("a policy mapping no key read the schema")
-				return nil
-			}))
-		})
-	}
+	p := promoter(lowering.ExtensionPromotions{Disabled: true})
+	assert.Equal(t, lowering.Referent{}, p.Referent(bind.Position{}, true, func() ir.Unmodeled {
+		t.Error("a policy mapping no key read the schema")
+		return nil
+	}))
 }
 
 // TestPromoter_KeysListsWhatThePolicyReads pins the list a use site looks up on
@@ -1133,4 +1139,44 @@ func TestPromoter_KeysListsWhatThePolicyReads(t *testing.T) {
 	}).Keys())
 	assert.Equal(t, []string{"x-a", "x-b"}, got)
 	assert.Empty(t, slices.Collect(promoter(lowering.ExtensionPromotions{Disabled: true}).Keys()))
+}
+
+// TestPromoterUnionOpenness_OpensOnAMappedKey pins the union twin of the enum
+// promotion: no default key names TargetUnionOpen, so a union opens only under a
+// mapping that names one, and then as an enum does, on any value but an
+// explicit false, marking the node once.
+func TestPromoterUnionOpenness_OpensOnAMappedKey(t *testing.T) {
+	t.Parallel()
+	mapped := mapping(lowering.TargetUnionOpen, lowering.ExtensionSource{Key: "x-open"})
+	tests := []struct {
+		name   string
+		policy lowering.ExtensionPromotions
+		value  string
+		open   bool
+	}{
+		{"a mapped key", mapped, `true`, true},
+		{"a bare mapped key", mapped, `null`, true},
+		{"an explicit false", mapped, `false`, false},
+		{"the default mapping, which names no key for it", lowering.ExtensionPromotions{}, `true`, false},
+		{"a key mapped to the enum target", mapping(lowering.TargetEnumOpen, lowering.ExtensionSource{Key: "x-open"}), `true`, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			u := ir.Union{Closed: true}
+			var prov ir.Provenance
+			diags := promoter(tc.policy).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(tc.value)}, &u.Closed, &prov)
+			assert.Empty(t, diags)
+			assert.Equal(t, !tc.open, u.Closed)
+			if tc.open {
+				assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
+			} else {
+				assert.Empty(t, prov.Inferred, "nothing was inferred, so nothing is marked")
+			}
+		})
+	}
+	assert.Nil(t, promoter(mapped).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(`true`)}, nil, &ir.Provenance{}))
+	u := ir.Union{Closed: true}
+	assert.Nil(t, promoter(mapped).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(`true`)}, &u.Closed, nil))
+	assert.True(t, u.Closed, "with nowhere to record the guess, none is made")
 }

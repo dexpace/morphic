@@ -22,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
@@ -72,6 +73,12 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	}
 	formatOpts, err := optionsFrom(opts) // nil FormatOptions → defaults; wrong type → error
 	if err != nil {
+		return nil, nil, err
+	}
+	// Here and not in optionsFrom: detection reads its byte budget through
+	// optionsFrom, taking the default one on an error, so a grouping the compile
+	// cannot honour would have it read past the caller's.
+	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
 	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
@@ -190,15 +197,13 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 
-	schemes, authDiags := auth.LowerSecuritySchemes(c)
+	declared, authDiags := auth.LowerSecuritySchemes(c)
 	acc.AppendAll(authDiags)
 
-	srv := servers.NewRegistry()
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, c, ts, srv, schemes)
-	out.Auth = schemes.Schemes()
-	out.Services = []ir.Service{svc}
-	out.Servers = srv.Servers()
-	out.TagDefs = tagDefs
+	lowered, svcDiags := operation.LowerService(ctx, c, ts, declared)
+	out.Auth = lowered.Auth
+	out.Services = []ir.Service{lowered.Service}
+	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: a coordinate a
 	// $ref named and none built is built now, in its own context
@@ -213,18 +218,27 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 	out.Types = reg
+	// A link names operations and members anywhere in the service, so it is
+	// resolved once both are whole; a server it names registers then too, so
+	// the servers are read after it.
+	srv := servers.Reopen(lowered.Servers)
+	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
+	out.Servers = srv.Servers()
+	// What a deprecation names as its replacement may be declared anywhere, so
+	// it is read once every node it can name is built.
+	acc.AppendAll(replacement.Resolve(c, out))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
-	// Past the budget no $ref lowered, so what the lowering found depends on
-	// which $ref came first: the refusal is reported alone, the same in any
-	// order. It is asked once every lowering has returned, so none charges
-	// after it.
+	// Past the budget no $ref lowered, nor an additionalOperations entry, so
+	// what the lowering found depends on which copy came first: the refusal is
+	// reported alone, the same in any order. It is asked once every lowering has
+	// returned, so none charges after it.
 	if refusal, past := c.ExpansionRefusal(); past {
 		return nil, []ir.Diagnostic{refusal}, nil
 	}
@@ -273,19 +287,25 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 	return out
 }
 
-// loweringCtx projects a loaded document and the caller's options onto the
-// lowering context, and is the loadOptions of the phase below: it is the one
-// place the loader's result type meets the lowering, so lowering.New can take
-// the facts it needs rather than the loader's struct. It reads the budgets the
-// lowering holds, on enums and on what $refs copy, as loadOptions reads the
-// others.
+// loweringCtx builds the lowering context over a loaded document under the
+// caller's options, and is the loadOptions of the phase below: it projects
+// Options onto lowering.Policy, that package's own input, deliberately not this
+// public type. It reads the budgets the lowering holds, on enums and on what
+// $refs and path items copy, as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	limits := lowering.Limits{
-		MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
-		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
-	}
-	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.BinaryMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
+	return lowering.New(rootSrcIndex, doc, lowering.Policy{
+		Grouping:          o.Grouping,
+		GroupingExtension: o.GroupingExtension,
+		Limits: lowering.Limits{
+			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
+			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+		},
+		Streaming:              o.StreamingMedia,
+		Binary:                 o.BinaryMedia,
+		Promotions:             o.Promotions,
+		NullableWidening:       o.NullableWidening,
+		DiscriminatorInference: o.DiscriminatorInference,
+	})
 }
 
 // undecodable reports a source this compiler recognized and could not read.

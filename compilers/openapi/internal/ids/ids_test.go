@@ -235,6 +235,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"op":         string(ids.Op(pointer)),
 		"prop":       string(ids.Document{}.Prop(pointer)),
 		"minted":     string(ids.Document{}.ComposedProp(pointer)),
+		"member":     string(ids.Document{}.ComposedMember(pointer, "/s:a")),
 		"auth":       string(ids.Auth("apiKey")),
 		"unresolved": string(ids.UnresolvedAuth("apiKey")),
 		"service":    string(ids.Service(0)),
@@ -246,6 +247,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"op":         "op/openapi/components/schemas/User",
 		"prop":       "p/openapi/components/schemas/User",
 		"minted":     "p/composed/components/schemas/User",
+		"member":     "e/composed/components/schemas/User/s:a",
 		"auth":       "auth/openapi/components/securitySchemes/apiKey",
 		"unresolved": "auth/unresolved/components/securitySchemes/apiKey",
 		"service":    "s/openapi/0",
@@ -277,7 +279,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"for":        "t/anon@dir~1a~0b.yaml/X",
 		"prop":       "p/openapi@dir~1a~0b.yaml/components/schemas/User",
 		"minted":     "p/composed@dir~1a~0b.yaml/components/schemas/User",
-		"member":     "e/openapi@dir~1a~0b.yaml/components/schemas/User/s:a",
+		"composite":  "e/composed@dir~1a~0b.yaml/components/schemas/User/s:a",
 		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
 	}, map[string]string{
 		"named":      string(other.NamedType(pointer)),
@@ -286,7 +288,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"for":        string(other.ForPointer("/X")),
 		"prop":       string(other.Prop(pointer)),
 		"minted":     string(other.ComposedProp(pointer)),
-		"member":     string(other.EnumMember(pointer, "s:a", 1)),
+		"composite":  string(other.ComposedMember(pointer, "/s:a")),
 		"coordinate": other.Coordinate(pointer),
 	})
 
@@ -349,6 +351,13 @@ func TestGroupIDs_SpellEachRule(t *testing.T) {
 		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "g/path-prefix/a~0b"},
 		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "g/path-prefix/a~1b"},
 		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "g/path-prefix"},
+		{name: "a group path of one segment", got: ids.ExtensionGroup([]string{"accounts"}), want: "g/extension/accounts"},
+		{
+			name: "a group path of two segments", got: ids.ExtensionGroup([]string{"zero-trust", "devices"}),
+			want: "g/extension/zero-trust/devices",
+		},
+		{name: "a group path segment with a slash", got: ids.ExtensionGroup([]string{"a/b"}), want: "g/extension/a~1b"},
+		{name: "a group path segment with a tilde", got: ids.ExtensionGroup([]string{"a~b"}), want: "g/extension/a~0b"},
 		{name: "untagged operations", got: ids.DefaultGroup(), want: "g/default"},
 		{name: "webhook operations", got: ids.WebhookGroup(), want: "g/webhooks"},
 	}
@@ -371,7 +380,7 @@ func TestGroupIDs_NeverCollide(t *testing.T) {
 	t.Parallel()
 	exhaustive := stringsOver([]string{"a", "/", "~", "0", "1"}, 4)
 	require.Len(t, exhaustive, 781, "5^0 + … + 5^4 strings; a shorter list would pass this test vacuously")
-	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix"}, exhaustive)
+	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix", "extension"}, exhaustive)
 
 	rules := []struct {
 		name string
@@ -379,6 +388,8 @@ func TestGroupIDs_NeverCollide(t *testing.T) {
 	}{
 		{name: "tag", id: ids.TagGroup},
 		{name: "path prefix", id: ids.PathPrefixGroup},
+		{name: "group path", id: func(key string) ir.GroupID { return ids.ExtensionGroup([]string{key}) }},
+		{name: "group path nested in a", id: func(key string) ir.GroupID { return ids.ExtensionGroup([]string{"a", key}) }},
 	}
 	seen := map[ir.GroupID]string{
 		ids.DefaultGroup(): "the default group",
@@ -425,9 +436,9 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindProp:       {"composed", "openapi"},
 		ir.IDKindAuth:       {"openapi", "unresolved"},
 		ir.IDKindService:    {"openapi"},
-		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindGroup:      {"default", "extension", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
-		ir.IDKindEnumMember: {"anon", "openapi"},
+		ir.IDKindEnumMember: {"anon", "composed", "openapi"},
 		ir.IDKindServer:     {"default", "openapi"},
 	}, ids.Namespaces().Declaration())
 }
@@ -441,14 +452,15 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindAuth:       {"openapi", "unresolved"},
-		ir.IDKindService:    {"openapi"},
-		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
-		ir.IDKindParam:      {"openapi"},
-		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindServer:     {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindOp:      {"openapi"},
+		ir.IDKindProp:    {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindAuth:    {"openapi", "unresolved"},
+		ir.IDKindService: {"openapi"},
+		ir.IDKindGroup:   {"default", "extension", "path-prefix", "tags", "webhooks"},
+		ir.IDKindParam:   {"openapi"},
+		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml", "composed@b~1c.yaml",
+			"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindServer: {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 	}, ids.Namespaces(ids.In("a.yaml"), ids.In("b/c.yaml")).Declaration())
 }
 
@@ -509,44 +521,5 @@ func TestParam_ScopesByOperationNameAndLocation(t *testing.T) {
 		})
 		require.NotContains(t, seen, tc.got, "%s and %s share an ID", tc.name, seen[tc.got])
 		seen[tc.got] = tc.name
-	}
-}
-
-// TestEnumMember_LivesInItsEnumsSpaceAndPath pins the namespace of a member to
-// that of its enum's TypeID, for a named enum and an anonymous one, and its path
-// to the enum's pointer followed by one escaped key, and by the occurrence number
-// for a repeat. A key spelling a slash and a number is not a repeat.
-func TestEnumMember_LivesInItsEnumsSpaceAndPath(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name       string
-		pointer    jsontext.Pointer
-		key        string
-		occurrence int
-		want       ir.EnumMemberID
-		enum       ir.TypeID
-	}{
-		{"a component schema", "/components/schemas/E", "s:a", 1, "e/openapi/components/schemas/E/s:a", "t/openapi/components/schemas/E"},
-		{"an inline schema", "/components/schemas/S/properties/p", "s:a", 1, "e/anon/components/schemas/S/properties/p/s:a", "t/anon/components/schemas/S/properties/p"},
-		{"a key holding a slash", "/components/schemas/E", "s:a/b", 1, "e/openapi/components/schemas/E/s:a~1b", "t/openapi/components/schemas/E"},
-		{"a key holding a tilde", "/components/schemas/E", "s:a~b", 1, "e/openapi/components/schemas/E/s:a~0b", "t/openapi/components/schemas/E"},
-		{"a repeat", "/components/schemas/E", "s:a", 2, "e/openapi/components/schemas/E/s:a/2", "t/openapi/components/schemas/E"},
-		{"a third occurrence", "/components/schemas/E", "s:a", 3, "e/openapi/components/schemas/E/s:a/3", "t/openapi/components/schemas/E"},
-		{"a key spelling a repeat", "/components/schemas/E", "s:a/2", 1, "e/openapi/components/schemas/E/s:a~12", "t/openapi/components/schemas/E"},
-	}
-	seen := map[ir.EnumMemberID]string{}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := ids.Document{}.EnumMember(tc.pointer, tc.key, tc.occurrence)
-			assert.Equal(t, tc.want, got)
-			assert.True(t, ir.WellFormedID(ir.IDKindEnumMember, string(got)))
-			memberSpace, _ := ir.IDSpace(ir.IDKindEnumMember, string(got))
-			enumSpace, _ := ir.IDSpace(ir.IDKindType, string(ids.Document{}.ForPointer(tc.pointer)))
-			assert.Equal(t, enumSpace, memberSpace, "a member lives in its enum's own namespace")
-			assert.Equal(t, tc.enum, ids.Document{}.ForPointer(tc.pointer))
-		})
-		require.NotContains(t, seen, tc.want, "%s and %s share an ID", tc.name, seen[tc.want])
-		seen[tc.want] = tc.name
 	}
 }

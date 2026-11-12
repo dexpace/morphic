@@ -75,6 +75,12 @@ func (r *bodyReading) declared() declarationSet {
 // a reading its budget cut short says nothing, so it counts as one that does,
 // even where the body's own keywords would settle it (GitHub #1423).
 func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
+	return setsDeclareShape(c, s, s.GetOneOf(), s.GetAnyOf())
+}
+
+// setsDeclareShape is unionBranchesDeclareShape for the branches of sets, a
+// union on an allOf branch of s among them, judged against s as the body.
+func setsDeclareShape(c lowering.Ctx, s *oas3.Schema, sets ...[]*oas3.JSONSchema[oas3.Referenceable]) bool {
 	var r *bodyReading
 	body := func() *bodyReading {
 		if r == nil {
@@ -85,7 +91,9 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 	declares := func(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 		return isRefBranch(b) || branchDeclaresShape(body, b)
 	}
-	found := slices.ContainsFunc(s.GetOneOf(), declares) || slices.ContainsFunc(s.GetAnyOf(), declares)
+	found := slices.ContainsFunc(sets, func(set []*oas3.JSONSchema[oas3.Referenceable]) bool {
+		return slices.ContainsFunc(set, declares)
+	})
 	return found || r != nil && r.w.incomplete()
 }
 
@@ -139,7 +147,7 @@ type nested struct {
 // tree once: bounded by the size of a tree the load phase holds
 // (docs/compilers/openapi.md#source-budgets), while what each restates is read
 // within admission's budget. Comparing a nested schema's text renders it again
-// at each level (GitHub #1424).
+// at each level, so restating one d levels deep renders about d squared nodes.
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
 	for len(claims) > 0 {
@@ -191,6 +199,10 @@ func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceabl
 				inner = append(inner, nested{written: p, at: decls.property(name)})
 			}
 		case kv.Key == "items":
+			if _, listed := listedItems(s); listed {
+				// A tuple, or a malformed list, which no element the body declares restates.
+				return nil, nil, false
+			}
 			inner = append(inner, nested{written: s.GetItems(), at: r.declarationsAt(c).items})
 		case kv.Key == "$ref":
 			if !r.lands(c) {

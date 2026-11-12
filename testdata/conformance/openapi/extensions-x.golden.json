@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -169,22 +171,24 @@
                       }
                     }
                   ],
+                  "links": [
+                    {
+                      "name": {
+                        "source": "self",
+                        "canonical": "self"
+                      },
+                      "operation": "op/openapi/paths/~1widgets/get",
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/200/links/self"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "ok"
                   },
                   "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "self": {
-                          "operationId": "listWidgets"
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1widgets/get/responses/200/links"
-                      }
-                    },
                     "openapi:x-mark": {
                       "reason": "vendor_extension",
                       "value": "XRESPONSE",
@@ -209,23 +213,25 @@
                       }
                     ]
                   },
+                  "links": [
+                    {
+                      "name": {
+                        "source": "retry",
+                        "canonical": "retry"
+                      },
+                      "operation": "op/openapi/paths/~1widgets/get",
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/404/links/retry"
+                      }
+                    }
+                  ],
                   "fault": "client",
                   "docs": {
                     "description": "gone"
                   },
                   "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "retry": {
-                          "operationId": "listWidgets"
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1widgets/get/responses/404/links"
-                      }
-                    },
                     "openapi:x-mark": {
                       "reason": "vendor_extension",
                       "value": "XERRORRESPONSE",
@@ -270,6 +276,7 @@
                     ],
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/u}",
                         "operations": [
                           "op/openapi/paths/~1widgets/get/callbacks/onEvent/{$request.body#~1u}/post"
@@ -277,8 +284,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -353,9 +359,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/u}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -518,8 +524,7 @@
                       "multipart/form-data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -694,7 +699,9 @@
       "discriminator": {
         "propertyName": "k",
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/S": {
       "kind": "model",
@@ -713,8 +720,7 @@
       },
       "sensitive": false,
       "xml": {
-        "name": "s",
-        "wrapped": false
+        "name": "s"
       },
       "unmodeled": {
         "openapi:externalDocs/x-mark": {

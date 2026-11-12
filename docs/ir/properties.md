@@ -7,7 +7,8 @@ that say when it is visible.
 type Property struct {
     ID         PropID
     Name       Naming
-    WireName   string              // serialized name; defaults to Name.Source
+    WireName   string              // serialized name; defaults to Name.Source; a prefix header
+                                   // has none (responses.md, prefix headers)
     WireNameByFormat map[string]string // per-mime overrides (TypeSpec @encodedName json/xml)
     WireID     *int                // protobuf field number / thrift id / tuple element index
                                    // (1-based when Model.Positional); nil = none — pointer because
@@ -79,7 +80,8 @@ type Visibility struct {
 ```
 
 `Only`, like an operation's `ParameterVisibility` and `ReturnTypeVisibility`
-([operations](./operations.md)), is a set: no entry is blank and none repeats (`ir/set-entry-blank`,
+([operations](./operations.md)), is a set: no entry is blank
+([what blank means](./naming.md#aliases)) and none repeats (`ir/set-entry-blank`,
 `ir/set-entry-duplicate`), since a blank names no class and a repeat admits nothing more.
 
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to

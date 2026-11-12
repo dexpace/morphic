@@ -18,6 +18,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -37,9 +38,9 @@ func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 			sequencedmap.NewElem("ghost", (*soa.ReferencedSecurityScheme)(nil))),
 	}}
 
-	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
+	got, diags := auth.LowerSecuritySchemes(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 
-	assert.Contains(t, got.Schemes(), ids.UnresolvedAuth("ghost"))
+	assert.Contains(t, got, ids.UnresolvedAuth("ghost"))
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
@@ -136,17 +137,25 @@ B: {$ref}
 		`"#/components/securitySchemes/Missing"`, got[0])
 }
 
-// TestLowerSecuritySchemes_NoComponentsAtAll pins the two earlier exits: a
-// document with no components, and one whose components declare no schemes.
+// TestLowerSecuritySchemes_NoComponentsAtAll pins a document with no
+// components, and one whose components declare no schemes: neither lowers a
+// scheme, and a registry built from what they lower leaves the Document's Auth
+// unset.
 func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	t.Parallel()
-	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
-	assert.Nil(t, got.Schemes(), "an empty Auth map would be a field the source never wrote")
-	assert.Empty(t, diags)
-
-	got, diags = auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
-	assert.Nil(t, got.Schemes())
-	assert.Empty(t, diags)
+	for name, doc := range map[string]*soa.OpenAPI{
+		"no components":            {},
+		"components but no scheme": {Components: &soa.Components{}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			c := lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{})
+			got, diags := auth.LowerSecuritySchemes(c)
+			assert.Empty(t, got)
+			assert.Empty(t, diags)
+			assert.Nil(t, auth.RegistryOf(c, got).Schemes(), "an empty Auth map would be a field the source never wrote")
+		})
+	}
 }
 
 // TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved pins the

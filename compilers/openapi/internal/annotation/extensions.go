@@ -11,6 +11,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -24,8 +25,8 @@ import (
 // object whose every extension failed to serialize returns warnings and no
 // entries, so gating them on the entries drops each one exactly when it matters
 // (TestAuth_UnserializableExtensionStillWarns and its twins).
-func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
-	return ExtensionsUnder(ext, locate, owner, "")
+func ExtensionsFrom(ext *extensions.Extensions, doc provenance.Doc, owner jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+	return ExtensionsUnder(ext, doc, owner, "")
 }
 
 // ExtensionsUnder is ExtensionsFrom with every entry keyed beneath scope, for
@@ -39,7 +40,7 @@ func ExtensionsFrom(ext *extensions.Extensions, locate Locator, owner jsontext.P
 // Keys cannot collide: an extension name begins with "x-", and a scope extending
 // another on its carrier first adds a keyword the compiler writes, which never
 // does. The same gap separates them from non-extension keys.
-func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsUnder(ext *extensions.Extensions, doc provenance.Doc, owner jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	if ext == nil || ext.Len() == 0 {
 		return nil, nil
 	}
@@ -53,13 +54,13 @@ func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.
 		raw, err := RawFromNode(node)
 		if err != nil || raw == nil {
 			diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct,
-				locate(owner), "extension %q could not be serialized", name))
+				doc.At(owner), "extension %q could not be serialized", name))
 			continue
 		}
 		out[prefix+name] = ir.UnmodeledEntry{
 			Reason:     ir.ReasonVendorExtension,
 			Value:      raw,
-			Provenance: locate(owner + ids.Ptr(name)),
+			Provenance: doc.At(owner + ids.Ptr(name)),
 		}
 	}
 	if len(out) == 0 {
@@ -109,11 +110,11 @@ type ExtensionSite struct {
 // hold more than one object's extensions. Sites are applied in the order given,
 // which orders their diagnostics; distinct scopes cannot collide, so no entry
 // depends on it.
-func ExtensionsAt(locate Locator, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
+func ExtensionsAt(doc provenance.Doc, sites ...ExtensionSite) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
 	var diags []ir.Diagnostic
 	for _, site := range sites {
-		ext, extDiags := ExtensionsUnder(site.Ext, locate, site.Owner, site.Scope)
+		ext, extDiags := ExtensionsUnder(site.Ext, doc, site.Owner, site.Scope)
 		out = MergeUnmodeled(out, ext)
 		diags = append(diags, extDiags...)
 	}

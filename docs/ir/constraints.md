@@ -49,7 +49,12 @@ and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. `
 `Schema` sit beside it because they answer the same question one level in: what the encoded value
 *is*. `Schema` is a `TypeRef` like any other schema position — the decoded shape is hoisted into
 the registry at its own source pointer, never carried here as a raw payload. Encoding attaches
-at the scalar definition or overrides at the property — property wins. Protobuf editions features
+at the scalar definition and overrides at the property field by field: a field the property sets
+replaces the scalar's, and one it leaves unset, an empty string or a nil reference, takes the
+scalar's, so a property renaming the encoding keeps the scalar's `Schema` and `MediaType`. A
+compiler writes only what the position declared, as JSON Schema applies the keywords at both places;
+the alternative, the property's `Encoding` replacing the scalar's whole, would make a compiler copy
+every field it did not mean to change, and lose them where it forgot one. Protobuf editions features
 lower here per element after the compiler resolves the feature cascade (descriptors expose
 resolved values): `field_presence` → `Presence`, `enum_type` → `Closed`,
 `repeated_field_encoding` → `List.Encoding`, `message_encoding` → `"delimited"`; remaining axes
@@ -61,7 +66,17 @@ XML-capable formats (OpenAPI's `xml` object, Smithy's `xmlName`/`xmlAttribute`/`
 `xmlFlattened` traits, TypeSpec's `@Xml.*` decorators) describe an XML wire shape that diverges
 from the JSON-implied one. This is typed, not an extension, because multiple formats express it
 and emitters must act on it. Hints attach at both levels: `TypeCommon.XML` (root element
-name/namespace of the shape itself) and `Property.XML` (per-use overrides; property wins).
+name/namespace of the shape itself) and `Property.XML`, overriding the type's field by field, as
+an encoding does: a field the property sets replaces the type's, and one it leaves unset takes it.
+So each field keeps what its source declared, a declared `false` included, and nothing a compiler
+writes stands for a value the source left unstated.
+
+`NodeType` and `Attribute` spell one fact, the node's kind: `NodeType` as OpenAPI 3.2 names it, and
+`Attribute` as a flag says it, OpenAPI's `attribute` or Smithy's `xmlAttribute`, the field a format
+writing only the flag fills. They override as one, so a property setting either replaces the type's
+kind, and a level setting both is read by `NodeType`. Folding the flag into `NodeType` would have
+left a declared `attribute: false` nothing to be: it is not `element` on an array, where 3.2's
+`element` means wrapped, and an unset `NodeType` would take the type's.
 
 ```go
 type XMLHints struct {
@@ -70,6 +85,9 @@ type XMLHints struct {
     Prefix    string
     NodeType  string   // "" | "element" | "attribute" | "text" | "cdata" | "none"
                        // (OpenAPI 3.2 nodeType; "text" covers Smithy httpPayload text)
-    Wrapped   bool     // list items wrapped in a container element
+    Attribute *bool    // the node is an attribute, not an element; nil = unstated, so a
+                       // property's false overrides a type's true
+    Wrapped   *bool    // list items wrapped in a container element; nil = unstated, so a
+                       // property's false overrides a type's true
 }
 ```

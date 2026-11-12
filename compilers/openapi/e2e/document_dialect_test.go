@@ -5,6 +5,8 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -76,7 +78,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			"    T: {$schema: "+draft04+", type: object, properties: {a: "+boolean+"}}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"", "5"}}, nil},
 		{"draft 4 refuses a 3.1 bound", openapitest.ComponentSpec("    T: {$schema: " + draft04 + ", type: integer, exclusiveMinimum: 5}\n"),
-			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T"}},
+			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T/exclusiveMinimum"}},
 		{"jsonSchemaDialect is the default", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " + draft04 +
 			"\npaths: {}\ncomponents:\n  schemas:\n    T: " + boolean +
 			"\n    U: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 5}\n",
@@ -84,7 +86,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 		{"a $schema below a root names nothing", openapitest.ComponentSpec(
 			"    T: {type: object, properties: {a: {$schema: " + draft04 + ", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"5", ""}},
-			[]jsontext.Pointer{"/components/schemas/T/properties/a"}},
+			[]jsontext.Pointer{"/components/schemas/T/properties/a/exclusiveMinimum"}},
 		{"an $id-embedded resource names its own", openapitest.ComponentSpec(
 			"    T: {type: object, properties: {a: {$id: 'https://example.com/a', $schema: " + draft04 +
 				", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
@@ -96,7 +98,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			nil},
 		{"a 3.0 document names no dialect", openapitest.ComponentSpecVer("3.0.3",
 			"    T: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 5}\n"),
-			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T"}},
+			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T/exclusiveMinimum"}},
 		{"beside a $ref", openapitest.ComponentSpec("    B: {type: integer}\n" +
 			"    T: {$schema: " + draft04 + ", $ref: '#/components/schemas/B', minimum: 5, exclusiveMinimum: true}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
@@ -172,14 +174,14 @@ func TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot(t *testing.T
 }
 
 // TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn pins what a
-// dialect the table has no rows for, a later draft or one of the author's,
+// dialect the table has no rows for, an earlier draft or one of the author's,
 // reads as: the minor's own, with an openapi/unread-dialect warning at the
 // `$schema` or jsonSchemaDialect naming it, and no error.
 func TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"+
 		"jsonSchemaDialect: 'https://example.com/dialect'\npaths: {}\ncomponents:\n  schemas:\n"+
-		"    T: {$schema: 'http://json-schema.org/draft-07/schema#', type: integer, exclusiveMinimum: 5}\n"+
+		"    T: {$schema: 'http://json-schema.org/draft-03/schema#', type: integer, exclusiveMinimum: 5}\n"+
 		"    U: {type: integer, exclusiveMinimum: 6}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/T/$schema", "/jsonSchemaDialect"},
@@ -219,4 +221,75 @@ func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$schema", "/components/schemas/R/$schema", "/jsonSchemaDialect"},
 		openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
+}
+
+// TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect pins that a schema
+// reached from another document is read in its own document's dialect,
+// whichever document's content the lowering reads: draft 7's `dependencies` in
+// other.yaml folds from an inline allOf branch the source's G names, a draft 7
+// source's `definitions`, as `$defs`, leaves a body other.yaml declares a file,
+// an alias of other.yaml folds a branch under a draft 4 root alone, and a
+// body's $ref into a draft 4 document of schemas reads its `id` as `$id`.
+func TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"
+	compile := func(t *testing.T, root, other string) *ir.Document {
+		t.Helper()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(head+other), 0o600))
+		return compileSource(t, filepath.Join(dir, "root.yaml"), head+root)
+	}
+	t.Run("into a draft's document", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n    G: {$ref: './other.yaml#/components/schemas/F'}\n",
+			"jsonSchemaDialect: "+draft07+"\npaths: {}\ncomponents:\n  schemas:\n"+
+				"    F: {type: object, allOf: [{dependencies: {a: [b]}}]}\n")
+		f, ok := doc.Types[ir.TypeID("t/openapi@other.yaml/components/schemas/F")].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, f.Unmodeled, "openapi:dependencies").Reason)
+		assert.NotContains(t, f.Unmodeled, "openapi:allOf/0", "the branch folds")
+	})
+	t.Run("from another document into a draft's", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "jsonSchemaDialect: "+draft07+"\npaths:\n  /x: {$ref: './other.yaml#/paths/~1x'}\n"+
+			"components:\n  schemas:\n    S: {type: string, definitions: {d: {type: integer}}}\n",
+			"paths:\n  /x:\n    post:\n      operationId: postX\n      requestBody:\n        content:\n"+
+				"          application/octet-stream: {schema: {$ref: './root.yaml#/components/schemas/S'}}\n"+
+				"      responses: {'200': {description: ok}}\n")
+		require.Len(t, doc.Services, 1)
+		require.Len(t, doc.Services[0].Groups, 1)
+		require.Len(t, doc.Services[0].Groups[0].Operations, 1)
+		contents := doc.Services[0].Groups[0].Operations[0].Request.Contents
+		require.Len(t, contents, 1)
+		assert.NotNil(t, contents[0].File, "a string its draft writes nothing else of is a file")
+	})
+	t.Run("an alias in another document under two dialects", func(t *testing.T) {
+		t.Parallel()
+		doc := compile(t, "paths: {}\ncomponents:\n  schemas:\n"+
+			"    G: {$ref: './other.yaml#/components/schemas/D4'}\n    H: {$ref: './other.yaml#/components/schemas/Now'}\n",
+			"paths: {}\ncomponents:\n  schemas:\n    B: {type: object}\n"+
+				"    D4: {$schema: "+draft04+", type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/B'}, "+
+				"&br {dependencies: {a: [b]}}]}}}\n"+
+				"    Now: {type: object, properties: {p: {allOf: [{$ref: '#/components/schemas/B'}, *br]}}}\n")
+		reason := func(at, key string) ir.UnmodeledReason {
+			td := doc.Types[ir.TypeID("t/anon@other.yaml/components/schemas/"+at+"/properties/p")]
+			require.NotNil(t, td, at)
+			return unmodeledEntry(t, td.Common().Unmodeled, key).Reason
+		}
+		assert.Equal(t, ir.ReasonValidationOnly, reason("D4", "openapi:dependencies"))
+		assert.Equal(t, ir.ReasonDegradedLowering, reason("Now", "openapi:allOf/1"), "the source names no dialect")
+	})
+	t.Run("a body's $ref into a document of schemas naming a draft", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "lib.yaml"), []byte("$schema: "+draft04+"\n"+
+			"A: {$ref: '#/B', id: 'x'}\nB: {type: string}\n"), 0o600))
+		doc := compileSource(t, filepath.Join(dir, "root.yaml"), head+"paths:\n  /x:\n    post:\n      operationId: postX\n"+
+			"      requestBody:\n        content:\n          application/octet-stream: {schema: {$ref: './lib.yaml#/A'}}\n"+
+			"      responses: {'200': {description: ok}}\n")
+		require.Len(t, doc.Services, 1)
+		contents := doc.Services[0].Groups[0].Operations[0].Request.Contents
+		require.Len(t, contents, 1)
+		assert.NotNil(t, contents[0].File, "draft 4's id beside a $ref, read in lib.yaml's dialect, is $id")
+	})
 }

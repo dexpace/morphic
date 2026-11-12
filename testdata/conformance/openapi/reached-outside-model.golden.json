@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -71,8 +73,7 @@
                     "method": "GET",
                     "uriTemplate": "/pets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -112,8 +113,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,
@@ -138,8 +138,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,
@@ -188,8 +187,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,

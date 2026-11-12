@@ -44,13 +44,9 @@ components:
 `
 
 // overlayIndex is the index the tests hand Apply as the overlay's place in
-// Document.Sources, and srcIndex the fallback they ask IndexAt for. They are
-// distinct and non-zero so a result that happens to be either one cannot be the
-// zero value arriving by accident.
-const (
-	overlayIndex = 1
-	srcIndex     = 7
-)
+// Document.Sources. It is non-zero so that WriterAt's answer for a position the
+// overlay wrote cannot be the 0 it gives for one the overlay left alone.
+const overlayIndex = 1
 
 // treeOf decodes spec into a fresh node tree for an overlay to be applied to.
 // Every case gets its own, because Apply mutates the tree it is handed.
@@ -84,8 +80,8 @@ const header = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"
 // downwards), and a new path whose key holds a `/` needing RFC 6901 escaping.
 //
 // Introduced positions are asserted as introduced, not declared: a declared
-// assertion is satisfied by the fallback, so it passes on a wrongly built
-// pointer as readily as a right one.
+// one reads 0, as any pointer the attribution lacks does, so it passes on a
+// wrongly built pointer too.
 func TestApply_AttributesIntroducedPositions(t *testing.T) {
 	t.Parallel()
 	origin, _ := applyTo(t, header+`  - target: $.components.schemas.Pet.properties
@@ -111,7 +107,7 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
 		"/paths/~1owners/get/operationId",
 	}
 	for _, p := range introduced {
-		assert.Equal(t, overlayIndex, origin.IndexAt(p, srcIndex), "%s came from the overlay", p)
+		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(p), "%s came from the overlay", p)
 	}
 
 	declared := []jsontext.Pointer{
@@ -122,7 +118,7 @@ func TestApply_AttributesIntroducedPositions(t *testing.T) {
 		"/paths/~1pets/get",
 	}
 	for _, p := range declared {
-		assert.Equal(t, srcIndex, origin.IndexAt(p, srcIndex), "%s is the source's own", p)
+		assert.Equal(t, 0, origin.Attribution().WriterAt(p), "%s is the source's own", p)
 	}
 }
 
@@ -138,11 +134,11 @@ func TestApply_AttributesRewrittenScalars(t *testing.T) {
       title: Renamed
 `, false)
 
-	assert.Equal(t, overlayIndex, origin.IndexAt("/info/title", srcIndex),
+	assert.Equal(t, overlayIndex, origin.Attribution().WriterAt("/info/title"),
 		"the overlay wrote this value, even though the position existed")
-	assert.Equal(t, srcIndex, origin.IndexAt("/info/version", srcIndex),
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/info/version"),
 		"the sibling it did not touch is unaffected")
-	assert.Equal(t, srcIndex, origin.IndexAt("/info", srcIndex),
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/info"),
 		"and the mapping holding both still exists on disk")
 }
 
@@ -156,8 +152,8 @@ func TestApply_RemovalLeavesTheRestAttributedToTheSource(t *testing.T) {
     remove: true
 `, false)
 
-	assert.Equal(t, srcIndex, origin.IndexAt("/components/schemas/Pet", srcIndex))
-	assert.Equal(t, srcIndex, origin.IndexAt("/info/title", srcIndex))
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/components/schemas/Pet"))
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/info/title"))
 }
 
 // TestApply_StrictReportsAnActionThatMatchesNothing pins the strict half of the
@@ -204,7 +200,7 @@ func TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing(t *testing
 	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
 	assert.Contains(t, diags[0].Message, "$.info", "the action is named")
 
-	assert.Equal(t, srcIndex, origin.IndexAt("/info/title", srcIndex),
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/info/title"),
 		"and nothing is attributed to it, because it wrote nothing")
 }
 
@@ -224,11 +220,11 @@ func TestApply_AttributesACopiedSubtree(t *testing.T) {
 		"/components/schemas/Slot/properties/name/type",
 		"/components/schemas/Slot/type", // string, overwritten in place by object
 	} {
-		assert.Equal(t, overlayIndex, origin.IndexAt(p, srcIndex), "the copy put %s here", p)
+		assert.Equal(t, overlayIndex, origin.Attribution().WriterAt(p), "the copy put %s here", p)
 	}
-	assert.Equal(t, srcIndex, origin.IndexAt("/components/schemas/Slot", srcIndex),
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/components/schemas/Slot"),
 		"but the position it was copied onto is the source's own")
-	assert.Equal(t, srcIndex, origin.IndexAt("/components/schemas/Pet/properties/name", srcIndex),
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/components/schemas/Pet/properties/name"),
 		"and so is everything it was copied from")
 }
 
@@ -312,20 +308,20 @@ func TestApply_RecordsTheOverlayAsAnInputDocument(t *testing.T) {
 }
 
 // TestOrigin_ZeroValueAttributesNothing pins the answer for every compile with
-// no overlay. It is what lets ProvenanceAt ask the same question either way,
+// no overlay. It is what lets provenance.Doc ask the same question either way,
 // rather than each caller first asking whether there was an overlay at all.
 func TestOrigin_ZeroValueAttributesNothing(t *testing.T) {
 	t.Parallel()
 	var zero overlay.Origin
 
 	assert.False(t, zero.Applied())
-	assert.Equal(t, srcIndex, zero.IndexAt("/components/schemas/Pet", srcIndex))
-	assert.Equal(t, srcIndex, zero.IndexOf("/components/schemas/Pet",
-		[]jsontext.Pointer{"/components/schemas/Pet/if", "/components/schemas/Pet/then"}, srcIndex))
+	assert.Equal(t, 0, zero.Attribution().WriterAt("/components/schemas/Pet"))
+	assert.Equal(t, 0, zero.Attribution().WriterOf("/components/schemas/Pet",
+		[]jsontext.Pointer{"/components/schemas/Pet/if", "/components/schemas/Pet/then"}))
 	assert.Equal(t, ir.SourceInfo{}, zero.Source())
-	_, found := zero.At(&yaml.Node{Kind: yaml.ScalarNode})
+	_, found := zero.Attribution().At(&yaml.Node{Kind: yaml.ScalarNode})
 	assert.False(t, found, "no node is the overlay's when none was applied")
-	_, found = zero.At(nil)
+	_, found = zero.Attribution().At(nil)
 	assert.False(t, found)
 }
 
@@ -362,13 +358,13 @@ func member(t *testing.T, root *yaml.Node, keys ...string) (key, value *yaml.Nod
 
 // TestAt_AnswersForTheNodesTheOverlayIntroduced pins the node-keyed half of
 // the attribution: a grafted node, and every node beneath it, answers with the
-// overlay's index and the pointer of the position it sits at — the answer
-// IndexAt gives the lowering for that pointer — while a node the source
-// declared answers nothing and is left to the caller's own reading of it.
+// pointer of the position it sits at, one WriterAt names the overlay the writer
+// of, while a node the source declared answers nothing and is left to the
+// caller's own reading of it.
 //
-// The pointer is asserted rather than the index alone for the reason
-// TestApply_AttributesIntroducedPositions gives: a right index with a wrong
-// pointer would send a reader to a position the finding is not about.
+// The pointer is asserted for the reason TestApply_AttributesIntroducedPositions
+// gives: a right writer with a wrong pointer would send a reader to a position
+// the finding is not about.
 func TestAt_AnswersForTheNodesTheOverlayIntroduced(t *testing.T) {
 	t.Parallel()
 	origin, root := applyKeeping(t, header+`  - target: $.components.schemas
@@ -380,15 +376,15 @@ func TestAt_AnswersForTheNodesTheOverlayIntroduced(t *testing.T) {
 	_, id := member(t, root, "components", "schemas", "Owner", "properties", "id")
 	_, pet := member(t, root, "components", "schemas", "Pet")
 
-	got, found := origin.At(owner)
+	got, found := origin.Attribution().At(owner)
 	require.True(t, found)
-	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Owner"}, got)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Owner"), got)
 
-	got, found = origin.At(id)
+	got, found = origin.Attribution().At(id)
 	require.True(t, found, "the set is closed downwards")
-	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Owner/properties/id"}, got)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Owner/properties/id"), got)
 
-	_, found = origin.At(pet)
+	_, found = origin.Attribution().At(pet)
 	assert.False(t, found, "a node the source declared is the source's own")
 }
 
@@ -408,12 +404,12 @@ func TestAt_AnswersForAKeyTheOverlayIntroduced(t *testing.T) {
 	require.NotZero(t, key.Line, "the library keeps the overlay document's position on the key")
 	require.Zero(t, value.Line, "and drops it from the cloned value")
 
-	got, found := origin.At(key)
+	got, found := origin.Attribution().At(key)
 	require.True(t, found)
-	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/components/schemas/Pet/properties/tag"}, got)
+	assert.Equal(t, jsontext.Pointer("/components/schemas/Pet/properties/tag"), got)
 
 	name, _ := member(t, root, "components", "schemas", "Pet", "properties", "name")
-	_, found = origin.At(name)
+	_, found = origin.Attribution().At(name)
 	assert.False(t, found, "a key the source declared is the source's own")
 }
 
@@ -432,11 +428,11 @@ func TestAt_AnswersForARewrittenScalar(t *testing.T) {
 	_, version := member(t, root, "info", "version")
 	require.NotZero(t, title.Line, "the library overwrites the value in place; the node keeps the source's position")
 
-	got, found := origin.At(title)
+	got, found := origin.Attribution().At(title)
 	require.True(t, found)
-	assert.Equal(t, ir.Provenance{Source: overlayIndex, Pointer: "/info/title"}, got)
+	assert.Equal(t, jsontext.Pointer("/info/title"), got)
 
-	_, found = origin.At(version)
+	_, found = origin.Attribution().At(version)
 	assert.False(t, found, "the sibling it did not touch is unaffected")
 }
 

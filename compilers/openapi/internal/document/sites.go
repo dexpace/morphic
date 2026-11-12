@@ -25,7 +25,7 @@ func documentExtensions(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic) {
 	for _, s := range all {
 		ext = append(ext, annotation.ExtensionSite{Scope: s.scope, Owner: s.owner, Ext: s.model.GetExtensions()})
 	}
-	return annotation.ExtensionsAt(c.ProvenanceAt, ext...)
+	return annotation.ExtensionsAt(c.Place(), ext...)
 }
 
 // documentUnknownKeys collects the keys the OpenAPI model names no field for
@@ -39,7 +39,7 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	all := sites(c)
 	diags := make([]ir.Diagnostic, 0, len(all))
 	for _, s := range all {
-		diags = append(diags, annotation.UnknownKeysUnder(p, s.model, c.ProvenanceAt, s.owner, s.scope, s.taken...)...)
+		diags = append(diags, annotation.UnknownKeysUnder(p, s.model, c.Place(), s.owner, s.scope, s.taken...)...)
 	}
 	return diags
 }

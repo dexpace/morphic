@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -160,14 +159,21 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 	}
 }
 
-// TestRowsOf_ReadsTheVersionTheDocumentDeclares pins the rows load hands a
-// lowering given no load phase for a document: those of the minor it declares,
+// TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares pins the rows load hands
+// the lowering for the source (Document.Rows): those of the minor it declares,
 // the Schema Object's and the Encoding Object's alike, in the dialect its
-// jsonSchemaDialect names, and none for a nil document or one declaring a
-// version the table does not cover.
-func TestRowsOf_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
+// jsonSchemaDialect names.
+func TestLoad_ReadsTheRowsOfTheVersionTheSourceDeclares(t *testing.T) {
 	t.Parallel()
-	r30, r31 := RowsOf(&soa.OpenAPI{OpenAPI: "3.0.3"}), RowsOf(&soa.OpenAPI{OpenAPI: "3.1.0"})
+	rowsOf := func(version, rest string) Rows {
+		t.Helper()
+		doc, _, err := Load(t.Context(), 0, openapitest.SourceOf("openapi: "+version+
+			"\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+rest), Options{})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		return doc.Rows
+	}
+	r30, r31 := rowsOf("3.0.3", ""), rowsOf("3.1.0", "")
 	assert.True(t, r30.Schema.Defines("nullable"))
 	assert.False(t, r31.Schema.Defines("nullable"))
 	assert.True(t, r31.Schema.Defines("prefixItems"))
@@ -175,16 +181,10 @@ func TestRowsOf_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
 	_, untyped31 := r31.Encoding.UntypedContentType()
 	assert.False(t, untyped30)
 	assert.True(t, untyped31)
-	d := draft04
-	r04 := RowsOf(&soa.OpenAPI{OpenAPI: "3.1.0", JSONSchemaDialect: &d})
+	r04 := rowsOf("3.1.0", "jsonSchemaDialect: '"+draft04+"'\n")
 	assert.True(t, r04.Schema.Takes("exclusiveMinimum", oas.Boolean))
 	_, untyped04 := r04.Encoding.UntypedContentType()
 	assert.True(t, untyped04, "a dialect leaves the Encoding Object's rows the minor's")
-	for _, doc := range []*soa.OpenAPI{{OpenAPI: "3.3.0"}, nil} {
-		if RowsOf(doc) != (Rows{}) {
-			t.Errorf("%+v: a version the table does not cover reads with rows", doc)
-		}
-	}
 }
 
 // overlayHeader is the preamble every overlay document below needs.

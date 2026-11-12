@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -12,6 +13,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -62,7 +65,7 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 // reading of a numeric field through the compiler's front door: a magnitude
 // math/big will not build as a rational, or no BigVal holds, is judged by its
 // sign and integrality alone, and a bound past what a BigVal holds is the
-// lowering's to refuse. Only diagnostic codes are asserted, never the lowered
+// load phase's to refuse, at the keyword. Only diagnostic codes are asserted, never the lowered
 // maxLength, which #1050 tracks.
 func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 	t.Parallel()
@@ -80,7 +83,7 @@ func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
 		{"an integer length past what a BigVal holds", "{type: string, maxLength: 1e1000000000000000000}}}", nil, ""},
 		{"a negative step past a rational", "{type: number, multipleOf: -1e1000001}}}", []string{mismatch}, "/multipleOf"},
 		{"a bound past a binary float", "{type: number, minimum: 1e2000000000}}}", nil, ""},
-		{"a bound past what a BigVal holds", "{type: number, minimum: 1e1000000000000000000}}}", []string{invalid}, "/schemas/N"},
+		{"a bound past what a BigVal holds", "{type: number, minimum: 1e1000000000000000000}}}", []string{invalid}, "/schemas/N/minimum"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -148,4 +151,44 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 	require.NotNil(t, sc.Constraints.Max)
 	assert.Equal(t, ir.BigVal("5"), *sc.Constraints.Min)
 	assert.Equal(t, ir.BigVal("10"), *sc.Constraints.Max)
+}
+
+// TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema pins where a bound's
+// shape and an items list are judged: at every schema the rule table's check
+// reads, in that schema's dialect, so one the lowering never reads, under
+// `not`, `if`, `propertyNames` or `contains`, beside an `enum`, or in a schema
+// with no type, is reported as one it does, at the keyword, and an aliased
+// value once. A draft 4 schema's numeric exclusive bound is refused under `not`
+// as beside it.
+func TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpec(
+		"    N: {not: {type: integer, minimum: 1, exclusiveMinimum: true}}\n"+
+			"    M: {not: {minimum: abc}}\n"+
+			"    I: {if: {exclusiveMaximum: false}, then: {}}\n"+
+			"    P: {propertyNames: {maxLength: 3, exclusiveMinimum: true}}\n"+
+			"    C: {type: array, contains: {exclusiveMinimum: true}}\n"+
+			"    E: {enum: [1], exclusiveMinimum: true}\n"+
+			"    U: {minimum: abc}\n"+
+			"    L: {not: {type: array, items: [{type: string}]}}\n"+
+			"    A: {type: object, properties: {a: &bad {exclusiveMinimum: true}, b: *bad}}\n"+
+			"    D: {$schema: "+draft04+", not: {minimum: 1, exclusiveMinimum: 5}}\n"))
+	assert.Equal(t, []jsontext.Pointer{
+		"/components/schemas/A/properties/a/exclusiveMinimum",
+		"/components/schemas/C/contains/exclusiveMinimum",
+		"/components/schemas/D/not/exclusiveMinimum",
+		"/components/schemas/E/exclusiveMinimum",
+		"/components/schemas/I/if/exclusiveMaximum",
+		"/components/schemas/N/not/exclusiveMinimum",
+		"/components/schemas/P/propertyNames/exclusiveMinimum",
+	}, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/M/not/minimum", "/components/schemas/U/minimum"},
+		openapitest.PointersOf(diags, diag.NumericPrecision))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/L/not/items"}, openapitest.PointersOf(diags, diag.InvalidItemsList))
+
+	_, diags = compileMinors(t, minorRoot("3.1.0"), minorExt("openapi: 3.1.0\ninfo: {title: E, version: '1'}\n",
+		"    S: {$schema: "+draft04+", type: integer, not: {exclusiveMinimum: 5}}\n", "{description: ok}"),
+		openapi.NullableWidening{})
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/S/not/exclusiveMinimum"}, extFindings(diags, diag.ExclusiveBoundForm),
+		"a document a reference reaches is judged in its own schemas' dialect")
 }

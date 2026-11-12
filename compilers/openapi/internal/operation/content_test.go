@@ -298,8 +298,8 @@ components:
 
 // TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
 // allOf changes what a body is no more than a $ref does: a refinement is a use of
-// the schema it names, in either spelling, and one over no binary schema is a
-// plain body.
+// the schema it names, in either spelling, or of the branch an enum beside it
+// narrows to, and one over no binary schema is a plain body.
 func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 	t.Parallel()
 	const alias ir.TypeID = "t/anon/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
@@ -316,6 +316,8 @@ func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
 		"inline":      {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
 		"not binary":  {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
 		"a composite": {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", ""},
+		"beside an enum it narrows": {"{enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}",
+			alias + "/allOf/0"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -441,17 +443,17 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.NotEmpty(t, filePart.Headers)
 	assert.True(t, tagsPart.Multi)
 
-	// Response: multiple media types kept, example + examples, headers, links raw.
+	// Response: multiple media types kept, example + examples, headers, a link.
 	resp := upload.Responses[0]
 	require.NotNil(t, resp.Payload)
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Unmodeled["openapi:links"]
-	assert.True(t, hasLinks)
+	require.Len(t, resp.Links, 1)
+	assert.Equal(t, upload.ID, resp.Links[0].Operation, "a link may lead back to its own operation")
 
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
-		"nothing this spec declares is degraded; links are kept verbatim without a report; got %+v", diags)
+		"nothing this spec declares is degraded; got %+v", diags)
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {

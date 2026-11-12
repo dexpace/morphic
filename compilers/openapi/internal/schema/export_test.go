@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -63,9 +62,7 @@ func LoweredFor(t *testing.T, src string) (*Lowerer, []ir.Diagnostic) {
 	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return LowererOver(lowering.New(0, loadedDoc.Doc, loadedDoc.Source,
-		lowering.GroupByTags, lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)), diags
+	return LowererOver(lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})), diags
 }
 
 // LowerSpec loads src and lowers its component schemas, returning the document
@@ -81,7 +78,7 @@ func LowerSpec(t *testing.T, src string) (*ir.Document, []ir.Diagnostic) {
 // NewRawLowerer builds a fixture over a hand-constructed document, bypassing the
 // parser so nil slice/map entries (which the parser panics on) can be exercised.
 func NewRawLowerer(doc *soa.OpenAPI) *Lowerer {
-	return LowererOver(lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}))
+	return LowererOver(lowering.New(0, &load.Document{Doc: doc}, lowering.Policy{}))
 }
 
 // Document finishes the registry as run does once every lowering has

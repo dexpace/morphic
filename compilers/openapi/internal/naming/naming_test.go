@@ -95,6 +95,9 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 		{"a dependencies entry keyed items", "/components/schemas/Foo/dependencies/items", "items"},
 		{"a contentSchema", "/components/schemas/Foo/contentSchema", compile.SubHint("Foo", "content")},
 		{"a prefixItems slot", "/components/schemas/Foo/prefixItems/2", compile.SubHint("Foo", "2")},
+		{"a slot of a tuple written as a list of items", "/components/schemas/Foo/items/1", compile.SubHint("Foo", "1")},
+		{"an items member that is no slot is named after its own token", "/components/schemas/Foo/items/x", "x"},
+		{"a tuple's rest beside a list of items", "/components/schemas/Foo/additionalItems", compile.SubHint("Foo", "item")},
 		{"a prefixItems member that is no slot is named after its own token",
 			"/components/schemas/Foo/prefixItems/x", "x"},
 		{"an enum member a literal is lowered to", "/components/schemas/Foo/enum/1", compile.SubHint("Foo", "1")},
@@ -118,6 +121,8 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 		{"an extension keyword likewise", "/components/schemas/Foo/x-ext/items", compile.SubHint("x-ext", "item")},
 		{"a keyed keyword with no key names itself", "/components/schemas/Foo/properties", "properties"},
 		{`the component keyed ""`, "/components/schemas//items", compile.SubHint("", "item")},
+		{`a key "" under a keyword the walk does not read`, "/components/schemas/Foo/x-ext//items",
+			compile.SubHint("", "item")},
 		{"the schemas map holds no schema to own it", "/components/schemas", "schemas"},
 		{"the empty pointer", "", ""},
 	}

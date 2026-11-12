@@ -108,6 +108,61 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 	}, rootsOf(table))
 }
 
+// TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition pins the lookup every
+// reading of a schema's dialect shares: the root at the position or the
+// nearest above it in its document, and none where no root holds it.
+func TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition(t *testing.T) {
+	t.Parallel()
+	roots := map[bind.Position]string{{Pointer: "/a"}: "outer", {Pointer: "/a/b"}: "inner", {Doc: 1, Pointer: ""}: "other"}
+	for _, tc := range []struct {
+		at   bind.Position
+		want string
+	}{
+		{bind.Position{Pointer: "/a"}, "outer"},
+		{bind.Position{Pointer: "/a/c/d"}, "outer"},
+		{bind.Position{Pointer: "/a/b/c"}, "inner"},
+		{bind.Position{Pointer: "/ab"}, ""},
+		{bind.Position{Pointer: ""}, ""},
+		{bind.Position{Doc: 1, Pointer: "/a/b"}, "other"},
+	} {
+		got, ok := bind.DialectAt(roots, tc.at)
+		assert.Equal(t, tc.want, got, "%v", tc.at)
+		assert.Equal(t, tc.want != "", ok, "%v", tc.at)
+	}
+	_, ok := bind.DialectAt(map[bind.Position]string{}, bind.Position{Pointer: "/a"})
+	assert.False(t, ok, "no roots hold anything")
+}
+
+// TestIdentifierURI_ReadsAnIdentifierAsTheBinderDoes pins the URI an
+// identifier names against an absolute base, as a fetched document's: its part
+// before the '#', trimmed, resolved by RFC 3986, the base itself for none, and
+// nothing for a fragment that is not empty, a space among them, or a base that
+// is no absolute URI; and whether a reference under it may name a location on
+// disk, as under a file: URI or a drive letter.
+func TestIdentifierURI_ReadsAnIdentifierAsTheBinderDoes(t *testing.T) {
+	t.Parallel()
+	const base = "https://host/dir/a.yaml"
+	for _, tc := range []struct {
+		id, want  string
+		local, ok bool
+	}{
+		{"b/", "https://host/dir/b/", false, true},
+		{" FILE:///x/#", "file:///x/", true, true},
+		{"c:/x/", "c:///x/", true, true},
+		{"/users/1", "https://host/users/1", false, true},
+		{"#", base, false, true},
+		{"#frag", "", false, false},
+		{"file:///x/# ", "", false, false},
+	} {
+		got, local, ok := bind.IdentifierURI(tc.id, base)
+		assert.Equal(t, tc.ok, ok, "%q", tc.id)
+		assert.Equal(t, tc.want, got, "%q", tc.id)
+		assert.Equal(t, tc.local, local, "%q", tc.id)
+	}
+	_, _, ok := bind.IdentifierURI("b/", "/dir/a.yaml")
+	assert.False(t, ok, "a base that is no absolute URI")
+}
+
 // TestDialectRoots_ADocumentListsItsRootsInPointerOrder pins the order
 // bind.Document.Dialects lists a document's roots in, whatever order the
 // source declares them: by pointer, so a root holding another comes before it,

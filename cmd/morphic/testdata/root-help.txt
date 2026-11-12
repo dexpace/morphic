@@ -11,7 +11,7 @@ Available Commands:
   validate    check an API spec and report its diagnostics, writing no IR
 
 Flags:
-  -h, --help      help for morphic
-  -v, --version   version for morphic
+  -h, --help[=true|false]      help for morphic
+  -v, --version[=true|false]   version for morphic
 
 Use "morphic [command] --help" for more information about a command.

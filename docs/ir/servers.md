@@ -12,7 +12,8 @@ type Server struct {
                                         // OpenAPI 3.2 Server.name)
     URLTemplate string                  // may contain {variables}
     Description Docs
-    Variables   []ServerVariable        // {Name, Default, Enum []string, Docs, Unmodeled}
+    Variables   []ServerVariable        // {Name, Default *string, Enum []string, Docs, Unmodeled};
+                                        // nil Default = none stated, "" = substitute nothing
     Protocol    string                  // "https" default; "kafka", "wss", … for messaging servers
     ProtocolVersion string              // e.g. Kafka "3.5", AMQP "0-9-1" (AsyncAPI)
     Tags        []string

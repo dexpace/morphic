@@ -6,7 +6,6 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -175,7 +175,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", sourced(0))
+	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
 
 	require.Len(t, got, 2, "one entry per keyword written")
 	for _, keyword := range []string{"$id", "$schema"} {
@@ -196,7 +196,7 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\n"+
 		"$vocabulary: {'https://example.com/v': true}\ntype: string\n")
-	_, diags := dialectAt(s, "/components/schemas/S", sourced(0))
+	_, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
 	for _, d := range diags {
@@ -208,23 +208,52 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	assert.Contains(t, said["/components/schemas/S/$vocabulary"], "is not honoured for reference resolution")
 }
 
+// TestDialectAt_ReadsTheIdentifierTheDialectSpells pins a schema read in a
+// dialect spelling its identifier `id`, as draft 4 does: `id` is kept and read
+// for reference resolution, unless the dialect ignores it there, and an `$id`
+// beside it is kept and read for nothing, which no message may say otherwise
+// of.
+func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "id: 'urn:example:a'\n$id: 'urn:example:b'\ntype: string\n")
+	saidOf := func(dialect Dialect) (ir.Unmodeled, map[jsontext.Pointer]string) {
+		got, diags := dialectAt(s, "/components/schemas/S", sourced(0), dialect)
+		said := map[jsontext.Pointer]string{}
+		for _, d := range diags {
+			said[d.Provenance.Pointer] = d.Message
+		}
+		return got, said
+	}
+	got, said := saidOf(Dialect{Identifier: "id"})
+	for _, keyword := range []string{"id", "$id"} {
+		assert.Equal(t, ir.ReasonOutOfScope, got["openapi:"+keyword].Reason, keyword)
+	}
+	assert.Contains(t, said["/components/schemas/S/id"], "is read only for reference resolution")
+	assert.Contains(t, said["/components/schemas/S/$id"], "is read for nothing")
+	_, said = saidOf(Dialect{Identifier: "id", IdentifierIgnored: true})
+	assert.Contains(t, said["/components/schemas/S/id"], "is read for nothing, as this schema's dialect ignores")
+	assert.Contains(t, said["/components/schemas/S/$id"], "spells an identifier id")
+	plain, _ := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
+	assert.NotContains(t, plain, "openapi:id", "where `$id` is the identifier, `id` is an unknown keyword's to keep")
+}
+
 // TestDialectAt_AttributesTheKeywordRatherThanTheSchema pins GitHub #522: an
-// overlay that rewrites `$id` names the overlay as the source of both the kept
+// overlay that rewrites `$id` names the overlay as the writer of both the kept
 // entry and the diagnostic announcing it, since dialectAt locates each keyword
 // at its own pointer rather than at the schema's.
 func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"))
+	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"), Dialect{})
 
 	entry, ok := got["openapi:$id"]
 	require.True(t, ok)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/$id"}, entry.Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/S/$id", WrittenBy: 1}, entry.Provenance)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/S/$id"}, diags[0].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/S/$id", WrittenBy: 1}, diags[0].Provenance)
 }
 
 // schemaFromYAML unmarshals body as a bare schema through the same marshaller
@@ -292,7 +321,7 @@ func TestRead_NodeTypeWithNoXMLObjectHasNothingToFill(t *testing.T) {
 // TestRead_NodeTypeOnlyADefinedValueIsPlaced pins what reaches XMLHints.NodeType
 // on 3.2: one of the five node types the specification defines. Anything else is
 // kept verbatim under the xml object's scope with a warning, an attribute flag
-// the nodeType contradicts is kept the same way rather than overwritten, a
+// the nodeType contradicts is kept the same way rather than placed beside it, a
 // nodeType merged in through `<<` is read as one written there is, and one
 // merged in from past nodeview.MergeDepthLimit keeps the census's report.
 func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
@@ -301,19 +330,23 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 		name     string
 		xml      string
 		nodeType string
+		attr     *bool  // the Attribute placed, nil for none
 		kept     string // the Unmodeled key expected, "" for none
 		code     string // the diagnostic expected at the key, "" for none
 	}{
-		{"defined", "{nodeType: cdata}", "cdata", "", ""},
-		{"null", "{nodeType: ~}", "", "", ""},
-		{"null beside attribute", "{attribute: true, nodeType: ~}", "attribute", "", ""},
-		{"undefined value", "{nodeType: comment}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
-		{"not a string", "{nodeType: {a: 1}}", "", "openapi:xml/nodeType", diag.DegradedConstruct},
-		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", "", ""},
-		{"contradicts attribute", "{attribute: true, nodeType: element}", "element",
+		{"defined", "{nodeType: cdata}", "cdata", nil, "", ""},
+		{"null", "{nodeType: ~}", "", nil, "", ""},
+		{"null beside attribute", "{attribute: true, nodeType: ~}", "", new(true), "", ""},
+		{"undefined value", "{nodeType: comment}", "", nil, "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"not a string", "{nodeType: {a: 1}}", "", nil, "openapi:xml/nodeType", diag.DegradedConstruct},
+		{"agrees with attribute", "{attribute: true, nodeType: attribute}", "attribute", new(true), "", ""},
+		{"agrees with no attribute", "{attribute: false, nodeType: element}", "element", new(false), "", ""},
+		{"contradicts attribute", "{attribute: true, nodeType: element}", "element", nil,
 			"openapi:xml/attribute", diag.DegradedConstruct},
-		{"merged in", "{<<: {nodeType: cdata}, name: q}", "cdata", "", ""},
-		{"merged in past the bound", pastMergeBound("{nodeType: cdata, name: q}"), "", "", diag.UnknownKeyUnreachable},
+		{"contradicts no attribute", "{attribute: false, nodeType: attribute}", "attribute", nil,
+			"openapi:xml/attribute", diag.DegradedConstruct},
+		{"merged in", "{<<: {nodeType: cdata}, name: q}", "cdata", nil, "", ""},
+		{"merged in past the bound", pastMergeBound("{nodeType: cdata, name: q}"), "", nil, "", diag.UnknownKeyUnreachable},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -321,6 +354,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 			got, diags := Read(Site{Kind: Declaration, Node: s}, "/components/schemas/S", sourced(0))
 			require.NotNil(t, got.XML)
 			assert.Equal(t, tc.nodeType, got.XML.NodeType)
+			assert.Equal(t, tc.attr, got.XML.Attribute, "the attribute flag, placed only where no nodeType contradicts it")
 			if tc.kept == "" {
 				assert.Empty(t, got.Unmodeled)
 			} else {
@@ -686,14 +720,19 @@ func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 	assert.Nil(t, XMLHints(nil))
 
 	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
-	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: true, NodeType: "attribute"},
+	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), Attribute: new(true)},
 		XMLHints(s.GetXML()))
 
 	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
 	assert.Equal(t, &ir.XMLHints{}, XMLHints(bare.GetXML()), "an empty xml object invents nothing")
 
+	unwrapped := schemaFromYAML(t, "type: array\nxml: {wrapped: false}\n")
+	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(unwrapped.GetXML()),
+		"a declared false is kept, so it can override a type's true field by field")
+
 	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
-	assert.Empty(t, XMLHints(notAttr.GetXML()).NodeType, "attribute: false is not the attribute node type")
+	assert.Equal(t, &ir.XMLHints{Attribute: new(false)}, XMLHints(notAttr.GetXML()),
+		"a declared false is kept, so it can override a type's true field by field")
 }
 
 // TestSchemaExamplesAt_ReadsBothKeywordsInOrder pins that `example` and each
@@ -725,7 +764,7 @@ func TestSchemaExamplesAt_AttributesAnUnconvertibleExampleAtItsPointer(t *testin
 
 	assert.Empty(t, got, "an unconvertible example yields no value")
 	require.Len(t, diags, 1)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/S/example"}, diags[0].Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/S/example", WrittenBy: 1}, diags[0].Provenance)
 }
 
 // TestAppendExample_ConvertsAndAppends pins the converter every example site
@@ -762,24 +801,17 @@ func TestAppendExample_UnconvertibleValueIsReported(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/p/examples/n"), diags[0].Provenance.Pointer)
 }
 
-// sourced is the Locator for a compile with no overlay: every position belongs
-// to the one source at index.
-func sourced(index int) Locator {
-	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Source: index, Pointer: pointer}
-	}
-}
+// sourced places every position in the one source at index: a compile with no
+// overlay.
+func sourced(index int) provenance.Doc { return provenance.Doc{Source: index} }
 
-// overlaid is the Locator for a compile where an overlay touched exactly
-// pointers: each resolves to source 1, as ProvenanceAt resolves a position the
-// overlay introduced or rewrote, and every other pointer resolves to source 0,
-// the base document. It answers for a position alone and ignores from, so a test
-// of a combined record uses recording instead.
-func overlaid(pointers ...jsontext.Pointer) Locator {
-	return func(pointer jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
-		if slices.Contains(pointers, pointer) {
-			return ir.Provenance{Source: 1, Pointer: pointer}
-		}
-		return ir.Provenance{Source: 0, Pointer: pointer}
+// overlaid places a compile where an overlay at source 1 touched exactly
+// pointers, as an applied overlay's attribution does, and every other position
+// in source 0, the base document.
+func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
+	touched := make(map[jsontext.Pointer]bool, len(pointers))
+	for _, p := range pointers {
+		touched[p] = true
 	}
+	return provenance.Doc{Overlay: provenance.Attributed(1, touched, nil)}
 }

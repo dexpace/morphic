@@ -2,8 +2,11 @@
 
 oagen's `OperationHint` / rename / remount / split-union-body / url-builder machinery is *SDK
 ergonomics, not API semantics* — the same category as runtime policy. It lives in
-`EmitterInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a path rename never
-drops a hint (INV3):
+`EmitterInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a rename of anything
+the ID is not built from, such as an `operationId`, never drops a hint (INV3). A path rename gives
+the operation a new ID, and its hint is then [a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing), reported with the entity its correlation
+key now names where one does:
 
 ```go
 type ShapeHint struct {
@@ -15,6 +18,8 @@ type ShapeHint struct {
     URLBuilder     bool        // expose a URL-builder variant of the operation
     ClientParams   []ParamKey  // on a service: the parameters its client holds as settings
                                // (../operations/client.md#client-settings)
+    Destructive    bool        // on an operation: a call may destroy what it acts on, so a docs
+                               // target warns and a CLI confirms (../docs-and-mock.md)
     Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
 
@@ -34,7 +39,14 @@ A hint's JSON form names each field in lower camel case, as runtime policy's doe
 
 `Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol
 configuration inside the IR* ([unmodeled](../../ir/unmodeled.md#rawconfig)), and a hint is neither —
-it is emitter input authored alongside the SDK, and the IR never sees it.
+it is emitter input authored alongside the SDK, and the IR never sees it. A target reads the
+`Extra` members it defines, a docs target's presentation among them ([docs and
+mocks](../docs-and-mock.md#documentation-extensions)), decoding each strictly and reporting a
+wrong shape; the others are another target's.
+
+`Destructive` is a hint because nothing else can state it: no IR field says a call destroys
+something, and a method cannot, since `DELETE` and `PUT` are idempotent and may destroy
+([plan policy](../plan/policy.md#an-operations-effects-come-from-its-binding)).
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
 overridable. Per-target naming/compat overlays are the same shape: an emitter input keyed by IR ID,
@@ -43,7 +55,8 @@ so one IR document drives different compat baselines per language.
 Hints come in layers, as runtime policy does ([layers](runtime-policy.md#layers-and-operations)):
 the hints a document embeds ([embedded policy](embedded-policy.md)), then the project's, then the
 ones the project sets for one emitter alone, each field taking the highest layer's value. An ID no
-entity of the document has is reported, never ignored.
+entity of the document has is reported, never ignored ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)).
 
 `AlsoMount` answers an operation a document exposes under two names, which one `Remount` cannot.
 Each `Mount` gives the sub-client it names a method calling the operation, named by its `Rename`

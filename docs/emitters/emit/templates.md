@@ -6,7 +6,7 @@
 |---|---|---|
 | Models, enums, unions, discriminators, operations, clients, serializers | **Typed AST nodes** | Spec-derived *structure*; correctness must be compiler-checked; must be uniform across languages |
 | Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, a stream reader per framing, the error and response types, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
-| Package docs, README, per-op usage examples | **Docs emitter** (`docast`, [docs and mocks](../docs-and-mock.md)) | Prose with holes |
+| Package docs, README, per-op usage examples | **Docs emitter** (`docast`, [docs and mocks](../docs-and-mock.md)), each usage sample returned by the SDK emitter whose call it spells | Prose with holes; a call is spelled by the target that generates it |
 
 A retry loop is the same code for every API; only numbers and header names vary. A typed AST there
 buys nothing and costs readability. But a template with an `if` that inspects the IR is a design bug
@@ -38,6 +38,9 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
 
 The generated *typed veneer* references a `Transport` / `Serializer` interface (Kiota's
 `IParseNode`/`ISerializationWriter` seam); the concrete transport is a runtime-policy-configured
-library. This is the seam that keeps runtime policy (INV10) out of the typed structural model:
+HTTP library, `net/http` or Ktor, which the runtime wraps. Both the interface and what implements it
+are templates, which render into the runtime's unit ([output
+units](../refine/output-units.md#the-runtimes-unit)). This is the seam that keeps runtime policy
+(INV10) out of the typed structural model:
 the veneer of models/unions/methods is policy-free, and `Policy` only ever parameterises the
 boilerplate that backs the interface.

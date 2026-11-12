@@ -149,6 +149,33 @@ func TestWriteDiagnostics_ResolvesTheSourceIndex(t *testing.T) {
 	}
 }
 
+// TestWriteDiagnostics_NamesTheWriterBesideTheSource pins how a construct an
+// overlay wrote into the source is located: at the source's own path and
+// pointer, with the overlay named as its writer, and no writer named for one
+// the source wrote, nor for a writer index the table does not hold.
+func TestWriteDiagnostics_NamesTheWriterBesideTheSource(t *testing.T) {
+	t.Parallel()
+	table := []ir.SourceInfo{{Path: "root.yaml"}, {Path: "patch.yaml", Format: "overlay@1.0.0"}}
+	for _, tt := range []struct {
+		name string
+		prov ir.Provenance
+		want string
+	}{
+		{"written by the overlay", ir.Provenance{Source: 0, Pointer: "/p", WrittenBy: 1},
+			"error c root.yaml#/p (written by patch.yaml): m\n"},
+		{"written by the source", ir.Provenance{Source: 0, Pointer: "/p"}, "error c root.yaml#/p: m\n"},
+		{"about the overlay itself", ir.Provenance{Source: 1, Pointer: "/actions/0"}, "error c patch.yaml#/actions/0: m\n"},
+		{"a writer the table lacks", ir.Provenance{Source: 0, Pointer: "/p", WrittenBy: 5}, "error c root.yaml#/p: m\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var w strings.Builder
+			require.NoError(t, report.WriteDiagnostics(&w, []ir.Diagnostic{diag("c", tt.prov)}, table))
+			assert.Equal(t, tt.want, w.String())
+		})
+	}
+}
+
 // TestWriteDiagnostics_WritesOneLinePerDiagnosticInOrder pins the line's fields
 // and their order, severity then code then location then message, over
 // diagnostics of different severities. A message holding format verbs is

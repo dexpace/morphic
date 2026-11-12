@@ -23,8 +23,35 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestApplyPathItemDocs_WithoutRootNode pins that a declared pair whose source
-// node cannot be read keeps nothing, and announces nothing it did not keep.
+// TestApplyPathItemDocs_WritesTheBindingItIsGiven pins where the pair goes: the
+// PathDocs keepOn writes into each binding of an operation the mount produced,
+// read off the model as an operation's own pair is, and nowhere for an
+// operation with no binding.
+func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	summary, description := "documented", "at length"
+	item := &soa.PathItem{Summary: &summary, Description: &description}
+	var kept ir.Unmodeled
+	var docs ir.Docs
+	diags := applyPathItemDocs(l.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
+
+	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
+	diags = append(diags, keepOn(bound, kept, docs)...)
+	want := ir.Docs{Summary: summary, Description: description}
+	assert.Equal(t, want, bound.Bindings.HTTP[0].PathDocs)
+	assert.Equal(t, want, bound.Bindings.HTTP[1].PathDocs, "every binding of the operation documents the path")
+	assert.Nil(t, bound.Unmodeled, "nothing is kept verbatim")
+	assert.Empty(t, diags, "nothing is reported: the pair reached a field")
+
+	unbound := &ir.Operation{}
+	assert.Empty(t, keepOn(unbound, kept, docs))
+	assert.Empty(t, unbound.Bindings.HTTP, "an operation with no binding gains none")
+}
+
+// TestApplyPathItemDocs_WithoutRootNode pins that an item mounting no operation,
+// whose declared pair has no source node to read, keeps nothing, and announces
+// nothing it did not keep.
 //
 // The input is synthetic, but the branch is not hypothetical: a pair merged in
 // through a `<<` chain deeper than nodeview.MergeDepthLimit is one the model
@@ -35,14 +62,9 @@ func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	l := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	var kept ir.Unmodeled
-	op := &ir.Operation{}
-
-	diags := applyPathItemDocs(l.ctx, onOperations(&kept),
+	diags := applyPathItemDocs(l.ctx, onNearestNode(&kept, "/paths/~1a"),
 		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
-	diags = append(diags, keepOn(op, kept)...)
-
 	assert.Nil(t, kept, "documentation with no raw node is not preserved")
-	assert.Nil(t, op.Unmodeled, "so the operation holds none")
 	assert.Empty(t, diags)
 }
 
@@ -184,37 +206,18 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 	return pi
 }
 
-// TestKeepOn_AnnouncesOnlyDocumentationThatLanded pins that the note saying an
-// operation holds its path's documentation follows the entry that landed: where
-// the operation already held the key, the entry is refused and reported, and no
-// note claims it was kept. A description landing beside a refused summary is
-// still announced.
-func TestKeepOn_AnnouncesOnlyDocumentationThatLanded(t *testing.T) {
+// TestKeepOn_RefusesAnEntryTheOperationHolds pins that copying what a mount
+// keeps never replaces an entry the operation already holds: the entry is
+// refused and reported, and the operation's own stands.
+func TestKeepOn_RefusesAnEntryTheOperationHolds(t *testing.T) {
 	t.Parallel()
-	key := "openapi:pathItem/summary"
-	kept := ir.Unmodeled{key: {Reason: ir.ReasonNoIRHome, Value: ir.RawValue(`"the path's"`),
-		Provenance: ir.Provenance{Pointer: "/paths/~1a/summary"}}}
-
-	landed := &ir.Operation{}
-	notes := keepOn(landed, kept)
-	require.Len(t, notes, 1, "documentation that lands is announced")
-	assert.Equal(t, diag.DegradedConstruct, notes[0].Code)
-
+	key := "openapi:pathItem/x-id"
+	kept := ir.Unmodeled{key: {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"the path's"`),
+		Provenance: ir.Provenance{Pointer: "/paths/~1a/x-id"}}}
 	own := ir.UnmodeledEntry{Value: ir.RawValue(`"the operation's"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/get/x"}}
 	refused := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}
-	diags := keepOn(refused, kept)
+	diags := keepOn(refused, kept, ir.Docs{})
 	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
-	require.Len(t, diags, 1, "the refusal is reported, and nothing announces documentation that did not land")
+	require.Len(t, diags, 1, "the refusal is reported")
 	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
-
-	kept["openapi:pathItem/description"] = ir.UnmodeledEntry{Reason: ir.ReasonNoIRHome,
-		Value: ir.RawValue(`"at length"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/description"}}
-	mixed := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}
-	diags = keepOn(mixed, kept)
-	codes := make([]string, 0, len(diags))
-	for _, d := range diags {
-		codes = append(codes, d.Code)
-	}
-	assert.Equal(t, []string{diag.UnknownKeyEntryTaken, diag.DegradedConstruct}, codes,
-		"the summary is refused, and the description that landed is announced")
 }

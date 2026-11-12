@@ -19,6 +19,34 @@ canary. A behaviour found that the page lacks is added there.
   branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
   encoding a part inside the changed shape.
 
+## Find the readers of a node whose kind a lowering changes
+`readers-of-a-changed-kind`
+
+- **Rule.** A lowering changing a position's node kind, as a `Model` becoming a `Union`, has
+  readers outside the changed package that no getter search finds. List them, `<Kind>` the old one
+  as `ir.Kind<Kind>` names it, `T?` reaching `MapT`:
+  `git grep -nE '\*(ir\.)?<Kind>T?([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
+  a hit in `ir` serves a fact, as `IsSubtype`, whose callers read the kind too. Ask each what the
+  new kind gives it, then compile the position as each consumer names it
+  (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
+- **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
+  reader and `pass`'s `encoding` check read for properties, though no getter search named them
+  (#1688, #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
+- **Probe.** List in the PR body each hit with its answer.
+
+## Compile a position whose node kind changes as each consumer names it
+`changed-kind-at-each-consumer`
+
+- **Rule.** For each position whose node kind a change alters, compile it as each consumer of the
+  old kind names it: a discriminator's `mapping` and its implicit route by component name, an
+  `allOf` composing it as a `Base`, a `$ref` from another position, and a form body's `encoding`
+  key. Run `validate --verify` on `main` and the branch and read every diagnostic. A consumer the
+  branch fails is a finding even where `main` fails a sibling spelling, filed or not.
+- **Why.** Distributing a union on an `allOf` branch made a mapped subtype a `Union`, which
+  `pass.Validate` refused as no variant of its base. `main` failed the same for `$ref` branches,
+  unfiled, so the tracker searches found nothing (#1688, #1696).
+- **Probe.** List in the PR body each position and consumer, with both builds' exit codes.
+
 ## Enumerate a source object's fields against their readers
 `fields-vs-readers`
 
@@ -106,6 +134,20 @@ canary. A behaviour found that the page lacks is added there.
   MUSTs, ABNF grammars, and the RFC grammars it cites. Diff the requirements across versions.
 - **Why.** The published schemas admit an empty server URL and an empty path parameter name that the
   text refuses (#884).
+
+## Measure a dialect's reading on standalone schemas of that dialect
+`dialect-reading-on-real-schemas`
+
+- **Rule.** Count the committed corpus for the construct first (`$schema`, a draft's keyword), then
+  measure a change to how a JSON Schema dialect reads on standalone schemas of it: public files of
+  the draft and the JSON Schema Test Suite's groups for it, each reached from a 3.1 wrapper,
+  `components: {schemas: {S: {$ref: '<file>'}}}`, compiled with `--opt allow-external-refs=true` on
+  `main` and the branch, reading the type each `$ref` lands on as well as the diagnostics.
+- **Why.** 560 public files of the drafts a dialect change read showed warnings, fetches and
+  `$schema` spellings no committed spec held, and the suite's draft 7 `$ref` group showed a sibling
+  `$id` moving a base none of the files did (#1503).
+- **Probe.** `git grep -lE '\$schema' -- 'testdata/*.yaml' 'testdata/*.json' ':!*.golden.json'` lists
+  the committed specs writing one.
 
 ## A two-run difference shows where versions disagree, not why
 `two-run-diff`

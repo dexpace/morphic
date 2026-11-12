@@ -71,9 +71,11 @@ func (f Field) also(shape Shape, s Span) Field {
 	return f
 }
 
-// formatted sets the syntax of the field's string value.
-func (f Field) formatted(format Format) Field {
+// formatted sets the syntax of the field's string value, citing cites for
+// what it adds to the field's own.
+func (f Field) formatted(format Format, cites ...Cite) Field {
 	f.Format = format
+	f.Cites = append(f.Cites, cites...)
 	return f
 }
 
@@ -93,6 +95,18 @@ func (f Field) ownedBy(pkg string) Field {
 // shapeOwnedBy names the package that reports a value of the wrong shape.
 func (f Field) shapeOwnedBy(pkg string) Field {
 	f.ShapeOwner = pkg
+	return f
+}
+
+// formatOwnedBy names the package that judges the field's format.
+func (f Field) formatOwnedBy(pkg string) Field {
+	f.FormatOwner = pkg
+	return f
+}
+
+// listOwnedBy names the package that judges a list written for the field.
+func (f Field) listOwnedBy(pkg string) Field {
+	f.ListOwner = pkg
 	return f
 }
 

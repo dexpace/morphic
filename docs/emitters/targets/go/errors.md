@@ -38,8 +38,9 @@ func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
 }
 ```
 
-`Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `sdk.ErrClient`,
-`sdk.ErrServer` and a sentinel per kind (`sdk.ErrNotFound`).
+`Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `runtime.ErrClient`,
+`runtime.ErrServer` and a sentinel per kind (`runtime.ErrNotFound`), each declared in the
+[runtime's unit](../../refine/output-units.md#the-runtimes-unit).
 
 Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers struct,
 fault and retry facts, which the retry runtime consults through `IsRetryable()`/`IsThrottling()`.
@@ -48,9 +49,9 @@ A caller branches on what happened, and reads the body when it needs it:
 
 ```go
 switch {
-case errors.Is(err, sdk.ErrNotFound): // …
-case errors.Is(err, sdk.ErrClient):
-    if p, ok := sdk.Body[sdk.Problem](err); ok { show(p) }
+case errors.Is(err, runtime.ErrNotFound): // …
+case errors.Is(err, runtime.ErrClient):
+    if p, ok := runtime.Body[sdk.Problem](err); ok { show(p) }
 }
 ```
 

@@ -14,16 +14,16 @@ Part of the [IR design](./README.md). Tracked for implementation.
    `843eae2f`) deriving usage for every type, the subtype index and the type graph included, takes
    about 50 ms of a compile of about 8 s (morphic `4545c23e`), so storing it bought nothing, and a
    stored copy goes stale after any transform that changes what an operation reaches.
-5. **Dual identity for cross-revision correlation** — pointer-derived `TypeID`s are stable across
-   runs but churn when a schema moves within its source file. TCGC solves cross-version
-   correlation with name-based `crossLanguageDefinitionId`s. Likely resolution: keep pointer IDs
-   as the structural identity and add a derived, name-based correlation key computed by a pass —
-   decide once IR diffing between spec revisions is actually built. Evidence from oagen's
-   differ/compat stack: (a) diffing IR-document-to-IR-document is the right plane (oagen already
-   does this); (b) name-based correlation alone still misses renames — plan a third *structural*
-   tier (content-hash / field-set similarity, shared with the `dedup` pass) as the fallback when
-   both pointer and name churn. Without stable identity, rename detection costs hundreds of
-   lines of best-effort heuristics downstream (see prior-art.md §1).
+5. **Cross-revision correlation** — answered for the two tiers a document alone supports. An ID
+   identifies an entity within one document, and across revisions only while its pointer holds
+   still; a reordered array even hands an old ID to another entity ([across
+   revisions](./identity.md#across-revisions)). The [correlation
+   key](./derived-facts.md#correlation-keys) carries an entity across the rest: derived on demand
+   rather than stored, built from what the document names the entity by, and none where two entities
+   share one. Still open: a third, *structural* tier for an entity whose pointer and name both
+   change — a content hash or field-set similarity shared with the `dedup` pass, which oagen's
+   compat stack found it needed once name-based correlation missed renames (prior-art.md §1). Decide
+   it once a diff consumer shows the first two tiers miss what it must match.
 6. **Response discrimination placement** — `ResponseConditions` (status ranges) is HTTP-shaped
    living on the neutral core. Fresh evidence that it sits awkwardly: RPC single-response and OTP
    call replies both use empty conditions, and `Response.StatusCodeProp` is likewise

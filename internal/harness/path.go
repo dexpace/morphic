@@ -159,13 +159,6 @@ func newRegistry() (*compilers.Registry, error) {
 	return reg, nil
 }
 
-// sweepOptions is what SpecFiles asks every compiler whether it takes a file
-// under: the options a run of the engine detects a spec with when the caller
-// names none, its defaults, reading what a source's references name from disk.
-func sweepOptions(compilers.Compiler) (compilers.Options, error) {
-	return compilers.Options{Reader: reader.Disk{}}, nil
-}
-
 // readSpecFile reads a file listing asks the compilers about. It is a seam over
 // os.ReadFile, as encodeYAML is over yaml.Marshal: a regular file that stat
 // lists and the open then refuses is a fault no fixture can provoke without
@@ -182,7 +175,11 @@ func isSpec(ctx context.Context, reg *compilers.Registry, p string) (bool, error
 	if err != nil {
 		return false, fmt.Errorf("harness: read %s: %w", p, err)
 	}
-	det, ok, err := reg.Detect(ctx, compilers.Source{Path: p, Data: data}, sweepOptions)
+	// Every compiler is asked under the options a run of the engine detects a
+	// spec with when the caller names none: its defaults, reading what a
+	// source's references name from disk.
+	det, ok, err := reg.Detect(ctx, compilers.Source{Path: p, Data: data},
+		compilers.Configuration{Reader: reader.Disk{}})
 	if err != nil {
 		return false, fmt.Errorf("harness: detect %s: %w", p, err)
 	}

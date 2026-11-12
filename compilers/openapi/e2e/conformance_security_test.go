@@ -30,7 +30,7 @@ func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.Len(t, s.Variables, 1)
 	v := s.Variables[0]
 	assert.Equal(t, "env", v.Name)
-	assert.Equal(t, "api", v.Default)
+	assert.Equal(t, new("api"), v.Default)
 	assert.Equal(t, []string{"api", "staging"}, v.Enum)
 }
 

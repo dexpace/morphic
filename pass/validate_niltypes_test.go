@@ -52,6 +52,24 @@ func TestValidate_NilTypeDefIsReportedNotPanicked(t *testing.T) {
 	}
 }
 
+// TestValidate_NilTypeDiagnosticsAreDeterministic pins invariant 7 for the type
+// registry, whose keys Go ranges in randomized order: checkNilTypes sorts them
+// before any diagnostic is built.
+func TestValidate_NilTypeDiagnosticsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	for _, id := range []ir.TypeID{"t/z", "t/b", "t/q", "t/c", "t/m2"} {
+		doc.Types[id] = (*ir.Model)(nil)
+	}
+	want := pointers(withCode(validated(t, doc), "ir/nil-type"))
+	require.Equal(t, []string{
+		"types[t/b]", "types[t/c]", "types[t/m2]", "types[t/q]", "types[t/z]",
+	}, want)
+	for range 8 {
+		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/nil-type")))
+	}
+}
+
 func TestValidate_TypedNilMappingTargetDoesNotPanic(t *testing.T) {
 	t.Parallel()
 	var nilModel *ir.Model

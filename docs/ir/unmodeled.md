@@ -47,9 +47,9 @@ routinely spans preservation, weakening, and outright dropping, so it says nothi
 report on an entry at its own source position instead of the enclosing schema's — falling back to
 the declaring position only where the entry combines several keywords into one synthesized object
 and no single node addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
-Such an entry's `Source` names the input document that wrote every keyword it combines, when one
-did, and the declaring position's otherwise: an overlay that wrote the whole construct is credited
-with it, and one that only added to it leaves it with the document that declares it.
+Such an entry's `WrittenBy` names an overlay that wrote every keyword it combines: one that wrote
+the whole construct is its writer, and one that only added to it leaves it with the document that
+declares it ([provenance](./provenance.md)).
 
 ## Keys
 
@@ -85,6 +85,37 @@ document's, keyed by the declaration's coordinate rather than a scope:
 `openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
 naming the document where that is not the source, so one pointer in two documents is two keys, and
 every use of the declaration reaches one entry. It opens with no keyword, so it meets no scope.
+
+## What a key promises
+
+A consumer reading an entry by its key depends on the key's spelling, so the spelling is part of the
+document's contract, and who chose it decides what holds it still:
+
+- **A vendor extension's name is the source's.** `openapi:x-rate-limit` changes when the document
+  renames `x-rate-limit`, and its entry's reason is `vendor_extension` for as long as it is kept.
+  So is a segment the document names, such as a form part's in `openapi:encoding/<part>/`, and so
+  is a coordinate, a declaration's pointer, which moves with the declaration ([keys](#keys)).
+- **An array index in a key is the source's position.** A key passing through an array, as a
+  branch's `openapi:allOf/1` and a tag's `openapi:tags/0/x-mark` do, moves when the array is
+  reordered, and can then name another construct's entry, as an ID through an index does ([across
+  revisions](./identity.md#across-revisions)).
+- **Everything else in a key is the compiler's spelling**: the prefix, every keyword and every
+  scope, including the scope a vendor extension sits beneath (`openapi:info/contact/x-id`).
+  Renaming one, retiring one, moving an entry under another scope or reason, or changing the form
+  its value takes changes what a consumer reads with the document's shape unmoved, so it moves
+  `IRVersion` as a change to a name does ([IR version](./ir-version.md)). A consumer built against
+  one generation therefore reads one vocabulary, which each compiler's specification states rule by
+  rule ([`docs/compilers/openapi.md`](../compilers/openapi.md)).
+- **A `no_ir_home` entry is promised to leave**, and a `degraded_lowering` one leaves when the IR
+  gains a faithful home for its shape. The change that adds the field stops writing the entry, and
+  its generation's entry in the [version history](./version-history.md) names the key retired with
+  the field replacing it. A consumer reading one reads a stopgap with a known end, never a key that
+  vanishes between two builds of one generation.
+- **An `out_of_scope` or `validation_only` entry stays**, since no field is coming for it
+  ([boundaries](./boundaries.md)).
+
+No test yet holds the vocabulary to the version the way `TestIRVersion_PinsTheNames` holds a
+rendered name, so a renamed key at an unmoved version is caught only in review (#1350).
 
 ## Reasons
 
@@ -191,7 +222,9 @@ a row.
 |---|---|---|
 | `Operation.Deprecation`, `Parameter.Deprecation`, `Property.Deprecation`, `AuthScheme.Deprecation`, `Message.Deprecation`, `TypeCommon.Deprecation` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Deprecation.Message`, `Deprecation.Since`, `Deprecation.RemovalVersion`, `Deprecation.RemovalDate` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
+| `Deprecation.ReplacedBy` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `TypeCommon` | `Provenance.Inferred` |
 | `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
+| `Union.Closed` | `Union` | `Provenance.Inferred` |
 | `Operation.Stability`, `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
 | `TypeCommon.Sensitive` | `TypeCommon` | `Provenance.Inferred` |
 | `Property.Secret`, `Parameter.Secret` | `Property`, `Parameter`, `TypeCommon` | `Provenance.Inferred` |
@@ -205,7 +238,8 @@ bare value with nowhere to write a key, so a key naming the members is a list on
 binding is reached from its parameter by `HTTPParamBinding.Param`, so a consumer asking whether
 `AllowReserved` was inferred reads the parameter it names. The rows of a deprecation and of `Secret`
 also name `TypeCommon`, the node of a `$ref`'s target, which lends a use what its keys state (rule
-3). A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is a
+3); a replacement is never lent, since it names an entity of its own node's class, which a use and
+its target are not. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is a
 heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:

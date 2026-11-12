@@ -109,6 +109,14 @@ const (
 	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
 	// $id must be (JSON Schema 2020-12 §8.2.1).
 	ResourceURI
+	// PlainName is a plain name as JSON Schema drafts 6, 7 and 2019-09 write
+	// one: a letter, then letters, digits, '-', '_', ':' and '.'
+	// (draft-handrews-json-schema-02 §8.2.3).
+	PlainName
+	// PlainNameURI is a URI reference whose fragment, where it is written alone
+	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
+	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
+	PlainNameURI
 )
 
 // Level is how firmly the specification states a rule.
@@ -137,18 +145,33 @@ type Cite struct {
 // every row of the table holds, grows by nothing for naming one.
 type Text uint8
 
-// The texts beside OpenAPI's: the Internet-Drafts JSON Schema draft 4's
-// keywords come from, the dialect a Schema Object can be read in beside its
-// minor's own.
+// The texts beside OpenAPI's: the Internet-Drafts the keywords of the JSON
+// Schema drafts come from, the dialects a Schema Object can be read in beside
+// its minor's own.
 const (
-	// TextDraft04Core is draft-zyp-json-schema-04, its core text.
+	// TextDraft04Core is draft-zyp-json-schema-04, draft 4's core text.
 	TextDraft04Core Text = 1 + iota
-	// TextDraft04Validation is draft-fge-json-schema-validation-00, its
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, draft 4's
 	// validation text.
 	TextDraft04Validation
 	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
-	// text its $ref comes from.
+	// text draft 4's $ref comes from.
 	TextJSONReference03
+	// TextDraft06Core is draft-wright-json-schema-01, draft 6's core text.
+	TextDraft06Core
+	// TextDraft06Validation is draft-wright-json-schema-validation-01, draft
+	// 6's validation text.
+	TextDraft06Validation
+	// TextDraft07Core is draft-handrews-json-schema-01, draft 7's core text.
+	TextDraft07Core
+	// TextDraft07Validation is draft-handrews-json-schema-validation-01, draft
+	// 7's validation text.
+	TextDraft07Validation
+	// TextDraft2019Core is draft-handrews-json-schema-02, 2019-09's core text.
+	TextDraft2019Core
+	// TextDraft2019Validation is draft-handrews-json-schema-validation-02,
+	// 2019-09's validation text.
+	TextDraft2019Validation
 )
 
 // Term is one condition on the object a rule judges: the sibling field Field
@@ -200,6 +223,15 @@ type Field struct {
 	Owner string
 	// ShapeOwner is the package that reports a value of the wrong shape.
 	ShapeOwner string
+	// ListOwner is the package that judges a list written where the field
+	// holds one schema: a tuple, as a JSON Schema draft a schema names spells
+	// one, which the check, run before any schema's dialect is known, cannot
+	// tell from a mistake.
+	ListOwner string
+	// FormatOwner is the package that judges the value's format, which the
+	// dialect a schema is read in decides, as draft 7's `$id` may name a
+	// fragment that 2020-12's may not, and 2019-09's `$anchor` a colon.
+	FormatOwner string
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value
 	// Alts are the other shapes the field admits.

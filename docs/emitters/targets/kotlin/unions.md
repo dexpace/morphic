@@ -6,7 +6,8 @@ Kotlin declares its `KSerializer` on the sealed interface itself, which a Kotlin
 so it needs no struct.
 
 Kotlin's variant classes are the same wrapper as [Go's](../go/unions.md), for the same reason
-([lowering table](lowering.md)).
+([lowering table](lowering.md)), and each one's `toString` shows a variant the union redacts as
+`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)).
 
 ## The fallback
 
@@ -33,5 +34,5 @@ the value. Supplying the union through `@Contextual` fields instead would fail u
 own, since `IdentityHashMap` is the JVM's. It encodes the merge and runs each set property's
 admission check over it. `validate()` passes when a set property's does, reports every set
 property's failures when none does, and reports a value with no property set, which no `init` check
-does, since a decoded value always has one. `toString` redacts a member any set property holds as
-`Secret` or at a `Sensitive` type, in every property it renders.
+does, since a decoded value always has one. `toString` redacts a member any set property redacts
+([redaction](../../refine/redaction.md#a-redacted-value)), in every property it renders.

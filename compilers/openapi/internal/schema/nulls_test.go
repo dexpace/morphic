@@ -372,7 +372,8 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 
 	besideEnum := openapitest.HolderSpec("3.0.3", "{enum: [a], allOf: [{nullable: true}]}", "")
 	doc, _ = compileNullable(t, besideEnum, false)
-	assert.False(t, holderP(t, doc).Nullable, "a branch the election passed over speaks for nothing")
+	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what a branch speaking for it widens")
+	assert.NotEmpty(t, holderP(t, doc).Inferred)
 
 	besideType := openapitest.HolderSpec("3.0.3", "{type: string, allOf: [{description: d}, {nullable: true}]}", "")
 	doc, diags = compileNullable(t, besideType, false)
@@ -393,10 +394,17 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 		assert.Equal(t, "d", propertyOf(t, doc, "Holder", "p").Docs.Description, name)
 	}
 
-	besideUnion := openapitest.HolderSpec("3.0.3",
-		"{oneOf: [{type: string}, {type: integer}], allOf: [{$ref: '#/components/schemas/Plain'}, {nullable: true}]}", "")
-	doc, _ = compileNullable(t, besideUnion, false)
-	assert.False(t, holderP(t, doc).Nullable, "nor does one a union conjoins with")
+	for name, tc := range map[string]struct{ union, code string }{
+		"degraded":    {"oneOf: [{$ref: '#/components/schemas/Pet'}], anyOf: [{$ref: '#/components/schemas/Toy'}]", diag.DegradedConstruct},
+		"distributed": {"oneOf: [{$ref: '#/components/schemas/Pet'}, {$ref: '#/components/schemas/Toy'}]", diag.CompositionLowering},
+	} {
+		besideUnion := openapitest.HolderSpec("3.0.3", "{"+tc.union+", allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true}]}",
+			"    Toy: {type: object, properties: {kind: {type: string}}}\n")
+		doc, diags = compileNullable(t, besideUnion, false)
+		require.True(t, openapitest.HasDiagCodeAt(diags, tc.code, "/components/schemas/Holder/properties/p"), name)
+		assert.True(t, holderP(t, doc).Nullable, "%s: so does one beside a union, as beside the allOf", name)
+		assert.NotEmpty(t, holderP(t, doc).Inferred, name)
+	}
 
 	properties := openapitest.HolderSpec("3.0.3",
 		"{allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]}", "")

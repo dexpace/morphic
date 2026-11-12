@@ -42,7 +42,7 @@ func canonicalValue(v ir.Value, depth int) (string, bool) {
 			member, ok := canonicalValue(fields[i].Value, depth+1)
 			return strconv.Quote(fields[i].Name) + ":" + member, ok
 		})
-	case ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueBytes, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		return "", false
 	default:
 		return "", false

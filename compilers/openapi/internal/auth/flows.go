@@ -170,11 +170,11 @@ func applyFlowAnnotations(c lowering.Ctx, lowered []ir.OAuthFlow, flows *soa.OAu
 	var diags []ir.Diagnostic
 	for i, f := range presentFlows(flows) {
 		fptr := flowsPtr + ids.Ptr(f.keyword)
-		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.ProvenanceAt, fptr)
+		ext, extDiags := annotation.ExtensionsFrom(f.src.GetExtensions(), c.Place(), fptr)
 		lowered[i].Unmodeled = annotation.MergeUnmodeled(lowered[i].Unmodeled, ext)
 		diags = append(diags, extDiags...)
 		diags = append(diags, preserveUndefinedFlowFields(c, &lowered[i], f, fptr)...)
-		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.ProvenanceAt, fptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&lowered[i].Unmodeled, f.src, c.Place(), fptr)...)
 	}
 	return diags
 }
@@ -197,7 +197,7 @@ func preserveUndefinedFlowFields(c lowering.Ctx, fl *ir.OAuthFlow, f sourceFlow,
 		}
 		at := fptr + ids.Ptr(field.name)
 		kept, keptDiags := annotation.PreserveNodeInto(&fl.Unmodeled, "openapi:"+field.name,
-			nodeview.Child(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
+			nodeview.Child(f.src.GetRootNode(), field.name), ir.ReasonDegradedLowering, c.Place().At(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

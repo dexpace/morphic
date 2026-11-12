@@ -6,6 +6,8 @@ package schema_test
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -131,12 +133,14 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 	}
 }
 
-// TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder pins nodes alike in
-// their members whose declarations differ in bounds and in a fact a node holds
-// beside them, a deprecation or XML hints. Neither node says all the other does,
-// so the second declaration is reported and kept, whichever writes the fact: a
-// node minted from the first, or the narrower one kept alone, would drop it.
-func TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder(t *testing.T) {
+// TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder pins nodes alike
+// in their members whose declarations differ in bounds and in a fact a node
+// holds beside them, a deprecation or XML hints (GitHub #1042). Neither node
+// says all the other does, so the field takes a node built of both, holding
+// every bound and the fact whichever declaration writes it, with nothing kept
+// or reported. Two that give one fact differently say what no node holds at
+// once, so the second is still reported and kept.
+func TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder(t *testing.T) {
 	t.Parallel()
 	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
 	mapOf := func(extra string) string { return "{type: object, additionalProperties: {type: string}" + extra + "}" }
@@ -152,17 +156,27 @@ func TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			built := make([]ir.TypeDef, 0, 2)
 			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
-				p, _, diags := redeclared(t, order[0], order[1])
+				p, doc, diags := redeclared(t, order[0], order[1])
 
-				assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/0/properties/v"), p.Type.Target)
-				assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v")
-				require.Len(t, diags, 1)
-				assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
-				assert.Equal(t, "/components/schemas/T/allOf/1/properties/v", string(diags[0].Provenance.Pointer))
+				assert.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+				assert.Empty(t, p.Unmodeled)
+				assert.Empty(t, diags)
+				node := doc.Types[p.Type.Target]
+				assert.True(t, node.Common().Deprecation != nil || node.Common().XML != nil, "the fact is held")
+				built = append(built, node)
 			}
+			assert.Empty(t, cmp.Diff(built[0], built[1], cmpopts.IgnoreFields(ir.TypeCommon{}, "Name")),
+				"the node does not depend on branch order")
 		})
 	}
+
+	p, _, diags := redeclared(t, list(", minItems: 1, description: one"), list(", maxItems: 5, description: other"))
+	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/0/properties/v"), p.Type.Target)
+	assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
 }
 
 // TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder pins a default

@@ -137,3 +137,65 @@ func TestMeasure_StopsOnceTheContextIsDone(t *testing.T) {
 	assert.Equal(t, asked+1, cut.Calls, "a later call asks once")
 	assert.Equal(t, steps, m.steps.Spent(), "and takes no step")
 }
+
+// TestMeasure_ShapesATreeAsTheIndexWalksIt holds the two ways a tree's shape is
+// taken to one answer: the index's walk, which takes the tree as written and
+// an alias's target from the measure, and the measure's own walk of the whole
+// tree, on trees whose aliases, merges, sequences and nil children each move
+// the nesting and the bytes of the pointers.
+func TestMeasure_ShapesATreeAsTheIndexWalksIt(t *testing.T) {
+	t.Parallel()
+	nilChild := ynode.Seq(ynode.Scalar("a"), nil, ynode.Map(ynode.Scalar("long-key"), ynode.Seq(ynode.Scalar("v"))))
+	for name, root := range map[string]*yaml.Node{
+		"aliases":   openapitest.YAMLDocument(t, "ab: &s [x, {c: y}]\nd: *s\ne: {f: *s, g: [*s, *s]}\n"),
+		"merges":    openapitest.YAMLDocument(t, "base: &b {k: v, kk: [1, 2]}\nm: {<<: *b, own: {deep: [x]}}\n"),
+		"sequences": openapitest.YAMLDocument(t, "s: [[a, [b, [c]]], "+strings.Repeat("x, ", 12)+"{y: z}]\n"),
+		"nil child": ynode.Map(ynode.Scalar("top"), nilChild),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			idx := Build(t.Context(), root, MaxIndexedNodes)
+			measured := NewMeasure(MaxIndexedNodes).shapeOf(t.Context(), idx.Root())
+			assert.Equal(t, measured.nesting, idx.Nesting())
+			assert.Equal(t, measured.pointers, idx.PointerBytes())
+			assert.Positive(t, idx.PointerBytes())
+		})
+	}
+}
+
+// TestShape_SaturatesItsCounts pins the arithmetic a shape's counts take, which
+// an alias bomb carries past any int: a sum or product past math.MaxInt holds
+// there, and one within it is exact.
+func TestShape_SaturatesItsCounts(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, math.MaxInt, sum(math.MaxInt-1, 2))
+	assert.Equal(t, math.MaxInt, product(math.MaxInt/2, 3))
+	assert.Equal(t, 7, sum(3, 4))
+	assert.Equal(t, 12, product(3, 4))
+	assert.Zero(t, product(0, math.MaxInt))
+	huge := shape{nodes: math.MaxInt, pointers: math.MaxInt}
+	assert.Equal(t, shape{nesting: 1, nodes: math.MaxInt, pointers: math.MaxInt}, shape{nesting: 1, nodes: 1}.holding(huge, 5))
+}
+
+// TestEdge_ReadsTreesNoParseProduces pins edge on the hand-built shapes the
+// walk still meets: a pair whose key is nil spells a separator alone, and a
+// document node nested in a tree adds no token to what it holds. The index
+// and the measure agree on each.
+func TestEdge_ReadsTreesNoParseProduces(t *testing.T) {
+	t.Parallel()
+	nested := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Scalar("x")}}
+	for name, tc := range map[string]struct {
+		root *yaml.Node
+		want int
+	}{
+		"nil key":         {ynode.Map(nil, ynode.Scalar("v")), len("/")},
+		"nested document": {ynode.Seq(nested), len("/0") + len("/0")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			idx := Build(t.Context(), tc.root, MaxIndexedNodes)
+			assert.Equal(t, tc.want, idx.PointerBytes())
+			assert.Equal(t, tc.want, NewMeasure(MaxIndexedNodes).shapeOf(t.Context(), idx.Root()).pointers)
+		})
+	}
+}

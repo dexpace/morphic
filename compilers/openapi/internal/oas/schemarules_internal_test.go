@@ -4,6 +4,7 @@
 package oas
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,18 +30,20 @@ func TestSchemaRules_ASecondShapeCountsFromItsOwnMinor(t *testing.T) {
 }
 
 // TestDialects_EveryRowCitesItsText pins that each dialect cites the OpenAPI
-// sentence admitting it, and each keyword it reads in place of the minor's is
-// a keyword defined wherever a schema can name a dialect, citing a sentence of
-// the JSON Schema text it comes from rather than OpenAPI's.
+// sentence admitting it, besides the JSON Schema sentence of a rule it states,
+// and each keyword it reads in place of the minor's is a keyword defined
+// wherever a schema can name a dialect, citing a sentence of the JSON Schema
+// text it comes from rather than OpenAPI's.
 func TestDialects_EveryRowCitesItsText(t *testing.T) {
 	t.Parallel()
 	dialects := schemaDialects()
 	assert.NotEmpty(t, dialects)
 	for _, d := range dialects {
-		assert.NotEmpty(t, d.cites, d.id)
+		assert.True(t, slices.ContainsFunc(d.cites, func(c Cite) bool { return c.Minor == V31 && c.Text == 0 }),
+			"%s cites the OpenAPI sentence admitting it", d.id)
 		for _, c := range d.cites {
-			assert.Equal(t, V31, c.Minor, d.id)
 			assert.NotEmpty(t, c.Sentence, d.id)
+			assert.NotEqual(t, c.Text == 0, c.Minor == 0, "%s cites one text: OpenAPI's at a minor, or another", d.id)
 		}
 		if d.keywords == nil {
 			continue

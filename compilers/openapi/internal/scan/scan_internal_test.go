@@ -23,6 +23,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
@@ -214,7 +215,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(t.Context(), InSource(0), sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus)))
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus)))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -229,7 +230,7 @@ const defaultSurplus = 1 << 18
 // the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Aliases(t.Context(), InSource(0), indexOf(t, data), budget.AtMost(defaultSurplus))
+	return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), budget.AtMost(defaultSurplus))
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -237,7 +238,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Aliases(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, budget.AtMost(defaultSurplus))
+	return Aliases(t.Context(), provenance.Tree{Pointers: Pointers(t.Context(), idx.Root())}, ir.Provenance{}, idx, budget.AtMost(defaultSurplus))
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -264,7 +265,7 @@ func readReproducer(t *testing.T, file string) []byte {
 
 func TestScanRecovered_PanicYieldsWarning(t *testing.T) {
 	t.Parallel()
-	got := scanRecovered(InSource(3), func() []ir.Diagnostic {
+	got := scanRecovered(ir.Provenance{Source: 3}, func() []ir.Diagnostic {
 		panic("detector bug")
 	})
 	require.Len(t, got, 1, "a panicking scan degrades to one diagnostic")
@@ -281,7 +282,7 @@ func TestScanRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 	t.Parallel()
 	huge := strings.Repeat("the detector faulted here\n", 1<<10)
 
-	got := scanRecovered(InSource(0), func() []ir.Diagnostic { panic(huge) })
+	got := scanRecovered(ir.Provenance{}, func() []ir.Diagnostic { panic(huge) })
 
 	require.Len(t, got, 1)
 	assert.Equal(t, "alias pre-scan aborted ("+diag.OneLine(errors.New(huge))+
@@ -293,7 +294,7 @@ func TestScanRecovered_QuotesAPanicOnOneBoundedLine(t *testing.T) {
 func TestScanRecovered_PassesThroughResult(t *testing.T) {
 	t.Parallel()
 	want := []ir.Diagnostic{{Code: diag.CyclicRef, Severity: ir.SeverityError}}
-	got := scanRecovered(InSource(0), func() []ir.Diagnostic {
+	got := scanRecovered(ir.Provenance{}, func() []ir.Diagnostic {
 		return want
 	})
 	assert.Equal(t, want, got)
@@ -400,45 +401,12 @@ func TestAliases_AcceptsATreeWithNoCycle(t *testing.T) {
 		"openapi: 3.1.0\ncomponents: {schemas: {A: {$ref: '#/components/schemas/B'}, B: {type: string}}}\n")))
 }
 
-// TestInSource_AnchorsANodeAndNamesTheSourceForNone pins the plain locator: a
-// placed node is reported at its own line and column, a node the parser never
-// placed carries no position, and no node at all names the source alone —
-// never a position fabricated from a nil.
-func TestInSource_AnchorsANodeAndNamesTheSourceForNone(t *testing.T) {
-	t.Parallel()
-	locate := InSource(4)
-
-	tests := map[string]struct {
-		node *yaml.Node
-		want ir.Provenance
-	}{
-		"a placed node reports its line and column": {
-			node: &yaml.Node{Kind: yaml.ScalarNode, Line: 12, Column: 7},
-			want: ir.Provenance{Source: 4, Position: ir.Position{Line: 12, Column: 7}},
-		},
-		"a node the parser never placed carries no position": {
-			node: &yaml.Node{},
-			want: ir.Provenance{Source: 4},
-		},
-		"no node names the source alone": {
-			node: nil,
-			want: ir.Provenance{Source: 4},
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			assert.Equal(t, tt.want, locate(tt.node))
-		})
-	}
-}
-
-// TestAliases_AnchorsThroughTheLocator pins that a refusal takes its provenance
-// from the locator it is handed rather than from the node it found. A locator
-// the caller composes over an overlay's attribution is how a refusal on a
-// grafted node — one with no line and column of its own — comes to name the
-// overlay (GitHub #476); a scan that read the node directly would bypass it.
-func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
+// TestAliases_AnchorsThroughTheTree pins that a refusal takes its provenance
+// from the tree it is handed rather than from the node it found. A tree
+// carrying an overlay's attribution is how a refusal on a grafted node — one
+// with no line and column of its own — comes to name the overlay (GitHub #476);
+// a scan that read the node directly would bypass it.
+func TestAliases_AnchorsThroughTheTree(t *testing.T) {
 	t.Parallel()
 	for name, fixture := range map[string]string{
 		"a recursive anchor":     "cycle_yaml_anchor",
@@ -447,15 +415,18 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			var seen *yaml.Node
-			locate := func(n *yaml.Node) ir.Provenance {
+			tree := provenance.Tree{Doc: provenance.Doc{Source: 9}, Pointers: func(n *yaml.Node) (jsontext.Pointer, bool) {
 				seen = n
-				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
-			}
+				return "/somewhere/the/tree/decided", true
+			}}
 
-			got := Aliases(t.Context(), locate, indexOf(t, readReproducer(t, fixture)), budget.AtMost(defaultSurplus))
+			got := Aliases(t.Context(), tree, ir.Provenance{}, indexOf(t, readReproducer(t, fixture)),
+				budget.AtMost(defaultSurplus))
 			require.Len(t, got, 1)
-			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
-			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
+			require.NotNil(t, seen, "the tree was asked about the node the refusal is about")
+			assert.Equal(t, tree.Node(seen), got[0].Provenance)
+			assert.Equal(t, 9, got[0].Provenance.Source)
+			assert.Equal(t, jsontext.Pointer("/somewhere/the/tree/decided"), got[0].Provenance.Pointer)
 		})
 	}
 }
@@ -469,7 +440,7 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
 	aliases := func(src string) []ir.Diagnostic {
-		return Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.AtMost(defaultSurplus))
+		return Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(defaultSurplus))
 	}
 
 	anchor := aliases("a: &x [*x]\n")
@@ -487,35 +458,29 @@ func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 }
 
 // TestAliases_DegradesAScanFaultToAWarning pins that Aliases runs under
-// scanRecovered: a fault in the walk is reported as an incomplete scan,
-// never raised through a caller that has not yet refused anything.
-//
-// The locator faults only when asked about a node, which is what the walk asks
-// it; asked about no node, as the barrier's own report does, it answers. A
-// locator that faulted on both would fault in that report too, and that tests
-// a locator this compiler does not have rather than the barrier it does.
+// scanRecovered: a fault in the walk is reported as an incomplete scan, at the
+// document as a whole, never raised through a caller that has not yet refused
+// anything. The tree's pointers fault when the walk asks about the node it
+// refuses.
 func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 	t.Parallel()
-	panicking := func(n *yaml.Node) ir.Provenance {
-		if n != nil {
-			panic("locator fault")
-		}
-		return ir.Provenance{Source: 0}
-	}
+	panicking := provenance.Tree{Pointers: func(*yaml.Node) (jsontext.Pointer, bool) { panic("pointers fault") }}
+	whole := ir.Provenance{Source: 6}
 
-	got := Aliases(t.Context(), panicking, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus))
+	got := Aliases(t.Context(), panicking, whole, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus))
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)
 	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
-	assert.Equal(t, "alias pre-scan aborted (locator fault); alias-cycle protection is incomplete for this source",
+	assert.Equal(t, whole, got[0].Provenance)
+	assert.Equal(t, "alias pre-scan aborted (pointers fault); alias-cycle protection is incomplete for this source",
 		got[0].Message)
 }
 
-// inTreeFixture holds each shape of node whose pointer InTree answers: keys that
-// need escaping, a sequence, an anchor with an alias to it, and a `<<` merge
-// spelled inline and through an alias.
-const inTreeFixture = `plain: 1
+// pointersFixture holds each shape of node whose pointer Pointers answers:
+// keys that need escaping, a sequence, an anchor with an alias to it, and a
+// `<<` merge spelled inline and through an alias.
+const pointersFixture = `plain: 1
 a/b: 2
 c~d: 3
 ~1: 4
@@ -537,17 +502,17 @@ named: &nm renamed
 !!merge tagged: 7
 `
 
-// decodeTree decodes inTreeFixture afresh into the document node a parse gives
-// the compiler, so no case shares nodes with another.
+// decodeTree decodes pointersFixture afresh into the document node a parse
+// gives the compiler, so no case shares nodes with another.
 func decodeTree(t *testing.T) *yaml.Node {
 	t.Helper()
 	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(inTreeFixture), &doc), "the fixture must decode")
+	require.NoError(t, yaml.Unmarshal([]byte(pointersFixture), &doc), "the fixture must decode")
 	return &doc
 }
 
 // memberOf returns the key and value nodes of the member of mapping m named
-// key, read straight off Content so the lookup shares nothing with InTree.
+// key, read straight off Content so the lookup shares nothing with Pointers.
 func memberOf(t *testing.T, m *yaml.Node, key string) (k, v *yaml.Node) {
 	t.Helper()
 	require.Equal(t, yaml.MappingNode, m.Kind, "looking up %q in a non-mapping", key)
@@ -584,7 +549,7 @@ func keyAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
 	return k
 }
 
-// TestInTree_PointsAtEachKindOfNode pins the pointer a finding on each kind of
+// TestPointers_PlaceEachKindOfNode pins the pointer a finding on each kind of
 // node carries, whether the tree is rooted at its document node or at the
 // content: a key shares its member's pointer, a sequence item is its index,
 // tokens are RFC 6901-escaped, an alias is a leaf indexed where it is written
@@ -592,7 +557,7 @@ func keyAt(t *testing.T, doc *yaml.Node, path ...string) *yaml.Node {
 // key has one. A pair is keyed as the parser keys it: an alias key by the
 // scalar it names, a !!merge-tagged key other than `<<` as written. Every row
 // keeps its position.
-func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
+func TestPointers_PlaceEachKindOfNode(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
 		node    func(t *testing.T, doc *yaml.Node) *yaml.Node
@@ -693,7 +658,7 @@ func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 					Position: ir.Position{Line: node.Line, Column: node.Column},
 				}
 
-				got := InTree(3, Pointers(t.Context(), root(doc)))(node)
+				got := provenance.Tree{Doc: provenance.Doc{Source: 3}, Pointers: Pointers(t.Context(), root(doc))}.Node(node)
 
 				assert.Empty(t, cmp.Diff(want, got))
 				assert.NotZero(t, got.Position, "a parsed node has a position")
@@ -702,12 +667,12 @@ func TestInTree_PointsAtEachKindOfNode(t *testing.T) {
 	}
 }
 
-// TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone pins the answers that
+// TestPointers_PlaceNoPointerWhereTheTreeHasNone pins the answers that
 // are not a position in the tree: a node the tree does not hold, as one built
 // elsewhere or by hand, has its position and no pointer; no node names the
 // source alone; and no tree leaves the position alone. A node's identity, not
 // its value, decides whether the tree holds it.
-func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
+func TestPointers_PlaceNoPointerWhereTheTreeHasNone(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct {
 		root func(t *testing.T) *yaml.Node
@@ -743,7 +708,7 @@ func TestInTree_AnswersWithoutAPointerWhereTheTreeHasNone(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			got := InTree(3, Pointers(t.Context(), tt.root(t)))(tt.node(t))
+			got := provenance.Tree{Doc: provenance.Doc{Source: 3}, Pointers: Pointers(t.Context(), tt.root(t))}.Node(tt.node(t))
 
 			assert.Empty(t, cmp.Diff(tt.want, got))
 		})
@@ -855,20 +820,20 @@ func TestStepsIn_StopsAtItsLimit(t *testing.T) {
 	assert.True(t, complete)
 	assert.Equal(t, map[*yaml.Node]step{empty: {}}, steps)
 	assert.Equal(t, ir.Provenance{Source: 0, Position: ir.Position{Line: 1, Column: 1}},
-		InTree(0, Pointers(t.Context(), empty))(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
+		provenance.Tree{Pointers: Pointers(t.Context(), empty)}.Node(&yaml.Node{Kind: yaml.ScalarNode, Line: 1, Column: 1}),
 		"a node of no tree, asked of an empty document, is located by position alone")
 }
 
-// TestInTree_AllocatesInTheTreesSizeNotItsPointers pins the cost of locating a
+// TestPointers_AllocateInTheTreesSizeNotItsPointers pins the cost of locating a
 // node: one long key over many children allocates in proportion to the nodes,
-// not to the key once per node. It builds the locator, asks about one deep
-// node, and holds the bytes allocated to 32 MiB. The index holds a holder and
-// a token per node and the one pointer asked for spells the key once, while a
-// pointer stored per node spells it for every node beneath the key: a copy
-// per child alone is 256 MiB.
+// not to the key once per node. It builds the pointer index, asks about one
+// deep node, and holds the bytes allocated to 32 MiB. The index holds a holder
+// and a token per node and the one pointer asked for spells the key once,
+// while a pointer stored per node spells it for every node beneath the key: a
+// copy per child alone is 256 MiB.
 //
 // It is not parallel: a parallel test would allocate during the measurement.
-func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
+func TestPointers_AllocateInTheTreesSizeNotItsPointers(t *testing.T) {
 	const (
 		keyLen   = 1 << 16
 		children = 4096
@@ -887,8 +852,8 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	locate := InTree(0, Pointers(t.Context(), root))
-	got := locate(deep)
+	tree := provenance.Tree{Pointers: Pointers(t.Context(), root)}
+	got := tree.Node(deep)
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(root)
 
@@ -901,9 +866,9 @@ func TestInTree_AllocatesInTheTreesSizeNotItsPointers(t *testing.T) {
 }
 
 // TestPointers_SaysWhetherTheTreeHoldsTheNode pins the answer a caller other
-// than InTree reads: the node's pointer and that the tree holds it, the
-// document's own content included at "", and no pointer, held by nothing, for
-// a node another tree holds or for a nil node or root.
+// than provenance.Tree.Node reads: the node's pointer and that the tree holds
+// it, the document's own content included at "", and no pointer, held by
+// nothing, for a node another tree holds or for a nil node or root.
 func TestPointers_SaysWhetherTheTreeHoldsTheNode(t *testing.T) {
 	t.Parallel()
 	value := ynode.Scalar("v")

@@ -9,13 +9,14 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 )
 
 // TestAdmission_ASchemaNoBindingPlacesIsReadInTheContextsDialect pins the read
-// of a schema the bindings do not place, as in a context given no load phase:
+// of a schema the bindings do not place, as one parsed apart from the document:
 // it is read in the dialect the context reads its own schemas in, so a 3.0
 // nullable adds null to the type beside it and a 3.1 one adds nothing.
 func TestAdmission_ASchemaNoBindingPlacesIsReadInTheContextsDialect(t *testing.T) {
@@ -31,7 +32,8 @@ func TestAdmission_ASchemaNoBindingPlacesIsReadInTheContextsDialect(t *testing.T
 		{"3.0.3", kindString | kindNull},
 		{"3.1.0", kindString},
 	} {
-		w := newAdmission(NewRawLowerer(&soa.OpenAPI{OpenAPI: tc.version}).Ctx)
+		l, _ := LoweredFor(t, openapitest.ComponentSpecVer(tc.version, "    A: {type: string}\n"))
+		w := newAdmission(l.Ctx)
 		assert.Equal(t, tc.kinds, w.whole(js).kinds, tc.version)
 	}
 }

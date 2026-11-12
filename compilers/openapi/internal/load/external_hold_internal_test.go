@@ -23,7 +23,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 )
 
@@ -506,7 +505,7 @@ func TestHold_AReferenceNamingTheSourceCopiesNoBytesOfIt(t *testing.T) {
 
 	pass.visit(t.Context(), refSite{pointer: "/paths/~1a/get/responses/200"}, a, pass.opts)
 
-	require.Empty(t, pass.diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{})))
+	require.Empty(t, pass.diags(places{}))
 	assert.Equal(t, "ok", a.GetObject().Description)
 	cached, ok := doc.GetCachedReferenceDocument(path)
 	require.True(t, ok)

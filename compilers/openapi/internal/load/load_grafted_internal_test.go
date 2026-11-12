@@ -71,8 +71,8 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 					continue
 				}
 				found++
-				assert.Equal(t, ir.Provenance{Source: 1, Pointer: tc.pointer}, d.Provenance,
-					"the overlay put the node there, and the pointer says where")
+				assert.Equal(t, ir.Provenance{Source: 0, Pointer: tc.pointer, WrittenBy: 1}, d.Provenance,
+					"the overlay put the node there, and the pointer says where in the source")
 			}
 			assert.Equal(t, 1, found, "diagnostics: %+v", diags)
 		})
@@ -81,8 +81,8 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 
 // TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource is the control: with
 // the same overlay applied, a finding on a node the source declared keeps the
-// source and its line and column. The locator falls through to the source for
-// every node the overlay does not answer for, so a fix that attributed too
+// source and its line and column. The source's tree places every node the
+// overlay does not answer for in the source, so a fix that attributed too
 // widely would move this one.
 func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 	t.Parallel()
@@ -138,8 +138,8 @@ func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 			require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
 			for _, d := range diags {
 				if d.Code == diag.TaggedMapping {
-					assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/paths/~1b/get/responses/404"}, d.Provenance,
-						"and the overlay owns the position it was grafted at")
+					assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, d.Provenance,
+						"and the overlay wrote the position it was grafted at")
 				}
 			}
 		})

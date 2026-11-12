@@ -109,6 +109,52 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
                          (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
 
+    def test_a_stacked_base_is_left_out_when_named(self):
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("the base's own subject")
+        self.git("switch", "-q", "-c", "stacked")
+        self.commit("test: add a case")
+        named = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((named.returncode, named.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+        unnamed = self.run_script("1311", TITLE)
+        self.assertEqual((unnamed.returncode, unnamed.stdout.splitlines()[0]),
+                         (1, "commit: not type(scope): subject: the base's own subject"))
+
+    def test_a_former_base_is_left_out_beside_main(self):
+        self.git("switch", "-q", "-c", "former", "main")
+        self.commit("the former base's own subject")
+        self.git("switch", "-q", "-c", "moved")
+        self.commit("test: add a case")
+        for first, second in (("origin/main", "former"), ("former", "origin/main")):
+            with self.subTest(first=first):
+                r = self.run_script("--base", first, "--base", second, "1311", TITLE)
+                self.assertEqual((r.returncode, r.stdout),
+                                 (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
+    def test_mains_own_commits_are_never_the_branchs(self):
+        # The branch starts on a main that moved on after its base did, then merges the base.
+        self.git("switch", "-q", "-c", "base", "main")
+        self.commit("test: the base's work")
+        self.git("switch", "-q", "main")
+        self.commit("main's own subject, after the base")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("switch", "-q", "-c", "stacked")
+        self.git("merge", "-q", "--no-edit", "base")
+        self.commit("test: add a case")
+        r = self.run_script("--base", "base", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout),
+                         (0, "subjects: clean (the title and 1 commit subject(s))\n"))
+
+    def test_an_unknown_or_empty_base_exits_two(self):
+        self.commit("test: add a case")
+        # git refuses these bases too, so only the message tells the script's own check apart.
+        for base, says in (("no-such-ref", "subjects: fatal:"), (" ", "a base names no branch"),
+                           ("", "a base names no branch"), ("origin/", "a base names no branch")):
+            with self.subTest(repr(base)):
+                r = self.run_script("--base", base, "1311", TITLE)
+                self.assertEqual((r.returncode, says in r.stderr), (2, True), r.stderr)
+
     def test_clean_branch_exits_zero(self):
         self.commit(SIXTY_SIX)
         self.commit("test: add a case")
@@ -123,6 +169,62 @@ class ScriptTest(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertEqual((r.returncode, r.stdout.splitlines()[-1]),
                          (1, "subjects: 1 finding(s) in the title and 1 commit subject(s)"))
+
+    def push(self):
+        self.git("update-ref", "refs/remotes/origin/topic", "HEAD")
+
+    def test_a_pushed_commits_finding_refuses_no_push(self):
+        long = "test: " + "x" * 67
+        self.commit(long)
+        self.push()
+        self.commit("test: add a case")
+        r = self.run_script("--pushed", "origin/topic", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout.splitlines()), (0, [
+            f"pushed commit: 73 characters, over 72: {long}",
+            "subjects: 1 finding(s) on pushed commits alone (the title and 2 commit subject(s))"]))
+
+    def test_the_title_and_what_the_push_adds_are_still_held(self):
+        self.commit("test: add a case")
+        self.push()
+        long = "test: " + "x" * 67
+        self.commit(long)
+        r = self.run_script("--pushed", "origin/topic", "1311", "Fix things")
+        self.assertEqual((r.returncode, r.stdout.splitlines()), (1, [
+            "title: not type(scope): subject: Fix things",
+            f"commit: 73 characters, over 72: {long}",
+            "subjects: 2 finding(s) in the title and 2 commit subject(s)"]))
+
+    def test_a_pushed_commit_counts_toward_the_branchs_commits(self):
+        # Two commits, so neither lands under its own subject, though one alone is unpushed.
+        self.commit("test: add a case")
+        self.push()
+        self.commit(SIXTY_SIX)
+        r = self.run_script("--pushed", "origin/topic", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout),
+                         (0, "subjects: clean (the title and 2 commit subject(s))\n"))
+
+    def test_a_pushed_only_commit_is_held_as_it_lands(self):
+        # The squash lands it under its own subject, which a second commit can still displace.
+        self.commit(SIXTY_SIX)
+        self.push()
+        r = self.run_script("--pushed", "origin/topic", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout.splitlines()), (1, [
+            f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}",
+            "subjects: 1 finding(s) in the title and 1 commit subject(s)"]))
+
+    def test_a_branch_not_yet_pushed_has_every_commit_held(self):
+        self.commit(SIXTY_SIX)
+        r = self.run_script("--pushed", "origin/topic", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
+                         (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
+
+    def test_a_pushed_ref_naming_no_branch_exits_two(self):
+        self.commit("test: add a case")
+        for ref in ("", " ", "origin/"):
+            with self.subTest(repr(ref)):
+                r = self.run_script("--pushed", ref, "1311", TITLE)
+                self.assertEqual((r.returncode, "--pushed names no branch" in r.stderr), (2, True),
+                                 r.stderr)
 
     def test_a_number_below_one_exits_two(self):
         r = self.run_script("0", TITLE)

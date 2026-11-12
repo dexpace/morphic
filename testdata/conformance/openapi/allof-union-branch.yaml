@@ -1,0 +1,89 @@
+openapi: 3.1.0
+info: {title: AllOfUnionBranch, version: "1.0.0"}
+paths:
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          # A form body distributed across a union keys each part by the
+          # property its variants hold.
+          multipart/form-data:
+            schema:
+              allOf:
+                - type: object
+                  properties: {file: {type: string, contentMediaType: image/png}, note: {type: string}}
+                - oneOf:
+                    - $ref: '#/components/schemas/WithoutData'
+                    - $ref: '#/components/schemas/WithData'
+            encoding:
+              file: {contentType: image/png}
+      responses:
+        "204": {description: Uploaded}
+components:
+  schemas:
+    WithoutData: {type: object, properties: {data: {type: object}}}
+    WithData: {type: object, properties: {content: {type: string}}}
+    # A union written as an allOf branch conjoins with the rest of the
+    # composition, so it distributes as the same union written beside the allOf
+    # does, each variant carrying the record's common fields.
+    Record:
+      type: object
+      required: [id]
+      allOf:
+        - type: object
+          anyOf:
+            - $ref: '#/components/schemas/WithoutData'
+            - $ref: '#/components/schemas/WithData'
+        - type: object
+          properties: {id: {type: string}}
+    # Inline branches lower at their own pointers, and each variant composes
+    # the shared fields with one of them.
+    App:
+      type: object
+      allOf:
+        - type: object
+          required: [id]
+          properties: {id: {type: string}}
+        - oneOf:
+            - type: object
+              required: [account_app_id]
+              properties: {account_app_id: {type: string}}
+            - type: object
+              required: [managed_app_id]
+              properties: {managed_app_id: {type: string}}
+    # Of two union branches, one only narrows the body: it stays with its
+    # branch on each variant, and the other distributes.
+    AppRequest:
+      type: object
+      allOf:
+        - oneOf:
+            - {type: object, required: [account_app_id], properties: {account_app_id: {type: string}}}
+            - {type: object, required: [managed_app_id], properties: {managed_app_id: {type: string}}}
+        - anyOf: [{type: object, required: [breakout]}, {type: object, required: [priority]}]
+        - type: object
+          properties: {breakout: {type: string}, priority: {type: integer}}
+    # Unions that only narrow the body distribute nothing: the composition
+    # stays a model, each kept with its branch.
+    Message:
+      type: object
+      properties: {to: {type: string}, cc: {type: string}, text: {type: string}, html: {type: string}}
+      allOf:
+        - anyOf: [{type: object, required: [to]}, {type: object, required: [cc]}]
+        - anyOf: [{type: object, required: [text]}, {type: object, required: [html]}]
+    # A subtype a discriminated base routes to stays its subtype, its union kept
+    # with its branch: distributed, it would be a union, which no route names
+    # as a subtype.
+    Pet:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {dog: '#/components/schemas/Dog'}
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/Pet'
+        - oneOf:
+            - $ref: '#/components/schemas/WithoutData'
+            - $ref: '#/components/schemas/WithData'

@@ -40,10 +40,9 @@ drew it (`references/lossless-and-diagnostics.md`).
 
 ## Traps that recur
 
-Each is a rule in the references below, with its evidence and probe.
-
 - One construct has several readers: before changing how a keyword is read, find every reader of
-  it (`references/openapi-lessons.md#every-reader`).
+  it (`references/openapi-lessons.md#every-reader`), and before changing a position's node kind,
+  the old kind's readers (`references/openapi-lessons.md#readers-of-a-changed-kind`).
 - A reading the library already implements is called, not re-derived
   (`references/openapi-lessons.md#reuse-library-readings`), but two schemas are compared by
   rendering their raw nodes, as the model misses keywords

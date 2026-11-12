@@ -82,7 +82,8 @@ A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and
 of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,
 which the IR keeps for an emitter's policy layer to read, such as a call timeout or a client-shaping
 decorator ([boundaries](../../ir/boundaries.md#deliberate-exclusions)). No promotion moves either,
-which is the stability #429 asks the IR to state for them. A key under any other reason, such as
+which is the stability the IR states for them ([what a key
+promises](../../ir/unmodeled.md#what-a-key-promises)). A key under any other reason, such as
 `no_ir_home`, names a gap the IR may close or a construct that configures nothing, so where a
 document holds a key the mapping names under one, the key reads nothing and is reported as an error
 `emitters/embed/key-refused`, as is a `Target` naming no tree or a path no field has.
@@ -102,7 +103,12 @@ generator's own key: a method name and a sub-client on 3,761 of its 3,763 operat
 other sub-clients and method names on 44, and a name on 118 parameters and on 30 properties. It
 carries no retry or timeout key. A mapping reads the names into `Rename`, but no sub-client: each is
 a path of names, mostly dotted, such as `dns.domainconnect`, where `Remount` and `AlsoMount` take
-the ID of a group the IR has. Placing an operation by such a path is left to a compiler grouping
-that reads it, which #582 proposes, and the method names hold only beside one: read alone, 1,745 of
-the 3,761 share their name with another method of the group the IR places them in, which the
-collision resolver then renames ([naming](../refine/naming.md)).
+the ID of a group the IR has. Placing an operation by its sub-client's path is the compiler's
+grouping by extension ([`extension-groups`](../../compilers/openapi.md#extension-groups)), and the
+method names hold only beside it: under the default grouping by tags, 1,745 of the 3,761 share their
+name with another method of the group the IR places them in, which the collision resolver then
+renames ([naming](../refine/naming.md)). Grouped by the path, 94 of 3,792 do (spec @e411be7e, where
+1,751 do by tags), each one the document itself names alike under one sub-client. That grouping
+makes the groups of the paths operations are filed under, their prefixes among them, and no other,
+so 44 of the 48 aliases on 45 operations name a path it has no group for (spec @bc6fad24): an
+`AlsoMount` there names a group the IR does not have, which is reported (#1726).

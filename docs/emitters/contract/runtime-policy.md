@@ -88,9 +88,11 @@ type or a decoder rather than the boilerplate around them, and docs and mocks ha
 A union a client reads keeps an unknown variant and an enum an unknown value under `plan.Policy`,
 and a `oneOf` two variants admit decodes as `plan.Policy` says ([plan policy](../plan/policy.md)).
 Unknown members follow each model's `Additional`, a declared fact, so no setting widens a model the
-spec closes or closes one it leaves open. An enum differs because an OpenAPI `enum` can only be
-closed, so its `Closed` records no choice, where `additionalProperties: false` is one its author
-writes ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open)).
+spec closes or closes one it leaves open. An enum and a union differ because an OpenAPI `enum`,
+`oneOf` or `anyOf` can only be closed, so their `Closed` records no choice, where
+`additionalProperties: false` is one its author writes
+([unions](../plan/policy.md#a-union-a-client-reads-is-open),
+[enums](../plan/policy.md#an-enum-a-client-reads-is-open)).
 
 ## Delivery
 
@@ -112,7 +114,8 @@ differs by operation is a table in the runtime binding, a row per operation, whi
 `BuildOperationSettings` fills ([steps](../refine/steps.md)): the operation's resolved settings,
 whether it retries an uncertain outcome, decided there from `WhenUncertain` and `OpPlan.Effects`,
 and the statuses it declares, none of which is followed as a redirect. A template renders the rows,
-and a method names only its own.
+each in its operation's unit, so the runtime's own unit names no operation ([output
+units](../refine/output-units.md#the-runtimes-unit)), and a method names only its own.
 
 ## Layers and operations
 
@@ -145,11 +148,13 @@ everywhere, whatever a document embeds for one operation, and a document's own p
 still beats its own document-wide one. Ordering by scope first would let a document's per-operation
 settings outvote a project-wide choice, which then could not be made without naming every operation.
 
-A key naming no operation of the document is reported as a warning
-`emitters/policy/unknown-operation`, never ignored, since an operation whose ID changed would
-otherwise lose its settings in silence, and a warning rather than an error since one project's
-policy may serve several documents. Where a higher layer replaces what the document embeds, or its
-retry list takes a status from the other list the document embeds (above), an info
+A key naming no operation of the document configures nothing, and is never ignored, since an
+operation whose ID changed would otherwise lose its settings in silence: the engine reports it
+before `Resolve` runs, as a warning `emitters/unmatched-key` naming the operation that now holds its
+correlation key where one does ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)), a warning rather than an error since
+one project's policy may serve several documents. Where a higher layer replaces what the document
+embeds, or its retry list takes a status from the other list the document embeds (above), an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
 document's author can see it was overruled. A value a configuration writes outside a field's
 vocabulary or range, such as a `RetryScope` other than the three its comment names, a `MaxAttempts`

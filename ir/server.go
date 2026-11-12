@@ -47,8 +47,9 @@ type Server struct {
 type ServerVariable struct {
 	// Name is the variable name referenced in the URL template.
 	Name string `json:"name,omitempty"`
-	// Default is the default value used when the caller supplies none.
-	Default string `json:"default,omitempty"`
+	// Default is the value used when the caller supplies none; nil = the source
+	// states none, which an empty string, substituting nothing, is not.
+	Default *string `json:"default,omitzero"`
 	// Enum is the closed set of permitted values, when constrained.
 	Enum []string `json:"enum,omitempty"`
 	// Docs is the variable's documentation.

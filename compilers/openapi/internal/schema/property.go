@@ -31,7 +31,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 		return nil
 	}
 	use := UseOf(c, ts, js, p.Type, pointer)
-	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.ProvenanceAt)
+	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.Place())
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)
@@ -91,7 +91,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(use.Site(ref), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, ref, pointer), pointer, c.Place())
 
 	p.Docs = a.Docs
 	if a.Deprecated {
@@ -121,7 +121,7 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	// can be carrying an Encoding.
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
 	diags = append(diags, recordUnexpandedDynamicRef(c, p, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, p, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, p, s, pointer, nil)...)
 }
 
 // PromoteUse reads the vendor extensions into the deprecation and redaction of a

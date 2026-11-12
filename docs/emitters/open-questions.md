@@ -19,8 +19,8 @@
    RPC/messaging targets are the real test. Revisit when the second-protocol emitter lands (tracks
    [open question 6](../ir/open-questions.md)).
 5. **Manifest granularity for merge.** Whether the entity→symbol map keys at property level (not just
-   type/op level) to support field-level additive merge, or leaves sub-type merge to the `go/ast`
-   adapter. Decide when write/integrate (M4) is built.
+   type/op level) to support field-level additive merge, or leaves sub-type merge to the
+   merge adapter. Decide when write/integrate (M4) is built.
 6. **Surface behavioral channel scope.** Which behavioral changes beyond default-value changes
    (e.g. a `Retryable` flip, an idempotency change) belong in the separate behavioral channel vs the
    structural one. Decide when surface verification (M4) is built against real cross-revision diffs.

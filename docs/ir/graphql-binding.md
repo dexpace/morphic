@@ -11,15 +11,15 @@ type GraphQLBinding struct {
 }
 ```
 
-GraphQL lowering: schema types → models (`InputOnly` for inputs), interfaces → `Abstract`
-models with implementors listing them in `Implements` (including interfaces implementing
-interfaces), unions → `WireTagged` unions discriminated by `__typename`, **`@oneOf` input
-objects → `Union{Exclusive: true, WireTagged: true}` with a variant per field** (never a model
-of optional properties — that is the union-to-optional-fields collapse [design rule
-2](./README.md#design-rules) forbids), custom scalars → `Scalar` with `Base = nil`, entry-point
-fields → operations (field args → `Params`, field type → response), nested field arguments →
-`Property.Args` at any depth, subscriptions → `GraphQLBinding{Kind: "subscription"}` +
-`StreamingMode: server` + `ResponseStream`.
+GraphQL lowering: schema types → models (`InputOnly` for inputs), interfaces → `Abstract` models
+with implementors listing them in `Implements` (including interfaces implementing interfaces),
+unions → open `WireTagged` unions discriminated by `__typename` (`Closed` false, since a schema
+gains members as it evolves), **`@oneOf` input objects → `Union{Exclusive: true, WireTagged: true,
+Closed: true, InputOnly: true}` with a variant per field** (never a model of optional properties —
+that is the union-to-optional-fields collapse [design rule 2](./README.md#design-rules) forbids),
+custom scalars → `Scalar` with `Base = nil`, entry-point fields → operations (field args → `Params`,
+field type → response), nested field arguments → `Property.Args` at any depth, subscriptions →
+`GraphQLBinding{Kind: "subscription"}` + `StreamingMode: server` + `ResponseStream`.
 
 Directive conventions (normative): applications are ordered and repeatable, so
 `Unmodeled["graphql:@<name>"]` holds an **ordered JSON array** of application argument objects
