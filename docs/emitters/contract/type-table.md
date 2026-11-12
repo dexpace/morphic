@@ -107,12 +107,13 @@ string-spelled kind's spellings:
 | `date` | RFC 3339 `full-date` | — |
 | `time` | `partial-time`: seconds always, and a fraction only where the value has one, in as few digits as it needs | a fraction of any length, one finer than its type's precision cut to it |
 | `datetime` | `full-date`, `T`, `partial-time` | as `time` |
-| `datetime_offset` | `datetime`'s, then the value's offset, `Z` where it is zero | as `time`, and `+00:00` or `-00:00` as `Z` |
+| `datetime_offset` | RFC 3339 `date-time`: `datetime`'s, then the value's offset as `+hh:mm` or `-hh:mm`, `Z` where it is zero | as `time`, and `+00:00` or `-00:00` as `Z` |
 | `duration` | ISO 8601's: `P`, then each component the value holds in ISO 8601's order, each designator upper case, seconds' fraction as `time`'s, and `PT0S` for zero | — |
 
-`T` and `Z` are written upper case, and a row need not read them lower case, as RFC 3339 §5.6 lets
-a specification require. `bool` and `string` write their JSON values, `any` the JSON it holds, and a
-numeric kind a JSON number of its value, which text carries in plain notation ([values as
-text](../refine/text.md#the-text-of-a-value)). A fraction is cut rather than refused, as Go's
-`time.Time` reads one, while a value its type cannot hold, such as a leap second, is one the row
-refuses, and a text its format does not admit one it may refuse or read as its codec does.
+`T` and `Z` are upper case in the format these rows write and read, as RFC 3339 §5.6 lets a
+specification require, so a row need not read them lower case. `bool` and `string` write their JSON
+values, `any` the JSON it holds, and a numeric kind a JSON number of its value, which text carries
+in plain notation ([values as text](../refine/text.md#the-text-of-a-value)). A fraction finer than
+its type's precision is cut rather than refused, as Go's `time.Time` reads one, while a value its
+type cannot hold at all, such as a leap second, is one the row refuses, and a text its format does
+not admit one it may refuse or read as its codec does.

@@ -538,11 +538,12 @@ throughout these documents.
     upper case as lower case, `bytes` as padded base64 percent-encoded in a path and as it is in a
     header, a space as `%20`, a `Prefix` map as a field per entry, a string under `ContentType`
     `application/json` with its quotes, and a value class and an `enum class` entry as their wire
-    forms, never their `toString()`. A null query input is sent as an absent one, and a path
-    parameter or a `host` label holding null or an empty string, a header holding a CR LF, a NaN, a
-    year past 9999, an offset with seconds and a `decimal` `1E+999999999` each fail before anything
-    is sent. The mock server reads each such request back to the values sent, as an SDK reads an
-    inbound request's parameters. A response header of each primitive reads `+00:00`, a fraction of
-    each length, one finer than its type's precision cut to it, an upper-case `uuid` and a list sent
-    on two lines, while a leap second leaves its field unset with `RawHeader` holding the text (T-26)
-    ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
+    forms, never their `toString()`. A null query input and an empty list are each sent as an absent
+    one, a null member of a list is left out, and a path parameter or a `host` label holding null or
+    an empty string, a header holding a CR LF, a NaN, a year past 9999, an offset with seconds and a
+    `decimal` `1E+999999999` each fail before anything is sent. The mock server reads each such
+    request back to the values sent, as an SDK reads an inbound request's parameters. A response
+    header of each primitive reads `+00:00`, a fraction of each length, one finer than its type's
+    precision cut to it, an upper-case `uuid` and a list sent on two lines, while a leap second
+    leaves its field unset with `RawHeader` holding the text (T-26) ([the type
+    table](../contract/type-table.md#what-a-built-in-row-writes)).

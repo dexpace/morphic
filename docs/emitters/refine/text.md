@@ -11,16 +11,17 @@ Go 1.27). So one rule decides a value's text, both ways, on every target.
 
 ## The text of a value
 
-A value travels as the text of its wire form, the JSON value its type-table row's codec writes
-([type table](../contract/type-table.md#what-a-built-in-row-writes)): a string's characters, `true`
-or `false`, and a number in plain notation. Plain notation is an optional `-`, the integer part as
-JSON writes it, and, only where the value is not whole, a `.` and as few digits as give back the
-value in its type: `1`, `0.1`, `1000000000000000000000`, `0.0000001`, and `0.1` for a `float32`
-`0.1`, not the `0.10000000149011612` its widening to a double holds. It writes no exponent, no `+`,
-no trailing zero and no `-0`, so two numbers JSON compares equal write one text, as an enum's
-members compare ([enums](enums.md#a-member-on-the-wire)), and a whole value is written as an
-integer is. A target never writes a value through a conversion of its own, a Kotlin value class's or
-`enum class` entry's `toString()` or Go's `fmt`, which spell no wire form.
+A value travels as the text of its wire form, the JSON value its codec writes, a type-table row's
+for a leaf type ([type table](../contract/type-table.md#what-a-built-in-row-writes)) and an enum's
+own for a member ([enums](enums.md#a-member-on-the-wire)): a string's characters, `true` or `false`,
+and a number in plain notation. Plain notation is an optional `-`, the integer part as JSON writes
+it, and, only where the value is not whole, a `.` and as few digits as give back the value in its
+type: `1`, `0.1`, `1000000000000000000000`, `0.0000001`, and `0.1` for a `float32` `0.1`, not the
+`0.10000000149011612` its widening to a double holds. It writes no exponent, no `+`, no trailing
+zero and no `-0`, so two numbers JSON compares equal write one text, as an enum's members compare,
+and a whole value is written as an integer is. A target never writes a value through a conversion of
+its own, a Kotlin value class's or `enum class` entry's `toString()` or Go's `fmt`, which spell no
+wire form.
 
 A value its wire form cannot spell has no text, and the call fails before anything is sent, naming
 the input: NaN and the infinities, which no JSON number holds, and a year outside 0000 to 9999 or
@@ -41,7 +42,9 @@ media type's serialization of the value instead, so as JSON a string keeps its q
 
 A null has no text. OpenAPI's style examples read it as RFC 6570's undefined (§4.12.6), so a query,
 header, cookie or form input holding null is written as an absent one is, and an optional nullable
-input's null and its absence send one request. A path parameter has no absent form: one holding
+input's null and its absence send one request. An empty list or object is undefined too (RFC 6570
+§2.3), and a null member of a list or an object is left out of it, since the expansion appends only
+defined members (RFC 6570, Appendix A). A path parameter has no absent form: one holding
 null, or whose expansion leaves its segment empty, as an empty string's does under `simple`, would
 send a path naming another resource, and an empty last segment one a server ignoring a trailing
 slash routes to the collection above it. On the golden spec (spec @bc6fad24, morphic @ea70eba79),
@@ -84,10 +87,10 @@ so that field stays unset; whether such a header reads an HTTP-date is #1732's.
 ## Other formats
 
 A compiler lowers the text a format's binding gives a position by default, as Smithy and TypeSpec
-give a timestamp in a header an HTTP-date, as that position's `Encoding`
-([planned lowerings](../../compilers/planned-lowerings.md)), which keys its row as any encoding
-does: an emitter never reads which format a document came from (INV1). What an encoding with no row
-of its own writes is #1733's.
+give a timestamp in a header an HTTP-date, as an `Encoding` at that position, a header's own or that
+of a scalar hoisted to type a parameter ([planned lowerings](../../compilers/planned-lowerings.md)),
+which keys its row as any encoding does: an emitter never reads which format a document came from
+(INV1). What an encoding with no row of its own writes is #1733's.
 
 ## The designs it was weighed against
 
