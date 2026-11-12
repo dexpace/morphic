@@ -48,10 +48,11 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     TimestampKt, TimestampKt"), as one beside a top-level function or property did, and a class
     `TimestampKT` built without a diagnostic, sharing one class file with the file's class on a
     case-insensitive file system, so a module compiled against the output failed ("unresolved
-    reference 'Timestamp'"). Beside a function in `User.kt` the framework exported the file's class
-    as `UserKt_`. The escape and a numeric suffix leave the form, as `TimestampKt_` and
-    `TimestampKt2` built beside the typealias, while the set of each file's class alone would grow
-    with the spec's declarations, and adding a `Timestamp` would then move a shipped `TimestampKt`.
+    reference 'Timestamp'"). Beside a function in `User.kt` and a class `UserKt`, the framework
+    exported the file's class as `UserKt_`. The escape and a numeric suffix leave the form, as
+    `TimestampKt_` and `TimestampKt2` built beside the typealias, while the set of each file's class
+    alone would grow with the spec's declarations, and adding a `Timestamp` would then move a
+    shipped `TimestampKt`.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
     runtime's among them, in every unit, bar `AlphaApi` and `BetaApi`, annotation classes
@@ -64,15 +65,16 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
     the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name the
-    export declares for a class of its own or a public class of the standard library, `Kotlin`
-    before the class's name joined to its outer's (`KotlinInt`, `KotlinThrowable`,
-    `KotlinEnumCompanion`), all of them rather than only those the framework reaches, which a
-    declaration the spec adds can grow, another table of the options version, so that adding a
-    declaration moves no Swift name; and the framework's own name, `Swift` and `Foundation`, which a
-    caller writes to qualify a name (`Probe.Client`). A module a caller imports by choice, such as
-    SwiftUI, reserves nothing, since a file importing it and the framework qualifies a name the two
-    share. A declaration that meets a name of this bullet or the last only there keeps its Kotlin
-    name and takes an explicit Objective-C and Swift name, so no JVM name moves for Swift's sake.
+    export declares for a class of its own or a public class, object or interface of the standard
+    library, `Kotlin` before its name joined to its outer's (`KotlinInt`, `KotlinThrowable`,
+    `KotlinUnit`, `KotlinComparable`, `KotlinEnumCompanion`), all of them rather than only those the
+    framework reaches, which a declaration the spec adds can grow, another table of the options
+    version, so that adding a declaration moves no Swift name; and the framework's own name, `Swift`
+    and `Foundation`, which a caller writes to qualify a name (`Probe.Client`). A module a caller
+    imports by choice, such as SwiftUI, reserves nothing, since a file importing it and the
+    framework qualifies a name the two share. A declaration that meets a name of this bullet or the
+    last only there keeps its Kotlin name and takes an explicit Objective-C and Swift name, so no
+    JVM name moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 The names a unit declares and a union's variants are compared case-folded
