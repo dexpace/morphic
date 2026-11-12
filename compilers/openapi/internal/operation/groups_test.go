@@ -701,22 +701,25 @@ func TestGrouping_ByExtensionReportsAValueStatingNoPath(t *testing.T) {
 }
 
 // TestGrouping_ByExtensionFallsBackToPathPrefix pins the other fallback: an
-// operation stating no path is grouped by its first path segment and marked
-// as that strategy marks it, beside one the extension filed.
+// operation stating no path, or a value naming none, is grouped by its first
+// path segment and marked as that strategy marks it, beside one the extension
+// filed, and the value naming none is reported as under tags.
 func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /users:
     get: {operationId: listUsers, tags: [people], responses: {"200": {description: ok}}}
   /zones:
     get: {operationId: listZones, x-group: dns.zones, responses: {"200": {description: ok}}}
+  /legacy:
+    get: {operationId: getLegacy, tags: [people], x-group: a..b, responses: {"200": {description: ok}}}
 `)
 	ext := groupedByExtension
 	ext.Fallback = lowering.GroupByPathPrefix
 	svc, diags := serviceByExtension(t, spec, ext)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	require.Len(t, svc.Groups, 2)
-	users, dns := svc.Groups[0], svc.Groups[1]
+	require.Len(t, svc.Groups, 3)
+	users, dns, legacy := svc.Groups[0], svc.Groups[1], svc.Groups[2]
 	assert.Equal(t, ir.GroupID("g/path-prefix/users"), users.ID)
 	require.Len(t, users.Operations, 1)
 	assert.Equal(t, ir.Inferred("group-path-prefix"), users.Operations[0].Provenance.Inferred)
@@ -724,6 +727,17 @@ func TestGrouping_ByExtensionFallsBackToPathPrefix(t *testing.T) {
 	require.Len(t, dns.Groups, 1)
 	require.Len(t, dns.Groups[0].Operations, 1)
 	assert.Equal(t, ir.Inferred("group-extension"), dns.Groups[0].Operations[0].Provenance.Inferred)
+	assert.Equal(t, ir.GroupID("g/path-prefix/legacy"), legacy.ID)
+	require.Len(t, legacy.Operations, 1)
+	assert.Equal(t, ir.Inferred("group-path-prefix"), legacy.Operations[0].Provenance.Inferred)
+
+	var reported []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			reported = append(reported, string(d.Severity)+" at "+string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"info at /paths/~1legacy/get/x-group"}, reported)
 }
 
 // TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst pins ListsAreGroups:

@@ -65,33 +65,41 @@ type filing struct {
 // filingFor resolves where the active strategy files src, declared at decl in
 // c's document and mounted at path. A group is resolved by identity: its ID is
 // its key here and in the IR, so two operations share a group exactly when they
-// share an ID. The untagged group's hint stays "default" beside a tag of that
-// name: the IDs differ, the emitter resolves name collisions by ID
-// (docs/emitters/refine/naming.md), and the names pass reports this one. By
-// tags, the group is the first navigational tag's, nested under the tags its
-// declared parents name (GitHub #613).
+// share an ID. GroupByExtension files src by the path its extension states, or
+// by GroupingExtension.Fallback where it states none, keeping what reading the
+// extension found whichever strategy files it.
 func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
-	strategy := c.Grouping
-	var diags []ir.Diagnostic
-	if strategy == lowering.GroupByExtension {
-		var levels []groupLevel
-		levels, diags = extensionLevels(c, src, decl)
-		if levels != nil {
-			return filing{levels: levels, inferred: lowering.GroupExtensionHeuristic, diags: diags}
-		}
-		strategy = c.GroupingExtension.Fallback
+	if c.Grouping != lowering.GroupByExtension {
+		return g.filingBy(c.Grouping, src, path)
 	}
+	levels, diags := extensionLevels(c, src, decl)
+	filed := filing{levels: levels, inferred: lowering.GroupExtensionHeuristic}
+	if levels == nil {
+		filed = g.filingBy(c.GroupingExtension.Fallback, src, path)
+	}
+	filed.diags = diags
+	return filed
+}
+
+// filingBy files src, mounted at path, by its path's first segment under
+// GroupByPathPrefix and by its tags under any other strategy: in the first
+// navigational tag's group, nested under the tags its declared parents name
+// (GitHub #613), or in the untagged group. That group's hint stays "default"
+// beside a tag of that name: the IDs differ, the emitter resolves name
+// collisions by ID (docs/emitters/refine/naming.md), and the names pass reports
+// this one.
+func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Operation, path string) filing {
 	if strategy == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
 		levels := []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
-		return filing{levels: levels, inferred: lowering.GroupPathPrefixHeuristic, diags: diags}
+		return filing{levels: levels, inferred: lowering.GroupPathPrefixHeuristic}
 	}
 	for _, tag := range src.GetTags() {
 		if g.tags.navigational(tag) {
-			return filing{levels: g.tags.levels(tag), diags: diags}
+			return filing{levels: g.tags.levels(tag)}
 		}
 	}
-	return filing{levels: []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}, diags: diags}
+	return filing{levels: []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}}
 }
 
 // extensionLevels returns the groups the path src's grouping extension states
