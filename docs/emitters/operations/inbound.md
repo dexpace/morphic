@@ -69,9 +69,11 @@ A parse method reads one request as it arrived, in an order a signature needs:
    none may still sign: the receiver takes such an alternative as satisfied without the check only
    where it was built stating that its operations admit an unauthenticated sender, and one built
    with no setting parses no forged body. A request no alternative admits is a verification failure,
-   a value apart from a decode failure, so a handler answers it as such.
-4. **The parameters** the operation declares are read from their text as their locations' rules
-   say, as the mock server reads a request's ([docs and mocks](../docs-and-mock.md)), a required one
+   a value apart from a decode failure, so a handler answers it as such; it names the scheme or the
+   user's check that refused and holds nothing the request carried
+   ([redaction](../refine/redaction.md#nothing-a-library-wrote-is-shown)).
+4. **The parameters** the operation declares are read from their text as their locations' rules say,
+   as the mock server reads a request's ([docs and mocks](../docs-and-mock.md)), a required one
    absent refused. One no style arranges is read as its reader is given it: the string, or every
    pair of its location that its binding owns, in the order they came ([values as
    text](../refine/text.md#a-value-no-style-arranges)).

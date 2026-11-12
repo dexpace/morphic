@@ -129,3 +129,14 @@ The client's settings ([the client](../../operations/client.md)) are functional 
 its events go to ([what an event holds](../../contract/runtime-policy.md#what-an-event-holds)). A
 [client setting](../../operations/client.md#client-settings) is one more, `WithAccountID("…")`, and
 the request type's field for it a pointer, `AccountID *string`, nil taking the client's.
+`WithTransport(t http.RoundTripper)` replaces what sends a request, `net/http`'s by default, so a
+wrapper is a `RoundTripper` over the one it replaces, and a scheme's option that takes the caller's
+code takes an `Authenticator`, `interface{ Authenticate(req *http.Request) error }`
+([auth](../../operations/auth.md#where-a-credential-can-be-read)). The policy's members a caller
+sets ([runtime policy](../../contract/runtime-policy.md#what-a-layer-writes)) are options as well,
+`WithMaxAttempts`, `WithBackoff`, `WithThrottledBackoff`, `WithMaxRedirects`, `WithRequestTimeout`,
+`WithIdleTimeout`, `WithMaxBody`, `WithAutoPageDelay`, `WithMaxPages`, `WithPollBackoff` and
+`WithMaxPolls`, a duration a `time.Duration` and a backoff a `runtime.Backoff`. `c.WithOptions(opts
+...Option) (*Client, error)` returns a client holding `c`'s settings with those replaced and sending
+through `c`'s transport, for one call or several; its name is reserved among the client's members
+([naming](naming.md#reserved-names)).

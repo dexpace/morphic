@@ -56,7 +56,10 @@ the value is a field of a caller's struct that `fmt` cannot ask, nor an encoder.
 print as exported ones do. A pointer to them prints as an address under `%v` and in full under a
 verb `fmt` has no form for: `%O` of a failure began `%!O(*state.raw=&{map[ Set-Cookie:[…`. The
 function's cost is that two responses holding equal bytes are unequal to `reflect.DeepEqual`, which
-never finds two functions equal, so a test compares what `RawHeader` and `RawBody` return. A
+never finds two functions equal, a value and itself among them, so a test compares what `RawHeader`
+and `RawBody` return; that `==` on a `Response` does not compile, a function being incomparable;
+and that a test double a caller builds by literal holds no raw response, so the runtime exports
+`NewRaw(h http.Header, body []byte) Raw`, which holds the caller's own values. A
 `RawBody` and a `Stream`, which hold a response still open, are declared over state structs as a
 sub-client is, and read it through their methods. T-65 holds this section.
 
@@ -66,7 +69,8 @@ sub-client is, and read it through their methods. T-65 holds this section.
 type OtherResponse struct {    // the runtime's: a response its method cannot return
     StatusCode int
     Raw                        // RawHeader() and RawBody(): what arrived (above)
-    BodyErr    error           // why the body did not decode; nil when it did, or had none
+    BodyErr    error           // why the body did not decode, a *DecodeError; nil when it did, or
+                               // had none
     Body       any             // the body as its Type lowers, of any kind; nil = none decoded
     Headers    any             // the entry's declared headers, a struct; nil = none declared
 }

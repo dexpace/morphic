@@ -54,9 +54,12 @@ request type, a union, each variant's wrapper and a response's headers type amon
 sensitive type the SDK declares itself, where the target can give it one; the lifecycle events the
 logging hooks emit ([runtime policy](../contract/runtime-policy.md)); a URL's path segment or query
 value from a redacted parameter; a header's value; and every error message, a transport failure's
-included. An HTTP library can write the URL it was sent into its own failures, as Go's `net/http`
-and Ktor's timeouts do, so the runtime quotes a request's URL only in its redacted form, in a
-failure as in a log line. The wire form is written from the value, never through those forms. A
+included, which holds no text a library wrote ([below](#nothing-a-library-wrote-is-shown)). A
+rendering that asks the value nothing, as Go's `fmt` asks no method under a verb it reports as bad,
+`%w` outside `Errorf` and `%p` of a struct, nor below an unexported field, shows nothing of a
+redacted one either, since a target holds it where such a rendering does not reach
+([Go](../targets/go/models.md#a-redacted-member)). The wire form is written from the value, never
+through those forms. A
 value a caller takes out of every holder, as a string or a list of its own, renders as the target
 renders it. So does a value a renderer reaches without asking it, which shows what the value holds:
 one encoding it as JSON, as logrus's JSON formatter and zap's `Reflect` do, or reading its fields,
@@ -87,3 +90,43 @@ entry does not redact included, since a response carries headers no document lis
 takes out, the headers `RawHeader` returns or the bytes `RawBody` does, is the caller's value and
 renders as the target renders it. A debugger, or a library that reads memory past what the language
 exports, shows what the process holds, and no declaration answers it. T-65 holds the rule.
+
+## Nothing a library wrote is shown
+
+A library builds its failures from what it was handed, and the runtime hands it a request, a
+response's bytes and what the caller configured, any of which may hold a credential. So nothing the
+runtime shows, a failure and each of its members, an event, a log line or a string form, holds text
+a library wrote, and where the runtime catches a library's failure it keeps only what the program or
+the document spells:
+
+- a decoder's failure, of a response's or an error's body, a frame or a request a receiver parses,
+  and an encoder's, of a request: the type the value was read into or written from, and the types in
+  the library's chain;
+- a transport's failure, a refused connection's, a TLS handshake's and a name lookup's among them,
+  and an `Authenticator`'s: the method, the URL as shown
+  ([what an event holds](../contract/runtime-policy.md#what-an-event-holds)) and the types in the
+  chain;
+- a URL that does not parse, a base URL the caller gave, a redirect's `Location`, a link to the next
+  page or a place to poll: the setting or the member it came from, never its text. Such a redirect
+  is returned as the response, and such a link or place fails the walk or the wait;
+- a receiver's verification failure ([inbound](../operations/inbound.md)): the scheme, or the user's
+  check, that refused, and nothing the request carried;
+- a client refused when built: the setting, never its value.
+
+The types are the program's text, and a caller still branches on what failed: in Go the failure
+answers `errors.Is` through the library's chain, which it holds behind a function as `Raw` holds a
+response, and in Kotlin each link of its `cause` is the runtime's exception naming the library's
+class and carrying, on the JVM, that exception's stack frames
+([Go](../targets/go/errors.md#a-transports-failure),
+[Kotlin](../targets/kotlin/errors.md#a-transports-failure)). A JSON pointer and a byte offset were
+weighed for a decoder's failure and are left out: a pointer's tokens are the body's names, a map's
+keys among them (json/v2 wrote `within "/labels/<key>"`), and an offset or an index counts what the
+body held before the failure, a redacted value's length among it, which no rendering of that value
+shows ([above](#a-redacted-value)). A caller who wants the library's account decodes `RawBody`
+itself, its own value. Measured with Go 1.27.3, none of the 1,073 renderings of each of a refused
+connection, a refused TLS handshake, bodies failing at a member and at a map key holding the value,
+an `Authenticator`'s error quoting it and a base URL that does not parse held the value, where
+`url.Parse` wrote the URL whole into its error; with Kotlin 2.4.0, Ktor 3.2.3 and
+kotlinx.serialization 1.8.1, none of the 28 renderings of each such failure did, where Ktor's
+timeout wrote the URL and kotlinx the body (`JSON input: {"id":"u1","token":…`), and a decoder's
+chain kept 9 of kotlinx.serialization's frames. T-65 holds this section.

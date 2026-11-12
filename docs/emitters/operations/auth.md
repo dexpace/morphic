@@ -147,15 +147,26 @@ the step again. So a credential reaches the transport and nothing else, wherever
   `[url=http://…?limit=5&api_key=…` into its message with the key in full, the last as a
   `java.net.SocketTimeoutException`, so an exception's class does not tell the platform's text from
   the library's. So on every target the runtime returns a failure of its own, holding the method,
-  the URL as shown and, of the library's failure, only what the target's document shows to hold
-  nothing of the request. In Go that is the cause under the library's wrapper, the `Err` of a
-  `*url.Error`, and never the wrapper: with that, the same request's message was `GET
-  http://127.0.0.1:1/v1/things?limit=5&pw=[REDACTED]: dial tcp 127.0.0.1:1: connect: connection
-  refused`, and `errors.As` found no `*url.Error` in the chain. That cause's own text stays the
-  library's, which the runtime cannot hold by construction, so T-65 sweeps it for each failure the
-  behavior server can provoke. In Kotlin it is the names of the classes in the library's chain and
-  none of its exceptions, and the runtime sets none of the library's timeouts, so the library builds
-  no such message ([Kotlin](../targets/kotlin/errors.md#a-transports-failure)).
+  the URL as shown and the types in the library's chain, and no text the library wrote
+  ([redaction](../refine/redaction.md#nothing-a-library-wrote-is-shown)): with Go 1.27.3 a refused
+  request to a base URL with a path, a key in the operation's path, read `GET
+  http://127.0.0.1:51351/[REDACTED]/users/[REDACTED]: *net.OpError > *os.SyscallError >
+  syscall.Errno`, `errors.Is` still matched `syscall.ECONNREFUSED`, and `errors.As` found no
+  `*url.Error`. Keeping the cause under the library's wrapper, the `Err` of a `*url.Error`, was
+  weighed: its text is the library's too, and names the address dialled, or the host a certificate
+  or a lookup failed for.
+- **What a caller's code is handed.** An `Authenticator` is handed the request whole once the
+  request builder and the injectors wrote it: its method, its URL with the query, its headers, and
+  its body's bytes wherever the runtime holds them, every body but a stream its caller writes, so a
+  signer reads what it signs. Go's is `Authenticate(req *http.Request) error`, the body read through
+  `req.GetBody`, and Kotlin's `suspend fun authenticate(request: TransportRequest)` over the
+  runtime's `TransportRequest` ([Go](../targets/go/operations.md#the-client),
+  [Kotlin](../targets/kotlin/operations.md#the-client)). A `Transport` is handed the request after
+  the auth step, in the context the call's hook returned, so a header a wrapper adds, a trace's
+  among them, follows the signer: a scheme whose signature must cover every header signs in a
+  `Transport` wrapper of its own, the innermost. Measured with Go 1.27.3 and Kotlin 2.4.0, a server
+  verified an HMAC over the method, the URL, a header the `Authenticator` wrote and the body on each
+  of four requests, a second attempt among them.
 - **No dump.** The runtime declares no rendering of a request or a response as sent, a wire log or a
   command line that would replay it. A caller who wants one wraps the `Transport`, which is handed
   each request as it goes out, credentials included, since it sends it; what such a wrapper prints

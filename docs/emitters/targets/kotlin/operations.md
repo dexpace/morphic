@@ -45,10 +45,30 @@ whose name the input does not own throws an exception naming the input, nothing 
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are setters on the client's
-builder, `hook { event -> … }` for the hook its events go to among them ([what an event
-holds](../../contract/runtime-policy.md#what-an-event-holds)). A [client
+builder, `hook { context, event -> context }` for the hook its events go to among them ([what an
+event holds](../../contract/runtime-policy.md#what-an-event-holds)). A [client
 setting](../../operations/client.md#client-settings) is one more, `accountId("…")`, and the request
-type's property for it is nullable, null taking the client's.
+type's property for it is nullable, null taking the client's. `transport(t)` replaces what sends a
+request, Ktor by default, and a scheme's option that takes the caller's code takes an
+`Authenticator` ([auth](../../operations/auth.md#where-a-credential-can-be-read)):
+
+```kotlin
+fun interface Transport { suspend fun send(request: TransportRequest): TransportResponse }
+fun interface Authenticator { suspend fun authenticate(request: TransportRequest) }
+
+class TransportRequest(val method: String, …) { // url(), setUrl(u), header(name),
+    …                                          // setHeader(name, value), headers(), and body():
+}                                              // ByteArray?, null for a stream its caller writes
+```
+
+A `Transport` wrapper reads `currentCoroutineContext()` for what the hook returned, and calls the
+`Transport` it wraps. The policy's members a caller sets ([runtime
+policy](../../contract/runtime-policy.md#what-a-layer-writes)) are setters too, `maxAttempts`,
+`backoff`, `throttledBackoff`, `maxRedirects`, `requestTimeout`, `idleTimeout`, `maxBody`,
+`autoPageDelay`, `maxPages`, `pollBackoff` and `maxPolls`, a duration a `kotlin.time.Duration`, and
+`client.withOptions { maxPages(100) }` builds a client holding the client's settings with those
+replaced and sending through its `Transport`; its name is reserved among the client's members
+([naming](naming.md#reserved-names)).
 
 ## Operations the API sends
 

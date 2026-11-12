@@ -120,10 +120,12 @@ Kotlin 2.4.0, each in a file that opts in, with a caller that does not:
 
 So, in the runtime's templates and in generated code, a file that opts in declares no `inline`
 function or property and no type alias a caller can name, no caller-facing class has a marked
-supertype, and no caller-facing signature names a marked declaration. The inline functions a caller
-uses, `body` and `headers` ([failures](errors.md)), sit in a file that does not opt in, where the
-compiler holds the rule itself: the same body calling a marked helper failed to compile there with
-the marker's message. T-64 holds it by what a caller's class files name.
+supertype, and no caller-facing signature names a marked declaration. No caller-facing function is
+`inline` with a `reified` parameter, which the ABI dump does not list
+([failures](errors.md#how-a-failure-reaches-its-caller)), and a caller-facing `inline` function sits
+in a file that does not opt in, where the compiler holds the rule itself: the same body calling a
+marked helper failed to compile there with the marker's message. T-64 holds it by what a caller's
+class files name and by what the dump lists.
 
 The dumps the extractor reads ([below](#merging-and-surface-extraction)) are written with the marker
 excluded, by each module's build file:
@@ -157,7 +159,12 @@ dependencies alone, so with Maven 3.9.16 the same application resolved the root 
 1.0 beside the group's module at 1.1 and failed when run; importing the platform itself while still
 writing both versions, it resolved the runtime at 1.1 under the root at 1.0 and failed the same way;
 and it ran only importing the platform and writing no module's version. So a Maven build is held
-where it imports the platform and names no version, and nowhere else.
+where it imports the platform and names no version, and nowhere else. Where nothing holds it, as
+there or where a build forces one module with a strict version (`!!`), which beats the platform's
+constraint, a stamp catches it: the run writes into every module a digest of the runtime module it
+generates, the runtime holding its own, and the client and each sub-client compare the two when
+built and refuse to be built where they differ, naming both, so a mixed build fails there rather
+than at whichever call first meets a change.
 
 The cost is that a build asking for one module at an older version is given every module at the
 newest it asks for, with nothing said, as Gradle settles any conflict of versions, and a further

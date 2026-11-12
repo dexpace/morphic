@@ -23,10 +23,12 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   the golden spec is named for one (spec @bc6fad24, morphic @fa253fe19, each group's words joined).
   A unit so named takes the escape, `main_`, `documentation_`, `type_`, `aux_` or `error_`, which
   each built, a caller's file importing `error_` and `string_` among them.
-- **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which no
-  function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)), and
-  in the unit holding a service's receiver, `Receiver`, `NewReceiver` and `ReceiverConfig`, whose
-  fields `Verify` and `Unauthenticated` each scheme's field yields to ([operations the API
+- **A unit**: `Client`, its option type and their constructors, `WithOptions` among `Client`'s
+  members, where a group's sub-client field and an operation's method sit ([the
+  client](operations.md#the-client)), a group unit's sub-client, which no function of the unit
+  builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)), and in the unit holding
+  a service's receiver, `Receiver`, `NewReceiver` and `ReceiverConfig`, whose fields `Verify` and
+  `Unauthenticated` each scheme's field yields to ([operations the API
   sends](operations.md#operations-the-api-sends)). The runtime's names, `APIError`, `Body`,
   `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response` and `Stream` among them, are its own
   unit's, which holds no spec name ([the runtime's

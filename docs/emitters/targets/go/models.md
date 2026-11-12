@@ -35,8 +35,9 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   ([optionality](#optionality)), so an absent email stays apart from an empty one. `RenderCasing`
   turns `["email"]`→`Email`, and the tag is `Tag:json:"email,omitzero"`: the name from `WireName`,
   never the identifier, and `omitzero` because an unset box written without it would send
-  `"email":null`. `password` is `Secret`, so `User`'s `String()`, `GoString()` and `LogValue()` show
-  it as `[REDACTED]`, as they would a member whose type is `Sensitive`
+  `"email":null`. `password` is `Secret`, so it is a `runtime.Secret[Opt[string]]` ([a redacted
+  member](#a-redacted-member)), `User`'s `String()`, `GoString()` and `LogValue()` show it as
+  `[REDACTED]`, as they would a member whose type is `Sensitive`
   ([redaction](../../refine/redaction.md)), and it is excluded from the read shape. `LogValue` is
   what `log/slog` reads: its JSON handler writes any other value as JSON, the wire form, and
   resolves a `slog.LogValuer` only on the value it is handed, never on a list's elements, so
@@ -44,20 +45,51 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   pointer receiver's methods are not in a `User`'s method set, so `fmt` and `log/slog` would print
   field by field a `User` held by value, as `ListUsers` yields one and a slice holds one. `User`
   declares `Format(fmt.State, rune)` beside them, writing what `String` does, since `fmt` asks
-  `String` and `GoString` under some verbs alone: measured with Go 1.27.3, `%d` of a model declaring
-  the three printed each field, the secret in full, and of 58 renderings 27 held it, where with
-  `Format` the 7 left were `%p` of a value, under which `fmt` asks no method, and the encoders,
-  which read fields. `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members
-  under `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
-  rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
-  value below the call that sets it, so a closed model would otherwise make an open model nested in
-  it strict, and a strict caller would reach a model the spec leaves open. A catch-all
-  (`AdditionalProps`) is the struct's one embedded fallback, a `map[string]T` tagged
-  `json:",embed"`, which receives the undeclared members whatever the options say.
+  `String` and `GoString` under some verbs alone. `Additional:"closed"` → the model's
+  `UnmarshalJSONFrom` decodes its members under `json.RejectUnknownMembers(true)`. Every model pins
+  that option for itself ([the shared rule](../../refine/models.md#unknown-members)), `false` unless
+  closed: a v2 option reaches every value below the call that sets it, so a closed model would
+  otherwise make an open model nested in it strict, and a strict caller would reach a model the spec
+  leaves open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a
+  `map[string]T` tagged `json:",embed"`, which receives the undeclared members whatever the options
+  say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` ([file
   names](naming.md#file-names)) in the root unit ([output units](../../refine/output-units.md)).
   Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key ([the
   declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
+
+## A redacted member
+
+A model's `Format` answers each verb `fmt` asks a method under, and `fmt` asks none under a verb it
+reports as bad, `%w` outside `Errorf` or of a value that is no error and `%p` of a struct, nor of a
+value below an unexported field: it prints the fields by reflection. So a plain field leaks there:
+with Go 1.27.3, `log.Printf("call failed: %w", err)` of a failure holding a `User` printed the
+password, and of 1,040 renderings of a model, every verb and flag through `Sprintf`, `Errorf`,
+`log.Printf` and `log/slog`'s text handler, of one held directly, by pointer, in an exported and an
+unexported field of a caller's struct, a slice and a map, 368 held the secret. No declaration on a
+plain struct answers a rendering that asks it nothing. So each redacted position, a member, a
+sensitive list element or map value, a variant wrapper's `Value`, a request type's or a headers
+type's field, holds its value as a `runtime.Secret[T]`, `T` being what it lowers to otherwise, and a
+map with sensitive keys is held whole:
+
+```go
+type Secret[T any] state.Secret[T] // the runtime's: a function returning the value, as Raw is
+
+func SecretOf[T any](v T) Secret[T] // what a caller builds one from
+func (s Secret[T]) Value() T         // the value; T's zero for a zero Secret
+```
+
+`Secret` declares the redacting forms, `IsZero`, the codec pair, which writes and reads what `T`
+does, and `Equal`. A function is the one kind `fmt` prints as an address however it is asked. A
+pointer was built first: one to a list, a struct or a map is followed once under a verb `fmt` has no
+pointer form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings,
+where `Secret` held it in none, nor did a failure holding the model. The costs are a function's: a
+caller writes `runtime.SecretOf("pw")` and reads `.Value()`; two models holding equal secrets are
+unequal to `reflect.DeepEqual`, and `==` does not compile on one, so a test compares through
+`Equal`, which go-cmp asks; and a member a document starts or stops marking changes type, a break
+for its callers, as a reference joining a cycle does ([recursive
+references](#recursive-references)). A value a caller takes out with `Value` is its own and renders
+as Go renders it. T-43 holds this section.
 
 ## A shape that is an alias
 
@@ -99,18 +131,22 @@ it (`encountered a cycle`). Printing must not follow it: Go ends the process on 
 (`fatal error: stack overflow`), which no `recover` stops, and a `String` calling each nested
 value's `String` did so on a model whose pointer led back to it. So each model, union struct,
 wrapper and positional struct declares `Format(fmt.State, rune)`, which `fmt` asks before `String`
-and for every verb, and renders its members itself, calling a nested value's `Format` with a state
-that carries the level and a count of the values the whole print has written; at `MaxDepth` levels,
-and once that count passes `MaxValues`, it writes `...` and returns. `String` and `GoString` print
-through it and `LogValue` returns its text, so all three end, and a caller sees `...` where the
-value went on. Measured so, a value holding itself through a pointer, a slice and a map each printed
-64 levels and stopped, as did one held from another unit, and `%d`, `%x` and `%q` showed a redacted
-member as `%v` does. The level alone does not end a print: a value holding itself twice would write
-2^64 values within it, and with the count unread 26 levels took 67 million calls and 7.7 s, where
-the count stopped it after 16,777,217 calls, 168 MB and 1.4 s. The state is a type of
-the module's own under `internal/`, which no caller can name, and `Format` is a name no member takes
-([reserved names](naming.md#reserved-names)), as `String` is: 20 properties of the golden spec are
-named `format` (spec @bc6fad24). Go generates no hash and no comparison of a model: `==` compares a
+and for every verb it asks a method under ([a redacted member](#a-redacted-member)), and renders its
+members itself, calling a nested value's `Format` with a state that carries the level and a count of
+the values the whole print has written; at `MaxDepth` levels, and once that count passes
+`MaxValues`, it writes `...` and returns. `String` and `GoString` print through it and `LogValue`
+returns its text, so all three end, and a caller sees `...` where the value went on. Measured so, a
+value holding itself through a pointer, a slice and a map each printed 64 levels and stopped, as did
+one held from another unit, and `%d`, `%x` and `%q` showed a redacted member as `%v` does. The level
+alone does not end a print: a value holding itself twice would write 2^64 values within it, and with
+the count unread 26 levels took 67 million calls and 7.7 s, where the count stopped it after
+16,777,217 calls, 168 MB and 1.4 s. Where `fmt` asks no method, it follows a slice or a map into
+itself until the process ends (`goroutine stack exceeds 1000000000-byte limit` for `%w` of a value
+whose list held it), which no declaration answers; a decoded value is a tree, so only a value its
+caller built to hold itself meets it. The state is a type of the module's own under `internal/`,
+which no caller can name, and `Format` is a name no member takes ([reserved
+names](naming.md#reserved-names)), as `String` is: 20 properties of the golden spec are named
+`format` (spec @bc6fad24). Go generates no hash and no comparison of a model: `==` compares a
 pointer by identity and is not defined over a slice or a map. T-63 holds these.
 
 ## Recursive references

@@ -21,7 +21,7 @@ the way a failure does ([what a failure prints](errors.md#what-a-failure-prints)
 class`. The `toString` of `Response` and of `EnvelopedResponse` shows the status and the body
 through the body's own ([redaction](../../refine/redaction.md#a-redacted-value)), and no raw header,
 as [Go's](../go/returns.md#what-a-response-prints) do. `OtherResponse` and the failures keep a
-class's `toString`, which prints neither, and their exceptions carry no message.
+class's `toString`, which prints neither, and each exception's message is the status alone.
 
 ## `OtherResponse`
 
@@ -30,8 +30,9 @@ failures](errors.md), so `catch (e: ApiException)` still takes failures alone:
 
 ```kotlin
 class OtherResponse(val statusCode: Int, rawHeaders: Headers, rawBody: ByteArray,
-                    val bodyError: Throwable?, val body: Any?, val headers: Any?)
+                    val bodyError: DecodeException?, val body: Any?, val headers: Any?)
                     // rawHeaders() and rawBody(), as ApiFailure declares them
 
-class OtherResponseException(val response: OtherResponse) : Exception()
+class OtherResponseException(val response: OtherResponse) :
+    Exception("status ${response.statusCode} is not what this method returns")
 ```

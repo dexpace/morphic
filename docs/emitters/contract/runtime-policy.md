@@ -198,7 +198,11 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
   failure's body read no further than `Errors.MaxBody`, and a body handed over unread waiting no
   longer than `Timeout.Idle` for its next bytes. A walk fetches at most `Pagination.MaxPages` pages
   and a poller polls at most `Polling.MaxPolls` times, each a call so bounded. Every one has an
-  upper bound of its own, so no configuration removes a limit by writing a large one.
+  upper bound of its own, so no configuration removes a limit by writing a large one. A success
+  body the method decodes has no bound in bytes: it becomes the value the call returns, so what it
+  holds is the caller's answer, which a bound below it would refuse, while `Timeout.Request` bounds
+  its time and `Nesting` its depth. No document states any of these limits, so each default is a
+  choice, measured on no input.
 - **A redirect** is followed where following it keeps what the request asks, as RFC 9110 §15.4
   allows: 307 and 308 send the method and body again, 303 sends a `GET`, or a `HEAD` for a `HEAD`,
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
@@ -270,7 +274,12 @@ Each leaf's comment above gives its type, its default and its range, and a value
   `null` as its default, since a layer leaves a member out to say that;
 - outside the range its comment gives, or a string outside its grammar: a header's name is an RFC
   9110 token and an environment variable's a letter or `_` followed by letters, digits and `_`, so
-  neither holds a space, a line break or a `:`;
+  neither holds a space, a line break or a `:`, and each is 64 bytes at most, a bound chosen and not
+  measured;
+- a header's name, compared without case, that names a field RFC 9110 registers (§18.4),
+  `Transfer-Encoding`, `Cookie` or `Set-Cookie`, or one the other of `Idempotency.Header` and
+  `Telemetry.Client` names: the runtime would write the key or the agent over a field it or a
+  scheme writes, and `RequestID` would copy a `Set-Cookie` into every event;
 - a list holding an entry twice, or more entries than its comment allows, and a status below 300 or
   past 599;
 - a `Backoff` or a `Kinds` row naming a member it does not have or leaving out one it must name,
@@ -296,11 +305,12 @@ nothing, and a `MaxBody` of 0 reads no failure's body. No member spells "no limi
 
 **The client's members and an operation's.** An operation's entry ([layers](#layers-and-operations))
 may write `Retry`, `Redirects`, `Timeout.Request`, `Timeout.Idle`, `Errors.MaxBody`, `Idempotency`,
-`Pagination` and, where it starts a long-running operation, `Polling`. `Errors.Kinds`, `Telemetry`,
-`Logging`, `UserAgent`, `Timeout.Env` and `Guards` are what a client declares or sends alike on
-every call, the kinds being declarations of the runtime's unit, which names no operation ([output
+`Pagination`, `Nesting` ([below](#how-deep-a-value-nests)) and, where it starts a long-running
+operation, `Polling`. `Errors.Kinds`, `Telemetry`, `Logging`, `UserAgent`, `Timeout.Env` and
+`Guards` are what a client declares or sends alike on every call, the kinds being declarations of
+the runtime's unit, which names no operation ([output
 units](../refine/output-units.md#the-runtimes-unit)), so an operation's entry writing one is
-invalid.
+invalid, as is one writing `Polling` for an operation that starts none, which no poller reads.
 
 **A kind is one name whatever its letter case.** The runtime declares a name per kind, a class in
 Kotlin, whose file a file system that ignores letter case keeps one of ([Kotlin
@@ -366,6 +376,21 @@ apply](#a-setting-that-cannot-apply)).
   golden spec states no long-running operation (`grep -c '"longRunning"'` over its IR finds none;
   spec @bc6fad24, morphic @fa253fe19), so these defaults rest on no measurement of it.
 
+**What a caller sets when it runs.** The layers resolve when the SDK is generated, and its caller
+then sets the members whose right value follows from its own work rather than the API: the bounds
+and the waits, `Retry.MaxAttempts`, `Retry.Backoff`, `Retry.Throttled`, `Redirects.Max`,
+`Timeout.Request`, `Timeout.Idle`, `Errors.MaxBody`, `Pagination.AutoPageDelay`,
+`Pagination.MaxPages`, `Polling.Backoff` and `Polling.MaxPolls`, each a client option
+([Go](../targets/go/operations.md#the-client),
+[Kotlin](../targets/kotlin/operations.md#the-client)). One set on a client replaces the resolved
+value for every operation, an operation's own and `Timeout.Env`'s included, as the highest layer
+does ([layers](#layers-and-operations)), since a caller who bounds a walk means every walk; a call
+takes its own through a client derived for it, which shares its parent's connections. A value
+outside its leaf's range refuses the client, naming the option. The other members state what the API
+means or what the SDK declares, which statuses say a server did not act, which operations may send
+again, the kinds, the headers it names and sends, the key it generates, so they are fixed when the
+SDK is generated. T-37 holds it.
+
 A documentation link per failure, which the vocabulary this began from carries, is left out: no rule
 reads one, and a failure's page is the docs emitter's to link ([docs and
 mocks](../docs-and-mock.md)).
@@ -374,14 +399,23 @@ mocks](../docs-and-mock.md)).
 
 The hook a client takes is handed one value per step of a call, of the kinds `Logging.Events` lists.
 A hook is a client setting ([the client](../operations/client.md)): Go's
-`WithHook(func(context.Context, runtime.Event))`, handed the context its caller gave the method, and
-the Kotlin builder's `hook { event -> … }`, called in the call's coroutine. So a tracer finds there
-the span the call belongs under, and `Call` pairs a call's events where calls overlap: measured with
-Go 1.27.3, a hook keeping a span per `Call` parented each of two calls' spans under the value its
-own context held. The runtime calls the hook where the step happens and waits for it. A hook changes
-nothing of the request, so a header a tracer propagates is a `Transport` wrapper's to write
-([auth](../operations/auth.md#where-a-credential-can-be-read)). What a hook is handed is the same on
-each target:
+`WithHook(func(ctx context.Context, e runtime.Event) context.Context)` and the Kotlin builder's
+`hook { context, event -> context }`, a `(CoroutineContext, Event) -> CoroutineContext`. Each is
+handed the context the call runs in, the caller's for its first event and for each later one what
+the hook returned for the one before, and returns the context the call goes on in; an attempt's
+request is sent in what its `attempt` event returned. So a tracer starts the call's span under the
+caller's at the first `attempt`, and a `Transport` wrapper finds it in the request's context and
+writes the header that propagates it ([auth](../operations/auth.md#where-a-credential-can-be-read)).
+Measured with Go 1.27.3, and with Kotlin 2.4.0 over Ktor 3.2.3 in a `suspend` call: each of two
+overlapping calls sent a header naming its own call's span under its caller's, and a call sent
+again sent it on both attempts. A hook handed the caller's context alone was measured first and
+fails: the span it keeps per `Call` is out of the wrapper's reach, which propagates the caller's
+span, so the server's span is a sibling of the call's; and a Kotlin hook that does not suspend
+cannot read `coroutineContext`, so it is handed one. Whatever a hook returns, the call ends when its
+caller's context does: Go cancels the request with the caller's, and Kotlin drops the `Job` of what
+the hook returns. The runtime calls the hook where the step happens and waits for it, and a hook
+changes nothing of the request but the context it goes in. `Call` pairs a call's events where calls
+overlap. What a hook is handed is the same on each target:
 
 ```go
 type Event struct {          // the runtime's: one step of one call
@@ -425,17 +459,22 @@ either language has. And a list of headers to hide fails the header it does not 
 
 **The URL as shown** is text the runtime builds, never a URL it sends:
 
-- for a request the operation's bindings built, the scheme, host and port it goes to, the path, and
-  the operation's declared query parameters, with what a redacted parameter expanded to, in the path
-  as in the query, as `[REDACTED]` ([redaction](../refine/redaction.md#a-redacted-value)). It is
-  built before the auth step runs ([auth](../operations/auth.md#where-a-credential-can-be-read)), so
-  a key an injector or an `Authenticator` writes into the query is not in it, and neither is the
-  user and password, the query or the fragment of a base URL the caller gave, which may hold a
-  proxy's or a signature's;
+- for a request the operation's bindings built, where it goes, then its path and the operation's
+  declared query parameters, with what a redacted parameter expanded to, in the path as in the
+  query, as `[REDACTED]` ([redaction](../refine/redaction.md#a-redacted-value)). Where it goes is
+  the server's URL template with each variable written `{name}`, whatever value it took, or, for a
+  base URL the caller gave, its scheme, host and port and, where its path is more than `/`,
+  `/[REDACTED]`. A variable's value is the caller's, and the IR gives a variable nothing to mark it
+  secret ([servers](../../ir/servers.md)): a server `https://api.example.org/bot{token}` takes a
+  token in its path. A base URL's path, user, password, query and fragment may hold a proxy's
+  credential or a signature. The URL is built before the auth step runs
+  ([auth](../operations/auth.md#where-a-credential-can-be-read)), so a key an injector or an
+  `Authenticator` writes into the query is not in it;
 - for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
-  poll, the scheme, host and port, then `/[REDACTED]`. A server signs such a URL in its query, as a
-  link to stored bytes is, or in its path, and nothing the document declares says which part is the
-  signature.
+  poll, the scheme, host and port, then `/[REDACTED]`, the host itself written `[REDACTED]` where it
+  is past the 255 bytes RFC 1035 §2.3.4 lets a name hold, so a log line takes no megabyte from a
+  response. A server signs such a URL in its query, as a link to stored bytes is, or in its
+  path, and nothing the document declares says which part is the signature.
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
 ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response. T-65

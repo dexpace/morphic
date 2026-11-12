@@ -16,7 +16,8 @@ type APIError struct {         // the runtime's: what one failed response said
     StatusCode int
     Raw                        // RawHeader() and RawBody(): the headers and body as they arrived
                                // (returns.md#what-a-response-prints)
-    BodyErr    error           // why the body did not decode; nil when it did, or had none
+    BodyErr    error           // why the body did not decode, a *DecodeError (below); nil when it
+                               // did, or had none
     Fault      Fault           // the entry's, else the status's class
     Kind       Kind            // the taxonomy's logical kind for the status; "" = none
     Body       any             // the body as its Type lowers, of any kind; nil = none decoded
@@ -55,6 +56,35 @@ case errors.Is(err, runtime.ErrClient):
     if p, ok := runtime.Body[sdk.Problem](err); ok { show(p) }
 }
 ```
+
+## A transport's failure
+
+A failure the runtime catches from a library holds the library's chain where no rendering reaches it
+and none of its text ([redaction](../../refine/redaction.md#nothing-a-library-wrote-is-shown)):
+
+```go
+type TransportError struct { // the runtime's: a request that got no response
+    Method string
+    URL    string             // the URL as shown
+    Causes []string           // the types in the library's chain, outermost first
+    Chain                     // Is(target): errors.Is through that chain
+}
+
+type DecodeError struct {     // the runtime's: a body that did not decode, or a request that did
+    Type   string             // not encode; the type it was read into or written from
+    Causes []string
+    Chain
+}
+
+type Chain state.Chain        // a function returning the library's error, as Raw holds a response
+```
+
+`Error` writes the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a
+reporter walking a chain prints each link's text. `Chain`'s `Is` lets a caller ask the library's
+chain a question whose answer is a boolean, `errors.Is(err, syscall.ECONNREFUSED)` or
+`context.DeadlineExceeded`, and `errors.As` finds none of its values, which a caller wanting one
+reads in a `Transport` wrapper. An `Authenticator`'s error is held as a transport's is, since a
+token source's text can quote the token response it was sent. T-65 holds this section.
 
 ## A failure's place
 

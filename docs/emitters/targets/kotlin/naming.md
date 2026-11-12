@@ -17,13 +17,15 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   units](overview.md#output-units)).
 - **A unit**: what the target declares there and what a top-level declaration cannot take:
   - `Client`, each sub-client and `Receiver` ([operations the API
-    sends](operations.md#operations-the-api-sends)), in the unit holding it, and in every unit what
-    the runtime's templates declare, though the runtime's own unit holds no spec name ([the
-    runtime's unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException`
-    and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
-    `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-    `Authenticator`, `Transport`, `InboundRequest`, `InboundCheck`, `OutboundResponse`, and the opt-in
-    annotations
+    sends](operations.md#operations-the-api-sends)), in the unit holding it, `withOptions` among the
+    client's members, which its groups' properties and its operations' methods take ([the
+    client](operations.md#the-client)), and in every unit what the runtime's templates declare,
+    though the runtime's own unit holds no spec name ([the runtime's
+    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException` and the
+    exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`,
+    `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
+    `Transport`, `TransportRequest`, `TransportResponse`, `TransportException`, `DecodeException`,
+    `LibraryCause`, `InboundRequest`, `InboundCheck`, `OutboundResponse`, and the opt-in annotations
     `AlphaApi`, `BetaApi` and `InternalSdkApi` ([stability](operations.md#stability)) among them,
     and on Multiplatform `Decimal` and `OffsetDateTime`. A file naming one beside a spec class of
     its name imports one under a name of its own ([imports](#imports)), so no generated file needs
