@@ -13,7 +13,7 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `@file:OptIn(ExperimentalObjCName::class)`. No caller inherits that, and no signature carries it
   ([the language floor](overview.md#the-language-floor)).
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
-  only `_` marks
+  letter case cannot mark
   ([naming](../../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)): measured
   with Kotlin 2.4.0, entries `VALUE_1_0` and `VALUE_10` both became `value10`, the one the class
   declares second taking a trailing `_`, so which value a Swift caller's `value10` named followed
