@@ -80,9 +80,10 @@ text and a body read a spelling alike. A built-in row reads every spelling its f
 value its type holds ([type table](../contract/type-table.md#what-a-built-in-row-writes)), and a
 number as its row reads one in a body, whose integral spellings, `1.0` for an integer, #1451
 decides. A text its row does not read is a value that does not parse, and a response header's leaves
-its field unset and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). The
-golden spec declares one `Last-Modified` header `date-time` and gives an HTTP-date as its example,
-so that field stays unset; whether such a header reads an HTTP-date is #1732's.
+its field unset and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the
+revisions above, the golden spec declares one `Last-Modified` header `date-time` and gives an
+HTTP-date as its example, so that field stays unset; whether such a header reads an HTTP-date is
+#1732's.
 
 ## Other formats
 
@@ -97,9 +98,9 @@ which keys its row as any encoding does: an emitter never reads which format a d
 - **Each target's own conversion**: one call would send two texts, one of them no RFC 3339 time, as
   above.
 - **A number as its codec writes it in a body**: JSON reads `1` and `1.0` as one value, and a server
-  parsing text need not. 171 of the golden spec's 267 `number` query parameters have a whole
-  default, `page`, `per_page` and `limit` among them, and the JVM spells a `Double` 1 as `1.0`,
-  sending `page=1.0`.
+  parsing text need not. At the revisions above, 171 of the golden spec's 267 `number` query
+  parameters have a whole default, `page`, `per_page` and `limit` among them, and the JVM spells a
+  `Double` 1 as `1.0`, sending `page=1.0`.
 - **ECMAScript's number form**, which `JSON.stringify` and RFC 8785 write: it turns to an exponent
   from 10²¹ and below 10⁻⁶, which an integer parser refuses, and has no spelling for a `decimal`
   past a double's digits, where plain notation is one rule for every numeric kind.
