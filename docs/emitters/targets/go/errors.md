@@ -21,7 +21,6 @@ type APIError struct {         // the runtime's: what one failed response said
     Kind       Kind            // the taxonomy's logical kind for the status; "" = none
     Body       any             // the body as its Type lowers, of any kind; nil = none decoded
     Headers    any             // the entry's declared headers, a struct; nil = none declared
-    retry      retryFacts      // the entry's Retryable and Throttling, behind IsRetryable()
 }
 
 func (e *APIError) Error() string { return fmt.Sprintf("api error: status %d", e.StatusCode) }
@@ -43,7 +42,9 @@ func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
 [runtime's unit](../../refine/output-units.md#the-runtimes-unit).
 
 Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers struct,
-fault and retry facts, which the retry runtime consults through `IsRetryable()`/`IsThrottling()`.
+fault and retry facts. The decoder hands the entry's `Retryable` and `Throttling` to the send loop
+beside the value, not inside it: `APIError` has exported fields alone, so a decoder in another
+package builds it by a literal ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)).
 
 A caller branches on what happened, and reads the body when it needs it:
 

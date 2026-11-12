@@ -13,10 +13,10 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   an import path on every host (`malformed import path "example.com/sdk/aux": "aux" disallowed as
   path element component on Windows`). A unit so named takes the escape, `main_` or `aux_`, which
   each built.
-- **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client and
-  the function the root's client builds it with ([output units](overview.md#output-units)). The
-  runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response`
-  and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
+- **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client, which
+  no function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)).
+  The runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`,
+  `Response` and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
   unit](../../refine/output-units.md#the-runtimes-unit)), and code elsewhere writes them qualified,
   `runtime.APIError`, so they meet no spec name.
 - **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `String`,

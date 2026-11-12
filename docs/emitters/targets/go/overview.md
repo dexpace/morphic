@@ -29,10 +29,9 @@ exist, so 1.26 leaves support when 1.28 ships; from then on every supported rele
 ## Output units
 
 A Go [unit](../../refine/output-units.md) is a package, a group's is `<root>/<group>`, and the
-[runtime's](../../refine/output-units.md#the-runtimes-unit) is `<root>/runtime`. What generated code
-calls in another package, the runtime's helpers and the function the root's client builds a
-sub-client with among them, is exported, since a Go package reaches no other's unexported names;
-that this makes it part of the SDK's API is #1730's. Go's default
+[runtime's](../../refine/output-units.md#the-runtimes-unit) is `<root>/runtime`, with what
+generated code alone calls beneath `<root>/internal`
+([below](#what-a-caller-reaches-of-the-runtime)). Go's default
 [limit](../../refine/output-units.md#the-size-check) is 10,000 declarations. A synthetic package of
 that many models, each with its codec and a `Validate`, peaked at about 1.6 GB of memory to build
 with Go 1.27.3 on darwin/arm64, and one of 30,000 at about 4.6 GB.
@@ -40,6 +39,76 @@ with Go 1.27.3 on darwin/arm64, and one of 30,000 at about 4.6 GB.
 Go has no cap on a method or a class, as the JVM has, but one package of tens of thousands of types
 builds slowly and in gigabytes of memory, which the [size
 check](../../refine/output-units.md#the-size-check) reports and its split by group bounds.
+
+## What a caller reaches of the runtime
+
+A Go package reaches no other's unexported names, so what generated code calls in another package
+is exported, and what keeps an exported name from a caller is where its package sits: Go refuses
+an import of a package under `internal/` from outside the tree rooted at that directory's parent.
+The runtime is three packages:
+
+```
+<root>/runtime           what a caller names: APIError, Stream, Response, the options, …
+<root>/internal/runtime  what generated code alone calls: the send loop, the decoders, the
+                         checks, the URL expansion, an operation's settings type
+<root>/internal/state    the structs the opaque types of the first are declared over
+```
+
+`internal/runtime` imports `runtime`, whose failure and stream values it builds, and both import
+`internal/state`, which imports neither. Every unit sits under `<root>`, so each may import all
+three, and a caller's program only the first: measured with Go 1.27.3, a program in another module
+importing `<root>/internal/runtime` failed to build (`use of internal package … not allowed`).
+
+A type a caller names takes one of two shapes, so that `internal/runtime`, a package other than
+its own, can build it:
+
+- **A struct of exported fields alone**, built by a literal: `APIError`, `OtherResponse`
+  ([failures](errors.md), [return shapes](returns.md)).
+- **A type declared over a struct of `internal/state`**, `type Stream[T any] state.Stream[T]`. Its
+  methods are declared in `<root>/runtime`, each converting to the struct and calling a function of
+  `internal/state`; `internal/runtime` builds one by converting the struct to it, which only a
+  package able to name the struct can write. Where a method needs what `internal/runtime` declares,
+  as a stream's read does, failing with an `*APIError` its state's package cannot name, the struct
+  holds a function its builder gave it. A group's sub-client is declared so in its own unit,
+  `type Client state.Sub`, and the root's client builds it by that conversion, so no unit exports a
+  function that builds one.
+
+A struct of `internal/state` has unexported fields alone, read through that package's functions.
+With an exported field, a caller's program read it through the sub-client declared over the struct
+(`c.Users.Core` compiled), and passed a struct literal of its own where an exported function took
+the type. An exported signature spells a type of the first shape or the second by its name in
+`<root>/runtime`, as its caller writes it.
+
+So the SDK's API is what `go doc` prints of its packages outside `internal/`: each caller-facing
+type with its fields and methods, and no helper. `apidiff` compares the same. Measured with
+`golang.org/x/exp/cmd/apidiff` (x/exp at `a52e3aef5920`) over the module: a helper gaining a
+parameter, an operation's settings type gaining a field and two state structs gaining one each
+reported nothing, while `APIError.StatusCode` changing type, `Stream.Recv` gaining a result and a
+sub-client's method gaining a parameter were each reported incompatible.
+
+The SDK is one module, so the three packages are at one version with every unit, and nothing has
+to hold a unit to its runtime.
+
+Four other layouts were built, and each fails a caller's program or the tools reading the API:
+
+- **Everything exported from `<root>/runtime`.** A caller calls the send loop and builds an
+  operation's settings, and `apidiff` reports each helper's change as a break of the SDK.
+- **The helpers under `internal/`, called by the methods of the types above them.** `Stream.Recv`
+  calling a decoder that builds an `*APIError` failed to build (`import cycle not allowed`), which
+  is why the state sits in a package below `<root>/runtime` and the helpers in one above it.
+- **The whole runtime under `internal/`, its caller-facing names declared again as aliases.** It
+  builds, and a caller's `errors.As` and `runtime.Body` work. But `go doc` prints `type APIError =
+  irt.APIError` with no field and no method, and `apidiff` reported nothing when `StatusCode`
+  changed type and `Recv` its results, since it compares an alias's target by name and skips
+  internal packages: the one change that breaks every caller would ship as compatible.
+- **An exported function sealed by a parameter of an internal type.** A caller cannot name the
+  type, and can still call the function: `users.New(nil)` failed, while a generic function
+  inferring the type from `users.New`'s own signature returned its zero value, which
+  `users.New` then took.
+
+A caller can still write the zero value of any exported type, `users.Client{}` among them, as Go
+allows of every struct. A sub-client or a stream built so holds no client, and each of its methods
+returns an error saying so rather than dereference one.
 
 ## Merging and surface extraction
 
@@ -67,4 +136,5 @@ pinned exactly, `emitters/golang` alone may import it ([package layout](../../pa
 upgrade reruns the spike's cases as tests of the adapter.
 
 Go's extractor ([surface verification](../../surface-verification.md)) reads the existing package's
-exported API, as `apidiff` does.
+exported API, as `apidiff` does, of each package outside `internal/`
+([above](#what-a-caller-reaches-of-the-runtime)).

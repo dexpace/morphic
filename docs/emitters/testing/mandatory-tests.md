@@ -911,3 +911,22 @@ throughout these documents.
     apart, the property's name whole, and no segment of a path the build writes past 255 bytes,
     every class file kotlinc writes among them
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+47. **T-78 · The runtime's surface** — on every target, a caller's program built outside the SDK,
+    as another Go module, another Gradle build and a Swift file against the framework, compiles
+    while it uses the client, a sub-client's method, the failure value, a stream and an event, and
+    fails to compile for each declaration generated code alone calls that it names: a helper, an
+    operation's settings type and what a sub-client is built from. In Go the failure is the import
+    of a package under `internal/`; no struct of `internal/state` has an exported field, no package
+    outside `internal/` exports a function that builds a sub-client, and a sub-client or a stream
+    written as its zero value returns an error from each method. In Kotlin the failure is the
+    missing opt-in, in a caller's file and in a generated file with its opt-in removed; Java cannot
+    resolve a marked function; and the framework's header holds no marked declaration. The surface
+    each target's extractor reads, `apidiff`'s over the packages outside `internal/` and the ABI
+    dumps written with the marker excluded, holds none of them, is unchanged when a helper's
+    signature, a settings type or a state struct changes, and changes when a field or a method of
+    a caller-facing type does. A build resolving two modules of one Kotlin SDK at different
+    versions fails when its dependencies are resolved, and of two SDKs in one program each
+    failure matches its own SDK's failure value and not the other's
+    ([the runtime's unit](../refine/output-units.md#the-runtimes-unit),
+    [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
+    [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)).

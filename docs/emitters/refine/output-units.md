@@ -105,6 +105,31 @@ a caller importing both by `*` ([Kotlin](../targets/kotlin/naming.md#reserved-na
 target's document says what that unit is in its build ([Go](../targets/go/overview.md#output-units),
 [Kotlin](../targets/kotlin/overview.md#output-units)).
 
+What the runtime declares is of two kinds, and a caller of the SDK reaches one. The failure value
+and the exceptions under it, the response and stream types, the types a model may hold, the
+transport, the `Authenticator`, an event and the client's options are what a caller names: they are
+the runtime's API, compared from one generation to the next as the rest of the SDK's surface is
+([surface verification](../surface-verification.md)). The send and retry loop, the response
+decoders, the checks a `Validate` calls ([constraints](constraints.md)), the URL expansion ([the
+client](../operations/client.md)), the type of an operation's settings and what a sub-client is
+built from are for generated code alone. Every unit calls them, so the visibility a language gives
+one package or one module does not cover them, and left public they are API by accident: a caller
+can call the send loop, and a template that changes a check's signature breaks the SDK's surface.
+So each target declares them where a caller's program cannot call them without saying so, and
+leaves them out of the surface its extractor compares
+([Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
+[Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)); a sub-client's
+construction, the one such declaration outside the runtime, goes with them.
+
+That second kind has no version of its own. The runtime is generated with the SDK and released
+with it, so a unit calls only the runtime of its own generation, and what generated code alone
+calls may change in any generation with no caller the worse. Each target says what holds a unit to
+that runtime where its build could mix two. Two SDKs in one program share no runtime, each
+declaring its own failure value: measured with Go 1.27.3, the failure one SDK returned was not the
+other's `*runtime.APIError` under `errors.As`, nor its `ErrNotFound` under `errors.Is`. That is
+what the published library below would have changed, and why a caller matches a failure against
+the SDK that returned it. T-78 holds both kinds to where they are declared.
+
 Five other places were weighed, and each fails an input:
 
 - **The root**, beside the client, closes a cycle once a rule above moves anything. The root's
