@@ -107,6 +107,30 @@ an open one stays strict, and an open one nested in a closed one stays open, und
 too. Each target says how ([Go](../targets/go/models.md#user-in-go),
 [Kotlin](../targets/kotlin/models.md#unknown-members)).
 
+## How deep a value nests
+
+A server decides how deeply a value nests wherever a type can hold itself and wherever a position
+is typed `any`, and a decoder that recurses spends stack on every level. So every target reads a
+JSON text to a stated depth and no further, a level being one object or array inside another, and a
+text nested past it is a body that does not decode
+([responses](../plan/responses.md#a-body-that-does-not-decode)): the caller gets the status, the
+bytes and a decode error, never a crash. The limit is each runtime's own, json/v2's 10,000 levels
+on Go and a `MaxJsonDepth` of 64 on the Kotlin targets ([Go](../targets/go/models.md#nesting),
+[Kotlin](../targets/kotlin/models.md#nesting)), since what it protects differs: a goroutine's stack
+grows, and a Kotlin decode runs on a thread whose stack its caller sized. A body nested between the
+two decodes in Go and is refused in Kotlin. One limit for both would have Go scan every body for a
+depth its decoder already bounds.
+
+On the golden spec (spec @bc6fad24, morphic @fa253fe19) the deepest value a type holds without
+recurring nests 19 levels, and 50 of its 41,149 types can hold a value of their own shape, which a
+server may nest as deep as it likes. A setting that raises a runtime's limit is runtime policy's to
+give ([runtime policy](../contract/runtime-policy.md)), which states none: what would call for one
+is an API whose values legitimately nest past 64 levels, and none is known.
+
+The limit bounds what an SDK does with a value it decoded too, since encoding, printing, hashing
+and comparing a value recurse as deep as it nests. A value a caller builds is the caller's to
+bound. T-72 holds this.
+
 ## Recursive references
 
 `Facts.Recursive` says whether a value of a type can hold, at any depth, a value of its own shape,

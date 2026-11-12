@@ -662,3 +662,11 @@ throughout these documents.
     the array a value was built from, or the one it hands out, changes neither the value nor its
     hash; and a `bytes` member still writes and reads its row's base64
     ([Kotlin](../targets/kotlin/types.md#bytes)).
+72. **T-72 · Nesting** — on every target, through the client, a response body, an error's body and
+    a stream's frame nested one level past the target's limit, through a recursive model's member,
+    through its list, and through an `any` position, each reach the caller as a body that does not
+    decode, the status and the bytes kept, on a thread with the smallest stack the target supports,
+    and never as a crash or a stack overflow; a body at the limit decodes, and the value then
+    encodes, prints, hashes and compares on that thread; an opening bracket inside a string counts
+    for nothing; and Go's encoder refuses a value a caller nests past its limit and one that holds
+    itself ([models](../refine/models.md#how-deep-a-value-nests)).

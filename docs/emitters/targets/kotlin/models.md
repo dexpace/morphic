@@ -39,3 +39,26 @@ whatever the options say.
 ## Recursive references
 
 Kotlin holds every class by reference, so a cycle asks nothing of either Kotlin target.
+
+## Nesting
+
+kotlinx decodes by recursion and bounds none of it, so a body nested deeply enough ends a decode in
+a `StackOverflowError`, and how deep is enough depends on the stack of the thread the caller chose.
+The runtime's serializer therefore scans each JSON text before it decodes it, a response's body, an
+error's and a stream's frame, counting the objects and arrays open outside a string, and refuses one
+nested past its `MaxJsonDepth`, 64 levels, as [a body that does not
+decode](../../refine/models.md#how-deep-a-value-nests). The scan keeps no state but the count and
+took 1.2 ms on a 1.2 MB text, where decoding a 173 KB body of models took 0.95 ms.
+
+A model nested through a member decoded 2,000 levels deep and overflowed at 3,000 on the JVM's
+2 MB default stack here, decoded 400 and overflowed at 500 on a 512 KB one, and decoded 100 and
+overflowed at 200 on a 256 KB one; nested through a list of itself, two levels a model, it
+overflowed at 400 levels on 512 KB and at 128 on 256 KB, where 64 decoded, printed, hashed, compared
+and encoded (Kotlin 2.4.0, kotlinx-serialization-json 1.11.0, JVM 25, darwin/arm64). Two other
+bounds lost. A count kept in the serializers has nowhere to live: the plugin generates a model's,
+and a `Decoder` carries no state of the SDK's. Reading a `JsonElement` first bounds nothing by
+itself: `parseToJsonElement` read 100,000 levels, and `decodeFromJsonElement` overflowed between
+1,500 and 2,000 on the default stack.
+
+A text a caller hands their own `Json` is not scanned: the call and the text are theirs. Native and
+JS stacks were not measured, and 64 rests on the JVM's smallest.

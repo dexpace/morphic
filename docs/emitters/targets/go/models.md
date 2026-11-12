@@ -55,6 +55,14 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key
   ([the declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
 
+## Nesting
+
+json/v2 refuses a value nested past 10,000 levels, decoding and encoding
+(`jsontext: exceeded max depth`), and no option moves that bound, so it is Go's [limit](
+../../refine/models.md#how-deep-a-value-nests) and the SDK adds no check of its own. A value at the
+bound decoded in 3 ms on a goroutine's stack, which grows as it needs (Go 1.27.3). Encoding refuses
+a value that holds itself, through a pointer, a slice or a map, with `encountered a cycle`.
+
 ## Recursive references
 
 Go holds a struct field by value, so a cycle of struct fields is an invalid recursive type. A slice,
