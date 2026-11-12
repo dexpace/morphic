@@ -334,6 +334,7 @@ type HTTPParamBinding struct
 type Header struct
 	embed Property
 	"explode" *bool omitzero
+	"prefix" *string omitzero
 	"style" string omitempty
 
 type Idempotency struct

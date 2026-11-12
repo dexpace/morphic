@@ -20,7 +20,10 @@ highlights, and the list moves to a specification of its own when the compiler l
 - models → Model w/ Base + spread provenance → Mixins
 - `Record<T>` → MapT, and a `Record` spread or extended beside properties → AdditionalProps
 - scalars → Scalar chains, constructors in values → Value.Ctor
-- `@encode`/`@format` → Encoding triple
+- `@encode`/`@format` → Encoding triple, and the encoding TypeSpec's HTTP library specifies for a
+  position by default without applying it, `rfc7231` for a `utcDateTime` or `offsetDateTime`
+  header, written as that position's Encoding ([values as
+  text](../emitters/refine/text.md#other-formats))
 - `@encodedName` → WireNameByFormat at property AND type level
 - unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
@@ -78,12 +81,18 @@ highlights, and the list moves to a specification of its own when the compiler l
 - resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl.
   put/@noReplace, instance vs collection ops)
 - http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive
-  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` →
-  Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
-  ChecksumRequired
+  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings on an input, the empty
+  prefix and `@httpQueryParams` once #1748 gives them a spelling, and `@httpPrefixHeaders` → a
+  Header's Prefix on an output or an error ([prefix headers](../ir/responses.md#prefix-headers)),
+  `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression,
+  `@httpChecksumRequired` → ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType
+- `@timestampFormat`, and the text an HTTP binding gives a position by default, `http-date` for a
+  timestamp in a header, `date-time` for one in a label or a query and base64 for a `@mediaType`
+  string in a header, → that position's Encoding ([values as
+  text](../emitters/refine/text.md#other-formats))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
 - waiters + rules-engine traits → verbatim Unmodeled (`out_of_scope`,

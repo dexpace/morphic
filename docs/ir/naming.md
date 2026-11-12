@@ -137,15 +137,38 @@ nothing in the document. But any target may meet the collision, since rendering 
 words alone is conforming
 ([naming](../emitters/refine/naming.md#the-source-spelling-for-letter-case-only)), so one check over
 the neutral words answers for all of them, and the `names` pass reports it to the document's author
-(`pass/name-collision`, a warning).
+(`pass/name-collision`, a warning). Where a first target joins the words or ignores their letter
+case, the pass also reports names whose words join alike (below).
 
 - **The name compared** is the one a target renders from: `Canonical`, or `Hint` where there is
   none, so a hint meeting a source spelling collides with it, as the group of untagged operations,
   hinted `default`, does with a tag `default`.
+- **Words that differ only where they break**, `v_1_2` beside `v_12` or `1_0` beside `10`, are two
+  names, though letter case marks no break before a digit: a target marking words by their letter
+  case writes `_` at a break it leaves unmarked
+  ([naming](../emitters/refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)), so
+  they render apart there, as Go's `V1_2` and `V12`, and the exact comparison needs no rule for
+  them. A service's group is the exception: split into a package of its own, its words join with
+  no separator, so two such groups meet (#1742).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
   operations; an operation's parameters; a model's own properties; an enum's members; a union's
   variants. One name in two scopes is no collision.
+- **Words joined, where a target joins them.** Two names whose words differ only where they break,
+  `set_up` and `setup`, meet where a target joins the words or ignores their letter case, and a
+  first target does so in some scopes. Go and Kotlin name a group's package by its words in
+  lowercase, joined. Kotlin writes a declared type, a sub-client and a closed union's variant each
+  to a class file of its name, and a file system that ignores case makes one file of `SetUp.class`
+  and `Setup.class`; it compares an inclusive union's variants, which are properties, as it does a
+  closed union's, so a union whose kind changes keeps its variants' names
+  ([Kotlin](../emitters/targets/kotlin/naming.md#reserved-names)). So a service's groups, a group's
+  groups, the declared types and a union's variants compare their words joined with no separator,
+  and a finding there names each neutral name it joins. Every other scope compares the words as
+  they are. In a group's operations, an operation's parameters, a model's properties and an enum's
+  members, each first target marks a break by letter case or a separator wherever its casing can
+  (below): properties `set_up` and `setup` are Go's `SetUp` and `Setup` and Kotlin's `setUp` and
+  `setup`. No first target's design says yet what it names from a service, nor what Kotlin names
+  from an auth scheme, so those compare as they are until one does.
 - **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
   options, never by its namespace, and by default places every type in one unit
   ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
@@ -186,6 +209,17 @@ Left out, each for its reason:
   (`cloudflare/api-schemas` @ `5c37ac8c`, morphic @ `fd8b0730`) exposes two properties of one
   neutral name declared by different models (#1412). An own collision is reported at the model
   declaring it, whatever composes it.
+- **A break the casing leaves unmarked, in a scope that compares words as they are.** Camel and
+  Pascal case mark a break by upper-casing the first character of the word after it, which leaves a
+  digit, a letter with no case and one already upper-case, such as `ℤ`, as they are, so `v_1_2` and
+  `v_12` are both `V12` unless the casing writes a separator there (#1746). An acronym or a source
+  spelling that upper-cases more of a word can leave the break after it between two capitals, as
+  `user_id` and `user_i_d` both render `UserID` under an acronym `ID` (#1751). No such scope of the
+  golden spec (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`) holds two names that
+  differ only at a break before such a character.
+- **Names beyond ASCII that a file system folds alike** though their words do not join alike, in a
+  scope that compares words joined: groups `Straße` and `Strasse`, of words `straße` and `strasse`,
+  are one directory on macOS. Which fold artifact paths are compared by beyond ASCII is #1729's.
 - **A group beside an operation of the same parent.** Whether a sub-client and a method share a
   namespace is the target's: a Go struct cannot hold a field and a method of one name, while a
   Kotlin class can hold a property and a function.

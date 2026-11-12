@@ -79,7 +79,7 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   formats planned after it are in [Status](#status).
 - **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `const-unions` rewrites a
   closed union of strings as the enum of them, `validate` checks referential integrity and the
-  well-formedness rules the IR states, and `names` reports names any target may render alike; all
+  well-formedness rules the IR states, and `names` reports names a target may render alike; all
   three run by default. Deduplication, filtering, version slicing and IR overlays are
   designed in [Architecture](docs/architecture.md) but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
@@ -218,7 +218,10 @@ OpenAPI compiler accepts:
 
 | Option | Values | Meaning |
 |---|---|---|
-| `grouping` | `tags` (default), `path-prefix` | How operations are grouped into operation groups. |
+| `grouping` | `tags` (default), `path-prefix`, `extension` | How operations are grouped into operation groups: by tag, by their path's first segment, or by the group path a vendor extension states, a group nested for each segment. |
+| `grouping-key` | an `x-` extension name | With `grouping=extension`, the extension stating an operation's group path, named together with `grouping-lists`. Naming neither reads `x-fern-sdk-group-name` with `segments`. |
+| `grouping-lists` | `segments`, `groups` | What a list under `grouping-key` means: the segments of one path, or several paths, the operation filed under the first. A string is one path, its segments separated by dots. |
+| `grouping-fallback` | `tags` (default), `path-prefix` | With `grouping=extension`, how an operation whose extension states no path is grouped. |
 | `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution read documents outside the spec's directory: files anywhere (by path or local `file:` URI) and http(s) URLs. Off, only a relative `$ref` into another document is read, and only a regular file inside the spec's directory tree, symbolic links included; any other, an absolute path or `file:` URI among them, is reported unresolved, whatever another `$ref` names the same file by. |
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. It is read as the spec is: a regular file, within `max-source-bytes`. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |

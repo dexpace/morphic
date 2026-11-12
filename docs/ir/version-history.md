@@ -464,11 +464,17 @@ it sees. Changes made together in one bump are listed together under it.
   ([replacements](./annotations.md#replacements)). The OpenAPI compiler fills it only through a
   promotion mapping naming the `deprecation.replacedBy` target, which no default does. A consumer
   pinned to 0.44.0 refuses a document whose deprecation names a replacement.
-- **0.46.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
+- **0.46.0** — `Header` gained `Prefix`, which makes a response's, an error's or a part's header a
+  map of every field under the prefix, the empty prefix taking every field, as Smithy's
+  `@httpPrefixHeaders` binds one on an output or an error ([prefix
+  headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
+  wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
+  fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
   ([`parameters`](../compilers/openapi.md#parameters)): an `HTTPParamBinding.Explode` is nil where
   the parameter writes none, where it had held its style's default, true under `form` and `cookie`
   and false under any other. `Style` still holds the location's default where none is written. A
-  consumer pinned to 0.45.0 that read `Explode` as always present no longer finds the key on such a
+  consumer pinned to 0.46.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's `Explode`, where it would otherwise read it as false and send a `form` parameter
   unexploded.

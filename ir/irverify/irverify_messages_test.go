@@ -116,6 +116,18 @@ func messageCases() []messageCase {
 				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
+		{"prefix header of no map", func() *ir.Document {
+			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "p/x/h", Name: named("h"), Type: ir.TypeRef{Target: illFormed}, Prefix: new(""),
+			}}}}})
+			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
+			return doc
+		}, "ir/prefix-header-not-map", fmt.Sprintf("header under a prefix has type %q, which is no map", illFormed)},
+		{"prefix header wire name", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Responses: []ir.Response{{Headers: []ir.Header{{
+				ID: "p/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "t/x/M"}, Prefix: new(""),
+			}}}}})
+		}, "ir/prefix-header-wire-name", fmt.Sprintf("header under a prefix also names the field %q", illFormed)},
 		{"inbound kind", func() *ir.Document {
 			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})

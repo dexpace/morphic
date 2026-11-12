@@ -90,4 +90,34 @@ type Dependency struct {
 it imports and never the name a row spelled it by, and what a file calls each import is settled with
 every other name ([reserved names](../refine/reserved-names.md)): two rows that spell `decimal` for
 two packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row
-may name a type of the SDK's runtime, which the target imports from wherever it puts the runtime.
+may name a type of the SDK's runtime, which the target imports from the runtime's unit ([output
+units](../refine/output-units.md#the-runtimes-unit)).
+
+## What a built-in row writes
+
+A built-in row's codec writes each string-spelled value in one spelling, in a body and as text alike
+([values as text](../refine/text.md)), and reads every spelling its format admits of a value its
+type holds, so two targets' requests for a call hold one text at each position and values JSON
+compares equal in a body. A string-spelled kind's spellings:
+
+| Kind | Writes | Reads besides |
+|---|---|---|
+| `url` | its text as held | — |
+| `bytes` | RFC 4648 §4 base64, padded | — |
+| `uuid` | RFC 9562's hex-and-dash form, lower case | upper case |
+| `date` | RFC 3339 `full-date` | — |
+| `time` | `partial-time`: seconds always, and a fraction only where the value has one, in as few digits as it needs | a fraction of any length, one finer than its type's precision cut to it |
+| `datetime` | `full-date`, `T`, `partial-time` | as `time` |
+| `datetime_offset` | RFC 3339 `date-time`: `datetime`'s, then the value's offset as `+hh:mm` or `-hh:mm`, `Z` where it is zero | as `time`, and `+00:00` or `-00:00` as `Z` |
+| `duration` | ISO 8601's: `P`, then each component the value holds in ISO 8601's order, each designator upper case, seconds' fraction as `time`'s, and `PT0S` for zero | — |
+
+`T` and `Z` are upper case in the format these rows write and read, as RFC 3339 §5.6 lets a
+specification require, so a row need not read them lower case. `bool` and `string` write their JSON
+values, `any` the JSON it holds, and a numeric kind a JSON number of its value in a body, which JSON
+reads by value in any spelling, and plain notation as text ([values as
+text](../refine/text.md#the-text-of-a-value)). A value its format cannot spell, a year outside 0000
+to 9999 or an offset with seconds, is one the row refuses to write, in a body as in text, so the
+call fails before anything is sent. A fraction finer than its type's precision is cut rather than
+refused, as Go's `time.Time` reads one, while a value its type cannot hold at all, such as a leap
+second, is one the row refuses to read, and a text its format does not admit one it may refuse or
+read as its codec does.

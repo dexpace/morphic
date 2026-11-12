@@ -115,7 +115,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.45.0", format: 1, shape: "2a615baaea3131a2dd2cbc51d5228ae75ed7f8a76eb4f6b35cc37f730a69d43b",
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
-	{version: "0.46.0", format: 1, shape: "2a615baaea3131a2dd2cbc51d5228ae75ed7f8a76eb4f6b35cc37f730a69d43b",
+	{version: "0.46.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.47.0", format: 1, shape: "579d8cf68b18eb8fb9e58bc0baf0f89dd640a8f916a95f473a407d0513b2f81f",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a parameter binding's Explode is as declared, nil where the parameter writes none, where it held its style's default"},
 }

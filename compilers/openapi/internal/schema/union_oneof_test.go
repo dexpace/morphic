@@ -458,6 +458,47 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 	assert.Contains(t, onABranch.Unmodeled, "openapi:allOf/0", "the union stays whole with its branch")
 }
 
+// TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported pins that a branch
+// diagUnresolvedBranches skips, for being written inline, naming a referent or
+// lying on a loop of $refs, leaves the branches after it reported: the skip
+// moves to the next branch rather than ending the walk. Each row holds the
+// lowering's whole list: the skipped branch draws nothing of its own.
+func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
+	t.Parallel()
+	type report struct {
+		Code     string
+		Severity ir.Severity
+		Pointer  jsontext.Pointer
+	}
+	want := []report{
+		{diag.UnresolvedRef, ir.SeverityError, "/components/schemas/Z/oneOf/1"},
+		{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+	}
+	tests := []struct{ name, skipped string }{
+		{"after one written inline", "{type: object, properties: {b: {type: string}}}"},
+		{"after one naming a referent", "{$ref: '#/components/schemas/A'}"},
+		{"after one on a loop", "{$ref: '#/components/schemas/Z/oneOf/0'}"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := lowerSpecOnly(t, openapitest.ComponentSpec(`    A: {type: object, properties: {a: {type: string}}}
+    Z:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf: [`+tc.skipped+`, {$ref: '#/components/schemas/Ghost'}]
+`))
+			got := make([]report, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, report{d.Code, d.Severity, d.Provenance.Pointer})
+			}
+			assert.Equal(t, want, got, "the whole list, in order; got %+v", diags)
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnresolvedRef, ir.SeverityError, "/components/schemas/Z/oneOf/1"),
+				"Ghost", "the branch after the skipped one")
+		})
+	}
+}
+
 // TestOneOf_CoDeclaredNotDistributedReasons pins the shapes distribution
 // declines, each kept verbatim under ReasonDegradedLowering with its own reason
 // in the diagnostic (docs/compilers/openapi.md#union-beside-structure), but two:

@@ -7,7 +7,8 @@ that say when it is visible.
 type Property struct {
     ID         PropID
     Name       Naming
-    WireName   string              // serialized name; defaults to Name.Source
+    WireName   string              // serialized name; defaults to Name.Source; a prefix header
+                                   // has none (responses.md, prefix headers)
     WireNameByFormat map[string]string // per-mime overrides (TypeSpec @encodedName json/xml)
     WireID     *int                // protobuf field number / thrift id / tuple element index
                                    // (1-based when Model.Positional); nil = none — pointer because

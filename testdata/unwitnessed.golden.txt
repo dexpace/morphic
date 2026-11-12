@@ -86,6 +86,7 @@ member 0 0 HTTPParamBinding.bodyPath
 member 0 0 HTTPParamBinding.paramPath
 member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
+member 0 0 Header.prefix
 member 0 0 Idempotency.kind
 member 0 0 Idempotency.tokenParam
 member 0 0 List.encoding

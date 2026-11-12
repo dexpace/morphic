@@ -21,6 +21,9 @@ type Header struct {             // one entry of a Headers list; encodes flat
     Style      string             // how the value is written into the field, in
                                   // HTTPParamBinding.Style's vocabulary, as declared; "" = simple
     Explode    *bool              // as declared; nil = the style's default
+    Prefix     *string            // set: a map of every field under the prefix, "" every field
+                                  // (Smithy @httpPrefixHeaders); nil = the one field its wire
+                                  // name names (below)
 }
 
 type ResponseConditions struct {
@@ -102,6 +105,42 @@ sealed sum: it is a value of the exchange, and the kinds that carry no payload (
 Protobuf's `google.api.resource_reference` say a member holds a resource's identifier, which leads
 to that resource's operations by its lifecycle rather than to one operation by name, so their home
 is the resource the `resource-hierarchy` row plans, not this shape.
+
+## Prefix headers
+
+A header can stand for every field whose name starts with a prefix rather than for one field, as
+Smithy's `@httpPrefixHeaders` binds a map of strings on a member of an operation's output or error,
+and an object store returns its user metadata under one prefix that way. On a request a binding
+holds the prefix ([HTTP binding](./http-binding.md)); on a response's, an error's or a part's
+header, `Header.Prefix` does.
+
+**A set `Prefix` makes the header a map.** Each field whose name starts with the prefix, compared
+without case as HTTP compares a field name (RFC 9110 §5.1), is an entry keyed by the rest of its
+name, a field another header names included, and each value is read as a one-field header's is. The
+empty prefix takes every field of the message, as Smithy's protocol tests read one beside a header
+of its own. A message with no field under the prefix holds the map empty: no field can say it is
+absent, so its absence and its emptiness are one wire state. The header's `Type` is a map (`MapT`),
+directly or through a [decorator](./annotations.md#decorators), whose values are the fields'. It
+names no field of its own, so it sets no `WireName`, and its `Name` only presents it.
+
+**The empty prefix is a prefix, so `Prefix` is a pointer.** Smithy allows `@httpPrefixHeaders("")`,
+and its protocol tests bind one on an output. Two designs not taken lose it, and a third costs every
+reader of headers:
+
+- **A `Prefix string`** whose empty value means one field has no spelling for it, which is the gap
+  the request side's `Prefix` has (#1748).
+- **The prefix in `WireName`**, with a flag or a `Style` value saying it is one, reads the empty
+  prefix as the member's own name, since an empty `WireName` already means `Name.Source`
+  (`Property.EffectiveWireName`).
+- **A list of prefix headers beside `Headers`** on `Response` and `ErrorCase` keeps `Header` one
+  field, but every reader of headers must also walk the second list, and one that does not, as
+  `irfacts`' usage and correlation keys would not, misses the map's type in silence rather than
+  failing.
+
+`irverify` holds a prefix header's `Type` to a map (`ir/prefix-header-not-map`) and its `WireName`
+to none (`ir/prefix-header-wire-name`). Its [correlation key](./derived-facts.md#correlation-keys)
+is its prefix in lower case, the wire contract a plain header's name is, so renaming the member
+keeps it.
 
 ## Design notes
 
