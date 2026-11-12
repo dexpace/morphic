@@ -137,7 +137,8 @@ nothing in the document. But any target may meet the collision, since rendering 
 words alone is conforming
 ([naming](../emitters/refine/naming.md#the-source-spelling-for-letter-case-only)), so one check over
 the neutral words answers for all of them, and the `names` pass reports it to the document's author
-(`pass/name-collision`, a warning).
+(`pass/name-collision`, a warning). Where a first target joins the words or ignores their letter
+case, the pass also reports names whose words join alike (below).
 
 - **The name compared** is the one a target renders from: `Canonical`, or `Hint` where there is
   none, so a hint meeting a source spelling collides with it, as the group of untagged operations,
@@ -203,12 +204,12 @@ Left out, each for its reason:
   declaring it, whatever composes it.
 - **A break the casing leaves unmarked, in a scope that compares words as they are.** Camel and
   Pascal case mark a break by upper-casing the first character of the word after it, which leaves a
-  digit or a letter with no case as it is, so `v_1_2` and `v_12` are both `V12` unless the casing
-  writes a separator there (#1746). An acronym or a source spelling that upper-cases more of a word
-  can leave the break after it between two capitals, as `user_id` and `user_i_d` both render
-  `UserID` under an acronym `ID` (#1751). No such scope of the golden spec (`cloudflare/api-schemas`
-  @ `bc6fad24`, morphic @ `ea70eba7`) holds two names that differ only at a break before a digit or
-  a letter with no case.
+  digit, a letter with no case and one already upper-case, such as `ℤ`, as they are, so `v_1_2` and
+  `v_12` are both `V12` unless the casing writes a separator there (#1746). An acronym or a source
+  spelling that upper-cases more of a word can leave the break after it between two capitals, as
+  `user_id` and `user_i_d` both render `UserID` under an acronym `ID` (#1751). No such scope of the
+  golden spec (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`) holds two names that
+  differ only at a break before such a character.
 - **A group beside an operation of the same parent.** Whether a sub-client and a method share a
   namespace is the target's: a Go struct cannot hold a field and a method of one name, while a
   Kotlin class can hold a property and a function.

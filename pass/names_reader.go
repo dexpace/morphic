@@ -297,11 +297,15 @@ func (r *nameReader) collision(sc scope, first int) string {
 }
 
 // wordsOf lists the neutral words of the parties named alike from first, each
-// once, in scope order: none where their names have no word character.
+// once, in scope order: none where their names have no word character. A set
+// compared joined can hold as many distinct words as parties, so it marks each
+// listed word in a map rather than searching the list.
 func (r *nameReader) wordsOf(first int) []string {
 	var words []string
+	listed := map[string]bool{}
 	for i := first; i >= 0; i = r.later[i] {
-		if w := r.parties[i].words; w != "" && !slices.Contains(words, w) {
+		if w := r.parties[i].words; w != "" && !listed[w] {
+			listed[w] = true
 			words = append(words, w)
 		}
 	}
