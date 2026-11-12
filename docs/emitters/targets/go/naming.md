@@ -47,8 +47,13 @@ the name the words in snake case, since the `go` command builds a file whose nam
 only for the package's tests, and one ending in `_` and a `GOOS` or `GOARCH` value only for that
 platform: with Go 1.27.3 on darwin/arm64, a package declaring `UserTest` in `user_test.go` and
 `ServerLinux` in `server_linux.go` failed where it used them (`undefined: UserTest`). A file name
-that is a Windows device name is #1492's, and one a runtime template's file also takes turns on the
-unit the runtime lands in, #1489's to decide.
+that is a Windows device name is #1492's. The runtime's templates write their files in its own unit,
+which holds no declaration of the spec's ([the runtime's
+unit](../../refine/output-units.md#the-runtimes-unit)). The template writing each operation's row of
+the runtime's settings renders in the operation's unit instead ([runtime
+policy](../../contract/runtime-policy.md#delivery)), so its file joins two words with an underscore,
+`operation_settings.go`, which no declaration's file name holds, and which the `go` command builds
+for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH` value.
 
 ## The escape
 
