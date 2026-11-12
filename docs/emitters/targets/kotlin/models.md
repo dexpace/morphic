@@ -65,17 +65,10 @@ with any changed signature. The Objective-C export shows no alias: a framework d
 the class alone in its header, a function taking the alias taking the class, so a Swift caller names
 `User` until `UserCreate` is a class (Kotlin/Native 2.4.0).
 
-No file generated into a unit declares a function or a property at its top level. Either gives the
-file a class of kotlinc's, `UserKt` for `User.kt`, which a spec class `UserKt` meets on the JVM
-(`duplicate JVM class name 'p/UserKt'`) and in the Objective-C header, where the file's class then
-moves to `UserKt_` under its Swift callers. So a factory is a companion's member, as above, where a
-function `UserCreate(…)` beside the alias was the alternative, and a literal's `const val` is a
-member of an `object` named for the literal. A `typealias` gives its file such a class as well,
-beside a class as alone, so each alias has a file of its own, which names that class for the alias
-with `@file:JvmName` ([naming](naming.md#reserved-names)), common code included; the header shows no
-class for it. Built so, a unit held spec classes `UserKt` and `UserCreateKt` beside `User` and the
-alias `UserCreate`, on the JVM and in a framework's header, which named both as written (Kotlin
-2.4.0, Kotlin/Native 2.4.0). T-60 holds this section.
+An alias, as any declaration of a file that is no class, gives its file a class of kotlinc's,
+`UserKt` for `User.kt`, on the JVM and in the Objective-C header. No spec name meets one, since a
+unit reserves every name ending in `Kt` ([naming](naming.md#reserved-names)), so an alias sits in
+the file of the class it names. T-60 holds this section.
 
 ## Nesting
 

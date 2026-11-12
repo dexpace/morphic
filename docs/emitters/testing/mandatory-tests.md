@@ -107,17 +107,17 @@ throughout these documents.
     each unit, two variants of each union and two operations of one group, a paged and a streamed
     one among them, in names that differ in letter case alone, from each other and from a name the
     scope reserves, one of its types in each unit after each file a template writes there (`Client`
-    beside Go's `api_client.go`) and one after the class kotlinc names for a `typealias`'s file
-    (`MoneyKt` beside `Money`), a variant after `WhenMappings` in a union whose code switches over
-    an enum of another file, types named `Error` and `error_2` in one unit, and its groups after
-    every units name, a keyword, `documentation` and each predeclared identifier of Go among them
-    (`error`, `string`, `len`, `nil`), after each name a Kotlin build keeps at its root ([output
-    units](../targets/kotlin/overview.md#output-units)), after the standard-library packages its
-    files import, after a predeclared identifier its files write (`error`) and after a name the
-    generated code binds (`ctx`), two of them `com` and `Com`, whose suffix would make `com2`, and
-    its types and groups after each Windows device name in two letter cases, after names whose last
-    word `go/build` reads as a platform's or as `test`, and in pairs past ASCII that fold alike
-    (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
+    beside Go's `api_client.go`) and, on Kotlin, after the class each file holding a typealias there
+    compiles to (`MoneyKt` beside `Money`), a variant after `WhenMappings` in a union whose code
+    switches over an enum of another file, types named `Error` and `error_2` in one unit, and its
+    groups after every units name, a keyword, `documentation` and each predeclared identifier of Go
+    among them (`error`, `string`, `len`, `nil`), after each name a Kotlin build keeps at its root
+    ([output units](../targets/kotlin/overview.md#output-units)), after the standard-library
+    packages its files import, after a predeclared identifier its files write (`error`) and after a
+    name the generated code binds (`ctx`), two of them `com` and `Com`, whose suffix would make
+    `com2`, and its types and groups after each Windows device name in two letter cases, after names
+    whose last word `go/build` reads as a platform's or as `test`, and in pairs past ASCII that fold
+    alike (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
     compiles on every target, no two of its paths, an artifact's or a class file's, folding alike,
     the Go file holding two such types byte-identical in both declaration orders, with every
     template's declared names held to what it binds, and on Kotlin the table of default-imported
@@ -140,17 +140,19 @@ throughout these documents.
     module's sources, no path the build writes, an artifact's or a class file's, has a Windows
     device name for a segment, and the Multiplatform framework links, its header holding none of
     what only generated code calls and giving each declaration the Swift name the naming policy
-    chose, none of them a type Swift's standard library or Foundation declares or a module's name,
-    so a Swift file that imports the framework and Foundation compiles its uses of both and
-    qualifies a name by either module. The fixture also names a property, a parameterless method, a
-    `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
-    `zone`, `hash`, `self`, `load` and `copy` among them, a method of one parameter after each of
-    its one-parameter selectors (`responds(toSelector:)`), and a method and an entry after a name of
-    each method family: the header builds a module, a Swift caller reads each property's own value,
-    calls each method and reaches each entry by the name the policy chose, which is the name the
-    header gives it, a property `value` and one `version` keep their names, `hash`, `copy()` and
-    `responds(to:)` on a model still answer as `NSObject`'s, and the table equals the selectors read
-    from the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
+    chose, none of them a type Swift's standard library or Foundation declares, a module's name or a
+    name the export declares for a class of its own or for a class, object or interface of the
+    standard library, so a Swift file that imports the framework and Foundation compiles its uses of
+    both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
+    either module. The fixture also names a property, a parameterless method, a `suspend` method and
+    an enum entry after every member of the table of `NSObject`'s, `dealloc`, `zone`, `hash`,
+    `self`, `load` and `copy` among them, a method of one parameter after each of its one-parameter
+    selectors (`responds(toSelector:)`), and a method and an entry after a name of each method
+    family: the header builds a module, a Swift caller reads each property's own value, calls each
+    method and reaches each entry by the name the policy chose, which is the name the header gives
+    it, a property `value` and one `version` keep their names, `hash`, `copy()` and `responds(to:)`
+    on a model still answer as `NSObject`'s, and the table equals the selectors read from the SDK
+    the options version names ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

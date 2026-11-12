@@ -59,6 +59,18 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     and a shape's declaration, whose name adds a word, not counted).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
+  - Every name ending in `Kt`, in any letter case, the form of the class kotlinc compiles a file's
+    top-level declarations but its classes and objects into, a typealias among them: the file's name
+    followed by `Kt`, `TimestampKt` for `Timestamp.kt`. A class `TimestampKt` beside a typealias in
+    `Timestamp.kt` failed the JVM build ("duplicate JVM class name 'p/TimestampKt' generated from:
+    TimestampKt, TimestampKt"), as one beside a top-level function or property did, and a class
+    `TimestampKT` built without a diagnostic, sharing one class file with the file's class on a
+    case-insensitive file system, so a module compiled against the output failed ("unresolved
+    reference 'Timestamp'"). Beside a function in `User.kt` and a class `UserKt`, the framework
+    exported the file's class as `UserKt_`. The escape and a numeric suffix leave the form, as
+    `TimestampKt_` and `TimestampKt2` built beside the typealias, while the set of each file's class
+    alone would grow with the spec's declarations, and adding a `Timestamp` would then move a
+    shipped `TimestampKt`.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
     runtime's among them, in every unit, bar `AlphaApi`, `BetaApi` and `InternalSdkApi`, annotation
@@ -70,12 +82,17 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
-    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; and the
-    framework's own name, `Swift` and `Foundation`, which a caller writes to qualify a name
-    (`Probe.Client`). A module a caller imports by choice, such as SwiftUI, reserves nothing, since
-    a file importing it and the framework qualifies a name the two share. A declaration that meets a
-    name of this bullet or the last only there keeps its Kotlin name and takes an explicit
-    Objective-C and Swift name, so no JVM name moves for Swift's sake.
+    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name the
+    export declares for a class of its own or a public class, object or interface of the standard
+    library, `Kotlin` before its name joined to its outer's (`KotlinInt`, `KotlinThrowable`,
+    `KotlinUnit`, `KotlinComparable`, `KotlinEnumCompanion`), all of them rather than only those the
+    framework reaches, which a declaration the spec adds can grow, another table of the options
+    version, so that adding a declaration moves no Swift name; and the framework's own name, `Swift`
+    and `Foundation`, which a caller writes to qualify a name (`Probe.Client`). A module a caller
+    imports by choice, such as SwiftUI, reserves nothing, since a file importing it and the
+    framework qualifies a name the two share. A declaration that meets a name of this bullet or the
+    last only there keeps its Kotlin name and takes an explicit Objective-C and Swift name, so no
+    JVM name moves for Swift's sake.
 - **A union's variants**: beside `Unknown`, each class kotlinc or the serialization plugin nests in
   a sealed interface, `Companion`, `DefaultImpls` and `WhenMappings`, since a variant is a class
   nested there: with Kotlin 2.4.0, a variant `Companion` of a `@Serializable` union failed
@@ -114,19 +131,16 @@ an inline function, `Client$mapA$$inlined$map$1`, is numbered within its method,
 and `mapa` met as well. On the golden spec no two operations of one group fold alike unless their
 words do, so this renames none (spec @bc6fad24, morphic @fa253fe19, each operation's words joined).
 A model's properties are no class, and a builder's setters, named for them, hold no lambda, so both
-keep names apart by case. A file holding a declaration that is no class, a `typealias`, gets a class
-of kotlinc's named for the file, `MoneyKt` for `Money.kt`, which a spec class `MoneyKt` beside it
-met ("duplicate JVM class name 'p/MoneyKt'"); so that file names it for the alias with
-`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. That is
-the only class a unit's file gets from kotlinc, since none declares a function or a property at its
-top level and each alias has a file of its own ([models](models.md#a-shape-that-is-an-alias)). A
-failure kind's exception is a class too, named for its kind in `Policy.Errors`
-([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
-letter case alone would share a class file: measured with Kotlin 2.4.0 on a file system that ignores
-case, `NotFoundException` and `NotfoundException` compiled to the one file
-`NotFoundException.class`, and loading the first failed (`NoClassDefFoundError: p/NotFoundException
-(wrong name: p/NotfoundException)`). So a kind is one name whatever its letter case, on every target
-([what a layer writes](../../contract/runtime-policy.md#what-a-layer-writes)).
+keep names apart by case. A file holding a declaration that is no class, a `typealias` among them,
+gets a class of kotlinc's named for the file, `MoneyKt` for `Money.kt`, a form no spec name takes,
+since a unit reserves every name ending in `Kt` ([above](#reserved-names)). A failure kind's
+exception is a class too, named for its kind in `Policy.Errors` ([failures](errors.md)), and a name
+a template declares never yields, so two kinds that differ in letter case alone would share a class
+file: measured with Kotlin 2.4.0 on a file system that ignores case, `NotFoundException` and
+`NotfoundException` compiled to the one file `NotFoundException.class`, and loading the first failed
+(`NoClassDefFoundError: p/NotFoundException (wrong name: p/NotfoundException)`). So a kind is one
+name whatever its letter case, on every target ([what a layer
+writes](../../contract/runtime-policy.md#what-a-layer-writes)).
 
 A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into paths,
 a method's in the class kotlinc writes for its body, so each is held to the length cap
@@ -256,4 +270,4 @@ Four other designs were weighed, and each fails an input:
   all the same. It drops the nesting a Kotlin caller writes, and puts each wrapper among its unit's
   names, where 48 of the golden spec's, joined as `PetDog` is, fold as a declared type's name and
   1,454 as another wrapper's, so a wrapper's name, which a caller writes, would turn on the rest of
-  its unit.
+  its unit. 
