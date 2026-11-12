@@ -14,8 +14,8 @@ response takes:
 ```go
 type APIError struct {         // the runtime's: what one failed response said
     StatusCode int
-    RawHeader  http.Header     // every header as it arrived, by wire name
-    RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
+    Raw                        // RawHeader() and RawBody(): the headers and body as they arrived
+                               // (returns.md#what-a-response-prints)
     BodyErr    error           // why the body did not decode; nil when it did, or had none
     Fault      Fault           // the entry's, else the status's class
     Kind       Kind            // the taxonomy's logical kind for the status; "" = none

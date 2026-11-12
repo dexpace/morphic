@@ -15,7 +15,9 @@ options](../contract/options.md)). The three first targets share one default: pa
 positional, in the order the primary binding's URI template names them (`HTTPBinding.URITemplate`),
 never in the order `Operation.Params` holds them, which follows the source's declarations rather
 than the URL; and every other input — query, header and cookie parameters and the body — is a field
-of one request type for the operation, which it takes when it has any such input. A parameter a
+of one request type for the operation, which it takes when it has any such input. A parameter in
+the slot of a scheme the operation's options name is no input at all
+([auth](../operations/auth.md#a-parameter-in-a-credentials-slot)). A parameter a
 client setting fills ([client settings](../operations/client.md#client-settings)) is an optional
 field of the request type, whatever its location, since a call may leave it to the client. Each
 target declares that type its own way ([Go](../targets/go/operations.md#the-request-type),

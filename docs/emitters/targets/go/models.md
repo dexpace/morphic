@@ -43,6 +43,11 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   `LogValue` writes each redacted position as the marker itself. All three take a value receiver: a
   pointer receiver's methods are not in a `User`'s method set, so `fmt` and `log/slog` would print
   field by field a `User` held by value, as `ListUsers` yields one and a slice holds one.
+  `User` declares `Format(fmt.State, rune)` beside them, writing what `String` does, since `fmt`
+  asks `String` and `GoString` under some verbs alone: measured with Go 1.27.3, `%d` of a model
+  declaring the three printed each field, the secret in full, and of 58 renderings 27 held it,
+  where with `Format` the 7 left were `%p` of a value, under which `fmt` asks no method, and the
+  encoders, which read fields.
   `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
   `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
   rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every

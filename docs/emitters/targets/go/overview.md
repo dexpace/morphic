@@ -70,14 +70,36 @@ its own, can build it:
   package able to name the struct can write. Where a method needs what `internal/runtime` declares,
   as a stream's read does, failing with an `*APIError` its state's package cannot name, the struct
   holds a function its builder gave it. A group's sub-client is declared so in its own unit,
-  `type Client state.Sub`, and the root's client builds it by that conversion, so no unit exports a
-  function that builds one.
+  `type Client state.Sub[Client]`, and the root's client builds it by that conversion, so no unit
+  exports a function that builds one.
 
-A struct of `internal/state` has unexported fields alone, read through that package's functions.
-With an exported field, a caller's program read it through the sub-client declared over the struct
-(`c.Users.Core` compiled), and passed a struct literal of its own where an exported function took
-the type. An exported signature spells a type of the first shape or the second by its name in
-`<root>/runtime`, as its caller writes it.
+A type declared over a struct takes the struct's fields, the methods of what it embeds and its
+conversions, so the struct decides what a caller reaches through the type. Three rules keep that
+to nothing, each measured with Go 1.27.3 by breaking it:
+
+- **A field of a state struct is unexported, named, and a function.** With an exported field, a
+  caller's program read it through the sub-client declared over the struct (`c.Users.Core`
+  compiled), and passed a struct literal of its own where an exported function took the type.
+  With an embedded one, the embedded type's methods were the sub-client's, and `c.Users.Send(…)`
+  called a helper of `internal/state`. A field holding its value itself is printed, since `fmt`
+  reads an unexported field, and so is one holding a pointer to it, which `fmt` follows under a
+  verb it has no form for: `%O` of a sub-client showed the base URL its client held, password
+  included. A function prints as an address under every verb, and no encoder reads what one
+  closes over ([what a response prints](returns.md#what-a-response-prints)).
+- **A struct several types are declared over takes the type as a parameter**, `type Sub[T any]
+  struct { …; _ [0]*T }`. Go converts between two types of one underlying type, so over a plain
+  `state.Sub` a caller's `(*billing.Client)(c.Users)` compiled and called the other group's
+  operations; over `state.Sub[users.Client]` and `state.Sub[billing.Client]` it does not
+  (`cannot convert c.Users`).
+- **An exported signature names no type of a package under `internal/`**, and spells a type of
+  the first shape or the second by its name in `<root>/runtime`, as its caller writes it. A
+  caller cannot name an internal type and can still hold, pass and call a value of one.
+
+An operation's row of the runtime's settings is an unexported variable of each unit holding a
+method that reads it ([output units](../../refine/output-units.md)). Exported from the shared
+unit, where two groups' methods would read one row, a caller's program wrote it
+(`shared.GetZoneSettings.MaxAttempts = 100`, and the next call made 100 attempts), `go doc` listed
+it, and `apidiff` would report its removal when the second mount goes.
 
 So the SDK's API is what `go doc` prints of its packages outside `internal/`: each caller-facing
 type with its fields and methods, and no helper. `apidiff` compares the same. Measured with
@@ -108,7 +130,10 @@ Four other layouts were built, and each fails a caller's program or the tools re
 
 A caller can still write the zero value of any exported type, `users.Client{}` among them, as Go
 allows of every struct. A sub-client or a stream built so holds no client, and each of its methods
-returns an error saying so rather than dereference one.
+returns an error saying so rather than dereference one. T-64 holds the three rules by reading the
+packages' types: the method set of each exported type holds no method an `internal/` package
+declares, no two exported struct types convert to each other, and no exported signature names an
+internal type.
 
 ## Merging and surface extraction
 

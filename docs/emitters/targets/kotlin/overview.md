@@ -103,6 +103,28 @@ caller inherits. Measured with Kotlin 2.4.0, across modules:
   Multiplatform each carries both ([above](#output-units)). The annotation class itself is not
   exported.
 
+The marker stops a call a caller writes. It does not stop what the compiler writes into a
+caller's program on its behalf, so nothing a caller can name may hand on a marked declaration.
+Measured with Kotlin 2.4.0, each in a file that opts in, with a caller that does not:
+
+- a public `inline` function calling a marked helper, in its body or in a default argument,
+  compiled into the caller, whose class file then named the helper, and the caller failed against
+  the next generation's runtime, where the helper's signature differed (`NoSuchMethodError`);
+- a public type alias of a marked class let the caller construct the class, and failed the same
+  way;
+- a public class extending a marked one let the caller call an inherited method, and failed the
+  same way;
+- a function whose signature names a marked class could not be called without the opt-in, so it
+  serves no caller, while a default argument of a function that is not `inline`, and a `const
+  val` set from a marked one, bound the caller to nothing.
+
+So, in the runtime's templates and in generated code, a file that opts in declares no `inline`
+function or property and no type alias a caller can name, no caller-facing class has a marked
+supertype, and no caller-facing signature names a marked declaration. The inline functions a
+caller uses, `body` and `headers` ([failures](errors.md)), sit in a file that does not opt in,
+where the compiler holds the rule itself: the same body calling a marked helper failed to compile
+there with the marker's message. T-64 holds it by what a caller's class files name.
+
 The dumps the extractor reads ([below](#merging-and-surface-extraction)) are written with the
 marker excluded, by each module's build file:
 
@@ -125,12 +147,26 @@ at different versions, and a module then calls a runtime it was not generated wi
 each module depending plainly on the others, an application depending on the root at 1.0 and on a
 group's module at 1.1 resolved the runtime to 1.1 and failed when run (`NoSuchMethodError: 'void
 p.runtime.Core.<init>(java.lang.String)'`), the root's 1.0 code calling a constructor 1.1 had
-changed. So each module's build file states, beside its dependency on another module of the SDK, a
-constraint on that module `strictly` at its own version. With it the same application failed when
-its dependencies were resolved (`Cannot find a version of 'g:sdk-users' that satisfies the version
-constraints`). The constraint is published in the Gradle module metadata; the POM Gradle writes
-beside it carried the plain version, so a Maven build is held only while it depends on the root
-alone.
+changed. So the SDK publishes a platform beside its modules, constraining each to the platform's
+own version, and every module's build file depends on it (`api(platform(project(…)))`). Its
+project's name ends `-bom`, a hyphen being what no unit's name holds, so it meets no module's
+([naming](naming.md#reserved-names)). With it, measured with Gradle 9.8.2, the same application
+resolved the root, the group's module and the runtime all to 1.1, and ran. The constraint is
+published in the Gradle module metadata. The POM beside it imports the platform for the module's
+own dependencies alone, so with Maven 3.9.16 the same application resolved the root and the
+runtime at 1.0 beside the group's module at 1.1 and failed when run; importing the platform
+itself while still writing both versions, it resolved the runtime at 1.1 under the root at 1.0 and
+failed the same way; and it ran only importing the platform and writing no module's version. So
+a Maven build is held where it imports the platform and names no version, and nowhere else.
+
+The cost is that a build asking for one module at an older version is given every module at the
+newest it asks for, with nothing said, as Gradle settles any conflict of versions, and a further
+artifact to publish. Constraining each module `strictly` to its own version was built first, and
+fails loudly instead: the same application did not resolve (`Cannot find a version of
+'g:sdk-users' that satisfies the version constraints`). But it fails as well a build nobody can
+fix from inside it, two libraries each built against another version of the SDK, which alignment
+runs against the newer as an upgrade does, and its POM carried the plain version, holding Maven
+no better: that application resolved as with the platform unimported, and failed when run.
 
 Three other designs were weighed:
 

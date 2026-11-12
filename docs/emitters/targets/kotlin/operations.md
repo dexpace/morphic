@@ -9,6 +9,17 @@ default Ktor follows one only for a `GET` or a `HEAD`, so it would return a 307 
 callers are not a goal of the JVM target at M3: its surface is Kotlin's. Pagination, streaming,
 long-running operations and auth lower as the [lowering table](lowering.md) says.
 
+## Timeouts
+
+The runtime times each attempt, and each read or write of a body it does not buffer, with
+`withTimeout`, and sets none of Ktor's timeouts ([runtime
+policy](../../contract/runtime-policy.md#what-a-layer-writes)). Measured with Ktor 3.2.3's CIO
+engine on Kotlin 2.4.0: the library's request timeout of 300ms ended a server stream 300ms after
+its request, a frame already read, so it cannot stand for `Timeout.Request`, which ends with the
+headers; a read of that stream under `withTimeout(300)` failed at 300ms with nothing of the
+request in its text, which is `Timeout.Idle`; and each of the library's timeouts wrote the
+request's URL into its message ([a transport's failure](errors.md#a-transports-failure)).
+
 ## The request type
 
 Kotlin's request type ([request shaping](../../refine/requests.md)) is a class built like a
@@ -20,7 +31,9 @@ as an array of `KotlinPair` whose `first` and `second` are optionals (Kotlin/Nat
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are setters on the client's
-builder. A [client setting](../../operations/client.md#client-settings) is one more,
+builder, `hook { event -> … }` for the hook its events go to among them ([what an event
+holds](../../contract/runtime-policy.md#what-an-event-holds)). A [client
+setting](../../operations/client.md#client-settings) is one more,
 `accountId("…")`, and the request type's property for it is nullable, null taking the client's.
 
 ## Operations the API sends

@@ -55,12 +55,13 @@ declaration out of the root unit. Both are off by default, and the first that ap
    `AlsoMount` ([shaping hints](../contract/shaping-hints.md)), counts as each group whose client
    gets a method for it, so what it reaches goes where a type those groups reach goes: two groups
    mounting each other's operations would otherwise import each other. What a target derives from
-   such an operation, its request, headers and response headers types and its row of the runtime's
-   settings, goes there too, into the shared unit, since each group's method names it: left in the
+   such an operation for a caller to name, its request, headers and response headers types, goes
+   there too, into the shared unit, since each group's method names it: left in the
    operation's own group, it makes two groups mounting each other's operations import each other,
    which Go refuses as `import cycle not allowed`, and a copy in each group's unit gives one
    operation two request types, so a caller cannot hand the value it built for one method to the
-   other and the surface differ sees two declarations where the manifest keys one. An operation
+   other and the surface differ sees two declarations where the manifest keys one. Its row of the
+   runtime's settings is no such declaration, and goes with each method (below). An operation
    `Remount` alone moves counts as the one group, which holds what it derives. Placement reads the
    hints for that alone, and changing one moves the types its operation reaches and what it
    derives, renaming them for a caller as any move does. T-18 holds it.
@@ -77,8 +78,9 @@ and a group whose name folds as a partition's does yields to it. A name the opti
 give a unit never yields. A declaration a target derives from another lands in that one's unit — a
 visibility shape ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a
 union's interface, wrappers and fallback in the union's, an operation's request and headers types
-and its row of the runtime's settings ([runtime policy](../contract/runtime-policy.md#delivery)) in
-its group's, or in the shared unit where the operation counts as several groups (above) — and a unit
+in its group's, or in the shared unit where the operation counts as several groups (above), and its
+row of the runtime's settings ([runtime policy](../contract/runtime-policy.md#delivery)) in each
+unit holding a method that reads it ([below](#the-runtimes-unit)) — and a unit
 is a namespace of its own, so two declarations collide only within one
 ([reserved names](reserved-names.md)), save in the Objective-C names a Kotlin Multiplatform
 framework gives them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A wrapper, or
@@ -96,7 +98,7 @@ whether or not a rule above moves anything, so turning one on moves none of it. 
 unit, and every unit may import it, since an operation in any unit fails with its failure value and
 sends through its transport, and a model in any unit may hold one of its types. It declares nothing
 named for a spec entity: each operation's row of its settings, though a template renders it, lands
-in the operation's unit (above), and its failure kinds are the configuration's
+beside the methods that read it (above), and its failure kinds are the configuration's
 ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). So a runtime name meets a spec
 name only in a file importing both, where Go writes it qualified
 ([Go](../targets/go/naming.md#imports)) and Kotlin imports one under a name of its own
@@ -120,6 +122,21 @@ leaves them out of the surface its extractor compares
 ([Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
 [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)); a sub-client's
 construction, the one such declaration outside the runtime, goes with them.
+
+A row of the settings is generated code's alone too, and no other unit need name it: each unit
+holding a method for an operation holds a copy of its row, at the narrowest visibility the target
+has, unexported in Go and `internal` in Kotlin. One row in the shared unit, read by the methods
+of two groups mounting an operation, has to be public there, and a caller's program then writes
+it ([Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime)). Two copies of a row
+cannot disagree, both rendered from one resolved setting, where two copies of a request type are
+two types.
+
+Hiding a declaration is half of the rule. Whatever a caller can name must hand none of them on,
+and a language has more ways to than a call: a type declared over a struct carries the struct's
+fields and the methods of what it embeds, two types of one underlying type convert to each other,
+an alias expands to what it names, and an inline function's body is compiled into its caller. So
+each target's document also says what generated code may not be, and T-64 holds a caller's
+program to reaching nothing of the second kind by any of them.
 
 That second kind has no version of its own. The runtime is generated with the SDK and released
 with it, so a unit calls only the runtime of its own generation, and what generated code alone

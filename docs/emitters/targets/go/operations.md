@@ -28,7 +28,16 @@ The IR, the plan and what every target generates are in [streaming](../../operat
 `func (c *Client) TailMetricsStream(ctx) (*runtime.Stream[Metrics], error)` — no request type, since
 the operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the
 runtime's: `Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the
-response, which a caller that stops early must do. What `T` is follows from `Recv`:
+response, which a caller that stops early must do. A `Recv` that gets no byte for
+`Timeout.Idle` fails with a timeout ([runtime
+policy](../../contract/runtime-policy.md#what-a-layer-writes)): `net/http` gives a response's
+body no read deadline, so the stream and a `RawBody` read through a wrapper that cancels the
+request when one read waits past the bound, and a stream the caller writes times each write the
+same way. Measured with Go 1.27.3 and a bound of 300ms, a reader of a stream held open after one
+frame returned at 300ms, and without the wrapper only when the server closed the stream; one
+whose server wrote a comment line every 100ms read on; and a `Send` to a server that had stopped
+reading returned at 300ms, and without the bound had not after 1.5s. What
+`T` is follows from `Recv`:
 
 - an `Element` is what its type lowers to. A union's is its struct
   ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
@@ -57,7 +66,9 @@ operations](../../operations/long-running.md).
 `func (c *Client) StartExport(ctx, *StartExportParams) (*ExportPoller, error)`, where
 `ExportPoller.Poll(ctx) (bool, error)` performs one poll via the `PollOp` binding and
 `ExportPoller.PollUntilDone(ctx) (*Export, error)` loops until terminal and extracts `Export` from
-`ResultPath`. The poll loop's backoff between attempts is `lro.go.tmpl`. Printer emits
+`ResultPath`. The poll loop is `lro.go.tmpl`, paced and bounded by `Policy.Polling` ([runtime
+policy](../../contract/runtime-policy.md#what-a-layer-writes)): `PollUntilDone` returns an error
+naming `MaxPolls` after that many polls, and the poller polls on if called again. Printer emits
 `StartExport`, `StartExportParams`, and `ExportPoller` + `Poll()/PollUntilDone()`.
 
 ## Stability
@@ -86,6 +97,8 @@ removed it answered 200.
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —
-`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`. A [client
+`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`, and `WithHook(h)` for the
+hook its events go to ([what an event
+holds](../../contract/runtime-policy.md#what-an-event-holds)). A [client
 setting](../../operations/client.md#client-settings) is one more, `WithAccountID("…")`, and the
 request type's field for it a pointer, `AccountID *string`, nil taking the client's.

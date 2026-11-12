@@ -88,9 +88,10 @@ throughout these documents.
     render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
     get distinct units; a union with a variant in another unit compiles; two groups whose operations
     `AlsoMount` puts in each other's client compile, the types those operations reach and what a
-    target derives from each of them, its request, headers and response headers types and its row
-    of the runtime's settings, in the shared unit, a caller passing one request value to both
-    methods, while an operation `Remount` moves keeps what it derives in the one group's unit; and
+    target derives from each of them for a caller to name, its request, headers and response
+    headers types, in the shared unit, a caller passing one request value to both methods, and each
+    group's unit holding its own row of the runtime's settings, which no package exports, while an
+    operation `Remount` moves keeps what it derives in the one group's unit; and
     every partition error and warning of [output units](../refine/output-units.md) has a
     fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
@@ -333,8 +334,15 @@ throughout these documents.
     never for a `POST`; a request whose body was a stream is not sent again after a 503; a
     `Retry-After` is waited for up to the `Max` of the backoff that applies, `Throttled`'s after a
     429 no error case marks and `Backoff`'s after a 503, one past it returns the response, one
-    shorter than the backoff's own wait waits the backoff's, and one that is no count of seconds
-    and no date is read as absent. A 307
+    shorter than the wait the backoff drew waits that, a `Retry-After: 0` under a `Jitter` of 1
+    waiting the wait drawn and not the schedule's, and one that is no count of seconds and no
+    date is read as absent. Under a `MaxAttempts` of 5 and a `Jitter` of 0, a call failing 503,
+    503, 429, 429 waits 500ms, 1s, 4s and 8s, the step being the attempt's number. A stream held
+    open with no byte for `Timeout.Idle` fails its reader with a timeout and one sent a comment
+    line within it reads on, a writer whose bytes the server stops taking fails the same way,
+    and neither is ended by `Timeout.Request`; a walk refuses the fetch past
+    `Pagination.MaxPages` and a poller the poll past `Polling.MaxPolls`, each failing by naming
+    its member, the poller pollable again. A 307
     sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 302
     the operation declares, a 301 to a `POST`, a 307 whose body was a stream, a redirect from
     `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
@@ -587,7 +595,8 @@ throughout these documents.
     whose `Base` reaches one, through a list's sensitive element and a map's sensitive key and
     value, through a union's sensitive variant, and through a member a later conjunct redeclares
     without `Secret`, shows as `[REDACTED]` in every string form of each type holding it, held by
-    value or by reference, a union's and its variant wrapper's among them, and in a sensitive type's
+    value or by reference, in Go under each `fmt` verb that asks a method, `%d` among them, a
+    union's and its variant wrapper's among them, and in a sensitive type's
     own where the target declares one, an enum's among them, in every logging event, one a
     structured logger writes as JSON included, and in every error message, a transport failure's
     that quotes a redacted path segment or query value included, a collection as the marker alone
@@ -890,14 +899,24 @@ throughout these documents.
     operation's settings type and what a sub-client is built from. In Go the failure is the import
     of a package under `internal/`; no struct of `internal/state` has an exported field, no package
     outside `internal/` exports a function that builds a sub-client, and a sub-client or a stream
-    written as its zero value returns an error from each method. In Kotlin the failure is the
-    missing opt-in, in a caller's file and in a generated file with its opt-in removed; Java cannot
-    resolve a marked function; and the framework's header holds no marked declaration. The surface
+    written as its zero value returns an error from each method. Read from the packages' types,
+    the method set of each exported type holds no method a package under `internal/` declares,
+    which a state struct embedding a type breaks; no two exported struct types convert to each
+    other, which two sub-clients declared over one struct break; no exported signature names an
+    internal type; each field of a struct an exported type is declared over is a function; and
+    no package outside `internal/` exports an operation's row of the settings. In Kotlin the
+    failure is the missing opt-in, in a caller's file and in a generated file with its opt-in
+    removed; Java cannot resolve a marked function; and the framework's header holds no marked
+    declaration. No class file of that caller's program, which calls each inline function a
+    caller can name, names a declaration the unfiltered dump lists and the filtered one does not,
+    as it would with an `inline` function or a type alias declared in a file that opts in, and no
+    caller-facing class has a marked supertype. The surface
     each target's extractor reads, `apidiff`'s over the packages outside `internal/` and the ABI
     dumps written with the marker excluded, holds none of them, is unchanged when a helper's
     signature, a settings type or a state struct changes, and changes when a field or a method of
-    a caller-facing type does. A build resolving two modules of one Kotlin SDK at different
-    versions fails when its dependencies are resolved, and of two SDKs in one program each
+    a caller-facing type does. A Gradle build asking for two modules of one Kotlin SDK at
+    different versions resolves every module to the newer and runs, as does a Maven build
+    importing the SDK's platform and naming no version, and of two SDKs in one program each
     failure matches its own SDK's failure value and not the other's
     ([the runtime's unit](../refine/output-units.md#the-runtimes-unit),
     [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
@@ -909,15 +928,23 @@ throughout these documents.
     base URL holding a user, a password and a query of that value. Across a call that returns, one
     a status fails with a `Set-Cookie` of the value, one redirected to a `Location` holding it in
     its path and its query, one retried, one timed out, one whose connection is refused and one
-    whose credential a header cannot carry, the value is found in no event and no failure: not in
-    any string form the target's printing and logging read of either, each `fmt` verb and both
-    `log/slog` handlers in Go and `toString` in Kotlin among them, not in an event encoded as
-    JSON, nor in what a Kotlin event's `copy` and each `componentN` hand on, and not in the
-    messages of a failure's chain, which holds no `*url.Error` in Go. Each event's `URL` is the
-    URL as shown, a redirect's the origin and the marker; a `RequestID` longer than 128 bytes or
-    holding a line break is empty; a parameter declared in a scheme's slot prints as `[REDACTED]`
-    in its request type; and the test fails when the event is built after the auth step, which
-    it is run once to show
+    whose credential a header cannot carry, the value is found in no event, no failure, no
+    response a method returned, and no client, sub-client, stream or poller: not in any form the
+    target's printing, logging and encoders read of one held by reference, by value or in a
+    field of the test's own type, exported or not, each `fmt` verb, `%O` and `%p` among them,
+    both `log/slog` handlers, `encoding/json` and `encoding/json/v2` in Go, and `toString`, Gson
+    and Jackson in Kotlin, not in an event encoded as JSON, nor in what a Kotlin event's `copy`
+    and each `componentN` hand on, and not in the messages of a failure's chain, which holds no
+    `*url.Error` in Go and no exception of the HTTP library's in Kotlin, a call past
+    `Timeout.Request` and a stream past `Timeout.Idle` among the failures. Each event's `URL` is
+    the URL as shown, a redirect's the origin and the marker, and what a redacted parameter
+    expanded to in the path the marker; an `end` event's `Cause` is a type's name; a `RequestID`
+    longer than 128 bytes or holding a line break is empty; a parameter in the slot of a scheme
+    its operation's options name is no input of the request type, and the slot goes out once;
+    one in the slot of a scheme they do not name, and a header parameter named `Authorization`
+    under no scheme, print as `[REDACTED]` in their request type; a value of a type a scheme
+    names as its `Credentials` prints as the marker; and the test fails when the event is built
+    after the auth step, which it is run once to show
     ([auth](../operations/auth.md#where-a-credential-can-be-read),
     [what an event holds](../contract/runtime-policy.md#what-an-event-holds),
     [redaction](../refine/redaction.md#a-redacted-value)).

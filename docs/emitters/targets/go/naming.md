@@ -79,7 +79,7 @@ of the whole, so the declarations sharing a file still share it.
 
 The runtime's templates write their files in its own unit, which holds no declaration of the spec's
 ([the runtime's unit](../../refine/output-units.md#the-runtimes-unit)). The template writing each
-operation's row of the runtime's settings renders in the operation's unit instead ([runtime
+operation's row of the runtime's settings renders beside the methods reading it instead ([runtime
 policy](../../contract/runtime-policy.md#delivery)), so its file joins two words with an underscore,
 which no declaration's file name holds between two words: `operation_settings.go`, which the `go`
 command builds for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH`

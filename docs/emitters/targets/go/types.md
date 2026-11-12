@@ -29,7 +29,7 @@ base64, and never runs a closed model's strict decoder or an open enum's keeper 
 for one.
 
 A defined type over a sensitive chain, and a sensitive enum's named type ([enums](#enums)), declare
-`String`, `GoString` and `LogValue`, each showing `[REDACTED]`
+`String`, `GoString`, `Format` and `LogValue`, each showing `[REDACTED]`
 ([redaction](../../refine/redaction.md#a-redacted-value)), so `fmt` redacts one in a slice or a
 caller's own struct too, and `log/slog` when handed one, though not inside a slice, whose elements
 its JSON handler writes as JSON. json/v2 reads none of them, and the SDK writes a path segment or

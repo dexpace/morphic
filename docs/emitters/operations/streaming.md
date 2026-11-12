@@ -43,6 +43,10 @@ element, and a stream a request input selects is a method of its own beside one 
 non-streaming content, which never sends the value asking for the stream
 ([streams](../plan/streams.md)).
 
+A stream's reader waits no longer than `Timeout.Idle` for its next bytes, and its writer no longer
+for the transport to take what it wrote; past that the stream ends with a timeout ([runtime
+policy](../contract/runtime-policy.md#what-a-layer-writes)).
+
 The stream *runtime* is boilerplate behind the `Transport` interface: one template, and one per
 framing the document uses, which refine picks rather than a template branching on it ([structure and
 boilerplate](../emit/templates.md)).

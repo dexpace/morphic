@@ -37,8 +37,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     what the steps and the templates rendering beside the spec's names declare, for the target's
     version, never what one unit's code happens to write, so adding an operation renames no model.
     The runtime's templates render into its unit alone, so they add none, while the template
-    rendering an operation's row of the runtime's settings renders beside the spec's names, in the
-    operation's unit ([runtime policy](../../contract/runtime-policy.md#delivery)).
+    rendering an operation's row of the runtime's settings renders beside the spec's names, in
+    each unit whose methods read it ([runtime policy](../../contract/runtime-policy.md#delivery)).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
