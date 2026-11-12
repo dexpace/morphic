@@ -38,7 +38,8 @@ for a form body's media type, and a map's entries in the order of their keys' te
 UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a list of objects or of
 lists sends, which OpenAPI leaves undefined, is #1731's. A `Prefix` binding writes each entry of its
 map, in that order, as a field of its own, named by the prefix followed by the entry's key, its
-value the entry's text. A parameter whose `ContentType` names a media type
+value the entry's text, and an entry naming a field another binding writes gives way to it, as
+Smithy's rules have a client do. A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
 media type's serialization of the value instead, so as JSON a string keeps its quotes.
 
@@ -82,8 +83,8 @@ percent-decoded as its location's rules say (Appendix E.5), a header's and a `co
 not at all (§4.12.2.2), and a list's or an object's is split as its `Style` and `Explode` arrange
 it. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, and
 only a split drops the whitespace beside a comma (§5.6.1), so a string header keeps its own. A
-`Prefix` binding's map holds every field whose name starts with the prefix, a header's in any case
-(RFC 9110 §5.1), keyed by the rest of the name.
+`Prefix` binding's map holds every field whose name starts with the prefix and that no other binding
+reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name.
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its

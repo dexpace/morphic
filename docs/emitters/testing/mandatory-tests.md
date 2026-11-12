@@ -536,9 +536,10 @@ throughout these documents.
     `0.1` as `0.1`, a `decimal` `0.10` as `0.1`, a `datetime_offset` at a whole minute with its
     seconds, at a zero offset with `Z` and at `+02:00` in a query as `%2B02%3A00`, a `uuid` given in
     upper case as lower case, `bytes` as padded base64 percent-encoded in a path and as it is in a
-    header, a space as `%20`, a map's entries and a `Prefix` map's fields in their keys' order, a
-    string under `ContentType` `application/json` with its quotes, and a value class and an
-    `enum class` entry as their wire forms, never their `toString()`. A null query input and an
+    header, a space as `%20`, a map's entries and a `Prefix` map's fields in their keys' order, the
+    map's entry giving way to a field another binding writes, a string under `ContentType`
+    `application/json` with its quotes, and a value class and an `enum class` entry as their wire
+    forms, never their `toString()`. A null query input and an
     empty list are each sent as an absent one, a null member of a list is left out, and a path
     parameter or a `host` label holding null or an empty string, a header holding a CR LF, a
     `\u0001` or an `é`, a NaN, a year past 9999, an offset with seconds and a `decimal`
