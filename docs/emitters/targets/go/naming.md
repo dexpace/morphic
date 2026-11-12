@@ -96,14 +96,13 @@ operation's row of the runtime's settings renders beside the methods reading it 
 policy](../../contract/runtime-policy.md#delivery)), so its file joins two words with an underscore,
 which no declaration's file name holds between two words: `operation_settings.go`, which the `go`
 command builds for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH`
-value, as `go list` showed on each of the 47 ports.
-Every file a template writes whole in a unit holding spec declarations is named so, the client's,
-with its options and constructors, and the receiver's among them: `api_client.go` and
-`api_receiver.go`, which `go list` listed on the 47 ports beside a `client.go` declaring a spec type
-`Client_`. Named `client.go`, the template's file and that type's would be two artifacts on one
-path, which the engine refuses ([emit rules](../../emit/rules.md)). A declaration of the target's
-that refine builds as typed nodes is named from its words like any other, and shares its file with a
-spec declaration of the same words.
+value, as `go list` showed on each of the 47 ports. Every file a template writes whole in a unit
+holding spec declarations is named so, the client's, with its options and constructors, and the
+receiver's among them: `api_client.go` and `api_receiver.go`, which `go list` listed on the 47 ports
+beside a `client.go` declaring a spec type `Client_`. Named `client.go`, the template's file and
+that type's would be two artifacts on one path, which the engine refuses ([emit
+rules](../../emit/rules.md)). A declaration of the target's that refine builds as typed nodes is
+named from its words like any other, and shares its file with a spec declaration of the same words.
 
 ## Package directories
 
@@ -149,13 +148,13 @@ that file. A parameter or a local can hide one, `time.Second` failing beside a p
 An import in turn yields to a name the generated code binds, which never yields, and to a
 predeclared identifier its file writes, which a package a type-table row imports can be named for
 though no unit is: with Go 1.27.3, a unit `ctx` imported beside a parameter `ctx context.Context`
-failed (`ctx.Thing is not a type`), as a package `error` did in a file returning
-`error` (`error (package name) is not a type`), and each built imported as `ctx2` and `error2`. Of
-two imports sharing a name, one the target's own code names, a standard library's or the runtime's,
-keeps it, two such, as the standard library's `runtime` and the runtime's unit, being named apart by
-the template writing them, and of two of the spec's units, the one whose group's ID sorts first
-keeps it. Nothing else a Go file declares takes a name its references begin with: Go nests no type,
-a struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an exported
+failed (`ctx.Thing is not a type`), as a package `error` did in a file returning `error` (`error
+(package name) is not a type`), and each built imported as `ctx2` and `error2`. Of two imports
+sharing a name, one the target's own code names, a standard library's or the runtime's, keeps it,
+two such, as the standard library's `runtime` and the runtime's unit, being named apart by the
+template writing them, and of two of the spec's units, the one whose group's ID sorts first keeps
+it. Nothing else a Go file declares takes a name its references begin with: Go nests no type, a
+struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an exported
 name meets no package's and no predeclared identifier, all of which are lowercase. With Go 1.27.3, a
 struct with fields `Time`, `JSON`, `time` and `json` and a method `Json` built beside imports of
 `time` and `encoding/json`, and its methods reached both packages. T-55 holds it.

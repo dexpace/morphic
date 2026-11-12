@@ -108,27 +108,27 @@ throughout these documents.
     (`MoneyKt` beside `Money`), a variant after `WhenMappings` in a union whose code switches over
     an enum of another file, types named `Error` and `error_2` in one unit, and its groups after
     every units name, a keyword, `documentation` and each predeclared identifier of Go among them
-    (`error`, `string`, `len`, `nil`), after each name a
-    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
-    after the standard-library packages its files import, after a predeclared identifier its files
-    write (`error`) and after a name the generated code binds (`ctx`), two of them `com` and `Com`,
-    whose suffix would make `com2`, and its types and groups after each Windows device name in two
-    letter cases, after names whose last word `go/build` reads as a platform's or as `test`, and in
-    pairs past ASCII that fold alike (`Straße` and `Strasse`, an `é` composed and decomposed, `ı`
-    and `I`), generates code that compiles on every target, no two of its paths, an artifact's or a
-    class file's, folding alike, the Go file holding two such types byte-identical in both
-    declaration orders, with every template's declared names held to what it binds, and on Kotlin
-    the table of default-imported classes to each name that resolves, on each platform the target
-    builds for, in a file importing nothing. Every name that meets a reserved one, or folds as one
-    where its scope compares folded, is its own name with the target's escape, whatever reserved it,
-    and none is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an
-    `Error2` that keeps its name, in both declaration orders, and two types that meet one reserved
-    name are the escaped name and that name with a suffix. On Go a caller's package importing every
-    unit under its own name compiles its uses of `error`, `string`, `len` and `nil`. On Go `go list`
-    lists every file the target writes
-    among a package's `GoFiles`, none among the files it ignores or builds for tests alone, on each
-    port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and
-    import path is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
+    (`error`, `string`, `len`, `nil`), after each name a Kotlin build keeps at its root ([output
+    units](../targets/kotlin/overview.md#output-units)), after the standard-library packages its
+    files import, after a predeclared identifier its files write (`error`) and after a name the
+    generated code binds (`ctx`), two of them `com` and `Com`, whose suffix would make `com2`, and
+    its types and groups after each Windows device name in two letter cases, after names whose last
+    word `go/build` reads as a platform's or as `test`, and in pairs past ASCII that fold alike
+    (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
+    compiles on every target, no two of its paths, an artifact's or a class file's, folding alike,
+    the Go file holding two such types byte-identical in both declaration orders, with every
+    template's declared names held to what it binds, and on Kotlin the table of default-imported
+    classes to each name that resolves, on each platform the target builds for, in a file importing
+    nothing. Every name that meets a reserved one, or folds as one where its scope compares folded,
+    is its own name with the target's escape, whatever reserved it, and none is a name with a
+    collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2` that keeps its
+    name, in both declaration orders, and two types that meet one reserved name are the escaped name
+    and that name with a suffix. On Go a caller's package importing every unit under its own name
+    compiles its uses of `error`, `string`, `len` and `nil`. On Go `go list` lists every file the
+    target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
+    alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
+    every file and import path is one the module proxy takes
+    ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the options
     name `shared` or `runtime` is refused, a caller's file importing each unit with `*` compiles its
     use of the classes the default imports give it, `System.currentTimeMillis()` beside a type the
@@ -204,10 +204,9 @@ throughout these documents.
     85 draws nothing, a Windows device name before a first dot in two letter cases and before the
     first of two (`aux.v1.go`), a character Windows refuses and a trailing dot or space each draw
     `engine/artifact-path-unportable`. A template that fails the formatter draws a located error and
-    no
-    artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
-    nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute path, a
-    sibling sharing the root's prefix and a symlink leaving the root are each refused.
+    no artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope`
+    matching nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute
+    path, a sibling sharing the root's prefix and a symlink leaving the root are each refused.
 26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
     each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
     not change, and adding a first header or a further one is additive in the surface differ
@@ -817,8 +816,7 @@ throughout these documents.
     and `cafe`, `नाम` and `नम`, so a fold joining more, by a compatibility decomposition or by
     dropping marks, fails as one joining less does; and the fold of every character the tables hold
     equals a golden, which a Go release moving them may extend and must not otherwise change ([the
-    path
-    fold](../emit/rules.md)).
+    path fold](../emit/rules.md)).
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
     characters of two, three and four bytes, the operation in the client of the group at the cap
@@ -826,11 +824,10 @@ throughout these documents.
     `WithResponse` method, generates code that compiles on every target: each identifier of a role
     written into a path within the cap, a shortened one keeping its leading words and its hash word
     and drawing one `emitters/<target>/name-shortened`, two that share their first 110 bytes apart,
-    among them two
-    names with no words (twelve and thirteen `_`), two types named from hints and one long type's
-    create and patch declarations, the property's name whole, and no segment of a path the build
-    writes past 255 bytes, every class file kotlinc writes among them, none of which a method's body
-    has it name for an inline function
+    among them two names with no words (twelve and thirteen `_`), two types named from hints and one
+    long type's create and patch declarations, the property's name whole, and no segment of a path
+    the build writes past 255 bytes, every class file kotlinc writes among them, none of which a
+    method's body has it name for an inline function
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer

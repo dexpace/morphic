@@ -106,19 +106,17 @@ Such a scope compares names case-folded, by the fold the engine compares artifac
 path fold](../emit/rules.md)), in both rules: a name held, shipped or reserved there meets every
 name that folds as it does, and a suffix is chosen against them so, while a name that folds as a
 reserved one takes the escape, as one equal to it does ([reserved names](reserved-names.md)). This
-holds for a reserved name
-that is no path too, such as a name Kotlin imports by default, since one comparison per scope is the
-simpler rule and errs toward an escaped name rather than a lost file. A target compares each scope
-one way
-whatever the spec says, so two symbols rule 1 keeps were apart under the comparison they shipped
-under. The units' scope is one ([output units](output-units.md)), and each target names its others
-([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
-[docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
-as Go writes two declarations to one file, compares that scope's names as they are. The engine's
-refusal of two paths that fold alike is the backstop rather than the rule, since a refusal would
-fail a run on a valid spec. Such a pair draws `pass/name-collision` where the `names` pass compares
-words joined, and elsewhere only where the two share their neutral words
-([naming](../../ir/naming.md#names-one-scope-shares)).
+holds for a reserved name that is no path too, such as a name Kotlin imports by default, since one
+comparison per scope is the simpler rule and errs toward an escaped name rather than a lost file. A
+target compares each scope one way whatever the spec says, so two symbols rule 1 keeps were apart
+under the comparison they shipped under. The units' scope is one ([output units](output-units.md)),
+and each target names its others ([Go](../targets/go/naming.md#file-names),
+[Kotlin](../targets/kotlin/naming.md#reserved-names), [docs](../docs-and-mock.md#routes-and-links)).
+A target that can write two such names to one path, as Go writes two declarations to one file,
+compares that scope's names as they are. The engine's refusal of two paths that fold alike is the
+backstop rather than the rule, since a refusal would fail a run on a valid spec. Such a pair draws
+`pass/name-collision` where the `names` pass compares words joined, and elsewhere only where the two
+share their neutral words ([naming](../../ir/naming.md#names-one-scope-shares)).
 
 A target renders more than a name's words, so two names whose words differ can still render alike in
 one scope: an acronym or a source spelling upper-cases more of a word than its first character ([the
@@ -188,13 +186,13 @@ spelled here as a Pascal role composes it: each word of `Canonical` as `Source` 
 character upper-cased, with `_` before a word letter case cannot mark
 ([below](#a-break-letter-case-cannot-mark-takes-an-underscore)), and it reads back as other words
 where `ir.CanonicalWords` of that identifier is not its `Canonical`; with no `_` written, 6,650 do.
-Either rule would rewrite one spelled name in seventeen to part pairs the spec does
-not hold. Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken
-either: a shipped name keeps its symbol
-([collisions](#collisions-and-the-names-a-generation-shipped)), so only a newcomer could take it,
-and only where the newcomer is the one misread, which leaves the number for every other pair.
-Comparing names in the `names` pass as an acronym table and spellings render them was not taken
-either, since a configuration replaces the table and the pass serves every target.
+Either rule would rewrite one spelled name in seventeen to part pairs the spec does not hold.
+Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken either: a
+shipped name keeps its symbol ([collisions](#collisions-and-the-names-a-generation-shipped)), so
+only a newcomer could take it, and only where the newcomer is the one misread, which leaves the
+number for every other pair. Comparing names in the `names` pass as an acronym table and spellings
+render them was not taken either, since a configuration replaces the table and the pass serves every
+target.
 
 ## A name with no words takes its characters' names
 
@@ -307,15 +305,14 @@ and a composed spelling, which the IR holds as two names, render alike; whether 
 the word grammar's question. Dropping a mark misspells the word and makes `नाम` meet `नम`. Go has no
 form that holds a mark, so it alone writes a character by its name. Writing Kotlin's so as well,
 `नu093eम`, was not taken: backticks keep the spec's name on every platform the target builds for,
-and Swift reads it from the header as it reads any name past ASCII.
-Nor is a name Kotlin writes into a path composed for the path's sake. The JDK lists a macOS
-directory's names composed, so with Kotlin 2.4.0 a class `Doǵ` spelled with U+0301, compiled to a
-directory, was an unresolved reference to a module compiled against that directory, and to one
-compiled against a jar the JDK's `jar` made from it, whose entries were composed. kotlinc writing
-the jar itself, and Gradle 9.8.2's `jar` task, kept the entries as the class is named, and both
-resolved, and those are how a generated build hands a module to another and publishes one, so no
-user of an SDK meets the failure. Composing would give a type a spelling its own properties, which
-are no path, do not share.
+and Swift reads it from the header as it reads any name past ASCII. Nor is a name Kotlin writes into
+a path composed for the path's sake. The JDK lists a macOS directory's names composed, so with
+Kotlin 2.4.0 a class `Doǵ` spelled with U+0301, compiled to a directory, was an unresolved reference
+to a module compiled against that directory, and to one compiled against a jar the JDK's `jar` made
+from it, whose entries were composed. kotlinc writing the jar itself, and Gradle 9.8.2's `jar` task,
+kept the entries as the class is named, and both resolved, and those are how a generated build hands
+a module to another and publishes one, so no user of an SDK meets the failure. Composing would give
+a type a spelling its own properties, which are no path, do not share.
 
 ## An identifier its role cannot begin with takes a leading word
 
@@ -445,8 +442,8 @@ names are its own, calls an inline function that writes a class. No name of the 
 the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may add, and
 its longest union and variant joined by `$` 100, a wrapper being named for its variant and not for
 the type it wraps ([Kotlin](../targets/kotlin/unions.md)), each name its `Canonical` or `Hint` cased
-for its role (spec @bc6fad24, morphic @fa253fe19). A suffix the target's own code makes
-kotlinc add beyond that room is held by T-53, which lowers the cap in the options version adding it.
+for its role (spec @bc6fad24, morphic @fa253fe19). A suffix the target's own code makes kotlinc add
+beyond that room is held by T-53, which lowers the cap in the options version adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only the
 readability of a name no reader takes in whole. Nor was a cap on the segment rather than the name,

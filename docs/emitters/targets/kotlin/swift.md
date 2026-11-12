@@ -6,18 +6,16 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   and the generated docs say so.
 - A name the export would mangle, or a Swift caller could not reach — a member `NSObject` gives
   every exported class (below), a method or an enum entry in the `alloc`, `copy`, `init`,
-  `mutableCopy` or `new` method family, a Swift keyword, a name another declaration
-  exports — gets an explicit Objective-C and Swift name from the [naming
-  policy](../../refine/naming.md) (`@ObjCName`), so the Swift name is the policy's choice rather
-  than the exporter's. That name is the Kotlin name with the escape's trailing underscore ([the
-  escape](naming.md#the-escape)), `zone_`, and for a method family the role's leading word before it
-  ([leading
+  `mutableCopy` or `new` method family, a Swift keyword, a name another declaration exports — gets
+  an explicit Objective-C and Swift name from the [naming policy](../../refine/naming.md)
+  (`@ObjCName`), so the Swift name is the policy's choice rather than the exporter's. That name is
+  the Kotlin name with the escape's trailing underscore ([the escape](naming.md#the-escape)),
+  `zone_`, and for a method family the role's leading word before it ([leading
   words](../../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word)),
   `callCopy()` and an entry `valueCopy`: Objective-C reads a family from how a selector begins, so
   an underscore leaves the name in it, and Kotlin/Native 2.4.0 exported a method given `copy_` as
   `doCopy_` and an entry as `theCopy_`. `@ObjCName` is experimental in Kotlin 2.4.0, and a file
-  using it without an
-  opt-in fails to compile, so each such file opts in with
+  using it without an opt-in fails to compile, so each such file opts in with
   `@file:OptIn(ExperimentalObjCName::class)`. No caller inherits that, and no signature carries it
   ([the language floor](overview.md#the-language-floor)). `@ObjCName` takes ASCII letters, digits
   and `_` alone, a digit never first, in its name and its Swift name alike (Kotlin/Native 2.4.0's

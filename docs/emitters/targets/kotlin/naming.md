@@ -50,11 +50,10 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     `Metadata`, 17 `Error`, 12 `Target`, 4 `Unit`, 4 `System`, 3 `OnErrorAction`, 2 `Module`, 2
     `Platform`, 1 `Annotation` and 1 `Function`. Each takes the escape ([below](#the-escape)),
     `Result_`, and those of one unit sharing a name are then told apart as any two are, `Result_2`
-    (spec @bc6fad24,
-    morphic @fa253fe19, each name resolved by kotlinc 2.4.0 on the JVM and by Kotlin/Native 2.4.0 in
-    a file importing nothing; `State` and `Shutdown`, which resolve to a declaration private in its
-    file and one package-private, left out, as no caller reaches either, and a shape's declaration,
-    whose name adds a word, not counted).
+    (spec @bc6fad24, morphic @fa253fe19, each name resolved by kotlinc 2.4.0 on the JVM and by
+    Kotlin/Native 2.4.0 in a file importing nothing; `State` and `Shutdown`, which resolve to a
+    declaration private in its file and one package-private, left out, as no caller reaches either,
+    and a shape's declaration, whose name adds a word, not counted).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
@@ -166,10 +165,9 @@ and a unit `con_`. With Kotlin 2.4.0, classes `Error_`, `Result_`, `System_` and
 a caller importing their package with `*` still printed `java.lang.Error: boom` from `Error("boom")`
 and reached `System`, `Result<Int>` and `List<String>`. An explicit Swift name takes the underscore
 too, bar one in an Objective-C method family ([Swift](swift.md)). An identifier holding a character
-the lexer
-refuses as it stands, a mark or a letter or digit newer than its tables, is written in backticks too
-and keeps the character, wherever a file writes it, an import and a KDoc link among them
-([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)).
+the lexer refuses as it stands, a mark or a letter or digit newer than its tables, is written in
+backticks too and keeps the character, wherever a file writes it, an import and a KDoc link among
+them ([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)).
 
 ## Imports
 
