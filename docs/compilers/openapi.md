@@ -4028,8 +4028,8 @@ A link that does not lower whole is kept verbatim on its response under `openapi
    operation answered binds, a header the response does not declare once, a body the document does
    not describe, a member reached through an array index, a map, a union or any type but a model,
    members the contents of a body disagree on, a string an expression is substituted into, whether
-   it is the value or sits within a list or an object the value holds, or a constant the IR has no
-   value for.
+   the expression keeps the grammar or not and whether the string is the value or sits within a
+   list or an object the value holds, or a constant the IR has no value for.
 
 - Cases: `response-links`
 - Codes: `openapi/invalid-link`, `openapi/untyped-link`
@@ -4040,6 +4040,7 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`, `operation.TestParseExpression_ReadsTheGrammar`,
   `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
+  `operation.TestEmbedsExpression_AllocatesNothing`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
   dropped with no record, as beside any other reference (#1321).
