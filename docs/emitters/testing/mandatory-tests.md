@@ -448,8 +448,10 @@ throughout these documents.
     snapshots' pages of one entity lie under their labels' directories, neither run overwriting or
     pruning the other's, all of them one generation whose manifest holds each run's under its label,
     a dropped label's and a renamed slug's files pruned, the `""` snapshot written at the root and a
-    label that is no single path segment, or two differing only by case,
-    `engine/snapshot-label-invalid`, `.` and `..` among them, a label with `#` or `?`
+    label that is no single path segment `engine/snapshot-label-invalid`, `.` and `..` among them,
+    labels `v1`, `V1` and `V1-2`, in that order, writing under `v1`, `V1-2` and `V1-2-2`, the
+    switcher showing `V1` and linking `V1-2`, and a document of `V1` alone under `V1`, a label with
+    `#` or `?`
     percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
     document `engine/target-unversioned` while run for samples alone on each snapshot, and the last
     label's run taking a prior's `""` entry when the document gains versions; only the run of the

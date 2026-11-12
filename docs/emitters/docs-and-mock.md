@@ -306,8 +306,8 @@ a way to show one entity across API versions. Each is decided by data, never by 
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
-  versions. Each snapshot's run writes under the directory its label names, as the contract has a
-  cross-version target's do ([contract
+  versions. Each snapshot's run writes under the directory its label names, two that fold alike
+  set apart by a suffix on the later, as the contract has a cross-version target's do ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), which the route
   plan, and no template, puts before every route but those of the pages spanning versions, so one
   entity's pages in two versions have two paths. The runs make one generation of the target, whose
@@ -320,8 +320,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
-  no table, though the collision check reads it. A label is percent-encoded where a link writes it,
-  since a `#`, `?` or `%` in it would otherwise end or alter the URL. A switcher lists the labels
+  no table, though the collision check reads it. A label's directory is percent-encoded where a link
+  writes it, since a `#`, `?` or `%` in it would otherwise end or alter the URL, and a switcher
+  shows the label as written though its directory takes a suffix. A switcher lists the labels
   `Routes` keys, in the order `Document.Versions` gives them, never one no snapshot was made for. A
   run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed,
   which is also the version its switcher marks current: nothing in a snapshot's document says which

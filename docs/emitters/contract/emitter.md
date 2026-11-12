@@ -166,8 +166,20 @@ the document, which determines it.
   spans versions ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a
   path, and the runs make one generation ([write /
   integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
-  is `.` or `..`, or differs from another only by letter case is an error
-  `engine/snapshot-label-invalid` before any run. Any other target is run on a sliced document only
+  or is `.` or `..`, is an error `engine/snapshot-label-invalid` before any run. Two labels that
+  fold alike, by the fold the engine compares artifact paths by ([emit rules](../emit/rules.md)),
+  would name one directory on a file system that ignores case, as macOS's and Windows' do by
+  default. So each label, in `Document.Versions` order, names its directory where that folds as no
+  directory an earlier label took, and otherwise the label followed by `-` and the lowest number,
+  `2` up, that does not: `v1`, `V1` and `V1-2` write under `v1`, `V1-2` and `V1-2-2`. Every run
+  reads `Document.Versions` whole, so each derives the same directories; a version added after the
+  others moves none, and one removed can return a later label to its own name. A set of the folded
+  directories taken, each base holding the next number to try, keeps this linear in the labels.
+  Refusing two labels that differ in letter case alone, as this rule once did, failed a run on a
+  valid document whose author could part them only by renaming a version of the API, the reason
+  two names that fold alike are told apart rather than refused
+  ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Any other
+  target is run on a sliced document only
   for its samples, which writes nothing, until its design says how (#1531); one named there for its
   artifacts is an error `engine/target-unversioned` before any run. The pass is designed, not built
   (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
