@@ -6,9 +6,12 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 
 - **The units**: `internal`, which no caller outside the SDK may import, `testdata`, which `./...`
   skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies.
-- **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, and any
-  runtime name it declares there (`APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`,
-  `Response`, `Stream`).
+- **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client and
+  the function the root's client builds it with ([output units](overview.md#output-units)). The
+  runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response`
+  and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
+  unit](../../refine/output-units.md#the-runtimes-unit)), and code elsewhere writes them qualified,
+  `runtime.APIError`, so they meet no spec name.
 - **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `String`,
   `GoString` and `LogValue`, and the field holding the catch-all ([`User`](models.md#user-in-go)).
   The struct Go gives a closed union declares those codecs and redacting forms, `Validate` and
@@ -58,5 +61,6 @@ there: a keyword (`type`, `default`), a predeclared identifier a parameter would
 ## Imports
 
 Go's exported names cannot meet its lowercase package names, and where two packages one Go file
-imports share a name — the standard library's `time` and a group unit named `time`, or two rows'
-`decimal` — one takes a name of its own in that file.
+imports share a name — the standard library's `time` and a group unit named `time`, the standard
+library's `runtime` and the runtime's unit, or two rows' `decimal` — one takes a name of its own
+in that file.

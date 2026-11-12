@@ -4,40 +4,51 @@
 
 What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
 
-- **The units**: `buildSrc`, which Gradle refuses as a project's name wherever its directory is;
-  the root project's name, since a module of that name, published under the root's Maven `group`,
-  has the root's coordinates, so Gradle resolves the root's dependency on it to the root itself and
-  fails the build on a cycle; and the names Windows keeps for its devices, `con`, `prn`, `aux`,
-  `nul`, and `com` or `lpt` with a digit, in any letter case, which Windows refuses as a directory's
-  name, so that neither the module nor the directory kotlinc writes the package's classes to could
-  be made on Windows. The names Gradle and its plugins keep at a build's root meet no unit, as no
-  module sits there ([output units](overview.md#output-units)).
+- **The units**: `buildSrc`, which Gradle refuses as a project's name wherever its directory is; the
+  root project's name, since a module of that name, published under the root's Maven `group`, has
+  the root's coordinates, so Gradle resolves the root's dependency on it to the root itself and
+  fails the build on a cycle, which also makes a root project the options name `shared` or
+  `runtime`, a module the target names and never renames, an options error (a root project `runtime`
+  beside the runtime's module failed: "Circular dependency between the following tasks"); and the
+  names Windows keeps for its devices, `con`, `prn`, `aux`, `nul`, and `com` or `lpt` with a digit,
+  in any letter case, which Windows refuses as a directory's name, so that neither the module nor
+  the directory kotlinc writes the package's classes to could be made on Windows. The names Gradle
+  and its plugins keep at a build's root meet no unit, as no module sits there ([output
+  units](overview.md#output-units)).
 - **A unit**: what the target declares there and what a top-level declaration cannot take:
-  - `Client` and each sub-client, in the unit holding it, and what a runtime template declares, in a
-    unit it renders into beside the spec's names ([template
-    guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
-    `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
-    `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-    `Authenticator`, `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
+  - `Client` and each sub-client, in the unit holding it, and in every unit what the runtime's
+    templates declare, though the runtime's own unit holds no spec name ([the runtime's
+    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException` and the
+    exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`,
+    `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
+    `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
     ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
-    `OffsetDateTime`.
-    Which unit the runtime renders into is #1489's to decide.
-  - Each name Kotlin's default imports give that any refine step or template can write, such as
-    `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and `Result`, since a top-level declaration
-    shadows a default import for its whole package: with a model `List` in a package, `List<String>`
-    there failed ("No type arguments expected for 'class List : Any'"), and with a model
-    `Exception`, a class extending `Exception` did. Each step and template declares those it writes
-    as it declares what it binds, and the set is their union for the target's version, never what
-    one unit's code happens to write, so adding an operation renames no model.
+    `OffsetDateTime`. A file naming one beside a spec class of its name would write it qualified
+    ([imports](#imports)), which fails in an expression where a member shadows the package's first
+    segment: in a class with a property `com`, `com.acme.runtime.Duration(1)` failed ("unresolved
+    reference 'acme'"). Once #1496 settles that, these names need no reserving outside the
+    Objective-C namespace below.
+  - Each name Kotlin's default imports give that a refine step, or a template rendering beside the
+    spec's names, can write, such as `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and
+    `Result`, since a top-level declaration shadows a default import for its whole package: with a
+    model `List` in a package, `List<String>` there failed ("No type arguments expected for 'class
+    List : Any'"), and with a model `Exception`, a class extending `Exception` did. Each step and
+    template declares those it writes as it declares what it binds, and the set is the union of
+    what the steps and the templates rendering beside the spec's names declare, for the target's
+    version, never what one unit's code happens to write, so adding an operation renames no model.
+    The runtime's templates render into its unit alone, so they add none, while the template
+    rendering an operation's row of the runtime's settings renders beside the spec's names, in the
+    operation's unit ([runtime policy](../../contract/runtime-policy.md#delivery)).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
-    name joined to its outer's ([Swift](swift.md)): each name above that the target declares, in
-    every unit, bar `AlphaApi` and `BetaApi`, annotation classes Kotlin/Native 2.4.0 leaves out of
-    the header; the joined name of each public class the target nests in a type, such as
-    `UserBuilder` and `UserCompanion` beside a model `User` and `PaymentUnknown` beside a union
-    `Payment`; and the names the export gives classes of its own, `Base`, `MutableSet`,
-    `MutableDictionary`, `Number` and each boxed number's, such as `Int`, `Double` and `ULong`.
+    name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
+    runtime's among them, in every unit, bar `AlphaApi` and `BetaApi`, annotation classes
+    Kotlin/Native 2.4.0 leaves out of the header; the joined name of each public class the target
+    nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
+    `PaymentUnknown` beside a union `Payment`; and the names the export gives classes of its own,
+    `Base`, `MutableSet`, `MutableDictionary`, `Number` and each boxed number's, such as `Int`,
+    `Double` and `ULong`.
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so

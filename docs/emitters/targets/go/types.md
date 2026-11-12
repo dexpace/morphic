@@ -61,11 +61,11 @@ decodes to. A method returns the value as the row's type, decoding its wire form
 that type, as [the type table](../../contract/type-table.md) builds any literal of a mapped type:
 
 ```go
-type Day string                          // date, enum: ["2020-01-01"]
+type Day string                            // date, enum: ["2020-01-01"]
 
 const Day20200101 Day = "2020-01-01"
 
-func (d Day) Value() (sdk.Date, error)   // the member as the row's type
+func (d Day) Value() (runtime.Date, error) // the member as the row's type
 ```
 
 Two designs lost to it. Package-level variables built through the codec cover every type, but a

@@ -90,4 +90,5 @@ type Dependency struct {
 it imports and never the name a row spelled it by, and what a file calls each import is settled with
 every other name ([reserved names](../refine/reserved-names.md)): two rows that spell `decimal` for
 two packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row
-may name a type of the SDK's runtime, which the target imports from wherever it puts the runtime.
+may name a type of the SDK's runtime, which the target imports from the runtime's unit ([output
+units](../refine/output-units.md#the-runtimes-unit)).

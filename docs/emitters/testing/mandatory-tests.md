@@ -68,7 +68,11 @@ throughout these documents.
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
-    group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
+    group reach; under `SplitByGroup` with every group's operations failing with the runtime's
+    failure value, and under `Partition` with a partition's model holding a runtime type, the units'
+    imports form no cycle and build; with either rule on and with both off, the runtime's
+    declarations are in its unit, which imports none, and on Kotlin, code compiling against the root
+    project or any one module names the runtime's types its signatures use; groups whose names
     render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
     get distinct units; a union with a variant in another unit compiles; two groups whose operations
     `AlsoMount` puts in each other's client compile, the types those operations reach in the shared
@@ -84,13 +88,14 @@ throughout these documents.
     and after the standard-library packages its files import, generates code that compiles on every
     target, no two of its paths, an artifact's or a class file's, folding alike, the Go file holding
     two such types byte-identical in both declaration orders, with every template's declared names
-    held to what it binds, and on Kotlin to the default-imported names it writes. On Kotlin a
-    `clean` and a `wrapper` at the build's root leave every module's sources, no path the build
-    writes, an artifact's or a class file's, has a Windows device name for a segment, and the
-    Multiplatform framework links, its header giving each declaration the Swift name the naming
-    policy chose, none of them a type Swift's standard library or Foundation declares or a module's
-    name, so a Swift file that imports the framework and Foundation compiles its uses of both and
-    qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
+    held to what it binds, and on Kotlin to the default-imported names it writes. On Kotlin a root
+    project the options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the
+    build's root leave every module's sources, no path the build writes, an artifact's or a class
+    file's, has a Windows device name for a segment, and the Multiplatform framework links, its
+    header holding none of what only generated code calls and giving each declaration the Swift name
+    the naming policy chose, none of them a type Swift's standard library or Foundation declares or
+    a module's name, so a Swift file that imports the framework and Foundation compiles its uses of
+    both and qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
