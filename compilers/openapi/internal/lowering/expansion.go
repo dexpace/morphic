@@ -18,8 +18,8 @@ import (
 )
 
 // expansion counts what a run's $refs copy against
-// Limits.MaxReferenceExpansion. A declaration a $ref names, a schema or a link
-// aside, lowers again at every $ref naming it (GitHub #1240), so each such $ref
+// Limits.MaxReferenceExpansion. A declaration a $ref names, a schema aside,
+// lowers again at every $ref naming it (GitHub #1240), so each such $ref
 // is charged what the declarations its chain names weigh, and the sum bounds
 // the product of references and size that the source budgets leave free, as
 // it bounds what a path item's additionalOperations copy (ChargeExpansion). A
@@ -150,7 +150,7 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 	}
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, ir.Provenance{Source: srcIndex},
 		"the copies its $refs and path items make weigh more than the %d budgeted for them: each $ref "+
-			"to a declaration other than a schema or a link lowers its own copy of it, and each "+
+			"to a declaration other than a schema lowers its own copy of it, and each "+
 			"additionalOperations entry its own copy of what its path item declares", e.spent.Limit().Cap()), true
 }
 

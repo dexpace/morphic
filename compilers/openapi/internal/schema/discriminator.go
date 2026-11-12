@@ -410,8 +410,8 @@ type listedBy struct {
 // (docs/compilers/openapi.md#discriminator-value): those a $ref branch of the
 // union unionBranches elects ends on, as discriminatedAncestors reads a $ref,
 // read once a run, as every subtype of a asks. Any other schema composing a
-// narrows that union, each instance carrying its variant's tag; whether it
-// lowers as that union narrowed is open (#1716).
+// narrows that union, each instance carrying its variant's tag, and composes
+// it as written (docs/ir/models.md#a-union-a-composition-names).
 func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
 	branches, _, _ := unionBranches(a)
 	if len(branches) == 0 {

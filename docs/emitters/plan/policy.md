@@ -89,19 +89,21 @@ summarizes only the streams an operation's success responses declare, so no `Str
 ## A union a client reads is open
 
 An API that adds a variant must not break every SDK already deployed on the first response carrying
-it, so under `OpenUnions` a closed union or a polymorphic base is `Open` wherever `Facts.Usage`
-marks it `Output`, marked `Inferred`. A value no variant recognizes is then kept rather than refused
-([unions](../refine/unions.md)). That covers a type read and written alike: a response can carry it
-whatever else the type does, and a kept value a caller sends back goes out as it came. A union the
-IR declares open, `Closed` false as a Smithy union lowers or a promoted key makes one, is `Open`
-wherever it is used, unmarked since the IR states it, as
+it, so under `OpenUnions` a closed union, a polymorphic base, or a model narrowing a closed union,
+which the three targets lower as that union ([inheritance](../refine/models.md#inheritance)), is
+`Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
+then kept rather than refused ([unions](../refine/unions.md)). That covers a type read and written
+alike: a response can carry it whatever else the type does, and a kept value a caller sends back
+goes out as it came. A union the IR declares open, `Closed` false as a Smithy union lowers or a
+promoted key makes one, is `Open` wherever it is used, and so is a model narrowing one, unmarked
+since the IR states it, as
 [precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
 declared fact win. A closed one only ever written stays closed, and no SDK decodes one. Turning the
-policy off leaves every union as the IR says and every polymorphic base closed. Opening a closed
-union no more overrides `Union.Closed` than opening an enum overrides `Enum.Closed` (below): it says
-what this version of the API admits, not what a later one will add
-([open unions](../../ir/unions.md#open-unions)). The plan records the choice so that docs and a mock
-agree with the SDK ([docs and mocks](../docs-and-mock.md)).
+policy off leaves every union as the IR says, and every polymorphic base and every model narrowing a
+closed union closed. Opening a closed union no more overrides `Union.Closed` than opening an enum
+overrides `Enum.Closed` (below): it says what this version of the API admits, not what a later one
+will add ([open unions](../../ir/unions.md#open-unions)). The plan records the choice so that docs
+and a mock agree with the SDK ([docs and mocks](../docs-and-mock.md)).
 
 ## An enum a client reads is open
 

@@ -1,9 +1,17 @@
 openapi: 3.1.0
 info: {title: ResponseLinks, version: "1.0.0"}
 paths:
+  # Every link here is declared before the operation it leads to, the order
+  # that would lose it if a link were resolved as its response lowers.
   /orders:
     post:
       operationId: createOrder
+      parameters:
+        - {name: X-Request-Id, in: header, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderInput'}
       responses:
         # The error case first, so the fixture is declared in the order that used
         # to be wrong: links were kept on a success response and dropped on an
@@ -11,21 +19,105 @@ paths:
         # cannot show the difference.
         "409":
           description: conflict
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Conflict'}
           links:
             GetConflicting:
               operationId: getOrder
               parameters: {orderId: '$response.body#/existingId'}
         "201":
           description: created
+          headers:
+            Location: {schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Order'}
           links:
             GetOrder:
               operationId: getOrder
+              description: The order just created.
+              parameters:
+                path.orderId: '$response.body#/id'
+                verbose: true
+                x-request-id: '$request.header.x-request-id'
+              x-follow: auto
+            ByLocation: {$ref: '#/components/links/ByLocation'}
+            Replace:
+              operationRef: '#/paths/~1orders~1{orderId}/put'
               parameters: {orderId: '$response.body#/id'}
+              requestBody: '$request.body'
+              server: {url: 'https://write.example.com'}
+            ByCustomer:
+              operationId: getOrder
+              parameters: {orderId: '$request.body#/customer/id'}
+            Audit:
+              operationId: audit
+              parameters: {status: '$statusCode', method: '$method'}
+              requestBody: '$url'
+            # A member reached through an array index has no typed path, so this
+            # link is kept verbatim, with an info.
+            ByTag:
+              operationId: getOrder
+              parameters: {orderId: '$response.body#/tags/0'}
+        default:
+          description: unexpected
+          links:
+            Retry: {operationId: createOrder, requestBody: '$request.body'}
   /orders/{orderId}:
     get:
       operationId: getOrder
       parameters:
         - {name: orderId, in: path, required: true, schema: {type: string}}
+        - {name: verbose, in: query, schema: {type: boolean}}
+        - {name: X-Request-Id, in: header, schema: {type: string}}
       responses:
         "200":
           description: ok
+    put:
+      operationId: replaceOrder
+      parameters:
+        - {name: orderId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrderInput'}
+      responses:
+        "200":
+          description: ok
+  /audit:
+    post:
+      operationId: audit
+      parameters:
+        - {name: status, in: query, schema: {type: integer}}
+        - {name: method, in: query, schema: {type: string}}
+      requestBody:
+        content:
+          text/plain:
+            schema: {type: string}
+      responses:
+        "204":
+          description: recorded
+components:
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id: {type: string}
+    OrderInput:
+      type: object
+      properties:
+        customer: {$ref: '#/components/schemas/Customer'}
+    Order:
+      type: object
+      properties:
+        id: {type: string}
+        tags: {type: array, items: {type: string}}
+    Conflict:
+      type: object
+      properties:
+        existingId: {type: string}
+  links:
+    ByLocation:
+      operationId: getOrder
+      parameters: {orderId: '$response.header.location'}

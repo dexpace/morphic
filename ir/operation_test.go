@@ -429,6 +429,7 @@ func TestResponse_JSONContract(t *testing.T) {
 		Payload:        &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: populatedTypeRef()}}},
 		Headers:        []ir.Header{populatedHeader()},
 		StatusCodeProp: &ir.PropPath{Segments: []ir.PropID{"p/status"}},
+		Links:          []ir.OperationLink{populatedOperationLink()},
 		Docs:           populatedDocs(),
 		Unmodeled:      populatedUnmodeled(),
 	})
@@ -492,6 +493,7 @@ func TestErrorCase_JSONContract(t *testing.T) {
 			Fault:      "client",
 			Retryable:  new(true),
 			Throttling: new(false),
+			Links:      []ir.OperationLink{populatedOperationLink()},
 			Docs:       populatedDocs(),
 			Unmodeled:  populatedUnmodeled(),
 			Inferred:   "extension-promotion",

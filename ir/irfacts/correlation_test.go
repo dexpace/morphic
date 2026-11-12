@@ -229,6 +229,37 @@ func partsFixture() *ir.Document {
 	return doc
 }
 
+// TestCorrelation_KeysAServerALinkNames pins that a server only a link names is
+// keyed by the response carrying the link and the link's name, on a success
+// response, an error case and a default alike.
+func TestCorrelation_KeysAServerALinkNames(t *testing.T) {
+	t.Parallel()
+	link := func(name string, server ir.ServerID) []ir.OperationLink {
+		return []ir.OperationLink{{Name: ir.Naming{Source: name}, Operation: "op/test/a", Server: &server}}
+	}
+	op := namedOp("op/test/a", "getA", "/a")
+	op.Responses = []ir.Response{{
+		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 201, To: 201}}},
+		Links:      link("Next", "server/test/ok"),
+	}}
+	op.Errors = []ir.ErrorCase{{
+		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 409, To: 409}}},
+		Links:      link("Next", "server/test/err"),
+	}}
+	op.Default = &ir.Response{Links: link("Retry", "server/test/def")}
+	doc := opsDoc([]ir.Operation{op})
+	doc.Servers = map[ir.ServerID]ir.Server{}
+	for _, id := range []ir.ServerID{"server/test/ok", "server/test/err", "server/test/def"} {
+		doc.Servers[id] = ir.Server{ID: id, URLTemplate: "https://" + string(id[len("server/test/"):]) + ".example"}
+	}
+	got := keysOf(irfacts.New(doc), "server/test/ok", "server/test/err", "server/test/def")
+	assert.Empty(t, cmp.Diff(map[string]string{
+		"server/test/ok":  "route:GET ~1a/response:201/link:Next/server:https:~1~1ok.example",
+		"server/test/err": "route:GET ~1a/error:409/link:Next/server:https:~1~1err.example",
+		"server/test/def": "route:GET ~1a/default/link:Retry/server:https:~1~1def.example",
+	}, got))
+}
+
 func TestCorrelation_KeysAPartsHeadersBeneathThePropertyItEncodes(t *testing.T) {
 	t.Parallel()
 	assertKeys(t, partsFixture(), map[string]string{

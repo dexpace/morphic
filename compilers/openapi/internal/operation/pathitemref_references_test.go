@@ -152,10 +152,8 @@ func paramNamed(t *testing.T, op ir.Operation, name string) ir.Parameter {
 //
 // It exercises every reference kind a path-item subtree reaches: a parameter, a
 // request body, a response and a callback on the sibling operation, and a
-// header, a link and an example on its response. A Link Object lowers to no
-// node of its own, only to preserveResponseExtras' verbatim map, so its
-// resolving half is TestPathItemRefSiblings_UnresolvedLinkIsReported
-// (GitHub #275).
+// header, a link and an example on its response. A link that names nothing is
+// TestPathItemRefSiblings_UnresolvedLinkIsReported's (GitHub #275).
 func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefKindsSpec)
@@ -181,10 +179,11 @@ func TestPathItemRefSiblings_ReferenceKindsResolve(t *testing.T) {
 	assert.Equal(t, "refEx", examples[0].Name)
 	require.NotNil(t, examples[0].Value, "the referenced example's own value is lowered")
 
-	links, ok := created.Unmodeled["openapi:links"]
-	require.True(t, ok, "the sibling response's $ref'd link is kept verbatim")
-	assert.Contains(t, string(links.Value), "RefL",
-		"a Link Object has no IR home, so the map reaches the IR under its own key")
+	require.Len(t, created.Links, 1, "a $ref'd link on a sibling response resolves")
+	assert.Equal(t, "next", created.Links[0].Name.Source)
+	assert.Equal(t, getA.ID, created.Links[0].Operation)
+	assert.Equal(t, jsontext.Pointer("/components/links/RefL"), created.Links[0].Provenance.Pointer,
+		"the link is declared where its $ref ends")
 
 	cbPost := openapitest.FindOp(t, doc, "cbPost")
 	assert.Equal(t, ir.OpID("op/openapi/paths/~1a/get/callbacks/onEvent/{$request.body#~1url}/post"), cbPost.ID,

@@ -113,6 +113,7 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/auth",
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
+	"compilers/openapi/internal/replacement",
 	"compilers/openapi/internal/schema",
 	"compilers/openapi/internal/servers",
 }

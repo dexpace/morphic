@@ -38,7 +38,7 @@ func compileExpanding(t *testing.T, src string, limit int) (*ir.Document, []ir.D
 func refusal(limit int) ir.Diagnostic {
 	return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded, Provenance: ir.Provenance{Source: 0},
 		Message: fmt.Sprintf("the copies its $refs and path items make weigh more than the %d budgeted for them: "+
-			"each $ref to a declaration other than a schema or a link lowers its own copy of it, and each "+
+			"each $ref to a declaration other than a schema lowers its own copy of it, and each "+
 			"additionalOperations entry its own copy of what its path item declares", limit)}
 }
 
@@ -129,8 +129,8 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 // the lowering copies what one names: each is admitted at the weight of the
 // declaration at its target, as weightAt weighs it apart from the compiler,
 // and refused one below, so a position charged twice or not at all fails. A
-// schema's $ref names one registry entry, and a link's is kept as written, so
-// neither is charged, and each is admitted under a budget of one.
+// schema's $ref names one registry entry, so it is not charged, and is
+// admitted under a budget of one.
 func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -166,7 +166,7 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 		{"a schema", pathsWith(getWith("/p", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/S'}}]\n"+
 			okResponses), "  schemas:\n    S: {type: string}\n"), ""},
 		{"a link", pathsWith(getWith("/p", "      responses:\n        '200':\n          description: ok\n"+
-			"          links: {l: {$ref: '#/components/links/L'}}\n"), "  links:\n    L: {operationId: x}\n"), ""},
+			"          links: {l: {$ref: '#/components/links/L'}}\n"), "  links:\n    L: {operationId: x}\n"), "/components/links/L"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
