@@ -364,7 +364,7 @@ header it does not name: a caller's `Authenticator` may write any
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
 ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response.
-T-79 holds an event to all of this.
+T-65 holds an event to all of this.
 
 ## Layers and operations
 

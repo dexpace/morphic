@@ -85,7 +85,7 @@ written:
   request's message was `GET http://127.0.0.1:1/v1/things?limit=5&pw=[REDACTED]: dial tcp
   127.0.0.1:1: connect: connection refused`, and `errors.As` found no `*url.Error` in the chain.
   The cause's own text stays the library's, which the runtime cannot hold by construction, so
-  T-79 sweeps it for each failure the behavior server can provoke.
+  T-65 sweeps it for each failure the behavior server can provoke.
 - **No dump.** The runtime declares no rendering of a request or a response as sent, a wire log
   or a command line that would replay it. A caller who wants one wraps the `Transport`, which is
   handed each request as it goes out, credentials included, since it sends it; what such a wrapper

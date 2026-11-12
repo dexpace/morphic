@@ -100,7 +100,7 @@ its request as the receiver reads it, the checks its `Auth` asks, and the respon
 answer with. No SDK sample is shown, since a sample spells a call to the API
 ([samples](../docs-and-mock.md#samples-come-from-the-sdk-emitters)).
 
-T-88 holds this document on every target.
+T-71 holds this document on every target.
 
 ## Rejected
 

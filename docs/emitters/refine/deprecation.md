@@ -51,7 +51,7 @@ member's is a member of the same enum; and a type's is a type of the same kind d
 member the deprecated one declares, under the same name and type, so a caller's use of a member
 still resolves. Under any other, the text names the replacement and nothing rewrites the call: with
 Kotlin 2.4.0, `getOrder(request: GetOrderRequest)` rewritten as `getOrderV2(request)` fails to
-compile, `argument type mismatch`, since each operation's request type is its own. T-87 holds these
+compile, `argument type mismatch`, since each operation's request type is its own. T-70 holds these
 rules on every target.
 
 ## Rejected

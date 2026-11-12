@@ -139,7 +139,7 @@ configuration maps to an exact type reads through that type's own codec, which t
 wrap: Go's `*big.Int` reads plain digits alone, and a codec that expands an exponent bounds it
 itself, since thirteen bytes can name a billion digits. `number`, `float` and `decimal` rows read
 every spelling already. Each target says how its rows read
-([Go](../targets/go/types.md#integers), [Kotlin](../targets/kotlin/types.md#integers)), and T-70
+([Go](../targets/go/types.md#integers), [Kotlin](../targets/kotlin/types.md#integers)), and T-61
 holds the rule.
 
 ## What a built-in row writes
@@ -222,7 +222,7 @@ value as its primitive's default row does unless the target's lowering table say
   waits on the IR telling them apart.
 
 Each target's lowering table names the type and the codec of each
-([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), and T-76 holds the rows
+([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows
 and the lookup. The designs it was weighed against:
 
 - **The primitive's row with an info**, as the lookup once fell back: Go's `[]byte` row writes the

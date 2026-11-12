@@ -370,7 +370,7 @@ require would make every edit of a Worker restate six members. Three readings lo
 Under this rule a patch shape reaches 61 models there and relaxes 50 members of 22 of them, and the
 two merge patches are the only bodies relaxed whose top-level model requires a member. A merge patch
 whose schema was written for the patch and requires a member is relaxed too, and the server then
-refuses what the SDK let through; turning `MergePatch` off restores what the schema says. T-68 holds
+refuses what the SDK let through; turning `MergePatch` off restores what the schema says. T-59 holds
 the rule.
 
 ## A shape reaches what it holds
@@ -452,7 +452,7 @@ written in a shape that leaves the read projection. They take 447 such projectio
 one declaration for each projection would be. No operation reads 166 of the 435, which the second
 rejected rule would rename when one does, and 169 are written under `update` alone or under `create`
 and `update` alone, which the first would rename when a `POST` joins. No name collides with a type's
-own. T-69 holds the rule.
+own. T-60 holds the rule.
 
 ## A model with lifecycle visibility
 

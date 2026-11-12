@@ -187,7 +187,7 @@ the document, which determines it.
   mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names that
   `Document.Versions` lacks is an error `engine/snapshot-unknown` before any run. The setting is the
   run's, not each target's, so an SDK and the mock server its wire conformance runs against read one
-  version (T-86 holds this). Writing a unit for each snapshot under the one module path, Gradle
+  version (T-69 holds this). Writing a unit for each snapshot under the one module path, Gradle
   coordinate or framework was rejected: a Kotlin Multiplatform framework gives every unit one
   Objective-C namespace ([Swift](../targets/kotlin/swift.md)), and Kotlin/Native 2.4.0 exports
   `sdk.v1.Zone` and `sdk.v2.Zone` as `Zone` and `Zone_`, so each class a second version keeps loses

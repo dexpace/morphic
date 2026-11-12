@@ -176,7 +176,7 @@ weighed against:
 - **The open declaration with a strict decoder for a type only written.** A client decodes no type
   it only writes, so this differs from opening it in nothing a caller can observe.
 
-T-22 and T-36 hold what each policy opens, and T-65 that no operation moves a declaration.
+T-22 and T-36 hold what each policy opens, and T-58 that no operation moves a declaration.
 
 ## A merge patch relaxes what its schema requires
 

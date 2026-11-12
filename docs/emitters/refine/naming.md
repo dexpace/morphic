@@ -247,7 +247,7 @@ toolchain that learns a letter would otherwise rename every identifier holding i
 options](../contract/options.md)). On Multiplatform the Kotlin name, which a JVM caller shares,
 keeps U+2E2F, and the declaration takes an explicit Objective-C name instead
 ([Swift](../targets/kotlin/swift.md)). A name that meets another so is `Ctx.Syms`'s, and reported
-([collisions](#collisions-and-the-names-a-generation-shipped)). T-55 holds every class above.
+([collisions](#collisions-and-the-names-a-generation-shipped)). T-54 holds every class above.
 
 Composing a decomposed letter with its mark (Unicode NFC) was not taken: it gives `café` its `é`,
 leaves every mark with no composed form, as most Indic vowel signs have none, and makes a decomposed
@@ -286,7 +286,7 @@ type, `field` for a field, `call` for a method, `value` for a constant, `arg` fo
 `VALUE_10002`, and `名前` is Go's field `Field_名前`, a word beginning with a letter of no case taking
 `_` before it ([a break](#a-break-letter-case-cannot-mark-takes-an-underscore)). A word that makes
 one name meet another — `Field1000` beside a property spelled `field_1000` — is `Ctx.Syms`'s, like
-any collision, and reported. T-19 holds the digit test and T-55 Go's export.
+any collision, and reported. T-19 holds the digit test and T-54 Go's export.
 
 ## A break letter case cannot mark takes an underscore
 
@@ -360,7 +360,7 @@ a method's inlined continuation, which kotlinc 2.4.0 named `CKt$main$$inlined$Co
 No name of the golden spec reaches it: its longest is 99 bytes as words joined, 106 with the
 `WithResponse` a method may add, and its longest union and variant joined by `$` 156, by `jq` over
 its compiled IR (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the
-target's own code makes kotlinc add beyond that room is held by T-51, which lowers the cap in the
+target's own code makes kotlinc add beyond that room is held by T-53, which lowers the cap in the
 options version adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only

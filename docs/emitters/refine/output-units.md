@@ -128,7 +128,7 @@ that runtime where its build could mix two. Two SDKs in one program share no run
 declaring its own failure value: measured with Go 1.27.3, the failure one SDK returned was not the
 other's `*runtime.APIError` under `errors.As`, nor its `ErrNotFound` under `errors.Is`. That is
 what the published library below would have changed, and why a caller matches a failure against
-the SDK that returned it. T-78 holds both kinds to where they are declared.
+the SDK that returned it. T-64 holds both kinds to where they are declared.
 
 Five other places were weighed, and each fails an input:
 

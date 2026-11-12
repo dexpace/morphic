@@ -129,7 +129,7 @@ is an API whose values legitimately nest past 64 levels, and none is known.
 
 The limit bounds what an SDK does with a value it decoded too, since encoding, printing, hashing
 and comparing a value recurse as deep as it nests. A value a caller builds is the caller's to
-bound. T-72 holds this.
+bound. T-63 holds this.
 
 ## Recursive references
 

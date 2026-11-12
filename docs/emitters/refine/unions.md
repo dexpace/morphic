@@ -273,7 +273,7 @@ replaces: a `nsc_Interconnect` variant built with `type` unset went out as `"typ
 route reads, and one synthesized from the member's own set carried a string routing nowhere, or, for
 `infra_ServiceConfig`, the other variant's tag. Electing one tag among several, the first in byte
 order as the compiler elects a subtype's `DiscriminatorValue`, would serve an example but not the
-encoder of a value whose member says which, which would send a tag the caller did not choose. T-63
+encoder of a value whose member says which, which would send a tag the caller did not choose. T-56
 holds the rule.
 
 ## A discriminated union

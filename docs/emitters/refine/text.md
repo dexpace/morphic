@@ -120,7 +120,7 @@ the path, cut at the unencoded `/`s, and decodes each triple but `%2F` and `%2f`
 the three characters they are, as google.api.http has a server do, so every text written reads back
 and a `%2F` another client sent is never taken for a separator. A `PathPattern` is carried to a
 refiner as `ParamBind.PathPattern` ([bindings](../plan/bindings.md)), and whether a value matches
-its pattern is not checked before it is sent ([HTTP bindings](../../ir/http-binding.md)). T-75 holds
+its pattern is not checked before it is sent ([HTTP bindings](../../ir/http-binding.md)). T-50 holds
 it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
@@ -217,7 +217,7 @@ an asctime-date holds none (§5.6.7), and no date in any form a header reads is 
 on one line or on three. In an object only a part read as the value of a member of such a type takes
 the next, so a key spelled `Sun`, and a string member holding it, stay whole. The split and each
 date's reading are one pass over the field, so a server controls no more than the field's length. At
-those revisions the golden spec declares no header list at all. T-74 holds both rules.
+those revisions the golden spec declares no header list at all. T-49 holds both rules.
 
 ## A value no style arranges
 
@@ -272,7 +272,7 @@ sends and an overlay declaring `content` types. The other two, the `filters` of 
 /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say nothing of their text, and a
 `DELETE` whose filter the server did not read would delete as one given none. It has two such
 bodies, the `text/plain;charset=UTF-8` requests of `POST /accounts/{account_id}/one/integrations`
-and its `PATCH`, each an object beside an `application/json` content of the same schema. T-73 holds
+and its `PATCH`, each an object beside an `application/json` content of the same schema. T-48 holds
 the rule.
 
 ## Other formats

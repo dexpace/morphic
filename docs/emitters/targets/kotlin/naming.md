@@ -168,7 +168,7 @@ caller sees. On the golden spec (@bc6fad24, morphic @fa253fe19), 2,398 of the 3,
 import 2,398 declarations under an alias; 1,372 of those variants wrap an anonymous type whose hint
 is the variant's, each class counted as its words join in PascalCase. One variant is named as its
 union, no model holds a type named `Builder` or `Companion`, and the 3 properties named `org` and
-the 3 named `app` keep their names under a root that begins with either. T-60 holds it.
+the 3 named `app` keep their names under a root that begins with either. T-55 holds it.
 
 Four other designs were weighed, and each fails an input:
 

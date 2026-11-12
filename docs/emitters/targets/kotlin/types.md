@@ -55,7 +55,7 @@ every position bytes can sit in, and has none for a bare value class: on the gol
 8 lists' elements, 4 maps' values and 2 union variants. A `typealias` over `ByteArray` leaves
 identity everywhere. And `kotlinx-io`'s `ByteString` is this type as a dependency every SDK would
 take for one class. A configuration that maps `bytes` to `ByteArray` takes its identity with it
-([type table](../../contract/type-table.md)). T-71 holds this.
+([type table](../../contract/type-table.md)). T-62 holds this.
 
 ## A declaration over a root
 

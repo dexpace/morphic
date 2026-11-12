@@ -48,7 +48,7 @@ the caller set it, so a filter and a limit hold across the walk:
   server chose where it points.
 
 The mock answers each of these as the page after ([a page walk on the
-mock](../docs-and-mock.md#a-page-walk-on-the-mock)), which T-83 holds.
+mock](../docs-and-mock.md#a-page-walk-on-the-mock)), which T-67 holds.
 
 ## Where a page walk ends
 

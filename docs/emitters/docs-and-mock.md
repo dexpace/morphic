@@ -248,7 +248,7 @@ accepts, and a body the mock refuses is one the plan would refuse as an example.
 A handler reads a body once and tries an entry at most once, so a body narrowing an untagged union
 costs no more than its size times the entries its model composes, which `plan.MaxComposedSize`
 bounds when the plan is built ([TypePlan](plan/types.md#a-model-narrowing-a-union)), and one a tag
-routes is read by one entry. T-64 holds these rules.
+routes is read by one entry. T-57 holds these rules.
 
 ## Routes and links
 
@@ -569,7 +569,7 @@ document, the plan's policy, the mock's options and the request alone, its value
 [example set](#one-set-of-examples), so the mock keeps no state between calls and answers one
 request with the same bytes on every run (INV7). The [behavior server](testing/behavior-server.md)
 is no second copy of these rules: it is written by hand so that a test can disagree with the
-generator, which a mock generated from the same plan cannot. T-82 and T-83 run an SDK's streams and
+generator, which a mock generated from the same plan cannot. T-66 and T-67 run an SDK's streams and
 pagers against the mock, which shows the two read the plan alike; T-14's routes show the plan reads
 the API rightly.
 

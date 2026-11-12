@@ -125,4 +125,4 @@ above, and nothing else a Go file declares takes a name its references begin wit
 type, a struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an
 exported name meets no package's and no predeclared identifier, all of which are lowercase. With Go
 1.27.3, a struct with fields `Time`, `JSON`, `time` and `json` and a method `Json` built beside
-imports of `time` and `encoding/json`, and its methods reached both packages. T-60 holds it.
+imports of `time` and `encoding/json`, and its methods reached both packages. T-55 holds it.

@@ -56,7 +56,7 @@ lower as gRPC. A target lowers the first binding of `All` its
 [capabilities](../contract/registry.md#capabilities) cover, so an HTTP target reaches a gRPC method
 through its transcoding binding, and an operation none of whose bindings it covers is a warning
 `emitters/<target>/unsupported-binding` naming the operation and its bindings, with no method
-generated for it (T-85 holds both).
+generated for it (T-68 holds both).
 
 `Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
 *declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL

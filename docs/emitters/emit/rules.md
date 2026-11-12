@@ -47,7 +47,7 @@ T-25 gives each a test.
   function maps each Cherokee letter to its other case, which upper-casing first sets right.
   Unicode's stability policies keep the case folding and decomposition of a string of assigned
   characters across its versions, so a toolchain moving Unicode refolds only a name holding a
-  character the older one left unassigned. T-50 holds it.
+  character the older one left unassigned. T-52 holds it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
   directory among them, is at most 255 bytes of UTF-8, the least any file system takes: ext4
   documents 255 bytes, and APFS, as NTFS documents, 255 UTF-16 units, which on macOS 26.5.2 took 255 `日`, 765
