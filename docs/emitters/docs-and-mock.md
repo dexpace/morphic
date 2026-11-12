@@ -33,7 +33,8 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   ([mandatory tests](testing/mandatory-tests.md)) is diffed against. A response content whose
   example set is empty, as one can be with `Synthesize` off, is a warning
   `emitters/mock/example-missing`, never a body it invents. It has no rule yet for a streaming
-  operation (#1675) or for where a page walk ends (#1676).
+  operation (#1675), for where a page walk ends (#1676), or for validating a request body that
+  narrows a union ([inheritance](refine/models.md#inheritance)) as the SDK lowers it (#1722).
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
