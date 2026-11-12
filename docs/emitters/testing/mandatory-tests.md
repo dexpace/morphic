@@ -743,3 +743,16 @@ throughout these documents.
     none, while a replacement of another signature, a second replacement and one on another client
     get none; and a Swift caller of the Multiplatform framework is shown the message
     ([deprecations](../refine/deprecation.md)).
+88. **T-88 · Operations the API sends** — on every target, a webhook and a callback get no client
+    method and one receiver for their service, with a parse method each; a request of each content
+    the operation declares, carrying a valid API key or basic or bearer credentials, parses into the
+    `read` projection, while a wrong method, an undeclared content type, a wrong key, a body past
+    the bound, read no further than it, a failing user check, and a scheme the receiver cannot check
+    with no user check configured are each refused, a refused check a verification failure apart
+    from a decode failure; the user's check reads the body's bytes as they arrived, so an HMAC over
+    them verifies; each declared response writes its status, headers and body with no envelope, a
+    range's refusing a status outside it; a Swift caller catches a refusal; the mock server sends a
+    callback once, after its answer, to the URL its expression resolves to, follows no redirect and
+    gives up past its timeout, and sends a webhook only through its control route; and the docs
+    give each a page naming its event or its declaring operation and expression, with no sample
+    ([operations the API sends](../operations/inbound.md)).

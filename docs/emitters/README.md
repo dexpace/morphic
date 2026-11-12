@@ -72,7 +72,8 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - [Return shapes](operations/returns.md), [failures](operations/errors.md),
   [pagination](operations/pagination.md), [streaming](operations/streaming.md), [long-running and
   one-way operations](operations/long-running.md), [auth](operations/auth.md), [the client and its
-  base URL](operations/client.md), [stability tiers](operations/stability.md).
+  base URL](operations/client.md), [stability tiers](operations/stability.md), [operations the API
+  sends](operations/inbound.md).
 
 **Emit**
 

@@ -35,6 +35,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `Streaming` + `StreamDetail` | a method per shape offered; `Flow` of elements received, a send channel for a client stream; direction from core, framing from plan |
 | `LongRunning` | poller with `suspend` `poll()`/`pollUntilDone()`; result from `ResultPath`; pacing from policy |
 | `OneWay` | `suspend` function returning `Unit`, no response binding |
+| `HTTPBinding.Inbound` ([operations the API sends](../../operations/inbound.md)) | no client method; a `Receiver` class with a `@Throws` parse method each over the runtime's `InboundRequest`, and a type per declared response whose `encode()` returns an `OutboundResponse` ([operations](operations.md#operations-the-api-sends)) |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target), over `Flow` |
 | `ErrorCase{Fault, Retryable}` | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy |
 | `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body, or a body that does not decode → `OtherResponseException`, outside `ApiException`; a 2xx the document does not list read as `Return` |

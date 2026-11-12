@@ -68,6 +68,19 @@ does, and `go doc` and an editor show the tier at the call. Go has no annotation
 acknowledge, and a build tag compiling an `alpha` method only under `-tags alpha` would split the
 package's API by tag, every test then building twice, so Go gates nothing.
 
+## Operations the API sends
+
+A service's receiver ([operations the API sends](../../operations/inbound.md)) is `Receiver`, built
+by `NewReceiver(opts ...ReceiverOption)` with an option for each scheme its operations check, named
+for the scheme as the client's are, and `WithVerify(func(http.Header, []byte) error)` for the user's
+check. A parse method takes the `*http.Request` every Go HTTP server hands a handler, `func (r
+*Receiver) ParseZoneCreated(req *http.Request) (*webhooks.ZoneCreatedRequest, error)`, and a refused
+check is an error `errors.Is` matches to the runtime's `ErrUnverified`. A response type writes
+itself with `func (resp *ZoneCreated200Response) WriteTo(w http.ResponseWriter) error`. With Go
+1.27.3, a handler built from them across a root and a group package answered a valid request 200, a
+wrong key and a wrong HMAC signature 401, and a valid body past the bound 400, which with the bound
+removed it answered 200.
+
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —

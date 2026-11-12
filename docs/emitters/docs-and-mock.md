@@ -27,19 +27,20 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and each response content's [example set](#one-set-of-examples) for canned responses, synthesizing
   none of its own, sending the whole `Envelope.Body` where a response is enveloped, `Others` to
-  answer as each declared response does, the error taxonomy to simulate declared failures,
-  the declared `Closed` of a union or an enum to say whether a request may carry a variant or a
-  value the document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a
-  mock accepts](#what-a-mock-accepts)),
-  `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the `BindingView` to route requests,
-  and the visibility projections to honor the same wire shapes an SDK sends/receives. Refine lowers
-  into a server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
-  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
-  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
-  ([mandatory tests](testing/mandatory-tests.md)) is diffed against. A response content whose
-  example set is empty, as one can be with `Synthesize` off, is a warning
-  `emitters/mock/example-missing`, never a body it invents. It has no rule yet for a streaming
-  operation (#1675) or for where a page walk ends (#1676).
+  answer as each declared response does, the error taxonomy to simulate declared failures, the
+  declared `Closed` of a union or an enum to say whether a request may carry a variant or a value
+  the document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a mock
+  accepts](#what-a-mock-accepts)), `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the
+  `BindingView` to route requests, and the visibility projections to honor the same wire shapes an
+  SDK sends/receives. Refine lowers into a server-routing AST (routes from
+  `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
+  SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
+  target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
+  diffed against. A response content whose example set is empty, as one can be with `Synthesize`
+  off, is a warning `emitters/mock/example-missing`, never a body it invents. It has no rule yet for
+  a streaming operation (#1675) or for where a page walk ends (#1676). It sends a webhook or a
+  callback rather than routing one, as [operations the API sends](operations/inbound.md) says, and
+  the docs give each a page of its own there.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key

@@ -33,6 +33,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; direction from core, framing from plan |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy |
 | `OneWay` | fire-and-forget method, no response binding |
+| `HTTPBinding.Inbound` ([operations the API sends](../../operations/inbound.md)) | no client method; a `Receiver` beside the client with a `Parse<Operation>(*http.Request)` method each, its request type in the `read` projection, and a type per declared response with `WriteTo(http.ResponseWriter)` ([operations](operations.md#operations-the-api-sends)) |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) |
 | `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `runtime.Body[T]` for the body ([failures](errors.md)); declared facts win over policy |
 | `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body, or a body that does not decode → `*OtherResponse` on the `error` path, with no fault and no retry; a 2xx the document does not list read as `Return` ([return shapes](returns.md)) |

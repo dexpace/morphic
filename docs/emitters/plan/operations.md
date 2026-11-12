@@ -60,7 +60,8 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
 ```
 
 How `Return`, `Others` and `Errors` read a response is in [responses](responses.md), and
-`StreamPlan` is in [streams](streams.md).
+`StreamPlan` is in [streams](streams.md). An operation the API sends keeps each field's meaning, its
+responses written rather than read ([operations the API sends](../operations/inbound.md)).
 
 `PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps

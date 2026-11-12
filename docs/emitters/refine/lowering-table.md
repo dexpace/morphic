@@ -39,6 +39,7 @@ IR bug (INV9), not a compiler change.
 | `Streaming` + `StreamDetail` | frame boundaries; per-event content-type |
 | `LongRunning` | monitor/final-state channel |
 | `OneWay` | — |
+| `HTTPBinding.Inbound` ([operations the API sends](../operations/inbound.md)) | the request's bytes as they arrived, checked before they decode |
 | `Channel`/`Message`/`MessageBinding` | address/correlation paths |
 | `ErrorCase{Fault, Retryable}` | status→kind map; an error's raw body |
 | `Response` beside the primary (`OpPlan.Others`) | the status; the body as it arrived |
