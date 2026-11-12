@@ -98,9 +98,9 @@ keeps were apart under the comparison they shipped under. The units' scope is on
 units](output-units.md)), and each target names its others
 ([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
 [docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
-as Go writes two declarations to one file,
-compares that scope's names as they are. The engine's refusal of two paths that fold alike is the
-backstop rather than the rule, since a refusal would fail a run on a valid spec.
+as Go writes two declarations to one file, compares that scope's names as they are. The engine's
+refusal of two paths that fold alike is the backstop rather than the rule, since a refusal would
+fail a run on a valid spec.
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's
