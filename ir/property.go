@@ -148,9 +148,9 @@ func (p *Property) EffectiveWireName() string {
 
 // Header is one entry of a Response's, an ErrorCase's or a PartEncoding's
 // Headers: a Property, which names and types the value, and how it is written
-// into its field, which a property elsewhere has no use for. A response header
-// has no binding to hold that, as a parameter's HTTPParamBinding does
-// (docs/ir/responses.md).
+// into its field, or its fields under a prefix, which a property elsewhere has
+// no use for. A response header has no binding to hold that, as a parameter's
+// HTTPParamBinding does (docs/ir/responses.md).
 type Header struct {
 	Property
 	// Style is how the value is written into the field, in
@@ -159,4 +159,9 @@ type Header struct {
 	// Explode is the header's explode, as declared, which
 	// HTTPParamBinding.Explode is a parameter's; nil = the style's default.
 	Explode *bool `json:"explode,omitzero"`
+	// Prefix, when set, makes the header a map of every field whose name starts
+	// with it, compared without case, each keyed by the rest of its name, and ""
+	// takes every field (Smithy @httpPrefixHeaders). nil = the one field its
+	// wire name names (docs/ir/responses.md#prefix-headers).
+	Prefix *string `json:"prefix,omitzero"`
 }

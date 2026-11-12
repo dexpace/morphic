@@ -58,8 +58,9 @@ func TestProperty_JSONContract(t *testing.T) {
 }
 
 // TestHeader_JSONContract pins that a Header encodes flat, its fields beside its
-// Property's with no member naming the embedded Property, and that a declared
-// explode: false stays apart from none.
+// Property's with no member naming the embedded Property, that a declared
+// explode: false stays apart from none, and that the empty prefix, which takes
+// every field, stays apart from no prefix (docs/ir/responses.md#prefix-headers).
 func TestHeader_JSONContract(t *testing.T) {
 	t.Parallel()
 	const property = `{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,` +
@@ -68,6 +69,7 @@ func TestHeader_JSONContract(t *testing.T) {
 		`"docs":{},"provenance":{"source":0}`
 	assertJSONContract(t, ir.Header{}, property+`}`, populatedHeader())
 	assertZeroValueShape(t, ir.Header{Explode: new(false)}, property+`,"explode":false}`)
+	assertZeroValueShape(t, ir.Header{Prefix: new("")}, property+`,"prefix":""}`)
 }
 
 // TestProperty_WireNameByFormatDeterministic pins Class C for Property's
