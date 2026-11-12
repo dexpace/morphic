@@ -81,7 +81,8 @@ func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 }
 
 // response lowers what e reads of the response: its body or a member of it, or
-// one of its headers.
+// one of its headers. A header the response declares twice, in two cases, is
+// no one header: either would be a choice the source does not make.
 func (ex exchange) response(e expression) (ir.LinkValue, *linkFailure) {
 	switch e.part {
 	case exprBody:
@@ -91,12 +92,16 @@ func (ex exchange) response(e expression) (ir.LinkValue, *linkFailure) {
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
 	case exprHeader:
+		var found []ir.PropID
 		for i := range ex.at.headers {
 			if h := &ex.at.headers[i].Property; strings.EqualFold(h.EffectiveWireName(), e.name) {
-				return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{h.ID}}}, nil
+				found = append(found, h.ID)
 			}
 		}
-		return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare", e.name)
+		if len(found) != 1 {
+			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.name)
+		}
+		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: found}}, nil
 	default:
 		return ir.LinkValue{}, invalid("reads the response's %s parameter %q, which no response carries", e.part, e.name)
 	}

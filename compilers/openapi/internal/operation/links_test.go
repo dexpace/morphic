@@ -272,6 +272,33 @@ components:
 	}
 }
 
+// TestLinks_AHeaderTwoCasesDeclareIsNeither pins that a link reading a header
+// its response declares twice, in two cases, reads neither, in either order of
+// the two: HTTP compares header names in any case, so taking one would be a
+// choice the order of declaration makes.
+func TestLinks_AHeaderTwoCasesDeclareIsNeither(t *testing.T) {
+	t.Parallel()
+	spec := func(first, second string) string {
+		return openapitest.PathsSpec(`  /a:
+    get:
+      operationId: a
+      parameters: [{name: id, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: ok
+          headers: {` + first + `: {schema: {type: string}}, ` + second + `: {schema: {type: string}}}
+          links: {Again: {operationId: a, parameters: {id: '$response.header.x-ID'}}}
+`)
+	}
+	for _, order := range [][2]string{{"X-Id", "x-id"}, {"x-id", "X-Id"}} {
+		doc, diags := parseFull(t, spec(order[0], order[1]))
+		resp := openapitest.FindOp(t, doc, "a").Responses[0]
+		assert.Empty(t, resp.Links, "%v: neither header is the one the link reads", order)
+		assert.Contains(t, resp.Unmodeled, "openapi:links/Again", "%v", order)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severitiesOf(diags, diag.UntypedLink), "%v", order)
+	}
+}
+
 // TestLinks_UseSiteDocsFoldOverTheDeclaration pins that the summary and
 // description written beside a link's $ref describe that use of it, each
 // overriding the declaration's field it names and leaving the other standing.

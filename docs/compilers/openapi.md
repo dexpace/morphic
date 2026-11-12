@@ -4009,9 +4009,10 @@ is not also kept on the document ([`unreferenced-components`](#unreferenced-comp
    one parameter carries, a header's matched in any case. Each parameter is given one value.
 3. Each value, and the `requestBody`, is a constant, or a runtime expression written whole. `$url`,
    `$method` and `$statusCode` lower to their kinds; `$request.<path|query|header>.<name>` to the
-   parameter the operation answered binds there; `$response.header.<name>` to the header the
-   response declares; and a `body` reference to the body whole, or to the chain of members its
-   pointer walks from the root of every content of that body, which every content must walk alike.
+   parameter the operation answered binds there; `$response.header.<name>` to the one header the
+   response declares under that name in any case; and a `body` reference to the body whole, or to
+   the chain of members its pointer walks from the root of every content of that body, which every
+   content must walk alike.
 4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
    keys stay on it.
 
@@ -4023,8 +4024,8 @@ A link that does not lower whole is kept verbatim on its response under `openapi
    than once, or a value breaks the runtime-expression grammar or reads a response's query or path.
 2. An `openapi/untyped-link` info when the link is sound but reads what no link value spells: an
    operation of another document or one mounted more than once, a request value no parameter of the
-   operation answered binds, a header the response does not declare, a body the document does not
-   describe, a member reached through an array index, a map, a union or any type but a model,
+   operation answered binds, a header the response does not declare once, a body the document does
+   not describe, a member reached through an array index, a map, a union or any type but a model,
    members the contents of a body disagree on, a string an expression is substituted into, or a
    constant the IR has no value for.
 
@@ -4034,6 +4035,7 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
   `operation.TestLinks_ASharedResponseResolvesPerOperation`,
   `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
+  `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
   `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`, `operation.TestParseExpression_ReadsTheGrammar`,
   `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
