@@ -156,9 +156,9 @@ func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 		{"declarations meeting", petBase("{type: string, enum: [cat, dog]}"), petSubtype("Cat", "{kind: {enum: [cat, kitty]}}"),
 			map[string]string{"Cat": "cat"}, `only "cat"`},
 		{"several", str, petSubtype("Cat", "{kind: {enum: [kitty, cat, tom, lion]}}"), map[string]string{"Cat": ""},
-			`only "cat", "kitty", "lion", 1 more; no one tag routes to it, so it carries none`},
+			`only "cat", "kitty", "lion", 1 more; no tag its instances carry routes to it, so it carries none`},
 		{"none", petBase("{type: string, enum: [dog]}"), petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": ""},
-			"no string; no one tag routes to it"},
+			"no string; no tag its instances carry routes to it"},
 		{"a union it composes, not read (#1712)", str, "    Cat:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
 			"        - $ref: '#/components/schemas/Breeds'\n" +
 			"    Breeds: {oneOf: [{$ref: '#/components/schemas/Tabby'}, {$ref: '#/components/schemas/Siamese'}]}\n" +

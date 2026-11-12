@@ -58,7 +58,7 @@ func (t subtypeTagReading) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		return nil
 	}
 	m.Provenance.Inferred = ir.JoinInferred(m.Provenance.Inferred, lowering.DiscriminatorInferenceHeuristic)
-	outcome := "no one tag routes to it, so it carries none"
+	outcome := "no tag its instances carry routes to it, so it carries none"
 	if len(tags) == 1 {
 		m.DiscriminatorValue = tags[0]
 		outcome = "it carries " + strconv.Quote(tags[0]) + " instead"
