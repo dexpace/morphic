@@ -38,6 +38,9 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
 
 The generated *typed veneer* references a `Transport` / `Serializer` interface (Kiota's
 `IParseNode`/`ISerializationWriter` seam); the concrete transport is a runtime-policy-configured
-library. This is the seam that keeps runtime policy (INV10) out of the typed structural model:
+HTTP library, `net/http` or Ktor, which the runtime wraps. Both the interface and what implements it
+are templates, which render into the runtime's unit ([output
+units](../refine/output-units.md#the-runtimes-unit)). This is the seam that keeps runtime policy
+(INV10) out of the typed structural model:
 the veneer of models/unions/methods is policy-free, and `Policy` only ever parameterises the
 boilerplate that backs the interface.
