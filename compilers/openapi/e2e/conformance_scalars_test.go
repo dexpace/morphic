@@ -39,8 +39,8 @@ func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // values for pass.ConstUnions to normalize (docs/compilers/openapi.md#string-const-union):
 // the union, its variants naming the types each branch lowers to, a const's
 // Literal holding what its branch says of its value, a constraint it has no
-// home for included. A branch naming a component lowers to that component, as
-// any $ref does.
+// home for included. A oneOf branch lowers to a union of its own, and a branch
+// naming a component to that component, as any $ref does.
 func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	color, ok := doc.Types[componentID("Color")].(*ir.Union)
 	require.True(t, ok, "the compiler keeps a oneOf of consts a union")
@@ -53,10 +53,14 @@ func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.NotNil(t, green.Deprecation, "a branch's deprecation stays on its literal")
 
-	for _, name := range []string{"Level", "Tier", "Shade", "Pinned"} {
+	for _, name := range []string{"Level", "Tier", "Direction", "Shade", "Pinned"} {
 		_, ok := doc.Types[componentID(name)].(*ir.Union)
 		assert.True(t, ok, "%s lowers to a union", name)
 	}
+	direction, _ := doc.Types[componentID("Direction")].(*ir.Union)
+	require.Len(t, direction.Variants, 2)
+	_, ok = doc.Types[direction.Variants[0].Type.Target].(*ir.Union)
+	assert.True(t, ok, "a oneOf branch lowers to a union of its own")
 	shade, _ := doc.Types[componentID("Shade")].(*ir.Union)
 	require.Len(t, shade.Variants, 2)
 	assert.Equal(t, componentID("Light"), shade.Variants[1].Type.Target)

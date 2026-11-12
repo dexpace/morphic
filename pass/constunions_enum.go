@@ -11,26 +11,27 @@ import (
 )
 
 // constEnum returns the closed Enum u is, where u is a closed union saying
-// nothing an Enum cannot (plainUnion) whose every variant names strings
-// (constValues), no value twice and all of one ValueType, and false otherwise.
+// nothing an Enum cannot (plainUnion) whose every variant names one string
+// (constValue), no value twice and all of one ValueType, and false otherwise.
 // The Enum keeps u's TypeCommon, so every reference to u reads it, and gives
 // each member the ID its value gives it beneath u, which needs u's namespace
 // among spaces, those declared for members. Its values being distinct, an
 // instance matches one variant at most, so u's Exclusive says nothing lost.
-func constEnum(types ir.TypeRegistry, spaces []string, u *ir.Union) (*ir.Enum, bool) {
+// typeAt reads the type a variant names.
+func constEnum(typeAt func(ir.TypeID) ir.TypeDef, spaces []string, u *ir.Union) (*ir.Enum, bool) {
 	space, spaced := ir.IDSpace(ir.IDKindType, string(u.ID))
 	if len(u.Variants) == 0 || !u.Closed || !plainUnion(*u) || !spaced || !slices.Contains(spaces, space) {
 		return nil, false
 	}
-	var members []ir.EnumMember
+	members := make([]ir.EnumMember, 0, len(u.Variants))
 	var valueType ir.PrimKind
 	for i, v := range u.Variants {
-		held, prim, ok := constValues(types, v)
+		member, prim, ok := constValue(typeAt, v)
 		if !ok || (i > 0 && prim != valueType) {
 			return nil, false
 		}
 		valueType = prim
-		members = append(members, held...)
+		members = append(members, member)
 	}
 
 	placed := make(map[ir.EnumMemberID]bool, len(members))
@@ -55,62 +56,58 @@ func plainUnion(u ir.Union) bool {
 	return reflect.ValueOf(u).IsZero()
 }
 
-// constValues returns the members the type v names holds, holding what v and
-// that type say of a value, and the primitive typing them, where v says
-// nothing but that (variantFacts) and the type is an anonymous string Literal
-// or closed Enum of strings saying nothing else (typeValues, commonFacts). A
-// type holding one value gives its member what it and v say of it; one holding
-// several may say nothing of a value, as none of its members is what it
-// describes.
-func constValues(types ir.TypeRegistry, v ir.Variant) ([]ir.EnumMember, ir.PrimKind, bool) {
+// constValue returns the member holding the one value the type v names holds,
+// with what v, that type and its member say of the value, and the primitive
+// typing it, where v says nothing but that (variantFacts) and the type is an
+// anonymous string Literal or closed Enum of one string saying nothing else
+// (typeValue, commonFacts). A type holding several values is a set of its own,
+// which the union keeps: an Enum would copy the set into each union naming it,
+// which a document can make grow with the square of its size.
+func constValue(typeAt func(ir.TypeID) ir.TypeDef, v ir.Variant) (ir.EnumMember, ir.PrimKind, bool) {
 	said, plain := variantFacts(v)
 	if !plain {
-		return nil, "", false
+		return ir.EnumMember{}, "", false
 	}
-	members, prim, common, ok := typeValues(types[v.Type.Target])
+	member, prim, common, ok := typeValue(typeAt(v.Type.Target))
 	if !ok {
-		return nil, "", false
+		return ir.EnumMember{}, "", false
 	}
 	typed, plain := commonFacts(common)
 	if !plain {
-		return nil, "", false
+		return ir.EnumMember{}, "", false
 	}
 	said, ok = said.with(typed)
-	switch {
-	case !ok:
-		return nil, "", false
-	case len(members) > 1:
-		return members, prim, reflect.ValueOf(said).IsZero()
+	if !ok {
+		return ir.EnumMember{}, "", false
 	}
-	said, ok = said.with(factsOf(members[0]))
-	members[0] = said.onto(members[0])
-	return members, prim, ok
+	said, ok = said.with(factsOf(member))
+	return said.onto(member), prim, ok
 }
 
-// typeValues returns the values td holds as members, their primitive and td's
-// common part, where td is a string Literal or a closed Enum of strings, typed
-// by a primitive, saying nothing else. A Literal's member is named by its
-// value, as an enum's members are; an Enum's are copies of its own.
-func typeValues(td ir.TypeDef) ([]ir.EnumMember, ir.PrimKind, ir.TypeCommon, bool) {
+// typeValue returns the one value td holds as a member, its primitive and td's
+// common part, where td is a string Literal or a closed Enum of one string,
+// typed by a primitive, saying nothing else. A Literal's member is named by its
+// value, as an enum's members are; an Enum's is a copy of its own.
+func typeValue(td ir.TypeDef) (ir.EnumMember, ir.PrimKind, ir.TypeCommon, bool) {
 	switch t := td.(type) {
 	case *ir.Literal:
 		if t == nil || t.Value.Kind != ir.ValueString || t.ValueType == "" {
-			return nil, "", ir.TypeCommon{}, false
+			return ir.EnumMember{}, "", ir.TypeCommon{}, false
 		}
 		rest := *t
 		rest.TypeCommon, rest.Value, rest.ValueType = ir.TypeCommon{}, ir.Value{}, ""
-		return []ir.EnumMember{{Name: ir.NamingFor(t.Value.Str), Value: t.Value}}, t.ValueType, t.TypeCommon,
+		return ir.EnumMember{Name: ir.NamingFor(t.Value.Str), Value: t.Value}, t.ValueType, t.TypeCommon,
 			reflect.ValueOf(rest).IsZero()
 	case *ir.Enum:
-		if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" ||
-			slices.ContainsFunc(t.Members, func(m ir.EnumMember) bool { return m.Value.Kind != ir.ValueString }) {
-			return nil, "", ir.TypeCommon{}, false
+		if t == nil || !t.Closed || len(t.Members) != 1 || t.ValueType == "" ||
+			t.Members[0].Value.Kind != ir.ValueString {
+			return ir.EnumMember{}, "", ir.TypeCommon{}, false
 		}
 		rest := *t
 		rest.TypeCommon, rest.ValueType, rest.Members, rest.Closed = ir.TypeCommon{}, "", nil, false
-		return slices.Clone(t.Members), t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
+		return t.Members[0], t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	default:
-		return nil, "", ir.TypeCommon{}, false
+		return ir.EnumMember{}, "", ir.TypeCommon{}, false
 	}
 }
 

@@ -119,6 +119,10 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
 }
 
+// UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
+// them, which reading each once holds to how many doc has.
+func UnionReads(doc *ir.Document) int { return readingOf(doc).reads }
+
 // TypeRefVisits is how many values a walk of doc for the references to ids
 // shows its visitor, which pruning holds to what can hold a TypeID.
 func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {

@@ -100,6 +100,74 @@
       },
       "valueType": "string"
     },
+    "t/anon/components/schemas/Direction/oneOf/0": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Direction/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Direction/oneOf/0"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Direction/oneOf/0/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Direction/oneOf/0/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Direction/oneOf/0/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Direction/oneOf/0/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "up"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Direction/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Direction/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Direction/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "down"
+      },
+      "valueType": "string"
+    },
     "t/anon/components/schemas/Level/anyOf/0": {
       "kind": "enum",
       "id": "t/anon/components/schemas/Level/anyOf/0",
@@ -334,6 +402,47 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Direction": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Direction",
+      "name": {
+        "source": "Direction",
+        "canonical": "direction"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Direction"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Direction/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Direction/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Level": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Level",
@@ -547,7 +656,7 @@
     {
       "format": "openapi@3.1",
       "path": "string-const-union.yaml",
-      "hash": "ebe62012fc0d0938828a11c7e8faf9d877e9898e49708879d5304bbacad0a2b2"
+      "hash": "6fa394a822a599bf63d6d4354a93c3bd755e91c959d726ed785deff25cd47dfa"
     }
   ]
 }

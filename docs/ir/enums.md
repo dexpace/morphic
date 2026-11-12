@@ -88,10 +88,11 @@ that reading is its policy rather than a lowering.
 
 ## A union of strings
 
-A closed union whose every variant names an anonymous string `Literal` or closed `Enum` of strings,
-saying nothing else, is a closed set of strings in another spelling: a JSON Schema `oneOf` of
-`const`s, or OpenAPI 3.0's `anyOf` of one-member enums. A compiler keeps it a `Union`, each branch's
-docs and deprecation on the node it lowers to, and the engine's `const-unions` pass rewrites it as
-the closed `Enum` of its values at the union's own ID, each member holding what its branch says of
-its value, so a consumer meets one shape. Where the union says what no `Enum` can, it stays
+A closed union whose every variant names an anonymous string `Literal`, closed `Enum` of one string
+or union that is one in turn, saying nothing else, is a closed set of strings in another spelling: a
+JSON Schema `oneOf` of `const`s, or OpenAPI 3.0's `anyOf` of one-member enums. A compiler keeps it a
+`Union`, each branch's docs and deprecation on the node it lowers to, and the engine's
+`const-unions` pass rewrites it as the closed `Enum` of its values at the union's own ID, each
+member holding what its branch says of its value, so a consumer meets one shape. Where the union
+says what no `Enum` can, it stays
 ([`string-const-union`](../compilers/openapi.md#string-const-union)).

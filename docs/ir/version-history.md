@@ -415,10 +415,10 @@ it sees. Changes made together in one bump are listed together under it.
   consumer pinned to 0.39.0 no longer finds those keys on such a schema, reads an undeclared union
   it read as untagged as tagged, and routes a declared one by a mapping it had read as nil.
 - **0.41.0** — no shape change. The engine's `const-unions` pass, on by default, rewrites a closed
-  union whose every variant names an anonymous string `Literal` or closed `Enum` of strings, such as
-  a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as the closed `Enum` of its values at
-  the union's own ID, each member holding what its branch said of its value, and removes the branch
-  types nothing else references
+  union whose every variant names an anonymous string `Literal`, closed `Enum` of one string or
+  union that is one in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
+  the closed `Enum` of its values at the union's own ID, each member holding what its branch said of
+  its value, and removes the branch types nothing else references
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to 0.40.0
   that read such a position as a `Union` finds an `Enum` there, and no longer finds the types its
   variants named.
