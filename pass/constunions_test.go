@@ -267,7 +267,7 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			green.ValueType = ir.PrimDate
 		}},
 		{"a value twice", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
-			green.Members = append(green.Members, member(green.ID, "red"))
+			green.Members[0].Value = str("red")
 		}},
 		{"docs a variant and its branch say", func(u *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			u.Variants[0].Docs, red.Docs = ir.Docs{Summary: "a"}, ir.Docs{Summary: "b"}
