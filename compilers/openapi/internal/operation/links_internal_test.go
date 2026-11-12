@@ -33,18 +33,25 @@ func TestLinksResolve_AnOperationTheServiceLacks(t *testing.T) {
 }
 
 // TestIndexOperations_StopsAtTheGroupDepthBound holds the index to
-// ir.MaxGroupDepth: an operation nested deeper than any document the compiler
-// builds is not indexed, so the walk is bounded however deep a service is.
+// ir.MaxGroupDepth, as ir.ForEachOperation is held: an operation in a group at
+// that level is indexed, and one a level deeper, past any document the
+// compiler builds, is not, so the walk is bounded however deep a service is.
 func TestIndexOperations_StopsAtTheGroupDepthBound(t *testing.T) {
 	t.Parallel()
-	deep := ir.OperationGroup{Operations: []ir.Operation{{ID: "op/x/deep"}}}
-	for range ir.MaxGroupDepth + 1 {
-		deep = ir.OperationGroup{Groups: []ir.OperationGroup{deep}}
+	nested := func(id ir.OpID, level int) ir.OperationGroup {
+		g := ir.OperationGroup{Operations: []ir.Operation{{ID: id}}}
+		for range level {
+			g = ir.OperationGroup{Groups: []ir.OperationGroup{g}}
+		}
+		return g
 	}
-	svc := &ir.Service{Groups: []ir.OperationGroup{{Operations: []ir.Operation{{ID: "op/x/top"}}}, deep}}
+	svc := &ir.Service{Groups: []ir.OperationGroup{
+		nested("op/x/top", 0), nested("op/x/cap", ir.MaxGroupDepth), nested("op/x/past", ir.MaxGroupDepth+1),
+	}}
 	ix := indexOperations(newRawLowerer(&soa.OpenAPI{}).ctx, svc)
 	assert.Contains(t, ix.byID, ir.OpID("op/x/top"))
-	assert.NotContains(t, ix.byID, ir.OpID("op/x/deep"))
+	assert.Contains(t, ix.byID, ir.OpID("op/x/cap"), "a group at the bound is read")
+	assert.NotContains(t, ix.byID, ir.OpID("op/x/past"), "a group past it is not")
 }
 
 // membersSpec is a document whose link reads, through n steps along member a,
