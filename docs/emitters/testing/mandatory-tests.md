@@ -366,14 +366,14 @@ throughout these documents.
     takes them, so `rulesets_ResponseRule`'s tables mark required the five members it requires and
     its union's variants do not, each naming the variants its `Over` lists and its tag and anchored
     from the model, that `Over` and its shape, a value of it redacted at its entry's `Redacted`
-    members and whole where a variant its `Over` lists is sensitive, a union of
-    unions a table for each entry it expands to, each member anchored once, one the model declares
-    in the first table holding it and one a variant declares where that variant is rendered, an
-    anonymous union only the model's composition reaches giving its anonymous variants no table of
-    their own, a model `TypePlan.Open` marks documented as holding variants the document does not
-    list, a model adding nothing to its union showing that union and no table, and one the plan
-    composes no entry for listing its own members beside its union, linked; each example through the
-    shape it is shown in, a write-only member in no
+    members and whole where a variant its `Over` lists is sensitive, a union of unions a table for
+    each entry it expands to, each member anchored once, one the model declares in the first table
+    holding it and one a variant declares where that variant is rendered, an anonymous union only
+    the model's composition reaches giving its anonymous variants no table of their own, a model
+    `TypePlan.Open` marks documented as holding variants the document does not list, a model adding
+    nothing to its union showing that union and no table, and one the plan composes no entry for
+    listing its own members beside its union, linked; each example through the shape it is shown in,
+    a write-only member in no
     response's; a placeholder for every redacted value, on pages, in agent documents and in
     samples, a sample's written by its SDK target; and raw HTML in a description
     rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
@@ -499,11 +499,11 @@ throughout these documents.
     hold that every declaration of it admits, else its own set's first, so a member a later conjunct
     redeclares as a plain string keeps the value an earlier one pins and a failure schema's
     `success: false` stands over the success shape's `true`, a model narrowing a union a value of
-    one of its
-    entries, chosen as a variant is and the same in both declaration orders, so
+    one of its entries, chosen as a variant is and the same in both declaration orders, so
     `rulesets_ResponseRule` has one carrying the tag routing to its variant, and a model adding
-    nothing to its union its union's set, and a list its set's values in turn, distinct where
-    `uniqueItems` or a map's keys
+    nothing to its union its union's set where it adds no constraint to it, else a value of one of
+    the union's variants, and a list its set's values in turn, distinct where `uniqueItems` or a
+    map's keys
     require it, a `uniqueItems` list left below its minimum unsynthesizable, a declared one whole
     and a synthesized one cut to the depth the bound leaves, so an optional recursive member ends
     and a required `Nullable` one ends with `null`; the bounds cut only optional members and the
@@ -556,6 +556,6 @@ throughout these documents.
     model the union's sum holds. A model adding nothing to its union aliases it, and one narrowing
     two unions, one whose union has a variant composing it or reaches itself through its variants,
     one over a key-tagged, enveloped or index-tagged union, and one whose entries would pass
-    `plan.MaxComposedVariants`, which `Build` reports as `emitters/plan/composed-limit`, each draw a
+    `plan.MaxComposedSize`, which `Build` reports as `emitters/plan/composed-limit`, each draw a
     diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).

@@ -39,7 +39,7 @@ The procedure decided every existing field:
    `Undeclared`, `Redacted`, `Sensitive`, `Unflattened`, `Composed`, `Union`, `Discrim`,
    `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared`, `Redacted` and
    `Unflattened` are read along the flattening walk ([TypePlan](types.md)), `Composed` along it once
-   for each variant a model narrowing a union takes in the union's place
+   for each entry, with a variant in the place of each union it narrows
    ([TypePlan](types.md#a-model-narrowing-a-union)), `Sensitive` along a `Base` chain, `Inclusive`
    closes over every pair of unions' positions
    ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a decorator over

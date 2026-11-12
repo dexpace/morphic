@@ -114,17 +114,19 @@ its union is ([inheritance](../refine/models.md#inheritance)), which the union's
 no entry repeats it.
 
 `Composed` is empty for a model adding nothing to its union, which is that union, and for one no
-distribution serves: a model narrowing two unions, itself or through an entry; one whose union has
-a variant composing the model in turn, or reaches itself through the unions among its variants,
-either of which no distribution ends; one over a key-tagged or enveloped union, whose variants are
-not the values it admits; one over a union tagged by a tuple index, whose values are no objects; and
-one whose entries would number more than `plan.MaxComposedVariants`, a fixed limit the plan package
-states ([overview](overview.md)), since nested unions multiply them, which `Build` reports as a
-warning `emitters/plan/composed-limit` naming the model. The SDK targets alias a model adding
-nothing, and degrade the others ([inheritance](../refine/models.md#inheritance)). An entry whose
-declarations of one member admit no value in common, as one over a variant pinning a tag the model
-pins otherwise does, is an entry like any, its member as the flattening takes it; whether to leave
-it out is #1739's.
+distribution serves: a model narrowing two unions, itself or through an entry; one whose union has a
+variant composing the model in turn, or reaches itself through the unions among its variants, either
+of which no distribution ends; one over a key-tagged or enveloped union, whose variants are not the
+values it admits; one over a union tagged by a tuple index, whose values are no objects; and one
+whose entries and the members they hold, counted together, would number more than
+`plan.MaxComposedSize`, a fixed limit the plan package states ([overview](overview.md)), since
+nested unions multiply the entries and each holds its variants' members, which `Build` reports as a
+warning `emitters/plan/composed-limit` naming the model. On the golden spec the largest, the schema
+of the `rulesets_Rule` request body, counts 315 (spec @bc6fad24, morphic @ea70eba79). The SDK
+targets alias a model adding nothing, and degrade the others
+([inheritance](../refine/models.md#inheritance)). An entry whose declarations of one member admit no
+value in common, as one over a variant pinning a tag the model pins otherwise does, is an entry like
+any, its member as the flattening takes it; whether to leave it out is #1739's.
 
 The plan holds the entries because four artifacts read them: an SDK target declares a variant for
 each, the docs render a table for it, and the samples and a mock show values of it, which the

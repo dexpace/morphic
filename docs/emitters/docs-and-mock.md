@@ -112,7 +112,8 @@ tables alone, so an anonymous variant of it no other reference reaches is compos
 table of its own, its members anchored in the first of the model's tables holding them. A value of
 the model is redacted at the members the `Redacted` of the entry admitting it lists, and whole where
 a variant its `Over` lists is sensitive, as a union's variant is. A model adding nothing to its
-union, which the SDK targets alias, has no table: its page shows the union it stands for, linked.
+union, which the SDK targets alias, has no table: it is shown as the union it stands for, linked, on
+its page or, where it has none, where it is referenced.
 One the plan composes no entry for otherwise, which they degrade, lists its flattening's members and
 names its union, linked.
 
@@ -471,7 +472,8 @@ member and operation:
   cost, is reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted
   invalid. A model narrowing a union is synthesized as a value of one entry of its
   `TypePlan.Composed`, chosen as a union's variant is (below), holding what that entry's flattening
-  holds as a model's value does, and a model adding nothing to its union takes the union's set. So
+  holds as a model's value does, and a model adding nothing to its union takes the union's set where
+  it adds no constraint to it, and is otherwise synthesized as that union. So
   `rulesets_ResponseRule`'s value is one of its union's rules carrying the five members it requires,
   its `action`, which the model redeclares as a plain string, taking the value the variant's own
   declaration pins, the tag routing to that variant. Which tag a value of a variant pinning none
@@ -525,7 +527,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | A confirmation before a destructive call | the `Destructive` hint, which no method implies |
 | Streamed output for a list | `OpPlan.Page` |
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
-| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all, a model narrowing a union by its `TypePlan.Composed` entries' |
+| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all, and for a model narrowing a union, the `PropID`s its `TypePlan.Composed` entries hold |
 | Flags that exclude or require each other | the branches of a request body's `Union`, or the entries of a body narrowing one |
 | A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)) |
 | A command's help naming its tier and what it means, and an `alpha` command run only with a flag acknowledging it | `OpPlan.Stability` ([stability](operations/stability.md)) |
