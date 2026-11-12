@@ -789,3 +789,36 @@ throughout these documents.
     page keeps a continuation, that ignores an offset, counts pages from another first page or ends
     a page short before the last fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
+47. **T-47 · Values as text** — on every target, under T-12's interception, a value of each
+    primitive sent in a path, a query, a header, a cookie, a form field and a `text/plain` body is
+    the text [values as text](../refine/text.md) gives it: a `float64` 1 as `1` and 10²¹ in plain
+    notation, a `float32` `0.1` as `0.1`, a `decimal` `0.10` as `0.1`, a `datetime_offset` at a
+    whole minute with its seconds, at a zero offset with `Z` and at `+02:00` in a query as
+    `%2B02%3A00`, a `uuid` given in upper case as lower case, `bytes` as padded base64
+    percent-encoded in a path and as it is in a header, a space as `%20`, a query parameter named
+    `a<b` as `a%3Cb`, a `,` in a member of an unexploded query list as `%2C`, an exploded `form`
+    list in a cookie as `p=a; p=b`, `a/b?c#d` and `a//b` in a path under `AllowReserved` as
+    `a/b%3Fc%23d` and `a//b`, a map's entries and a `Prefix` map's fields in their keys' order, the
+    map's entry, and a `form`-exploded map's, giving way to a field another binding writes, a string
+    under `ContentType` `application/json` with its quotes, a `text/plain` body as its UTF-8 octets
+    with no byte-order mark, and a value class and an `enum class` entry as their wire forms, never
+    their `toString()`. An optional query input holding null or an empty list is sent as an absent
+    one, a null member of a list is left out, and a path parameter or a `host` label holding null or
+    an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, an `event_t`
+    of `1.5` in `{event_t}.{event_n}`, a required query list holding no member, a header holding a
+    CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string, a header
+    `Prefix` map holding keys `A` and `a`, a `text/plain` request whose media type names
+    `charset=iso-8859-1`, a NaN, a year past 9999, an offset with seconds and a `decimal`
+    `1E+999999999` each fail before anything is sent, as a NaN, a year past 9999 and an offset with
+    seconds in a body do. The mock server reads each such request back to the values sent, a header
+    `Prefix` map's keys in lower case, as an SDK reads an inbound request's parameters, and either
+    reads a query's `a+b` as `a b`, a scalar's `page=1&page=2` as a text that does not parse, a
+    `page=` as no `page` where `AllowEmptyValue` is set, and an `any` path parameter's `abc` as the
+    JSON string `"abc"`. A response header of each primitive reads `+00:00`, a fraction of each
+    length, one finer than its type's precision cut to it, an upper-case `uuid`, a list sent on two
+    lines and one holding an empty element without it, a `Set-Cookie` list of two lines whose values
+    hold commas as two elements, a header whose `Prefix` is set holding a field another header reads
+    too, keyed in lower case, a `string` header sent as `no-cache, no-store` keeps its space, a
+    `text/plain` body reads `42` after a byte-order mark and does not decode under
+    `charset=iso-8859-1`, and a leap second leaves its field unset with `RawHeader` holding the text
+    (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
