@@ -459,10 +459,10 @@ func TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed(t *testing.T) {
 }
 
 // TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported pins that a branch
-// diagUnresolvedBranches skips, for naming a referent or lying on a loop of
-// $refs, leaves the branches after it reported: the skip moves to the next
-// branch rather than ending the walk. Each row holds the lowering's whole list:
-// the skipped branch draws nothing of its own.
+// diagUnresolvedBranches skips, for being written inline, naming a referent or
+// lying on a loop of $refs, leaves the branches after it reported: the skip
+// moves to the next branch rather than ending the walk. Each row holds the
+// lowering's whole list: the skipped branch draws nothing of its own.
 func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
 	t.Parallel()
 	type report struct {
@@ -475,8 +475,9 @@ func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
 		{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
 	}
 	tests := []struct{ name, skipped string }{
-		{"after one naming a referent", "#/components/schemas/A"},
-		{"after one on a loop", "#/components/schemas/Z/oneOf/0"},
+		{"after one written inline", "{type: object, properties: {b: {type: string}}}"},
+		{"after one naming a referent", "{$ref: '#/components/schemas/A'}"},
+		{"after one on a loop", "{$ref: '#/components/schemas/Z/oneOf/0'}"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -485,7 +486,7 @@ func TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported(t *testing.T) {
     Z:
       type: object
       properties: {kind: {type: string}}
-      oneOf: [{$ref: '`+tc.skipped+`'}, {$ref: '#/components/schemas/Ghost'}]
+      oneOf: [`+tc.skipped+`, {$ref: '#/components/schemas/Ghost'}]
 `))
 			got := make([]report, 0, len(diags))
 			for _, d := range diags {

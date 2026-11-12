@@ -282,9 +282,9 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 // twice: removing the gate in fillRefBranch, diagUnresolvedBranches or
 // refTypeRef adds an unresolved-ref beside the cyclic-ref. Where load
 // reports the loop at the branch, its least member, withoutRereported drops that
-// error, so each gate, and fillRefBranch's second route, an allOf beside a
-// distributed union, has a row whose loop runs through L, which sorts first. A
-// loop past the merge bound goes unread (#1570). A union beside structural
+// error, so each gate, and fillRefBranch's two routes through a distributed
+// union, has a row whose loop runs through L, which sorts first. A loop past
+// the merge bound goes unread (#1570). A union beside structural
 // keywords reaches diagUnresolvedBranches only as case 3 of
 // docs/compilers/openapi.md#union-beside-structure, which the why field checks.
 func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
@@ -365,6 +365,22 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
       oneOf:
         - $ref: '#/components/schemas/A'
         - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
+		}},
+		{"allOf branch beside a distributed union on a sibling branch on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+        - oneOf:
+            - $ref: '#/components/schemas/A'
+            - $ref: '#/components/schemas/B'
     L: {$ref: '#/components/schemas/Y/allOf/0'}
     A: {type: object, properties: {a: {type: string}}}
     B: {type: object, properties: {b: {type: string}}}
