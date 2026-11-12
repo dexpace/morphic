@@ -101,21 +101,22 @@ A model narrowing a union is rendered as the union it narrows, as the SDK target
 the rules above with the entry's `Flattened`, `Required`, `Undeclared` and `Shapes` in place of the
 model's, so each lists every member an instance of that shape carries, as the entry's flattening
 takes it ([TypePlan](plan/types.md#a-model-narrowing-a-union)). A table names the variants its
-entry's `Over` lists, linked, and the tags routing to it where its unions are discriminated, its
-anchor named from the model, that `Over` and its shape, and the model is documented as its union is
-(above). A member is anchored where the model declaring it is rendered, one the model declares in
-the first of its tables that holds it, in `Composed`'s order and then `Shapes`', and one a variant
-declares where that variant is rendered, which the table links as a subtype's links an inherited
-member; the rule for a member no table of its declaring model holds reads these tables as the
-model's. An anonymous union no reference but the model's composition reaches is rendered by those
-tables alone, so an anonymous variant of it no other reference reaches is composed in place, no
-table of its own, its members anchored in the first of the model's tables holding them. A value of
-the model is redacted at the members the `Redacted` of the entry admitting it lists, and whole where
-a variant its `Over` lists is sensitive, as a union's variant is. A model adding nothing to its
-union, which the SDK targets alias, has no table: it is shown as the union it stands for, linked, on
-its page or, where it has none, where it is referenced.
-One the plan composes no entry for otherwise, which they degrade, lists its flattening's members and
-names its union, linked.
+entry's `Over` lists, each linked where it is rendered, and the tags routing to it where its unions
+are discriminated, its anchor named from the model, that `Over` and its shape, and the model is
+documented as its union is (above). A member is anchored where the model declaring it is rendered,
+one the model declares in the first of its tables that holds it, in `Composed`'s order and then
+`Shapes`', and one a variant declares where that variant is rendered, which the table links as a
+subtype's links an inherited member; the rule for a member no table of its declaring model holds
+reads these tables as the model's. An anonymous union no reference but the model's composition
+reaches is rendered by those tables alone, so an anonymous variant of it no other reference reaches
+is composed in place, no table of its own, named unlinked since no route reaches it, its members
+anchored in the first of the model's tables holding them. A value of the model is redacted at each
+member the `Redacted` of any entry admitting it lists, an inclusive value being several of them at
+once ([a value several variants admit](refine/unions.md#a-value-several-variants-admit)), and whole
+where a variant such an entry's `Over` lists is sensitive, as a union's variant is. A model adding
+nothing to its union, which the SDK targets alias, has no table: it is shown as the union it stands
+for, linked, on its page or, where it has none, where it is referenced. One the plan composes no
+entry for otherwise, which they degrade, lists its flattening's members and names its union, linked.
 
 One table of the model's own members headed by its union, linked, would be shorter: 107 rows for the
 golden spec's 23 such models, where a table for each entry holds 1,671 in one shape (spec @bc6fad24,
@@ -529,7 +530,7 @@ depends on it. What it needs is almost all IR and plan facts:
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
 | Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all, and for a model narrowing a union, the `PropID`s its `TypePlan.Composed` entries hold |
 | Flags that exclude or require each other | the branches of a request body's `Union`, or the entries of a body narrowing one |
-| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)) |
+| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)), and for a body narrowing a union each `PropID` the `Redacted` of one of its `TypePlan.Composed` entries lists |
 | A command's help naming its tier and what it means, and an `alpha` command run only with a flag acknowledging it | `OpPlan.Stability` ([stability](operations/stability.md)) |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 

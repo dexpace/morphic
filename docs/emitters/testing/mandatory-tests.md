@@ -364,19 +364,20 @@ throughout these documents.
     table of its own; a model narrowing a union a table for each entry of its `TypePlan.Composed` in
     each shape, each holding its variant's members beside the model's as the entry's flattening
     takes them, so `rulesets_ResponseRule`'s tables mark required the five members it requires and
-    its union's variants do not, each naming the variants its `Over` lists and its tag and anchored
-    from the model, that `Over` and its shape, a value of it redacted at its entry's `Redacted`
-    members and whole where a variant its `Over` lists is sensitive, a union of unions a table for
-    each entry it expands to, each member anchored once, one the model declares in the first table
-    holding it and one a variant declares where that variant is rendered, an anonymous union only
-    the model's composition reaches giving its anonymous variants no table of their own, a model
-    `TypePlan.Open` marks documented as holding variants the document does not list, a model adding
-    nothing to its union showing that union and no table, and one the plan composes no entry for
-    listing its own members beside its union, linked; each example through the shape it is shown in,
-    a write-only member in no
-    response's; a placeholder for every redacted value, on pages, in agent documents and in
-    samples, a sample's written by its SDK target; and raw HTML in a description
-    rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
+    its union's variants do not, each naming the variants its `Over` lists and the tags routing to
+    it and anchored from the model, that `Over` and its shape, a value of it redacted at each member
+    the `Redacted` of an entry admitting it lists, an inclusive one at those of every entry
+    admitting it, and whole where a variant its `Over` lists is sensitive, a union of unions a table
+    for each entry it expands to, each member anchored once, one the model declares in the first
+    table holding it and one a variant declares where that variant is rendered, an anonymous union
+    only the model's composition reaches giving its anonymous variants no table of their own and
+    naming them unlinked, a model `TypePlan.Open` marks documented as holding variants the document
+    does not list, a model adding nothing to its union showing that union and no table, and one the
+    plan composes no entry for listing its own members beside its union, linked; each example
+    through the shape it is shown in, a write-only member in no response's; a placeholder for every
+    redacted value, on pages, in agent documents and in samples, a sample's written by its SDK
+    target; and raw HTML in a description rendered through the allowlist on pages and in agent
+    documents alike, a `<p>` and a `<code>` as
     themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
     an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
     field</p>` and `<p>a <title/> <b>b</b></p>` keep their paragraph, a self-closing `<p/>` read as
@@ -436,7 +437,7 @@ throughout these documents.
     `CrossVersion` without implementing `Router`. A CLI's help keeps a placeholder, a comment and a
     link's URL as text, keeps line feeds and tabs and drops every other control character. A body
     narrowing a union gives the flags of each of its entries, those of two entries excluding each
-    other. A nested
+    other, and never echoes one whose member an entry's `Redacted` lists. A nested
     group's route joins its groups' slugs. Agent documents and `llms.txt`, at site, service, version
     and target scope, share the pages' URLs, escape spec text, write each description back out
     within its item, an unclosed fence closed there and a reference definition reaching no other,
@@ -486,7 +487,7 @@ throughout these documents.
     those of its payload's contents paired with its headers' set, that pairing `Inferred` and off
     with `Assemble`, which the docs, the samples and the mock read a body's examples from. A model
     narrowing a union is checked and shown as that union over its `TypePlan.Composed` entries, a
-    value no entry admits refused and one shown through the entry admitting it, filled from what
+    value no entry admits refused and one shown through each entry admitting it, filled from what
     that entry requires in the shape, and a model adding nothing to its union as that union. Where
     none applies, the value synthesized is valid against its constraints and its type's
     validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never
@@ -552,10 +553,12 @@ throughout these documents.
     `OpenUnions`, such a model keeps a variant its union does not list, and one whose variant holds
     the model compiles, the union breaking the cycle. Each target declares one variant for each
     entry of the model's `TypePlan.Composed` and no other, entries sharing the start of their `Over`
-    nested as a union of them. A model its union lists is that variant, a
-    model the union's sum holds. A model adding nothing to its union aliases it, and one narrowing
-    two unions, one whose union has a variant composing it or reaches itself through its variants,
-    one over a key-tagged, enveloped or index-tagged union, and one whose entries would pass
-    `plan.MaxComposedSize`, which `Build` reports as `emitters/plan/composed-limit`, each draw a
-    diagnostic and degrade
+    nested as a union of them, and a model composing its union through an alias scalar, as a 3.1
+    `$ref` beside a `description` hoists, narrows it as one naming the union does. A model its union
+    lists is that variant, a model the union's sum holds. A model adding nothing to its union
+    aliases it, and one narrowing two unions, one whose union has a variant composing it or reaches
+    itself through its variants, one over a key-tagged, enveloped or index-tagged union, and one
+    whose entries, with what their walks read, would pass `plan.MaxComposedSize`, among them one
+    holding few members over a long composition, which `Build` reports as
+    `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).

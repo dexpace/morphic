@@ -48,7 +48,8 @@ Subtyping survives as interfaces: `Implements` becomes an interface, and a discr
 base a sealed interface of its subtypes, which Go holds in a struct ([Go
 unions](../targets/go/unions.md)).
 
-A union in `TypePlan.Unflattened`, an entry along the model's composition, has no members to flatten
+A union in `TypePlan.Unflattened`, an entry along the model's composition, or one an alias scalar
+there stands for ([TypePlan](../plan/types.md#a-model-narrowing-a-union)), has no members to flatten
 in: each instance of the model is an instance of one of the union's variants, with the rest of the
 composition beside it ([models](../../ir/models.md#a-union-a-composition-names)). So each of the
 three targets lowers the model as the union it narrows, distributing the composition over the
