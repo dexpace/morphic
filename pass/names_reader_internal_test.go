@@ -19,10 +19,10 @@ func spelled(words string) party { return party{words: words, source: words} }
 func TestNameReader_PlacesANameByItselfWhereOnlyItsHashAgrees(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name               string
-		by                 comparison
-		parties            []party
-		wantLater, wantSet []int
+		name                  string
+		by                    comparison
+		parties               []party
+		wantLater, wantShared []int
 	}{
 		{"words as they are", byWords,
 			[]party{spelled("pet"), spelled("set_up"), spelled("setup"), spelled("pet"), spelled("set_up")},
@@ -30,7 +30,7 @@ func TestNameReader_PlacesANameByItselfWhereOnlyItsHashAgrees(t *testing.T) {
 		{"words joined", byJoinedWords,
 			[]party{spelled("pet"), spelled("set_up"), spelled("setup"), spelled("pet"), spelled("pets")},
 			[]int{3, 2, -1, -1, -1}, []int{1, 0}},
-		{"a spelling with no word character, as written", byJoinedWords,
+		{"a spelling with no word character, as written and apart from one a hint gives words", byJoinedWords,
 			[]party{{source: "_-"}, {source: "-"}, {words: "minus", source: "-"}, {source: "-"}},
 			[]int{-1, 3, -1, -1}, []int{1}},
 	} {
@@ -45,7 +45,7 @@ func TestNameReader_PlacesANameByItselfWhereOnlyItsHashAgrees(t *testing.T) {
 			}
 
 			assert.Empty(t, cmp.Diff(tt.wantLater, r.later), "each party's next party named alike")
-			assert.Empty(t, cmp.Diff(tt.wantSet, r.shared), "each set's first party, by its second")
+			assert.Empty(t, cmp.Diff(tt.wantShared, r.shared), "each set's first party, by its second")
 		})
 	}
 }
