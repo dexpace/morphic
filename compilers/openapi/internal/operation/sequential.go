@@ -9,7 +9,6 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -29,10 +28,10 @@ import (
 // itemEncoding govern the items *after* them rather than every item, which a
 // single every-item encoding would misstate. Those documents take
 // positionalEncoding instead.
-func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.MediaType, mediaPtr jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if item := media.GetItemSchema(); item != nil {
-		ref, itemDiags := schema.Ref(c, ts, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
+		ref, itemDiags := schema.Ref(c, w.types, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
 		diags = append(diags, itemsOfOneDocument(c, content.MediaType, mediaPtr)...)
@@ -45,7 +44,7 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, medi
 	if enc != nil {
 		var unmodeled ir.Unmodeled
 		var encDiags []ir.Diagnostic
-		pe, unmodeled, encDiags = encodingConfig(c, ts, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
+		pe, unmodeled, encDiags = encodingConfig(c, w, enc, mediaPtr+ids.Ptr("itemEncoding"), "itemEncoding")
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 		diags = append(diags, encDiags...)
 	}
@@ -96,9 +95,9 @@ func positionalEncoding(c lowering.Ctx, content *ir.Content, media *soa.MediaTyp
 	// suppress the message, and its own conversion failure reports separately.
 	at := mediaPtr + ids.Ptr("prefixEncoding")
 	kept, diags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:prefixEncoding",
-		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		nodeview.Child(root, "prefixEncoding"), ir.ReasonNoIRHome, c.Place().At(at))
 	_, itemDiags := annotation.PreserveNodeInto(&content.Unmodeled, "openapi:itemEncoding",
-		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr("itemEncoding")))
+		nodeview.Child(root, "itemEncoding"), ir.ReasonNoIRHome, c.Place().At(mediaPtr+ids.Ptr("itemEncoding")))
 	diags = append(diags, itemDiags...)
 	if !kept {
 		// Reaching here means prefixEncoding is declared — that is the only reason

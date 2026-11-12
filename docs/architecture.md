@@ -18,7 +18,8 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
                         ┌── IR passes (IR → IR) ───┐
                         │  link · dedup · filter   │
                         │  version-slice · overlay │
-                        │  names · validate        │
+                        │  const-unions · names    │
+                        │  validate                │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -262,14 +263,17 @@ changed since the last one. An update hands its change a deep copy of the node's
 nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
 services and registries, are left out of the copy and changed by their own IDs. The edit keeps each
 node at the key its own ID names and adds no ID, a nested one included, so every ID stays in a
-namespace the document already declares (invariant 3). A write that would break either, or that only
-a bug makes, is refused, and `Finish` returns each refusal as an `ir/edit-refused` error beside the
-document, so it fails the run at the default threshold instead of passing unseen. A removal removes
-what its ID names, with what that holds, and nothing else: a group or a service its last member
-leaves stays, for the pass to remove when its own rule says so. Whether a removal leaves a reference
-dangling is not the edit's to judge: `validate` reports one. Adding a node is not an edit's either:
-the first pass to mint one, `link`, brings that, with a namespace of its own (invariant 3's
-corollary).
+namespace the document already declares (invariant 3). The one exception is an enum member's own ID,
+the one its enum's ID and its value give it (`ir.EnumMemberIDFor`,
+[identity](./ir/identity.md#enum-members)) in a namespace the document declares for members: only
+that member can hold it, so an enum a pass builds takes IDs that collide with nothing. A write that
+would break either, or that only a bug makes, is refused, and `Finish` returns each refusal as an
+`ir/edit-refused` error beside the document, so it fails the run at the default threshold instead of
+passing unseen. A removal removes what its ID names, with what that holds, and nothing else: a group
+or a service its last member leaves stays, for the pass to remove when its own rule says so. Whether
+a removal leaves a reference dangling is not the edit's to judge: `validate` reports one. Adding a
+node is not an edit's either: the first pass to mint one, `link`, brings that, with a namespace of
+its own (invariant 3's corollary).
 
 Two rules in `internal/lintrules` hold the containers to the editor: `registrywrites` refuses
 building a registry, or writing one of its entries, anywhere but `ir` and the compilers (the type
@@ -346,6 +350,13 @@ engine refuses there.
 
 Built, and in the default list:
 
+- **const-unions** — a closed union of strings, every variant a string `Literal`, a one-member
+  `Enum` or a union of one value, is rewritten as the closed `Enum` of its values at the union's own
+  ID, each member holding what its variant and branch say of its value, and each branch type nothing
+  else references is removed ([`string-const-union`](./compilers/openapi.md#string-const-union)). A
+  transform, it runs first. It is no convenience simplification of reference-learnings.md §B0, which
+  are off by default: it loses nothing, keeping the union wherever an `Enum` could not say all it
+  does, so it is on, and `--disable-pass const-unions` hands an emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
   something the document declares (a `TypeRef` target against the type registry, an `OpID` against
@@ -398,9 +409,10 @@ Designed, not yet built:
   the source, applied to the parsed node tree before the model is built, so untouched nodes keep the
   line and column the parser read them at rather than a position in a re-serialised file nobody has.
   The overlay becomes a second `Document.Sources` entry, and every position it introduced or rewrote
-  names that entry as its `Provenance.Source`. Strict application is the default: an action whose
-  JSONPath matches nothing is reported and the compile refuses, because an overlay that silently
-  does nothing ships an SDK missing the fix it was written to make.
+  names that entry as its `Provenance.WrittenBy`, the patched document staying its `Source`
+  ([provenance](./ir/provenance.md)). Strict application is the default: an action whose JSONPath
+  matches nothing is reported and the compile refuses, because an overlay that silently does nothing
+  ships an SDK missing the fix it was written to make.
 
 Passes operate on the IR only; they know nothing about source formats or target languages.
 
@@ -434,8 +446,9 @@ though both are post-milestone scope:
 - **Write/integrate** — regenerating into a live repo alongside hand-written code requires:
   deterministic file paths, a generation manifest (digests of the IR and of what else the generation
   read, a sorted file list, and an entity → generated-symbol map **keyed by IR stable IDs**, which
-  survive a rename of what they are not built from, a correlation key (#679) carrying one that keeps
-  the name the key is built from), file-header provenance that gates pruning (never delete a file
+  survive a rename of what they are not built from, a [correlation
+  key](./ir/derived-facts.md#correlation-keys) carrying one that keeps the name the key is built
+  from), file-header provenance that gates pruning (never delete a file
   lacking the generated-by header), ignore-region markers for hand-written islands, and
   additive-only merging. Additive-only writers also need a staleness check — (previous-revision
   entities − current entities) ∩ files-on-disk — to surface dead code that pruning cannot touch.
@@ -583,7 +596,8 @@ morphic/
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
 │   │       ├── servers/    #             the servers a document declares, one registry
 │   │       ├── document/   #             info, and what the document keeps verbatim
-│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
+│   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes,
+│   │                       #             and lowering/loweringtest/, a context over a loaded document
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
@@ -646,9 +660,9 @@ The import rules bound what a package names, not where control goes: a package c
 one it does not import, through a function, an interface or a type argument handed to it.
 `internal/archtest` counts those calls for each pair of packages and holds them to
 `callShapeBaseline`, where each pair says what its calls are: a designed seam such as the registry
-calling a compiler, a traversal or immediate callback, a function #1488 keeps, such as I/O or a
-policy, or one that #1488 removes. A new such call is a change to that table, made on purpose,
-rather than one no check sees.
+calling a compiler, a traversal or immediate callback, or a function #1488 keeps, such as I/O, a
+policy or a lazily built index. A new such call is a change to that table, made on purpose, rather
+than one no check sees.
 
 The engine owns every read, every write and every rendering for a person, so a second driver — an
 editor integration, an emitter driver, a test harness — reads, writes and reports exactly as the CLI

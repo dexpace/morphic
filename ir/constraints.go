@@ -90,7 +90,9 @@ type Encoding struct {
 
 // XMLHints describes an XML wire shape that diverges from the JSON-implied one
 // (docs/ir/constraints.md#xml-hints). Hints attach at TypeCommon (root shape)
-// and Property (per-use overrides; property wins).
+// and Property, whose hints override the type's field by field: a field the
+// property leaves unset takes the type's. NodeType and Attribute spell one
+// fact, the node's kind, and override as one.
 type XMLHints struct {
 	// Name is the element/attribute name override.
 	Name string `json:"name,omitempty"`
@@ -99,8 +101,14 @@ type XMLHints struct {
 	// Prefix is the namespace prefix.
 	Prefix string `json:"prefix,omitempty"`
 	// NodeType is "", "element", "attribute", "text", "cdata", or "none" (OpenAPI
-	// 3.2 nodeType; "text" covers Smithy httpPayload text).
+	// 3.2 nodeType; "text" covers Smithy httpPayload text). Set, it decides the
+	// node's kind over Attribute.
 	NodeType string `json:"nodeType,omitempty"`
-	// Wrapped reports that list items are wrapped in a container element.
-	Wrapped bool `json:"wrapped"`
+	// Attribute reports that the node is an attribute rather than an element, as
+	// a flag such as OpenAPI's attribute or Smithy's xmlAttribute says; nil =
+	// unstated, so a property's false can override a type's true.
+	Attribute *bool `json:"attribute,omitzero"`
+	// Wrapped reports that list items are wrapped in a container element; nil =
+	// unstated, so a property's false can override a type's true.
+	Wrapped *bool `json:"wrapped,omitzero"`
 }

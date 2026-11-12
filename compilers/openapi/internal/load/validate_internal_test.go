@@ -21,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -67,7 +67,7 @@ components:
       <<: {minLength: -1}
 `
 	root := decodeRoot(t, src)
-	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
+	tree := treeOf(t.Context(), provenance.Doc{Source: 4}, root)
 
 	got := judgeSource(t.Context(), root, tree, budget.Unbounded())
 
@@ -104,7 +104,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), budget.Unbounded())
+	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -133,8 +133,8 @@ func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
 }
 
 // TestJudgeSource_AnOverlayOwnsWhatItWrote pins the attribution of a finding
-// about a node an overlay introduced: the overlay's index, and the node's
-// pointer, where a node the overlay left alone keeps the source's.
+// about a node an overlay introduced: the node's pointer, with the overlay as
+// its writer, where a node the overlay left alone names no writer.
 func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T}\npaths: {}\n"
@@ -145,10 +145,10 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]int{}
 	for _, d := range diags {
-		got[d.Provenance.Pointer] = d.Provenance.Source
+		got[d.Provenance.Pointer] = d.Provenance.WrittenBy
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/info": 0, "/info/description": 1}, got,
-		"the missing version is the source's to answer for, the description the overlay's")
+		"the missing version is the source's to answer for, the description the overlay's, which wrote it")
 }
 
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an
@@ -235,7 +235,7 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), budget.AtMost(2))
+	got := judgeSource(t.Context(), &root, treeOf(t.Context(), provenance.Doc{}, &root), budget.AtMost(2))
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)

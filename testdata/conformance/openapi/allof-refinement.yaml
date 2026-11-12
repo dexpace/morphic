@@ -68,6 +68,17 @@ components:
             - {type: integer, format: int32}
         # A use reads through a component refining another.
         scan: {$ref: '#/components/schemas/ScanID'}
+        # A collection bound on a branch binds the use, as one beside the allOf
+        # does, and the counts meet.
+        tags:
+          allOf:
+            - {$ref: '#/components/schemas/Tags'}
+            - {minItems: 1, uniqueItems: true}
+            - {minItems: 2}
+        # An enum beside the allOf is one of its conjuncts, narrowing the $ref.
+        level:
+          enum: [get]
+          allOf: [{$ref: '#/components/schemas/Mode'}]
     Scores:
       type: array
       items:
@@ -91,6 +102,24 @@ components:
     Bounded:
       type: string
       allOf: [{maxLength: 3}]
+    # A branch's collection bound lands on the list the type beside it makes.
+    BoundedList:
+      type: array
+      items: {type: string}
+      allOf: [{maxItems: 2}]
+    # What a branch says reads as written beside the enum the position is.
+    Level:
+      type: string
+      enum: [low, high]
+      allOf: [{description: A level, deprecated: true}]
+    # A $ref to a principal's own pointer names the node the refinement types.
+    Raw80: {$ref: '#/components/schemas/Port80/allOf/1'}
+    # A const takes the type and format another conjunct declares, as one
+    # schema writing them all gives it.
+    Port80:
+      allOf:
+        - {type: integer, format: int32}
+        - {const: 80}
     # No value satisfies both, so the contradiction stands with its warning.
     Disjoint:
       allOf:
@@ -110,5 +139,12 @@ components:
       title: An identifier
       description: The identifier
     Port: {type: integer}
+    Tags: {type: array, items: {type: string}}
     Mode: {type: string, enum: [get, set], description: What to do}
     Blob: {type: string, format: binary}
+    # A union on a branch is a conjunct admitting what its branches do, so this
+    # is the string the second branch says, and the anyOf adds nothing to it.
+    Needle:
+      allOf:
+        - anyOf: [{type: string}, {type: number}, {type: boolean}]
+        - {type: string, maxLength: 1000}

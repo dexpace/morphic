@@ -58,9 +58,10 @@ in opposite ways:
   for every other array a pointer passes through: `allOf`, `anyOf` and `oneOf` branches,
   `prefixItems`, a list of `type`s, an `enum`'s values and a list of `servers`. A consumer
   comparing by ID then attaches one entity's state to another, a wrong match rather than a missing
-  one, and nothing about either ID shows it. On the golden spec 10,122 of 41,697 types, 13,466 of
-  32,291 enum members, 5,871 of 49,434 properties and all 8 servers have an ID that passes through
-  an array index (spec @319dc756, morphic @b206dc99):
+  one, and nothing about either ID shows it. The golden spec's own history holds a case
+  ([correlation keys](./derived-facts.md#correlation-keys)). On the golden spec 10,122 of 41,697
+  types, 13,466 of 32,291 enum members, 5,871 of 49,434 properties and all 8 servers have an ID
+  that passes through an array index (spec @319dc756, morphic @b206dc99):
 
   ```bash
   morphic compile openapi.json | jq -c '[.. | objects | .id? | strings | select(contains("/"))]
@@ -159,11 +160,14 @@ them fixes it here.
 
 An enum member is identified by the enum that declares it and the value it holds:
 `e/<the enum's namespace>/<the enum's path>/<key>`. The member lives in the namespace of its
-enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one) and beneath its
-path, so it needs no namespace of its own: only enums hold members. `irverify` holds it there
-(`ir/member-id-scope`); a member records no pointer for the agreement below to compare, so that
-scope is what ties the two IDs together. The key, and the number a repeated value appends after it,
-are described in [enums](./enums.md#member-identity).
+enum's own `TypeID` (`openapi` for a component schema, `anon` for an inline one, `composed` for one
+a merge mints) and beneath its path, so it needs no namespace of its own: only enums hold members.
+`irverify` holds it there (`ir/member-id-scope`); a member records no pointer for the agreement
+below to compare, so that scope is what ties the two IDs together. The key, and the number a
+repeated value appends after it, are described in [enums](./enums.md#member-identity).
+`ir.EnumMemberIDFor` derives the ID from the enum's ID and the key `ir.EnumMemberKey` reads off the
+value, so a compiler and a pass building an enum reach one ID, and an `ir.Editor` lets an edit add
+it, as only that member can hold it ([architecture](../architecture.md) §2.2).
 
 ## What irverify holds
 

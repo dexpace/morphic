@@ -107,7 +107,7 @@ func messageCases() []messageCase {
 			illFormed, illFormed, ir.IdempotencyToken)},
 		{"webhook template", func() *ir.Document {
 			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
-				HTTP: []ir.HTTPBinding{{IsWebhook: true, URITemplate: illFormed}}}})
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, URITemplate: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
 			illFormed)},
@@ -116,6 +116,24 @@ func messageCases() []messageCase {
 				HTTP: []ir.HTTPBinding{{WebhookName: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"binding that is not a webhook carries webhook name %q; only a webhook binding names an event", illFormed)},
+		{"inbound kind", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})
+		}, "ir/unknown-http-inbound", fmt.Sprintf("binding carries undeclared inbound kind %q", illFormed)},
+		{"callback unlisted", func() *ir.Document {
+			return opDoc(ir.Operation{ID: ir.OpID("op/x/S/" + illFormed), Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundCallback}}}})
+		}, "ir/callback-unlisted", fmt.Sprintf(
+			"operation %q is marked a callback, but no binding lists it among its Callbacks", "op/x/S/"+illFormed)},
+		{"callback unmarked", func() *ir.Document {
+			cb := ir.OpID("op/x/S/" + illFormed)
+			doc := opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
+				HTTP: []ir.HTTPBinding{{Callbacks: []ir.Callback{{Operations: []ir.OpID{cb}}}}}}})
+			doc.Services[0].Groups[0].Operations = append(doc.Services[0].Groups[0].Operations,
+				ir.Operation{ID: cb, Name: named("cb")})
+			return doc
+		}, "ir/callback-unmarked", fmt.Sprintf(
+			"a binding lists operation %q among its Callbacks, but it is not marked a callback", "op/x/S/"+illFormed)},
 		{"prim not derived", func() *ir.Document {
 			return typesDoc(&ir.Primitive{ID: ir.TypeID("t/x/" + illFormed), Prim: ir.PrimString})
 		}, "ir/prim-id-not-derived", fmt.Sprintf(

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -152,6 +153,106 @@
       "constraints": {
         "uniqueItems": false,
         "minProps": 2
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MixedKinds/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MixedKinds/oneOf/0",
+      "name": {
+        "hint": "mixed_kinds_a"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedKinds/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MixedKinds/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MixedKinds/properties/kind"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/A",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MixedKinds/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MixedKinds/oneOf/1",
+      "name": {
+        "hint": "mixed_kinds_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MixedKinds/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MixedKinds/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MixedKinds/properties/kind"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
       },
       "abstract": false,
       "positional": false,
@@ -375,7 +476,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/InlineHost": {
       "kind": "union",
@@ -414,7 +517,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/InlineOutsider": {
       "kind": "model",
@@ -466,7 +571,7 @@
       "inputOnly": false
     },
     "t/openapi/components/schemas/MixedKinds": {
-      "kind": "model",
+      "kind": "union",
       "id": "t/openapi/components/schemas/MixedKinds",
       "name": {
         "source": "MixedKinds",
@@ -475,58 +580,35 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:oneOf": {
-          "reason": "degraded_lowering",
-          "value": [
-            {
-              "$ref": "#/components/schemas/A"
-            },
-            {
-              "type": "string"
-            }
-          ],
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/MixedKinds/oneOf"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"
       },
-      "properties": [
+      "variants": [
         {
-          "id": "p/openapi/components/schemas/MixedKinds/properties/kind",
           "name": {
-            "source": "kind",
-            "canonical": "kind"
+            "hint": "a"
           },
-          "wireName": "kind",
           "type": {
-            "target": "t/prim/string",
+            "target": "t/composed/components/schemas/MixedKinds/oneOf/0",
             "nullable": false
           },
-          "required": false,
-          "clientOptional": false,
-          "defaultAdded": false,
-          "visibility": {
-            "none": false
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
           },
-          "flatten": false,
-          "eventHeader": false,
-          "eventPayload": false,
-          "secret": false,
-          "docs": {},
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/MixedKinds/properties/kind"
-          }
+          "type": {
+            "target": "t/composed/components/schemas/MixedKinds/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
         }
       ],
-      "abstract": false,
-      "positional": false,
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
       "inputOnly": false
     },
     "t/openapi/components/schemas/Outsider": {
@@ -626,8 +708,8 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Unmodeled",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MixedKinds"
@@ -647,7 +729,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-oneof-cooccurrence.yaml",
-      "hash": "ebfa72a094c91f97d3919297a5f3cc83845bd9044735b9e52d2085f975b4549a"
+      "hash": "1486e94170f16b4d73de46cf2421584dc29e33c8753d8ecd8a3d0dcb27e3f491"
     }
   ]
 }

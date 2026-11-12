@@ -89,7 +89,9 @@ func kindOfValue(v ir.Value) kindSet {
 		return kindObject
 	case ir.ValueNumber:
 		return kindOfNumber(string(v.Num))
-	case ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		// A reference, a constructor and a non-finite number are no JSON
+		// instance's value.
 		return 0
 	default:
 		return 0
@@ -602,12 +604,16 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 // same JSON, read against one base where it writes a relative $ref: under an
 // $id naming another URI, the same spelling resolves elsewhere. A copy in
 // another document is read apart: its $refs resolve against that document, and
-// its dialect may differ (docs/compilers/openapi.md#openapi-versions).
+// its dialect may differ (docs/compilers/openapi.md#openapi-versions). A schema
+// placed nowhere, a nil one among them, is written alike with none.
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)
+	if !placed || !placedB || at.Doc != bt.Doc {
+		return false
+	}
 	text := w.text(a)
-	if !placed || !placedB || at.Doc != bt.Doc || text == nil || !bytes.Equal(text, w.text(b)) {
+	if text == nil || !bytes.Equal(text, w.text(b)) {
 		return false
 	}
 	// The texts are remembered, so comparing them first leaves a base, which

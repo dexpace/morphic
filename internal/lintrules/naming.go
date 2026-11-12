@@ -32,11 +32,11 @@ func (l layout) nameChannels() *analysis.Analyzer {
 // The ways a name channel can be filled, each a reason for a finding. Each
 // takes the field's name.
 const (
-	notFramework = "ir.Naming.%s is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	severalValue = "ir.Naming.%s is filled from a call returning several values; fill it alone, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	extended     = "ir.Naming.%s is extended in place; fill it whole, from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	byRange      = "ir.Naming.%s is filled by a range clause; fill it from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
-	addressed    = "the address of ir.Naming.%s is taken, so what fills it is out of sight; fill it from compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	notFramework = "ir.Naming.%s is filled by something other than a call into ir or compilers/compile; use ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	severalValue = "ir.Naming.%s is filled from a call returning several values; fill it alone, from ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	extended     = "ir.Naming.%s is extended in place; fill it whole, from ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	byRange      = "ir.Naming.%s is filled by a range clause; fill it from ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	addressed    = "the address of ir.Naming.%s is taken, so what fills it is out of sight; fill it from ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
 )
 
 func (l layout) runNameChannels(pass *analysis.Pass) (any, error) {

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -168,7 +169,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Plain": {
       "kind": "model",

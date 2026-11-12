@@ -1,0 +1,30 @@
+openapi: 3.1.0
+info: {title: TypeArrayDiscriminator, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A type array lowers to a union of one variant per type. Nothing can name
+    # the object variant, which a subtype's allOf never composes, so the
+    # discriminator is kept verbatim on the union.
+    Pet:
+      type: [object, string]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/components/schemas/Cat'
+    # Named by the mapping: its tag is the key, and its base is the union.
+    Cat:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      type: object
+      properties:
+        meow: {type: boolean}
+    # Absent from the mapping: its tag is its component name.
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+      type: object
+      properties:
+        bark: {type: boolean}

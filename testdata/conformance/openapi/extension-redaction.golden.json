@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -435,8 +436,7 @@
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -795,7 +795,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Login": {
       "kind": "model",

@@ -470,7 +470,7 @@ func TestConstraints_AttributesAKeptModifierAtItsKeyword(t *testing.T) {
 
 	entry, ok := kept["openapi:exclusiveMinimum"]
 	require.True(t, ok)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/p/exclusiveMinimum"}, entry.Provenance)
+	assert.Equal(t, ir.Provenance{Pointer: "/p/exclusiveMinimum", WrittenBy: 1}, entry.Provenance)
 	require.Len(t, diags, 1, "the orphaned modifier is still reported")
 }
 

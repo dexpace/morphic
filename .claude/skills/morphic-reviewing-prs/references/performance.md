@@ -9,6 +9,8 @@ how each kind of cost claim is measured; a cost read off the code is a `question
 2. Count its work at n, 2n and 4n on that shape, on both builds
    (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`,
    `.claude/skills/morphic-measuring-performance/references/finding-cost.md#deep-generated-shapes`),
+   each dimension a nested loop iterates grown alone
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#grow-each-dimension-alone`),
    in the process doing the work
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#count-stops-at-the-timed-process`)
    and across two rounds beside a control
@@ -22,8 +24,10 @@ how each kind of cost claim is measured; a cost read off the code is a `question
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#clear-never-shrinks`),
    never taking a resident set read with the collector off for a peak
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#resident-set-without-collector`).
-5. Hold each cost the change states to the measure its kind takes, and find where a small difference
-   comes from
+5. Hold each cost the change states or weighs to the measure its kind takes, on an input where it
+   can occur
+   (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#cost-measured-where-it-occurs`),
+   and find where a small difference comes from
    (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#attribute-by-statement-counts`).
 
 A finding gives the gap measured on both builds and the correct alternative closing it. The matrix

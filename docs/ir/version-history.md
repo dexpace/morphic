@@ -295,3 +295,155 @@ it sees. Changes made together in one bump are listed together under it.
   ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
   `application/octet-stream` is no longer a file, nor is `format: binary` beside a
   `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.
+- **0.33.0** — four changes to the type nodes, made together:
+  - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
+    hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
+    `oneOf` or `anyOf` is, unless a promoted extension opens it, as `x-extensible-enum` does under
+    the default mapping on the union of literals a mixed enum lowers to. `InputOnly` marks a union
+    only a request carries, as `Model.InputOnly` marks an input object. Both are always written. A
+    consumer pinned to 0.32.0 refuses the document for its unknown members.
+  - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
+    number of one value, or a string and a date, are told apart where they were one `Value`, with
+    the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
+    the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
+  - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
+    `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
+    catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
+    which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
+    A consumer pinned to 0.32.0 decoding the value as required fails on the missing member.
+  - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
+    payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
+- **0.34.0** — three changes to the HTTP binding, made together:
+  - `HTTPBinding.IsWebhook` became `Inbound`, a closed `webhook | callback`, empty for an operation
+    the client sends, so a callback operation is marked the way a webhook is, where only a reverse
+    lookup through its declaring operation's `Callbacks` showed it. `Callback` gained `Name`, the
+    callbacks-map key. A consumer pinned to 0.33.0 refuses the document for its unknown members,
+    and finds no `isWebhook` where it read one.
+  - `HTTPBinding` gained `PathDocs`, a path item's own summary and description, which the OpenAPI
+    compiler had kept on each operation the item mounts under `openapi:pathItem/summary` and
+    `openapi:pathItem/description` (`no_ir_home`) with an info report. Those entries and that report
+    are retired there; an item mounting no operation still keeps its pair on the nearest node.
+  - An inbound operation's `Auth` now states only what it declares, inheriting no service, server
+    or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
+    consumer pinned to 0.33.0 reading a webhook with no `Auth` as inheriting hands it the client's
+    credentials.
+- **0.35.0** — no shape change; three changes to what a compiled document holds, made together, each
+  reading what an `allOf` conjunct writes as the OpenAPI compiler reads it written beside the `allOf`
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
+  [`allof-refinement`](../compilers/openapi.md#allof-refinement)):
+  - A `minItems`, `maxItems` or true `uniqueItems` on an inline branch reaches the `Constraints` one
+    written beside the `allOf` reaches: of the `Property`, `Parameter` or alias `Scalar` holding a
+    refinement's use of its principal, or of the `List` or `Tuple` the position lowers to. The branch
+    had been kept whole under `Unmodeled`. A collection bound on a branch beside a type list lands
+    on its `List` or `Tuple` variant.
+  - An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts rather than the
+    winner of the election of competing keywords, so the `allOf` is no longer kept whole under
+    `Unmodeled`: its branches fold, a `$ref` it writes lowers, and a narrower branch is what the
+    position uses. One beside an `allOf` that composes still wins it, and conjuncts sharing no value
+    there draw the warning a composition's do. A union variant written as such a value set narrowing
+    a `$ref` takes the hint the `$ref` suggests, as the same conjunction written in its branches
+    does, where it took `variant_N`, so the symbol an emitter generates from it is renamed.
+  - The `ValueType` of the `Enum` or `Literal` a refinement lowers to reads the type and format every
+    conjunct declares, where it read its own schema's alone, and a branch whose format it holds is
+    no longer kept.
+
+  A consumer pinned to 0.34.0 that read those `Unmodeled` entries no longer finds them, and refuses
+  the document as another generation's.
+- **0.36.0** — pagination and streaming gained the facts declared pagination and conditional
+  streams state:
+  - `ParamPath` became `InputPath`, whose `Param` is optional: nil roots the path in the request
+    body, so a search endpoint's body cursor or page size is an input. `Pagination` gained
+    `TotalPages`, counting pages where `TotalCount` counts items, and `Stop`, the closed
+    `empty | no_next | short | total` conditions that end iteration, where each consumer guessed.
+  - `StreamDetail` gained `Terminator`, the frame data that ends a stream and is no element (an
+    SSE `data: [DONE]`), and `Condition`, the request input and value that ask for a stream an
+    operation sends only when asked.
+  - No compiler fills these yet. A consumer pinned to 0.35.0 refuses a document that sets one, and
+    finds a body input's `param` absent where it required one.
+- **0.37.0** — fields that could not say what a source left unstated, or who wrote it:
+  - `ServerVariable.Default` became `*string`: nil states no default, and an empty string
+    substitutes nothing, as an OpenAPI `default: ""` does. The OpenAPI compiler writes the empty
+    string where it had written no key, so a consumer pinned to 0.36.0 reading the absent key as
+    no default now reads `""`.
+  - A property's `XMLHints` and `Encoding` override its type's field by field, a field the property
+    leaves unset taking the type's, where the property's had replaced the type's whole
+    ([XML hints](./constraints.md#xml-hints), [encodings](./constraints.md#encodings)). So each
+    field is written only where declared: `XMLHints.Wrapped` became `*bool`, and `XMLHints` gained
+    `Attribute`, a `*bool` holding what `attribute` writes, which no longer lowers into `NodeType`.
+    A consumer pinned to 0.36.0 finds no `wrapped` member where it read `false`, no `nodeType`
+    where `attribute: true` wrote `attribute`, and, replacing a type's hints or encoding with a
+    property's whole, loses what the property left unset.
+  - `Provenance` gained `WrittenBy`: an overlay's writing into the source is located at the
+    source's index with the overlay as its writer, where `Source` had named the overlay at a
+    position of another document. A consumer pinned to 0.36.0 reading such a pointer against the
+    overlay's file reads it at the wrong place.
+- **0.38.0** — no shape change: an inline branch of an `allOf` beside a `oneOf`, an `anyOf` or a
+  `$dynamicRef` folds what it writes for the position into the composition, as a composing `allOf`'s
+  branch does with none of them there, where the OpenAPI compiler had kept it whole under
+  `Unmodeled["openapi:allOf/<n>"]`
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). Where a union
+  distributes ([models](./models.md#composition-beside-a-union)), the branch's docs, deprecation,
+  examples, secrecy and XML hints reach the `Union`, what a use binds its carriers, and a value
+  bound each composed variant, and a branch with no residue left is kept on no variant; beside a
+  union or a `$dynamicRef` kept verbatim they reach the `Model`, as in a composition with neither
+  beside it. A consumer pinned to 0.37.0 that read the branch under that key no longer finds it, and
+  refuses the document as another generation's.
+- **0.39.0** — no shape change. The OpenAPI compiler lowers four spellings of a union it had kept
+  verbatim under `Unmodeled`: one on an inline branch of a composing `allOf`, distributed across the
+  rest of the composition as one beside the `allOf` is, and one on a branch of an `allOf` no object
+  satisfies, read as a conjunct, where it kept the branch under `openapi:allOf/<n>`; one beside a
+  model with inline branches, each conjoined by the node it lowers to at its own pointer, and one
+  beside keywords its every branch already says, lowered as the union alone, where it kept the
+  branches under `openapi:oneOf` or `openapi:anyOf`
+  ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). `Content.Encoding`
+  on a body that is a union, as a distributed one is, keys each part by the property of the first
+  variant declaring it, where its keys were defined only against a body model and `pass.Validate`
+  refused them. A consumer pinned to 0.38.0 that read such a union under those keys no longer finds
+  it there, and one looking such an encoding key up among the union's own members finds none.
+- **0.40.0** — no shape change. The OpenAPI compiler lowers a `oneOf` or `anyOf` with a
+  `discriminator` beside structure, where no branch composes the schema, as it lowers one with
+  none, a union of its branches where they say the keywords beside it and a union of composed
+  variants otherwise, the discriminator routing the union, where it kept the branches under
+  `openapi:oneOf` or `openapi:anyOf` and the discriminator under `openapi:discriminator` beside a
+  model ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)). Its
+  discriminator-inference policy, on by default, reads a union's tags off the string each variant
+  pins ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): it fills the
+  `Mapping` of a discriminator declaring none where OpenAPI's implicit mapping by component name
+  would route a variant by a tag it rejects, and gives a union declaring none a `Discriminator` with
+  `Inferred` set, the union `WireTagged`, where every variant requires a property pinned to a
+  distinct string. The union's `Provenance.Inferred` names `discriminator-inference` either way. A
+  consumer pinned to 0.39.0 no longer finds those keys on such a schema, reads an undeclared union
+  it read as untagged as tagged, and routes a declared one by a mapping it had read as nil.
+- **0.41.0** — no shape change. The OpenAPI compiler lowers a `type` listing more than one type with
+  no `Discriminator` on its `object` variant, keeping the schema's `discriminator` verbatim under
+  `Unmodeled["openapi:discriminator"]` on the `Union` the type array lowers to
+  ([`type-arrays`](../compilers/openapi.md#type-arrays)). The variant had held it except beside a
+  `oneOf` or `anyOf` kept verbatim, where a mapping, a default or a `$ref` branch moved it to the
+  `Union`. Nothing can name the variant, so no type is its subtype: a mapping to a subtype of the
+  schema failed validation, and a route by a subtype's component name went unread. An object variant
+  that held the discriminator beside a catch-all and nothing else now lowers to a `MapT`, as that
+  object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
+  finds it there.
+- **0.42.0** — no shape change. The engine's `const-unions` pass, on by default, rewrites a closed
+  union whose every variant names an anonymous string `Literal`, a closed `Enum` of one string or a
+  union of one value in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
+  the closed `Enum` of its values at the union's own ID, each member holding what its branch said of
+  its value, and removes the branch types nothing else references
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to 0.41.0
+  that read such a position as a `Union` finds an `Enum` there, and no longer finds the types its
+  variants named.
+- **0.43.0** — no shape change. The OpenAPI compiler tags a subtype by its component name only where
+  a discriminator routes it by name
+  ([`discriminator-value`](../compilers/openapi.md#discriminator-value)): one written beside a
+  `oneOf` or `anyOf` routes only what that union lists, so a schema composing a discriminated union
+  that does not list it, a narrowing of the union, has no `DiscriminatorValue`, where it had carried
+  its name, which the union's discriminator routes to no variant, and a union written beside such a
+  schema's `allOf` distributes over it, as beside any schema no route names, where it was kept
+  verbatim under `openapi:oneOf` or `openapi:anyOf`. Its discriminator-inference policy reads what a
+  subtype routed by name admits for the tag
+  ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): admitting only
+  strings other than its name, it carries the one it admits, or no tag where it admits several or
+  none, the subtype's `Provenance.Inferred` naming `discriminator-inference` either way. A consumer
+  pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
+  there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
+  instead.

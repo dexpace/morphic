@@ -26,7 +26,7 @@ func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 	if src == nil {
 		return dst
 	}
-	for _, kw := range constraintKeywords() {
+	for _, kw := range constraintKeywords {
 		kw.meet(dst, src)
 	}
 	dst.UniqueItems = dst.UniqueItems || src.UniqueItems
@@ -56,25 +56,24 @@ type constraintKeyword struct {
 // deterministic. A bound takes its tighter value, a step the common multiple of
 // both (commonStep), and a keyword with no order keeps one value and conflicts
 // with any other. UniqueItems is absent: a plain bool cannot tell false from
-// unset, and under intersection a true from either side always holds.
-func constraintKeywords() []constraintKeyword {
-	return []constraintKeyword{
-		numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
-		numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
-		numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
-		numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
-		numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
-		intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
-		intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
-		intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
-		intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
-		intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
-		intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
-		intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
-		intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
-		strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
-		strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
-	}
+// unset, and under intersection a true from either side always holds. It is
+// built once, as every judgment of two nodes' bounds reads it several times.
+var constraintKeywords = []constraintKeyword{
+	numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
+	numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
+	numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
+	numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
+	numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
+	intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
+	intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
+	intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
+	intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
+	intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
+	intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
+	intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
+	intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
+	strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
+	strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
 }
 
 // numberKeyword is the arbitrary-precision keyword name, stored at slot, which
@@ -162,7 +161,7 @@ func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conf
 	if a == nil || b == nil {
 		return 0, "", false
 	}
-	for i, kw := range constraintKeywords() {
+	for i, kw := range constraintKeywords {
 		if detail, conflict := kw.differ(a, b); conflict {
 			return i, detail, true
 		}

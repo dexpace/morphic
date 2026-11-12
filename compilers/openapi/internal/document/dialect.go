@@ -21,7 +21,7 @@ func keepJSONSchemaDialect(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	at := ids.Ptr("jsonSchemaDialect")
 	node := nodeview.Child(c.Doc.GetRootNode(), "jsonSchemaDialect")
 	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("", "jsonSchemaDialect"), node,
-		ir.ReasonOutOfScope, c.ProvenanceAt(at))
+		ir.ReasonOutOfScope, c.Place().At(at))
 	if !kept {
 		return diags
 	}

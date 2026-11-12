@@ -58,6 +58,16 @@ operations](../../operations/long-running.md).
 `ResultPath`. The poll loop's backoff between attempts is `lro.go.tmpl`. Printer emits
 `StartExport`, `StartExportParams`, and `ExportPoller` + `Poll()/PollUntilDone()`.
 
+## Stability
+
+Each method an `alpha` or `beta` operation lowers to, its `WithResponse` method among them, gives
+its tier a paragraph of its doc comment after the summary
+([stability](../../operations/stability.md)), such as `Beta: breaking changes are possible but not
+expected.`, so the comment still opens with the sentence summarizing the method, as a Go doc comment
+does, and `go doc` and an editor show the tier at the call. Go has no annotation a caller must
+acknowledge, and a build tag compiling an `alpha` method only under `-tags alpha` would split the
+package's API by tag, every test then building twice, so Go gates nothing.
+
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —

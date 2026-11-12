@@ -9,6 +9,10 @@
       "anon@common.yaml",
       "anon@paths.yaml",
       "anon@schemas~1pet.yaml",
+      "composed",
+      "composed@common.yaml",
+      "composed@paths.yaml",
+      "composed@schemas~1pet.yaml",
       "openapi",
       "openapi@common.yaml",
       "openapi@paths.yaml",
@@ -215,8 +219,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -340,8 +343,7 @@
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -513,8 +515,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

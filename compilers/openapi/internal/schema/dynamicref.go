@@ -102,14 +102,14 @@ func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 // any of these makes the reference irreducible; expanding regardless would
 // assert the target's shape and drop the sibling in silence.
 //
-// It is broader than declaresShape by narrowsInstance's keywords, for the reason
-// that predicate records: an expansion takes the target whole, so a keyword it
-// cannot carry is lost whether or not it declares a shape by itself.
+// It counts narrowingKeywords as well as shapeKeywords, for the reason the
+// former record: an expansion takes the target whole, so a keyword it cannot
+// carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *oas3.Schema) bool {
 	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
 		return true
 	}
-	return narrowsInstance(s) || declaresShape(s)
+	return writesSiblingKeyword(s)
 }
 
 // soleAnchorSite returns the one position of c's document declaring the named
@@ -214,7 +214,7 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema,
 		return nil
 	}
 	at := pointer + ids.Ptr("$dynamicRef")
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why))

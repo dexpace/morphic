@@ -53,7 +53,7 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.ProvenanceAt)
+	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c, s), pointer, c.Place())
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, stampConstraintDiags(c, diags, pointer)
 }
@@ -64,46 +64,64 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 // Diags.Append rather than reported twice.
 func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontext.Pointer) []ir.Diagnostic {
 	for i := range diags {
-		diags[i].Provenance = c.ProvenanceAt(pointer)
+		diags[i].Provenance = c.Place().At(pointer)
 	}
 	return diags
 }
 
 // CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
 // A position owning its node leaves the collection bounds to it, one home per
-// declaration, so the carrier reads the value bounds alone. One owning none can
-// have written a collection bound only beside a reference, since the census
-// hoists an alias to keep any other, so the carrier reads it there
-// (referenceConstraintsOf). PreserveRefSiteKeywords draws the same line.
+// declaration, so the carrier reads the value bounds alone. One owning none holds
+// those a reference does (referenceConstraintsOf), since the census hoists an
+// alias to keep any other. PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if LoweredToOwnNode(c, ts, pointer, t) {
 		return ConstraintsOf(c, p, s, voices, pointer)
 	}
-	return referenceConstraintsOf(c, p, s, voices, pointer)
+	return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 }
 
-// referenceConstraintsOf is ConstraintsOf for a position that lowered to a
-// reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
+// referenceConstraintsOf is ConstraintsOf for a position that lowered to target,
+// a reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
 // refinement: no node of its own holds the collection bounds it wrote, so they
 // join its value bounds on the alias or carrier it owns
-// (docs/compilers/openapi.md#constraints). A voice's collection bound folds into
-// nothing, so its branch keeps it (GitHub #1312).
-func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+// (docs/compilers/openapi.md#constraints), with those its voices write where
+// the position holds them (homesAt).
+func referenceConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, target ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, p, s, voices, pointer)
-	if s == nil || !slices.ContainsFunc(collectionBoundKeywords, func(k string) bool { return referenceHolds(s, k) }) {
+	if s == nil {
 		return cons, diags
 	}
-	if cons == nil {
-		cons = &ir.Constraints{}
+	cons = merge.Constraints(cons, heldCollectionBounds(s))
+	if len(voices) > 0 && homesAt(c, ts, s, target, pointer).collection {
+		cons = voicedCollectionBounds(cons, voices)
 	}
+	return cons, diags
+}
+
+// voicedCollectionBounds is cons met with the collection bounds voices write,
+// which agree where they speak (voicesAmong).
+func voicedCollectionBounds(cons *ir.Constraints, voices []annotation.Voice) *ir.Constraints {
+	for _, v := range voices {
+		cons = merge.Constraints(cons, heldCollectionBounds(v.Node))
+	}
+	return cons
+}
+
+// heldCollectionBounds returns the collection bounds of s that a reference's
+// constraints hold (referenceHolds), and nil where it writes none of them.
+func heldCollectionBounds(s *oas3.Schema) *ir.Constraints {
+	if !slices.ContainsFunc(collectionBoundKeywords, func(k string) bool { return referenceHolds(s, k) }) {
+		return nil
+	}
+	cons := &ir.Constraints{UniqueItems: referenceHolds(s, "uniqueItems")}
 	if referenceHolds(s, "minItems") {
 		cons.MinItems = s.MinItems
 	}
 	if referenceHolds(s, "maxItems") {
 		cons.MaxItems = s.MaxItems
 	}
-	cons.UniqueItems = referenceHolds(s, "uniqueItems")
-	return cons, diags
+	return cons
 }
 
 // referenceHolds reports whether referenceConstraintsOf fills the collection

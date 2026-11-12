@@ -47,9 +47,9 @@ routinely spans preservation, weakening, and outright dropping, so it says nothi
 report on an entry at its own source position instead of the enclosing schema's — falling back to
 the declaring position only where the entry combines several keywords into one synthesized object
 and no single node addresses it (`openapi:if-then-else`, `openapi:contains`, `openapi:unevaluated`).
-Such an entry's `Source` names the input document that wrote every keyword it combines, when one
-did, and the declaring position's otherwise: an overlay that wrote the whole construct is credited
-with it, and one that only added to it leaves it with the document that declares it.
+Such an entry's `WrittenBy` names an overlay that wrote every keyword it combines: one that wrote
+the whole construct is its writer, and one that only added to it leaves it with the document that
+declares it ([provenance](./provenance.md)).
 
 ## Keys
 
@@ -223,6 +223,7 @@ a row.
 | `Operation.Deprecation`, `Parameter.Deprecation`, `Property.Deprecation`, `AuthScheme.Deprecation`, `Message.Deprecation`, `TypeCommon.Deprecation` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Deprecation.Message`, `Deprecation.Since`, `Deprecation.RemovalVersion`, `Deprecation.RemovalDate` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
+| `Union.Closed` | `Union` | `Provenance.Inferred` |
 | `Operation.Stability`, `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
 | `TypeCommon.Sensitive` | `TypeCommon` | `Provenance.Inferred` |
 | `Property.Secret`, `Parameter.Secret` | `Property`, `Parameter`, `TypeCommon` | `Provenance.Inferred` |

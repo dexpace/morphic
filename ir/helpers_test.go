@@ -12,6 +12,7 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"math/rand/v2"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -166,8 +167,9 @@ func assertDeterministicMarshal(t *testing.T, v any) string {
 // (populated round-trip) checks into one call, running each half in its own
 // t.Run subtest rather than inline — assertRoundTrip's require.NoError calls
 // t.FailNow, so without the subtest boundary a failure in the zero half would
-// abort the function before the round-trip half ever ran.
-func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, populated T) {
+// abort the function before the round-trip half ever ran. The round-trip half
+// first holds populated to every field, bar those zeroOK names.
+func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, populated T, zeroOK ...zeroField) {
 	t.Helper()
 	t.Run("zero", func(t *testing.T) {
 		t.Parallel()
@@ -175,6 +177,7 @@ func assertJSONContract[T any](t *testing.T, zero T, wantZeroJSON string, popula
 	})
 	t.Run("roundtrip", func(t *testing.T) {
 		t.Parallel()
+		assertNoFieldZero(t, populated, zeroOK...)
 		assertRoundTrip(t, populated)
 	})
 }
@@ -226,11 +229,12 @@ func populatedDocs() ir.Docs {
 // populatedProvenance returns a Provenance with every field non-zero.
 func populatedProvenance() ir.Provenance {
 	return ir.Provenance{
-		Source:   3,
-		Pointer:  "/paths/~1users/get",
-		Position: ir.Position{Line: 12, Column: 7},
-		Node:     "op/openapi/paths/~1users/get",
-		Inferred: "pagination-name-match",
+		Source:    3,
+		WrittenBy: 4,
+		Pointer:   "/paths/~1users/get",
+		Position:  ir.Position{Line: 12, Column: 7},
+		Node:      "op/openapi/paths/~1users/get",
+		Inferred:  "pagination-name-match",
 	}
 }
 
@@ -343,7 +347,8 @@ func populatedXMLHints() *ir.XMLHints {
 		Namespace: "https://example.com/ns",
 		Prefix:    "ex",
 		NodeType:  "element",
-		Wrapped:   true,
+		Attribute: new(false),
+		Wrapped:   new(true),
 	}
 }
 
@@ -415,12 +420,56 @@ func populatedTypeCommon(id ir.TypeID) ir.TypeCommon {
 	}
 }
 
+// zeroField names a field a populated value leaves zero on purpose, and why.
+type zeroField struct{ name, why string }
+
+// testingT is the part of *testing.T assertNoFieldZero uses, so that its own
+// test can record what it reports.
+type testingT interface {
+	Helper()
+	Errorf(format string, args ...any)
+	FailNow()
+}
+
+// assertNoFieldZero holds a value claimed to be populated in full to every
+// field of the struct v holds or points to: a field the struct gains fails here
+// until the value sets it, so a round trip of the value cannot pass it unread.
+// Each zeroOK entry names a field of the struct's own that the value leaves
+// zero, and is asserted in both directions, so it cannot outlive its reason.
+// The walk reads the struct's own fields alone, not the fields of a value one
+// of them holds.
+func assertNoFieldZero(t testingT, v any, zeroOK ...zeroField) {
+	t.Helper()
+	rv := reflect.Indirect(reflect.ValueOf(v))
+	require.Equal(t, reflect.Struct, rv.Kind(), "a populated value must be a struct or a pointer to one")
+	require.Positive(t, rv.NumField(), "a struct with no fields witnesses nothing")
+	exempt := make(map[string]string, len(zeroOK))
+	for _, z := range zeroOK {
+		field, ok := rv.Type().FieldByName(z.name)
+		require.Truef(t, ok && len(field.Index) == 1, "%s declares no field %s of its own", rv.Type().Name(), z.name)
+		exempt[z.name] = z.why
+	}
+	require.Len(t, exempt, len(zeroOK), "each field is listed once")
+	for field, value := range rv.Fields() {
+		if why, ok := exempt[field.Name]; ok {
+			assert.Truef(t, value.IsZero(),
+				"%s.%s is listed as deliberately zero (%s) but the value sets it; drop the entry",
+				rv.Type().Name(), field.Name, why)
+			continue
+		}
+		assert.Falsef(t, value.IsZero(), "%s.%s is left zero, so a round trip of the value says nothing of it",
+			rv.Type().Name(), field.Name)
+	}
+}
+
 // assertTypeDefRoundTrip marshals a concrete TypeDef pointer through its
 // MarshalJSONTo — which writes the adjacent "kind" tag — and unmarshals
 // through the matching UnmarshalJSONFrom, which refuses a tag naming a
-// different kind (json.go), then compares the result with cmp.Diff.
+// different kind (json.go), then compares the result with cmp.Diff. Every
+// caller claims want populated in full, which assertNoFieldZero holds.
 func assertTypeDefRoundTrip[T any](t *testing.T, want *T) {
 	t.Helper()
+	assertNoFieldZero(t, want)
 	raw, err := json.Marshal(want)
 	require.NoError(t, err)
 	got := new(T)
@@ -453,9 +502,15 @@ func populatedHeader() ir.Header {
 	return ir.Header{Property: populatedProperty(), Style: "simple", Explode: new(true)}
 }
 
-// populatedProperty returns a Property with every field non-zero, matching
-// the shape docs/ir/properties.md describes and the zero-value list in the test
-// specification.
+// eventPayloadLeftZero is the field populatedProperty leaves zero, and why.
+func eventPayloadLeftZero() zeroField {
+	return zeroField{"EventPayload", "mutually exclusive with EventHeader, which the fixture sets; " +
+		"neither field carries omitempty, so both serialize either way"}
+}
+
+// populatedProperty returns a Property with every field non-zero but the one
+// eventPayloadLeftZero names, matching the shape docs/ir/properties.md describes
+// and the zero-value list in the test specification.
 func populatedProperty() ir.Property {
 	return ir.Property{
 		ID:               "p/openapi/components/schemas/User/properties/id",
@@ -514,8 +569,8 @@ func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 }
 
 // flatLines renders each member of f on one line: the declaration it takes as
-// ID@owner, each it overrides after a <, and "required" when an instance must
-// carry it.
+// ID@owner, each it overrides after a <, "required" when an instance must
+// carry it, and "secret" when its value is redacted.
 func flatLines(f ir.Flattening) []string {
 	out := make([]string, 0, len(f.Properties))
 	for _, fp := range f.Properties {
@@ -526,17 +581,35 @@ func flatLines(f ir.Flattening) []string {
 		if fp.Required {
 			line += " required"
 		}
+		if fp.Secret {
+			line += " secret"
+		}
 		out = append(out, line)
 	}
 	return out
 }
 
 // flatRandom is withinRandom with a wire name on every property, its eight
-// property IDs sharing three names, Required on two of the IDs, and a
-// Requires on each model declaring one property: one name some model may
-// declare, one none does.
+// property IDs sharing three names, Required on two of the IDs and Secret on
+// one, and a Requires on each model declaring one property: one name some
+// model may declare, one none does. A source of its own, which leaves the
+// composition withinRandom's, types each property ID at one of the type IDs
+// withinRandom returns and makes some declared types Sensitive.
 func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
+
+	facets := rand.New(rand.NewPCG(seed, seed+13))
+	var typeOf [8]ir.TypeID
+	for i := range typeOf {
+		typeOf[i] = types[facets.IntN(len(types))]
+	}
+
+	for _, id := range types {
+		if td := doc.Types[id]; !ir.IsNilTypeDef(td) && facets.IntN(4) == 0 {
+			td.Common().Sensitive = true
+		}
+	}
+
 	for _, td := range doc.Types {
 		m, ok := td.(*ir.Model)
 		if !ok || m == nil {
@@ -546,12 +619,47 @@ func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 			digit := int(m.Properties[i].ID[len(m.Properties[i].ID)-1] - '0')
 			m.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
 			m.Properties[i].Required = digit == 1 || digit == 4
+			m.Properties[i].Secret = digit == 6
+			m.Properties[i].Type = ir.TypeRef{Target: typeOf[digit]}
 		}
 		if len(m.Properties) == 1 {
 			m.Requires = []string{"w2", "zz"}
 		}
 	}
 	return doc, types
+}
+
+// reachesSensitive reports whether id names a type that is Sensitive, or
+// whose Base, a scalar's or a model's, leads to one, a visited set ending a
+// cycle.
+func reachesSensitive(types ir.TypeRegistry, id ir.TypeID) bool {
+	seen := map[ir.TypeID]bool{}
+	for !seen[id] {
+		seen[id] = true
+		td := types[id]
+		if ir.IsNilTypeDef(td) {
+			return false
+		}
+		if td.Common().Sensitive {
+			return true
+		}
+
+		var base *ir.TypeRef
+		switch t := td.(type) {
+		case *ir.Scalar:
+			base = t.Base
+		case *ir.Model:
+			base = t.Base
+		default:
+			// No other kind has a Base.
+		}
+		if base == nil {
+			return false
+		}
+		id = base.Target
+	}
+
+	return false
 }
 
 // composition returns the live models root composes, read through alias

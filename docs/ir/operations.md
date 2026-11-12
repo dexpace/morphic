@@ -40,6 +40,7 @@ type Operation struct {
     Servers    []ServerID         // the servers it is sent to, most preferred first, in place
                                   // of its service's; empty = its service's (docs/ir/servers.md)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
+                                  // an inbound operation inherits none (auth.md)
     Tags       []string
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
                                      // (TypeSpec @parameterVisibility); nil = protocol default
@@ -55,8 +56,9 @@ type Operation struct {
 type Parameter struct {
     ID         ParamID             // param/<space>/<operation's path>/parameters/<name>/<in>, and
                                    // /<n> after it on the n-th holder of one name and location;
-                                   // the bindings, pagination inputs and idempotency token name a
-                                   // parameter by it, not by Name, which two locations may share
+                                   // the bindings, pagination inputs, stream conditions and
+                                   // idempotency token name a parameter by it, not by Name, which
+                                   // two locations may share
     Name       Naming
     Type       TypeRef
     Required   bool
@@ -124,7 +126,8 @@ Designs this replaced, each with the fact it fails on:
   `no_ir_home`, and an OpenAPI key under the `vendor_extension` every key has.
 
 `irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
-sits. What a target does with a tier is not stated yet (#1222).
+sits. What a target does with a tier is in [the emitter
+design](../emitters/operations/stability.md).
 
 ## Design notes
 
@@ -141,7 +144,8 @@ sits. What a target does with a tier is not stated yet (#1222).
   on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the collision
   invariant 3 forbids. A schema that owns a node keeps the redaction there, and `Secret` is the
   per-use form a property already has, which TypeSpec's `@secret` on a property bound to a header or
-  query lowers to. No refine step reads it yet, as none reads `Sensitive` (#895).
+  query lowers to. The plan reads it beside `Sensitive`
+  ([redaction](../emitters/refine/redaction.md#a-redacted-value)).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is

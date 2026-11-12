@@ -173,15 +173,16 @@ func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
 }
 
 // AdditionalMode describes the openness of a model's property set beyond its
-// declared properties and AdditionalProps (docs/ir/models.md).
+// declared properties and its catch-all's patterns (docs/ir/models.md#catch-alls).
 type AdditionalMode string
 
 // Additional-property modes.
 const (
 	// AdditionalUnspecified leaves openness unspecified (open by JSON Schema default).
 	AdditionalUnspecified AdditionalMode = ""
-	// AdditionalClosed forbids properties beyond the declared set
-	// (additionalProperties: false, closed-by-construction records).
+	// AdditionalClosed forbids properties beyond the declared set and the
+	// catch-all's patterns (additionalProperties: false, closed-by-construction
+	// records).
 	AdditionalClosed AdditionalMode = "closed"
 	// AdditionalClosedAfterComposition closes the set once composition is resolved
 	// (unevaluatedProperties: false).
@@ -257,7 +258,8 @@ type Model struct {
 	ExtensionRanges []WireIDRange `json:"extensionRanges,omitempty"`
 	// Discriminator is set on the polymorphic base.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
-	// DiscriminatorValue is set on each subtype: its wire tag value.
+	// DiscriminatorValue is set on each subtype one tag routes to: that wire tag
+	// value (docs/ir/models.md#discriminator).
 	DiscriminatorValue string `json:"discriminatorValue,omitempty"`
 	// InputOnly marks GraphQL input types, which have distinct identity from
 	// output types.
@@ -276,8 +278,11 @@ type WireIDRange struct {
 // (docs/ir/models.md). It types the members beside a model's declared
 // structure; a map that declares nothing else is a MapT.
 type AdditionalProps struct {
-	// Value is the value schema for catch-all properties.
-	Value TypeRef `json:"value"`
+	// Value is the value schema for a key no pattern matches; nil = no such key
+	// is allowed, as Tuple.Rest is nil when no element may follow. It is nil
+	// only beside Patterns, since a catch-all naming neither admits nothing a
+	// closed model does not already say.
+	Value *TypeRef `json:"value,omitzero"`
 	// Key is the key schema; nil = string keys, the one spelling of them.
 	Key *TypeRef `json:"key,omitzero"`
 	// Patterns are key-pattern-scoped value schemas (JSON Schema patternProperties).
@@ -309,8 +314,9 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype; nil = infer by type name; no value is
-	// empty.
+	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
+	// it routes by type name. In a model hierarchy, each subtype's
+	// DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.
@@ -321,7 +327,10 @@ type Discriminator struct {
 	// EnvelopeValueName is the wire name of the envelope's value property (default
 	// "value"); meaningful only when Envelope == "object".
 	EnvelopeValueName string `json:"envelopeValueName,omitempty"`
-	// Inferred marks a discriminator discovered heuristically, not declared.
+	// Inferred marks a discriminator discovered heuristically, not declared: its
+	// tag is read off what each variant pins. A heuristic filling only the
+	// Mapping of a declared one leaves it false, and names itself in the
+	// holder's Provenance.Inferred, as it does where it sets this.
 	Inferred bool `json:"inferred"`
 }
 
@@ -347,6 +356,15 @@ type Union struct {
 	// position; nil for an untagged or key-tagged union. A union carrying one
 	// is WireTagged.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
+	// Closed is false for an open union, whose payload may hold a variant the
+	// union does not list, which a consumer must be able to represent (Smithy
+	// unions, protobuf oneofs, GraphQL output unions). It defaults per source
+	// semantics, as Enum.Closed does: a JSON Schema oneOf or anyOf is closed.
+	Closed bool `json:"closed"`
+	// InputOnly marks a union only a request may carry, with an identity
+	// distinct from every output type, as Model.InputOnly marks an input
+	// object (GraphQL @oneOf input objects).
+	InputOnly bool `json:"inputOnly"`
 }
 
 // Variant is one member of a Union (docs/ir/unions.md).
@@ -481,6 +499,11 @@ type Literal struct {
 	TypeCommon
 	// Value is the constant value.
 	Value Value `json:"value"`
+	// ValueType is the primitive the source types the value as, as
+	// Enum.ValueType types an enum's members: an integer and a number of one
+	// value differ here, as do a string and a date. "" where the value is of no
+	// primitive, a null, a list or an object.
+	ValueType PrimKind `json:"valueType,omitempty"`
 }
 
 // External is a well-known library type that no target can structurally model,

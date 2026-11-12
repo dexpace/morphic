@@ -61,8 +61,8 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - Types: [models](refine/models.md), [unions and discriminators](refine/unions.md),
   [enums](refine/enums.md), [containers, scalars and external types](refine/scalars.md),
   [decorators](refine/decorators.md).
-- Values: [values](refine/values.md), [constraints](refine/constraints.md), [unmodeled
-  entries](refine/unmodeled.md).
+- Values: [values](refine/values.md), [constraints](refine/constraints.md),
+  [redaction](refine/redaction.md), [unmodeled entries](refine/unmodeled.md).
 - Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md), [output
   units](refine/output-units.md).
 - [Interface extraction and request shaping](refine/requests.md).
@@ -72,7 +72,7 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - [Return shapes](operations/returns.md), [failures](operations/errors.md),
   [pagination](operations/pagination.md), [streaming](operations/streaming.md), [long-running and
   one-way operations](operations/long-running.md), [auth](operations/auth.md), [the client and its
-  base URL](operations/client.md).
+  base URL](operations/client.md), [stability tiers](operations/stability.md).
 
 **Emit**
 
@@ -120,13 +120,13 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the
 derived-fact index and the shared plan, and finally each requested emitter, with the targets a docs
 target names for its samples. The passes designed are `link · dedup · filter · version-slice ·
-overlay · names · validate`, and only `names` and `validate` are built (architecture.md §2.2). An
-emitter never sees a source spec, a compiler, the engine (INV1) or another emitter's code, only what
-the engine hands it of another's output: a docs target's samples and a cross-version target's route
-tables ([docs and mocks](docs-and-mock.md)). Its only structural input is an `ir.Document`;
-everything else it needs is either derived from the IR in the plan/refine stages or supplied as a
-separate, non-IR input (runtime policy, shaping hints, the target's own options, and for a docs
-target the snapshot's label, its samples and its routes).
+overlay · const-unions · names · validate`, and `const-unions`, `names` and `validate` are built
+(architecture.md §2.2). An emitter never sees a source spec, a compiler, the engine (INV1) or
+another emitter's code, only what the engine hands it of another's output: a docs target's samples
+and a cross-version target's route tables ([docs and mocks](docs-and-mock.md)). Its only structural
+input is an `ir.Document`; everything else it needs is either derived from the IR in the plan/refine
+stages or supplied as a separate, non-IR input (runtime policy, shaping hints, the target's own
+options, and for a docs target the snapshot's label, its samples and its routes).
 
 ## The architecture, and why this synthesis
 
@@ -231,8 +231,8 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 - **Credential values / token acquisition.** Auth *schemes* are structural IR; secrets and refresh
   behavior are runtime configuration.
 - **Name-keyed manifests or `"METHOD /path"` keys.** Everything cross-run correlates by IR stable
-  ID, and where a rename gives an entity a new ID, by the correlation key (#679) the manifest
-  records beside it.
+  ID, and where a rename gives an entity a new ID, by the [correlation
+  key](../ir/derived-facts.md#correlation-keys) the manifest records beside it.
 
 ## Invariant compliance
 

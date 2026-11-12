@@ -146,7 +146,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		return nil
 	}
 	use := nodeUse(c, ts, s, pointer, target)
-	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, s, pointer), pointer, c.Place())
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -163,12 +163,24 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	from := use.lentKeys(c, s)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
-	// The enum-openness promotion is applied here rather than where the Enum is
-	// built, for the same reason the deprecation one is: a promotion reads the
-	// preserved Unmodeled entries, and this is the point at which the
+	// The openness promotions are applied here rather than where the Enum or
+	// Union is built, for the same reason the deprecation one is: a promotion
+	// reads the preserved Unmodeled entries, and this is the point at which the
 	// declaration's extensions have reached the node's map.
-	if enum, isEnum := td.(*ir.Enum); isEnum {
-		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, enum, &common.Provenance)...)
+	switch n := td.(type) {
+	case *ir.Enum:
+		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+	case *ir.Union:
+		// A target names what the document writes, so the union a mixed enum
+		// lowers to reads the enum's, as the enum would, and only that one: one
+		// fact read through two targets would let either override the other.
+		openness := c.Promoter().UnionOpenness
+		if dispatchOf(s).won == "enum" {
+			openness = c.Promoter().EnumOpenness
+		}
+		diags = append(diags, openness(common.Unmodeled, &n.Closed, &common.Provenance)...)
+	default:
+		// Openness is a fact of an enum's or a union's value space alone.
 	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples
@@ -235,7 +247,7 @@ func ResidueKeywords() []string { return slices.Clone(residueKeywords) }
 func recordResidue(c lowering.Ctx, common *ir.TypeCommon, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, keyword := range residueKeywords {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

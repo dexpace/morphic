@@ -47,9 +47,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `merge-a-landed-bases-final-head`
 
 - **Rule.** Once a stacked PR's base squash-merges and the PR retargets to `main`, merging `main`
-  conflicts wherever the branch holds the base's text from an older merge. Merge the base PR's final
-  head first (`git fetch origin +pull/<base PR>/head:<own ref>`), then `origin/main`; where that
-  still conflicts at the base's text, take the branch's side outside the files
+  conflicts wherever the branch holds the base's text merged earlier. Merge the base PR's final
+  head (`git fetch origin +pull/<base PR>/head:<own ref>`), then `origin/main`, titled by
+  `references/merging-main.md#merge-titled-for-the-branch`; where that still conflicts at the
+  base's text, take the branch's side outside the files
   `git diff --name-only <squash> origin/main` lists and `main`'s inside them, so
   `git diff HEAD^1 HEAD` holds only that diff. With no base head, take
   `references/merging-main.md#replay-own-diff-onto-main`. Then read each concept it adds by
@@ -58,6 +59,20 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   real overlaps (#1332); on another stack, `main` past the squash drew 24 more (#1427).
 - **Probe.** `git merge-tree --write-tree --name-only <head> <squash>` beside it against the base's
   final head.
+
+## Title each merge a branch carries for that branch
+`merge-titled-for-the-branch`
+
+- **Rule.** A merge a pushed branch carries is titled for what it merges and the branch's name, as
+  `Merge branch 'main' into <branch>` or `Merge the final head of #<base PR> into <branch>`. A
+  merge by commit, by a ref of one's own or in a detached worktree takes `-m`: untitled, it names
+  that ref, or `HEAD` for the branch.
+- **Why.** A review of #1355 set up by `references/merging-main.md#merge-a-landed-bases-final-head`
+  made merges titled `Merge commit 'refs/rv<session>/1354' into HEAD` and
+  `Merge remote-tracking branch 'origin/main' into HEAD`, which its fixes would have pushed and a
+  squash pasting every commit's message would land (#1629).
+- **Probe.** `git log --merges --format=%s "origin/<base>"..HEAD | grep -E "into HEAD$|'refs/"`
+  prints nothing; the push checklist's `cs` grep matches `into HEAD`.
 
 ## Replay a branch's own diff onto main to leave a stack
 `replay-own-diff-onto-main`
@@ -82,6 +97,17 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Why.** Passing `nil` for a new parameter compiled and passed the suite while it dropped a
   co-declared keyword the diagnostic still said was kept (#363).
 - **Probe.** `git grep -n '<callee>(' origin/main` for every caller and what each passes.
+
+## Sweep what main added against a type the branch changed
+`merged-code-meets-a-changed-type`
+
+- **Rule.** A type change that keeps compiling draws no conflict, so code `main` added meets it only
+  in the merge. After each merge, rerun on the merged tree the sweep each type change of the branch
+  calls for: for a value field turned pointer, the comparison sweep of
+  `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#pointer-field-ends-value-equality`.
+- **Why.** Merging `main` into #1370 brought in #1656's `*a == *b` over hints whose `Wrapped` the
+  branch had made a pointer; build, vet, archtest and the goldens passed the merge (#1677).
+- **Probe.** `git diff origin/main...HEAD -- '*.go' ':!*_test.go'` shows each type the branch changed.
 
 ## Read the normative text before changing a test the merge reddens
 `norm-main-adopted`
@@ -180,16 +206,42 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `trial-merge-open-prs`
 
 - **Rule.** A change that removes or renames a target, file or identifier other open PRs may name,
-  or alters what every file of a kind must hold, such as a golden, trial-merges each, before and
-  after. Search each merged tree for the removed names and run the kind's tests there:
-  `git merge-tree` reports conflicts, not failures, and GitHub's flag does not say which merge
-  caused one.
+  alters what every file of a kind must hold, such as a golden, or adds a package or a whole-tree
+  check, trial-merges each, before and after, runs on each merged tree what
+  `references/merging-main.md#trial-merge-runs-its-checks` names, and reads its conflicts by
+  `references/merging-main.md#trial-merge-reads-what-the-head-adds`. `git merge-tree` reports
+  conflicts, not failures, and GitHub's flag names no culprit.
 - **Why.** Resolving a conflict over a removed make target would have kept the gate pointing at it
   (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
-  and failed on each (#1181, #1191, #1192).
-- **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` for each open PR, then on
-  the merge (`references/merging-main.md#trial-merge-happened`) `git grep` each removed name and,
-  for goldens, `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
+  and failed on each (#1181, #1191, #1192), as an archtest rule over every package did with a PR
+  adding two (#1556).
+- **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` per open PR.
+
+## Run each kind's checks in the trial merge's own tree
+`trial-merge-runs-its-checks`
+
+- **Rule.** On each merged tree `references/merging-main.md#trial-merge-happened` confirms, build
+  and run there, never a binary built from another tree: `git grep` each removed name; for goldens,
+  `go test ./compilers/openapi/e2e ./cmd/morphic-census`; for an added package or archtest rule,
+  `go test ./internal/archtest`; for an analyzer, `go vet -vettool=<tool> <changed packages>`; for
+  a skill edit, `references/merging-main.md#trial-merge-lints-the-skills`.
+- **Why.** A test binary built from one head flagged three open PRs for a package one of them
+  exempts, and rebuilt in that PR's merged tree its test passed (#1311, #1556).
+- **Probe.** Each result names the merged commit and the command run in it.
+
+## Read a trial merge's conflicts against the open PR's own with main
+`trial-merge-reads-what-the-head-adds`
+
+- **Rule.** A PR drifted from `main` conflicts with any head, so only the files a head adds to the
+  PR's conflicts with `main` are the change's. Where a conflict leaves no merged tree, search the
+  PR's added lines for each removed name,
+  `git diff "$(git merge-base origin/main <pr head>)" <pr head> | grep '^+'`, and report that no
+  test ran on that merge.
+- **Why.** Twelve of 26 open PRs conflicted with a head, each conflict their own with `main`, and
+  none left a tree to test (#1583).
+- **Probe.** With
+  `c() { git merge-tree --write-tree --name-only "$1" "$2" | sed '1d;/^$/,$d' | sort; }`,
+  `comm -23 <(c <head> <pr head>) <(c origin/main <pr head>)` prints what the head adds.
 
 ## Run the skills lint on each trial merge of a skill edit
 `trial-merge-lints-the-skills`

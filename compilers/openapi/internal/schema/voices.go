@@ -20,10 +20,8 @@ import (
 
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
-// (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the value
-// constraints, the extensions and the keywords that fold together. A collection
-// bound folds nowhere yet, so a branch writing one stays whole whatever the
-// position lowers to, a List with the field included (GitHub #1312).
+// (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the bounds,
+// the extensions and the keywords that fold together.
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
@@ -49,6 +47,9 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
+	case "minItems", "maxItems", "uniqueItems":
+		// A collection bound ir.Constraints cannot state keeps its branch whole.
+		return keyword, referenceHolds(s, keyword)
 	}
 	twin := TwinKeyword(c, s, keyword)
 	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, twin) ||
@@ -87,13 +88,37 @@ func foldValue(s *oas3.Schema, entry string) foldRendering {
 	return r
 }
 
-// allOfDecides reports whether s's allOf is what its position lowers: not a
-// family the election passed over, which stays verbatim (GitHub #1309), nor
-// keywords beside a $ref, a $dynamicRef or a union, whose branches keep what they
-// write on each variant (docs/compilers/openapi.md#union-beside-structure).
-func allOfDecides(s *oas3.Schema) bool {
-	return len(s.GetAllOf()) > 0 && s.Ref == nil && dispatchOf(s).won == "allOf" &&
-		!declaresUnion(s) && !declaresDynamicRef(s)
+// allOfBesideNoRef reports whether s writes an allOf with no $ref beside it,
+// which would make the position a $ref site, whose alias keeps the allOf
+// verbatim (docs/compilers/openapi.md#allof-beside-ref).
+func allOfBesideNoRef(s *oas3.Schema) bool {
+	return len(s.GetAllOf()) > 0 && s.Ref == nil
+}
+
+// allOfMayRefine reports whether s's allOf may refine: no $ref, union or
+// $dynamicRef stands beside it, the last two keeping it the composition it would
+// otherwise be (docs/compilers/openapi.md#allof-refinement).
+func allOfMayRefine(s *oas3.Schema) bool {
+	return allOfBesideNoRef(s) && !declaresUnion(s) && !declaresDynamicRef(s)
+}
+
+// allOfDecides reports whether s's allOf is what its position lowers: one the
+// election of competing keywords made the value, or one refining, whose rival
+// there, an enum or a const beside it, is one of its conjuncts. An allOf that
+// value set beats otherwise stays verbatim
+// (docs/compilers/openapi.md#competing-keywords). A union beside the composing
+// allOf or on one of its branches leaves it deciding, composed into each variant
+// the union distributes across or into the Model keeping the union verbatim, and
+// so does a $dynamicRef it keeps from expanding.
+func allOfDecides(c lowering.Ctx, s *oas3.Schema) bool {
+	if !allOfBesideNoRef(s) {
+		return false
+	}
+	if dispatchOf(s).won == "allOf" {
+		return true
+	}
+	_, refines := refinementOf(c, s, "")
+	return refines
 }
 
 // voicesOf keys what voicesAmong read of one schema.
@@ -254,18 +279,28 @@ func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 	})
 }
 
-// folds reports whether a branch that folds consumes keyword: bounds says the
-// position has a field for value bounds, and a `nullable` folds where
+// folds reports whether a branch that folds consumes keyword: homes says which
+// bounds the position has a field for, and a `nullable` folds where
 // foldsNullable says so.
-func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, bounds bool) bool {
+func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, homes boundHomes) bool {
 	if keyword == "nullable" {
 		return c.NullableWidening.Honours() && foldsNullable(bs)
 	}
 	if slices.Contains(valueConstraintKeywords, keyword) {
-		return bounds
+		return homes.value
 	}
 	_, fold := foldEntry(c, bs, keyword)
+	if slices.Contains(collectionBoundKeywords, keyword) {
+		return fold && homes.collection
+	}
 	return fold
+}
+
+// boundHomes says which bounds the position an allOf is written at has a field
+// for, so that a branch writing one folds there.
+type boundHomes struct {
+	value      bool
+	collection bool
 }
 
 // foldsNullable reports whether `nullable` on the branch bs speaks for the whole
@@ -280,7 +315,7 @@ func foldsNullable(bs *oas3.Schema) bool {
 // only where it reduced to a shared node, target being what the position lowered
 // to: a branch owning that node keeps what it writes there.
 func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []annotation.Voice {
-	if !allOfDecides(s) {
+	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(s, pointer)
@@ -299,10 +334,10 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 // reading what s lends it, but those writing only what s or such a branch before
 // them writes: the writers of an entry a use reads agree (voicesAmong), so a
 // reader taking the nearest takes the same value from any of them, and a use of s
-// pays for each entry once, not for each branch repeating it. Value bounds, which
-// agree by meeting, are no such entry: a use never reads them through its $ref.
+// pays for each entry once, not for each branch repeating it. Bounds, which agree
+// by meeting, are no such entry: a use never reads them through its $ref.
 func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
-	if !allOfDecides(s) {
+	if !allOfDecides(c, s) {
 		return nil
 	}
 	comp := allOfBranches(s, "")

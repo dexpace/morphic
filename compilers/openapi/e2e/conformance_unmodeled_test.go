@@ -211,8 +211,8 @@ func assertElectedLoweringKeywords(t *testing.T, doc *ir.Document, diags []ir.Di
 
 	format, ok := doc.Types[componentID("ConstWithFormat")].(*ir.Literal)
 	require.True(t, ok)
-	assert.JSONEq(t, `"int32"`, string(unmodeledEntry(t, format.Unmodeled, "openapi:format").Value),
-		"a Literal has no Encoding field")
+	assert.Equal(t, ir.PrimInt32, format.ValueType, "the value fits the type and format, so ValueType holds both")
+	assert.Empty(t, format.Unmodeled, "nothing the literal declares is left without a field")
 
 	bound, ok := doc.Types[componentID("ConstWithBound")].(*ir.Literal)
 	require.True(t, ok)
@@ -1381,9 +1381,9 @@ func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding
 func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	op, ok := opByName(doc, "getMerged")
 	require.True(t, ok)
+	assert.Equal(t, ir.Docs{Summary: "Shared summary", Description: "Shared description"}, op.Bindings.HTTP[0].PathDocs,
+		"the merged pair documents the path")
 	assertKept(t, op.Unmodeled, []keptEntry{
-		{"openapi:pathItem/summary", `"Shared summary"`, "/paths/~1merged/summary"},
-		{"openapi:pathItem/description", `"Shared description"`, "/paths/~1merged/description"},
 		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},

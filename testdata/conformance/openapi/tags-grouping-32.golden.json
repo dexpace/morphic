@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -106,8 +107,7 @@
                         "method": "GET",
                         "uriTemplate": "/books",
                         "sharedRoute": false,
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -162,8 +162,7 @@
                         "method": "GET",
                         "uriTemplate": "/magazines",
                         "sharedRoute": false,
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -212,8 +211,7 @@
                     "method": "GET",
                     "uriTemplate": "/catalog",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

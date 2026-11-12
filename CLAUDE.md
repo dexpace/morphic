@@ -160,7 +160,8 @@ barrier/     Layer 0 — runs code its caller does not own, turns a panic in it 
              that may call recover (`.golangci.yml`). Imports ONLY the stdlib.
 ir/          Layer 0 — IR nodes, IDs, traversal, editing, JSON round-trip. Imports ONLY the stdlib.
   irfacts/   Layer 0 — what a Document implies and does not state (subtypes, exposed properties,
-             usage, recursion), derived on demand and never stored. Imports ir only.
+             usage, recursion, correlation keys), derived on demand and never stored. Imports
+             ir only.
   irverify/  Layer 0 — structural-invariant checks over a compiled Document. Imports ir only.
   irtest/    Layer 0 — golden-file helper (`-update` rewrites) and fixture helpers. Imports ir + go-cmp.
 compilers/   Layer 1 — the Compiler contract and the format-keyed registry. Imports ir and barrier.

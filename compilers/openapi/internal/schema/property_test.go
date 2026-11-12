@@ -58,9 +58,9 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	assert.NotEmpty(t, m.Docs.ExternalDocs)
 	byWire := openapitest.PropsByWire(m.Properties)
 	require.NotNil(t, byWire["withXml"].XML)
-	assert.Equal(t, "attribute", byWire["withXml"].XML.NodeType)
+	assert.Equal(t, new(true), byWire["withXml"].XML.Attribute)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
-	assert.True(t, byWire["withXml"].XML.Wrapped)
+	assert.Equal(t, new(true), byWire["withXml"].XML.Wrapped)
 	assert.Len(t, byWire["withExample"].Examples, 3)
 	assert.NotEmpty(t, byWire["withExt"].Unmodeled)
 	var sawDefaultWarn bool
@@ -203,7 +203,7 @@ func TestModel_PropertyXML(t *testing.T) {
 	m := doc.Types[componentID("S")].(*ir.Model)
 	require.NotNil(t, m.Properties[0].XML)
 	assert.Equal(t, "n", m.Properties[0].XML.Name)
-	assert.Equal(t, "attribute", m.Properties[0].XML.NodeType)
+	assert.Equal(t, new(true), m.Properties[0].XML.Attribute)
 }
 
 func TestModel_RefSiblingDescriptionWins(t *testing.T) {

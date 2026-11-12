@@ -13,12 +13,9 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -37,21 +34,16 @@ webhooks:
   petCreated:
     post: {operationId: petCreated, responses: {"200": {description: ok}}}
 `
-	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
-		WithLoaded(loadedDoc)
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags})
 
-	schemes, _ := auth.LowerSecuritySchemes(c)
+	declared, _ := auth.LowerSecuritySchemes(c)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry(), schemes)
+	lowered, diags := operation.LowerService(ctx, c, compile.NewTypes(), declared)
 
 	assert.Empty(t, diags)
-	assert.Empty(t, svc.Groups, "neither the path loop nor the webhook loop lowered an operation")
+	assert.Empty(t, lowered.Service.Groups, "neither the path loop nor the webhook loop lowered an operation")
 }
 
 // lowerUnder lowers spec's service with what path items copy held to limit,
@@ -59,16 +51,12 @@ webhooks:
 // refused.
 func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, bool) {
 	t.Helper()
-	loadedDoc, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(spec), load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loadedDoc)
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{MaxReferenceExpansion: limit}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
-	schemes, _ := auth.LowerSecuritySchemes(c)
-	svc, _, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), servers.NewRegistry(), schemes)
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags,
+		Limits: lowering.Limits{MaxReferenceExpansion: limit}})
+	declared, _ := auth.LowerSecuritySchemes(c)
+	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
 	ops := make([]ir.Operation, 0, 3)
-	for _, g := range svc.Groups {
+	for _, g := range lowered.Service.Groups {
 		ops = append(ops, g.Operations...)
 	}
 	_, refused := c.ExpansionRefusal()

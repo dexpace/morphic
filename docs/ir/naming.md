@@ -87,9 +87,17 @@ lossless-by-default rules out. `Source` is the internal precedent: it carries `U
 no content rule touches it, because it records what the spec said rather than deciding a spelling.
 What is left is decidable without any grammar, and `irverify` holds an alias to exactly that much:
 
-- **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is one
-  Unicode classifies as invisible — a space, a control, a format character, or a default-ignorable
-  one — matches nothing under any grammar. `""`, `" "`, `"\u200b"` and `"\u3164"` are alike here.
+- **Every entry names something** (`ir/naming-alias-blank`). An entry whose every rune is white
+  space, a control, or a `Default_Ignorable_Code_Point` (most format characters, the variation
+  selectors, and fillers such as U+3164) matches nothing under any grammar, U+1680 OGHAM SPACE MARK
+  counting with white space though it renders a line. `""`, `" "`, `"\u200b"`, `"\u3164"` and
+  `"\ufe0f"` are alike here. The format characters Unicode takes out of that property because they
+  render — the prepended concatenation marks, the interlinear annotation characters and the
+  Egyptian hieroglyph format controls — are visible, so an entry made of them is not blank, as
+  U+2800 BRAILLE PATTERN BLANK, which renders as whitespace, is not.
+  The same test decides every other blank rule, not the alias rule alone: a path segment
+  (`ir/path-segment-blank`) and a set entry (`ir/set-entry-blank`), a token endpoint auth method
+  among them, are blank by it.
   An invisible rune sitting *beside* a visible one is a different question and is not asked:
   whether `com.example.<ZWSP>User` is a legal name is decidable only under the grammar of the
   format it will be matched against, which the IR does not know.

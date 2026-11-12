@@ -14,31 +14,63 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
-// Merger folds the declarations of one field into the property they make
-// together. It reads the registry through Resolve, adds to it through Mint and
-// reports through Report, so a fold can be driven against a map and a recorder
-// rather than a document.
-// PropIndex runs it once every node exists.
+// Merger is what folding the declarations of one field reads besides them, as
+// values, so a test drives a fold with a map and a stub walk rather than a
+// document. PropIndex.Fold runs it once every node exists.
 type Merger struct {
-	// Resolve looks a type up in the registry. The judgment compares what two
-	// references point at, not the references themselves.
-	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Mint registers the node a field's declarations compose or meet to.
-	Mint Mint
-	// Interned reports whether a node stands at a pointer.
-	Interned func(jsontext.Pointer) bool
-	// PropAt returns the identity a field named for a pointer takes (identify).
-	PropAt func(jsontext.Pointer) ir.PropID
-	// Report records one diagnostic a fold draws.
-	Report Reporter
+	// Reg is the registry every lowering left. The judgment compares what two
+	// references point at there, not the references themselves.
+	Reg ir.TypeRegistry
+	// IDs derives, for the model's document, the identity a field named for a
+	// pointer takes (identify).
+	IDs ids.Document
+	// Doc places what a fold reports.
+	Doc provenance.Doc
+	// Walk is the walk that declared the field.
+	Walk Walk
+}
+
+// Walk is what a fold asks of the walk that declared the field.
+type Walk interface {
+	// Mint registers node, which stands for the declarations of the field
+	// pointer names (fieldSpan), or for what their types hold at a position
+	// below it, and returns the ID it is registered under. It fills what in
+	// node's TypeCommon names the node, and an enum's member IDs, which live
+	// beneath it: the lowering's to derive. It keeps the rest. The fold reads
+	// what it mints, so it registers at once.
+	Mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID
+	// Interned reports whether a node stands at pointer, which only the
+	// finished registry can answer.
+	Interned(pointer jsontext.Pointer) bool
 	// Alike reports whether what is written at a and at b reads each $ref it
 	// writes against one base, so the same text there says the same: under an
 	// $id naming another URI, a $ref spelled alike names another schema. The
 	// fold asks it only of text writing one (annotation.WritesReference).
-	Alike func(a, b ir.Provenance) bool
+	Alike(a, b ir.Provenance) bool
+	// Untyped reports whether the schema written at a node's provenance states
+	// no instance type, so the structure it lowered to admits every value of
+	// another: `properties` alone constrains objects and admits a string
+	// (docs/compilers/openapi.md#allof-disjoint-conjuncts). A node it cannot
+	// place, or whose source writes what that read does not follow but which
+	// could refuse a value of some instance type, reads as stating one.
+	Untyped(at ir.Provenance) bool
+}
+
+// resolve looks the type id names up in the registry.
+func (g *Merger) resolve(id ir.TypeID) (ir.TypeDef, bool) {
+	td, ok := g.Reg[id]
+	return td, ok
+}
+
+// judgeAt is the judgment over g's registry of two declarations written at a
+// and b.
+func (g *Merger) judgeAt(a, b ir.Provenance) typeJudge {
+	return typeJudge{resolve: g.resolve, sites: declarationSites{walk: g.Walk, written: [2]ir.Provenance{a, b}}}
 }
 
 // declaration is one declaration of a field, as the walk lowered it, and how
@@ -54,17 +86,17 @@ type declaration struct {
 
 // fold returns the property decls make together under allOf intersection
 // (docs/ir/models.md#the-flattening,
-// docs/compilers/openapi.md#allof-redeclared-property). decls is every
-// declaration of one wire name, at least two, in declaration order; the field
-// keeps the first one's identity unless another model carries that declaration
-// (identify). Every fact is decided from the whole set, so
-// declaration order decides only a tie, and the merge reports each one. What a
-// declaration says that the field does not carry is reported at that
-// declaration, which is kept verbatim beside the field.
+// docs/compilers/openapi.md#allof-redeclared-property), and what it reports.
+// decls is every declaration of one wire name, at least two, in declaration
+// order; the field keeps the first one's identity unless another model carries
+// that declaration (identify). Every fact is decided from the whole set, so
+// declaration order decides only a tie, which is reported. What a declaration
+// says that the field does not carry is reported at that declaration, which is
+// kept verbatim beside the field.
 //
 // A fold judges every pair of declarations, so it judges at most
 // maxFoldDeclarations of them (keepUnjudged).
-func (g *Merger) fold(decls []declaration) ir.Property {
+func (g *Merger) fold(decls []declaration) (ir.Property, []ir.Diagnostic) {
 	judged, past := decls, []declaration(nil)
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
@@ -78,10 +110,20 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	f.foldDocs()
 	f.foldAnnotations()
 	f.foldUnmodeled()
-	merged := f.finish()
+	merged, diags := f.finish()
 	g.identify(&merged, schema, field)
-	g.keepUnjudged(&merged, past)
-	return merged
+	diags = append(diags, g.keepUnjudged(&merged, past)...)
+	for i := range diags {
+		diags[i].Provenance = g.Doc.At(diags[i].Provenance.Pointer)
+	}
+	return merged, diags
+}
+
+// pointerOnly is a Provenance holding pointer and naming no document until fold
+// places it. Every site of a fold reports at one, and fold places them all
+// through Merger.Doc, so none is placed apart from the model's document.
+func pointerOnly(pointer jsontext.Pointer) ir.Provenance {
+	return ir.Provenance{Pointer: pointer}
 }
 
 // maxFoldDeclarations bounds the declarations of one field a fold judges
@@ -94,17 +136,19 @@ const maxFoldDeclarations = 64
 // keepUnjudged keeps each declaration past the bound verbatim beside merged,
 // and reports at the first of them that the fold judged none: what they say is
 // kept, not folded.
-func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) {
+func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) []ir.Diagnostic {
 	if len(past) == 0 {
-		return
+		return nil
 	}
-	g.Report(ir.SeverityError, diag.BudgetExceeded, past[0].prop.Provenance.Pointer,
+	at := pointerOnly(past[0].prop.Provenance.Pointer)
+	diags := []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 		"field %q is declared %d times, past the %d declarations one fold judges; the %d after them are "+
 			"kept verbatim under Unmodeled, unjudged",
-		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))
+		merged.WireName, maxFoldDeclarations+len(past), maxFoldDeclarations, len(past))}
 	for _, d := range past {
-		g.keepLosingDeclaration(merged, d.prop.Provenance, d.source)
+		diags = append(diags, g.keepLosingDeclaration(merged, d.prop.Provenance, d.source)...)
 	}
+	return diags
 }
 
 // folding is one fold in progress.
@@ -113,15 +157,19 @@ type folding struct {
 	decls []declaration
 	// field is the declaration naming the field (fieldSpan).
 	field jsontext.Pointer
+	// pos is the declarations' types judged against each other, and rel, winner
+	// and conjuncts what it holds.
+	pos position
 	// rel[i][j] is the judgment of decls[i]'s type against decls[j]'s.
 	rel [][]relation
 	// winner is the declaration whose type the field takes, and cone marks
 	// each declaration whose type is the same as the winner's, broader, or
 	// meets it: the field's type holds every one of them, so it adopts their
-	// shape detail.
+	// shape detail. A meeting no node holds takes its declarations out of the
+	// cone (meetField).
 	winner int
 	cone   []bool
-	// conjuncts lists the models the field composes, which puts every
+	// conjuncts lists the types the field composes, which puts every
 	// declaration in the cone, or nothing where the winner's type is the field's
 	// (composition).
 	conjuncts []conjunct
@@ -142,101 +190,65 @@ type note struct {
 }
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
-// the models to compose (composition), and starts the field from the first
+// the types to compose (composition), and starts the field from the first
 // declaration.
 func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding {
 	n := len(decls)
+	ms := make([]member, n)
+	for i, d := range decls {
+		ms[i] = member{ref: d.prop.Type, decl: i}
+	}
+	p := g.judgePosition(decls, ms, 0)
 	f := &folding{
-		g: g, decls: decls, field: field, rel: make([][]relation, n), cone: make([]bool, n),
-		notes: make([][]note, n), lost: make([]bool, n), merged: decls[0].prop,
+		g: g, decls: decls, field: field, pos: p, rel: p.rel, winner: p.winner, conjuncts: p.conjuncts,
+		cone: make([]bool, n), notes: make([][]note, n), lost: make([]bool, n), merged: decls[0].prop,
 	}
 	for i := range n {
-		f.rel[i] = make([]relation, n)
-		f.rel[i][i] = relSame
-	}
-	for i := range n {
-		for j := i + 1; j < n; j++ {
-			judge := typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: g.Alike,
-				written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}}
-			rel := judge.relate(decls[i].prop.Type, decls[j].prop.Type)
-			f.rel[i][j], f.rel[j][i] = rel, rel.flipped()
-		}
-	}
-	f.winner = f.widestCone()
-	f.conjuncts = f.composition()
-	for i := range n {
-		f.cone[i] = len(f.conjuncts) > 0 || f.holds(f.winner, i)
+		f.cone[i] = len(f.conjuncts) > 0 || p.holds(f.winner, i)
 	}
 	return f
 }
 
-// holds reports whether decls[i]'s type is the same as decls[j]'s or narrower,
-// or meets it: a field of decls[i]'s type, with the bounds a meeting adds, loses
-// nothing decls[j] says of its type.
-func (f *folding) holds(i, j int) bool {
-	return f.rel[i][j] == relSame || f.rel[i][j] == relANarrower || f.rel[i][j] == relMeet
-}
-
-// widestCone returns the declaration whose type holds the most declarations'
-// types, the first of them on a tie. Where one type is within every other, it
-// is the intersection and wins whatever the order; where types meet, each holds
-// the other, and the winner's node takes the bounds of each it meets
-// (foldNodeBounds). Otherwise the field keeps the type that loses the fewest
-// declarations, and each it loses is reported.
-func (f *folding) widestCone() int {
-	best, widest := 0, 0
-	for i := range f.decls {
-		width := 0
-		for j := range f.decls {
-			if f.holds(i, j) {
-				width++
-			}
-		}
-		if width > widest {
-			best, widest = i, width
-		}
-	}
-	return best
-}
-
-// foldType settles the field's type: the winner's target, a node holding the
-// bounds of the declarations meeting it (foldNodeBounds), or the model composing
-// the conjuncts, admitting null only where every declaration in the cone does
-// (intersectNull), as foldNullVerdicts states for a single schema. The top type
-// admits null whatever its bit says, so a cone member that is the top type below
-// a winner that is not says nothing of null. Every declaration outside the cone
-// loses its type (drop).
+// foldType settles the field's type: the model composing the conjuncts, or the
+// node the winner and the declarations meeting it stand on (meetField), admitting
+// null as position.null reads the cone. Every declaration outside the cone loses
+// its type (drop).
 func (f *folding) foldType() {
-	var merged ir.TypeRef
-	seeded := false
-	for i, d := range f.decls {
-		switch {
-		case !f.cone[i]:
+	target := f.meetField()
+	for i := range f.decls {
+		if !f.cone[i] {
 			f.drop(i)
-		case f.rel[f.winner][i] != relSame && f.targetsTop(d.prop.Type):
-		case !seeded:
-			merged, seeded = d.prop.Type, true
-		default:
-			merged = intersectNull(merged, d.prop.Type)
 		}
 	}
-	if len(f.conjuncts) > 0 {
-		merged.Target = f.compose()
-	} else {
-		merged.Target = f.foldNodeBounds()
-	}
-	f.merged.Type = merged
+	f.merged.Type = f.pos.null(registry{f.g.resolve}, func(i int) bool { return f.cone[i] }, 0)
+	f.merged.Type.Target = target
 }
 
-// targetsTop reports whether ref targets the schemaless top type, a bare
-// PrimAny (isTop).
-func (f *folding) targetsTop(ref ir.TypeRef) bool {
-	td, ok := f.g.Resolve(ref.Target)
-	return ok && isTop(td)
+// meetField returns the field's target: the model the conjuncts compose, or the
+// node the winner and the declarations meeting it stand on (builder). A dry run
+// first, so a field whose meeting no node holds registers nothing: it keeps the
+// winner's type, and each declaration meeting it leaves the cone, to be dropped
+// and reported as an overlap.
+func (f *folding) meetField() ir.TypeID {
+	b := builder{f: f}
+	if len(f.conjuncts) > 0 {
+		return b.compose(f.conjuncts, f.field)
+	}
+	cone := func(i int) bool { return f.cone[i] }
+	base, partners := f.pos.meeting(cone)
+	dry := builder{f: f, dry: true}
+	dry.meetNode(base, partners, f.field, 0)
+	if dry.failed {
+		for _, m := range partners {
+			f.cone[m.decl] = false
+		}
+		return base.ref.Target
+	}
+	return b.meetNode(base, partners, f.field, 0)
 }
 
 // drop reports how decls[i]'s type, which the field does not hold, relates to
-// the winner's (typeJudge.relate), even where nothing says how, since the type
+// the winner's (typeJudge.relateFrom), even where nothing says how, since the type
 // the field keeps then follows declaration order; and it marks the declaration
 // lost. A type narrower than the winner that still lost shares its values. Its
 // default, constraints and examples go with its type: they describe the shape
@@ -249,7 +261,7 @@ func (f *folding) drop(i int) {
 	switch f.rel[f.winner][i] {
 	case relDisjoint:
 		f.disagree(i, f.winner, fmt.Sprintf("incompatible types %s and %s", w.Target, d.Target))
-	case relOverlap, relBNarrower:
+	case relOverlap, relBNarrower, relMeet:
 		f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 			"declarations of field %q give types %s and %s whose values overlap but that the merge does not "+
 				"narrow to one; kept the type the declaration at %s gives over the one at %s, which is kept "+
@@ -300,7 +312,7 @@ func (f *folding) foldConstraints() {
 // writing another is reported and kept. Refusing first means a value the field
 // takes is kept whichever order the declarations come in.
 func (f *folding) foldValues() {
-	nullable := f.merged.Type.Nullable || typeJudge{Resolve: f.g.Resolve}.isAnyType(f.merged.Type)
+	nullable := f.merged.Type.Nullable || registry{f.g.resolve}.isAnyType(f.merged.Type)
 	takesDefault := make([]bool, len(f.decls))
 	takesExamples := make([]bool, len(f.decls))
 	for i, d := range f.decls {
@@ -350,25 +362,37 @@ func sameExamples(a, b []ir.Example) bool {
 // takes reports whether the field takes v, which decls[i] wrote: a null where
 // the field admits null, which the top type always does (nullable), and any
 // other value every bound another declaration brought admits, where decls[i]'s
-// own type is the field's, but for those bounds, or the field's type admits it. A
-// value a declaration writes against its own type and bounds is that
-// declaration's to answer for, not the fold's, and a composed field has no
+// own type is the field's, but for those bounds (ownType), or the field's type
+// admits it. A value a declaration writes against its own type and bounds is
+// that declaration's to answer for, not the fold's, and a composed field has no
 // declaration whose type it is.
 func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
 	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
-	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}}
+	judge := f.g.judgeAt(winner.Provenance, own.Provenance)
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}
-	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, winner.Type, own.Type)) {
+	if len(f.conjuncts) == 0 && f.ownType(judge, i) {
 		return true
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
 	return judge.admits(ref, v)
+}
+
+// ownType reports whether decls[i]'s type is the field's but for bounds: the
+// same as the winner's or alike it, where the field keeps the winner's node,
+// and alike the node the merge built for the field otherwise, which can hold
+// members or values the winner's does not (builder).
+func (f *folding) ownType(judge typeJudge, i int) bool {
+	winner, own := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
+	if f.merged.Type.Target == winner.Target {
+		return f.rel[f.winner][i] == relSame || alike(judge, winner, own)
+	}
+	return alike(judge, f.merged.Type, own)
 }
 
 // foldUse settles who sends the field and sees it: required and secret where
@@ -425,9 +449,10 @@ func (f *folding) foldAnnotations() {
 	if i := slices.IndexFunc(f.decls, func(d declaration) bool { return d.prop.Deprecation != nil }); i > 0 {
 		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[i].prop.Provenance.Inferred)
 	}
+	// XMLHints.Wrapped is a pointer, which == would compare by address.
 	f.merged.XML = firstWritten(f, "xml", func(_ int, p *ir.Property) (*ir.XMLHints, bool) {
 		return p.XML, p.XML != nil
-	}, func(a, b *ir.XMLHints) bool { return *a == *b })
+	}, func(a, b *ir.XMLHints) bool { return reflect.DeepEqual(a, b) })
 }
 
 // firstWritten returns the first value of detail a declaration gives (of), or
@@ -481,7 +506,7 @@ func (f *folding) foldUnmodeled() {
 					merged = make(ir.Unmodeled, len(d.prop.Unmodeled))
 				}
 				merged[key], from[key] = entry, i
-			case !sameEntry(f.g.Alike, merged[key], entry):
+			case !sameEntry(f.g.Walk, merged[key], entry):
 				f.lost[i] = true
 				f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 					"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
@@ -495,23 +520,24 @@ func (f *folding) foldUnmodeled() {
 
 // sameEntry reports whether a and b, the entry two declarations give one key,
 // are one: written alike, and read against one base where they write a
-// reference (alike, Merger.Alike), which the same text under another base may
-// read as another schema.
-func sameEntry(alike func(a, b ir.Provenance) bool, a, b ir.UnmodeledEntry) bool {
-	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || alike(a.Provenance, b.Provenance))
+// reference (Walk.Alike), which the same text under another base may read as
+// another schema.
+func sameEntry(walk Walk, a, b ir.UnmodeledEntry) bool {
+	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || walk.Alike(a.Provenance, b.Provenance))
 }
 
-// finish reports, declaration by declaration, what the fold noted there,
-// keeping each declaration it lost something of verbatim
+// finish returns the field and, declaration by declaration, what the fold
+// noted there, keeping each declaration it lost something of verbatim
 // (keepLosingDeclaration).
-func (f *folding) finish() ir.Property {
+func (f *folding) finish() (ir.Property, []ir.Diagnostic) {
+	var diags []ir.Diagnostic
 	for i, d := range f.decls {
 		for _, n := range f.notes[i] {
-			f.g.Report(n.sev, n.code, f.at(i), "%s", n.msg)
+			diags = append(diags, diag.Newf(n.sev, n.code, pointerOnly(f.at(i)), "%s", n.msg))
 		}
 		if f.lost[i] {
-			f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)
+			diags = append(diags, f.g.keepLosingDeclaration(&f.merged, d.prop.Provenance, d.source)...)
 		}
 	}
-	return f.merged
+	return f.merged, diags
 }

@@ -378,7 +378,7 @@ func TestVerify_ParamIDClassIsReached(t *testing.T) {
 		},
 		{
 			name: "an empty pagination input",
-			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.ParamPath{Param: ""}}},
+			op:   ir.Operation{Pagination: &ir.Pagination{InputCursor: &ir.InputPath{Param: new(ir.ParamID(""))}}},
 			want: []string{"doc.Services[0].Groups[0].Operations[0].Pagination.InputCursor.Param"},
 		},
 		{

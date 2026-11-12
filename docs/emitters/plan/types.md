@@ -8,6 +8,10 @@ type TypePlan struct {
                                     // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
+    Redacted   []ir.PropID          // the flattened members a value is redacted at: each whose
+                                    // ir.FlatProperty.Secret is set, as one of its declarations is
+                                    // Secret or of a sensitive type (../refine/redaction.md)
+    Sensitive  bool                 // the type, or one its Base chain reaches, is Sensitive
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
@@ -119,9 +123,9 @@ admitting no value in common, by these rules, and a pair none of them separates 
   decided for every filter at once: a member separates only where no filter can leave it out, its
   `Visibility` the zero value, and a declaration some filter leaves out separates only where its
   model is closed as well. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
-  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
-  add, counts as open.
+  `patternProperties` beside `additionalProperties: false` does
+  ([catch-alls](../../ir/models.md#catch-alls)), so the closure alone separates nothing, and a
+  polymorphic base, which holds its subtypes' values and the members they add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through a
 finite chain of separated members, and a cycle of models separates nothing by itself. The plan

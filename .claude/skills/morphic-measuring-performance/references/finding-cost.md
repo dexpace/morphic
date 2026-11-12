@@ -93,6 +93,72 @@ how to measure so the number means what the claim says.
 - **Why.** A Linux host with no `perf` left a review of a cost claim no instrument (#1162).
 - **Probe.** `command -v perf`, then each side's range from the alternated runs against the gap.
 
+## Profile a fuzz worker alone, over a window past its warm-up
+`profile-a-fuzz-worker-alone`
+
+- **Rule.** `go test` refuses `-cpuprofile` beside `-fuzz`, and a test binary given both has its
+  workers write the profile's file too. Profile a worker from an `init` in a scratch copy of the
+  target's package that, when `os.Args` holds `-test.fuzzworker`, sleeps past warm-up and runs
+  `pprof.StartCPUProfile` over a fixed window, and quote the window with the figure. Run it with
+  `-test.fuzzminimizetime=0x`, as a worker the minimization bound restarts starts its window again.
+  The whole search's CPU time is `references/finding-cost.md#cpu-time-without-a-counter`'s, over
+  the test binary.
+- **Why.** Coverage bookkeeping read 41% of `FuzzCompile`'s worker over 20 s past 15 s of warm-up,
+  and 1.8% over its first 10 s; five runs given both flags each wrote a profile pprof refused
+  (#1381, #1552).
+- **Probe.** `go tool pprof -top <profile>` prints a `Duration` of the window.
+
+## Read minimization out of a fuzz cost, and count its cut runs
+`minimization-in-a-fuzz-cost`
+
+- **Rule.** Compare CPU per execution with `-test.fuzzminimizetime=0x`. A share of time spent
+  minimizing, read from `GODEBUG=fuzzdebug=1`, adds each `minimizing took: 0s` line times the bound
+  to the lines' sum: a minimization the bound cuts logs `0s` and restarts its worker.
+- **Why.** `FuzzCanonicalWords` read 340 µs an execution with default minimization and 145 µs
+  without it, and a plain sum of the log read minimizing as 13% of worker time where the bound
+  put it near 84% (#1385, #1552).
+- **Probe.** The count of `0s` lines comes close to the worker starts past each worker's first,
+  counted by a line a scratch `init` writes when `-test.fuzzworker` starts.
+
+## Sum a share of named functions over pprof's `cum`, never `flat`
+`share-of-named-functions`
+
+- **Rule.** A share of time spent in named functions names its pprof column, and sums `cum` over
+  functions none of which calls another, read from
+  `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 <profile>`: `flat` leaves
+  out what pprof books to a callee inlined into the function.
+- **Why.** Three coverage functions of one fuzz worker summed 47.0% `flat` and 54.4% `cum`, and a
+  body quoted such a share with no column (#1381, #1592).
+- **Probe.** Each share quoted names its column, and `go tool pprof -peek '<name>' <profile>` shows
+  none of its functions calling another. Then
+  `references/finding-cost.md#share-no-module-frame-holds`.
+
+## Quote the samples no module frame holds, and attribute them by allocation
+`share-no-module-frame-holds`
+
+- **Rule.** Beside a share of named functions, quote the share of samples whose stack holds no frame
+  of the module or its dependencies, as the runtime's. Where it is large, attribute it by an
+  allocation profile of the same run (`-sample_index=alloc_space`), or by instructions retired with
+  the suspected party switched off, never by CPU samples alone.
+- **Why.** One `engine.Run` over the GitHub REST description booked 22.1% of CPU samples to the
+  parser library and 8.4% to the module alone, with 69.2% under the runtime; its allocation
+  profile put 75% of the bytes under the library (#1653).
+- **Probe.** `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 -ignore="$(go list -m -f '{{.Path}}' all | sed 's/[.]/\\./g' | paste -sd'|' -)" <binary> <profile> | grep '^Showing'`
+  prints those samples and their share of the total.
+
+## Measure a claimed cost on an input that can show it
+`cost-measured-where-it-occurs`
+
+- **Rule.** A cost a change weighs, or claims absent, is measured on an input where it can occur,
+  named beside the figure: a "no cost" read on an input that cannot show one is unmeasured. For a
+  fuzz bound, plant a crash only a valid document reaches, behind a clock so that both bounds meet
+  it.
+- **Why.** A minimization bound cut to 1 s was weighed against a less minimal reproducer on a crash
+  a 3-byte input reaches. Planted past a clean compile, the crash's reproducer was 91 and 92 bytes
+  at a 10 s bound and 313 and 3176 at 1 s (#1290, #1385, #1608).
+- **Probe.** The figure on the named input differs between bounds or builds wherever the claimed
+  cost exists.
+
 ## Price a stage after the compile from a saved document
 `cost-of-a-later-stage`
 
@@ -112,11 +178,23 @@ how to measure so the number means what the claim says.
 - **Rule.** A build of `origin/main` holds whatever was fetched last, which can include a change
   merged minutes ago that the branch lacks. Measure against the branch's merge base, or merge
   `main` in first; `sweep.py` warns when HEAD does not hold the base. Before calling a difference a
-  regression, read both builds' revisions.
+  regression, read both builds' revisions, the head built as
+  `references/finding-cost.md#build-head-where-measured` says.
 - **Why.** A branch read 33% more CPU than a `main` build that had just gained another PR's
   speedup, which the branch lacked (#1131, #1125).
 - **Probe.** `git merge-base --is-ancestor <base> HEAD`; on a false answer, rerun with
   `-b $(git merge-base HEAD origin/main)`.
+
+## Build the head binary in the command that measures it
+`build-head-where-measured`
+
+- **Rule.** A binary is the tree it was built from, not the one on disk now, and two builds of one
+  uncommitted tree carry the same `vcs.revision`, so no revision tells a stale head binary from a
+  fresh one. Build the head in the command that measures it, each time the tree changes, and
+  rebuild before profiling a cost an in-process profile does not show.
+- **Why.** A head binary built before the last edit to the code under measurement read a cost on a
+  union spec that a profile of the fresh tree lacked, and a rebuild matched `main` (#1700, #1701).
+- **Probe.** `go build -o <bin> ./cmd/morphic && GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>`.
 
 ## Check a cost argument for every caller of the function it is about
 `cost-claims-per-caller`
@@ -156,17 +234,31 @@ how to measure so the number means what the claim says.
 ## Time generated shapes, deep and wide, on main and the branch
 `deep-generated-shapes`
 
-- **Rule.** When a change adds a walk, index or per-position reader, time `main` against the branch
-  on generated shapes no corpus holds: a spine a few hundred levels deep with a wide leaf, many
-  parallel deep chains, many `$ref`s into distinct entries of one wide mapping, and many `$ref`s to
-  one wide component, growing both together. Rerun the reproducers of closed cost issues whose tests
-  the change deletes.
+- **Rule.** When a change adds a walk, index or per-position reader, time both builds on generated
+  shapes no corpus holds: a spine hundreds of levels deep with a wide leaf, many parallel deep
+  chains, many `$ref`s into distinct entries of one wide mapping, and many `$ref`s to one wide
+  component, growing both together. Nested loops take
+  `references/finding-cost.md#grow-each-dimension-alone`. Rerun the reproducers of closed cost
+  issues whose tests the change deletes.
 - **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
   three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those
   shapes read linear while references times size grew the output, which doubling one hides (#1191,
   #1240).
 - **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
+
+## Grow each dimension a nested loop iterates on its own
+`grow-each-dimension-alone`
+
+- **Rule.** For a reader whose loops nest, name each dimension they iterate, such as a union's
+  variants and each variant's members, and generate a shape growing each alone at n, 2n and 4n
+  with the others held, beside one growing them together. A cost claim names every dimension it
+  grew: widening the one a generator happens to vary reads linear while another is quadratic.
+- **Why.** On #1700, tag inference read linear as its union widened, while two variants each
+  pinning the same P properties cost P², which no union width showed (#1703).
+- **Probe.** Instructions retired at each step on both builds
+  (`references/finding-cost.md#instructions-not-wall-clock`), read as marginal growth
+  (`references/cost-tests.md#marginal-growth-on-one-path`): near 4 is quadratic.
 
 ## Drive a loop that reruns a phase through many turns
 `drive-a-settling-loop`

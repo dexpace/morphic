@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/ctxtest"
@@ -253,7 +254,7 @@ func TestLoadOptions_ReadsEachBudgetAsLimitsSpellsIt(t *testing.T) {
 	resolved := func(l Limits) []budget.Limit {
 		o := Options{Limits: l}.withDefaults()
 		phase := loadOptions(o, nil, src)
-		lowered := loweringCtx(&load.Document{}, o).Limits
+		lowered := loweringCtx(&load.Document{Doc: &soa.OpenAPI{}}, o).Limits
 		return []budget.Limit{phase.MaxSourceBytes, phase.MaxSourceNodes, lowered.MaxEnumMembers,
 			phase.MaxAliasSurplus, phase.MaxExternalDocuments, lowered.MaxReferenceExpansion}
 	}
@@ -385,7 +386,7 @@ func TestRun_RefusesAtEveryPhaseBoundaryOnCancellation(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: tc.live}
 
-			doc, diags, err := run(ctx, lowering.Ctx{Doc: &soa.OpenAPI{}}, compile.NewTypes())
+			doc, diags, err := run(ctx, loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}), compile.NewTypes())
 
 			require.ErrorIs(t, err, context.Canceled)
 			assert.Nil(t, doc, "a partial registry is never assembled into a Document")
@@ -412,7 +413,7 @@ components:
     Pet:
       type: object
       discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-      oneOf: [{$ref: '#/components/schemas/Cat'}]
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {type: 'null'}]
     Cat: {type: object}
 `
 	runUntil := func(live int) (int, []ir.Diagnostic, error) {

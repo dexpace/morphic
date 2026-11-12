@@ -14,6 +14,8 @@ type OpPlan struct {
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
+    Stability       ir.Stability      // its own tier, else its nearest group's; "" = none
+                                      // states one (../operations/stability.md)
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
@@ -28,8 +30,12 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Strategy   ir.PageStrategy
     ItemType   *ir.TypeRef            // element type items resolve to, unwrapped from the envelope
     ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
-    CursorIn   *ir.ParamPath
+    CursorIn   *ir.InputPath          // a parameter, or a member of the request body
     CursorOut  *ir.PropPath
+    LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
+    TotalCount *ir.PropPath           // the items in all, which "total" reads
+    TotalPages *ir.PropPath           // the pages in all, which "total" reads
+    Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 

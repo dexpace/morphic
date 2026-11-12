@@ -15,7 +15,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
-	"github.com/dexpace/morphic/ir"
 )
 
 // refSite is where a reference object is written: a pointer of the source,
@@ -44,23 +43,6 @@ func compareSites(a, b refSite) int {
 		return c
 	}
 	return cmp.Compare(a.pointer, b.pointer)
-}
-
-// sitePlacer returns where a finding at a site is placed: at's Provenance for
-// the source's, and for another document's its own Document.Sources entry. One
-// no entry holds, which a document read for its content always has, is placed
-// at the source's root rather than nowhere.
-func sitePlacer(at func(jsontext.Pointer) ir.Provenance, others Others) func(refSite) ir.Provenance {
-	return func(s refSite) ir.Provenance {
-		if s.inSource() {
-			return at(s.pointer)
-		}
-		o, ok := others.Named(s.doc)
-		if !ok {
-			return at("")
-		}
-		return ir.Provenance{Source: o.Index, Pointer: s.pointer}
-	}
 }
 
 // reachedEnd is an object a resolution ended on in another document, whose

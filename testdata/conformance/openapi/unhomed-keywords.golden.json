@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -129,14 +130,6 @@
             "source": 0,
             "pointer": "/components/schemas/ConstWithBound/maxLength"
           }
-        },
-        "openapi:type": {
-          "reason": "degraded_lowering",
-          "value": "string",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/ConstWithBound/type"
-          }
         }
       },
       "provenance": {
@@ -146,7 +139,8 @@
       "value": {
         "kind": "string",
         "str": "ab"
-      }
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/ConstWithFormat": {
       "kind": "literal",
@@ -158,24 +152,6 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:format": {
-          "reason": "degraded_lowering",
-          "value": "int32",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/ConstWithFormat/format"
-          }
-        },
-        "openapi:type": {
-          "reason": "degraded_lowering",
-          "value": "integer",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/ConstWithFormat/type"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/ConstWithFormat"
@@ -183,7 +159,8 @@
       "value": {
         "kind": "number",
         "num": "5"
-      }
+      },
+      "valueType": "int32"
     },
     "t/openapi/components/schemas/EnumWithProperties": {
       "kind": "enum",
@@ -1188,16 +1165,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"literal\", which has no home for format, type declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/ConstWithFormat"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"literal\", which has no home for type, maxLength declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a node of kind \"literal\", which has no home for maxLength declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/ConstWithBound"
@@ -1217,7 +1185,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "35f37b3bd8736e465ae886659a97cad60e1cb49cc49d0ea5a44cadc4d66d58cf"
+      "hash": "1da2631ca04450d576529ea9b45cc7bee71057d896a75ea056569503c09bf2a8"
     }
   ]
 }

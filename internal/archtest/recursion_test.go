@@ -94,10 +94,12 @@ var schemaRecursion = []string{
 	"fillModelProperties", "fillRefBranch", "hoistScalar", "hoistSubSchema", "lower",
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
-	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
-	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
+	"lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
-	"resolveAt", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes", "resolveMappingTarget",
+	"resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 
@@ -448,9 +450,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyUnionSiblings":     "isInlineBranch",
-		"unionBranchesDeclareShape": "branchDeclaresShape",
-		"oneOfAnyOfHasNull":         "isNullSchema",
+		"classifyBranchSet": "isNullSchema",
+		"setsDeclareShape":  "branchDeclaresShape",
+		"oneOfAnyOfHasNull": "isNullSchema",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

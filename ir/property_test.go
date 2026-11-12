@@ -54,7 +54,7 @@ func TestProperty_JSONContract(t *testing.T) {
 			`"clientOptional":false,"defaultAdded":false,"visibility":{"none":false},`+
 			`"flatten":false,"eventHeader":false,"eventPayload":false,"secret":false,`+
 			`"docs":{},"provenance":{"source":0}}`,
-		populatedProperty())
+		populatedProperty(), eventPayloadLeftZero())
 }
 
 // TestHeader_JSONContract pins that a Header encodes flat, its fields beside its

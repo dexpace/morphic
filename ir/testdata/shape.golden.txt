@@ -8,7 +8,7 @@ type AdditionalMode string
 type AdditionalProps struct
 	"key" *TypeRef omitzero
 	"patterns" []PatternProps omitempty
-	"value" TypeRef
+	"value" *TypeRef omitzero
 
 type Any struct
 	embed TypeCommon
@@ -67,6 +67,7 @@ type BigVal string
 
 type Callback struct
 	"expression" string omitempty
+	"name" string omitempty
 	"operations" []OpID omitempty
 
 type Channel struct
@@ -274,10 +275,11 @@ type HTTPBinding struct
 	"checksumRequired" bool
 	"compression" *RequestCompression omitzero
 	"hostPrefix" string omitempty
-	"isWebhook" bool
+	"inbound" HTTPInbound omitempty
 	"method" string omitempty
 	"paramBindings" []HTTPParamBinding omitempty
 	"patchImplicitOptionality" *bool omitzero
+	"pathDocs" Docs omitzero
 	"requestContentTypes" []string omitempty
 	"responseBodyPath" *PropPath omitzero
 	"sharedRoute" bool
@@ -285,6 +287,10 @@ type HTTPBinding struct
 	"unmodeled" Unmodeled omitempty
 	"uriTemplate" string omitempty
 	"webhookName" string omitempty
+
+type HTTPInbound string
+	const "callback"
+	const "webhook"
 
 type HTTPLocation string
 	const "body"
@@ -327,6 +333,10 @@ type IdempotencyKind string
 
 type Inferred string
 
+type InputPath struct
+	"param" *ParamID omitzero
+	"segments" []PropID omitempty
+
 type License struct
 	"identifier" string omitempty
 	"name" string omitempty
@@ -347,6 +357,7 @@ type List struct
 type Literal struct
 	embed TypeCommon
 	"value" Value
+	"valueType" PrimKind omitempty
 	method (*Literal) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Literal) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
 
@@ -491,6 +502,12 @@ type OperationGroup struct
 	"stability" Stability omitempty
 	"unmodeled" Unmodeled omitempty
 
+type PageStop string
+	const "empty"
+	const "no_next"
+	const "short"
+	const "total"
+
 type PageStrategy string
 	const "cursor"
 	const "link_header"
@@ -502,21 +519,19 @@ type PageStrategy string
 type Pagination struct
 	"firstLink" *PropPath omitzero
 	"inferred" bool
-	"inputCursor" *ParamPath omitzero
-	"inputLimit" *ParamPath omitzero
+	"inputCursor" *InputPath omitzero
+	"inputLimit" *InputPath omitzero
 	"items" *PropPath omitzero
 	"lastLink" *PropPath omitzero
 	"nextCursor" *PropPath omitzero
 	"nextLink" *PropPath omitzero
 	"prevLink" *PropPath omitzero
+	"stop" []PageStop omitempty
 	"strategy" PageStrategy omitempty
 	"totalCount" *PropPath omitzero
+	"totalPages" *PropPath omitzero
 
 type ParamID string
-
-type ParamPath struct
-	"param" ParamID omitempty
-	"segments" []PropID omitempty
 
 type Parameter struct
 	"availability" *Availability omitzero
@@ -644,6 +659,7 @@ type Provenance struct
 	"pointer" encoding/json/jsontext.Pointer omitempty
 	"position" Position omitzero
 	"source" int
+	"writtenBy" int omitzero
 
 type RPCBinding struct
 	"fullMethod" string omitempty
@@ -713,7 +729,7 @@ type Server struct
 type ServerID string
 
 type ServerVariable struct
-	"default" string omitempty
+	"default" *string omitzero
 	"docs" Docs
 	"enum" []string omitempty
 	"name" string omitempty
@@ -758,10 +774,16 @@ type StatusRange struct
 	"from" int
 	"to" int
 
+type StreamCondition struct
+	"input" InputPath
+	"value" Value
+
 type StreamDetail struct
+	"condition" *StreamCondition omitzero
 	"events" *TypeRef omitzero
 	"initial" *TypeRef omitzero
 	"requiresLength" bool
+	"terminator" *string omitzero
 
 type StreamingMode string
 	const ""
@@ -849,8 +871,10 @@ type TypeRegistry map[TypeID]TypeDef
 
 type Union struct
 	embed TypeCommon
+	"closed" bool
 	"discriminator" *Discriminator omitzero
 	"exclusive" bool
+	"inputOnly" bool
 	"variants" []Variant omitempty
 	"wireTagged" bool
 	method (*Union) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
@@ -885,7 +909,10 @@ type ValueKind string
 	const "bool"
 	const "bytes"
 	const "ctor"
+	const "inf"
 	const "list"
+	const "nan"
+	const "neginf"
 	const "null"
 	const "number"
 	const "object"
@@ -931,11 +958,12 @@ type WireIDRange struct
 	"to" int
 
 type XMLHints struct
+	"attribute" *bool omitzero
 	"name" string omitempty
 	"namespace" string omitempty
 	"nodeType" string omitempty
 	"prefix" string omitempty
-	"wrapped" bool
+	"wrapped" *bool omitzero
 
 type encoding/json/jsontext.Pointer string
 

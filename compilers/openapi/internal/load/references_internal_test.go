@@ -24,8 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -107,8 +106,9 @@ func TestResolve_SitesEachFailureAtItsReference(t *testing.T) {
 }
 
 // TestResolve_OverlayIntroducedReferenceNamesTheOverlay pins the other half of
-// pointerAt: a $ref an overlay adds is attributed to the overlay's own source
-// index, not the base document's, because the overlay is what wrote it.
+// placing a pointer of the source: a $ref an overlay adds is attributed to the
+// overlay's own source index, not the base document's, because the overlay is
+// what wrote it.
 func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 	t.Parallel()
 	_, diags, err := Load(t.Context(), 0, openapitest.SourceOf(graftBase),
@@ -121,8 +121,8 @@ func TestResolve_OverlayIntroducedReferenceNamesTheOverlay(t *testing.T) {
 			continue
 		}
 		found++
-		assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Ghost"}, d.Provenance,
-			"the overlay introduced this $ref, so the overlay's own index names it, not the base document's")
+		assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/components/schemas/Ghost", WrittenBy: 1}, d.Provenance,
+			"the overlay introduced this $ref, so it is named the writer of the base document's position")
 		assert.Contains(t, d.Message, `unresolved $ref "#/components/schemas/Missing"`)
 	}
 	assert.Equal(t, 1, found, "diagnostics: %+v", diags)
@@ -756,7 +756,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		if err != nil {
 			continue // not YAML at all: out of scope for a resolution drift test
 		}
-		if diag.HasError(refusals(t.Context(), scan.InSource(0), root, Options{})) {
+		if diag.HasError(refusals(t.Context(), provenance.Tree{}, ir.Provenance{}, root, Options{})) {
 			continue // a pre-parse refusal fixture: never reaches a resolver
 		}
 		readyForModel(t.Context(), root)
@@ -889,5 +889,5 @@ x-lib: {S: just a string}
 func resolvedDiags(t *testing.T, doc *soa.OpenAPI, path string) []ir.Diagnostic {
 	t.Helper()
 	return resolveWith(t.Context(), doc, Siblings{}, MediaTypes{}, sourceDocument{path: path}, Options{}, nil).
-		diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{}))
+		diags(places{})
 }

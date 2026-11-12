@@ -34,12 +34,9 @@ import (
 // added. Each entry says what its calls are.
 var callShapeBaseline = map[string]map[string]int{
 	"compilers": {
-		// The registry calls the methods of each compiler it holds: a designed seam.
-		"compilers/openapi": 5,
-		// Detection's configuration, which the engine and the harness hand the
-		// registry as a callback until #1482 makes it data.
-		"engine":           1,
-		"internal/harness": 1,
+		// The registry calls the methods of each compiler it holds, DecodeOptions
+		// among them as it resolves a compiler's options: a designed seam.
+		"compilers/openapi": 6,
 	},
 	"compilers/compile": {
 		// The settlement queue runs what a lowering deferred, once the registry is
@@ -48,13 +45,7 @@ var callShapeBaseline = map[string]map[string]int{
 		// also calls the build schema hands it before it returns: an immediate
 		// callback.
 		"compilers/openapi/internal/operation": 2,
-		"compilers/openapi/internal/schema":    4,
-	},
-	"compilers/openapi/internal/annotation": {
-		// Placement through lowering.Ctx.ProvenanceAt and schema's unlocated,
-		// which #1485 replaces with one provenance value.
-		"compilers/openapi/internal/lowering": 14,
-		"compilers/openapi/internal/schema":   1,
+		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
 		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
@@ -70,16 +61,16 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// KeptOnce.Once, Promoter.Referent, Ctx.TypePosition and Remembered each
-		// call the function they are handed before they return: immediate
-		// callbacks.
-		"compilers/openapi/internal/operation": 1,
-		"compilers/openapi/internal/schema":    17,
+		// Promoter.Referent and Remembered each call the function they are handed
+		// before they return: immediate callbacks.
+		"compilers/openapi/internal/schema": 13,
 	},
 	"compilers/openapi/internal/merge": {
-		// The allOf merge relay, which #1486 lowers to the fold's calls back into
-		// the walk that declared the field.
-		"compilers/openapi/internal/schema": 24,
+		// What a fold asks the walk that declared the field, through merge.Walk:
+		// Alike three times, Untyped twice, Mint once and Interned once.
+		// merge.Source, a lazy render of a declaration nobody may keep. And the
+		// predicate SelectBase calls before it returns, an immediate callback.
+		"compilers/openapi/internal/schema": 9,
 	},
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
@@ -96,19 +87,18 @@ var callShapeBaseline = map[string]map[string]int{
 		// takes each value it leaves to the load phase, traversal callbacks.
 		"compilers/openapi/internal/load": 12,
 	},
+	"compilers/openapi/internal/provenance": {
+		// provenance.Tree's Pointers, a node's pointer in the tree it places, read
+		// off an index built on the first node asked about, under the context of
+		// the load reading the tree: a lazily built index.
+		"compilers/openapi/internal/load": 1,
+		"compilers/openapi/internal/scan": 1,
+	},
 	"compilers/openapi/internal/resolve": {
 		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's
 		// rule: a lazily built index (Holds), and queries of load's index of the
 		// fields written beside a path item $ref (Beside, Writes).
 		"compilers/openapi/internal/load": 3,
-		// Scope.Declares, filled with lowering.Ctx.DeclaresSchema until #1481 hands
-		// it the names as a value.
-		"compilers/openapi/internal/lowering": 1,
-	},
-	"compilers/openapi/internal/scan": {
-		// Placement through scan.Locator and its pointers, which #1487 replaces
-		// with one provenance tree.
-		"compilers/openapi/internal/load": 13,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate
@@ -119,9 +109,9 @@ var callShapeBaseline = map[string]map[string]int{
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
 		"internal/census": 1,
-		"ir/irfacts":      2,
+		"ir/irfacts":      3,
 		"ir/irverify":     2,
-		"pass":            13,
+		"pass":            14,
 	},
 }
 

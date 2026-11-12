@@ -283,6 +283,17 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
+    def test_a_word_opening_with_a_variable_names_no_path_bar_goroot(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each expands to a place outside the tree, so none is held to it; $GOROOT alone still is.
+        spans = ("Then `ls \"$PWD/ir\"`, `ls $PWD/gone`, `ls $D/ir`, `cat $OUT/x.log`, "
+                 "`ls \"$HOME/x\"`, `ls ${PWD}/ir`, `ls '$TMP/y'`, `ls $GOROOT_FINAL/gone` and "
+                 "`$WORK/z`, but not "
+                 "`cat $GOROOT/src/gone.go`.\n")
+        write(self.root, skill, GOOD_SKILL + spans)
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n}: GOROOT/src/gone.go does not exist"])
+
     def test_a_go_name_placed_in_a_file_is_held_to_its_declarations(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, "ir/b.go", "package ir\n\n// Mentioned is named, as is type Buried.\n"
@@ -447,6 +458,17 @@ class LintTest(unittest.TestCase):
               "---\nname: " + "x" * 64 + "\ndescription: Use when testing.\n---\n")
         self.assertEqual(self.lint()[1], [], "64 characters is within the limit")
 
+    def test_a_positional_placeholder_is_refused_in_a_body_and_kept_in_a_reference(self):
+        skill = ".claude/skills/good-skill/"
+        awk = "Run `awk '{print c\":\"$0}'` and `awk '{print $(0)}'`.\n"
+        write(self.root, skill + "SKILL.md", GOOD_SKILL + "```bash\nsed -n \"$1p\"\n```\n" + awk)
+        write(self.root, skill + "references/r.md", "# R\n\n" + awk + "\n" + RULE)
+        lines = len(GOOD_SKILL.split("\n"))
+        message = ("a $ before a digit is replaced by the skill's arguments when it loads; "
+                   "spell an awk field $(N) and a shell parameter ${N}")
+        self.assertEqual(self.lint()[1], [f"{skill}SKILL.md:{lines + 1}: {message}",
+                                          f"{skill}SKILL.md:{lines + 3}: {message}"])
+
     def test_a_description_is_held_to_500_characters(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         body = GOOD_SKILL.split("---\n", 2)[2]
@@ -560,6 +582,50 @@ class ArgumentsTest(unittest.TestCase):
                     skills_lint.main(argv)
                 self.assertEqual(e.exception.code, 2)
                 lint.assert_not_called()
+
+    def test_a_tree_with_no_repository_is_told_how_to_make_one(self):
+        hint = "; in a copy git archive unpacked, run git init and git add -A first\n"
+        # git's own reason leads, as a refusal inside a .git directory is no missing repository.
+        cases = (("no repository",
+                  "fatal: not a git repository (or any of the parent directories): .git\n",
+                  "fatal: not a git repository (or any of the parent directories): .git"),
+                 ("inside .git", "fatal: this operation must be run in a work tree\n",
+                  "fatal: this operation must be run in a work tree"),
+                 ("a reason over lines",
+                  "fatal: detected dubious ownership in repository at '/r'\n"
+                  "To add an exception for this directory, call:\n\n"
+                  "\tgit config --global --add safe.directory /r\n",
+                  "fatal: detected dubious ownership in repository at '/r'"),
+                 ("git said nothing", "", "git rev-parse exited 128"))
+        for name, stderr, said in cases:
+            with self.subTest(name):
+                err = io.StringIO()
+                refused = subprocess.CalledProcessError(
+                    128, ["git", "rev-parse", "--show-toplevel"], "", stderr)
+                with mock.patch.object(skills_lint, "git", side_effect=refused), \
+                        mock.patch.object(skills_lint, "findings") as lint, \
+                        contextlib.redirect_stderr(err):
+                    self.assertEqual(skills_lint.main([]), 2)
+                self.assertEqual(err.getvalue(), f"skills_lint: {said}{hint}")
+                lint.assert_not_called()
+
+    def test_no_git_or_no_working_directory_is_one_line_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = Path(d) / "gone"
+            gone.mkdir()
+            cases = (("no git on PATH", d, str(gone), False),
+                     ("a removed working directory", gone, os.environ["PATH"], True))
+            for name, cwd, path, remove in cases:
+                with self.subTest(name):
+                    with contextlib.chdir(cwd), mock.patch.dict(os.environ, {"PATH": path}), \
+                            mock.patch.object(skills_lint, "findings") as lint, \
+                            contextlib.redirect_stderr(io.StringIO()) as err:
+                        if remove:
+                            gone.rmdir()
+                        code = skills_lint.main([])
+                    self.assertEqual(code, 2)
+                    self.assertRegex(err.getvalue(), r"^skills_lint: \[Errno 2\] [^\n]*\n$")
+                    lint.assert_not_called()
 
     def test_help_prints_the_usage_and_lints_nothing(self):
         out = io.StringIO()

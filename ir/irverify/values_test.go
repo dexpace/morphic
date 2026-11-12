@@ -68,6 +68,19 @@ func enumMemberCarrierDoc(v ir.Value) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{e.ID: e}}
 }
 
+// streamConditionCarrierDoc carries v as the value a request body member holds
+// to ask for an operation's stream.
+func streamConditionCarrierDoc(v ir.Value) *ir.Document {
+	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
+	op := &doc.Services[0].Groups[0].Operations[0]
+	op.Bindings = ir.OpBindings{}
+	op.Request = &ir.Payload{}
+	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
+		Input: ir.InputPath{Segments: []ir.PropID{"p/x/Body/stream"}}, Value: v,
+	}}
+	return doc
+}
+
 // otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
 // under one service and one group and reached through Document.Services rather
 // than Document.Types, where a walk scoped to Types would never reach it.
@@ -171,6 +184,10 @@ func valueCarrierCases() []valueCarrierCase {
 			path: "doc.Services[0].Groups[0].Operations[0].Bindings.OTP.RequestTag",
 		},
 		{carrier: "TemplateArg.Value", doc: templateArgCarrierDoc, path: "doc.Types[t/x/M].Instantiation.Args[0].Value"},
+		{
+			carrier: "StreamCondition.Value", doc: streamConditionCarrierDoc,
+			path: "doc.Services[0].Groups[0].Operations[0].ResponseStream.Condition.Value",
+		},
 	}
 }
 
@@ -303,6 +320,24 @@ func TestVerify_NullValueWithNoPayloadIsClean(t *testing.T) {
 	t.Parallel()
 	locs, _ := valueViolations(valueDoc(ir.Value{Kind: ir.ValueNull}))
 	assert.Empty(t, locs)
+}
+
+// TestVerify_NonFiniteValuesCarryNoPayload holds inf, neginf and nan to the
+// contract null keeps: each is a value of its own with no payload, so a bare one
+// is clean and anything set beside it is stray.
+func TestVerify_NonFiniteValuesCarryNoPayload(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []ir.ValueKind{ir.ValueInf, ir.ValueNegInf, ir.ValueNaN} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			bare, _ := valueViolations(valueDoc(ir.Value{Kind: kind}))
+			stray, _ := valueViolations(valueDoc(ir.Value{Kind: kind, Num: "1"}))
+
+			assert.Empty(t, bare, "a bare %s is a value of its own", kind)
+			want := []valueLoc{{Code: "ir/value-stray-payload", Path: valueDocPath + ".Num"}}
+			assert.Empty(t, cmp.Diff(want, stray), "a %s's digits are no part of it", kind)
+		})
+	}
 }
 
 // TestVerify_MissingValuePayloadIsAViolation drives ir/value-missing-payload at

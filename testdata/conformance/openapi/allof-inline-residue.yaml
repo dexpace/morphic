@@ -32,6 +32,21 @@ components:
       allOf:
         - {$ref: '#/components/schemas/Untyped'}
         - {type: string, maxLength: 3}
+    # Beside a union the branch folds as it does alone: the Union the
+    # distribution lowers to takes its description, each composed variant its
+    # bound, and no variant keeps the branch.
+    Feline: {type: object, properties: {purrs: {type: boolean}}}
+    Canine: {type: object, properties: {barks: {type: boolean}}}
+    Distributed:
+      allOf:
+        - {$ref: '#/components/schemas/Base'}
+        - properties:
+            name: {type: string}
+          description: A pet of either kind.
+          maxProperties: 4
+      oneOf:
+        - {$ref: '#/components/schemas/Feline'}
+        - {$ref: '#/components/schemas/Canine'}
     # Under the $id beside its allOf, `item.json` names ItemB; under the
     # nested wrapper's, ItemA. The nested branch's `not` would name ItemB once
     # folded here, so it folds nothing and is kept whole, while the outer

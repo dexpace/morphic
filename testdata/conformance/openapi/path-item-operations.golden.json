@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -90,6 +91,7 @@
                     "uriTemplate": "/index",
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
                           "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
@@ -97,8 +99,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -139,9 +140,9 @@
                   {
                     "method": "PURGE",
                     "uriTemplate": "{$request.body#/callbackUrl}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -198,8 +199,7 @@
                       "application/json"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -241,8 +241,7 @@
                     "method": "PURGE",
                     "uriTemplate": "/index",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -284,8 +283,7 @@
                     "method": "mIxEdCase",
                     "uriTemplate": "/index",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -334,10 +332,10 @@
                 "http": [
                   {
                     "method": "FLUSH",
+                    "inbound": "webhook",
                     "webhookName": "cacheFlushed",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": true
+                    "checksumRequired": false
                   }
                 ]
               },

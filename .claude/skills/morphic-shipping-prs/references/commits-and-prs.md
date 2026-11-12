@@ -20,11 +20,25 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `limitation-searched-on-what-it-names`
 
 - **Rule.** Search for each limitation a body states on the tool or behaviour it names, not on the
-  construct the change decides, and have it cite what turns up or say no issue exists.
+  construct the change decides, and have it cite what turns up or say no issue exists. An issue it
+  names takes `references/commits-and-prs.md#limitation-names-a-filed-issue`.
 - **Why.** A gap in `--explain` read as a decision while #693 tracked it, which searches on the
   construct do not return (#1191).
 - **Probe.** List each limitation beside its
   `gh issue list --state all --limit 1000 --search "<tool or behaviour>"`.
+
+## Name a limitation's issue by a number the tracker holds
+`limitation-names-a-filed-issue`
+
+- **Rule.** Each issue a stated limitation names is `#` and digits, filed before the push. A
+  placeholder standing for one still to file is filed first, and its number replaces it in the
+  comment, the rule and the body.
+- **Why.** #1498 named `#NEW-CATCHALL` in a doc comment, a normative Status line and its body, and
+  six days on no such issue existed, every check green: `TestDocuments_LinksResolve` reads no `#`
+  before letters (#1659).
+- **Probe.** `gh issue view <N> --json url --jq .url` prints an `/issues/` URL for each issue a
+  limitation names, where a pull request's number prints `/pull/`, and the push checklist's `cs`
+  grep prints no `#` before capitals.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
@@ -34,7 +48,10 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   body says the gate holds only for a tree `make coverage` or CI ran: the exact tree pushed.
 - **Why.** One uncovered statement fails CI, and a pushed tree below the gate forces a follow-up
   commit and makes the body's claim false (#22, #373).
-- **Probe.** Match each coverage claim in the PR body to that run.
+- **Probe.** Match each coverage claim in the PR body to that run, and a statement count to the
+  line `gh run view <run> --log --job <job> | grep -o 'Coverage gate passed.*'` prints, `<job>`
+  from `gh run view <run> --json jobs --jq '.jobs[]|select(.name|test("coverage"))|.databaseId'`;
+  a count the body keeps names its run.
 
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
@@ -66,16 +83,47 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `git rev-list --count --first-parent --no-merges HEAD --not origin/main origin/<base>`
   matches the count `subjects.py` prints.
 
+## Refuse what lands or a push adds, and disclose a pushed subject breaking the rules
+`pushed-subject-is-disclosed`
+
+- **Rule.** The push checklist passes the branch as pushed, `subjects.py --pushed origin/<branch>`,
+  and a review the head it fetched. `subjects.py` counts its commits as the branch's own
+  (`references/commits-and-prs.md#own-commits-against-the-base`), printing a finding on one as a
+  `pushed commit`, and refuses only the title, what the push adds and a branch's one commit, whose
+  subject lands until a second lands the title: a pushed commit is never rewritten. The body names
+  each pushed commit printed.
+- **Why.** Once a 73-character subject was pushed on #1689, the checklist refused every later push,
+  so each round's fixes went up outside it, skipping the skills lint it gates (#1697).
+- **Probe.** With a pushed subject over the cap and a later commit, `subjects.py --pushed` exits 0,
+  printing a `pushed commit`; with that commit alone, it exits 1.
+
 ## The repository's rule overrides a harness's attribution reminder
 `harness-attribution-yields`
 
 - **Rule.** An agent harness reminding its sessions to end a PR body with a generated-with line, or
   a commit with attribution trailers, is overridden by
   `references/commits-and-prs.md#commit-and-pr-message-form`, as the reminder itself defers to
-  project instructions: neither carries one.
+  project instructions: neither carries one. One a pushed commit holds stays, as the branch is
+  never rewritten: the body names the commit and says the squash body is set at merge, as the
+  default paste carries it onto `main`.
 - **Why.** #1387's body ended with a generated-with line and a session link that no PR below it in
-  its stack carried, and its reviewer settled the clash unaided (#1387).
-- **Probe.** The push checklist's artifact grep over the commits and the PR's text prints no hit.
+  its stack carried, and its reviewer settled the clash unaided (#1387); reviews of two branches
+  holding such a trailer each ruled on it alone (#1557).
+- **Probe.** The push checklist's artifact grep over the commits and the PR's text prints no hit
+  but on a commit the body names.
+
+## Name a measured input by what it is, never by where it came from
+`input-named-by-what-it-is`
+
+- **Rule.** A PR's text and a commit message state an input they measure by what it is, such as the
+  construct a schema writes or the API a spec describes, never by the third-party tool, repository
+  or test suite it came from, nor by corpus counts identifying one. The golden spec stays nameable,
+  as `CLAUDE.md` names it the thing measured.
+- **Why.** Test plans named a generator project's spec, by repository and file, as a check's input,
+  and counted the generator suites a corpus was drawn from; the push checklist's greps passed them,
+  and only a later read caught each (#553, #1690).
+- **Probe.** `gh pr view N --json title,body --jq '.title, .body' | grep -nE 'https?://|[[:alnum:]_.-]+\.(ya?ml|json|proto|graphql|tsp|smithy)([^[:alnum:]]|$)'`
+  lists each link and spec file named; read each for the source it identifies.
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
@@ -98,17 +146,27 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `git diff --stat origin/main...HEAD` and match each path to the PR title;
   `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`.
 
+## Open a pull request without labels
+`pr-takes-no-labels`
+
+- **Rule.** `gh pr create` takes no `--label`: labels are an issue's, set as `CLAUDE.md`'s "Filing
+  issues" says, and Dependabot's `dependencies` is the one exception.
+- **Why.** A labelled pull request shows in the label listings issue triage and tier audits read,
+  and with no rule saying otherwise, #1691 was opened with an issue's labels (#1693).
+- **Probe.** `gh pr list --state merged --limit 40 --json number,labels --jq '.[] | select(.labels | length > 0) | "\(.number) \(.labels | map(.name) | join(","))"'`
+  prints only Dependabot's.
+
 ## Settle a PR's scope before its second review round
 `scope-settled-by-the-second-round`
 
 - **Rule.** From a PR's second review round, an issue joins it only when its fix changes the PR's
   own mechanism, bar a stacked child's issues a landing PR carries
-  (`references/commits-and-prs.md#closing-keywords`). Any other goes in a PR of its own, reviewed
+  (`references/closing-issues.md#closing-keywords`). Any other goes in a PR of its own, reviewed
   alongside and converging on its own.
 - **Why.** #1532 took on six more issues during its review, and four of its seventh round's six
   findings sat in their content (#1532).
 - **Probe.** For each issue, bar a stacked child's, that a closing keyword in the body names
-  (`references/commits-and-prs.md#closing-keywords`) and the body as the PR opened did not, the body
+  (`references/closing-issues.md#closing-keywords`) and the body as the PR opened did not, the body
   names the change its fix makes to the PR's mechanism. The opening body is the `diff` that
   `gh api graphql -f query='{repository(owner:"dexpace",name:"morphic"){pullRequest(number:<N>){userContentEdits(last:1){nodes{diff}}}}}'`
   prints, or the body itself when it prints none; `closingIssuesReferences` is empty on a stacked
@@ -124,48 +182,6 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** For a removed `.gitignore` line, `git status --ignored` before and after. For an added
   one, `git add -A --dry-run` and `git check-ignore -v <path>` at base and head over planted paths,
   one a tool documents as committable among them.
-
-## Close only the issues the PR finishes, one keyword each
-`closing-keywords`
-
-- **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
-  case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
-  keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
-  narrate other work with other verbs ("landed"), and give a stack landing through one PR every
-  child's `Closes #N`: a keyword links only in a PR based on `main`.
-- **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
-  issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
-- **Probe.** Read each (`references/commits-and-prs.md#closing-issue-read-whole`). Seconds after
-  each body edit, as the field lags, compare
-  `gh pr view <N> --json closingIssuesReferences` with the body's:
-  `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
-
-## Read each issue a PR closes whole, and again before saying it closes
-`closing-issue-read-whole`
-
-- **Rule.** For each issue a closing keyword in the body names
-  (`references/commits-and-prs.md#closing-keywords`), read
-  `gh issue view <number or URL> --json state,stateReason,body,comments,updatedAt` when the PR opens
-  and again before a report says the PR closes it. A closed issue's closing comment is a recorded
-  decision, its reference leaving the body; a comment or body edit is part of the ask; each
-  `## Out of scope` item or deferred alternative naming pending work goes to an open issue, stated
-  where `references/commits-and-prs.md#limitation-stated-where-it-lives` places it.
-- **Why.** #1210 kept `Closes #1251` after #1251 closed as not planned, and missed asks in eight of
-  its issues' comments or later edits; closing #1433 would have stated an out-of-scope case nowhere
-  (#1210, #1435).
-- **Probe.** The report gives each closing issue's `updatedAt` as last read, none newer, then
-  `references/commits-and-prs.md#closing-issue-met-at-its-site`.
-
-## Hold a closing issue's title and Direction to the head
-`closing-issue-met-at-its-site`
-
-- **Rule.** Before a report says a PR closes an issue, read its title against the site it names on
-  the head, where a defect it states must now be false, an imperative done and a question answered,
-  and match each step of its Direction to the line meeting it, or say in the body why none does.
-- **Why.** At 78c30a744, #1522 closed #1294, #1326, #1348, #1362, #1461 and #1495 while the rule
-  each named, in its title or its Direction, read as before, the fix sitting in a new rule the old
-  one never cited, and dropped #1347's step running the gate steps after a failure (#1522).
-- **Probe.** For each closing issue, quote the site its title names, as it reads at the head.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`
@@ -258,17 +274,39 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** #1522's body gained a paragraph per review round saying what it fixed, which each later
   round's reader re-read and re-checked against the tree (#1530).
 - **Probe.** Read `gh pr view <N> --json body --jq .body`: each sentence holds of the head, and none
-  tells what a round or an earlier commit changed.
+  tells what a round or an earlier commit changed, bar what
+  `references/commits-and-prs.md#earlier-tree-names-its-commit` allows.
+
+## A sentence about an earlier tree names its commit
+`earlier-tree-names-its-commit`
+
+- **Rule.** A body sentence saying what a named commit's tree does under a named plant, as a Test
+  plan's before and after does to show a test bites, holds of the head as a fact about that commit
+  and stands. One naming no commit, as "before X" does, names it or says what the head's tree shows.
+- **Why.** "Before the severity assertion both stayed green" left a review to rank it or pass it,
+  and 6 of the last 60 merged bodies held the form (#1514, #1595).
+- **Probe.** For each such sentence, its plant rerun at the commit it names.
 
 ## Send only a body the fetch produced
 `send-only-what-the-fetch-produced`
 
-- **Rule.** Gate a body's send on its fetch, in one command, and keep the fetched copy to restore
-  from, as a failed fetch leaves an empty or partial file and sending it replaces the description:
-  `f=$(mktemp) && gh pr view <N> --json body --template '{{.body}}' > "$f" && test -s "$f" && [ "$(grep -c '^Closes #' "$f")" -eq <its Closes count> ] && cp "$f" "$f.orig" && <edit "$f"> && gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@"$f"`.
-- **Why.** A fetch that timed out left an empty file, and a send outside the `&&` chain blanked
-  #1322's body (#1322); a fetch run from a removed worktree wrote an empty file on #1219 (#1219).
+- **Rule.** Gate a body's send on its fetch in one command, keeping the fetched copy to restore
+  from: a failed fetch leaves an empty or partial file, and sending it replaces the description.
+  `references/commits-and-prs.md#grep-an-edited-body-before-its-send` adds the greps:
+  `f=$(mktemp) && gh pr view <N> --json body --template '{{.body}}' > "$f" && test -s "$f" && [ "$(grep -c '^Closes #' "$f")" -eq <its Closes count> ] && cp "$f" "$f.orig" && <edit "$f"> && ! grep -niE "${pat:?}" "$f" && ! grep -nE "${cs:?}" "$f" && gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@"$f"`.
+- **Why.** A timed-out fetch left an empty file that a send outside the `&&` chain put on #1322
+  (#1322), and a fetch from a removed worktree wrote one on #1219 (#1219).
 - **Probe.** With `<N>` set to 0, the command stops at the fetch and sends nothing.
+
+## Grep an edited body before its send
+`grep-an-edited-body-before-its-send`
+
+- **Rule.** An edited body's send runs behind the push checklist's greps over the edited file, with
+  its `pat` and `cs`, as `references/commits-and-prs.md#send-only-what-the-fetch-produced` chains
+  them: an edit made once the push lands brings text the checklist never read.
+- **Why.** The checklist grepped the body that the edit after the push replaced, so a sentence
+  written for that push reached the live body unread (#1589).
+- **Probe.** An edit adding a line the pattern holds stops the chain before its send.
 
 ## A conflicting PR gets no CI run
 `conflicting-pr-has-no-run`
@@ -280,6 +318,19 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** A wait for #1210's checks ran nine minutes after #1238 landed a conflicting edit, with
   no run to wait for and the newest run on the commit before the head (#1210).
 - **Probe.** `gh pr view <N> --json mergeable,statusCheckRollup --jq '{m:.mergeable,n:(.statusCheckRollup|length)}'`.
+
+## Read a CI job's log with `gh run view`, and check its size
+`read-a-ci-jobs-log`
+
+- **Rule.** Read a job's log with `gh run view <run> --log --job <job>`, the job's id from
+  `gh run view <run> --json jobs`, and check the size of what a redirect wrote: the REST read,
+  `gh api repos/<owner>/<repo>/actions/jobs/<job>/logs`, exits 1 and writes nothing without
+  `--allow-escape-sequences`, so a count over its file reads as a real zero. While the run goes on,
+  only that read, with the flag, returns a finished job's log.
+- **Why.** A review reading statement counts and `(cached)` lines found no rule naming the command,
+  and the obvious one wrote 0 bytes to its file; mid-run, `gh run view` refused a finished job's
+  log (#1602).
+- **Probe.** `gh run view <run> --log --job <job> | wc -c` prints more than 0.
 
 ## Re-read the prose when a review round changes the design
 `reread-prose-after-a-redesign`

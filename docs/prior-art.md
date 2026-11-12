@@ -33,7 +33,8 @@ and the differ/compat/verify subsystems added since the original survey).
   `"METHOD /path"`, never by generated method name, because derived names churn. Independent
   convergence on stable source identity; Morphic's IDs make the same key durable across a rename of
   anything they are not built from, and a renamed path variable is the correlation key's to carry,
-  since it keys an operation by that same wire identity (#679). The hint vocabulary itself
+  since it keys an operation by that same wire identity
+  ([correlation keys](./ir/derived-facts.md#correlation-keys)). The hint vocabulary itself
   (rename, remount, split-union-body into typed wrapper methods, constant defaults,
   client-config-derived fields, URL-builder ops) is a concrete inventory of what a client-shaping
   emitter policy input must express.
@@ -47,7 +48,8 @@ and the differ/compat/verify subsystems added since the original survey).
   generated-by header), ignore-region markers for hand-written islands, and additive-only
   AST merges. Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
   on path renames. So do pointer-derived IDs, and an ID through an array index can name another
-  entity in the next revision, which is why a correlation key is planned beside them (#679).
+  entity in the next revision, which is why a [correlation
+  key](./ir/derived-facts.md#correlation-keys) is derived beside them.
 - **Wire-conformance smoke testing with a spec-only offline baseline** — the expected request
   shape (method, path, query, body keys) is derived from the spec alone and diffed against the
   generated SDK running under HTTP interception; request-side mismatches block, response-side

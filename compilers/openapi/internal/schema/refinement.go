@@ -76,7 +76,7 @@ type decision struct {
 // the bindings, never the registry, so a decision turns on no lowering order, and
 // each position's many readers share one reading.
 func refinementOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (refinement, bool) {
-	if !allOfDecides(s) {
+	if !allOfMayRefine(s) {
 		return refinement{}, false
 	}
 	d := lowering.Remembered(c, refinementAt{s, pointer}, func() decision { return decide(c, s, pointer) })
@@ -114,8 +114,8 @@ func decide(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) decision {
 // refinableBranches reports whether every branch of comp can be read as a
 // conjunct of a refinement. A second $ref stays composing: dropping a reference
 // for another would drop a branch the source wrote
-// (docs/ir/models.md#composition-entries). A union on a branch stays too, until
-// lowering its branches gives it a home (GitHub #661).
+// (docs/ir/models.md#composition-entries). A union on a branch is a conjunct
+// admitting what its branches do (inlineConjunct).
 func refinableBranches(comp allOfComposition) bool {
 	if len(comp.branches) > maxRefinedConjuncts {
 		return false
@@ -123,7 +123,7 @@ func refinableBranches(comp allOfComposition) bool {
 	refs := 0
 	for _, e := range comp.branches {
 		bs := e.schema.GetSchema()
-		if e.capped || annotation.IsFalseSchema(e.schema) || declaresUnion(bs) ||
+		if e.capped || annotation.IsFalseSchema(e.schema) ||
 			declaresDynamicRef(bs) || annotation.DeclaresAny(bs, objectKeywords) {
 			return false
 		}
@@ -148,10 +148,23 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 		case isRefBranch(e.schema):
 			out = append(out, conjunct{branch: e, read: w.whole(e.schema)})
 		default:
-			out = append(out, conjunct{branch: e, read: w.written(bs, w.nullable), says: saysKind(bs)})
+			out = append(out, conjunct{branch: e, read: inlineConjunct(w, bs), says: saysKind(bs) || declaresUnion(bs)})
 		}
 	}
 	return out
+}
+
+// inlineConjunct is what the inline branch bs admits as w reads it: its own
+// keywords and the oneOf and anyOf it writes, whose branches name the kinds it
+// admits. Its allOf is read apart, since its entries are conjuncts of their own.
+func inlineConjunct(w *admission, bs *oas3.Schema) admitted {
+	read := w.written(bs, w.nullable)
+	for _, branches := range [][]*oas3.JSONSchema[oas3.Referenceable]{bs.GetOneOf(), bs.GetAnyOf()} {
+		if len(branches) > 0 {
+			read = read.and(w.union(branches))
+		}
+	}
+	return read
 }
 
 // saysKind reports whether s writes what kind of value it admits.
@@ -212,8 +225,9 @@ func (w *admission) elect(conjuncts []conjunct, ref *conjunct) *conjunct {
 
 // narrowsAll reports whether conjunct i is a value set within every other
 // conjunct and more than a restatement of what a $ref fixes, which a $ref's own is
-// not. Only a branch can be one: a value set beside the allOf is no refinement.
-// No set is compared with itself, which answers nothing and walks the whole set.
+// not. The keywords beside the allOf are one where they write an enum or a const
+// (allOfDecides). No set is compared with itself, which answers nothing and walks
+// the whole set.
 func (w *admission) narrowsAll(conjuncts []conjunct, i int, ref *conjunct) bool {
 	cj := &conjuncts[i]
 	if !cj.read.fixed || cj == ref || (ref != nil && w.setWithin(ref.read, cj.read)) {
@@ -260,11 +274,18 @@ func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) 
 		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
 		return ref.Target, diags
 	}
+	resolveBeaten(c, ts, r)
+	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
+	return ref.Target, diags
+}
+
+// resolveBeaten resolves the $ref of r, whose principal is an inline branch or
+// the keywords beside the allOf: nothing else may lower what a $ref they beat
+// names.
+func resolveBeaten(c lowering.Ctx, ts *compile.Types, r refinement) {
 	if r.ref != nil {
 		resolveSchemaRef(c, ts, r.ref.schema)
 	}
-	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
-	return ref.Target, diags
 }
 
 // refinedShape describes what a refinement lowers to, for the diagnostic
@@ -303,10 +324,11 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 		return outcomeKeeps{keywords: keywords, shape: shape}
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
+	typed := valueSetNode(c, ts, r, pointer)
 	if r.principal != nil {
-		k.keywords = refinedUnhomed(c, r, s)
+		k.keywords = refinedUnhomed(c, r, s, typed)
 	}
-	bounds := boundsFold(c, ts, target, pointer)
+	homes := homesAt(c, ts, s, target, pointer)
 	voices := voicingOf(c, s)
 	w := newAdmission(c)
 	for i, e := range r.comp.branches {
@@ -321,7 +343,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 			k.branches = append(k.branches, keptBranch{entry: e})
 		case bs != nil:
 			residue := unmergedBranchKeys(bs, func(key string) bool {
-				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, bounds)) || w.holds(r.held, bs, key)
+				return (key == "allOf" && e.wrapper) || (voices.speaks[i] && folds(c, bs, key, homes)) || said(&w, r, typed, bs, key)
 			})
 			if len(residue) > 0 {
 				k.branches = append(k.branches, keptBranch{entry: e, residue: residue,
@@ -332,23 +354,97 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	return k
 }
 
-// boundsFold reports whether the position has a field for the value bounds its
-// voices write: a carrier and an alias do, and a node it owns says for itself.
-func boundsFold(c lowering.Ctx, ts *compile.Types, target ir.TypeRef, pointer jsontext.Pointer) bool {
+// homesAt returns which bounds the position s is written at, lowered to target,
+// holds for its voices, as the census asks of those written beside its allOf. A
+// carrier or an alias holds value bounds, and collection bounds where it is a
+// use of the principal, a reference (keywordHome). A node the position owns holds
+// what its kind does, and the Union a type list lowers to the collection bounds
+// its List or Tuple variant does. A value bound stays with its branch there: the
+// variant one beside the allOf reaches need not be one it constrains (GitHub #1310).
+func homesAt(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) boundHomes {
 	if !LoweredToOwnNode(c, ts, pointer, target) {
-		return true
+		r, refined := refinementOf(c, s, pointer)
+		return boundHomes{value: true, collection: refined && r.principal != nil}
 	}
-	td, ok := ts.Node(target.Target)
-	return ok && constraintsHome(td)
+	// A node still building holds nothing yet.
+	var homes boundHomes
+	if td, ok := ts.Node(target.Target); ok {
+		homes.value = constraintsHome(td)
+		nodes := []ir.TypeDef{td}
+		if u, isUnion := td.(*ir.Union); isUnion {
+			nodes = variantNodes(ts, u)
+		}
+		homes.collection = slices.ContainsFunc(nodes, holdsCollectionBounds)
+	}
+	return homes
+}
+
+// variantNodes returns the registered nodes of u's variants.
+func variantNodes(ts *compile.Types, u *ir.Union) []ir.TypeDef {
+	nodes := make([]ir.TypeDef, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		if td, ok := ts.Node(v.Type.Target); ok {
+			nodes = append(nodes, td)
+		}
+	}
+	return nodes
 }
 
 // refinedUnhomed returns the census keywords s writes beside an allOf that
 // lowered to its principal, but for those the principal already says, where a
-// $ref site reads no target and keeps them all (GitHub #1067).
-func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema) []string {
+// $ref site reads no target and keeps them all (GitHub #1067). typed is the value
+// set the principal lowered to, if any (valueSetNode).
+func refinedUnhomed(c lowering.Ctx, r refinement, s *oas3.Schema, typed ir.TypeDef) []string {
 	w := newAdmission(c)
-	said := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !w.holds(r.held, s, key) })
-	return unhomedKeywords(s, nil, said)
+	held := slices.DeleteFunc(slices.Clone(censusKeywords), func(key string) bool { return !said(&w, r, typed, s, key) })
+	return unhomedKeywords(s, nil, held)
+}
+
+// said reports whether the principal of r already says what s's keyword key
+// does: what it admits holds it, a union one of whose branches it restates
+// (unionHeld), or it is a format the value set it lowered to, typed, holds in
+// its ValueType (typeValueSet), that format's primitive or a narrower one. A
+// type that ValueType holds, its values hold too.
+func said(w *admission, r refinement, typed ir.TypeDef, s *oas3.Schema, key string) bool {
+	if w.holds(r.held, s, key) || unionHeld(w, r, s, key) {
+		return true
+	}
+	return typed != nil && key == "format" && formatHome(typed, s)
+}
+
+// unionHeld reports whether every value r holds satisfies s's oneOf or anyOf,
+// the keyword key names: a branch says nothing r's principal does not
+// (admission.restates), and for a oneOf one alone, sharing no kind with any
+// other, so that exactly one admits each of its values. A branch is compared
+// keyword by keyword, as what it admits leaves its bounds and annotations unread,
+// and one writing what no reading compares says more. A read cut short says no.
+func unionHeld(w *admission, r refinement, s *oas3.Schema, key string) bool {
+	var branches []*oas3.JSONSchema[oas3.Referenceable]
+	switch key {
+	case "oneOf":
+		branches = s.GetOneOf()
+	case "anyOf":
+		branches = s.GetAnyOf()
+	default:
+		return false
+	}
+	var principal *oas3.JSONSchema[oas3.Referenceable]
+	if r.principal != nil {
+		principal = r.principal.schema
+	}
+	within, overlaps := 0, 0
+	for _, b := range branches {
+		switch {
+		case w.restates(r.held, principal, b):
+			within++
+		case r.held.kinds&w.whole(b).kinds != 0:
+			overlaps++
+		}
+	}
+	if w.incomplete() || within == 0 {
+		return false
+	}
+	return key == "anyOf" || (within == 1 && overlaps == 0)
 }
 
 // recordOn keeps k on the node owner names.
@@ -366,7 +462,7 @@ func (k outcomeKeeps) record(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	diags := recordUnhomedAt(c, p, s, k.keywords, k.shape, pointer)
 	for _, b := range k.branches {
 		kept, keptDiags := annotation.PreserveNodeInto(p, k.comp.branchKey(b.entry.pointer),
-			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(b.entry.pointer))
+			b.entry.schema.GetSchema().GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(b.entry.pointer))
 		diags = append(diags, keptDiags...)
 		if kept {
 			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, b.entry.pointer, "%s", keptWhy(b)))

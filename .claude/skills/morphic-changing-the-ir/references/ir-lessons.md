@@ -121,39 +121,102 @@ verifier and codecs must reach.
 - **Probe.** In a test, build a document holding what the old type could not and assert
   `irverify.Verify` reports it.
 
+## Sweep the comparisons of a struct whose field becomes a pointer
+`pointer-field-ends-value-equality`
+
+- **Rule.** When a value field of a struct becomes a pointer, `==` on the struct still compiles and
+  compares that field by address. Find every comparison of the struct, or one holding it by
+  value, map keys and `comparable` type arguments included, and make each meaning value equality
+  compare deeply. A merge of `main` reruns the sweep
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#merged-code-meets-a-changed-type`).
+- **Why.** #1370 made `XMLHints.Wrapped` a `*bool`, and merging `main` brought in #1656's
+  `*a == *b` over two declarations' hints. Build, vet, archtest and the goldens passed the
+  merge, while identical hints drew a report (#1677).
+- **Probe.** Add `_ [0]func()` to the struct and run `go vet -gcflags=-e ./...`: each
+  `cannot be compared`, `invalid map key` or `comparable` error is a site. Rewrite those and rerun
+  until none prints, as a failing package hides its importers' sites.
+
 ## Sweep the predicates that name a struct's fields when it grows one
 `predicates-that-list-fields`
 
 - **Rule.** When an `ir` struct gains a field, find the code that names its siblings one by one (an
   emptiness test, an equality, a comparison with the zero literal) and give each such predicate a
-  reflection test that sets every field alone, so the next field added fails there.
+  reflection test that sets every field alone, so the next field added fails there. A value a test
+  calls fully populated takes `references/ir-lessons.md#populated-value-sets-every-field`.
 - **Why.** A part-encoding emptiness check named each field, so an encoding declaring only the new
   `allowReserved` would have been dropped, with every golden and conformance test green (#1144).
 - **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
   field's name and `<Struct>` the struct's.
 
-## Read what the documents assume of a field before widening its values
+## Hold a value a test calls fully populated to every field
+`populated-value-sets-every-field`
+
+- **Rule.** A value a test calls populated in full names a struct's fields by hand, so a field the
+  struct gains is left zero there with every round trip green. Hold it with
+  `assertNoFieldZero` in `ir/helpers_test.go`, which `assertJSONContract` and
+  `assertTypeDefRoundTrip` there call, naming each field it leaves zero with the reason. A struct no
+  test hands `assertNoFieldZero`, as one round-tripped arm by arm or held only inside another, is
+  held by none until the check of #1679 lands: until then, set each field it gains in a round-trip
+  value.
+- **Why.** #1367's four fields went unset in two values their contract tests called fully
+  populated, so a `json:"-"` tag on any of them passed both (#1670).
+- **Probe.** Each test whose comment `git grep -niE 'fully( populated|$)' -- 'ir/*_test.go'` hits
+  calls one of those three.
+
+## Read what the documents assume of a field before changing its values
 `widened-field-values`
 
-- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
-  media type), grep the field and its old values across `docs/`, read each normative statement for
-  one that assumes the old set, and change it or name the gap where it stands. No emitter reads the
-  value yet, so no test objects, but it is a change of meaning, which `docs/ir/ir-version.md` bumps
-  for.
+- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, mode or
+  media type), or stops filling it at a position, grep the field and its old values across
+  `docs/`, find each normative statement that assumes the old set, and change it or name the gap
+  there. No emitter reads the value yet, so no test objects, but it changes meaning,
+  which `docs/ir/ir-version.md` bumps for.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
 - **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
-  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers` and
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-prose-a-meaning-change-falsifies`.
 
-## Ask each consumer of a widened field what it did with the old value
+## A verdict landing on another node changes no meaning
+`verdict-on-another-node`
+
+- **Rule.** A lowering that changes which node a field names, mints nodes of a kind the IR already
+  declares, or adds an ID namespace changes no key's meaning, IDs being opaque to consumers
+  (`docs/ir/identity.md`), and bumps nothing. A value a consumer switches on, as a primitive, a
+  mode or a media type, is `references/ir-lessons.md#widened-field-values`'s, and bumps.
+- **Why.** The redeclared-field merge added the `composed` namespace and minted composed models
+  (#1181), then nodes holding two declarations' bounds (#1307), each without a bump, while the
+  skill's values bullet read as asking a bump for each (#1657).
+- **Probe.** `git show <merge> --stat -- ir/document.go docs/ir/version-history.md` lists neither
+  file for #1181's `20017d99b` or #1307's `7cf3f95fc`.
+
+## Ask each reader of a widened or unfilled field what it did with the old value
 `widened-field-consumers`
 
-- **Rule.** When a field's values widen, list each consumer that reads the field and ask what it did
-  with the old value, since one may depend on it with no sentence saying so.
+- **Rule.** When a field's values widen, or a lowering stops filling it at a position, list the
+  field's readers in every package, `ir`'s predicates included, and ask what each did with the old
+  value: one may depend on it with no sentence saying so, or decide a node's kind on it.
 - **Why.** A file body's `Content.Type` held only `bytes`, so a plain upload needed no rule and had
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
-- **Probe.** List in the PR body each consumer asked, and its answer.
+  #1706 stopped filling `Model.Discriminator` on a type array's `object` variant, so `mapOnly` made
+  one holding only a catch-all a map, past five review rounds (#1710).
+- **Probe.** `git grep -nE '\.<Field>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go'`; list in the PR
+  body each reader asked, and its answer.
+
+## Say which declarations a reader of a flattened member needs
+`flattened-member-declarations`
+
+- **Rule.** A flattened member (`ir.FlattenedProperties`) takes every facet bar `Required` and
+  `Secret`, which accumulate, from one declaration, and lists the rest in `Overridden`. A new
+  reader's comment says which its question needs, and it reads those: what an instance carries
+  conjoins every declaration, while what the member renders as is the taken one. Whether
+  deprecation accumulates is #1628's to decide.
+- **Why.** A redaction an overridden declaration asked for was dropped (#1211). On #1700, tag
+  inference read only the taken declaration, so a body redeclaring the tag as a plain string hid
+  each variant's pin, and the mapping was keyed by component names (#1704).
+- **Probe.** Compile a composition that redeclares the member more loosely than what it composes,
+  and read the reader's result.
 
 ## Check a design rule against every input it reads
 `design-rule-over-its-document`
@@ -164,12 +227,28 @@ verifier and codecs must reach.
   its document, cited, not restated
   (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
   Say whether each changes the answer, compiling a minimal spec for one the golden spec lacks.
-  Check a step order against what each step reads that a later one changes.
+  Check a step order by `references/ir-lessons.md#step-order-both-ways`.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
   steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
   kind documents and restated sections (#1402).
-- **Probe.** `go doc -all ./ir <Type>` and `grep -n '^#' <document>`; an input with no stated
-  effect is unchecked.
+- **Probe.** `go doc -all ./ir <Type>` and
+  `awk '/^\040{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#/{print FNR": "$0}' <document>`; an input
+  with no stated effect is unchecked.
+
+## Check a step order against what later steps change and declare
+`step-order-both-ways`
+
+- **Rule.** Check a step order both ways: what each step reads that a later one changes, and what
+  each adds to that a later one declares. A step adding to a declaration runs after the step
+  declaring it.
+- **Why.** An import step preceded the steps renaming what it imports (#1019). At 4cb221a80,
+  `docs/emitters/refine/steps.md` placed `LowerRedaction` before `BuildRequestShaping`, whose
+  request types it gives a redacting form, and `MarkStability` before the steps declaring the
+  methods it marks; reading only what each step reads passed both (#1630).
+- **Probe.** List the order with
+  `awk -F'|' '/^\| \140/{print NR": "$2}' docs/emitters/refine/steps.md`, and beside each step
+  what it reads and adds to, against the steps after it, as the ordering paragraph of
+  `docs/emitters/refine/pipeline.md` argues each placement.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`
@@ -180,9 +259,10 @@ verifier and codecs must reach.
 - **Why.** Three decode mechanisms in turn passed a prototype of their cost and failed a sibling
   document's requirement: builders could not reach a variant in another output unit, a second
   `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
-  caller's own `Json` (#1329).
+  caller's own `Json` (#1329); a `must|never|only` grep missed #1340's "every error message"
+  (#1631).
 - **Probe.** With `<layer>` each entry of `ls docs/emitters` the mechanism runs in,
-  `grep -rnwE 'must|never|only' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
+  `grep -rnwE 'must|never|only|every|each|all|always' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
   lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
   unmet.
 
@@ -255,17 +335,29 @@ verifier and codecs must reach.
 ## Witness each character class a text predicate decides
 `character-predicate-witness-per-class`
 
-- **Rule.** A predicate over text (cased, blank, invisible) must be tested against the producer's
-  exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable,
-  Zs, caseless letters), not a hand-picked sample. A change that redefines one rechecks it at each
-  call site, since two rules sharing it can ask different questions.
+- **Rule.** A predicate over text (cased, blank, invisible) is tested against the producer's exact
+  transformation, with a witness per general category each set it claims spans, never a sample:
+  white space's Zs, Zl, Zp and Cc, default-ignorable's Cf, Mn, Lo and Cn, and caseless letters.
+  Redefining one rechecks it at each call site, as two rules sharing it can ask different questions.
 - **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
   filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
-  (#189).
-- **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each, at each call site; a property Unicode publishes also takes
-  `references/ir-lessons.md#sweep-a-published-property`.
+  (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
+- **Probe.** Assert its verdict on each witness and producer output at each call site, taking
+  `references/ir-lessons.md#witness-past-the-bmp` and
+  `references/ir-lessons.md#sweep-a-published-property` where they apply.
+
+## Witness past the BMP each term whose set reaches there
+`witness-past-the-bmp`
+
+- **Rule.** Each term of a text predicate whose set reaches past the Basic Multilingual Plane, such
+  as `unicode.Cf` or `unicode.Other_Default_Ignorable_Code_Point`, has a committed witness above
+  U+FFFF that it alone decides. A row an earlier term answers first, such as an exclusion or
+  `unicode.Variation_Selector`, witnesses nothing of a later one.
+- **Why.** `isInvisible`'s tests passed with its `Cf` term, and separately its
+  `Other_Default_Ignorable_Code_Point` term, held below U+10000, and still did with a row per class
+  and per range bound, as its rows past the BMP reached earlier terms (#1621).
+- **Probe.** Narrow each such term alone with `&& r < 0x10000`: a committed row reddens.
 
 ## Sweep a predicate over every code point where Unicode publishes its property
 `sweep-a-published-property`

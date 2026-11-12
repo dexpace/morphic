@@ -189,7 +189,7 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 		// schema writes none. Nothing can collide with it: a schema that is a
 		// boolean has no other keywords to preserve.
 		annotation.PreserveInto(&common.Unmodeled, "openapi:schema",
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, pointer,
 			"boolean false schema matches nothing; lowered as a closed empty model "+
@@ -238,50 +238,69 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
-		if hasUnionSiblings(schema) {
+		if hasUnionSiblings(c, schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 			return ref, append(unionDiags, nullDiags...)
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
+	if u, ok := branchUnion(c, schema, pointer); ok {
+		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
+		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
+		return ref, append(unionDiags, nullDiags...)
+	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 	return ref, append(bodyDiags, nullDiags...)
 }
 
-// lower interns the inline schema at pointer and returns its TypeID. const,
-// enum and allOf composition take precedence over the structural type, which
-// is otherwise dispatched on the effective (null-stripped) type set.
-//
-// The families are conjoined where a schema writes more than one, so electing
-// a winner is a degradation (docs/compilers/openapi.md#competing-keywords): the
-// ones passed over are kept verbatim beside it (recordSkippedFamilies). A
-// keyword the elected lowering never reads, such as `type: string` beside an
-// allOf, goes through preserveUnhomedKeywords, which asks the built node
-// whether it has a field for it.
+// lower interns the inline schema at pointer and returns its TypeID. An allOf
+// that refines decides the position (docs/compilers/openapi.md#allof-refinement):
+// its principal, or where no branch is one, the keywords beside it as if no allOf
+// were written, an enum or a const there being one of its conjuncts rather than
+// its rival. The value set either lowers to is typed by every conjunct
+// (typeValueSet). Any other schema lowers by its election (lowerElected).
 func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	d := dispatchOf(s)
+	r, refines := refinementOf(c, s, pointer)
+	if !refines {
+		return lowerElected(c, ts, depth, s, pointer, dispatchOf(s))
+	}
+	var id ir.TypeID
+	var diags []ir.Diagnostic
+	if r.principal != nil {
+		id, diags = lowerPrincipal(c, ts, depth, r)
+	} else {
+		resolveBeaten(c, ts, r)
+		id, diags = lowerElected(c, ts, depth, s, pointer, dispatchOf(s).besideAllOf())
+	}
+	typeValueSet(c, ts, s, r, pointer)
+	return id, diags
+}
+
+// lowerElected lowers s, at pointer, by the family d elects, which takes
+// precedence over the structural type, else by its effective (null-stripped)
+// type set. The families are conjoined where a schema writes more than one, so
+// electing a winner is a degradation
+// (docs/compilers/openapi.md#competing-keywords): the ones passed over are kept
+// verbatim beside it (recordSkippedFamilies). A keyword the elected lowering
+// never reads, such as `type: string` beside an allOf, goes through
+// preserveUnhomedKeywords, which asks the built node whether it has a field for it.
+func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	unhomed := func(id ir.TypeID, diags []ir.Diagnostic) (ir.TypeID, []ir.Diagnostic) {
 		owner, ownDiags := preserveUnhomedKeywords(c, ts, s, pointer, id, d)
 		return owner, append(diags, ownDiags...)
 	}
 	switch d.won {
 	case "const":
-		return unhomed(hoistLiteral(c, ts, s.GetConst(), pointer))
+		return unhomed(hoistLiteral(c, ts, s, s.GetConst(), pointer))
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		r, refines := refinementOf(c, s, pointer)
-		if !refines {
-			return unhomed(lowerAllOf(c, ts, depth, s, pointer))
-		}
-		if r.principal != nil {
-			return lowerPrincipal(c, ts, depth, r)
-		}
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
 	}
-	// won is "" — the schema declares no family, so the type set decides — or
-	// an allOf no branch of which decides what the position is.
+	// won is "": the schema declares no family, or only an allOf that refines
+	// with no branch deciding what the position is, so the type set decides.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
@@ -301,7 +320,7 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, depth, s, pointer)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
@@ -314,7 +333,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, depth, s, pointer)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }
@@ -361,20 +380,35 @@ func enumWritten(s *oas3.Schema) bool {
 
 // dispatch records how lower() resolved a schema's competing keyword families:
 // the one it lowered, and the ones it passed over. won is "" when the schema
-// declares none of them and the type set decides the lowering instead.
+// declares none of them and the type set decides the lowering instead. said
+// names the keywords a union's branches all say already (branchesSay), which
+// the position consumes though its node has no field for them.
 type dispatch struct {
 	won     string
 	skipped []string
+	said    []string
+}
+
+// besideAllOf returns the election lower() makes of the keywords beside s's
+// allOf, d being s's own: the one of a schema writing no allOf, as a refinement
+// whose principal is no branch lowers. allOf is the last of familyOrder, so it
+// wins only where no other family is written.
+func (d dispatch) besideAllOf() dispatch {
+	out := dispatch{skipped: slices.DeleteFunc(slices.Clone(d.skipped), func(f string) bool { return f == "allOf" })}
+	if d.won != "allOf" {
+		out.won = d.won
+	}
+	return out
 }
 
 // dispatchOf elects the family lower() lowers and collects the rest. A schema
 // declaring none leaves won empty and skipped nil.
 //
-// familyOrder, declaresFamily and lower()'s switch must name the same families.
-// A name declaresFamily does not know is never elected, and a loser reaches
-// recordSkippedFamilies whether or not lower() can lower it, but a winner
-// lower() has no arm for is neither lowered nor skipped: the switch falls
-// through to the type-set arms and drops the keyword in silence (GitHub #35).
+// familyOrder, declaresFamily and lowerElected's switch must name the same
+// families. A name declaresFamily does not know is never elected, and a loser
+// reaches recordSkippedFamilies whether or not lowerElected can lower it, but a
+// winner lowerElected has no arm for is neither lowered nor skipped: the switch
+// falls through to the type-set arms and drops the keyword in silence (GitHub #35).
 // Adding a family means adding all three.
 func dispatchOf(s *oas3.Schema) dispatch {
 	var d dispatch
@@ -394,15 +428,16 @@ func dispatchOf(s *oas3.Schema) dispatch {
 // recordSkippedFamilies keeps verbatim the keyword families lower()'s election
 // passed over, and reports them once.
 //
-// JSON Schema conjoins keywords, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a
-// narrowing of Base, not a malformed document. The IR has no intersection
-// combinator (docs/ir/boundaries.md#deliberate-exclusions), so only one family
-// can be the value; keeping the loser beside it is what the rule
+// JSON Schema conjoins keywords, so `{const: a, enum: [a, b]}` admits a alone and
+// is no malformed document. The IR has no intersection combinator
+// (docs/ir/boundaries.md#deliberate-exclusions), so only one family can be the
+// value; keeping the loser beside it is what the rule
 // docs/compilers/openapi.md#competing-keywords asks of an unrepresentable
 // conjunction.
 //
 // It reports the keywords it stored, never the ones it was handed, so the
-// message cannot claim one that failed to convert.
+// message cannot claim one that failed to convert. An allOf whose conjuncts
+// share no value draws its warning, stored or not.
 func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, d dispatch, pointer jsontext.Pointer) []ir.Diagnostic {
 	if len(d.skipped) == 0 {
 		return nil
@@ -415,20 +450,26 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	kept := make([]string, 0, len(d.skipped))
 	for _, keyword := range d.skipped {
 		stored, storedDiags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, keyword,
-			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, storedDiags...)
 		if stored {
 			kept = append(kept, keyword)
 		}
 	}
-	if len(kept) == 0 {
+	if len(kept) > 0 {
+		skipped := strings.Join(kept, " and ")
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+			"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
+				"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
+			skipped, d.won, d.won, skipped))
+	}
+	if !slices.Contains(d.skipped, "allOf") {
 		return diags
 	}
-	skipped := strings.Join(kept, " and ")
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"this position declares %s beside its %s, and JSON Schema conjoins them where only "+
-			"one can be the value; it lowered as the %s, with %s kept verbatim under Unmodeled",
-		skipped, d.won, d.won, skipped))
+	// An allOf that refines is no rival of the value set (lower), so one passed
+	// over composes, and its conjuncts may share no value, as they are read where
+	// it wins (lowerAllOf), whether or not the allOf could be kept.
+	return append(diags, diagDisjointConjuncts(c, readAllOf(c, s, pointer), "the "+d.won+" it lowered as")...)
 }
 
 // writesType reports whether s writes a type. A YAML null, which the parser reads
@@ -454,37 +495,60 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 	return out
 }
 
-// declaresShape reports whether a schema declares data shape — a type, a
-// property set, a value set, composition, or a catch-all — rather than only
-// narrowing what an already-declared shape accepts. The narrowing keywords are
-// narrowsInstance's, which hasUnionSiblings and dynamicRefSiblings add to it
-// (docs/compilers/openapi.md#union-beside-structure).
-func declaresShape(s *oas3.Schema) bool {
-	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return true
-	}
-	if s.GetConst() != nil || enumWritten(s) || len(s.GetAllOf()) > 0 {
-		return true
-	}
-	if annotation.Written(s.GetAdditionalProperties()) {
-		return true
-	}
-	if pp := s.GetPatternProperties(); pp != nil && pp.Len() > 0 {
-		return true
-	}
-	return len(effectiveTypes(s)) > 0
+// siblingKeyword is a keyword whose presence beside a union or a $dynamicRef
+// leaves something for the position to carry, with how a schema writes it.
+type siblingKeyword struct {
+	key    string
+	writes func(*oas3.Schema) bool
 }
 
-// narrowsInstance reports whether s writes a keyword that constrains an instance
-// without declaring a shape to build: `required`, `items`, `prefixItems`.
-//
-// These sit on the narrowing side of declaresShape's line, and that line is about
-// what to *build*. Wherever the question is instead whether a lowering can carry
-// what the position wrote, the distinction does not apply: an ir.Union has no
-// element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
-// it would lose a co-declared property set. An `items` list narrows too, read
-// off the raw node, since nothing documents what the parser's model holds there.
-func narrowsInstance(s *oas3.Schema) bool {
-	_, listed := listedItems(s)
-	return len(s.GetRequired()) > 0 || listed || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
+// shapeKeywords are the keywords that declare data shape — a type, a property
+// set, a value set, composition, or a catch-all — rather than only narrowing
+// what an already-declared shape accepts (docs/compilers/openapi.md#union-beside-structure).
+var shapeKeywords = []siblingKeyword{
+	{"properties", func(s *oas3.Schema) bool { props := s.GetProperties(); return props != nil && props.Len() > 0 }},
+	{"const", func(s *oas3.Schema) bool { return s.GetConst() != nil }},
+	{"enum", enumWritten},
+	{"allOf", func(s *oas3.Schema) bool { return len(s.GetAllOf()) > 0 }},
+	{"additionalProperties", func(s *oas3.Schema) bool { return annotation.Written(s.GetAdditionalProperties()) }},
+	{"patternProperties", func(s *oas3.Schema) bool { pp := s.GetPatternProperties(); return pp != nil && pp.Len() > 0 }},
+	{"type", func(s *oas3.Schema) bool { return len(effectiveTypes(s)) > 0 }},
+}
+
+// narrowingKeywords are the keywords that constrain an instance without
+// declaring a shape to build. They sit on the narrowing side of shapeKeywords'
+// line, and that line is about what to *build*. Wherever the question is
+// instead whether a lowering can carry what the position wrote, the distinction
+// does not apply: an ir.Union has no element type, so
+// `{oneOf: [...], items: {...}}` loses the `items` as surely as it would lose a
+// co-declared property set. An `items` list narrows too, read off the raw node,
+// since nothing documents what the parser's model holds there.
+var narrowingKeywords = []siblingKeyword{
+	{"required", func(s *oas3.Schema) bool { return len(s.GetRequired()) > 0 }},
+	{"items", func(s *oas3.Schema) bool {
+		_, listed := listedItems(s)
+		return listed || annotation.Written(s.GetItems())
+	}},
+	{"prefixItems", func(s *oas3.Schema) bool { return len(s.GetPrefixItems()) > 0 }},
+}
+
+// siblingKeywords returns the keywords of shapeKeywords and narrowingKeywords
+// that s writes, in that order.
+func siblingKeywords(s *oas3.Schema) []string {
+	var out []string
+	for _, set := range [...][]siblingKeyword{shapeKeywords, narrowingKeywords} {
+		for _, k := range set {
+			if k.writes(s) {
+				out = append(out, k.key)
+			}
+		}
+	}
+	return out
+}
+
+// writesSiblingKeyword reports whether siblingKeywords(s) holds any keyword,
+// without building the list, as most schemas a reader asks of write one.
+func writesSiblingKeyword(s *oas3.Schema) bool {
+	writes := func(k siblingKeyword) bool { return k.writes(s) }
+	return slices.ContainsFunc(shapeKeywords, writes) || slices.ContainsFunc(narrowingKeywords, writes)
 }

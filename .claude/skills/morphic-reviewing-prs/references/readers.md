@@ -25,7 +25,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Rule.** From the second round, one fresh agent runs the angles, or two in a split round
   (`references/readers.md#split-whole-reads-from-what-moved`), given the PR, this skill and its own
   directory holding the merged tree (`references/readers.md#reader-owns-its-directory`), nothing
-  from an earlier round but names of cells to read. Its brief follows
+  earlier but names of cells to read and what
+  `references/later-rounds.md#nit-round-checks-its-fixes` asks. Its brief follows
   `references/readers.md#brief-a-reader-to-its-cells`. The main session disproves each returned
   finding and audits each clearance (`references/rounds.md#disprove-each-finding`,
   `references/readers.md#audit-what-a-reader-cleared`) before it counts. Where no agent can run, the
@@ -33,8 +34,8 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 - **Why.** Fixes #1329's rounds proposed each passed a prototype of its own property and failed a
   sibling document's requirement, seen a round later (#1402); seven finders on #1016 ran 55 minutes
   before one returned (#1016).
-- **Probe.** The reader's brief holds nothing from an earlier round but cell names, and names a
-  budget and directory.
+- **Probe.** The reader's brief holds nothing earlier but cell names and what
+  `references/later-rounds.md#nit-round-checks-its-fixes` asks, and names a budget and directory.
 
 ## Brief a reader to reach each of its cells
 `brief-a-reader-to-its-cells`
@@ -111,11 +112,11 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
 ## Split a round reading what moved, when it carries whole reads, between two readers
 `split-whole-reads-from-what-moved`
 
-- **Rule.** A round reading what moved (`references/rounds.md#later-rounds-read-what-moved`)
+- **Rule.** A round reading what moved (`references/later-rounds.md#later-rounds-read-what-moved`)
   carrying whole reads goes to two parallel readers, each in its own directory. One takes what
   moved, the PR body, whose claims it checks against the diff, and each other cell the round
   carries. The other takes the whole reads, the closing issues with their comments, read as
-  `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole` says,
+  `.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-read-whole` says,
   tracker searches and evidence outside the repository, without reviewing the diff. The main session
   merges both reports and disproves each finding. A round of the diff and body alone keeps one
   reader; neither half splits by file (`references/readers.md#no-split-by-file`).

@@ -178,9 +178,10 @@ touches some slice of it:
   if its content starts with the auto-generated header*, else preserve + report as hand-edited;
   **skip pruning entirely on first adoption**. Adopt this schema directly. Morphic's one improvement
   (already specced): key the entity→symbol map by **IR stable ID**, not oagen's `"METHOD /path"`
-  string, so it survives a rename of anything the ID is not built from, and record a correlation
-  key (#679) beside it for a reordered array or a renamed path variable, which the ID does not
-  survive. Record `service` per op (oagen needs it for scoped runs).
+  string, so it survives a rename of anything the ID is not built from, and record a [correlation
+  key](./ir/derived-facts.md#correlation-keys) beside it for a reordered array or a renamed path
+  variable, which the ID does not survive. Record `service` per op (oagen needs it for scoped
+  runs).
 - **Scoped regeneration NEVER filters the spec** (oagen `orchestrator.ts:37`, `generate-files.ts:44`;
   fastapi `--specify-tags`; openapi-python full-rmtree). Placement/dedup/shared-files/barrels are
   computed over the *full* (or `selected ∪ already-on-disk`) surface so shared files stay byte-
@@ -397,7 +398,11 @@ naming they can't be turned off or audited"; openapi-generator steers behavior v
 interacting flags. **Recommendation:** implement the *recipes* (they're genuinely useful) but as
 **injectable policy that sets `Inferred=true` and keys output by TypeID**:
 - **Discriminator inference** — const-property-on-every-variant detection, single-string-const-union →
-  enum collapse (oagen/datamodel/ogen `implicitDiscriminatorKey`). Disableable, auditable.
+  enum collapse (oagen/datamodel/ogen `implicitDiscriminatorKey`). Disableable, auditable. The
+  collapse is built as the `const-unions` pass
+  ([`string-const-union`](compilers/openapi.md#string-const-union)), and it marks nothing
+  `Inferred`: it reads only the values the document declares and keeps the union wherever an `Enum`
+  would drop a fact, so it is a normalization rather than an inference, and disableable by name.
 - **Pagination** — cursor if a query param ∈ {cursor, after, before, starting_after, ending_before,
   page_token, next_token} (priority-ordered so `after` wins), offset if offset+limit present (oagen
   `pagination.ts`). Target Morphic's path-based fields.
@@ -553,6 +558,11 @@ combinator. Two lossless representations, in preference order:
 > variant lives, so it could only be merged keyword by keyword — one wrong rule is a silently wrong
 > shape. Half-distributing was rejected outright: it yields a `Union` whose variants disagree about
 > whether they carry the body, with nothing in the IR recording which.
+>
+> That constraint has since lifted. A composed variant takes an ID in a namespace of its own
+> ([identity](./ir/identity.md#the-id-grammar)), so the branch pointer is free for the branch's own
+> node, and an inline branch is conjoined by the node hoisted there, as a `$ref` branch is by its
+> target. Nothing is merged keyword by keyword, and a bare `null` branch alone still declines.
 >
 > The general lesson is about this document rather than this section: it was written from studying
 > four reference implementations, which is exactly the kind of source that gets trusted without

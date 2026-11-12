@@ -40,25 +40,22 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
-		diags = append(diags, diagDisjointConjuncts(c, comp)...)
-		if allOfDecides(s) {
-			v := voicingOf(c, s)
-			comp.speaks, comp.rebased = v.speaks, v.rebased
-		}
-		idx := propIndex(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
+		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
+		fields := newModelFields(c, ts, m)
+		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		diags = append(diags, applyFalseBranches(c, m, comp)...)
+		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
 			m.Discriminator = d
 		}
 		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
-		m.DiscriminatorValue = tag
+		m.DiscriminatorValue = tag.value
 		diags = append(diags, tagDiags...)
+		deferSubtypeTag(c, ts, tag, common.ID, pointer)
 		return objectNode(m)
 	})
 	return id, diags
@@ -167,10 +164,14 @@ type allOfComposition struct {
 	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong), and
 	// rebased each whose folding keywords write a relative $ref it reads against
-	// another base, so it does not. They are nil for a composition distributed
-	// across a union, whose variants each keep every branch.
+	// another base, so it does not. They are nil where the allOf is not what the
+	// position lowers (allOfDecides).
 	speaks  []bool
 	rebased []bool
+	// distributes is the pointer of the branch whose union the position
+	// distributes across its variants (branchUnion), whose merge consumes it,
+	// and empty where no branch's is.
+	distributes jsontext.Pointer
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -189,6 +190,22 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 		out = append(out, allOfBranch{schema: st.schema, pointer: p, wrapper: st.wrapper, capped: st.capped})
 	}
 	return allOfComposition{pointer: pointer, branches: out}
+}
+
+// readAllOf is allOfBranches of the schema written at pointer, with what its
+// conjuncts jointly admit read and, where the allOf is what the position lowers,
+// which branches fold there (voicingOf), for a lowering that composes it. That
+// gate is positionVoices', so a branch gives up a keyword only where a reader
+// of the position takes it up; both composers pass it, and the report of an
+// allOf the election passed over does not.
+func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
+	comp := allOfBranches(s, pointer)
+	comp.disjoint = disjointConjuncts(c, s, comp)
+	if allOfDecides(c, s) {
+		v := voicingOf(c, s)
+		comp.speaks, comp.rebased = v.speaks, v.rebased
+	}
+	return comp
 }
 
 // allOfRefBranches yields the $ref branches of s's allOf after flattening,
@@ -291,12 +308,13 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 // #143). The census every $ref site runs keeps what the alias cannot model,
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
-func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
-			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
+			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
 			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
 			continue
 		}
@@ -338,7 +356,8 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
 // the branch verbatim under Unmodeled. It runs after fillAdditional, whose
-// result it overrides.
+// result it overrides, the catch-all included
+// (docs/compilers/openapi.md#allof-false-branch).
 //
 // A `false` branch admits nothing, so m must not stay open; the rule
 // docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
@@ -346,7 +365,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 // would trade one silent loss for another. The verbatim branch tells this from
 // a plain `additionalProperties: false`; a diagnostic does not, being no part
 // of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
 		if !annotation.IsFalseSchema(e.schema) {
@@ -354,12 +373,19 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 		}
 		m.Additional = ir.AdditionalClosed
 		annotation.PreserveInto(&m.Unmodeled, comp.branchKey(e.pointer),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
+
+	if m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
+		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, s, "additionalProperties",
+			ir.ReasonDegradedLowering, comp.pointer, c.Place())
+		diags = append(diags, keptDiags...)
+	}
+	forbidRest(m)
 	return diags
 }
 
@@ -381,14 +407,16 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
+	distributed := comp.distributes != "" && e.pointer == comp.distributes
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
-		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, true))
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true})) ||
+			(distributed && declaresUnionKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
 	}
 	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
-		bs.GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+		bs.GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 	if !kept {
 		return keptDiags
 	}
@@ -495,6 +523,11 @@ func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	default:
 		return false
 	}
+}
+
+// declaresUnionKeyword reports whether keyword is oneOf or anyOf.
+func declaresUnionKeyword(keyword string) bool {
+	return keyword == "oneOf" || keyword == "anyOf"
 }
 
 // declaresObjectOnly reports whether the branch's declared type is exactly

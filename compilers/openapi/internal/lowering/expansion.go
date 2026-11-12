@@ -45,12 +45,9 @@ func newExpansion(l budget.Limit) *expansion {
 
 // admit charges one copy of the declarations whose nodes are roots, each read
 // as at, and reports whether the copies so far are within the budget. Once they
-// are not it admits nothing, so no later $ref lowers. A nil expansion, a zero
-// context's, and an unbounded one admit every copy without weighing it.
+// are not it admits nothing, so no later $ref lowers. An unbounded one admits
+// every copy without weighing it.
 func (e *expansion) admit(at bind.Reading, roots ...*yaml.Node) bool {
-	if e == nil {
-		return true
-	}
 	if _, bounded := e.spent.Limit().Max(); !bounded {
 		return true
 	}
@@ -71,12 +68,9 @@ func (e *expansion) admit(at bind.Reading, roots ...*yaml.Node) bool {
 	return true
 }
 
-// spend charges raw, what a copy holds as raw values. A nil expansion charges
-// nothing.
+// spend charges raw, what a copy holds as raw values.
 func (e *expansion) spend(raw int) {
-	if e != nil {
-		e.spent.Spend(raw)
-	}
+	e.spent.Spend(raw)
 }
 
 // ChargeExpansionAt charges the expansion one more copy of the declaration at
@@ -98,10 +92,9 @@ func ChargeExpansion(c Ctx, raw int) {
 
 // ExpansionCrossed reports whether the copies made so far weigh past the
 // budget, for a lowering to ask before it makes one more: the document is then
-// refused (Ctx.ExpansionRefusal), so nothing more need copy. A zero context
-// crosses nothing.
+// refused (Ctx.ExpansionRefusal), so nothing more need copy.
 func ExpansionCrossed(c Ctx) bool {
-	return c.expansion != nil && c.expansion.spent.Exhausted()
+	return c.expansion.spent.Exhausted()
 }
 
 // chainable is a reference-or-inline entry whose chain Declared reads: the
@@ -152,7 +145,7 @@ func copied[T, S any, R chainable[T, S]](c Ctx, ref R, end *yaml.Node) []*yaml.N
 // while they have not.
 // It names no position: which copy crossed the budget follows the walk's order.
 func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
-	if e == nil || !e.spent.Exhausted() {
+	if !e.spent.Exhausted() {
 		return ir.Diagnostic{}, false
 	}
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, ir.Provenance{Source: srcIndex},

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -191,8 +192,7 @@
                       }
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -249,8 +249,7 @@
       },
       "sensitive": false,
       "xml": {
-        "name": "Code",
-        "wrapped": false
+        "name": "Code"
       },
       "unmodeled": {
         "openapi:x-facet": {

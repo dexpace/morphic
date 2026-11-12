@@ -335,7 +335,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 // holding no member and lowering the union alone would state the opposite of
 // the source.
 //
-// It is a second case rather than a second row because declaresShape and
+// It is a second case rather than a second row because shapeKeywords and
 // composesAsModel test the keyword themselves, through enumWritten, and a union
 // reaches lower()'s dispatch only through them.
 func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
@@ -859,4 +859,54 @@ func memberKeys(members []ir.EnumMember) []string {
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+// TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits pins a const's
+// ValueType as an enum's is read: the type and format a value fits, else the
+// type, else the value's own kind. A type or format the value does not fit is
+// kept verbatim and reported, and a type a composite value already is, is not.
+func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema string
+		want   ir.PrimKind
+		kept   string
+	}{
+		{"an integer written with a point", `{type: integer, const: 80.0}`, ir.PrimInteger, ""},
+		{"a number written as an integer", `{type: number, const: 80}`, ir.PrimNumber, ""},
+		{"a date", `{type: string, format: date, const: "2020-01-01"}`, ir.PrimDate, ""},
+		{"a sized integer", `{type: integer, format: int64, const: 1}`, ir.PrimInt64, ""},
+		{"no declared type", `{const: 80}`, ir.PrimNumber, ""},
+		{"a bool", `{type: boolean, const: true}`, ir.PrimBool, ""},
+		{"a value no date", `{type: string, format: date, const: soon}`, ir.PrimString, "openapi:format"},
+		{"a value the type is not", `{type: integer, const: x}`, ir.PrimString, "openapi:type"},
+		{"several declared types", `{type: [integer, string], const: 1}`, ir.PrimNumber, "openapi:type"},
+		{"an object", `{type: object, const: {a: 1}}`, "", ""},
+		{"a list", `{type: array, const: [1]}`, "", ""},
+		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type"},
+		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type"},
+		{"a null", `{type: "null", const: null}`, "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    L: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			lit, ok := doc.Types[componentID("L")].(*ir.Literal)
+			require.True(t, ok, "got %T", doc.Types[componentID("L")])
+			assert.Equal(t, tc.want, lit.ValueType)
+			var kept []string
+			for key := range lit.Unmodeled {
+				kept = append(kept, key)
+			}
+			if tc.kept == "" {
+				assert.Empty(t, kept)
+			} else {
+				assert.Equal(t, []string{tc.kept}, kept)
+			}
+			assert.Equal(t, tc.kept != "", openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/L"),
+				"a keyword is reported exactly where it is kept: %+v", diags)
+		})
+	}
 }

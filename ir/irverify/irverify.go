@@ -59,6 +59,7 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 	vs = append(vs, checkUnions(doc)...)
 	vs = append(vs, checkMaps(doc)...)
 	vs = append(vs, checkMapKeys(doc)...)
+	vs = append(vs, checkCatchAlls(doc)...)
 	vs = append(vs, checkRequires(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, checkDocument(doc)...)
@@ -167,6 +168,8 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkIdempotency,
 		checkStreamingModes,
 		checkWebhookRoutes,
+		checkCallbacks,
+		checkInteractions,
 	}
 }
 

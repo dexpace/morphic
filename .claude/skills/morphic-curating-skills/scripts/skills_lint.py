@@ -13,7 +13,8 @@ Each rule in a reference is held to the format morphic-curating-skills gives. Sc
 Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
 and a test_<name>.py beside each. A path the tree lacks may name the Go toolchain's sources, which
 `go env GOROOT` locates; where go cannot say, every path is held to the tree. A Go name spelled
-`Name` in `path/to/file.go` on one line is held to what that file declares.
+`Name` in `path/to/file.go` on one line is held to what that file declares. A SKILL.md body spells
+no $ before a digit, which the skill loader replaces with an argument.
 """
 
 import argparse
@@ -84,6 +85,9 @@ HEADING = re.compile(r"#{1,6} +(.+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# A placeholder the skill loader replaces with an argument's word in a SKILL.md body, so a
+# command spelling awk's `$0` there reads the argument instead. References are read as files.
+POSITIONAL = re.compile(r"\$[0-9]")
 # A skill's name, as the Agent Skills specification gives it: 1 to MAX_NAME_CHARS lowercase
 # letters and digits, joined by single hyphens.
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -101,10 +105,10 @@ TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE = r"[0-9]+(?::[0-9]+|-[0-9]+)?$"
 LINE_SUFFIX = re.compile(":" + LINE)
 # A code span holding a "/" names a repository path unless its form marks it as something else:
-# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a placeholder (<spec>,
-# {owner}), or a colon before anything but a line suffix, as a URL, a refspec (main:refs/x) and a
-# pathspec's magic (:/, :(top)) hold, which no path here does.
-NOT_A_PATH = re.compile(r"^(?:/|-|\+)|:(?!" + LINE + r")|[\[<>{}|^\\]")
+# a JSON pointer or device (/), a flag (-), a pattern (+, [, |, ^ or \), a shell variable's value
+# ($), a placeholder (<spec>, {owner}), or a colon before anything but a line suffix, as a URL, a
+# refspec (main:refs/x) and a pathspec's magic (:/, :(top)) hold, which no path here does.
+NOT_A_PATH = re.compile(r"^(?:/|-|\+|\$)|:(?!" + LINE + r")|[\[<>{}|^\\]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
 # rather than passed.
@@ -123,6 +127,8 @@ BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 # before it reads a command's words.
 GOROOT_SRC = re.compile(r"^GOROOT/src(?:/|$)")
 GO_ENV_GOROOT = "$(go env GOROOT)"
+# The one variable a word may start with and still name a path, the toolchain's own root.
+GOROOT_VAR = re.compile(r"^\$GOROOT(?:/|$)")
 
 
 def git(root: Path, *args: str) -> str:
@@ -172,8 +178,10 @@ def path_word(word: str) -> str:
     """Return what a word of a code span spells, for the checks a one-word span and a command's
     words share. A double quote, which leaves $GOROOT to expand, is no part of a path wherever it
     stands, so "$(go env GOROOT)"/src/... names the toolchain's src; a single quote and a shell's
-    punctuation around the word are none either."""
-    return word.replace('"', "").strip("'$();,")
+    punctuation around the word are none either. Any other variable keeps its $, which
+    NOT_A_PATH reads: $PWD/ir names no path in the tree."""
+    word = word.replace('"', "").strip("'();,")
+    return word if word.startswith("$") and not GOROOT_VAR.match(word) else word.strip("$")
 
 
 def declares(source: str, name: str) -> bool:
@@ -325,6 +333,11 @@ class Linter:
         words = len("\n".join(lines[end + 1:]).split())
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
+        for i, line in enumerate(lines[end + 1:], end + 2):
+            if POSITIONAL.search(line):
+                self.report(skill, i, "a $ before a digit is replaced by the skill's arguments "
+                                      "when it loads; spell an awk field $(N) and a shell "
+                                      "parameter ${N}")
 
     def check_front_keys(self, skill: Path, front: list[str]) -> None:
         """Hold each frontmatter key to the specification's fields, once each, and each plain
@@ -638,6 +651,18 @@ def main(argv: list[str] | None = None) -> int:
         sys.argv[1:] if argv is None else argv)
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+    except subprocess.CalledProcessError as e:
+        # git says why it found no work tree. An unpacked copy has none, and the tree is what git
+        # lists, so the hint says how to make one there; other causes keep git's own words.
+        said = next((line.strip() for line in e.stderr.splitlines() if line.strip()),
+                    f"git rev-parse exited {e.returncode}")
+        print(f"skills_lint: {said}; in a copy git archive unpacked, run git init and git add -A "
+              "first", file=sys.stderr)
+        return 2
+    except OSError as e:  # no git on PATH, or a working directory since removed
+        print(f"skills_lint: {e}", file=sys.stderr)
+        return 2
+    try:
         n, found = findings(root)
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)

@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -71,8 +72,7 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
-			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
+		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -125,8 +125,9 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // hoisted for it carries it in Encoding; a (type, format) pairing
 // spelling.Lookup knows selects a primitive, which carries the pairing in the
 // primitive kind itself, as an Enum's ValueType does where enumValueType took
-// it. With no type declared there was no pairing to make and nothing read it,
-// and a node of any other kind has no Encoding field at all.
+// it, or one narrower where another conjunct narrowed it (typeValueSet). With
+// no type declared there was no pairing to make and nothing read it, and a node
+// of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
@@ -141,7 +142,10 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 		return len(effectiveTypes(s)) > 0
 	case *ir.Enum:
 		prim, paired := formatPrimitive(s)
-		return paired && n.ValueType == prim
+		return paired && narrowsOrIs(n.ValueType, prim)
+	case *ir.Literal:
+		prim, paired := formatPrimitive(s)
+		return paired && narrowsOrIs(n.ValueType, prim)
 	default:
 		return false
 	}
@@ -155,6 +159,9 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 // A type set that reduces to nothing — `type: "null"` on its own — is carried by
 // TypeRef.Nullable rather than by a node, so it is homed wherever it is written.
 func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
+	if lit, ok := td.(*ir.Literal); ok {
+		return literalTyped(lit, s)
+	}
 	for _, st := range effectiveTypes(s) {
 		if !typeShapedBy(td, st) {
 			return false
@@ -163,14 +170,48 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 	return true
 }
 
+// literalTyped reports whether lit holds the type s declares: its ValueType is
+// the primitive that one type, or the type and format, select, which
+// literalValueType took because the value is one of it, or the type is the
+// object or array a composite value already is. A type set naming no shape is
+// TypeRef.Nullable's, as typeHome says; one naming several, or a type the
+// value is not, reached no field.
+func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
+	types := effectiveTypes(s)
+	if len(types) == 0 {
+		return true
+	}
+
+	if len(types) > 1 {
+		return false
+	}
+
+	switch lit.Value.Kind {
+	case ir.ValueObject:
+		return types[0] == oas3.SchemaTypeObject
+	case ir.ValueList:
+		return types[0] == oas3.SchemaTypeArray
+	case ir.ValueNull, ir.ValueBool, ir.ValueNumber, ir.ValueString, ir.ValueBytes,
+		ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
+		// A scalar value is typed by its ValueType, read below.
+	default:
+		return false
+	}
+
+	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
+		return true
+	}
+
+	prim, known := spelling.Lookup(string(types[0]))
+	return known && prim == lit.ValueType
+}
+
 // typeShapedBy reports whether td is a node kind that carries the shape st names.
 //
 // An Enum carries a scalar type in ValueType, which enumValueType fills from
-// exactly that type set. A Literal carries only its value, so a `type` written
-// beside a const reached no field at all — including the case where the two
-// agree, since the IR then holds the value and nothing about what was declared
-// about it. Any admits every shape, so it contradicts none; External and
-// keywordHome's nil td carry no shape.
+// exactly that type set. A Literal is typeHome's to judge, since what it holds
+// depends on the format beside the type. Any admits every shape, so it
+// contradicts none; External and keywordHome's nil td carry no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
@@ -189,6 +230,11 @@ func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	default:
 		return false
 	}
+}
+
+// holdsCollectionBounds reports whether td is a node collectionConstraints fills.
+func holdsCollectionBounds(td ir.TypeDef) bool {
+	return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
 }
 
 // constraintsHome reports whether the value constraints a position declared
@@ -283,13 +329,13 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
 		return unhomedKeywords(s, nil, nil), expandedShape
 	}
-	if hasUnionSiblings(s) {
+	if hasUnionSiblings(c, s) {
 		return nil, ""
 	}
 	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
 		return nil, ""
 	}
-	return unhomedKeywords(s, nil, nil), collapsedShape
+	return unhomedKeywords(s, nil, branchesSay(c, s)), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -311,7 +357,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		return id, diags
 	}
 	owns, _ := ts.Lookup(c.IDs().Coordinate(pointer))
-	unhomed := unhomedKeywords(s, td, d.skipped)
+	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere.
@@ -360,7 +406,8 @@ const distributedShape = "a union of models conjoining its body with each branch
 // Union has no field for what they consume, so the census asks them; handled is
 // as unhomedKeywords takes it. A constraint reaches each variant that has the
 // field, one it cannot constrain included (GitHub #1310), so it is kept only
-// where none does.
+// where none does. A discriminator the Union holds is homed there, routing its
+// variants.
 func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
@@ -370,6 +417,9 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if !isUnion {
 		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
 			"internal: type %q is not the union its variants were built for", id))
+	}
+	if discriminatorHome(u) {
+		handled = append(slices.Clip(handled), "discriminator")
 	}
 	nodes := make([]ir.TypeDef, 0, len(u.Variants))
 	for _, v := range u.Variants {
@@ -410,7 +460,7 @@ func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []
 	kept := make([]string, 0, len(unhomed))
 	for _, keyword := range unhomed {
 		ok, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword,
-			ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+			ir.ReasonDegradedLowering, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if ok {
 			kept = append(kept, keyword)

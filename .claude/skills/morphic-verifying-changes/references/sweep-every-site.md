@@ -62,9 +62,25 @@ it.
   above all those saying only, never, the single, records or reports. Re-check each precondition a
   doc comment states against every call site, new ones included.
 - **Why.** Converted functions still said they "record" diagnostics they now return, and "the single
-  append point" survived the change that made it false (#198, #213).
-- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages and
-  read each hit against the new code; list callers for each precondition.
+  append point" survived the change that made it false (#198, #213); two examples quoting #1309's
+  input outlived its fix, matching none of those words (#1642).
+- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages, and
+  `git grep -nF '<input>'` over the tree for each input whose result changed; read each hit against
+  the new code; list callers for each precondition.
+
+## Sweep the tree for prose stating a field's old meaning
+`sweep-prose-a-meaning-change-falsifies`
+
+- **Rule.** A change to what a field or a value means falsifies sentences stating the old meaning,
+  in any package and in `docs/`, which need none of the words
+  `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for. Grep the
+  whole tree for the old meaning's words, the field's name among them, in the order a sentence
+  states them, and read each hit's sentence against the new meaning.
+- **Why.** #1370 made `Provenance.Source` name the patched document rather than the overlay, and
+  three sentences crediting the overlay outlived several review rounds, one in
+  `docs/architecture.md`, outside the touched packages (#1680).
+- **Probe.** `git grep -nE '<pattern>' -- . ':!testdata'`, as
+  `(credit|Source).*overlay|overlay.*(credit|Source|index)|fallback` hit all three at `f060e417a`.
 
 ## Update the normative doc a change makes untrue, in the same change
 `update-normative-docs-in-same-change`

@@ -95,9 +95,38 @@ func TestRun_ExplainNamesNoPrimitiveAtTheWholeDocument(t *testing.T) {
 
 	require.Contains(t, document.String(), `"t/prim/string"`, `property "a" interns the shared string primitive`)
 	out := explained.String()
-	assert.Contains(t, out, "no type node was interned at this coordinate",
+	assert.Contains(t, out, "the document holds no type node at this coordinate",
 		"nothing is declared at the document root itself")
 	assert.NotContains(t, out, "t/prim/", "a shared primitive is at no coordinate")
+}
+
+// TestRun_ExplainReadsTheDocumentThePassesReturn pins that --explain reports
+// the document the run returns: a union const-unions rewrites is the enum it
+// became, a branch's coordinate holds no node once the pass removed it, and
+// --disable-pass const-unions shows what the compiler made there.
+func TestRun_ExplainReadsTheDocumentThePassesReturn(t *testing.T) {
+	t.Parallel()
+	spec := writeFile(t, "spec.yaml", "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\n"+
+		"components:\n  schemas:\n    Color: {oneOf: [{const: red}, {const: green}]}\n")
+	for name, tc := range map[string]struct {
+		args []string
+		want string
+	}{
+		"the union":        {[]string{"--explain", "/components/schemas/Color"}, "node t/openapi/components/schemas/Color (enum)"},
+		"a branch removed": {[]string{"--explain", "/components/schemas/Color/oneOf/0"}, "the document holds no type node at this coordinate"},
+		"a branch kept": {[]string{"--explain", "/components/schemas/Color/oneOf/0", "--disable-pass", "const-unions"},
+			"node t/anon/components/schemas/Color/oneOf/0 (literal)"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var stdout, stderr bytes.Buffer
+
+			code := run(t.Context(), append([]string{"compile", spec}, tc.args...), &stdout, &stderr)
+
+			require.Equal(t, 0, code, "stderr: %s", stderr.String())
+			assert.Contains(t, stdout.String(), tc.want)
+		})
+	}
 }
 
 // TestRun_ExplainWriteFailureIsReported pins that a stdout refusing the
@@ -155,7 +184,7 @@ func TestRun_ExplainReadsTheSpecsOwnCoordinates(t *testing.T) {
 		spec, want string
 	}{
 		"the spec declares one":  {root + "components:\n  schemas:\n    Pet: {type: object, properties: {name: {type: string}}}\n", "node t/openapi/components/schemas/Pet (model)"},
-		"the spec declares none": {root, "no type node was interned at this coordinate"},
+		"the spec declares none": {root, "the document holds no type node at this coordinate"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

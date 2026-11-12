@@ -176,6 +176,12 @@ testdata/conformance/openapi/discriminator-default-mapping.yaml	19:25	validation
 testdata/conformance/openapi/dynamic-ref.yaml	33:7	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	12:9	validation-invalid-syntax	compiler	component-names
 testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	compiler	component-names
+testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/empty-names.yaml	90:18	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/empty-names.yaml	124:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	130:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	134:13	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	14:18	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	27:22	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	5:10	validation-required-field	library	empty-is-missing
@@ -197,7 +203,7 @@ testdata/conformance/openapi/empty-required-values.yaml	38:30	validation-require
 testdata/conformance/openapi/empty-required-values.yaml	39:39	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:47	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:61	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/extension-promotion.yaml	125:19	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/extension-promotion.yaml	136:19	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	7:8	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	8:20	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	12:12	later-version-construct	compiler	version-gate

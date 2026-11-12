@@ -77,9 +77,10 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
 - **Compilers** (`compilers/*`) turn one source format into an IR document plus diagnostics. Each
   recognizes its own format from the bytes and owns its options. OpenAPI 3.x is the first; the
   formats planned after it are in [Status](#status).
-- **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `validate` checks referential
-  integrity and the well-formedness rules the IR states, and `names` reports names any target may
-  render alike; both run by default. Deduplication, filtering, version slicing and IR overlays are
+- **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `const-unions` rewrites a
+  closed union of strings as the enum of them, `validate` checks referential integrity and the
+  well-formedness rules the IR states, and `names` reports names any target may render alike; all
+  three run by default. Deduplication, filtering, version slicing and IR overlays are
   designed in [Architecture](docs/architecture.md) but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
   target. SDK runtime policy (retries, timeouts, telemetry, the error taxonomy) is a separate
@@ -153,7 +154,7 @@ completes commands, flags, and spec files by extension.
 | `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec and every document it reads, the settings, the passes, and the working directory. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -222,6 +223,7 @@ OpenAPI compiler accepts:
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. It is read as the spec is: a regular file, within `max-source-bytes`. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
 | `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
+| `discriminator-inference` | `true` (default), `false` | Read a union's tag off the string each variant pins its tag property to: as the mapping of a `discriminator` declaring none, where OpenAPI's implicit mapping would route by a component name the variant rejects, and as a discriminator for a closed `oneOf` or `anyOf` declaring none, where every variant requires one property and pins it to a distinct string; and read a subtype's tag off the strings it admits, where they rule out the component name its discriminator routes it by. What it reads is marked as inferred. `false` keeps only what the document declares. |
 | `streaming-media` | media types and `+suffix`es, separated by commas | The media types read as a stream of frames where a document declares no `itemSchema`, in place of the default list: `application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and `+json-seq`. An entry starting with `+` matches every media type with that structured suffix. |
 | `streaming-inference` | `true` (default), `false` | Read a media type as a stream of frames, as `streaming-media` lists. `false` turns that reading off, whatever the list holds, leaving only what an `itemSchema` declares. |
 | `binary-media` | media types, `type/*` wildcards and `+suffix`es, separated by commas | The media types under which a body or multipart part whose schema says no more than that it is a string is a file, in place of the default list: `application/gzip`, `application/pdf`, `application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`, `image/*` and `video/*`. A `type/*` entry matches no media type with a structured suffix, so `image/*` leaves out `image/svg+xml`. Each file it reads is marked as inferred. `application/octet-stream` needs no entry: a body or part it carries is a file whatever the list holds. |
@@ -316,7 +318,7 @@ entry in that test allows, and nothing from a layer above its own.
 |---|---|---|
 | `barrier/` | 0: turns a panic in code the caller does not own into an error, and quotes what that code says on one bounded line | stdlib only |
 | `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
-| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
+| `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion, correlation keys), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
 | `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` + `barrier` |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |

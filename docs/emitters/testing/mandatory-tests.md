@@ -114,17 +114,21 @@ throughout these documents.
     ([one election](../plan/responses.md#one-election), [failures](../operations/errors.md)).
 24. **T-24 · Streams** — each framing, under an `Item` and by media type where the framing admits
     both, with an element of each kind, decodes on every target. An operation offering a value and a
-    stream gets a method for each, each sending its own `Accept`; a line under a content with no
-    `Item` and a `string` root reaches the caller as text, where a declared `string` `Item` decodes
-    as JSON; a list schema with no `Item` yields its `Elem`, one frame at a time, a `string` `Elem`
-    decoding as JSON on a line and arriving as `data` on an SSE frame; an SSE element, a union of
-    event shapes among them, reads the frame's fields under `FrameMembers` and the frame's `data`
-    otherwise; a stream under a binding other than HTTP draws no `unframed-stream`; a media type
-    only a compiler option names gets the one stream method, as `bytes`, with that warning; a
-    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file, and
-    a request's file body is a byte source whatever its `Type`; and each operation of the golden
-    spec that streams gets a `StreamPlan` ([streams](../plan/streams.md),
-    [streaming](../operations/streaming.md), [request shaping](../refine/requests.md)).
+    stream gets a method for each, each sending its own `Accept`, and so does one whose stream a
+    `Condition` selects, the stream's method sending the condition's value and the other never
+    sending it; a frame whose data is the `Terminator` of a side the client reads ends the stream
+    undecoded, a side it writes sends it last, and a `bytes` side draws `terminator-unframed`; a
+    line under a content with no `Item` and a `string` root reaches the caller as text, where a
+    declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `Elem`, one
+    frame at a time, a `string` `Elem` decoding as JSON on a line and arriving as `data` on an SSE
+    frame; an SSE element, a union of event shapes among them, reads the frame's fields under
+    `FrameMembers` and the frame's `data` otherwise; a stream under a binding other than HTTP draws
+    no `unframed-stream`; a media type only a compiler option names gets the one stream method, as
+    `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
+    `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
+    and each operation of the golden spec that streams gets a `StreamPlan`
+    ([streams](../plan/streams.md), [streaming](../operations/streaming.md), [request
+    shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
     enum value, description and example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and
@@ -358,8 +362,8 @@ throughout these documents.
     member no table of its declaring model holds anchored in the first table of a model whose
     flattening holds it, an inherited one linked there and an anonymous model composed in place no
     table of its own; each example through the shape it is shown in, a write-only member in no
-    response's; a placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent
-    documents and in samples, a sample's written by its SDK target; and raw HTML in a description
+    response's; a placeholder for every redacted value, on pages, in agent documents and in
+    samples, a sample's written by its SDK target; and raw HTML in a description
     rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
     themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
     an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
@@ -487,3 +491,28 @@ throughout these documents.
     entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
     none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
     `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+43. **T-43 · Redaction** — on every target, a value redacted through `Property.Secret`, through
+    `Parameter.Secret` and a response header's `Secret`, through a sensitive component and a type
+    whose `Base` reaches one, through a list's sensitive element and a map's sensitive key and
+    value, through a union's sensitive variant, and through a member a later conjunct redeclares
+    without `Secret`, shows as `[REDACTED]` in every string form of each type holding it, held by
+    value or by reference, a union's and its variant wrapper's among them, and in a sensitive type's
+    own where the target declares one, an enum's among them, in every logging event, one a
+    structured logger writes as JSON included, and in every error message, a transport failure's
+    that quotes a redacted path segment or query value included, a collection as the marker alone
+    and a map whose values alone are redacted with its keys shown, and goes out and comes back on
+    the wire byte for byte; a raw body holding one is never logged or printed
+    ([redaction](../refine/redaction.md)).
+44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
+    none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
+    operation's documentation names its tier and what it means on every target, an unstated one
+    names none and no badge reads it as `stable`, and each target's opt-in requirement is held where
+    it has one, on each method the operation lowers to, its `WithResponse` method among them
+    ([stability](../operations/stability.md)).
+45. **T-45 · Page walks** — on every target, a pager ends at the first page meeting each condition
+    `PagePlan.Stop` lists, alone and together, `short` against the limit the call sent and `total`
+    against both totals; a condition the page gives nothing to read for ends nothing; and whatever
+    `Stop` lists, the walk ends at a page giving no continuation under each strategy reading one,
+    `link_header` among them, and at a page holding no items under `offset` or `page`, which is
+    where an empty `Stop` ends it
+    ([pagination](../operations/pagination.md#where-a-page-walk-ends)).

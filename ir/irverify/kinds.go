@@ -10,7 +10,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// checkPrimKinds asserts every primitive names a kind ir declares.
+// checkPrimKinds asserts every primitive names a kind ir declares, as do every
+// enum's ValueType and every literal stating one.
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
@@ -19,25 +20,41 @@ import (
 //
 // Nothing rejects it earlier: PrimKind is a plain string type with no
 // UnmarshalJSONFrom, so a decoded or foreign document carries an invented kind
-// in unchallenged. An empty kind at the wrong ID is also reported by
-// checkPrimIDs, since the repairs differ.
+// in unchallenged. checkPrimIDs also reports an empty kind at the wrong ID.
 func checkPrimKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {
 		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
-		prim, isPrim := td.(*ir.Primitive)
-		if !isPrim || prim.Prim.Valid() {
-			continue
+		switch n := td.(type) {
+		case *ir.Primitive:
+			vs = append(vs, undeclaredKind(n.Prim, "primitive carries", id, "")...)
+		case *ir.Enum:
+			vs = append(vs, undeclaredKind(n.ValueType, "enum's value type is", id, ".ValueType")...)
+		case *ir.Literal:
+			if n.ValueType != "" { // a null, a list or an object has no primitive
+				vs = append(vs, undeclaredKind(n.ValueType, "literal's value type is", id, ".ValueType")...)
+			}
+		default:
+			// No other node names a PrimKind.
 		}
-		vs = append(vs, Violation{
-			Code:    "ir/unknown-prim-kind",
-			Message: "primitive carries undeclared kind " + strconv.Quote(string(prim.Prim)),
-			Path:    typePath(id),
-		})
 	}
 	return vs
+}
+
+// undeclaredKind reports kind, said of by what, at field of the type id names,
+// unless ir declares it. It builds nothing for a declared kind, so a clean node
+// costs no allocation.
+func undeclaredKind(kind ir.PrimKind, what string, id ir.TypeID, field string) []Violation {
+	if kind.Valid() {
+		return nil
+	}
+	return []Violation{{
+		Code:    "ir/unknown-prim-kind",
+		Message: what + " undeclared kind " + strconv.Quote(string(kind)),
+		Path:    typePath(id) + field,
+	}}
 }
 
 var streamingModeType = reflect.TypeFor[ir.StreamingMode]()

@@ -5,9 +5,8 @@ info:
 paths: {}
 components:
   schemas:
-    # The branches are not subtypes of Pet, so a model discriminator mapping to
-    # them is one no emitter could route: it is kept verbatim beside the union
-    # rather than on the model.
+    # The branches are not subtypes of Pet and say the type written beside
+    # them, so Pet is the union of its branches, which the discriminator routes.
     Pet:
       type: object
       discriminator:
@@ -27,6 +26,25 @@ components:
       properties:
         kind: {type: string}
         bark: {type: boolean}
+    # Kitten composes Mixed, so Mixed is the base of a hierarchy and stays a
+    # model, but its mapping routes to Cat, no subtype of it: a model
+    # discriminator no emitter could route, kept verbatim beside the union
+    # rather than on the model.
+    Mixed:
+      type: object
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/components/schemas/Cat'
+      oneOf:
+        - $ref: '#/components/schemas/Kitten'
+        - $ref: '#/components/schemas/Cat'
+    Kitten:
+      allOf:
+        - $ref: '#/components/schemas/Mixed'
+        - type: object
+          properties:
+            age: {type: integer}
     # Here every target is a true subtype of Shape, so the model keeps it. Shape
     # is declared first, so a decision taken while Shape lowers would find
     # neither subtype interned yet.
@@ -51,9 +69,10 @@ components:
         - type: object
           properties:
             side: {type: number}
-    # Bird writes allOf to Animal, but also a oneOf the allOf is distributed
-    # across, so Bird lowers to a union and is no subtype of Animal. Only the
-    # lowered document can tell, so the discriminator is kept beside the union.
+    # Bird writes allOf to Animal and a oneOf beside it. Animal's mapping routes
+    # to Bird, so the union is kept beside it rather than distributed, which
+    # would make Bird a union and no subtype, and Animal keeps its
+    # discriminator.
     Animal:
       type: object
       discriminator:
@@ -76,10 +95,9 @@ components:
       type: object
       properties:
         caw: {type: string}
-    # A multi-typed body lowers to a union with one variant per type, and its
-    # object variant holds the discriminator. No schema can name that variant,
-    # so Car is no subtype of it: the discriminator is kept verbatim on Vehicle,
-    # beside the union.
+    # A multi-typed body lowers to a union with one variant per type. No schema
+    # can name its object variant, so Car is no subtype of it, and the variant
+    # holds no discriminator: it is kept verbatim on Vehicle, beside the union.
     Vehicle:
       type: [object, string]
       properties:
