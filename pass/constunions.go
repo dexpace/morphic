@@ -86,9 +86,9 @@ func readingOf(doc *ir.Document) *unionReading {
 }
 
 // unionReading reads each union of a registry as constEnum does, after the
-// unions its variants name, each as the Enum it becomes: a union of such
-// unions becomes one too, in the run that rewrites them, so a second run
-// finds none left (docs/architecture.md §2.2).
+// unions its variants name, each as the Enum it becomes: a union naming one is
+// rewritten in the run that rewrites it, where constEnum reads it as an Enum,
+// so a second run finds none left (docs/architecture.md §2.2).
 type unionReading struct {
 	types  ir.TypeRegistry
 	spaces []string
