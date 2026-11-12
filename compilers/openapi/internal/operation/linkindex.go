@@ -4,10 +4,9 @@
 package operation
 
 import (
-	"cmp"
-	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -20,7 +19,7 @@ import (
 type lookups struct {
 	reg     ir.TypeRegistry
 	members map[ir.TypeID]map[string]*ir.Property
-	params  map[ir.OpID]boundIndex
+	params  map[ir.OpID]lowering.ParamIndex
 	headers map[responseKey]map[string][]ir.PropID
 }
 
@@ -29,7 +28,7 @@ func newLookups(reg ir.TypeRegistry) *lookups {
 	return &lookups{
 		reg:     reg,
 		members: map[ir.TypeID]map[string]*ir.Property{},
-		params:  map[ir.OpID]boundIndex{},
+		params:  map[ir.OpID]lowering.ParamIndex{},
 		headers: map[responseKey]map[string][]ir.PropID{},
 	}
 }
@@ -79,16 +78,14 @@ func (lk *lookups) walk(root ir.TypeID, tokens []string) ([]ir.PropID, bool) {
 	return segments, true
 }
 
-// bound returns the parameters op's HTTP bindings place at location under the
-// wire name name, at any location but the host for an empty one. A header's
-// name matches in any case, as HTTP compares header names.
-func (lk *lookups) bound(op *ir.Operation, location ir.HTTPLocation, name string) []ir.ParamID {
+// paramIndex returns op's parameters by where its HTTP bindings place them.
+func (lk *lookups) paramIndex(op *ir.Operation) lowering.ParamIndex {
 	ix, indexed := lk.params[op.ID]
 	if !indexed {
-		ix = indexBindings(op)
+		ix = lowering.IndexParams(op)
 		lk.params[op.ID] = ix
 	}
-	return ix.find(location, name)
+	return ix
 }
 
 // header returns the headers the response at declares under name, its case
@@ -105,65 +102,4 @@ func (lk *lookups) header(at responseView, name string) []ir.PropID {
 		lk.headers[at.key] = byName
 	}
 	return byName[strings.ToLower(name)]
-}
-
-// boundIndex is an operation's parameters by the location and the wire name
-// its HTTP bindings place each at, in binding order. The host's bindings, which
-// no link names, are left out.
-type boundIndex struct {
-	at map[boundKey][]ir.ParamID
-	// locations are those a binding names, in the order bindings first name
-	// them, which a lookup at no location reads each of.
-	locations []ir.HTTPLocation
-}
-
-// boundKey is where a binding places a parameter: its location, and its wire
-// name, in lower case for a header, as HTTP compares header names.
-type boundKey struct {
-	location ir.HTTPLocation
-	name     string
-}
-
-// keyOf returns the boundKey of name at location.
-func keyOf(location ir.HTTPLocation, name string) boundKey {
-	if location == ir.HTTPLocationHeader {
-		name = strings.ToLower(name)
-	}
-	return boundKey{location: location, name: name}
-}
-
-// indexBindings indexes op's HTTP bindings. A binding naming no wire name
-// places its parameter under the parameter's own name.
-func indexBindings(op *ir.Operation) boundIndex {
-	names := make(map[ir.ParamID]string, len(op.Params))
-	for i := range op.Params {
-		names[op.Params[i].ID] = op.Params[i].Name.Source
-	}
-	ix := boundIndex{at: map[boundKey][]ir.ParamID{}}
-	for _, b := range op.Bindings.HTTP {
-		for _, pb := range b.ParamBindings {
-			if pb.Location == ir.HTTPLocationHost {
-				continue
-			}
-			if !slices.Contains(ix.locations, pb.Location) {
-				ix.locations = append(ix.locations, pb.Location)
-			}
-			key := keyOf(pb.Location, cmp.Or(pb.WireName, names[pb.Param]))
-			ix.at[key] = append(ix.at[key], pb.Param)
-		}
-	}
-	return ix
-}
-
-// find returns the parameters bound at location under name, or at any location
-// for an empty one.
-func (ix boundIndex) find(location ir.HTTPLocation, name string) []ir.ParamID {
-	if location != "" {
-		return ix.at[keyOf(location, name)]
-	}
-	var found []ir.ParamID
-	for _, l := range ix.locations {
-		found = append(found, ix.at[keyOf(l, name)]...)
-	}
-	return found
 }

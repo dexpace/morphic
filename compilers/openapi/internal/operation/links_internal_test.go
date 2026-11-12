@@ -189,18 +189,3 @@ func TestLinksResolve_AllocatesLinearInWhatItReads(t *testing.T) {
 			"%s: bytes around 50, 100 and 200 entries: %v", name, bytes)
 	}
 }
-
-// TestBoundIndex_LeavesTheHostOut pins that a host binding, which no link
-// parameter names, matches no name, so a name a host label shares with a
-// parameter names that parameter alone. No OpenAPI operation binds the host,
-// so only a direct call reaches the case.
-func TestBoundIndex_LeavesTheHostOut(t *testing.T) {
-	t.Parallel()
-	op := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
-		{Param: "param/x/host", Location: ir.HTTPLocationHost, WireName: "id"},
-		{Param: "param/x/id", Location: ir.HTTPLocationQuery, WireName: "id"},
-	}}}}}
-	ix := indexBindings(op)
-	assert.Equal(t, []ir.ParamID{"param/x/id"}, ix.find("", "id"))
-	assert.Empty(t, ix.find(ir.HTTPLocationHost, "id"))
-}

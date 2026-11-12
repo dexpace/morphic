@@ -1105,8 +1105,9 @@ declaration that owns it.
 
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
-keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply, and which can state the deprecation itself where no keyword does. An operation, and a
+keyword states no message, version, date or replacement, which only
+[`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
+where no keyword does. An operation, and a
 tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
 beside its `description` and `externalDocs`; a response and an error case take `description` and
 `summary` ([`response-summary`](#response-summary)); a request
@@ -1127,8 +1128,6 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
   `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
-- Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
-  (#670).
 
 ### `disjoint-visibility`
 
@@ -4375,6 +4374,22 @@ node holds it: `x-extensible-enum` opens it under the default mapping, a `union.
 and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
 where one reading could override what the other reports.
 
+`Deprecation.ReplacedBy` is read through the target `deprecation.replacedBy`, which no default key
+names either, since no spelling for a replacement has become common. A mapped key's string, or list
+of strings, names each replacement as the document names an entity of the node's class: an operation
+by its `operationId`, a parameter of the same operation as a link's key names one (`<in>.<name>` or
+a name one parameter carries), a header by its name among the headers beside it, a response's or
+those an encoding gives a part or a stream's items, in any case, a property by its name within its
+model, a schema by its name under `components/schemas`, and a security scheme by its key. A property
+whose schema lowers to a type of its own, such as an inline object or enum, is deprecated on that
+type ([`docs-and-deprecation`](#docs-and-deprecation)), so a name there is read as a schema's. The
+names are resolved once the document is whole, since a replacement may be declared after what it
+replaces, and they fill the field all or none: a name that names nothing, names more than one
+entity, or names the node itself, leaves the field unset and is reported as an info
+`openapi/degraded-construct` at the key, as no entity is picked from several. As a deprecation's
+other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
+the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
+
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
@@ -4390,6 +4405,11 @@ where one reading could override what the other reports.
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
   `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
   `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
+  `lowering.TestPromoter_ReadsReplacementNames`, `lowering.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
+  `replacement.TestResolve_ANameNamingNothingFillsNothing`,
+  `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
+  `e2e.TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
   `e2e.TestPromotion_ARefinementLendsWhatItRefines`,
@@ -4406,8 +4426,10 @@ where one reading could override what the other reports.
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
   `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
-  ([`union-beside-structure`](#union-beside-structure)), reaches no field; and a mapping naming a
-  target nothing reads is accepted in silence (#1281).
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; a mapping naming a target
+  nothing reads is accepted in silence (#1281); and header parameters or response headers whose
+  names differ only in case lower as two, so a replacement naming either names both and fills
+  nothing (#635).
 
 ### `mutually-exclusive-parameters`
 
