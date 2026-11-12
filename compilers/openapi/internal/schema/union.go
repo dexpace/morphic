@@ -413,12 +413,17 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
-			vid, vDiags := lowerTyped(c, ts, depth, s, vptr, st)
+			vid, vDiags := lowerTypeVariant(c, ts, depth, s, vptr, st)
 			diags = append(diags, vDiags...)
 			variants = append(variants, ir.Variant{
 				Name: compile.NamingHint(string(st)),
 				Type: ir.TypeRef{Target: vid},
 			})
+		}
+		// A type array listing no object routes no instance and resolves nothing,
+		// as no node keeping a discriminator verbatim does (GitHub #1662, #1708).
+		if slices.Contains(types, oas3.SchemaTypeObject) {
+			diags = append(diags, resolveDiscriminatorRoutes(c, ts, s, pointer)...)
 		}
 		return &ir.Union{
 			TypeCommon: common,
@@ -428,6 +433,19 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		}
 	})
 	return id, diags
+}
+
+// lowerTypeVariant lowers the variant of s's type array that st names, as
+// lowerTyped lowers st alone, except that an object variant holds no
+// discriminator: no $ref or mapping can name the variant's position, which
+// holds a type's name and no schema, so no type is its subtype. The census
+// keeps the discriminator on the union instead
+// (docs/compilers/openapi.md#type-arrays).
+func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
+	if st == oas3.SchemaTypeObject {
+		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */)
+	}
+	return lowerTyped(c, ts, depth, s, pointer, st)
 }
 
 // typesDisjoint reports whether no instance has two of types. A type listed

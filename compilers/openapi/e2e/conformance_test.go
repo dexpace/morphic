@@ -198,6 +198,7 @@ func conformanceCases() []conformanceCase {
 		{"discriminator-aliased-branch", assertDiscriminatorAliasedBranch},
 		{"schema-identifiers", assertSchemaIdentifiers},
 		{"type-array-numeric", assertTypeArrayNumeric},
+		{"type-array-discriminator", assertTypeArrayDiscriminator},
 		{"enum-string", assertEnumString},
 		{"enum-numeric", assertEnumNumeric},
 		{"empty-enum", assertEmptyEnum},
