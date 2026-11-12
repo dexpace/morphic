@@ -1,0 +1,587 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Extension groups",
+  "version": "1",
+  "docs": {
+    "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group."
+  },
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Extension groups",
+        "canonical": "extension_groups"
+      },
+      "docs": {
+        "description": "Operations grouped by the path x-fern-sdk-group-name states, compiled with grouping=extension: a dotted string, a list of segments, a path nested in another that holds operations of its own, an operation stating no path and one whose value names none, both grouped by their tags, a callback filed with its parent and a webhook in the webhook group."
+      },
+      "groups": [
+        {
+          "id": "g/extension/accounts",
+          "name": {
+            "source": "accounts",
+            "canonical": "accounts"
+          },
+          "docs": {},
+          "groups": [
+            {
+              "id": "g/extension/accounts/members",
+              "name": {
+                "source": "members",
+                "canonical": "members"
+              },
+              "docs": {},
+              "operations": [
+                {
+                  "id": "op/openapi/paths/~1accounts~1{account_id}~1members/get",
+                  "name": {
+                    "source": "listMembers",
+                    "canonical": "list_members"
+                  },
+                  "docs": {},
+                  "params": [
+                    {
+                      "id": "param/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
+                      "name": {
+                        "source": "account_id",
+                        "canonical": "account_id"
+                      },
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": true,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1accounts~1{account_id}~1members/parameters/0"
+                      }
+                    }
+                  ],
+                  "responses": [
+                    {
+                      "name": {
+                        "hint": "200"
+                      },
+                      "conditions": {
+                        "statusCodes": [
+                          {
+                            "from": 200,
+                            "to": 200
+                          }
+                        ]
+                      },
+                      "docs": {
+                        "description": "ok"
+                      }
+                    }
+                  ],
+                  "oneWay": false,
+                  "idempotency": {},
+                  "bindings": {
+                    "http": [
+                      {
+                        "method": "GET",
+                        "uriTemplate": "/accounts/{account_id}/members",
+                        "paramBindings": [
+                          {
+                            "param": "param/openapi/paths/~1accounts~1{account_id}~1members/get/parameters/account_id/path",
+                            "location": "path",
+                            "wireName": "account_id",
+                            "style": "simple",
+                            "explode": false,
+                            "allowReserved": false,
+                            "allowEmptyValue": false
+                          }
+                        ],
+                        "sharedRoute": false,
+                        "checksumRequired": false
+                      }
+                    ]
+                  },
+                  "unmodeled": {
+                    "openapi:x-fern-sdk-group-name": {
+                      "reason": "vendor_extension",
+                      "value": "accounts.members",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1accounts~1{account_id}~1members/get/x-fern-sdk-group-name"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1accounts~1{account_id}~1members/get",
+                    "inferred": "group-extension"
+                  }
+                }
+              ]
+            }
+          ],
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1accounts/get",
+              "name": {
+                "source": "listAccounts",
+                "canonical": "list_accounts"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/accounts",
+                    "callbacks": [
+                      {
+                        "name": "changed",
+                        "expression": "{$request.query.callback}",
+                        "operations": [
+                          "op/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post"
+                        ]
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-sdk-group-name": {
+                  "reason": "vendor_extension",
+                  "value": "accounts",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1accounts/get/x-fern-sdk-group-name"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1accounts/get",
+                "inferred": "group-extension"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post",
+              "name": {
+                "source": "accountsChanged",
+                "canonical": "accounts_changed"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.query.callback}",
+                    "inbound": "callback",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1accounts/get/callbacks/changed/{$request.query.callback}/post",
+                "inferred": "group-extension"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/extension/zero-trust",
+          "name": {
+            "source": "zero-trust",
+            "canonical": "zero_trust"
+          },
+          "docs": {},
+          "groups": [
+            {
+              "id": "g/extension/zero-trust/devices",
+              "name": {
+                "source": "devices",
+                "canonical": "devices"
+              },
+              "docs": {},
+              "groups": [
+                {
+                  "id": "g/extension/zero-trust/devices/policies",
+                  "name": {
+                    "source": "policies",
+                    "canonical": "policies"
+                  },
+                  "docs": {},
+                  "operations": [
+                    {
+                      "id": "op/openapi/paths/~1zero-trust~1devices~1policies/get",
+                      "name": {
+                        "source": "listDevicePolicies",
+                        "canonical": "list_device_policies"
+                      },
+                      "docs": {},
+                      "responses": [
+                        {
+                          "name": {
+                            "hint": "200"
+                          },
+                          "conditions": {
+                            "statusCodes": [
+                              {
+                                "from": 200,
+                                "to": 200
+                              }
+                            ]
+                          },
+                          "docs": {
+                            "description": "ok"
+                          }
+                        }
+                      ],
+                      "oneWay": false,
+                      "idempotency": {},
+                      "bindings": {
+                        "http": [
+                          {
+                            "method": "GET",
+                            "uriTemplate": "/zero-trust/devices/policies",
+                            "sharedRoute": false,
+                            "checksumRequired": false
+                          }
+                        ]
+                      },
+                      "unmodeled": {
+                        "openapi:x-fern-sdk-group-name": {
+                          "reason": "vendor_extension",
+                          "value": [
+                            "zero-trust",
+                            "devices.policies"
+                          ],
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1zero-trust~1devices~1policies/get/x-fern-sdk-group-name"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1zero-trust~1devices~1policies/get",
+                        "inferred": "group-extension"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "g/tags/misc",
+          "name": {
+            "source": "misc",
+            "canonical": "misc"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1status/get",
+              "name": {
+                "source": "getStatus",
+                "canonical": "get_status"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "misc"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/status",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1status/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1legacy/get",
+              "name": {
+                "source": "getLegacy",
+                "canonical": "get_legacy"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "tags": [
+                "misc"
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/legacy",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-sdk-group-name": {
+                  "reason": "vendor_extension",
+                  "value": "legacy..v1",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1legacy/get/x-fern-sdk-group-name"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1legacy/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/accountCreated/post",
+              "name": {
+                "source": "accountCreated",
+                "canonical": "account_created"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "inbound": "webhook",
+                    "webhookName": "accountCreated",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-sdk-group-name": {
+                  "reason": "vendor_extension",
+                  "value": "accounts",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/webhooks/accountCreated/post/x-fern-sdk-group-name"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/accountCreated/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "tagDefs": [
+    {
+      "name": "misc",
+      "docs": {}
+    }
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-fern-sdk-group-name\" names no group path of at most 16 segments, none empty, written as text whose dots separate them or as a list of such text, so the operation is grouped as if it were absent",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1legacy/get/x-fern-sdk-group-name"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "extension_groups.yaml",
+      "hash": "d06cd5483a2f82093ec3cc09988e4c93912f4f4afed36f9da6a5778ed50b0f74"
+    }
+  ]
+}

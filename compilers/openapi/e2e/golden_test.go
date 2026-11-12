@@ -7,6 +7,7 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"testing"
 
@@ -50,6 +51,26 @@ func TestGolden_HintPositions(t *testing.T) {
 	require.NotNil(t, doc)
 	assertNoErrorDiags(t, diags)
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/hint_positions.golden.json", doc)
+}
+
+// TestGolden_ExtensionGroups pins the IR of a spec grouped by the path its
+// default grouping extension states, each spelling of the path beside an
+// operation stating none and one stating a value that names no path, both of
+// which fall back to their tags. That one is reported, as info, and nothing
+// else is.
+func TestGolden_ExtensionGroups(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../../testdata/golden/openapi/extension_groups.yaml")
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "extension_groups.yaml", Data: data}},
+		compilers.Options{FormatOptions: openapi.Options{Grouping: openapi.GroupByExtension}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	require.Len(t, diags, 1, "%v", diags)
+	assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
+	assert.Equal(t, jsontext.Pointer("/paths/~1legacy/get/x-fern-sdk-group-name"), diags[0].Provenance.Pointer)
+	irtest.CompareGolden(t, "../../../testdata/golden/openapi/extension_groups.golden.json", doc)
 }
 
 // TestGolden_SplitSpec pins the IR of a spec split across four files, read
