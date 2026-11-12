@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 func TestCompile_WrongFormatOptions(t *testing.T) {
@@ -279,28 +280,44 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 
 // TestCompile_GroupingExtensionDefaultsAndRefusals pins the Go caller's side of
 // the grouping extension: a zero GroupingExtension takes the default key and
-// its list reading, and one the compile cannot read as asked is refused as the
-// text spelling of it is, before anything is read.
+// its list reading, a fallback the caller names stays beside them, and one the
+// compile cannot read as asked is refused as the text spelling of it is,
+// before anything is read.
 func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 	t.Parallel()
-	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /a:\n" +
-		"    get: {operationId: a, x-fern-sdk-group-name: [zero-trust, devices], responses: {\"200\": {description: ok}}}\n"
-	compile := func(opts openapi.Options) (string, error) {
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    get: {operationId: a, x-fern-sdk-group-name: [zero-trust, devices], responses: {\"200\": {description: ok}}}\n" +
+		"  /b:\n    get: {operationId: b, tags: [bees], responses: {\"200\": {description: ok}}}\n"
+	// filed compiles spec under opts and returns each operation's group, by its
+	// operationId; the deepest group the spec nests is two levels down.
+	filed := func(opts openapi.Options) (map[string]string, error) {
 		doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
 			compilers.Options{FormatOptions: opts})
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		require.NotNil(t, doc)
-		require.Len(t, doc.Services[0].Groups, 1)
-		group := doc.Services[0].Groups[0]
-		require.Len(t, group.Groups, 1)
-		return string(group.Groups[0].ID), nil
+		out := map[string]string{}
+		for _, top := range doc.Services[0].Groups {
+			for _, g := range append([]ir.OperationGroup{top}, top.Groups...) {
+				for _, op := range g.Operations {
+					out[op.Name.Source] = string(g.ID)
+				}
+			}
+		}
+		return out, nil
 	}
 
-	id, err := compile(openapi.Options{Grouping: openapi.GroupByExtension})
+	got, err := filed(openapi.Options{Grouping: openapi.GroupByExtension})
 	require.NoError(t, err)
-	assert.Equal(t, "g/extension/zero-trust/devices", id, "the default key, its list read as one path")
+	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/tags/bees"}, got,
+		"the default key, its list read as one path, and an operation stating none grouped by tags")
+	got, err = filed(openapi.Options{
+		Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: openapi.GroupByPathPrefix},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/path-prefix/b"}, got,
+		"the default key beside the fallback the caller names")
 
 	for name, tc := range map[string]struct {
 		opts    openapi.Options
@@ -319,7 +336,7 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 			`option "grouping-fallback"`,
 		},
 	} {
-		_, err := compile(tc.opts)
+		_, err := filed(tc.opts)
 		require.Error(t, err, name)
 		assert.Contains(t, err.Error(), tc.wantErr, name)
 	}
