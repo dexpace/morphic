@@ -606,7 +606,8 @@ throughout these documents.
     JSON string `"abc"`. A response header of each primitive reads `+00:00`, a fraction of each
     length, one finer than its type's precision cut to it, an upper-case `uuid`, a list sent on two
     lines and one holding an empty element without it, a `Set-Cookie` list of two lines whose values
-    hold commas as two elements, a `string` header sent as `no-cache, no-store` keeps its space, a
+    hold commas as two elements, a header whose `Prefix` is set holding a field another header reads
+    too, keyed in lower case, a `string` header sent as `no-cache, no-store` keeps its space, a
     `text/plain` body reads `42` after a byte-order mark and does not decode under
     `charset=iso-8859-1`, and a leap second leaves its field unset with `RawHeader` holding the text
     (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).

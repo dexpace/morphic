@@ -39,15 +39,16 @@ UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a l
 lists sends, which OpenAPI leaves undefined, is #1731's. A member holding its style's own delimiter
 where expansion writes it as it writes the delimiter, a `.` under an exploded `label`, a space under
 `spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a `deepObject` key, reads back as that
-delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A `Prefix` binding
-writes each entry of its map, in that order, as a field of its own, named by the prefix followed by
-the entry's key, its value the entry's text, and an entry naming a field another binding writes, in
-any case for a header, gives way to it, as Smithy's rules have a client do. Two entries naming one
-header field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would hold
-one of them. An empty prefix, Smithy's catch-all for every header or query parameter, has no
-spelling yet (#1748). A parameter whose `ContentType` names a media type
-([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
-media type's serialization of the value instead, so as JSON a string keeps its quotes.
+delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A `Prefix` binding,
+and a response header whose `Prefix` is set, writes each entry of its map, in that order, as a field
+of its own, named by the prefix followed by the entry's key, its value the entry's text, and an
+entry naming a field another binding writes, in any case for a header, gives way to it, as Smithy
+has a client and a server do. Two entries naming one header field, as keys `A` and `a` do, fail the
+call before anything is sent, as a reader would hold one of them. An empty prefix on a request's
+binding, Smithy's catch-all for every header or query parameter, has no spelling yet (#1748). A
+parameter whose `ContentType` names a media type ([bindings](../plan/bindings.md)), and a form field
+or part of another content type, carries that media type's serialization of the value instead, so as
+JSON a string keeps its quotes.
 
 ## Null and empty
 
@@ -146,11 +147,12 @@ does (§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie
 them, bar `Set-Cookie`'s, each of whose lines is one element since its values hold commas, as
 OpenAPI's Header Object has it (§4.21.3), and only a list's or an object's split drops anything, the
 whitespace beside a comma and an empty element (RFC 9110 §5.6.1), so a string header keeps its own
-whitespace. A `Prefix` binding's map holds every field whose name starts with the prefix and that no
-other binding reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name in lower
-case, as HTTP/2 carries every field name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as
-`X-Meta-Foo`, the JDK's as `X-meta-foo` and Node's as `x-meta-foo`. A response's headers hold no
-such binding yet (#1745).
+whitespace. A `Prefix` binding's map, and a response header's whose `Prefix` is set ([prefix
+headers](../../ir/responses.md#prefix-headers)), holds every field whose name starts with the
+prefix, a header's in any case (RFC 9110 §5.1), a field another binding reads included, as Smithy's
+protocol tests read one, keyed by the rest of the name in lower case, as HTTP/2 carries every field
+name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's as
+`X-meta-foo` and Node's as `x-meta-foo`.
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
