@@ -28,7 +28,9 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   and each response content's [example set](#one-set-of-examples) for canned responses, synthesizing
   none of its own, sending the whole `Envelope.Body` where a response is enveloped, `Others` to
   answer as each declared response does, the error taxonomy to simulate declared failures,
-  `TypePlan.Open` to say whether a variant or an enum value the document does not list may be sent,
+  the declared `Closed` of a union or an enum to say whether a request may carry a variant or a
+  value the document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a
+  mock accepts](#what-a-mock-accepts)),
   `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the `BindingView` to route requests,
   and the visibility projections to honor the same wire shapes an SDK sends/receives. Refine lowers
   into a server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
@@ -37,8 +39,7 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   ([mandatory tests](testing/mandatory-tests.md)) is diffed against. A response content whose
   example set is empty, as one can be with `Synthesize` off, is a warning
   `emitters/mock/example-missing`, never a body it invents. It has no rule yet for a streaming
-  operation (#1675), for where a page walk ends (#1676), or for validating a request body that
-  narrows a union ([inheritance](refine/models.md#inheritance)) as the SDK lowers it (#1722).
+  operation (#1675) or for where a page walk ends (#1676).
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
@@ -206,6 +207,41 @@ as text, never resolved. On the golden spec, at those revisions, the links in `D
 are 988 under `https`, 7 under `http`, one an `https` autolink, and 14 relative, 8 of them a
 fragment alone, such as `#requests`, and 6 a path, such as `/api/resources/filters/`, which would
 otherwise break on a generated site.
+
+## What a mock accepts
+
+A handler reads a request body as the SDK's types decode it in the shape its operation sends it in
+([a shape reaches what it holds](plan/types.md#a-shape-reaches-what-it-holds)), and holds it to what
+`Build` holds a declared example to ([below](#one-set-of-examples)): admission in that shape
+([unions](refine/unions.md#a-value-several-variants-admit)), then the constraints of the
+declarations the value lands on. So an example the plan keeps for a request is a body the mock
+accepts, and a body the mock refuses is one the plan would refuse as an example.
+
+- **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
+  a tag naming none taking the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives,
+  and an untagged one by the variants admitting the value, which is refused where two do and the
+  union is `Strict`, and held by each where the shape's `ModelShape.Inclusive` is set.
+- **A model narrowing a union** is read as that union, each entry of its `TypePlan.Composed` a
+  variant ([inheritance](refine/models.md#inheritance)). The tag routes to the entry over the
+  variant it names, through each union the entry's `Over` passes, and the body is held to the
+  members the entry's `Shapes` hold and require in the request's shape and to the constraints of the
+  declarations its `Flattened` takes. The model's own `Flattened` holds only what it adds, so a
+  handler reading it alone accepts what the API refuses. The golden spec's `rulesets_Rule` request
+  body adds `position` to a `oneOf` of 21 rules that `action` routes, and the rule `block` routes to
+  bounds a response's `status_code` to 400 through 499 and requires `content` and `content_type`
+  beside it, none of which the body's own member says (spec @bc6fad24, morphic @fa253fe19). There 15
+  models a client writes narrow a union beside a member of their own, 3 of them over a discriminated
+  one.
+- **What the document lists is all a request carries.** A handler refuses a variant or an enum value
+  the document does not list wherever the IR declares the type closed, whatever `TypePlan.Open`
+  says: `Open` is what a client survives in a response, and the API accepts what `Closed` states
+  ([plan policy](plan/policy.md#a-union-keeps-a-variant-it-does-not-know)). A mock built to accept
+  what the SDK keeps would pass a test sending a member the API has never listed.
+
+A handler reads a body once and tries an entry at most once, so a body narrowing an untagged union
+costs no more than its size times the entries its model composes, which `plan.MaxComposedSize`
+bounds when the plan is built ([TypePlan](plan/types.md#a-model-narrowing-a-union)), and one a tag
+routes is read by one entry. T-64 holds these rules.
 
 ## Routes and links
 

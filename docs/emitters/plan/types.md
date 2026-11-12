@@ -140,23 +140,68 @@ variant read keeps the entries' `Over` lists within the limit too: a 193 KB spec
 while the entries and the rest of what their walks read count 10,000. On the golden spec the
 largest, `rulesets_ResponseRule`, counts 1,143 (spec @bc6fad24, morphic @ea70eba79). The SDK targets
 alias a model adding nothing, and degrade the others
-([inheritance](../refine/models.md#inheritance)). An entry whose declarations of one member admit no
-value in common, as one over a variant pinning a tag the model pins otherwise does, is an entry like
-any, its member as the flattening takes it; whether to leave it out is #1739's.
+([inheritance](../refine/models.md#inheritance)).
+
+`Composed` leaves out an entry no value takes. An entry admits no value where a member its
+`Required` lists has two declarations that each admit finitely many values, as the Values rule
+[below](#variants-that-can-share-a-value) counts them, a nullable reference's `null` among them,
+with no value in both: one the model's own flattening reads, taken or overridden, and one the
+flattening of a model its `Over` lists reads. `Item: {allOf: [Leaf, Node]}`, where `Node` is a union
+of `Group` and `Leaf` and each requires `kind` and pins it to its own name, has no instance over
+`Group`, whose `kind` no `Leaf` holds, so `Item` narrows `Node` to its one entry over `Leaf`. A
+member the entry leaves optional proves nothing, since a value may omit it, nor does one a filter
+can leave out, a declaration of it carrying a `Visibility`. The answer is the entry's in every
+shape, a patch shape among them: what a patch relaxes describes a change to an instance, and an
+entry with no instance has none to change. Two declarations on one side prove nothing either. A
+model redeclaring its own member is read as the flattening takes it wherever it stands, a variant of
+a union among them, so an error body composing a success shape and then a failure schema, which pins
+`success` both ways, stays a variant of the union listing it and of a model narrowing that union.
+Finite value sets alone prove an entry empty: the rule reads no kind, pattern or bound, so it is
+sound and not complete, and an entry it keeps may still admit no value. Such an entry declares a
+variant nothing takes, where one wrongly left out would refuse a value the API sends.
+
+Where every entry of a model admits no value by that rule, the model keeps them all, each member as
+its flattening takes it. The document as written then admits no value of the model at all, and the
+declaration a flattening takes is the one it means, as it is for a model narrowing no union ([the
+flattening](../../ir/models.md#the-flattening)): `Failed: {allOf: [Ok, Failure]}`, where each
+variant of `Ok` pins `success` to `true` and `Failure` pins it to `false`, keeps an entry over each
+variant, `success` being `false` in both. So a union gaining its first variant that agrees with the
+model takes the model's other entries away, and a variant that starts or stops pinning such a member
+adds or removes its entry, each of which breaks the callers of the variants concerned. No rule
+reading the entries avoids that break: keeping every entry would, and is refused below.
+
+An entry left out is in no artifact: no target declares a variant for it, no tag routes to it
+([inheritance](../refine/models.md#inheritance)), and it has no table, flag or example. It draws no
+diagnostic, as a subtype narrowing a member draws none, since the document admits no value it would
+hold, and it still counts toward `plan.MaxComposedSize`, the walk that finds it empty being made. A
+model left one entry is still lowered as its union, of one variant, so a variant its union gains
+later adds to the declaration and changes no caller's. T-46 holds the rule.
+
+Keeping every entry, each member as the flattening takes it, was weighed and refused. On the golden
+spec (spec @bc6fad24, morphic @fa253fe19) the rule leaves out 12 of the 158 entries, each from a
+model of two, and keeps no model's entries whole. Ten are the items of the filter lists five
+`workers-observability` request bodies send, a group or a leaf node composed with
+`workers-observability_filter_node`, whose other variant requires the other `kind`: kept, each would
+be a variant a caller can build and the API refuses. Two are the `4XX` bodies of the audit-log
+listings, a failure schema pinning `success` to `false` beside a `oneOf` of a shape leaving
+`success` a boolean and one pinning it to `true`: kept, the entry over the second would admit every
+failure body the first admits, and a `Strict` union would refuse them all as ambiguous
+([unions](../refine/unions.md#variant-identity-and-recognition)).
 
 The plan holds the entries because several artifacts read them: an SDK target declares a variant for
 each, the docs render a table for it, a CLI gives flags for its members ([a command-line
-target](../docs-and-mock.md#a-command-line-target)), and the samples and a mock show values of it,
-which the example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)). Two of
-them reading the shapes apart would show members another lacks, which is the third test of [plan or
-refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir` and
+target](../docs-and-mock.md#a-command-line-target)), a mock reads a request body by them ([what a
+mock accepts](../docs-and-mock.md#what-a-mock-accepts)), and the samples and a mock show values of
+it, which the example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+Two of them reading the shapes apart would show members another lacks, which is the third test of
+[plan or refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir` and
 `ir/irfacts` ([packages](../packages.md)), so no refine helper can serve it. A target with
 intersection types writes the composition as it stands and need not read `Composed`, as a
-class-based one need not read `Flattened`. On the golden spec (spec @bc6fad24, morphic
-@ea70eba79), 23 models narrow a union beside a member of their own, in 158 entries:
-`rulesets_ResponseRule` over the 21 variants of `rulesets_RequestRule`, and
-`dns-records_dns-record-batch-patch` over a union of two variants that narrow unions of 8 and 13,
-so 21 entries. The 26 others add nothing to their union, and none is a case no distribution serves.
+class-based one need not read `Flattened`. On the golden spec (spec @bc6fad24, morphic @ea70eba79),
+23 models narrow a union beside a member of their own, in 158 entries: `rulesets_ResponseRule` over
+the 21 variants of `rulesets_RequestRule`, and `dns-records_dns-record-batch-patch` over a union of
+two variants that narrow unions of 8 and 13, so 21 entries. The 26 others add nothing to their
+union, and none is a case no distribution serves.
 
 ## Variants that can share a value
 

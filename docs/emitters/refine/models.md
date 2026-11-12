@@ -67,7 +67,11 @@ refine](../plan/plan-or-refine.md)). `LowerModels` declares the variants before 
 shapes and lowering unions and discriminators reach them ([steps](steps.md)).
 
 The model takes the union's wire shape, a discriminator on the union routing each tag, and its
-default, to the variant composed over the one it names. Each variant composed here takes its entry's
+default, to the variant composed over the one it names. A tag naming a variant whose entry the plan
+leaves out, since no value takes it ([TypePlan](../plan/types.md#a-model-narrowing-a-union)), routes
+to no variant, and a default naming one is no default, so a value carrying such a tag takes the
+order [unions](unions.md#a-value-no-variant-recognizes) gives one no variant recognizes. A model
+left one entry is still that union, of one variant. Each variant composed here takes its entry's
 `Shapes`, the model's, each holding what its flattening shows there, as a model's `ModelShape` does
 ([ModelShape](../plan/types.md#modelshape--visibility-projection)); a shape reaching the model
 reaches the union ([a shape reaches what it holds](../plan/types.md#a-shape-reaches-what-it-holds)),

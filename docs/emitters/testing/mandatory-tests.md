@@ -570,24 +570,30 @@ throughout these documents.
     model's `allOf` and the compiler distributes it; so do an undiscriminated union as a `Base`, a
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
-    `readOnly` member is in no create or patch shape of the model's, and each variant composed
-    there requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists,
-    so each of `rulesets_ResponseRule`'s variants requires the five members the model requires
-    beside those its union's variant does, and a member only one of the union's variants redacts is
-    redacted in the variant composed over it alone. Adding a variant to the union renames no
-    variant composed there and no union nesting entries, each keyed by the model and its `Over`, or
-    the start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
+    `readOnly` member is in no create or patch shape of the model's, and each variant composed there
+    requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists, so
+    each of `rulesets_ResponseRule`'s variants requires the five members the model requires beside
+    those its union's variant does, and a member only one of the union's variants redacts is
+    redacted in the variant composed over it alone. Adding a variant to the union renames no variant
+    composed there and no union nesting entries, each keyed by the model and its `Over`, or the
+    start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
     variant its union does not list, and one whose variant holds the model compiles, the union
     breaking the cycle. Each target declares one variant for each entry of the model's
     `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
     them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
-    `description` hoists, narrows it as one naming the union does. A model its union lists is that
-    variant, a model the union's sum holds. A model adding nothing to its union aliases it, and one
-    narrowing two unions, one whose union has a variant composing it or reaches itself through its
-    variants, one over a key-tagged, enveloped or index-tagged union, and one whose entries, with
-    what their walks read, would pass `plan.MaxComposedSize`, among them one holding few members
-    over a long composition and one over unions nested deep, each beside one leaf, which `Build`
-    reports as `emitters/plan/composed-limit`, each draw a diagnostic and degrade
+    `description` hoists, narrows it as one naming the union does. An entry requiring a member that
+    the model and a variant it is over pin to finite sets sharing no value is left out: `Item:
+    {allOf: [Leaf, Node]}` over a `Node` of `Group` and `Leaf`, each pinning `kind`, declares the
+    one variant over `Leaf`, still as a union, routes the tag `group` to no variant and has no
+    table, flag or example over `Group`; a model every entry of which is such keeps them all, each
+    member as its flattening takes it; and a variant that pins a member both ways itself keeps its
+    entry. A model its union lists is that variant, a model the union's sum holds. A model adding
+    nothing to its union aliases it, and one narrowing two unions, one whose union has a variant
+    composing it or reaches itself through its variants, one over a key-tagged, enveloped or
+    index-tagged union, and one whose entries, with what their walks read, would pass
+    `plan.MaxComposedSize`, among them one holding few members over a long composition and one over
+    unions nested deep, each beside one leaf, which `Build` reports as
+    `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
 63. **T-63 · The tag a variant's value carries** — on every target, a discriminated union whose
     variants leave the tag a plain string encodes a variant built with that member unset, or set to
@@ -602,6 +608,14 @@ throughout these documents.
     variant's tag first among them, and a declared example that the variant its tag routes to does
     not admit is `emitters/plan/example-refused`
     ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
+64. **T-64 · What a mock accepts** — the mock accepts every example the plan holds for a request,
+    shown in the shape its operation sends, and refuses a body narrowing a discriminated union that
+    lacks a member the entry its tag routes to requires, breaks a constraint of a declaration that
+    entry takes, or carries a tag routing to no entry, the model's own members admitting all three.
+    It refuses, in a request, an enum value and a variant the document does not list whatever
+    `TypePlan.Open` says, and accepts one where the IR declares the type open; and it tries each
+    entry of a body narrowing an untagged union at most once ([what a mock
+    accepts](../docs-and-mock.md#what-a-mock-accepts)).
 65. **T-65 · A declaration no operation moves** — adding to a fixture an operation that returns an
     enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
     removing the one operation returning others, changes no declaration on any target: each is
