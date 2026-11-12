@@ -730,3 +730,16 @@ throughout these documents.
     its samples alone, writing nothing there; and a regeneration moving the label keeps the name of
     every entity both snapshots hold and prunes the files of one only the first held
     ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
+87. **T-87 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
+    enum member and union variant each carry the target's mark on every declaration they lower to,
+    each method of an operation and each shape of a model among them; its text holds the message
+    escaped, each replacement as it renders after a collision renamed it, linked within its unit and
+    from another, and the removal; a replacement with no declaration is named as text, never as a
+    link that resolves to nothing, and a deprecated one is named and not followed, two naming each
+    other included; on Go, `go/doc` parses each link and gopls reports each use; on Kotlin, a file
+    using each deprecated declaration as the samples do, its members included, compiles with a
+    deprecation warning, and with each `ReplaceWith` applied as an IDE applies it, the call replaced
+    by the expression with the arguments for the parameters and the imports added, compiles with
+    none, while a replacement of another signature, a second replacement and one on another client
+    get none; and a Swift caller of the Multiplatform framework is shown the message
+    ([deprecations](../refine/deprecation.md)).

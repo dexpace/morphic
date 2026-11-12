@@ -60,7 +60,7 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
   AST](refine/target-ast.md) and the [lowering table](refine/lowering-table.md).
 - Types: [models](refine/models.md), [unions and discriminators](refine/unions.md),
   [enums](refine/enums.md), [containers, scalars and external types](refine/scalars.md),
-  [decorators](refine/decorators.md).
+  [decorators](refine/decorators.md), [deprecations](refine/deprecation.md).
 - Values: [values](refine/values.md), [constraints](refine/constraints.md),
   [redaction](refine/redaction.md), [unmodeled entries](refine/unmodeled.md).
 - Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md), [output
