@@ -87,8 +87,9 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType
-- `@timestampFormat`, and the format an HTTP binding gives a timestamp by default, `http-date` in
-  a header and `date-time` in a label or a query, → that position's Encoding ([values as
+- `@timestampFormat`, and the text an HTTP binding gives a position by default, `http-date` for a
+  timestamp in a header, `date-time` for one in a label or a query and base64 for a `@mediaType`
+  string in a header, → that position's Encoding ([values as
   text](../emitters/refine/text.md#other-formats))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)

@@ -65,22 +65,31 @@ all rules". So such a call fails before anything is sent, as one does whose `hos
 holds null or an empty text, or fills a host that is no RFC 3986 host, which Smithy's endpoint rules
 require of a client.
 
+A query input or a form field that arrives empty, as `page=` does, reads as an absent one where its
+binding sets `AllowEmptyValue`, under which a client may send an empty value in place of leaving the
+input out ([HTTP bindings](../../ir/http-binding.md)), and otherwise as the empty text it is, which
+a string reads and an integer does not. At the revisions above, the golden spec sets
+`AllowEmptyValue` on 11 query bindings.
+
 ## Escaping
 
 A text is percent-encoded as OpenAPI says for its location (§4.12.4, Appendix E): as RFC 6570's
 expansion for its style encodes it, and a space always as `%20`. Every decoder those rules name
 reads `%20` as a space, while the `+` a form encoder writes, as Go's `url.Values` does, reads as a
-plus under RFC 3986's rules (Appendix E). `AllowReserved` passes through, as RFC 6570's reserved
-expansion does, each percent-encoded triple and each of RFC 3986's reserved characters, bar those a
-URL cannot hold there: a `#`, `[` or `]` in a path or a query, and a `?` in a path, is still
-encoded, and a `&`, `=`, `+` or `,` it passes is read for what it means where it lands, as OpenAPI
-has a caller encode one meant as data (§4.12.4). RFC 3986 ends a path at a `?` and a query at a `#`
-(§3), so a path holding `a?b` would reach `a`, and admits a `[` or `]` in neither, which the JDK's
-`URI` refuses in a path while Go and `fetch` send it. A `/` still passes in a path, though OpenAPI
-forbids one unescaped in a path parameter's value (§4.8.2), as gRPC's multi-segment variables and
-Smithy's greedy labels pass it, and as the golden spec's three R2 `object_key` parameters ask at the
-revisions above. What a `PathPattern` binding's text sends, which gRPC percent-encodes but for a `/`
-and RFC 3986's unreserved characters, is #1755's.
+plus under RFC 3986's rules (Appendix E). A parameter's name is percent-encoded as a text without
+`AllowReserved` is, as OpenAPI requires of one outside RFC 6570's variable names (Appendix C.3): at
+the revisions above, the golden spec names a query parameter `meta.<field>[<operator>]`, which Go
+sends as written, `fetch` with its `<` and `>` encoded, and the JDK's `URI` refuses. `AllowReserved`
+passes through, as RFC 6570's reserved expansion does, each percent-encoded triple and each of
+RFC 3986's reserved characters, bar those a URL cannot hold there: a `#`, `[` or `]` in a path or a
+query, and a `?` in a path, is still encoded, and a `&`, `=`, `+` or `,` it passes is read for what
+it means where it lands, as OpenAPI has a caller encode one meant as data (§4.12.4). RFC 3986 ends a
+path at a `?` and a query at a `#` (§3), so a path holding `a?b` would reach `a`, and admits a `[`
+or `]` in neither, which the JDK's `URI` refuses in a path while Go and `fetch` send it. A `/` still
+passes in a path, though OpenAPI forbids one unescaped in a path parameter's value (§4.8.2), as
+gRPC's multi-segment variables and Smithy's greedy labels pass it, and as the golden spec's three R2
+`object_key` parameters ask at the revisions above. What a `PathPattern` binding's text sends, which
+gRPC percent-encodes but for a `/` and RFC 3986's unreserved characters, is #1755's.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -106,7 +115,8 @@ not decode ([responses](../plan/responses.md#a-body-that-does-not-decode)), and 
 binding's media type names another fails before anything is sent. For a Latin-1 `é`, on the same
 versions, Go's body holds a byte that is no UTF-8, `fetch`'s `text()` gives U+FFFD and the JDK's
 `ofString` gives `é`, and Go and the JDK keep a leading mark that `fetch` drops, so a body of `42`
-after one would parse on one target alone.
+after one would parse on one target alone. What such a body holding a list or an object sends, which
+OpenAPI leaves undefined (Appendix B), is #1763's.
 
 ## Reading a text
 
@@ -115,26 +125,35 @@ Whatever reads a text reads it by the same rule backwards: an SDK reading a resp
 SDK reading a request the API sends it ([inbound
 operations](../../ir/http-binding.md#inbound-operations)). A list's or an object's text is split as
 its `Style` and `Explode` arrange it before each part is percent-decoded, so a `%2C` stays in its
-element (Appendix C.2), and a text is percent-decoded as its location's rules say (Appendix E.5): a
-`+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as
-itself in a path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A header's
-text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar `Set-Cookie`'s,
-each of whose lines is one element since its values hold commas, as OpenAPI's Header Object has it
-(§4.21.3), and only a list's or an object's split drops anything, the whitespace beside a comma and
-an empty element (RFC 9110 §5.6.1), so a string header keeps its own whitespace. A `Prefix`
-binding's map holds every field whose name starts with the prefix and that no other binding reads, a
-header's in any case (RFC 9110 §5.1), keyed by the rest of the name in lower case, as HTTP/2 carries
-every field name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's
-as `X-meta-foo` and Node's as `x-meta-foo`. A response's headers hold no such binding yet (#1745).
+element (Appendix C.2). A path parameter's text is the segments its expression in the template
+matches, cut from the path at its unencoded `/`s before any is percent-decoded, so a `%2F` stays in
+its segment: one segment, or under `AllowReserved` the longest run of them the template leaves it,
+as Smithy matches a greedy label. A text is percent-decoded as its location's rules say
+(Appendix E.5): a `+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL
+does (§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie's not at all
+(§4.12.2.2). A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins
+them, bar `Set-Cookie`'s, each of whose lines is one element since its values hold commas, as
+OpenAPI's Header Object has it (§4.21.3), and only a list's or an object's split drops anything, the
+whitespace beside a comma and an empty element (RFC 9110 §5.6.1), so a string header keeps its own
+whitespace. A `Prefix` binding's map holds every field whose name starts with the prefix and that no
+other binding reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name in lower
+case, as HTTP/2 carries every field name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as
+`X-Meta-Foo`, the JDK's as `X-meta-foo` and Node's as `x-meta-foo`. A response's headers hold no
+such binding yet (#1745).
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
 type holds ([type table](../contract/type-table.md#what-a-built-in-row-writes)), and a number as its
-row reads one in a body, whose integral spellings, `1.0` for an integer, #1451 decides. A text its
-codec does not read is a value that does not parse, and a response header's leaves its field unset
-and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the revisions
-above, the golden spec declares one `Last-Modified` header `date-time` and gives an HTTP-date as its
-example, so that field stays unset; whether such a header reads an HTTP-date is #1732's.
+row reads one in a body, whose integral spellings, `1.0` for an integer, #1451 decides. A union's
+text is read as [unions](unions.md#a-value-several-variants-admit) reads a value text carries, which
+its variants' JSON kinds never separate, so `123` is admitted by both variants of a
+`string | integer`, and an `any` holds a text as the JSON string it is, since a text carries no JSON
+kind to read it by. A text its codec does not read is a value that does not parse, and a response
+header's leaves its field unset and `RawHeader` holding what arrived
+([T-26](../testing/mandatory-tests.md)). At the revisions above, the golden spec declares one
+`Last-Modified` header `date-time` and gives an HTTP-date as its example, so that field stays unset;
+whether such a header reads an HTTP-date, and how a list of them splits around the comma each holds,
+is #1732's.
 
 ## Other formats
 
