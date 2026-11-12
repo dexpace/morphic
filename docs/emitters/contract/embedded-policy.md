@@ -65,17 +65,22 @@ writes](runtime-policy.md#what-a-layer-writes)), or a `ShapeHint` field, an `Ext
 key whose `Path` names a member above leaves writes those its value holds, so one mapped to
 `["retry"]` beside one mapped to `["retry", "maxAttempts"]` meet at `maxAttempts` alone. Of two
 writing one leaf, a key with `Outer` unset beats one with it set, two whose values for the leaf are
-equal set it together, and any other pair is an error `emitters/embed/conflict` that sets the leaf
-from neither, since which to take is no fact the document states. Values are equal as the leaf reads
-them: a scalar by its decoded value, a `Backoff` member by member, the status lists, `Events` and
-`Keys` as sets, since nothing reads their order, so `[429, 503]` agrees with `[503, 429]`, and any
-other list item for item. Two generators' keys for one fact often sit on one operation and agree: of
-the golden spec's 291 operations carrying both `x-stability` and `x-fern-availability` (spec
-@bc6fad24, morphic @fa253fe19), 229 write one value alike, 2 spell one tier two ways, `stable` and
-`generally-available`, 52 name two tiers and 8 set `x-fern-availability` to `deprecated`, which
-names none. So agreeing keys are no conflict to report, and mapped to one field of the IR's tiers
-none of the 291 would conflict: `generally-available` and `deprecated` lie outside that vocabulary,
-draw `emitters/embed/invalid-value` and leave `x-stability` to set the field.
+equal set it together, to the value of the key whose spelling sorts first, and any other pair is a
+warning `emitters/embed/conflict` that sets the leaf from neither, since which to take is no fact
+the document states. Values are equal as the leaf reads them: a scalar by its decoded value, a
+`Backoff` member by member, and a list as a set, so `[429, 503]` agrees with `[503, 429]`: nothing
+reads the order of a list of either tree, the status lists, `Events`, `Keys`, `AgentEnv`,
+`ClientParams` and `AlsoMount`, or an entry's second writing. Two generators' keys for one fact
+often sit on one operation, and need not agree: of the golden spec's 291 operations carrying both
+`x-stability` and `x-fern-availability` (spec @bc6fad24, morphic @fa253fe19), 229 write one value
+alike, 2 spell one tier two ways, `stable` and `generally-available`, 52 name two tiers and 8 set
+`x-fern-availability` to `deprecated`, which names none. So agreeing keys are no conflict to report,
+and disagreeing ones are what a valid document holds, each generator reading its own: the 52 are why
+a conflict is a warning, which leaves the SDK's author to name one key or set the leaf in the
+project's layer, where an error would fail every run over a document nothing is wrong with. Mapped
+to one field of the IR's tiers none of the 291 would conflict: `generally-available` and
+`deprecated` lie outside that vocabulary, draw `emitters/embed/invalid-value` and leave
+`x-stability` to set the field.
 
 A key that sets nothing beats no other key: each of a conflicting pair, one whose value draws the
 warning below, and one the reader refuses ([the mapping](#the-mapping-is-a-configuration)). So where
@@ -87,8 +92,11 @@ below ([layers](runtime-policy.md#layers-and-operations)). Skipping the path ite
 since each conflicting key overrides it, was rejected: the document-wide value is overridden just as
 much, and a `policy.Layer` cannot say that an operation takes none of its own layer's document-wide
 value, so the embedded layer would treat a contradiction as no other layer does. No reading gives
-the value a generator reading only its own key would, which is why the conflict is an error. T-33
-holds each case. An operation's own key and its path item's both set the operation's entry, so a
+the value a generator reading only its own key would, which is why the conflict is reported. `Read`
+returns the layer these rules give whatever severity a report carries, a refused key's error among
+them: whether a run fails on one is the engine's verdict (architecture.md §4), and a run it lets
+through, or a caller reading a failed run's result, gets this layer and no other. T-33 holds each
+case. An operation's own key and its path item's both set the operation's entry, so a
 status one names in a retry list and the other in the other list would be one scope's status named
 twice; it stays only in the operation's list instead, as it would in a list set higher
 ([retries](runtime-policy.md#the-canonical-vocabulary)).
