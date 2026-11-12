@@ -203,6 +203,15 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout),
                          (0, "subjects: clean (the title and 2 commit subject(s))\n"))
 
+    def test_a_pushed_only_commit_is_held_as_it_lands(self):
+        # The squash lands it under its own subject, which a second commit can still displace.
+        self.commit(SIXTY_SIX)
+        self.push()
+        r = self.run_script("--pushed", "origin/topic", "1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout.splitlines()), (1, [
+            f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}",
+            "subjects: 1 finding(s) in the title and 1 commit subject(s)"]))
+
     def test_a_branch_not_yet_pushed_has_every_commit_held(self):
         self.commit(SIXTY_SIX)
         r = self.run_script("--pushed", "origin/topic", "1311", TITLE)

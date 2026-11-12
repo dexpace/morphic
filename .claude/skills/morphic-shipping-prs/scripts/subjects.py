@@ -14,11 +14,12 @@ targets, and one that left a stack also passes its former base's tip, whose comm
 first-parent line (#1341). A squash lands the title, or a branch's one commit under its own
 subject, with " (#NUMBER)" appended, so both are measured with it; a subject the squash replaces
 never lands as the subject, and is measured without. Each is held to the Conventional Commits form,
-no trailing period and 72 characters. A commit --pushed reaches is counted, and its finding printed
-as a "pushed commit", but refuses nothing, as a pushed commit is never rewritten; a ref naming no
-commit yet, as before a branch's first push, reaches none. Prints a "what: problem: subject" line
-per finding, then a summary line. Exit 0 when the title and every unpushed subject hold, 1 on a
-finding in one, 2 when it cannot run.
+no trailing period and 72 characters. A commit --pushed reaches is counted, but its finding is
+printed as a "pushed commit" and refuses nothing, as a pushed commit is never rewritten; a branch's
+one commit is held all the same, as its subject lands until a second commit displaces it. A ref
+naming no commit yet, as before a branch's first push, reaches none. Prints a "what: problem:
+subject" line per finding, then a summary line. Exit 0 when the title and every subject held keep
+the rules, 1 on a finding in one, 2 when it cannot run.
 """
 
 import argparse
@@ -51,11 +52,13 @@ def check(number: int, title: str, commits: list[str],
           pushed: frozenset[int] = frozenset()) -> list[str]:
     """Return a line per problem in the title and each commit subject, measuring the title and a
     branch's one commit with the number the squash appends. A commit whose index pushed holds is
-    named a pushed commit."""
+    named a pushed commit, bar a branch's one commit, whose subject lands until a second displaces
+    it."""
     assert pushed <= set(range(len(commits))), "a pushed index names a commit of the branch"
     suffix = f" (#{number})"
+    lands = len(commits) == 1
     subjects = [("title", title, suffix)]
-    subjects += [(PUSHED if i in pushed else "commit", s, suffix if len(commits) == 1 else "")
+    subjects += [(PUSHED if i in pushed and not lands else "commit", s, suffix if lands else "")
                  for i, s in enumerate(commits)]
     return [f"{what}: {p}: {s}" for what, s, end in subjects for p in problems(s, end)]
 

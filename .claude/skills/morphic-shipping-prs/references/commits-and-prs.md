@@ -83,19 +83,19 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Probe.** `git rev-list --count --first-parent --no-merges HEAD --not origin/main origin/<base>`
   matches the count `subjects.py` prints.
 
-## Refuse only the subjects a push adds, and state a pushed one that breaks the rules
+## Refuse what lands or a push adds, and disclose a pushed subject breaking the rules
 `pushed-subject-is-disclosed`
 
 - **Rule.** The push checklist passes the branch as pushed, `subjects.py --pushed origin/<branch>`,
-  and a review the head it fetched; `subjects.py` counts its commits among the branch's own
-  (`references/commits-and-prs.md#own-commits-against-the-base`) but prints a finding on one as a
-  `pushed commit` and refuses only the title and what the push adds: a pushed commit is never
-  rewritten. The PR body names each such commit; on a one-commit branch, a second commit lands the
-  title in its place.
+  and a review the head it fetched. `subjects.py` counts its commits as the branch's own
+  (`references/commits-and-prs.md#own-commits-against-the-base`), printing a finding on one as a
+  `pushed commit`, and refuses only the title, what the push adds and a branch's one commit, whose
+  subject lands until a second lands the title: a pushed commit is never rewritten. The body names
+  each pushed commit printed.
 - **Why.** Once a 73-character subject was pushed on #1689, the checklist refused every later push,
   so each round's fixes went up outside it, skipping the skills lint it gates (#1697).
-- **Probe.** On a branch with a pushed subject over the cap, the checklist's `subjects.py` line
-  exits 0 and prints the subject as a `pushed commit`.
+- **Probe.** With a pushed subject over the cap and a later commit, `subjects.py --pushed` exits 0,
+  printing a `pushed commit`; with that commit alone, it exits 1.
 
 ## The repository's rule overrides a harness's attribution reminder
 `harness-attribution-yields`
@@ -150,7 +150,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `pr-takes-no-labels`
 
 - **Rule.** `gh pr create` takes no `--label`: labels are an issue's, set as `CLAUDE.md`'s "Filing
-  issues" says, and a merged pull request carries none bar Dependabot's `dependencies`.
+  issues" says, and Dependabot's `dependencies` is the one exception.
 - **Why.** A labelled pull request shows in the label listings issue triage and tier audits read,
   and with no rule saying otherwise, #1691 was opened with an issue's labels (#1693).
 - **Probe.** `gh pr list --state merged --limit 40 --json number,labels --jq '.[] | select(.labels | length > 0) | "\(.number) \(.labels | map(.name) | join(","))"'`

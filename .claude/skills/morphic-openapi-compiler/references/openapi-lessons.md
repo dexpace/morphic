@@ -22,15 +22,16 @@ canary. A behaviour found that the page lacks is added there.
 ## Find the readers of a node whose kind a lowering changes
 `readers-of-a-changed-kind`
 
-- **Rule.** A lowering that changes the kind of node a position lowers to, such as a `Model`
-  becoming a `Union`, has readers no getter search finds: code outside the changed package reading
-  the old kind's facts off the IR. Ask each what the new kind gives it, `<Kind>` the old one:
-  `git grep -nE '\*ir\.<Kind>([^A-Za-z0-9_]|$)|ir\.Kind<Kind>([^A-Za-z0-9_]|$)|FlattenedProperties|Exposes\(' -- compilers pass ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
-  Then compile the position as each consumer names it
+- **Rule.** A lowering changing a position's node kind, as a `Model` becoming a `Union`, has
+  readers outside the changed package no getter search finds, of the old kind or a fact `ir`
+  derives from it. Ask each what the new kind gives it, `<Kind>` the old one:
+  `git grep -nE '\*(ir\.)?<Kind>([^A-Za-z0-9_]|$)|Kind<Kind>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`;
+  a hit in `ir` serves a fact, as `IsSubtype`, whose callers are readers too. Then compile the
+  position as each consumer names it
   (`references/openapi-lessons.md#changed-kind-at-each-consumer`).
-- **Why.** A union distributed across a form body's `allOf` made the body a `Union`: the multipart
-  reader keyed parts by flattened properties a union has none of, and `pass` refused an `encoding`
-  key no union exposes. A search by getter named neither file (#1688, #1687).
+- **Why.** A union distributed across a form body's `allOf` made it a `Union`, which the multipart
+  reader and `pass`'s `encoding` check read for properties, in files no getter search named (#1688,
+  #1687). A mapping to a subtype made a `Union` failed `IsSubtype` (#1696).
 - **Probe.** List in the PR body each hit with its answer.
 
 ## Compile a position whose node kind changes as each consumer names it
