@@ -23,10 +23,10 @@ The IR, the plan and what every target generates are in
 The IR, the plan and what every target generates are in [streaming](../../operations/streaming.md).
 
 `TailMetrics` has two methods: `func (c *Client) TailMetrics(ctx) (*MetricsPage, error)` and
-`func (c *Client) TailMetricsStream(ctx) (*Stream[Metrics], error)` — no request type, since the
-operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the runtime's:
-`Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the response, which
-a caller that stops early must do. What `T` is follows from `Recv`:
+`func (c *Client) TailMetricsStream(ctx) (*runtime.Stream[Metrics], error)` — no request type, since
+the operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the
+runtime's: `Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the
+response, which a caller that stops early must do. What `T` is follows from `Recv`:
 
 - an `Element` is what its type lowers to. A union's is its struct
   ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
