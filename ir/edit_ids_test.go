@@ -205,10 +205,11 @@ func TestEditor_TakesAnEnumMembersOwnID(t *testing.T) {
 }
 
 // TestEditor_RefusesAMemberIDNotItsOwn pins what keeps the exemption to the
-// member's own ID: one its value does not give it, one beneath another enum,
-// a repeat's ID worn by the first, a value with no key, and a namespace the
-// document declares for types but not for members are each refused, by a
-// replacement and by an update alike.
+// member's own ID: one its value does not give it, alone or swapped with the
+// member it belongs to, one beneath another enum, a repeat's ID worn by the
+// first, a value with no key, and a namespace the document declares for types
+// but not for members are each refused, by a replacement and by an update
+// alike.
 func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
 	t.Parallel()
 	list := ir.Value{Kind: ir.ValueList}
@@ -222,10 +223,12 @@ func TestEditor_RefusesAMemberIDNotItsOwn(t *testing.T) {
 			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
 		{"an ID beneath another enum", []ir.EnumMember{member("e/x/e/s:a", "a")}, []string{"x"},
 			`the ir.EnumMemberID "e/x/e/s:a", which %s does not`},
+		{"two values' IDs swapped", []ir.EnumMember{member("e/x/u/s:b", "a"), member("e/x/u/s:a", "b")},
+			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
 		{"the first value's ID worn by its repeat", []ir.EnumMember{member("e/x/u/s:a", "a"), member("e/x/u/s:a", "a")},
 			[]string{"x"}, `the ir.EnumMemberID "e/x/u/s:a" 2 times, where %s does 1 times`},
-		{"a value with no key", []ir.EnumMember{{ID: "e/x/u/l:", Value: list}}, []string{"x"},
-			`the ir.EnumMemberID "e/x/u/l:", which %s does not`},
+		{"a value with no key, under the ID an empty key gives", []ir.EnumMember{{ID: "e/x/u/", Value: list}},
+			[]string{"x"}, `the ir.EnumMemberID "e/x/u/", which %s does not`},
 		{"a namespace not declared for members", []ir.EnumMember{member("e/x/u/s:a", "a")}, []string{"y"},
 			`the ir.EnumMemberID "e/x/u/s:a", which %s does not`},
 	}
