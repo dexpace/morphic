@@ -20,7 +20,8 @@ type OpPlan struct {
     Effects         Effects           // what calling it may change: declared, else by what its
                                       // binding defines (policy.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
-    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
+    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6), by path:
+                                              // "Page.FirstPage" (policy.md)
 }
 
 // The remaining operation-facet plans. Each is nil when the facet is absent, so a refiner's
@@ -33,8 +34,8 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
     LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
-    FirstPage  *ir.Value              // under page: the first page's number; nil under any other
-                                      // strategy (../operations/pagination.md)
+    FirstPage  *ir.Value              // under page: the first page's number, never nil there
+                                      // (policy.md); nil under any other strategy
     TotalCount *ir.PropPath           // the items in all, which "total" reads
     TotalPages *ir.PropPath           // the pages in all, which "total" reads
     Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed

@@ -49,4 +49,8 @@ policy](../contract/runtime-policy.md#what-a-layer-writes)).
 
 The stream *runtime* is boilerplate behind the `Transport` interface: one template, and one per
 framing the document uses, which refine picks rather than a template branching on it ([structure and
-boilerplate](../emit/templates.md)).
+boilerplate](../emit/templates.md)). Each reads its framing as the framing's standard defines a
+reader: `sse` ends a line at a CR, an LF or a CRLF, skips a line starting with `:`, and dispatches
+no event for a frame with no `data` line (WHATWG HTML §9.2.5, §9.2.6), and `json_seq` starts a frame
+at each record separator (RFC 7464). An `Initial` message is no frame over HTTP
+([streams](../plan/streams.md)), so no reader takes the first frame for it.

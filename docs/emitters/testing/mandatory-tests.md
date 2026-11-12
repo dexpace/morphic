@@ -158,7 +158,10 @@ throughout these documents.
     declared `string` `Item` decodes as JSON; a list schema with no `Item` yields its `Elem`, one
     frame at a time, a `string` `Elem` decoding as JSON on a line and arriving as `data` on an SSE
     frame; an SSE element, a union of event shapes among them, reads the frame's fields under
-    `FrameMembers` and the frame's `data` otherwise; a stream under a binding other than HTTP draws
+    `FrameMembers` and the frame's `data` otherwise; an `sse` reader ends a line at a CR, an LF and
+    a CRLF, skips a comment line and yields nothing for a frame with no `data` line; over HTTP a
+    stream whose `Initial` is set reads its first frame as an element and sends the initial
+    request's members as the binding places them; a stream under a binding other than HTTP draws
     no `unframed-stream`; a media type only a compiler option names gets the one stream method, as
     `bytes`, with that warning; a primary `Default` that streams is `bidi` beside a `Send`; a
     `bytes` side lowers as a file, and a request's file body is a byte source whatever its `Type`;
@@ -615,14 +618,21 @@ throughout these documents.
     `PagePlan.Stop` lists, alone and together, `short` against the limit the call sent and `total`
     against both totals; a condition the page gives nothing to read for ends nothing; and whatever
     `Stop` lists, the walk ends at a page giving no continuation under each strategy reading one,
-    `link_header` among them, a link resolving to its own page's URL, an empty one among them,
-    giving none, and at a page holding no items under `offset` or `page`, which is where an empty
-    `Stop` ends it; each next request is the last with the cursor or token read at `CursorIn`, the
-    offset plus the items read, or the number plus one, the first counted from a declared default,
-    else a minimum, else `plan.Policy.FirstPage`, `Inferred`, and with that unset a pager whose
-    caller sent no number reads one page and `emitters/plan/first-page-unknown` is reported, and a
-    link is a `GET` of it resolved against its page's URL, carrying credentials to another origin
-    only as a redirect would ([pagination](../operations/pagination.md#what-a-pager-sends-next)).
+    `link_header` among them, a link resolving to its own page's URL, an empty one and one spelt
+    with other letter case in its host or its percent-encoding among them, giving none, and a
+    cursor or token page handing back the value its request sent giving none, and at a page holding
+    no items under `offset` or `page`, which is where an empty `Stop` ends it; each next request is
+    the last with the cursor or token read at `CursorIn`, the offset plus the items read, or the
+    number plus one, the first counted from a declared default, unmarked, else
+    `plan.Policy.FirstPage`, marked under `Page.FirstPage` in `OpPlan.Inferred`, a declared minimum
+    of 0 beside a default of 1 starting at 1, and a string input sent the number's decimal text,
+    and with that unset an operation whose input declares no default has no pager and draws
+    `emitters/plan/first-page-unknown`; and a link is a `GET` of it, on a `POST` operation too,
+    resolved against its page's URL, sending no body and each header input again, carrying
+    credentials to another origin only as a redirect would
+    ([pagination](../operations/pagination.md#what-a-pager-sends-next),
+    [plan policy](../plan/policy.md#a-page-walks-first-page)). A pager that follows a cursor
+    equal to the one it sent, or counts from a minimum, fails it.
 46. **T-46 · A model composing a union** — on every target, a model composing a discriminated union
     by `$ref` beside a property of its own decodes a payload of each variant into the variant
     composed over it, the model's property beside the variant's members, and encodes it back byte
@@ -954,31 +964,47 @@ throughout these documents.
     [redaction](../refine/redaction.md#a-redacted-value)).
 66. **T-66 · The mock's streams** — on every target, each method of an operation offering a value
     beside a stream, and of one whose stream a `Condition` selects, run against the mock, gets the
-    content it asks for, by `Accept` and by the condition's input whatever `Accept` says; each
-    framing, with an `Element` and without, with an `Initial` message, a terminal variant and a
-    `Terminator`, alone and together, reaches the caller frame for frame in that order and ends with
-    the body, a value holding a line break arriving whole under `sse` and as its lines under
-    `json_lines`, a declared example giving the frames it holds and none giving `MaxItems`
-    synthesized ones, a synthesized terminal variant never before the last; a side the client writes
-    is read to its end or its `Terminator`, a frame after the `Terminator` refused, a body past
-    `MaxRequestBytes` refused as too large and never as a frame that does not decode, and then
-    answered as `Return` reads; a `bidi` exchange ends for a caller that writes first, one that
-    reads first and one that alternates, over HTTP/1.1 and HTTP/2; a caller that stops reading or
-    never ends its side is closed after `IdleTimeout`; an operation whose primary binding is not
-    HTTP draws `emitters/mock/binding-unserved`; and one request gets the same bytes on every run. A
-    mock holding a stream open, or answering a `bidi` exchange in lockstep, fails it ([what the mock
-    streams](../docs-and-mock.md#what-the-mock-streams)).
+    content it asks for, by `Accept` and by the condition's input whatever `Accept` says, a range of
+    `q=0` excluding a content and `text/*` ranking above `*/*`; each framing, with an `Element` and
+    without, a terminal variant and a `Terminator`, alone and together, reaches the caller frame for
+    frame in that order and ends with the body, a value holding a line feed arriving whole and one
+    holding a carriage return with a line feed in its place under `sse`, and as its lines under
+    `json_lines`, an `sse` element with no `data` arriving as an event, a declared body text ending
+    mid-line keeping its last frame apart from the `Terminator`, a declared example giving the
+    frames it holds and none giving `MaxItems` synthesized ones, or with `Synthesize` off those its
+    set declares and `example-missing` where it declares none, a synthesized terminal variant never
+    before the last, and an `Initial` message on an HTTP binding writing and reading no frame; a
+    side the client writes is read to its end or its `Terminator`, a frame after the `Terminator`
+    and one failing validation refused, a body past `MaxRequestBytes` refused as too large and
+    never as a frame that does not decode, one whose `RequiresLength` is set refused (411) with no
+    length, and then answered as `Return` reads; a `bidi` exchange ends, each frame the mock read
+    before its side ended validated, for a caller that writes first, one that reads to the end
+    before ending its side and one that alternates, over HTTP/2, and over HTTP/1.1 where the
+    target's transport delivers a response while its request is open, one that does not running
+    the first caller alone; an exchange in which no byte moves for `IdleTimeout` is ended, over
+    HTTP/2 beside a walk on its connection, which other requests keep using; an operation whose
+    primary binding is not HTTP draws `emitters/mock/binding-unserved`; and one request gets the
+    same bytes on every run. A mock holding a stream open, ending a `bidi` response only once the
+    client's side ends, answering one in lockstep, or bounding idleness per connection, which leaves
+    a stalled stream open beside a walk, fails it ([what the mock
+    streams](../docs-and-mock.md#what-the-mock-streams), [the mock's
+    options](../docs-and-mock.md#the-mocks-options)).
 67. **T-67 · The mock's page walks** — on every target, under each strategy and each set of `Stop`
     conditions, with no limit and limits of 0, 1, 2 and a billion, a continuation member optional,
     nullable and required, and `FirstPage` 0 and 1, a pager run against the mock reads each item of
-    the walk once, in order, in at most one request more than the walk holds items, and ends; under
-    a cursor or token that is required and not nullable it ends on a refusal, drawing
-    `emitters/mock/page-walk-refused`, unless `Stop` lists `no_next` over a type admitting the empty
-    value, or `total` with a total to read; a continuation the mock did not mint and a page number
-    below `FirstPage` are refused, an offset past the end gets an empty page, a limit of a billion
-    one page of the walk, and one request the same page whatever came before it. A mock whose last
-    page keeps a continuation, that ignores an offset, counts pages from another first page or ends
-    a page short before the last fails it ([a page walk on the
+    the walk once, in order, in at most one request more than the walk holds items, and ends, a
+    limit of 0 included; under a cursor or token that is required and not nullable it ends on a
+    refusal, drawing `emitters/mock/page-walk-refused`, unless `Stop` lists `empty`, where it ends
+    on the page past the last item, `no_next` over a type admitting the empty value, or `total` with
+    a total to read; a continuation the mock did not mint is refused, a page number below
+    `FirstPage` that the input admits and an offset past the end get an empty page, a limit of a
+    billion one page of the walk, and one request the same page whatever came before it; with
+    `Synthesize` off a walk's items and continuations are values the document declares; a pager's
+    `GET` of a link a `POST` operation wrote gets its page; and a caller whose filter is spelt
+    `q=a%20b&z=1&a=2` reads each item once at a limit of a billion. A mock whose last page keeps a
+    continuation, that ignores an offset, counts pages from another first page, refuses a number
+    below it that the input admits, ends a page short before the last, sizes a page by a limit of
+    0, or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
     field's `Protocol`, an RPC binding of every `System` `rpc` with the system in `RPC.System`; an
@@ -1019,6 +1045,9 @@ throughout these documents.
     them verifies; each declared response writes its status, headers and body with no envelope, a
     range's refusing a status outside it; a Swift caller catches a refusal; the mock server sends a
     callback once, after its answer, to the URL its expression resolves to, follows no redirect and
-    gives up past its timeout, and sends a webhook only through its control route; and the docs
+    gives up past `SendTimeout`, never dials an address outside `SendTo`, a name resolving outside
+    it included, and with 200 requests naming one loopback URL has no more than `MaxSends` sends in
+    flight, and sends a webhook only through its control route, which the API's listener does not
+    answer; and the docs
     give each a page naming its event or its declaring operation and expression, with no sample
     ([operations the API sends](../operations/inbound.md)).

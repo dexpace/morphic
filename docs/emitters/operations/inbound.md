@@ -89,10 +89,11 @@ callback's expression against that request and its answer, as OpenAPI defines ru
 and sends the callback's request once to the URL it names, after the answer is written, its values
 the callback's first success scenario's `Input` ([one set of
 examples](../docs-and-mock.md#one-set-of-examples)). It sends at most one request for each callback
-of each request it answers, only to an `http` or `https` URL, follows no redirect, gives up past the
-timeout its options set, and discards the answer, so a request naming a URL costs it one bounded
-request and nothing more. A webhook has no URL in the document, so the mock sends one only when its
-own control route asks it to, naming the operation and the URL.
+of each request it answers, within the bounds [its options](../docs-and-mock.md#the-mocks-options)
+set on where it may send, how many at once and for how long, and discards the answer, so a request
+naming a URL costs it at most one bounded request and nothing more. A webhook has no URL in the
+document, so the mock sends one only when its control route, which listens apart from the API, asks
+it to, naming the webhook and the URL.
 
 The docs give an inbound operation a page under its group saying the API sends it: a webhook's event
 by its `WebhookName`, a callback's declaring operation, linked, and its expression. The page shows

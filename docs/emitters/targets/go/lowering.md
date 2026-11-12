@@ -31,7 +31,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |
 | `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy |
-| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; direction from core, framing from plan |
+| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; no frame for an `Initial` over HTTP; direction from core, framing from plan |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy |
 | `OneWay` | fire-and-forget method, no response binding |
 | `HTTPBinding.Inbound` ([operations the API sends](../../operations/inbound.md)) | no client method; a `Receiver` beside the client with a `Parse<Operation>(*http.Request)` method each, its request type in the `read` projection, and a type per declared response with `WriteTo(http.ResponseWriter)` ([operations](operations.md#operations-the-api-sends)) |

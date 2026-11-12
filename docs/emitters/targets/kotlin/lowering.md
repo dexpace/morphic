@@ -33,7 +33,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 | `Constraints` | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic |
 | `Discriminator{Mapping→ID}` | tag-dispatch `KSerializer` that reads the wire key first |
 | `Pagination` (PropPaths) | `Flow<T>`; item unwrap from plan; pacing from policy |
-| `Streaming` + `StreamDetail` | a method per shape offered; `Flow` of elements received, a send channel for a client stream; direction from core, framing from plan |
+| `Streaming` + `StreamDetail` | a method per shape offered; `Flow` of elements received, a send channel for a client stream; no frame for an `Initial` over HTTP; direction from core, framing from plan |
 | `LongRunning` | poller with `suspend` `poll()`/`pollUntilDone()`; result from `ResultPath`; pacing from policy |
 | `OneWay` | `suspend` function returning `Unit`, no response binding |
 | `HTTPBinding.Inbound` ([operations the API sends](../../operations/inbound.md)) | no client method; a `Receiver` class with a `@Throws` parse method each over the runtime's `InboundRequest`, and a type per declared response whose `encode()` returns an `OutboundResponse` ([operations](operations.md#operations-the-api-sends)) |
