@@ -74,13 +74,13 @@ reaches the union ([a shape reaches what it holds](../plan/types.md#a-shape-reac
 so what the variants hold is projected with them, and a variant's `readOnly` member is in no create
 or patch shape of the model's. In each shape the model is inclusive and strict where the union is,
 since two variants the union keeps apart stay apart once composed, and it is open as `TypePlan.Open`
-says of the model ([policy](../plan/policy.md#a-union-a-client-reads-is-open)). Every path to a
-variant composed here passes through the model, which a target declares as a union, so it breaks a
-cycle through the variant as a union does ([recursive references](#recursive-references)). Such a
-variant has no `TypeID`, unlike one the compiler composes, nor has a union nesting the entries whose
-`Over` starts alike, so `Ctx.Syms` keys a variant by the model's and those its entry's `Over` lists,
-and such a union by the model's and those the shared start of its entries' `Over` lists, which name
-each from one generation to the next
+says of the model ([policy](../plan/policy.md#a-union-keeps-a-variant-it-does-not-know)). Every path
+to a variant composed here passes through the model, which a target declares as a union, so it
+breaks a cycle through the variant as a union does ([recursive references](#recursive-references)).
+Such a variant has no `TypeID`, unlike one the compiler composes, nor has a union nesting the
+entries whose `Over` starts alike, so `Ctx.Syms` keys a variant by the model's and those its entry's
+`Over` lists, and such a union by the model's and those the shared start of its entries' `Over`
+lists, which name each from one generation to the next
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)), and each goes to the model's
 output unit ([output units](output-units.md)).
 

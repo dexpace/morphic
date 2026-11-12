@@ -16,10 +16,10 @@ type Policy struct {
                                        // (streams.md)
     FrameMembers    bool               // default on: an SSE schema naming only frame
                                        // fields describes the frame (streams.md)
-    OpenUnions      bool               // default on: a union a client reads keeps a
-                                       // variant it does not know (below)
-    OpenEnums       bool               // default on: an enum a client reads keeps a value
-                                       // it does not list (below)
+    OpenUnions      bool               // default on: a closed union keeps a variant it
+                                       // does not know (below)
+    OpenEnums       bool               // default on: a closed enum keeps a value it does
+                                       // not list (below)
     StrictExclusive bool               // default off: every one_of union is TypePlan.Strict
                                        // (../refine/unions.md)
     ProtocolEffects bool               // default on: an operation stating no effects takes
@@ -86,55 +86,92 @@ summarizes only the streams an operation's success responses declare, so no `Str
 `Default`, and a primary one streams only where a content of it declares an `Item`
 ([streams](streams.md)).
 
-## A union a client reads is open
+## A union keeps a variant it does not know
 
 An API that adds a variant must not break every SDK already deployed on the first response carrying
 it, so under `OpenUnions` a closed union, a polymorphic base, or a model narrowing a closed union,
 which the three targets lower as that union ([inheritance](../refine/models.md#inheritance)), is
-`Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
-then kept rather than refused ([unions](../refine/unions.md)). That covers a type read and written
-alike: a response can carry it whatever else the type does, and a kept value a caller sends back
-goes out as it came. A union the IR declares open, `Closed` false as a Smithy union lowers or a
-promoted key makes one, is `Open` wherever it is used, and so is a model narrowing one, unmarked
-since the IR states it, as
+`Open`, marked `Inferred`, whichever way it travels. A value no variant recognizes is then kept
+rather than refused ([unions](../refine/unions.md)). The policy leaves closed only what the IR marks
+`InputOnly`, a union, a base or a narrowing model: its identity is a request's alone, so no response
+carries it, and the mark is the type's own ([open unions](../../ir/unions.md#open-unions)). A union
+the IR declares open, `Closed` false as a Smithy union lowers or a promoted key makes one, is `Open`
+too, and so is a model narrowing one, unmarked since the IR states it, as
 [precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
-declared fact win. A closed one only ever written stays closed, and no SDK decodes one. Turning the
-policy off leaves every union as the IR says, and every polymorphic base and every model narrowing a
-closed union closed. Opening a closed union no more overrides `Union.Closed` than opening an enum
-overrides `Enum.Closed` (below): it says what this version of the API admits, not what a later one
-will add ([open unions](../../ir/unions.md#open-unions)). The plan records the choice so that docs
-and a mock agree with the SDK ([docs and mocks](../docs-and-mock.md)).
+declared fact win. Turning the policy off leaves every union as the IR says, and every polymorphic
+base and every model narrowing a closed union closed. Opening a closed union no more overrides
+`Union.Closed` than opening an enum overrides `Enum.Closed` (below): it says what this version of
+the API admits, not what a later one will add ([open unions](../../ir/unions.md#open-unions)). The
+plan records the choice so that docs and a mock agree with the SDK ([docs and
+mocks](../docs-and-mock.md)).
 
-## An enum a client reads is open
+`Open` is what a client survives, never what the API admits. A request carries what the declared
+`Closed` admits: the fallback has no factory
+([unions](../refine/unions.md#a-value-no-variant-recognizes)), so a caller builds only the variants
+the document lists, and a value kept from a response goes out as it came. A mock holds a request to
+the declared `Closed` and sends the examples the plan holds, each checked against it ([docs and
+mocks](../docs-and-mock.md)), so opening a type changes nothing a mock accepts or sends.
+
+## An enum keeps a value it does not list
 
 The reason unions are open holds for an enum: an API that adds a member must not break every SDK
-already deployed on the first response carrying it. So under `OpenEnums` a closed enum is `Open`
-wherever `Facts.Usage` marks it `Output`, marked `Inferred`, and a value it does not list is kept
-rather than refused ([enums](../refine/enums.md)). An enum the IR declares open, `Closed` false
-through a promoted `x-extensible-enum` among others, is `Open` wherever it is used, unmarked since
-the IR states it, so the SDK, the docs and a mock each read one field. A closed enum only ever
-written stays closed, as does one declaring a `FallbackMember`, since the document already says what
-a value it does not list decodes to, and turning the policy off leaves every enum as the IR says.
-Admission and the rules proving variants disjoint read the declared `Closed`
+already deployed on the first response carrying it. So under `OpenEnums` a closed enum is `Open`,
+marked `Inferred`, whichever way it travels, and a value it does not list is kept rather than
+refused ([enums](../refine/enums.md)). An enum the IR declares open, `Closed` false through a
+promoted `x-extensible-enum` among others, is `Open` too, unmarked since the IR states it, so the
+SDK, the docs and a mock each read one field. Two closed enums stay closed, each for what it
+declares itself: one declaring a `FallbackMember`, since the document already says what a value it
+does not list decodes to, and one with no members, which admits no value and which no policy may
+widen ([the empty enum](../../ir/enums.md#the-empty-enum),
+[enums](../refine/enums.md#an-enum-with-no-members)). Turning the policy off leaves every enum as
+the IR says. Admission and the rules proving variants disjoint read the declared `Closed`
 ([TypePlan](types.md#variants-that-can-share-a-value)), so opening an enum changes no union's shape:
 inside a union, a value an enum variant does not list is not that variant's, and an open union keeps
 it as its own unknown.
 
 This does not override the declared `Enum.Closed`, which states that the members the document lists
 are all it admits. The SDK honours that in what it sends: its constants name the listed members
-alone. `Closed` says nothing of what a later version of the API will list, and that is what a client
-reading a response has to survive. On the golden spec (spec @319dc756, morphic @b206dc99) all 8,314
+alone, and a mock refuses a request carrying any other ([docs and mocks](../docs-and-mock.md)).
+`Closed` says nothing of what a later version of the API will list, and that is what a client
+reading a response has to survive. On the golden spec (spec @bc6fad24, morphic @fa253fe19) all 7,687
 enums are closed, since an OpenAPI `enum` is a closed value set, so without the policy each one a
 response carries would fail to decode the first time the API added a member.
 
-Whether a type is read is a fact about the operations reaching it, not about the type, so this rule
-and `OpenUnions`' read a distant fact. An operation that first returns an enum or a union until then
-only sent moves it to its open form, which breaks its callers where a target's two forms are
-different declarations: Kotlin's closed enum is an `enum class` and its open one a value class, and
-an open union gains an `Unknown` variant an exhaustive `when` must handle. On the golden spec (spec
-@319dc756, morphic @da6c9f18), 3,360 of 8,334 enums and 351 of 974 unions are only sent. Opening
-every one the policies cover, whatever reads it, would keep each declaration stable at the cost of
-strictness in what a caller sends, and is #1439's to decide.
+## Neither policy reads which way a type travels
+
+Neither policy reads `Facts.Usage`. Whether a type is read is a fact about the operations reaching
+it, not about the type, and a declaration shaped by it moves when an operation elsewhere changes. A
+rule opening only what a response carries was weighed and refused on that count. On the golden spec
+(spec @bc6fad24, morphic @fa253fe19) 2,885 of 7,687 enums and 327 of 1,003 unions are only written.
+One response newly returning a type only written, a model or a list as well as an enum or a union,
+would move at least one of those declarations to its open form for 5,178 of the 10,157 such types,
+and 76 of them for the largest, a request body. The API makes that change: of the enums and unions
+both the spec @149d53ea of 2026-04-30 and @bc6fad24 declare under one ID, 32 enums and 4 unions went
+from only written to read, and 5 and 4 from read to only written, which closes them again. Each move
+breaks callers where a target's two forms are different declarations. Measured with Kotlin 2.4.0, a
+caller compiled against a closed enum's `enum class` and run against its open form fails with
+`NoSuchFieldError` where it names `Status.ACTIVE`, though it only sends the member, and an
+exhaustive `when` over the enum, or over a sealed interface that gained `Unknown`, no longer
+compiles. Go's two forms of an enum are one named type and an open union adds a wrapper to those a
+closed one declares, so there opening a type takes nothing a caller names away
+([Go](../targets/go/types.md#enums)).
+
+Opening a type nothing reads costs what the closed form gave its callers. A caller no longer gets an
+exhaustive `when` over a Kotlin enum it only sends, and an open enum holds any value of its value
+type, so one a caller builds from text the document does not list reaches the API, which refuses it.
+A union admits nothing more on the way out, its fallback having no factory. The designs this was
+weighed against:
+
+- **Opening only what a response carries, the move stated as a break.** A surface differ would
+  report each move, but the moves follow changes the API makes without breaking its own clients,
+  which is what the policies exist to survive.
+- **A declaration for each direction**, closed where a client writes the type and open where it
+  reads it. A type travelling both ways, as 858 of the golden spec's enums and 104 of its unions do,
+  needs one type for a value read and sent back, and every other would be declared twice.
+- **The open declaration with a strict decoder for a type only written.** A client decodes no type
+  it only writes, so this differs from opening it in nothing a caller can observe.
+
+T-22 and T-36 hold what each policy opens, and T-65 that no operation moves a declaration.
 
 ## An operation's effects come from its binding
 

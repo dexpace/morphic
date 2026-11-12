@@ -85,14 +85,13 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
 
 What a response may hold that the document does not list is not runtime policy, because it changes a
 type or a decoder rather than the boilerplate around them, and docs and mocks have to agree with it.
-A union a client reads keeps an unknown variant and an enum an unknown value under `plan.Policy`,
-and a `oneOf` two variants admit decodes as `plan.Policy` says ([plan policy](../plan/policy.md)).
-Unknown members follow each model's `Additional`, a declared fact, so no setting widens a model the
-spec closes or closes one it leaves open. An enum and a union differ because an OpenAPI `enum`,
-`oneOf` or `anyOf` can only be closed, so their `Closed` records no choice, where
-`additionalProperties: false` is one its author writes
-([unions](../plan/policy.md#a-union-a-client-reads-is-open),
-[enums](../plan/policy.md#an-enum-a-client-reads-is-open)).
+A union keeps an unknown variant and an enum an unknown value under `plan.Policy`, and a `oneOf` two
+variants admit decodes as `plan.Policy` says ([plan policy](../plan/policy.md)). Unknown members
+follow each model's `Additional`, a declared fact, so no setting widens a model the spec closes or
+closes one it leaves open. An enum and a union differ because an OpenAPI `enum`, `oneOf` or `anyOf`
+can only be closed, so their `Closed` records no choice, where `additionalProperties: false` is one
+its author writes ([unions](../plan/policy.md#a-union-keeps-a-variant-it-does-not-know),
+[enums](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)).
 
 ## Delivery
 

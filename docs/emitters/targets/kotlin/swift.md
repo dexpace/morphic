@@ -52,6 +52,9 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   among them, took the same Objective-C name, and the framework failed to link (`Linking globals
   named 'OBJC_METACLASS_$_ProbeNumber': symbol multiply defined!`). With an explicit `@ObjCName` it
   linked, so each of these names is reserved ([naming](naming.md#reserved-names)).
+- The export gives a value class no declaration: a position of its type is `id` in Objective-C and
+  `Any` in Swift, and its companion is unreachable. So an open enum, which a Swift caller names
+  wherever it sets or reads one, is a final class on Multiplatform ([enums](types.md#enums)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a

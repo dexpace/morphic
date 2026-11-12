@@ -110,8 +110,9 @@ throughout these documents.
     members in order and each number's text intact; `Default` takes it first; a closed union refuses
     it with a coded error, and a known tag over a body that does not match is an error on both;
     turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
-    answer, once the IR has one, wins ([plan policy](../plan/policy.md),
-    [unions](../refine/unions.md)).
+    answer, once the IR has one, wins; a closed union only requests carry is `Open` as one a
+    response carries is, and one the IR marks `InputOnly` stays closed ([plan
+    policy](../plan/policy.md), [unions](../refine/unions.md)).
 23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
     model with a member named `error`, a union, a list and a primitive, beside a case with no body,
     a `4XX` range and a `default` beside a success, generates no error type and code that compiles
@@ -288,14 +289,15 @@ throughout these documents.
     ([effects](../plan/policy.md#an-operations-effects-come-from-its-binding)).
 36. **T-36 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
     decodes a value it does not list and re-encodes it as it came, its constants naming only the
-    listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
-    strict decoding, one declaring a `FallbackMember` reads an unlisted value as that member, and an
-    open `Flags` enum keeps a bit no member names in its flags form; an enum declared open is `Open`
-    wherever it is used, with no `Inferred` mark. A `oneOf` of two string variants only their
-    `pattern`s tell apart decodes each value into the variant whose pattern it meets, in either
-    declaration order; a value both admit and meet decodes into the first, and under
-    `StrictExclusive` is a coded error, as is one both admit and neither meets ([plan
-    policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    listed members, one only requests carry is open the same, turning `OpenEnums` off restores
+    strict decoding, one with no members stays closed under either setting and refuses every value,
+    an optional member of it decoding only where it is absent, one declaring a `FallbackMember`
+    reads an unlisted value as that member, and an open `Flags` enum keeps a bit no member names in
+    its flags form; an enum declared open is `Open` wherever it is used, with no `Inferred` mark. A
+    `oneOf` of two string variants only their `pattern`s tell apart decodes each value into the
+    variant whose pattern it meets, in either declaration order; a value both admit and meet decodes
+    into the first, and under `StrictExclusive` is a coded error, as is one both admit and neither
+    meets ([plan policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
@@ -587,3 +589,11 @@ throughout these documents.
     over a long composition and one over unions nested deep, each beside one leaf, which `Build`
     reports as `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
+65. **T-65 · A declaration no operation moves** — adding to a fixture an operation that returns an
+    enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
+    removing the one operation returning others, changes no declaration on any target: each is
+    `Open` before and after, marked `Inferred`. On Multiplatform an open enum reaches the Swift
+    export as a type with a constant for each member, with which a Swift caller builds a request and
+    reads a value the SDK kept ([plan
+    policy](../plan/policy.md#neither-policy-reads-which-way-a-type-travels),
+    [Swift](../targets/kotlin/swift.md)).

@@ -46,7 +46,10 @@ enums, so any other enum `TypePlan.Open` marks, every one `Closed=false` declare
 unknown values, and any other lowers to that type + its consts with strict decode. Either decodes a
 value no member holds as its `FallbackMember` where the enum declares one, which is why `OpenEnums`
 leaves such a closed enum closed ([plan
-policy](../../plan/policy.md#an-enum-a-client-reads-is-open)).
+policy](../../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)). The two forms are one named
+type with the same constants, so opening an enum changes its decoder and takes no declaration from a
+caller. An enum with no members is that type with no constant and the strict decoder, which then
+refuses every value ([enums](../../refine/enums.md#an-enum-with-no-members)).
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its

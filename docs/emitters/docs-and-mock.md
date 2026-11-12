@@ -12,9 +12,11 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   intra-doc links via the *same* IR-ID lookup the Go emitter uses for doc comments, so a link
   follows what its target renders as. Examples use the schema arm (`Value/Headers`) vs the operation
   arm (`Input/Output/Error`) correctly. A union, a model narrowing one ([what the docs
-  render](#what-the-docs-render)) or an enum `TypePlan.Open` marks is documented as one that may
-  hold a variant or value the document does not list, a union inclusive in a shape, or a model
-  narrowing it there, as one whose
+  render](#what-the-docs-render)) or an enum `TypePlan.Open` marks is documented as one whose value
+  in a response may be a variant or a value the document does not list, which the SDK keeps, while
+  a request carries only what the document lists unless the IR declares the type open ([plan
+  policy](plan/policy.md#a-union-keeps-a-variant-it-does-not-know)), a union inclusive in a shape,
+  or a model narrowing it there, as one whose
   value may be several variants at once, and every `PlannedError` and `PlannedResponse` as the body
   and headers it declares. An enveloped response is documented as the `Type` a method returns and
   the `Envelope.Body` the wire carries, and an example of it as both: the member at `Value` of the

@@ -58,3 +58,19 @@ row's codec when read, as a closed entry's is. A value class over the row's type
 apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
 `ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
 in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.
+
+On Multiplatform an open enum is a final class instead, comparing by generated `equals` and
+`hashCode` over what the value class would hold, with a constant per member in its companion,
+because the Objective-C export gives a value class no declaration. Measured with Kotlin 2.4.0, a
+`value class Status(val wire: String)` was absent from the framework's header, every position of its
+type exported as `id`, so a Swift caller passed the string `"active"` where the Kotlin signature
+asks a `Status`, and no constant of its companion was reachable. The class exported as `Status`, its
+constants through `Status.companion`, two values compared with `==`, and a value the SDK kept was
+read back through `wire`. Every enum the policy covers is open ([plan
+policy](../../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)), so the value class would
+leave a Swift caller no enum type at all.
+
+An enum with no members ([enums](../../refine/enums.md#an-enum-with-no-members)) is an `enum class`
+with no entries, which Kotlin compiles and whose serializer, the plugin's or the generated one,
+refuses every value: measured with Kotlin 2.4.0 and `kotlinx.serialization` 1.8.0, a nullable
+property of one decoded where it was absent and threw on `"x"`.
