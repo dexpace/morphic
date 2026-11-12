@@ -904,20 +904,33 @@ throughout these documents.
     shape whose members are optional and whose `Inferred` marks `Patch`, the members of a model it
     holds relaxed and a list's elements not; a binding whose `PatchImplicitOptionality` points at
     `true` relaxes an `application/json` body unmarked, and one pointing at `false` relaxes no merge
-    patch; turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST`
-    sent as a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes)).
+    patch; an operation offering both contents sends the merge patch, a request built without the
+    members the `application/json` schema requires going out under that media type and accepted by
+    the mock, with `RequestContent` marked `Inferred`, and sends `application/json`, requiring them,
+    where the ranking names that media type by itself or the policy is off; turning
+    `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST` sent as a merge
+    patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
+    election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
     read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
     as `User`, `UserCreate`, `UserCreateUpdate`, `UserUpdate` and `UserUpdatePatch` on every target,
     in the docs' tables and in the manifest's keys, and a union and a model holding it are declared
-    under the same words; a model no member of which carries a visibility is declared once however
-    it travels; a model only a `PUT` writes, with a `readOnly` member, is `UserCreateUpdate` with no
+    under the same words; a model no member of which carries a visibility is declared once, under
+    its own name, with an alias of that declaration for each shape that writes it, which each
+    signature names, and giving one member a `readOnly` marker turns those aliases into declarations
+    under the names and keys they had, a caller's program in another module that builds each request
+    by its shape's name compiling before and after on Go and on Kotlin, the Swift export showing no
+    alias; a model only a `PUT` writes, with a `readOnly` member, is `UserCreateUpdate` with no
     `User` beside it, and adding a `POST`, then an operation returning it, renames no declaration
     and regenerates the earlier ones byte for byte; a custom lifecycle `<class>:<member>` gives its
     class's words and then its member's; a filter an operation names for its view is named as a
     method's is; a component the source calls `UserCreate` keeps that name in either declaration
-    order and the shape takes a suffix; and two lifecycles whose keys would join alike, one holding
-    a `,`, key apart ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).
+    order and the shape takes a suffix, while one added after a generation shipped the shape's
+    `UserCreate` takes the suffix itself; two custom lifecycles whose words join alike, `Foo:BarBaz`
+    and `FooBar:Baz`, give two declarations told apart by a suffix; two lifecycles whose keys would
+    join alike, one holding a `,`, key apart; and the `create` shape of a property `x`'s type keys
+    apart from the type of a property `x#create` beside it
+    ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).
 61. **T-61 · Integers by value** — on every target, a member of each integer kind, bare, optional,
     nullable, in a list, as a map's value, in a declaration over the kind and in a union's variant,
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and

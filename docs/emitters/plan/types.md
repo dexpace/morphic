@@ -313,7 +313,9 @@ type ModelShape struct {
     Filter    []ir.Lifecycle // the lifecycles a member must be visible in one of, sorted
     Patch     bool           // a PATCH body's that relaxes its members: each optional (below)
     Name      []string       // the words its declaration adds to the type's name; empty = the
-                             // type's own name (below)
+                             // type's own name, the read shape's (below)
+    Alias     bool           // its projection coincides with the read one: declared as an alias
+                             // of the type's own declaration (below)
     Props     []ir.PropID    // a model's properties visible in this shape
     Inclusive bool           // a union's: two variants can admit one value in this shape (above)
     Inferred  map[string]ir.Provenance
@@ -346,20 +348,30 @@ rather than the request:
   ([plan policy](policy.md#a-merge-patch-relaxes-what-its-schema-requires)).
 
 `false` relaxes nothing, whatever the media type. The shape belongs to the content, so an operation
-offering one type as `application/json` and as a merge patch sends it in two shapes. The IR words
-nil as "the protocol default (PATCH projections make properties optional)"
-([http-binding](../../ir/http-binding.md)); no compiler sets the field today, and the plan reads nil
-as stating nothing, since an emitter sees a binding and never the format behind it (INV1), so one
-default has to serve every format. The IR's wording is to follow this one.
+offering one type as `application/json` and as a merge patch declares it in two shapes. It sends the
+merge patch: under `MergePatch`, a `PATCH` binding leaving the field nil elects a merge-patch
+content over the others its ranking places with it ([one election](responses.md#one-election)), so
+the request an SDK builds is the one the relaxation was read from. A mock reads a body by the
+content it arrives as, and accepts either.
 
-On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings
-leaves the field nil. Their bodies have 269 contents, 257 of them `application/json` and 6 a merge
-patch, and the top-level model of 80 requires a member. Of those, 78 are no merge patch, and 66 name
-a model only that body reaches, written for the request: the addressing prefix's `description`, a
-BGP prefix's `advertised`, an invite's `status`. Relaxing them lets a caller build a request the
-server refuses. The two merge patches requiring a member reuse the resource's schema, a Preview's
-and a Worker's, whose operation says omitted properties are left unchanged; keeping what they
-require would make every edit of a Worker restate six members. Three readings lost to this one:
+No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
+binding and never the format behind it (INV1), so one default has to serve every format. The IR's
+own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
+optional)" ([http-binding](../../ir/http-binding.md),
+[properties](../../ir/properties.md#visibility)), which #TBD-patch-nil is to settle; until then an
+emitter follows this document.
+
+On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings leaves
+the field nil. Their bodies have 269 contents, 257 of them `application/json` and 6 a merge patch,
+and the top-level model of 80 requires a member. Of those, 78 are no merge patch, and 62 name a
+model only that body reaches, written for the request: the addressing prefix's `description`, a BGP
+prefix's `advertised`, an invite's `status`. Relaxing them lets a caller build a request the server
+refuses. The two merge patches requiring a member reuse the resource's schema, a Preview's and a
+Worker's, whose operation says omitted properties are left unchanged; keeping what they require
+would make every edit of a Worker restate six members. Each of the six merge patches sits beside an
+`application/json` content declaring the same members, two more of the 78 among them, which the
+smaller key would elect: without the election above no request would go out relaxed, and an edit of
+a Worker would still restate its six. Four readings lost to this one:
 
 - **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of
   the 78, and over all a patch shape reaches it relaxes 359 members of 217 models.
@@ -369,6 +381,9 @@ require would make every edit of a Worker restate six members. Three readings lo
 - **Relax where a schema is shared with another body or a response.** Whether a schema is shared
   changes as operations are added, so an operation added elsewhere would relax a declaration its
   callers already build.
+- **Relax the `application/json` content beside a merge patch, and keep electing it.** That media
+  type says nothing of the members a body leaves out, and which content is the merge patch's twin is
+  a second guess: three of the six pairs are two inline schemas, alike only member by member.
 
 Under this rule a patch shape reaches 61 models there and relaxes 50 members of 22 of them, and the
 two merge patches are the only bodies relaxed whose top-level model requires a member. A merge patch
@@ -399,11 +414,12 @@ list of settings, each carrying the `id` that names it. So every type holding a 
 projects is projected with it, `Target` beside `TargetCreate` and `TargetUpdatePatch`, each holding
 its variants' projections in that shape and each decided apart. Shapes whose projections of a type
 coincide, every model it reaches holding and requiring the same members in both, share one
-declaration where they share a name ([below](#the-declaration-a-shape-takes)), so they take one
-answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
-every member but those `Visibility.None` hides, requires only the required members no filter can
-leave out, and `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it
-narrows, too, every value of the model being a value of one of that union's variants
+declaration where they share a name, and one coinciding with the read projection is an alias of that
+one's ([below](#the-declaration-a-shape-takes)), so they take one answer, inclusive where either is.
+A type no shape reaches is declared once, unprojected: it holds every member but those
+`Visibility.None` hides, requires only the required members no filter can leave out, and
+`TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it narrows, too, every
+value of the model being a value of one of that union's variants
 ([inheritance](../refine/models.md#inheritance)).
 
 ## The declaration a shape takes
@@ -411,35 +427,60 @@ narrows, too, every value of the model being a value of one of that union's vari
 A type's declarations are named by the plan, so an SDK, the docs and a mock call each the same. A
 shape's `Name` is the words its declaration adds to its type's own:
 
-1. **None, where the shape's projection of the type coincides with the read projection**, the one
-   the filter `read` alone gives it, whether or not an operation reads the type. Every such shape
-   shares the declaration under the type's own name: `User`.
-2. **Otherwise its filter's lifecycles, in the filter's sorted order, then `patch` for a patch
-   shape.** Each lifecycle gives the words `ir.CanonicalWords` reads off it, a custom class's
-   `<class>:<member>` its class's and then its member's. A `POST` body is `UserCreate`, a `PUT`'s
-   `UserCreateUpdate`, a `PATCH`'s `UserUpdate`, and a merge patch's `UserUpdatePatch`. Shapes with
-   one name are one filter and one patch, so one projection and one declaration.
+1. **None for the read shape**, the filter `read` alone and no patch. Its declaration is the type's
+   own, under the type's own name, `User`, and it is declared wherever a shape takes it or an alias
+   names it (below), whether or not an operation reads the type.
+2. **For every other shape, its filter's lifecycles, in the filter's sorted order, then `patch` for
+   a patch shape.** Each lifecycle gives the words `ir.CanonicalWords` reads off it, a custom
+   class's `<class>:<member>` its class's and then its member's. A `POST` body is `UserCreate`, a
+   `PUT`'s `UserCreateUpdate`, a `PATCH`'s `UserUpdate`, and a merge patch's `UserUpdatePatch`.
+
+Where such a shape's projection of the type coincides with the read projection, `ModelShape.Alias`
+is set and its declaration is an alias of the type's own, `type UserCreate = User` in Go and a
+`typealias` in Kotlin, which declares no second type
+([Go](../targets/go/models.md#a-shape-that-is-an-alias),
+[Kotlin](../targets/kotlin/models.md#a-shape-that-is-an-alias)). A signature names the shape either
+way, so the name a caller writes for a request is the same before and after its projection leaves
+the read one. The docs give shapes that coincide one table, which names each of them ([what the docs
+render](../docs-and-mock.md#what-the-docs-render)).
 
 A type no shape reaches keeps its own name. The words are neutral, and each target cases them with
 the type's ([naming](../refine/naming.md)). A name that renders as another declaration's is a
 collision `Ctx.Syms` resolves
-([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)), and a shape's
-symbol is named after every type's own in its scope, so a component the source calls `UserCreate`
-keeps that name and the shape takes the suffix. The symbol keys under its type as
-`<TypeID>#<shape>` ([write / integrate](../write-integrate.md)): the lifecycles joined by `,`, then
-`+patch`, with `%`, `,` and `+` inside a lifecycle percent-encoded, so no two shapes share a key.
+([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Two filters of
+one type whose words come out alike, as the custom lifecycles `Foo:BarBaz` and `FooBar:Baz` do, are
+still two shapes and two declarations, told apart there in the order of their keys. Among the names
+no generation shipped, a shape's symbol is named after every type's own in its scope, so a component
+the source calls `UserCreate` keeps that name and the shape takes the suffix; a shape's name a
+generation shipped is kept as any shipped name is, so a component of that name added later takes the
+suffix instead. An alias's symbol is recorded as a declaration's is, under the same key, which
+carries its name, a suffix included, through the run that turns it into a declaration. The symbol
+keys under its type as `<TypeID>#<shape>` ([write / integrate](../write-integrate.md)): the type's
+ID with `%` and `#` percent-encoded, as every key writes an ID, then the lifecycles joined by `,`,
+then `+patch`, with `%`, `,`, `+` and `#` inside a lifecycle percent-encoded, so no two shapes share
+a key and none shares one with a type.
 
-A name reads only the type and the shape, and the one comparison it makes, with the read
-projection, reads only the type's own members and those of the types it holds. So an operation
-added to the document adds a declaration or uses one that exists, and renames none. What does move
-a name is a change to the type: a member gaining or losing a `readOnly` or `writeOnly` marker, or a
-type it holds doing so, splits a request's declaration from `User` or folds it back, and breaks
-the callers building that request.
+A name reads only the type and the shape. So an operation added to the document adds a declaration
+or an alias, or uses one that exists, and renames none; and a member gaining or losing a `readOnly`
+or `writeOnly` marker, or a type it holds doing so, turns an alias into a declaration of its own, or
+back, under the name it had. A caller who wrote the request's name compiles against both, where one
+who wrote the type's own name for a request no longer does once the two differ, and a JVM binary
+built before must be rebuilt, the method's parameter being another class (Go 1.27.3 and Kotlin
+2.4.0, each with the caller in another module). The Swift export shows no `typealias`, so a Swift
+caller names the type's own class until the projections differ and the shape's class from then on.
+Only a class for every shape would spare Swift that, which is refused below.
 
 Two shapes with different names can still coincide, as a `POST`'s and a `PUT`'s do wherever no
 member is visible in one of `create` and `update` alone, and they stay two declarations with the
-same members. Three ways of naming one declaration for them lost:
+same members, or two aliases. Five other ways of naming lost:
 
+- **The type's own name wherever a shape coincides with the read projection**, one declaration and
+  no alias. An API adding a `readOnly` or `writeOnly` member, an additive change, then renames the
+  request type its callers build, and the prior manifest cannot keep the name, the shape having had
+  no entry of its own.
+- **A declaration of its own for every shape, coinciding or not.** No name or type would ever move,
+  for a Swift caller either, at the price of a second declaration wherever an alias now stands and
+  of a conversion before a value read can be sent back.
 - **The lifecycles of the shapes that share it**, the first in sorted order or all of them. Which
   shapes a document exercises changes with its operations: a model only a `PUT` writes is
   `UserCreateUpdate` until a `POST` joins, and `UserCreate` after.
@@ -448,14 +489,20 @@ same members. Three ways of naming one declaration for them lost:
 - **One canonical lifecycle for the projection**, the first that gives it. That names the body of a
   type only a `PATCH` writes `UserCreate`.
 
-On the golden spec (spec @bc6fad24, morphic @fa253fe19), OpenAPI's `readOnly` and `writeOnly` give
-1,629 properties a visibility, and 435 of the types operations reach, 403 models and 32 unions, are
-written in a shape that leaves the read projection. They take 447 such projections and, by rule 2,
-689 declarations: 233 `Create`, 232 `CreateUpdate`, 181 `Update` and 43 `UpdatePatch`, 242 more than
-one declaration for each projection would be. No operation reads 166 of the 435, which the second
-rejected rule would rename when one does, and 169 are written under `update` alone or under `create`
-and `update` alone, which the first would rename when a `POST` joins. No name collides with a type's
-own. T-60 holds the rule.
+The aliases are the cost, and they are most of the names. On the golden spec (spec @bc6fad24,
+morphic @fa253fe19), OpenAPI's `readOnly` and `writeOnly` give 1,629 properties a visibility, and
+435 of the types operations reach, 403 models and 32 unions, are written in a shape that leaves the
+read projection. They take 447 such projections and 689 declarations: 233 `Create`, 232
+`CreateUpdate`, 181 `Update` and 43 `UpdatePatch`, 242 more than one declaration for each projection
+would be. Beside them 3,226 types take 4,466 aliases: 2,247 `Create`, 1,280 `CreateUpdate`, 802
+`Update`, 26 `UpdatePatch`, 81 `Query` and 30 `Delete`, counted over each model and union that a
+parameter, a request content, a response content or a response header reaches. No name of either
+sort collides with a named type's own. Between two revisions of that spec (@149d53ea and @bc6fad24),
+18 of the 12,893 pairs of a type and a shape that both hold crossed that line, in 13 types: 14 left
+the read projection, as the `subdomain` of `workers_Worker` did on gaining a `readOnly` `url`, and 4
+returned to it. The first rejected rule renames all 18. No operation reads 166 of the 435, which the
+fourth would rename when one does, and 169 are written under `update` alone or under `create` and
+`update` alone, which the third would rename when a `POST` joins. T-60 holds the rule.
 
 ## A model with lifecycle visibility
 

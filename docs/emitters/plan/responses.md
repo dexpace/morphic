@@ -59,6 +59,16 @@ and cut at its first `;`, as RFC 6838 §4.2 and the compiler's own reading
 the key as written. A media type no entry ranks comes after every one that is ranked, and a tie goes
 to the smaller key by bytes, since a format's map of media types has no order to honour.
 
+One tie is settled before that. Under `plan.Policy.MergePatch`, among the contents of a `PATCH`
+request whose binding leaves `PatchImplicitOptionality` nil, an `application/merge-patch+json`
+content, compared as above, comes before every content it ties with, and `OpPlan.Inferred` marks
+`RequestContent` where that decided. The plan relaxes that content's members
+([TypePlan](types.md#what-a-patch-relaxes)), and a relaxed shape no request carries relaxes nothing:
+`application/json` is the smaller key, and each of the golden spec's six merge patches sits beside
+one (spec @bc6fad24, morphic @fa253fe19). A ranking that names either media type by itself places it
+as written, so a configuration can still send `application/json`, and with the policy off the tie
+goes to the smaller key. T-59 holds it.
+
 ## Body shapes
 
 `Shape` says how a body is read, not what it holds: what it holds is `Type`, and every type kind

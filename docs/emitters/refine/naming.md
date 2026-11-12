@@ -94,7 +94,8 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    cannot mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is
    `V12_2`. The declaration a visibility shape adds to a type is named after every type's own in
    its scope, in the order of its key ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)),
-   so a name the plan derives never takes one the source gives.
+   so among the names this rule gives, one the plan derives never takes one the source gives. A
+   shape's name rule 1 keeps is kept like any other, against a source name added since.
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
 names that fold alike collide too. A file system that ignores case, as macOS's and Windows' do by

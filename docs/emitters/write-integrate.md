@@ -12,13 +12,15 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   built from is carried by the correlation key each entry records where the key's own source holds,
   as an operation's route does when a path variable is renamed. A path or a component renamed
   changes its key too ([correlation keys](../ir/derived-facts.md#correlation-keys)), so only the
-  structural tier of [open question 5](../ir/open-questions.md) could carry it. A
-  symbol derived from an entity keys under it, as `User.ID#create` does
+  structural tier of [open question 5](../ir/open-questions.md) could carry it. A symbol derived
+  from an entity keys under it, as `User.ID#create` does
   ([`User`](targets/go/models.md#user-in-go)), a shape's declaration under its lifecycles and its
-  patch ([TypePlan](plan/types.md#the-declaration-a-shape-takes)), a union's wrappers, fallback
-  and inclusive fields among them, so no two symbols share a key. Write/integrate and surface
-  verification
-  (architecture.md §2.3) both rest on it.
+  patch ([TypePlan](plan/types.md#the-declaration-a-shape-takes)), a union's wrappers, fallback and
+  inclusive fields among them. An ID keeps its source's text, a `#` included, so every key writes
+  its entity's ID with `%` and `#` percent-encoded and a derivation follows the one `#` left: the
+  `create` shape of a property `x`'s type keys apart from the type of a property `x#create` beside
+  it, where the two joined as written were one key. So no two symbols share a key (T-60).
+  Write/integrate and surface verification (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.

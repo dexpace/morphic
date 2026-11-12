@@ -40,6 +40,21 @@ whatever the options say.
 
 Kotlin holds every class by reference, so a cycle asks nothing of either Kotlin target.
 
+## A shape that is an alias
+
+A shape whose projection coincides with the read one
+([TypePlan](../../plan/types.md#the-declaration-a-shape-takes)) is a `typealias` of the type's
+class, in that class's file, beside a factory function of the alias's name: `typealias UserCreate =
+User` and `fun UserCreate(name: String, block: User.Builder.() -> Unit = {}): UserCreate`. A caller
+builds a request through that function and names its type by the alias, and a caller in another
+module doing both compiled unchanged once `UserCreate` was a class of its own (Kotlin 2.4.0). An
+alias does not reach the builder class (`UserCreate.Builder`: `unresolved reference 'Builder'`), so
+a caller naming it writes `User.Builder` and changes that line then. A binary built before fails
+against the SDK after (`NoSuchMethodError`), as with any changed signature. The Objective-C export
+shows no alias: a framework declaring one named the class alone in its header, a function taking the
+alias taking the class, so a Swift caller names `User` until `UserCreate` is a class (Kotlin/Native
+2.4.0). T-60 holds it.
+
 ## Nesting
 
 kotlinx decodes by recursion and bounds none of it, so a body nested deeply enough ends a decode in

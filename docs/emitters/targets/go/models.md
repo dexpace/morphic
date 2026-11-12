@@ -60,6 +60,15 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`, the shape's key
   ([the declaration a shape takes](../../plan/types.md#the-declaration-a-shape-takes)).
 
+## A shape that is an alias
+
+A shape whose projection coincides with the read one
+([TypePlan](../../plan/types.md#the-declaration-a-shape-takes)) is `type UserCreate = User`, in the
+file of `User`, and each signature names the alias: `go doc` shows `func Create(b shared.UserCreate)
+string`. A caller in another module that built `shared.UserCreate{Name: "Ada"}` compiled before and
+after `UserCreate` became a struct of its own, where one that built a `shared.User` for the same
+call stopped with `cannot use … as shared.UserCreate value` (Go 1.27.3). T-60 holds it.
+
 ## Nesting
 
 json/v2 refuses a value nested past 10,000 levels, decoding and encoding

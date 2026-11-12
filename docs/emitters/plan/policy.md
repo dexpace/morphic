@@ -25,7 +25,8 @@ type Policy struct {
     ProtocolEffects bool               // default on: an operation stating no effects takes
                                        // what its binding's protocol defines (below)
     MergePatch      bool               // default on: a PATCH body sent as a merge patch relaxes
-                                       // the members its schema requires (below)
+                                       // the members its schema requires, and is the content
+                                       // elected among those it ties with (below)
     Examples        ExamplePolicy      // default both on, depth 3, 2 items: what may be made where
                                        // no example is declared (../docs-and-mock.md)
     FirstPage       *int               // default 1: a page walk's first page where its page input
@@ -186,9 +187,11 @@ Under `MergePatch` such a body's shape is a patch shape, every member optional, 
 ([TypePlan](types.md#what-a-patch-relaxes)). A binding stating the field decides for itself, as
 [precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has a
 declared fact win: `true` relaxes whatever the media type, unmarked, and `false` relaxes nothing.
-Turning the policy off leaves every body requiring what its schema requires. No other media type is
-read this way: a JSON Patch (`application/json-patch+json`) is a list of operations, and a `PATCH`
-sent as `application/json` says nothing about the members it leaves out.
+Turning the policy off leaves every body requiring what its schema requires. Where the operation
+offers that content beside others its ranking ties it with, the policy elects it too, marked
+`Inferred` ([one election](responses.md#one-election)), so the body an SDK sends is the one relaxed.
+No other media type is read this way: a JSON Patch (`application/json-patch+json`) is a list of
+operations, and a `PATCH` sent as `application/json` says nothing about the members it leaves out.
 
 ## An operation's effects come from its binding
 
