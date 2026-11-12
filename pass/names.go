@@ -17,7 +17,7 @@ var _ Pass = Names{}
 const NamesName = "names"
 
 // Names reports what a document's names leave to its targets: entities of one
-// scope whose names any target may render alike, which it can then tell apart
+// scope whose names a target may render alike, which it can then tell apart
 // only by ID, and a name with no word character, which a target names from its
 // characters (docs/ir/naming.md#names-one-scope-shares). It is an analysis, so
 // Run hands back the document it was given, and it holds no state, so it is
@@ -70,7 +70,7 @@ func (r *nameReader) families() []func(*ir.Document) {
 // services reads the document's services as one scope.
 func (r *nameReader) services(doc *ir.Document) {
 	svcs := doc.Services
-	if r.readScope(len(svcs), func(i int) ir.Naming { return svcs[i].Name }) {
+	if r.readScope(byWords, len(svcs), func(i int) ir.Naming { return svcs[i].Name }) {
 		r.report(scope{one: "service", many: "services",
 			ids: idsOf(len(svcs), func(i int) string { return string(svcs[i].ID) })})
 	}
@@ -88,7 +88,7 @@ func (r *nameReader) groups(doc *ir.Document) {
 	ir.ForEachGroup(doc, func(g ir.OperationGroup) {
 		r.groupList("operation group", string(g.ID), g.Groups)
 		ops := g.Operations
-		if r.readScope(len(ops), func(i int) ir.Naming { return ops[i].Name }) {
+		if r.readScope(byWords, len(ops), func(i int) ir.Naming { return ops[i].Name }) {
 			r.report(scope{in: "operation group", id: string(g.ID), one: "operation", many: "operations",
 				ids: idsOf(len(ops), func(i int) string { return string(ops[i].ID) })})
 		}
@@ -98,9 +98,10 @@ func (r *nameReader) groups(doc *ir.Document) {
 	})
 }
 
-// groupList reads groups, held by the in named id, as one scope.
+// groupList reads groups, held by the in named id, as one scope compared
+// joined.
 func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
-	if r.readScope(len(groups), func(i int) ir.Naming { return groups[i].Name }) {
+	if r.readScope(byJoinedWords, len(groups), func(i int) ir.Naming { return groups[i].Name }) {
 		r.report(scope{in: in, id: id, one: "operation group", many: "operation groups",
 			ids: idsOf(len(groups), func(i int) string { return string(groups[i].ID) })})
 	}
@@ -108,17 +109,18 @@ func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
 
 // params reads the parameters of the operation op as one scope.
 func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
-	if r.readScope(len(params), func(i int) ir.Naming { return params[i].Name }) {
+	if r.readScope(byWords, len(params), func(i int) ir.Naming { return params[i].Name }) {
 		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters",
 			ids: idsOf(len(params), func(i int) string { return string(params[i].ID) })})
 	}
 }
 
 // types reads the parts of every live type, each type's as one scope, and then
-// the declared types as one scope of their own. An anonymous type is left out
-// of that one: a target may inline it rather than name it, and its hint is a
-// suggestion, which a target settles against any other name by ID. So is a
-// type a target resolves through its type table, which it never declares.
+// the declared types as one scope of their own, compared joined. An anonymous
+// type is left out of that one: a target may inline it rather than name it,
+// and its hint is a suggestion, which a target settles against any other name
+// by ID. So is a type a target resolves through its type table, which it never
+// declares.
 func (r *nameReader) types(doc *ir.Document) {
 	ids := liveTypeIDs(doc)
 	for _, id := range ids {
@@ -134,7 +136,7 @@ func (r *nameReader) types(doc *ir.Document) {
 		declared = append(declared, id)
 		r.parties = append(r.parties, partyOf(td.Common().Name))
 	}
-	if r.read() {
+	if r.read(byJoinedWords) {
 		r.report(scope{one: "type", many: "types",
 			ids: idsOf(len(declared), func(i int) string { return string(declared[i]) })})
 	}
@@ -153,20 +155,21 @@ func builtIn(td ir.TypeDef) bool {
 }
 
 // typeParts reads the named parts of the type at id, its properties, members
-// or variants, as one scope. A model's are its own properties: one sharing a
-// name with a property it inherits goes unreported (GitHub #1412).
+// or variants, as one scope, a union's variants compared joined. A model's are
+// its own properties: one sharing a name with a property it inherits goes
+// unreported (GitHub #1412).
 func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:
-		if r.readScope(len(t.Properties), func(i int) ir.Naming { return t.Properties[i].Name }) {
+		if r.readScope(byWords, len(t.Properties), func(i int) ir.Naming { return t.Properties[i].Name }) {
 			r.report(scope{in: "model", id: string(id), one: "property", many: "properties"})
 		}
 	case *ir.Enum:
-		if r.readScope(len(t.Members), func(i int) ir.Naming { return t.Members[i].Name }) {
+		if r.readScope(byWords, len(t.Members), func(i int) ir.Naming { return t.Members[i].Name }) {
 			r.report(scope{in: "enum", id: string(id), one: "member", many: "members"})
 		}
 	case *ir.Union:
-		if r.readScope(len(t.Variants), func(i int) ir.Naming { return t.Variants[i].Name }) {
+		if r.readScope(byJoinedWords, len(t.Variants), func(i int) ir.Naming { return t.Variants[i].Name }) {
 			r.report(scope{in: "union", id: string(id), one: "variant", many: "variants",
 				ids: idsOf(len(t.Variants), func(i int) string { return string(t.Variants[i].Type.Target) })})
 		}
@@ -182,7 +185,7 @@ func (r *nameReader) auth(doc *ir.Document) {
 	for _, id := range ids {
 		r.parties = append(r.parties, partyOf(doc.Auth[id].Name))
 	}
-	if r.read() {
+	if r.read(byWords) {
 		r.report(scope{one: "auth scheme", many: "auth schemes",
 			ids: idsOf(len(ids), func(i int) string { return string(ids[i]) })})
 	}

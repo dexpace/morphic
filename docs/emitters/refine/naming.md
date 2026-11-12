@@ -40,8 +40,9 @@ built from the wire channel, so wire correctness never depends on the rendered i
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
 which is keyed by IR ID, and against the names the prior generation shipped, so adding one endpoint
 never renames an existing method (the oagen collision-cascade counterexample; INV3;
-[collisions](#collisions-and-the-names-a-generation-shipped)). Those any target may meet, neutral
-names one scope shares, the `names` pass reports to the document's author
+[collisions](#collisions-and-the-names-a-generation-shipped)). Those a target may meet, neutral
+names one scope shares and, in a scope a first target joins or folds, names whose words differ only
+where they break, the `names` pass reports to the document's author
 ([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
 hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames
 (`Service.Renames`) change how a shape is presented in a service without changing its `TypeID` or
@@ -102,8 +103,9 @@ units](output-units.md)), and each target names its others
 [docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
 as Go writes two declarations to one file, compares that scope's names as they are. The engine's
 refusal of two paths that fold alike is the backstop rather than the rule, since a refusal would
-fail a run on a valid spec. Such a pair draws no `pass/name-collision`, which compares neutral names
-exactly (#1742).
+fail a run on a valid spec. Such a pair draws `pass/name-collision` where the `names` pass compares
+words joined, and elsewhere only where the two share their neutral words
+([naming](../../ir/naming.md#names-one-scope-shares)).
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's

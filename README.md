@@ -79,7 +79,7 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   formats planned after it are in [Status](#status).
 - **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `const-unions` rewrites a
   closed union of strings as the enum of them, `validate` checks referential integrity and the
-  well-formedness rules the IR states, and `names` reports names any target may render alike; all
+  well-formedness rules the IR states, and `names` reports names a target may render alike; all
   three run by default. Deduplication, filtering, version slicing and IR overlays are
   designed in [Architecture](docs/architecture.md) but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
