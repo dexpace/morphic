@@ -4,7 +4,7 @@
 // This file is a package-level suite, not a per-source-file test: it fuzzes the
 // whole compile pipeline (corpus-seeded and mutation-based) rather than any one
 // source file's logic, so it has no single source file to pair with.
-package e2e_test // external test package — exercises only the public API
+package fuzz_test // external test package — exercises only the public API
 
 import (
 	"bytes"
@@ -17,18 +17,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// cycleFixtureDir holds the cycle-detector reproducer and pointer-resolution
-// fixtures, addressed relative to this test file.
-const cycleFixtureDir = "../../../testdata/openapi"
+// The seed corpus, addressed relative to this test file: the conformance specs,
+// the cycle-detector reproducer and pointer-resolution fixtures, and one golden
+// source.
+const (
+	conformanceDir  = "../../../../testdata/conformance/openapi"
+	cycleFixtureDir = "../../../../testdata/openapi"
+	goldenPetstore  = "../../../../testdata/golden/openapi/petstore.yaml"
+)
 
 // FuzzCompile hammers the OpenAPI compiler with mutated spec bytes and asserts the
 // structural oracles (irverify passes, JSON round-trips byte-identical, recompile
@@ -41,7 +43,7 @@ func FuzzCompile(f *testing.F) {
 	seedCorpus(f)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		doc, diags, err := compileSpec(t.Context(), "fuzz.yaml", data)
-		if err != nil || doc == nil || diag.HasError(diags) {
+		if err != nil || doc == nil || ir.HasError(diags) {
 			return // malformed input or a spec-author problem is not a compiler defect
 		}
 		assertOracles(t, "fuzz.yaml", data, doc)
@@ -64,7 +66,7 @@ func FuzzLowerSchema(f *testing.F) {
 			return // fragment is not valid JSON; nothing to embed
 		}
 		doc, diags, err := compileSpec(t.Context(), "fuzz-schema.json", spec)
-		if err != nil || doc == nil || diag.HasError(diags) {
+		if err != nil || doc == nil || ir.HasError(diags) {
 			return
 		}
 		assertOracles(t, "fuzz-schema.json", spec, doc)
@@ -166,21 +168,22 @@ func embedSchema(fragment []byte) ([]byte, bool) {
 	return b, true
 }
 
-// seedCorpus adds every committed OpenAPI spec — the conformance corpus, the
-// golden petstore, and the testdata/openapi fixtures (cycle-detector
-// reproducers, pointer-resolution cases, and the unreadable response keys of
-// GitHub #262) — to the fuzz corpus, so mutation starts from valid,
-// feature-dense documents instead of empty input. The
-// degenerate cycle shapes (an alias-valued $ref, a `<<` merge key) are seeded
-// too: mutating them found five variants of one crash in GitHub #26, and
-// FuzzCompile already skips inputs with an error diagnostic, so seeding one
-// that's expected to be refused can't fail an oracle.
+// seedCorpus adds the .yaml specs directly under the conformance corpus and
+// testdata/openapi (cycle-detector reproducers, pointer-resolution cases, and
+// the unreadable response keys of GitHub #262) and the golden petstore to the
+// fuzz corpus, so mutation starts from valid, feature-dense documents instead
+// of empty input. The degenerate cycle shapes (an alias-valued $ref, a `<<`
+// merge key) are seeded too: mutating them found five variants of one crash in
+// GitHub #26, and FuzzCompile already skips inputs with an error diagnostic, so
+// seeding one that's expected to be refused can't fail an oracle.
 func seedCorpus(f *testing.F) {
 	f.Helper()
 	addYAMLDir(f, conformanceDir)
 	addYAMLDir(f, cycleFixtureDir)
 	data, err := os.ReadFile(goldenPetstore)
-	require.NoError(f, err)
+	if err != nil {
+		f.Fatal(err)
+	}
 	f.Add(data)
 }
 
@@ -188,13 +191,17 @@ func seedCorpus(f *testing.F) {
 func addYAMLDir(f *testing.F, dir string) {
 	f.Helper()
 	entries, err := os.ReadDir(dir)
-	require.NoError(f, err)
+	if err != nil {
+		f.Fatal(err)
+	}
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		require.NoError(f, err)
+		if err != nil {
+			f.Fatal(err)
+		}
 		f.Add(data)
 	}
 }
