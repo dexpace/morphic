@@ -351,6 +351,13 @@ func TestGroupIDs_SpellEachRule(t *testing.T) {
 		{name: "a path prefix with a tilde", got: ids.PathPrefixGroup("a~b"), want: "g/path-prefix/a~0b"},
 		{name: "a path prefix with a slash", got: ids.PathPrefixGroup("a/b"), want: "g/path-prefix/a~1b"},
 		{name: "the root path's prefix", got: ids.PathPrefixGroup(""), want: "g/path-prefix"},
+		{name: "a group path of one segment", got: ids.ExtensionGroup([]string{"accounts"}), want: "g/extension/accounts"},
+		{
+			name: "a group path of two segments", got: ids.ExtensionGroup([]string{"zero-trust", "devices"}),
+			want: "g/extension/zero-trust/devices",
+		},
+		{name: "a group path segment with a slash", got: ids.ExtensionGroup([]string{"a/b"}), want: "g/extension/a~1b"},
+		{name: "a group path segment with a tilde", got: ids.ExtensionGroup([]string{"a~b"}), want: "g/extension/a~0b"},
 		{name: "untagged operations", got: ids.DefaultGroup(), want: "g/default"},
 		{name: "webhook operations", got: ids.WebhookGroup(), want: "g/webhooks"},
 	}
@@ -373,7 +380,7 @@ func TestGroupIDs_NeverCollide(t *testing.T) {
 	t.Parallel()
 	exhaustive := stringsOver([]string{"a", "/", "~", "0", "1"}, 4)
 	require.Len(t, exhaustive, 781, "5^0 + … + 5^4 strings; a shorter list would pass this test vacuously")
-	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix"}, exhaustive)
+	keys := slices.Concat([]string{"default", "webhooks", "tags", "path-prefix", "extension"}, exhaustive)
 
 	rules := []struct {
 		name string
@@ -381,6 +388,8 @@ func TestGroupIDs_NeverCollide(t *testing.T) {
 	}{
 		{name: "tag", id: ids.TagGroup},
 		{name: "path prefix", id: ids.PathPrefixGroup},
+		{name: "group path", id: func(key string) ir.GroupID { return ids.ExtensionGroup([]string{key}) }},
+		{name: "group path nested in a", id: func(key string) ir.GroupID { return ids.ExtensionGroup([]string{"a", key}) }},
 	}
 	seen := map[ir.GroupID]string{
 		ids.DefaultGroup(): "the default group",
@@ -427,7 +436,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindProp:       {"composed", "openapi"},
 		ir.IDKindAuth:       {"openapi", "unresolved"},
 		ir.IDKindService:    {"openapi"},
-		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindGroup:      {"default", "extension", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
 		ir.IDKindEnumMember: {"anon", "composed", "openapi"},
 		ir.IDKindServer:     {"default", "openapi"},
@@ -447,7 +456,7 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 		ir.IDKindProp:    {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindAuth:    {"openapi", "unresolved"},
 		ir.IDKindService: {"openapi"},
-		ir.IDKindGroup:   {"default", "path-prefix", "tags", "webhooks"},
+		ir.IDKindGroup:   {"default", "extension", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:   {"openapi"},
 		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml", "composed@b~1c.yaml",
 			"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},

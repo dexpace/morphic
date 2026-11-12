@@ -71,20 +71,25 @@ throughout these documents.
     group reach; under `SplitByGroup` with every group's operations failing with the runtime's
     failure value, and under `Partition` with a partition's model holding a runtime type, the units'
     imports form no cycle and build; with either rule on and with both off, the runtime's
-    declarations are in its unit, which imports none, and on Kotlin, code compiling against the
-    root project or any one module names the runtime's types its signatures use; groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; a union with a
-    variant in another unit compiles; two groups whose operations `AlsoMount` puts in each other's
-    client compile, the types those operations reach in the shared unit; and every partition error
-    and warning of [output units](../refine/output-units.md) has a fixture that draws it.
+    declarations are in its unit, which imports none, and on Kotlin, code compiling against the root
+    project or any one module names the runtime's types its signatures use; groups whose names
+    render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
+    get distinct units; a union with a variant in another unit compiles; two groups whose operations
+    `AlsoMount` puts in each other's client compile, the types those operations reach in the shared
+    unit; and every partition error and warning of [output units](../refine/output-units.md) has a
+    fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
-    reserves, after characters alone and after names that begin with a digit, and its groups after
-    the standard-library packages its files import, after every units name and after each name a
-    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
-    generates code that compiles on every target, with every template's declared names held to what
-    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
+    reserves, after characters alone and after names that begin with a digit, two of its types in
+    each unit and two variants of each union in names that differ in letter case alone, from each
+    other and from a name the scope reserves, one of its types in each unit after each file a
+    template writes there, and its groups after every units name, after each name a Kotlin build
+    keeps at its root ([output units](../targets/kotlin/overview.md#output-units)) and after the
+    standard-library packages its files import, generates code that compiles on every target, no two
+    of its paths, an artifact's or a class file's, folding alike, the Go file holding two such types
+    byte-identical in both declaration orders, with every template's declared names held to what it
+    binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
     options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
     leave every module's sources, no path the build writes, an artifact's or a class file's, has a
     Windows device name for a segment, and the Multiplatform framework links, its header holding
@@ -327,15 +332,16 @@ throughout these documents.
     `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
     suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
     suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
-    is passed over; names whose words differ only at a break letter case cannot mark, properties
-    `v1.2` beside `v12`, `a-日本` beside `a日本`, `count-ℤ` beside `countℤ` and `a-ß` beside `aß`,
-    an enum's members `1.0` and `10`, and on Go the constants of `V1`'s member `2` and `V`'s `12`,
-    render apart with no suffix, a letter beside a digit taking no `_`, as a schema
-    `10_gbps_to_100_gbps` renders `Type10GbpsTo100Gbps`, and on Multiplatform the entries of `1.0`
-    and `10` export to Swift as `value1_0` and `value10`, while of `V12` and `v12`, one name, the
-    second takes its suffix after `_` (Go's `V12_2`); and on
-    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
-    Objective-C name as it shipped
+    is passed over; a type added in a name differing from a shipped one's in letter case alone, its
+    ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; names
+    whose words differ only at a break letter case cannot mark, properties `v1.2` beside `v12`,
+    `a-日本` beside `a日本`, `count-ℤ` beside `countℤ` and `a-ß` beside `aß`, an enum's members `1.0`
+    and `10`, and on Go the constants of `V1`'s member `2` and `V`'s `12`, render apart with no
+    suffix, a letter beside a digit taking no `_`, as a schema `10_gbps_to_100_gbps` renders
+    `Type10GbpsTo100Gbps`, and on Multiplatform the entries of `1.0` and `10` export to Swift as
+    `value1_0` and `value10`, while of `V12` and `v12`, one name, the second takes its suffix after
+    `_` (Go's `V12_2`); and on Multiplatform a type added in another unit, its ID sorting first,
+    leaves an incumbent's Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
@@ -374,10 +380,23 @@ throughout these documents.
     collision check reading anchors within a page, and a patch body linking to its patch table, a
     member no table of its declaring model holds anchored in the first table of a model whose
     flattening holds it, an inherited one linked there and an anonymous model composed in place no
-    table of its own; each example through the shape it is shown in, a write-only member in no
-    response's; a placeholder for every redacted value, on pages, in agent documents and in
-    samples, a sample's written by its SDK target; and raw HTML in a description
-    rendered through the allowlist on pages and in agent documents alike, a `<p>` and a `<code>` as
+    table of its own; a model narrowing a union a table for each entry of its `TypePlan.Composed` in
+    each shape, each holding its variant's members beside the model's as the entry's flattening
+    takes them, so `rulesets_ResponseRule`'s tables mark required the five members it requires and
+    its union's variants do not, each naming the variants its `Over` lists and the tags routing to
+    it and anchored from the model, that `Over` and its shape, a value of it redacted at each member
+    the `Redacted` of an entry admitting it lists, an inclusive one at those of every entry
+    admitting it, and whole where a variant its `Over` lists is sensitive, a union of unions a table
+    for each entry it expands to, each member anchored once, one the model declares in the first
+    table holding it and one a variant declares where that variant is rendered, an anonymous union
+    only the model's composition reaches giving its anonymous variants no table of their own and
+    naming them unlinked, a model `TypePlan.Open` marks documented as holding variants the document
+    does not list, a model adding nothing to its union showing that union and no table, and one the
+    plan composes no entry for listing its own members beside its union, linked; each example
+    through the shape it is shown in, a write-only member in no response's; a placeholder for every
+    redacted value, on pages, in agent documents and in samples, a sample's written by its SDK
+    target; and raw HTML in a description rendered through the allowlist on pages and in agent
+    documents alike, a `<p>` and a `<code>` as
     themselves, a `<br/>` as a line break, the description's inline raw HTML and HTML blocks read by
     an HTML tokenizer against its own stack, never in raw-text mode, so `<p>Use the <title>
     field</p>` and `<p>a <title/> <b>b</b></p>` keep their paragraph, a self-closing `<p/>` read as
@@ -435,7 +454,9 @@ throughout these documents.
     `Manifest` as the `""` entry and one losing it reads the entry holding the spanning files; a run
     whose context is done after `Router` returns fails; and the registry refuses a target setting
     `CrossVersion` without implementing `Router`. A CLI's help keeps a placeholder, a comment and a
-    link's URL as text, keeps line feeds and tabs and drops every other control character. A nested
+    link's URL as text, keeps line feeds and tabs and drops every other control character. A body
+    narrowing a union gives the flags of each of its entries, those of two entries excluding each
+    other, and never echoes one whose member an entry's `Redacted` lists. A nested
     group's route joins its groups' slugs. Agent documents and `llms.txt`, at site, service, version
     and target scope, share the pages' URLs, escape spec text, write each description back out
     within its item, an unclosed fence closed there and a reference definition reaching no other,
@@ -483,15 +504,26 @@ throughout these documents.
     message's set, read through its one plan function alone, which reports nothing since `Build`
     reports each refused example once, is its own declared examples, else its type's, a message's
     those of its payload's contents paired with its headers' set, that pairing `Inferred` and off
-    with `Assemble`, which the docs, the samples and the mock read a body's examples from. Where
+    with `Assemble`, which the docs, the samples and the mock read a body's examples from. A model
+    narrowing a union is checked and shown as that union over its `TypePlan.Composed` entries, a
+    value no entry admits refused and one shown through each entry admitting it, filled from what
+    that entry requires in the shape, and a model adding nothing to its union as that union. Where
     none applies, the value synthesized is valid against its constraints and its type's
     validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never
     both, a value failing them left out and reported and a declared one refused, marked `Inferred`,
     identical across regenerations and in both declaration orders, seeded from its ID where no
     correlation key identifies it, a choice on a recurrence or past `MaxDepth` taking the first
     variant or member from which a value ends, so a required recursive union ends, and the same in
-    the docs, the samples, an SDK's tests and the mock. A synthesized model holds each member's own
-    first value and a list its set's values in turn, distinct where `uniqueItems` or a map's keys
+    the docs, the samples, an SDK's tests and the mock. A synthesized model holds for each member
+    the first value, of its own set and then of the sets of the declarations its flattening
+    overrides, that every declaration of it admits, else its own set's first, so a member a later
+    conjunct redeclares as a plain string keeps the value an earlier one pins and a failure schema's
+    `success: false` stands over the success shape's `true`, a model narrowing a union a value of
+    one of its entries, chosen as a variant is and the same in both declaration orders, so
+    `rulesets_ResponseRule` has one carrying the tag routing to its variant, and a model adding
+    nothing to its union its union's set where it adds no constraint to it, else a value of one of
+    the union's variants, and a list its set's values in turn, distinct where `uniqueItems` or a
+    map's keys
     require it, a `uniqueItems` list left below its minimum unsynthesizable, a declared one whole
     and a synthesized one cut to the depth the bound leaves, so an optional recursive member ends
     and a required `Nullable` one ends with `null`; the bounds cut only optional members and the
@@ -536,10 +568,22 @@ throughout these documents.
     model's `allOf` and the compiler distributes it; so do an undiscriminated union as a `Base`, a
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
-    `readOnly` member is in no create or patch shape of the model's. Read by a client under
-    `OpenUnions`, such a model keeps a variant its union does not list, and one whose variant holds
-    the model compiles, the union breaking the cycle. A model its union lists is that variant, a
-    model the union's sum holds. A model adding nothing to its union aliases it, and one narrowing
-    two unions, one whose union has a variant composing it or reaches itself through its variants,
-    and one over a key-tagged, enveloped or index-tagged union each draw a diagnostic and degrade
+    `readOnly` member is in no create or patch shape of the model's, and each variant composed
+    there requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists,
+    so each of `rulesets_ResponseRule`'s variants requires the five members the model requires
+    beside those its union's variant does, and a member only one of the union's variants redacts is
+    redacted in the variant composed over it alone. Adding a variant to the union renames no
+    variant composed there and no union nesting entries, each keyed by the model and its `Over`, or
+    the start of `Over` its entries share. Read by a client under `OpenUnions`, such a model keeps a
+    variant its union does not list, and one whose variant holds the model compiles, the union
+    breaking the cycle. Each target declares one variant for each entry of the model's
+    `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
+    them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
+    `description` hoists, narrows it as one naming the union does. A model its union lists is that
+    variant, a model the union's sum holds. A model adding nothing to its union aliases it, and one
+    narrowing two unions, one whose union has a variant composing it or reaches itself through its
+    variants, one over a key-tagged, enveloped or index-tagged union, and one whose entries, with
+    what their walks read, would pass `plan.MaxComposedSize`, among them one holding few members
+    over a long composition and one over unions nested deep, each beside one leaf, which `Build`
+    reports as `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
