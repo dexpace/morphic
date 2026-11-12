@@ -71,20 +71,25 @@ throughout these documents.
     group reach; under `SplitByGroup` with every group's operations failing with the runtime's
     failure value, and under `Partition` with a partition's model holding a runtime type, the units'
     imports form no cycle and build; with either rule on and with both off, the runtime's
-    declarations are in its unit, which imports none, and on Kotlin, code compiling against the
-    root project or any one module names the runtime's types its signatures use; groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; a union with a
-    variant in another unit compiles; two groups whose operations `AlsoMount` puts in each other's
-    client compile, the types those operations reach in the shared unit; and every partition error
-    and warning of [output units](../refine/output-units.md) has a fixture that draws it.
+    declarations are in its unit, which imports none, and on Kotlin, code compiling against the root
+    project or any one module names the runtime's types its signatures use; groups whose names
+    render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
+    get distinct units; a union with a variant in another unit compiles; two groups whose operations
+    `AlsoMount` puts in each other's client compile, the types those operations reach in the shared
+    unit; and every partition error and warning of [output units](../refine/output-units.md) has a
+    fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
-    reserves, after characters alone and after names that begin with a digit, and its groups after
-    the standard-library packages its files import, after every units name and after each name a
-    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
-    generates code that compiles on every target, with every template's declared names held to what
-    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
+    reserves, after characters alone and after names that begin with a digit, two of its types in
+    each unit and two variants of each union in names that differ in letter case alone, from each
+    other and from a name the scope reserves, one of its types in each unit after each file a
+    template writes there, and its groups after every units name, after each name a Kotlin build
+    keeps at its root ([output units](../targets/kotlin/overview.md#output-units)) and after the
+    standard-library packages its files import, generates code that compiles on every target, no two
+    of its paths, an artifact's or a class file's, folding alike, the Go file holding two such types
+    byte-identical in both declaration orders, with every template's declared names held to what it
+    binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
     options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
     leave every module's sources, no path the build writes, an artifact's or a class file's, has a
     Windows device name for a segment, and the Multiplatform framework links, its header holding
@@ -327,8 +332,10 @@ throughout these documents.
     `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
     suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
     suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
-    is passed over; and on Multiplatform a type added in another unit, its ID sorting first, leaves
-    an incumbent's Objective-C name as it shipped
+    is passed over; a type added in a name differing from a shipped one's in letter case alone, its
+    ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; and on
+    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
+    Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
     spec reformatted, one drawing a warning among them, is the same generation; a generated file
