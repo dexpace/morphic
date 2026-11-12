@@ -354,6 +354,11 @@ content over the others its ranking places with it ([one election](responses.md#
 the request an SDK builds is the one the relaxation was read from. A mock reads a body by the
 content it arrives as, and accepts either.
 
+A patch shape sends a member or leaves it out, and leaves its nullability the schema's. A merge
+patch removes a member by sending `null` (RFC 7396 §2), which a caller can write only where the
+member is declared nullable. Removing any other is outside what the shape offers: the schema typing
+the body admits no `null` there, and a document that means removal declares the member nullable.
+
 No compiler sets the field today, and the plan reads nil as stating nothing, since an emitter sees a
 binding and never the format behind it (INV1), so one default has to serve every format. The IR's
 own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
@@ -374,7 +379,7 @@ smaller key would elect: without the election above no request would go out rela
 a Worker would still restate its six. Four readings lost to this one:
 
 - **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of the
-  78, and over all a patch shape reaches it relaxes 359 members of 217 models.
+  78, and over all a patch shape reaches it relaxes 346 members of 213 models.
 - **None does unless the binding says so.** It is wrong for the two merge patches and for any
   document reusing a resource's schema that way, and the caller it fails has no way to send a
   partial edit.
@@ -385,7 +390,7 @@ a Worker would still restate its six. Four readings lost to this one:
   type says nothing of the members a body leaves out, and which content is the merge patch's twin is
   a second guess: three of the six pairs are two inline schemas, alike only member by member.
 
-Under this rule a patch shape reaches 61 models there and relaxes 50 members of 22 of them, and the
+Under this rule a patch shape reaches 54 models there and relaxes 49 members of 21 of them, and the
 two merge patches are the only bodies relaxed whose top-level model requires a member. A merge patch
 whose schema was written for the patch and requires a member is relaxed too, and the server then
 refuses what the SDK let through; turning `MergePatch` off restores what the schema says. T-59 holds
@@ -435,13 +440,26 @@ shape's `Name` is the words its declaration adds to its type's own:
    class's `<class>:<member>` its class's and then its member's. A `POST` body is `UserCreate`, a
    `PUT`'s `UserCreateUpdate`, a `PATCH`'s `UserUpdate`, and a merge patch's `UserUpdatePatch`.
 
+Only a kind whose declaration spells its members' types takes one for a shape: a model, a union and
+a tuple's positional form. An enum, a scalar, a literal and an external type keep their one
+declaration, under their own name, whatever shape reaches them, since a shape chooses which members
+a model holds and nothing about a value of theirs; a list and a map declare nothing; and a decorator
+takes none, each reference to it being one to its base ([decorators](../refine/decorators.md)).
+
 Where such a shape's projection of the type coincides with the read projection, `ModelShape.Alias`
 is set and its declaration is an alias of the type's own, `type UserCreate = User` in Go and a
 `typealias` in Kotlin, which declares no second type
 ([Go](../targets/go/models.md#a-shape-that-is-an-alias),
 [Kotlin](../targets/kotlin/models.md#a-shape-that-is-an-alias)). A signature names the shape either
 way, so the name a caller writes for a request is the same before and after its projection leaves
-the read one. The docs give shapes that coincide one table, which names each of them ([what the docs
+the read one. That holds for each name a caller writes to build the value, a union's variants
+among them: Go aliases the union's interface and each wrapper and declares each factory under the
+shape's name, and Kotlin reaches a model's factory and a union's, one for each variant, through the
+alias. It does not hold for a class Kotlin nests, a builder or a variant's wrapper, which no
+`typealias` reaches: a caller naming one writes the type's own, `User.Builder`, and changes that
+line when the projections part.
+
+The docs give shapes that coincide one table, which names each of them ([what the docs
 render](../docs-and-mock.md#what-the-docs-render)).
 
 A type no shape reaches keeps its own name. The words are neutral, and each target cases them with
@@ -491,18 +509,20 @@ same members, or two aliases. Five other ways of naming lost:
 
 The aliases are the cost, and they are most of the names. On the golden spec (spec @bc6fad24,
 morphic @fa253fe19), OpenAPI's `readOnly` and `writeOnly` give 1,629 properties a visibility, and
-435 of the types operations reach, 403 models and 32 unions, are written in a shape that leaves the
-read projection. They take 447 such projections and 689 declarations: 233 `Create`, 232
-`CreateUpdate`, 181 `Update` and 43 `UpdatePatch`, 242 more than one declaration for each projection
-would be. Beside them 3,226 types take 4,466 aliases: 2,247 `Create`, 1,280 `CreateUpdate`, 802
+420 of the types operations reach, 388 models and 32 unions, are written in a shape that leaves the
+read projection. They take 432 such projections and 673 declarations: 230 `Create`, 231
+`CreateUpdate`, 176 `Update` and 36 `UpdatePatch`, 241 more than one declaration for each projection
+would be. Beside them 3,170 types take 4,407 aliases: 2,216 `Create`, 1,264 `CreateUpdate`, 790
 `Update`, 26 `UpdatePatch`, 81 `Query` and 30 `Delete`, counted over each model and union that a
-parameter, a request content, a response content or a response header reaches. No name of either
-sort collides with a named type's own. Between two revisions of that spec (@149d53ea and @bc6fad24),
-18 of the 12,893 pairs of a type and a shape that both hold crossed that line, in 13 types: 14 left
-the read projection, as the `subdomain` of `workers_Worker` did on gaining a `readOnly` `url`, and 4
-returned to it. The first rejected rule renames all 18. No operation reads 166 of the 435, which the
-fourth would rename when one does, and 169 are written under `update` alone or under `create` and
-`update` alone, which the third would rename when a `POST` joins. T-60 holds the rule.
+parameter, a request content, a response content or a response header reaches, a decorator read
+through to its base; the document holds no tuple. A union's are 512 of them, over 1,715 variants,
+each a wrapper's alias more in Go. No name of either sort collides with a named type's own. Between
+two revisions of that spec (@149d53ea and @bc6fad24), 18 of the 12,688 pairs of a type and a shape
+that both hold crossed that line, in 13 types: 14 left the read projection, as the `subdomain` of
+`workers_Worker` did on gaining a `readOnly` `url`, and 4 returned to it. The first rejected rule
+renames all 18. No operation reads 153 of the 420, which the fourth would rename when one does, and
+every shape that writes 166 of them is `update`, or every one `create` and `update`, which the third
+would rename when a `POST` joins. T-60 holds the rule.
 
 ## A model with lifecycle visibility
 

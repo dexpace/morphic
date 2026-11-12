@@ -66,19 +66,33 @@ A shape whose projection coincides with the read one
 file of `User`, and each signature names the alias: `go doc` shows `func Create(b shared.UserCreate)
 string`. A caller in another module that built `shared.UserCreate{Name: "Ada"}` compiled before and
 after `UserCreate` became a struct of its own, where one that built a `shared.User` for the same
-call stopped with `cannot use … as shared.UserCreate value` (Go 1.27.3). T-60 holds it.
+call stopped with `cannot use … as shared.UserCreate value` (Go 1.27.3).
+
+A union's alias brings every name the union declares in its unit ([unions](unions.md)): `type
+PaymentCreate = Payment`, `type PaymentCreateVariant = PaymentVariant`, an alias for each wrapper,
+the fallback's among them, `type PaymentCreateCard = PaymentCard`, and a function for each factory,
+`func NewPaymentCreateCard(v CardCreate) PaymentCreate`, which calls the type's own. A caller that
+built `sdk.PaymentCreate{Value: sdk.PaymentCreateCard{Value: sdk.CardCreate{…}}}`, called a factory
+and switched over a `sdk.PaymentCreateVariant`, one variant's type in another unit, compiled before
+and after the three became declarations of their own. With the struct aliased alone, the same
+caller had only `sdk.PaymentCard` to write and stopped at the split (`PaymentCard does not implement
+PaymentCreateVariant`). An inclusive union's alias is its struct's alone, its variants being fields.
+T-60 holds this section.
 
 ## Nesting
 
 json/v2 refuses a value nested past 10,000 levels, decoding and encoding (`jsontext: exceeded max
 depth`), and no option moves that bound, which is where the range of [the
 limit](../../refine/models.md#how-deep-a-value-nests) ends. Below it the runtime counts for itself:
-before it decodes a text and after it encodes one it scans the bytes once, counting the objects and
-arrays open outside a string, and refuses one nested past `MaxDepth`, a response as a body that does
-not decode and a request with an error, nothing sent. The scan took 1.6 ms on a 1.1 MB body that
-json/v2 decoded in 6.7 ms, and a value at json/v2's bound decoded in 3 ms on a goroutine's stack,
-which grows as it needs (Go 1.27.3, darwin/arm64). A count kept in each model's `UnmarshalJSONFrom`
-would miss an `any` position, which json/v2 decodes with no code of the SDK's.
+before it decodes a text it scans the bytes once, counting the objects and arrays open outside a
+string and the values, and refuses one nested past `MaxDepth` or holding more than `MaxValues` as a
+body that does not decode. It encodes through a writer that scans the same way as the bytes arrive,
+so an encode ends at the first byte past either limit, with an error and nothing sent: a value
+sharing each child at 60 levels, 2^60 values as JSON, was refused in 0.4 s at the default. The depth
+scan took 1.6 ms on a 1.1 MB body that json/v2 decoded in 6.7 ms, and a value at json/v2's bound
+decoded in 3 ms on a goroutine's stack, which grows as it needs (Go 1.27.3, darwin/arm64). A count
+kept in each model's `UnmarshalJSONFrom` would miss an `any` position, which json/v2 decodes with no
+code of the SDK's.
 
 A caller can build a value that holds itself, through a pointer, a slice or a map. Encoding refuses
 it (`encountered a cycle`). Printing must not follow it: Go ends the process on a stack overflow
@@ -86,10 +100,14 @@ it (`encountered a cycle`). Printing must not follow it: Go ends the process on 
 value's `String` did so on a model whose pointer led back to it. So each model, union struct,
 wrapper and positional struct declares `Format(fmt.State, rune)`, which `fmt` asks before `String`
 and for every verb, and renders its members itself, calling a nested value's `Format` with a state
-that carries the level; at `MaxDepth` levels it writes `...` and returns. `String` and `GoString`
-print through it and `LogValue` returns its text, so all three end. Measured so, a value holding
-itself through a pointer, a slice and a map each printed 64 levels and stopped, as did one held from
-another unit, and `%d`, `%x` and `%q` showed a redacted member as `%v` does. The state is a type of
+that carries the level and a count of the values the whole print has written; at `MaxDepth` levels,
+and once that count passes `MaxValues`, it writes `...` and returns. `String` and `GoString` print
+through it and `LogValue` returns its text, so all three end, and a caller sees `...` where the
+value went on. Measured so, a value holding itself through a pointer, a slice and a map each printed
+64 levels and stopped, as did one held from another unit, and `%d`, `%x` and `%q` showed a redacted
+member as `%v` does. The level alone does not end a print: a value holding itself twice would write
+2^64 values within it, and with the count unread 26 levels took 67 million calls and 7.7 s, where
+the count stopped it after 16,777,217 calls, 168 MB and 1.4 s. The state is a type of
 the module's own under `internal/`, which no caller can name, and `Format` is a name no member takes
 ([reserved names](naming.md#reserved-names)), as `String` is: 20 properties of the golden spec are
 named `format` (spec @bc6fad24). Go generates no hash and no comparison of a model: `==` compares a

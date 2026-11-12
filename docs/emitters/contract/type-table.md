@@ -141,6 +141,30 @@ thirteen bytes can name a billion digits. `number`, `float` and `decimal` rows r
 already. Each target says how its rows read ([Go](../targets/go/types.md#integers),
 [Kotlin](../targets/kotlin/types.md#integers)), and T-61 holds the rule.
 
+## A map's key is text
+
+A JSON object's member name is a string, so a key that `MapT.Key` or a catch-all's `Key` types
+travels as [the text of its value](../refine/text.md#the-text-of-a-value) and is read as [a text
+is](../refine/text.md#reading-a-text), whatever its row does with a value in a body: an integer key
+1 is the name `"1"` and reads back from `"1"`, `"1.0"` and `"1e0"`, a boolean's is `"true"`, an
+enum's its member's wire text, a number's or a string's included, and a date's its string, on every
+target, in an SDK and in a mock. Two names of one object that read as one key are refused as a
+duplicate name is. A key whose type has no text, a model's, a list's, a map's or an `any`, stays
+the diagnosed degrade it was.
+
+Neither first target's library does this unaided (Go 1.27.3; kotlinx-serialization-json 1.11.0 on
+Kotlin/Native 2.4.0). json/v2 writes and reads an integer key in plain digits, refuses a `bool` key
+both ways (`object member name must be a string`), and hands a registered reader, or a defined
+type's own codec, the name as a string, which the integer reader above refuses as it refuses any
+string: `map[int64]string` read `{"1":"a"}` with json/v2 alone and failed under the reader (`unable
+to unmarshal into Go *int64 within "/1"`). kotlinx quotes a `Long` and a `Boolean` key, refuses the
+name `"1.0"`, and a serializer reading through `decodeJsonElement()` sees a name as it sees a string
+value, so the by-value serializer and an integer enum's refused the key `"1"`. Each target says how
+it reads a name ([Go](../targets/go/types.md#integers),
+[Kotlin](../targets/kotlin/types.md#integers)). Protobuf's `map<int64, V>` and `map<bool, V>` write
+such keys in JSON; the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds
+the rule.
+
 ## What a built-in row writes
 
 A built-in row's codec writes each string-spelled value in one spelling, in a body and as text alike

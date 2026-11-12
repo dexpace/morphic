@@ -138,10 +138,12 @@ type RequestGuard struct {
 }
 
 type Nesting struct {
-    MaxDepth int             // the objects and arrays, one inside another, of a JSON text the
+    MaxDepth  int            // the objects and arrays, one inside another, of a JSON text the
                              // runtime reads or writes; default 64; 1 to 10000; 0 is outside
                              // the range, as any other value is; a target that cannot hold to
                              // a value reports it, and none reads to another depth (below)
+    MaxValues int            // the values of one such text, a member's name counting none;
+                             // default 16777216; 1 to 2147483647 (below)
 }
 
 type Duration int64          // milliseconds; in JSON digits and a unit, "ms", "s" or "m": "500ms"
@@ -495,11 +497,15 @@ for the run, as the plan's are reported.
 error's and a stream's frame, and writes a request's
 ([models](../refine/models.md#how-deep-a-value-nests)). Its default is what each first target was
 shown to decode, encode, print, hash and compare on a small stack of its platform: a goroutine's,
-which grows, 256 KB on the JVM, and on Kotlin/Native the 512 KB an Apple platform gives a thread
+which grows, 256 KB on the JVM, and on Kotlin/Native the 512 KB an Apple platform gives a thread,
+the runtime moving to a stack it sizes where a value needs more
 ([Go](../targets/go/models.md#nesting), [Kotlin](../targets/kotlin/models.md#nesting)). The range
-ends at 10,000, which json/v2 fixes. An operation's value bounds its own request and responses, and
-what belongs to no operation, a value printed, hashed or compared, is bounded by the largest value
-any operation resolves to.
+ends at 10,000, which json/v2 fixes. `Nesting.MaxValues` is how many values one such text may hold,
+which bounds the work a value holding one child many times can ask for; its default refuses no text
+under 32 MB, a value and its separator taking two bytes at least, and its range ends where a Kotlin
+`Int` does. An operation's two values bound its own request and responses, and what belongs to no
+operation, a value printed, hashed or compared, is bounded by the largest of each any operation
+resolves to.
 
 A target reports a value it cannot hold to as [a setting that cannot
 apply](#a-setting-that-cannot-apply) and generates no reader for another depth in its place. Go and

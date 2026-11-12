@@ -86,7 +86,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   property's, a method's and an enum entry's exported name as [Swift](swift.md) says. A member that
   meets one keeps its Kotlin name and takes an explicit Objective-C and Swift name.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder`, `Companion` and `jsonDepth`, the depth a
-  value records ([nesting](models.md#nesting)).
+  value records ([nesting](models.md#nesting)), and `jsonValues`, the count it records beside it.
 
 The names a unit declares, a union's variants and the methods an operation lowers to on a client or
 a receiver are compared by the path fold ([emit rules](../../emit/rules.md),
@@ -115,7 +115,9 @@ A model's properties are no class, and a builder's setters, named for them, hold
 keep names apart by case. A file holding a declaration that is no class, a `typealias`, gets a class
 of kotlinc's named for the file, `MoneyKt` for `Money.kt`, which a spec class `MoneyKt` beside it
 met ("duplicate JVM class name 'p/MoneyKt'"); so that file names it for the alias with
-`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. A
+`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. That
+is the only class a unit's file gets from kotlinc, since none declares a function or a property at
+its top level and each alias has a file of its own ([models](models.md#a-shape-that-is-an-alias)). A
 failure kind's exception is a class too, named for its kind in `Policy.Errors`
 ([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
 letter case alone would share a class file: measured with Kotlin 2.4.0 on a file system that ignores

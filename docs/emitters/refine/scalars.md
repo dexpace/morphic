@@ -2,9 +2,9 @@
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists and maps keep their bounds; `List.Encoding` (packed/expanded)
-  reaches the serializer; a nil `MapT.Key` is a string key, and a non-string one is handled or
-  diagnosed; tuples take a positional form whose positions past `Constraints.MinItems` are optional
-  and whose `Rest`, when present, trails them.
+  reaches the serializer; a nil `MapT.Key` is a string key, and any other is its value as text ([a
+  map's key](../contract/type-table.md#a-maps-key-is-text)); tuples take a positional form whose
+  positions past `Constraints.MinItems` are optional and whose `Rest`, when present, trails them.
 - **Scalars**: the plan walks `Base` transitively once (`TypePlan.Scalar`), merging `Constraints`
   and settling `Encoding`, so the SDK, its docs and its mock read one chain; `ResolveScalarChains`
   lowers what it found, the root typed by the type table ([type table](../contract/type-table.md)).

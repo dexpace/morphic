@@ -28,8 +28,14 @@ an exponent under the SDK's `Json`, under a caller's own and from a `JsonElement
 member without it refuses `5.0`. On a 173 KB body of 2,000 models holding fourteen integers each,
 decoding took 0.95 ms with kotlinx alone and 1.90 ms through the serializer (Kotlin 2.4.0,
 kotlinx-serialization-json 1.11.0, JVM 25). kotlinx offers no cheaper seam: its `Long` decoder
-cannot be asked to try and fall back, since a refused literal has already been consumed. T-61 holds
-this section.
+cannot be asked to try and fall back, since a refused literal has already been consumed.
+
+A map's key names the row's text serializer instead, a `KSerializer` over a string that writes [the
+value's text and reads one](../../contract/type-table.md#a-maps-key-is-text), and never the row's
+`Codec`, which cannot tell a name from a string value. The map itself codes through the runtime's
+serializer for a typed key, which refuses a second name reading as a key it holds, where kotlinx's
+own kept the last of `{"1": …, "1.0": …, "1e0": …}` under such a key serializer. T-61 holds this
+section.
 
 ## Bytes
 
@@ -109,5 +115,6 @@ so a value class would leave a Swift caller no enum type at all.
 
 An enum with no members ([enums](../../refine/enums.md#an-enum-with-no-members)) is an `enum class`
 with no entries, which Kotlin compiles and whose serializer, the plugin's or the generated one,
-refuses every value: measured with Kotlin 2.4.0 and `kotlinx.serialization` 1.8.0, a nullable
-property of one decoded where it was absent and threw on `"x"`. No value of it exists to encode.
+refuses every value: measured with Kotlin/Native 2.4.0 and kotlinx-serialization-json 1.11.0, a
+nullable property of one decoded where it was absent and threw on `"x"`. No value of it exists to
+encode.

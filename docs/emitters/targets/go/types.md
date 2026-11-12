@@ -51,6 +51,15 @@ an integer, a scalar's or an enum's, declares the pair itself, since a function 
 `int64` is not called for a type defined over it, and the client decodes a body that is an integer,
 or a list or map of them, under the same readers.
 
+A name reaches a reader as a string token, where a value's reader refuses a string. So each reader,
+and each defined type's pair, asks the decoder where it stands (`jsontext.Decoder.StackIndex`: in an
+object, an even count of tokens read) and reads a name as [a map's
+key](../../contract/type-table.md#a-maps-key-is-text) is read; a `bool` key and a defined integer
+type's, which json/v2 refuses to write, go out through a writer that asks the encoder the same. With
+them `map[int64]V`, `map[bool]V` and a map keyed by an integer enum, a string enum and a date each
+wrote and read their names, `{"1.0": …}` read as the key 1 inside a nested map, `{"N": "1"}` was
+still refused for an `int64` field, and json/v2 refused `{"1": …, "1e0": …}` as a duplicate name.
+
 On a 242 KB body of 2,000 models holding thirteen integers each, decoding took 2.25 ms with json/v2
 alone and 2.97 ms under the readers, with no allocation more; registering an unmarshaler that
 matches nothing accounts for 0.29 ms of that (Go 1.27.3, darwin/arm64). Three other placements lost.

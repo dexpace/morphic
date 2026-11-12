@@ -522,9 +522,9 @@ member and operation:
   to the depth the bound leaves, so a property's value is the same alone and inside its model
   wherever the bound leaves it whole and no other declaration of it refuses it, and an optional
   recursive member ends. The bounds cut only what validity leaves optional ([plan
-  policy](plan/policy.md)): an optional member more than `MaxDepth` models deep, and the entries of
-  a list or map past the larger of `MaxItems` and its minimum, or past its minimum alone once it
-  lies deeper than `MaxDepth` or on a recurrence of its own type along the value, so a recursion
+  policy](plan/policy.md)): an optional member more than `ExamplePolicy.MaxDepth` models deep, and
+  the entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
+  alone once deeper than that or on a recurrence of its own type along the value, so a recursion
   through no model, as the golden spec's `cws_JSONValue` map and list recur, ends too, so a required
   list of its own model ends: the golden spec's `cloudforce-one_TreeNode` requires `children`, a
   list of `TreeNode`, which holds none past that depth. A required member is filled as deep as its
@@ -556,8 +556,8 @@ member and operation:
 - **Stable.** Each choice the synthesizer makes, such as which enum member, which variant or which
   entry of a model narrowing a union, is seeded from the entity's [correlation
   key](../ir/derived-facts.md#correlation-keys), or from its ID where no key identifies it, save on
-  a recurrence of its type along the value or deeper than `MaxDepth`, where it takes the first
-  variant, entry or member, in source order, from which a value ends.
+  a recurrence of its type along the value or deeper than `ExamplePolicy.MaxDepth`, where it takes
+  the first variant, entry or member, in source order, from which a value ends.
   So a required recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches
   itself through a variant requiring a non-empty list of it. So a value is the same in either
   declaration order, and on every regeneration until the entity's schema, its key, or its ID where

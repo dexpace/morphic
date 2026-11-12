@@ -221,7 +221,9 @@ number is compared as JSON compares values ([a member on the wire](enums.md#a-me
 with each route whose text spells a number, by value and exactly, read off the two literals' digits
 and never through a float: `10016.0` and `1.0016e4` route as `10016` does, as the member's own
 integer row reads them ([type
-table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)). A boolean is compared
+table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)). Two routes whose
+texts spell one number, `1` and `1.0`, both meet such a tag, which takes the one whose text is its
+own literal and, failing that, the first by the mapping's keys in byte order. A boolean is compared
 with `true` and `false`. Comparing a number's literal as text would refuse `{"code": 10016.0}` at a
 closed union, with no variant for the tag `10016.0`, where the variant pinning `code` to 10016 reads
 that member as 10016. T-56 holds it.

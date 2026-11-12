@@ -162,8 +162,8 @@ throughout these documents.
     it with a coded error, and a known tag over a body that does not match is an error on both;
     turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
     answer, once the IR has one, wins; a closed union only requests carry is `Open` as one a
-    response carries is, and one the IR marks `InputOnly` stays closed ([plan
-    policy](../plan/policy.md), [unions](../refine/unions.md)).
+    response carries is, and a union, a polymorphic base and a narrowing model the IR marks
+    `InputOnly` each stay closed ([plan policy](../plan/policy.md), [unions](../refine/unions.md)).
 23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
     model with a member named `error`, a union, a list and a primitive, beside a case with no body,
     a `4XX` range and a `default` beside a success, generates no error type and code that compiles
@@ -603,10 +603,10 @@ throughout these documents.
     validation-only constructs, as `browser-rendering`'s body holding `url` or `html` and never
     both, a value failing them left out and reported and a declared one refused, marked `Inferred`,
     identical across regenerations and in both declaration orders, seeded from its ID where no
-    correlation key identifies it, a choice on a recurrence or past `MaxDepth` taking the first
-    variant or member from which a value ends, so a required recursive union ends, and the same in
-    the docs, the samples, an SDK's tests and the mock. A synthesized model holds for each member
-    the first value, of its own set and then of the sets of the declarations its flattening
+    correlation key identifies it, a choice on a recurrence or past `ExamplePolicy.MaxDepth` taking
+    the first variant or member from which a value ends, so a required recursive union ends, and the
+    same in the docs, the samples, an SDK's tests and the mock. A synthesized model holds for each
+    member the first value, of its own set and then of the sets of the declarations its flattening
     overrides, that every declaration of it admits, else its own set's first, so a member a later
     conjunct redeclares as a plain string keeps the value an earlier one pins and a failure schema's
     `success: false` stands over the success shape's `true`, a model narrowing a union a value of
@@ -614,19 +614,19 @@ throughout these documents.
     `rulesets_ResponseRule` has one carrying the tag routing to its variant, and a model adding
     nothing to its union its union's set where it adds no constraint to it, else a value of one of
     the union's variants, and a list its set's values in turn, distinct where `uniqueItems` or a
-    map's keys
-    require it, a `uniqueItems` list left below its minimum unsynthesizable, a declared one whole
-    and a synthesized one cut to the depth the bound leaves, so an optional recursive member ends
-    and a required `Nullable` one ends with `null`; the bounds cut only optional members and the
-    entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
-    deeper than `MaxDepth` or on a recurrence of its type, so a model requiring a list of itself and
-    a recursion through no model, as `cws_JSONValue`'s, end, so a required member nested deeper than
-    `MaxDepth` and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot
-    make valid, a required cycle among them, or holding more than `plan.MaxExampleValues` values is
-    `emitters/plan/example-unsynthesized` and left out; with `Synthesize` and `Assemble` off, no
-    entry of `Plan.Examples` is `Inferred`, and with `Synthesize` off a response content left with
-    none is `emitters/mock/example-missing`, never a body it invents; and a negative bound is
-    `emitters/plan/policy-invalid` ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+    map's keys require it, a `uniqueItems` list left below its minimum unsynthesizable, a declared
+    one whole and a synthesized one cut to the depth the bound leaves, so an optional recursive
+    member ends and a required `Nullable` one ends with `null`; the bounds cut only optional members
+    and the entries of a list or map past the larger of `MaxItems` and its minimum, or past its
+    minimum deeper than `ExamplePolicy.MaxDepth` or on a recurrence of its type, so a model
+    requiring a list of itself and a recursion through no model, as `cws_JSONValue`'s, end, so a
+    required member nested deeper than `ExamplePolicy.MaxDepth` and a `minItems` or `minProps` above
+    `MaxItems` are met; one the synthesizer cannot make valid, a required cycle among them, or
+    holding more than `plan.MaxExampleValues` values is `emitters/plan/example-unsynthesized` and
+    left out; with `Synthesize` and `Assemble` off, no entry of `Plan.Examples` is `Inferred`, and
+    with `Synthesize` off a response content left with none is `emitters/mock/example-missing`,
+    never a body it invents; and a negative bound is `emitters/plan/policy-invalid` ([one set of
+    examples](../docs-and-mock.md#one-set-of-examples)).
 43. **T-43 · Redaction** — on every target, a value redacted through `Property.Secret`, through
     `Parameter.Secret` and a response header's `Secret`, through a sensitive component and a type
     whose `Base` reaches one, through a list's sensitive element and a map's sensitive key and
@@ -899,15 +899,16 @@ throughout these documents.
     variant two tags route to writes the one its value holds and refuses, with a coded error, a
     value holding neither; a variant pinning its tag as a number is routed by that number's value, a
     payload spelling it `10016.0` or `1.0016e4` decoding at a closed union as `10016` does and one
-    carrying it as the string `"10016"` failing in that variant; a variant that is a union carries
-    the outer union's tag in the object its value is, added where that object has no such member;
-    and a variant no tag routes to decodes by recognition, before `Default`, in a union declaring a
-    `Default` too, where a value no such variant admits decodes as `Default`, and refuses to encode
-    a value carrying another variant's tag, as `Default`'s variant refuses one such a variant
-    admits. Every example the plan synthesizes for a variant, and every member `plan.Shown` fills,
-    carries one of that variant's own tags and decodes as the variant it was made from, one whose
-    member's set lists another variant's tag first among them, and a declared example that the
-    variant its tag routes to does not admit is `emitters/plan/example-refused`
+    carrying it as the string `"10016"` failing in that variant; of two routes spelling one number,
+    `1` and `1.0`, a payload's `1.0` takes the second and its `1e0` the first; a variant that is a
+    union carries the outer union's tag in the object its value is, added where that object has no
+    such member; and a variant no tag routes to decodes by recognition, before `Default`, in a union
+    declaring a `Default` too, where a value no such variant admits decodes as `Default`, and
+    refuses to encode a value carrying another variant's tag, as `Default`'s variant refuses one
+    such a variant admits. Every example the plan synthesizes for a variant, and every member
+    `plan.Shown` fills, carries one of that variant's own tags and decodes as the variant it was
+    made from, one whose member's set lists another variant's tag first among them, and a declared
+    example that the variant its tag routes to does not admit is `emitters/plan/example-refused`
     ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 57. **T-57 · What a mock accepts** — the mock accepts every example the plan holds for a request,
     shown in the shape its operation sends, and refuses a body narrowing a discriminated union that
@@ -940,9 +941,10 @@ throughout these documents.
     patch; an operation offering both contents sends the merge patch, a request built without the
     members the `application/json` schema requires going out under that media type and accepted by
     the mock, with `RequestContent` marked `Inferred`, and sends `application/json`, requiring them,
-    where the ranking names that media type by itself or the policy is off; turning
-    `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST` sent as a merge
-    patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
+    where the ranking names that media type by itself, the policy is off, or the binding's
+    `PatchImplicitOptionality` points at `true` or at `false`, either of which elects nothing;
+    turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST` sent as
+    a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes), [one
     election](../plan/responses.md#one-election)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
     read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
@@ -952,30 +954,37 @@ throughout these documents.
     its own name, with an alias of that declaration for each shape that writes it, which each
     signature names, and giving one member a `readOnly` marker turns those aliases into declarations
     under the names and keys they had, a caller's program in another module that builds each request
-    by its shape's name compiling before and after on Go and on Kotlin, the Swift export showing no
-    alias; a model only a `PUT` writes, with a `readOnly` member, is `UserCreateUpdate` with no
-    `User` beside it, and adding a `POST`, then an operation returning it, renames no declaration
-    and regenerates the earlier ones byte for byte; a custom lifecycle `<class>:<member>` gives its
-    class's words and then its member's; a filter an operation names for its view is named as a
-    method's is; a component the source calls `UserCreate` keeps that name in either declaration
-    order and the shape takes a suffix, while one added after a generation shipped the shape's
-    `UserCreate` takes the suffix itself; two custom lifecycles whose words join alike, `Foo:BarBaz`
-    and `FooBar:Baz`, give two declarations told apart by a suffix; two lifecycles whose keys would
-    join alike, one holding a `,`, key apart; and the `create` shape of a property `x`'s type keys
-    apart from the type of a property `x#create` beside it
-    ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).
+    by its shape's name compiling before and after on Go and on Kotlin, a union among what it
+    builds, whose variant it names in Go by the shape's wrapper, factory and interface and in Kotlin
+    by the factory an alias reaches, the Swift export showing no alias; an enum, a scalar and a
+    literal a shape reaches are declared once, under their own names, and a decorator not at all; a
+    Kotlin unit holding spec classes `UserKt` and `UserCreateKt` beside `User` and its alias builds
+    on the JVM and as a framework, whose header names both as written, no generated file there
+    declaring a function or a property at its top level; a model only a `PUT` writes, with a
+    `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`, then an
+    operation returning it, renames no declaration and regenerates the earlier ones byte for byte; a
+    custom lifecycle `<class>:<member>` gives its class's words and then its member's; a filter an
+    operation names for its view is named as a method's is; a component the source calls
+    `UserCreate` keeps that name in either declaration order and the shape takes a suffix, while one
+    added after a generation shipped the shape's `UserCreate` takes the suffix itself; two custom
+    lifecycles whose words join alike, `Foo:BarBaz` and `FooBar:Baz`, give two declarations told
+    apart by a suffix; two lifecycles whose keys would join alike, one holding a `,`, key apart; and
+    the `create` shape of a property `x`'s type keys apart from the type of a property `x#create`
+    beside it ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).
 61. **T-61 · Integers by value** — on every target, a member of each integer kind, bare, optional,
     nullable, in a list, as a map's value, in a declaration over the kind and in a union's variant,
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
-    `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; refuses `1.5`,
-    `15e-1`, `1e-400`, the string `"1"`, the first value past each kind's range in plain digits and
-    in exponent form, and a negative number into an unsigned kind; reads each kind's least and
-    greatest value and 9007199254740993, in plain digits and in exponent form, to that exact value,
-    which no reader passing through a float does, and `0e99999999999999999999` as zero; refuses
-    `1e1000000000` and reads a literal a megabyte long that names 1, each within a time bound a
-    literal's expansion would pass; writes plain digits; reads a parameter's and a header's text by
-    the same table, in an SDK and in a mock; and leaves a caller's own decoder for an integer type
-    its precedence at any depth ([type
+    `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; as a map's key
+    reads the names `"1"`, `"1.0"` and `"1e0"` as 1, writes `"1"` and refuses an object holding two
+    of them, a boolean, an enum over a number, one over a string and a date each written and read as
+    a key by their text; refuses `1.5`, `15e-1`, `1e-400`, the string `"1"` where a value stands,
+    the first value past each kind's range in plain digits and in exponent form, and a negative
+    number into an unsigned kind; reads each kind's least and greatest value and 9007199254740993,
+    in plain digits and in exponent form, to that exact value, which no reader passing through a
+    float does, and `0e99999999999999999999` as zero; refuses `1e1000000000` and reads a literal a
+    megabyte long that names 1, each within a time bound a literal's expansion would pass; writes
+    plain digits; reads a parameter's and a header's text by the same table, in an SDK and in a
+    mock; and leaves a caller's own decoder for an integer type its precedence at any depth ([type
     table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
 62. **T-62 · Bytes compare by content** — on both Kotlin targets and from a Swift caller, two values
     decoded from the same `bytes` text are equal and hash alike as themselves, in a scalar's
@@ -985,20 +994,28 @@ throughout these documents.
     hash; and a `bytes` member still writes and reads its row's base64
     ([Kotlin](../targets/kotlin/types.md#bytes)).
 63. **T-63 · Nesting** — on every target, through the client, a response body, an error's body and a
-    stream's frame nested one level past `MaxDepth`, at its default and at a value a configuration
-    sets for one operation, through a recursive model's member, through its list, and through an
-    `any` position, each reach the caller as a body that does not decode, the status and the bytes
-    kept, on a thread with the smallest stack its target names, 256 KB on the JVM and 512 KB on
-    Kotlin/Native, and never as a crash or a stack overflow; a body at the limit decodes, and the
-    value then encodes, prints, hashes and compares on that thread; an opening bracket inside a
-    string counts for nothing, a string ending in an escaped backslash among them, the value after
-    it nested past the limit still refused; a value a caller builds past the limit is refused by the
-    client's encoder, nothing sent, and prints, hashes and compares without recursing into it, on
-    Kotlin/Native on a 64 KB stack; in Go a value holding itself through a pointer, a slice and a
-    map is refused by the encoder and printed by `String`, `GoString`, `LogValue` and every `fmt`
-    verb to the limit and no further; a Kotlin model built from a list its caller then changes keeps
-    its members and its hash; and a `MaxDepth` a target cannot hold to, one above 64 on
-    Multiplatform, is reported and none is read to another depth
+    stream's frame nested one level past `Nesting.MaxDepth`, at its default and at a value a
+    configuration sets for one operation, through a recursive model's member, its list and its map,
+    through an `any` position, through a union read as the target's JSON value, a union whose
+    variant is a union and a model with a catch-all, and through a model of 200 members, each reach
+    the caller as a body that does not decode, the status and the bytes kept, on a thread with the
+    smallest stack its target names, 256 KB on the JVM and 512 KB on Kotlin/Native, and never as a
+    crash or a stack overflow; a body at the limit decodes through each, and the value then encodes,
+    prints, hashes and compares on that thread, Kotlin/Native starting one thread for a call whose
+    depth times its type's cost passes 128 KB and none from a thread so started; a body holding one
+    value more than `Nesting.MaxValues` is refused the same way and one holding that many decodes, a
+    member's name counting none; an opening bracket inside a string counts for nothing, a string
+    ending in an escaped backslash among them, the value after it nested past the limit still
+    refused; a value a caller builds past the limit is refused by the client's encoder, nothing
+    sent, and prints, hashes and compares without recursing into it, on Kotlin/Native on a 64 KB
+    stack; a value a caller builds that holds one child twice at each of 60 levels is refused by the
+    encoder once it has written `Nesting.MaxValues` values, prints in Go as far as that many values
+    and then `...`, and in Kotlin prints its class, depth and count alone and equals only itself,
+    each within a time bound no walk of 2^60 values meets; in Go a value holding itself through a
+    pointer, a slice and a map is refused by the encoder and printed by `String`, `GoString`,
+    `LogValue` and every `fmt` verb to the limit and no further; a Kotlin model built from a list
+    its caller then changes keeps its members and its hash; and a `Nesting.MaxDepth` a target cannot
+    hold to, one above 64 on Multiplatform, is reported and none is read to another depth
     ([models](../refine/models.md#how-deep-a-value-nests)).
 64. **T-64 · The runtime's surface** — on every target, a caller's program built outside the SDK, as
     another Go module, another Gradle build and a Swift file against the framework, compiles while
