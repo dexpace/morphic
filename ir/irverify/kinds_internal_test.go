@@ -16,20 +16,32 @@ import (
 )
 
 // TestOperationPath_ListsEveryCarrier counts the fields of each type on
-// operationPath in the encoded shape, which reaches through every sealed sum, by
-// their type and however it is held: one more field is a path the checks
-// pruning to it skip, where an invented value would pass unread, so it fails here
-// until operationPath takes it.
+// operationPath, and on the paths below it to what checkInteractions and
+// checkPrefixHeaders read, in the encoded shape, which reaches through every
+// sealed sum, by their type and however it is held: one more field is a path
+// the checks pruning to it skip, where an invented value would pass unread, so
+// it fails here until the path takes it.
 func TestOperationPath_ListsEveryCarrier(t *testing.T) {
 	t.Parallel()
 	shape, err := os.ReadFile("../testdata/shape.golden.txt")
 	require.NoError(t, err)
 	for typeName, carriers := range map[string]int{
-		"StreamingMode":  1,
-		"Stability":      2,
-		"Operation":      1,
-		"OperationGroup": 2,
-		"Service":        1,
+		"StreamingMode":   1,
+		"Stability":       2,
+		"Operation":       1,
+		"OperationGroup":  2,
+		"Service":         1,
+		"InputPath":       4,
+		"Pagination":      1,
+		"StreamDetail":    2,
+		"StreamCondition": 1,
+		"Header":          3,
+		"PartEncoding":    2,
+		"Content":         1,
+		"Payload":         4,
+		"Response":        2,
+		"ErrorCase":       2,
+		"Message":         1,
 	} {
 		field := regexp.MustCompile(`(?m)^\t"[^"]+" \S*\b` + typeName + `\b`)
 		assert.Len(t, field.FindAllString(string(shape), -1), carriers, typeName)
@@ -50,6 +62,8 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 	for name, check := range map[string]func(*ir.Document) walkCheck{
 		"checkStreamingModes": checkStreamingModes,
 		"checkStability":      checkStability,
+		"checkInteractions":   checkInteractions,
+		"checkPrefixHeaders":  checkPrefixHeaders,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

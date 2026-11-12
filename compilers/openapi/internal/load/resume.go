@@ -4,7 +4,6 @@
 package load
 
 import (
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -119,11 +119,11 @@ func (w *resumeWork) refusal() error {
 
 // exhausted reports the budget crossed, once, at the document: which
 // reference crossed it follows the walk's order.
-func (w *resumeWork) exhausted(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
+func (w *resumeWork) exhausted(place provenance.Doc) []ir.Diagnostic {
 	if !w.steps.Exhausted() {
 		return nil
 	}
-	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
+	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, place.At(""),
 		"resolving reference chains through referenced documents takes more than %d steps; "+
 			"the $refs past them are reported unresolved", w.steps.Limit().Cap())}
 }

@@ -50,11 +50,11 @@ type TemplateArg struct {
 ```
 
 `Namespace` is a path, one segment per level, as `Service.Namespace` and `GraphQLBinding.FieldPath`
-([graphql-binding](./graphql-binding.md)) are. **No segment is blank** (`ir/path-segment-blank`): no
-namespace or field grammar has an empty level, so a source that spells one has written an invalid
-name, which its compiler reports rather than carries. A null or global namespace is the empty list,
-not one blank segment. A segment may repeat — `com.acme.acme` has three levels — so a path is not
-held to unique entries.
+([graphql-binding](./graphql-binding.md)) are. **No segment is blank** (`ir/path-segment-blank`;
+[what blank means](./naming.md#aliases)): no namespace or field grammar has an empty level, so a
+source that spells one has written an invalid name, which its compiler reports rather than carries.
+A null or global namespace is the empty list, not one blank segment. A segment may repeat —
+`com.acme.acme` has three levels — so a path is not held to unique entries.
 
 **Derived facts** — the subtypes of a model, the properties a type exposes, how each type is used,
 which types can hold themselves — are not stored on a type; `ir/irfacts` derives them from the

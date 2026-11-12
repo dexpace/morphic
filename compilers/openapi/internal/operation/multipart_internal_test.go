@@ -103,7 +103,7 @@ func TestBodySchemaPointer_AnotherDocumentsRefKeysInThatDocument(t *testing.T) {
 		assert.Equal(t, keyed{doc: ids.In("ext-form.yaml"), pointer: "/components/schemas/Form"}, keyedAt(l.ctx, js),
 			"the other document's position, in its own IDs")
 
-		unlisted := l.ctx.WithLoaded(&load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()})
+		unlisted := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
 		assert.Equal(t, local, keyedAt(unlisted, js),
 			"a landing in a document the compile did not list keeps the local pointer")
 	})
@@ -131,14 +131,11 @@ func TestBodySchemaPointer_NonUTF8FragmentStaysLocal(t *testing.T) {
 
 // TestBodySchemaPointer_UnresolvedRefStaysLocal pins another reason: a $ref
 // naming nothing lands nowhere, so it keys no encoding entry by a position the
-// document does not hold. A scope with no bindings lands none either.
+// document does not hold.
 func TestBodySchemaPointer_UnresolvedRefStaysLocal(t *testing.T) {
 	t.Parallel()
 	l, js := refSite(t, "#/components/schemas/Missing")
 	assert.Equal(t, local, keyedAt(l.ctx, js))
-
-	bare := newRawLowerer(&soa.OpenAPI{})
-	assert.Equal(t, local, keyedAt(bare.ctx, js), "a context that was given no bindings resolves no $ref")
 }
 
 // TestBodySchemaPointer_ExternalRefNoFragment pins that a $ref naming another
@@ -187,6 +184,30 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 	members := partMembers(reg, "t/model/cycle")
 	require.Contains(t, members, "file", "a model whose base closes on itself still has its own members")
 	assert.Equal(t, file.ID, members["file"].ID)
+}
+
+// TestPartMembers_AUnionBodyHasItsVariantsMembers pins a body standing for a
+// union, as one a composition is distributed across does, through an alias
+// too: its members are its variants', the first variant declaring a name naming
+// it, so a key names the body's own property on every variant.
+func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
+	t.Parallel()
+	shared := ir.Property{ID: "p/body/file", WireName: "file"}
+	first := ir.Property{ID: "p/one/x", WireName: "x"}
+	reg := ir.TypeRegistry{
+		"t/one":   &ir.Model{ID: "t/one", Properties: []ir.Property{shared, first}},
+		"t/two":   &ir.Model{ID: "t/two", Properties: []ir.Property{shared, {ID: "p/two/x", WireName: "x"}}},
+		"t/u":     &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/one"}}, {Type: ir.TypeRef{Target: "t/two"}}}},
+		"t/alias": &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}},
+		"t/nil":   (*ir.Union)(nil),
+	}
+	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
+		members := partMembers(reg, body)
+		require.Len(t, members, 2, "%s", body)
+		assert.Equal(t, shared.ID, members["file"].ID, "%s", body)
+		assert.Equal(t, first.ID, members["x"].ID, "the first variant declaring x names it: %s", body)
+	}
+	assert.Empty(t, partMembers(reg, "t/nil"), "a typed nil union stands for no members")
 }
 
 // TestBodyParts_RefHopBound covers the walk's $ref hop bound: past it the walk

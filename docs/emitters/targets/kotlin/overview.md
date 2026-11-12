@@ -35,7 +35,36 @@ Codecs are generated `KSerializer`s, the counterpart of Go's
 
 A Kotlin [unit](../../refine/output-units.md) is a package, and also a Gradle module of its own
 unless it is the root, since kotlinc compiles a module whole and a Multiplatform framework exports
-what its modules declare ([scale](scale.md)). A group's unit is `<root>.<group>`.
+what its modules declare ([scale](scale.md)). A group's unit is `<root>.<group>`, and each module is
+a project named for its unit, in the directory `modules/<name>` rather than at the build's root,
+where Gradle and its plugins keep names of their own, a set any plugin may add to. There, measured
+with Kotlin 2.4.0 and Gradle 9.8.2, a `clean` of the root deletes a module named `build`, sources
+and all; a case-insensitive file system such as macOS's finds one named `buildsrc` as Gradle's
+build-logic build, which then fails; one named `gradlew` fails `gradle wrapper`; and one named
+`api`, `gradle` or `src` shares its directory with the root project's ABI dump, the wrapper's files
+or the root's sources. Under `modules/` each builds, and a `clean` and a `wrapper` leave every
+module's sources. What a module's project still meets is in [naming](naming.md#reserved-names).
+
+The [runtime's unit](../../refine/output-units.md#the-runtimes-unit) is `<root>.runtime`, the
+module `modules/runtime`, which the root project and every other module depend on as an `api`
+dependency and a Multiplatform framework exports with the rest ([Swift](swift.md)). Measured with
+Kotlin 2.4.0, code depending on the root project, or on a group's module, that took the runtime as
+`implementation` could not name the runtime's `ApiException` ("Unresolved reference 'runtime'"),
+and a framework that did not export the runtime named its `ApiException` `RuntimeApiException` in
+the header and left out the `NotFoundException` under it, which no signature names, so a Swift
+caller could neither match a failure's class nor name the runtime's types as a Kotlin caller does.
+
+Kotlin's `internal` reaches only its own module, and a call to an `internal` runtime function from a
+group's module failed ("it is internal"), so what generated code calls in another module is public:
+the runtime's helpers, and the function building a sub-client, which the root's client calls while
+the sub-client's constructor stays `internal`. On Multiplatform each carries `@HiddenFromObjC` as
+well, which kept it out of the header, so the framework exports no more than its callers use
+([scale](scale.md)). The function is there because a constructor cannot be hidden so ("This
+annotation is not applicable to target 'constructor'"), and a sub-client's public constructor was
+exported as `init(settings:)` over an `id`, which a Swift caller could call with any object.
+`@HiddenFromObjC` is experimental in Kotlin 2.4.0, so a file using it opts in with
+`@file:OptIn(ExperimentalObjCRefinement::class)`, which no caller inherits. That such a declaration
+is then public on the JVM is #1730's.
 
 Kotlin's limit counts a Gradle module's declarations, and its default is set when the Kotlin targets
 are first measured ([open questions](../../open-questions.md)).

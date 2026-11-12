@@ -87,6 +87,7 @@ func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir
 	bag, ok := typeByName(doc, "Bag").(*ir.Model)
 	require.True(t, ok, "Bag lowers to a model")
 	require.NotNil(t, bag.AdditionalProps)
+	require.NotNil(t, bag.AdditionalProps.Value, "Bag types every key")
 	carriers = map[string]ir.TypeRef{
 		"property":  propertyOf(t, doc, "Holder", "f").Type,
 		"parameter": param.Type,
@@ -95,7 +96,7 @@ func positionRefs(t *testing.T, doc *ir.Document) (carriers, nodes map[string]ir
 	nodes = map[string]ir.TypeRef{
 		"request":  op.Request.Contents[0].Type,
 		"response": op.Responses[0].Payload.Contents[0].Type,
-		"map":      bag.AdditionalProps.Value,
+		"map":      *bag.AdditionalProps.Value,
 		"items":    items.Elem,
 		"variant":  union.Variants[0].Type,
 	}
@@ -185,6 +186,99 @@ func TestRefinement_PrimitiveBranchesLowerToTheirMeet(t *testing.T) {
 			assert.Equal(t, ir.PrimInt32, prim.Prim)
 		})
 	}
+}
+
+// TestRefinement_AUnionBranchIsAConjunct pins a oneOf or anyOf written as an
+// allOf branch where the conjuncts admit no object, read as
+// docs/compilers/openapi.md#allof-refinement reads any conjunct. Beside a
+// narrower one it lowers to the meet, at a property as at a component, saying
+// nothing more where a branch says nothing that conjunct does not and, for a
+// oneOf, shares a kind with no other; a branch's bound, pattern or annotation
+// says more, so it stays with its branch. Where it is the narrowest, it is the
+// principal, and where it shares no value with the rest, the allOf composes.
+func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", refinementTargets+`    Value:
+      allOf:
+        - anyOf: [{type: string}, {type: number}, {type: boolean}]
+        - {type: string, maxLength: 1000}
+    ValueString: {type: string, maxLength: 1000}
+    ByRef: {allOf: [{oneOf: [{type: integer}, {$ref: '#/components/schemas/Owner'}, {type: string}]}, {$ref: '#/components/schemas/Str'}]}
+    TwoMatch: {allOf: [{oneOf: [{type: string}, {type: string, maxLength: 3}]}, {type: string, format: uuid}]}
+    BothWithin: {allOf: [{oneOf: [{type: string}, {type: string, format: uuid}]}, {type: string, format: uuid}]}
+    FormatNotHeld: {allOf: [{anyOf: [{type: string, format: uuid}, {type: integer}]}, {type: string}]}
+    Overlapping: {allOf: [{oneOf: [{type: string}, {type: string, format: date}]}, {$ref: '#/components/schemas/Str'}]}
+    Disjoint: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {type: boolean}]}
+    Widest: {allOf: [{anyOf: [{type: string}, {type: integer}]}, {description: either}]}
+    Bounded: {allOf: [{anyOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    BoundedOne: {allOf: [{oneOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    Patterned: {allOf: [{anyOf: [{type: string, pattern: '^a'}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    Described: {allOf: [{anyOf: [{type: string, description: a word}, {type: integer}]}, {type: string, maxLength: 1000}]}
+    BesideDecides: {type: string, maxLength: 1000, allOf: [{anyOf: [{type: string}, {type: integer}]}]}
+    SameText: {allOf: [{oneOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 5}]}
+    SameRef: {allOf: [{oneOf: [{$ref: '#/components/schemas/Str'}, {type: integer}]}, {$ref: '#/components/schemas/Str'}]}
+    Holder:
+      type: object
+      properties:
+        value:
+          allOf:
+            - anyOf: [{type: string}, {type: number}, {type: boolean}]
+            - {type: string, maxLength: 1000}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	value, ok := typeByName(doc, "Value").(*ir.Scalar)
+	require.True(t, ok, "Value is a scalar, not %T", typeByName(doc, "Value"))
+	want, ok := typeByName(doc, "ValueString").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, want.Base, value.Base, "Value lowers as ValueString does")
+	assert.Equal(t, want.Constraints, value.Constraints)
+	assert.Empty(t, value.Unmodeled, "the anyOf says nothing the string does not")
+	for _, at := range []string{"/components/schemas/Value", "/components/schemas/Value/allOf/0", "/components/schemas/Value/allOf/1"} {
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
+	}
+
+	field := propertyOf(t, doc, "Holder", "value")
+	assert.Equal(t, ir.TypeID("t/prim/string"), field.Type.Target, "a property lowers to the meet too")
+	require.NotNil(t, field.Constraints)
+	assert.Equal(t, int64(1000), *field.Constraints.MaxLength)
+	assert.Empty(t, field.Unmodeled)
+
+	beside, ok := typeByName(doc, "BesideDecides").(*ir.Scalar)
+	require.True(t, ok, "BesideDecides is a scalar, not %T", typeByName(doc, "BesideDecides"))
+	assert.Equal(t, ir.TypeID("t/prim/string"), beside.Base.Target, "the keywords beside the allOf decide it")
+	assert.Empty(t, beside.Unmodeled, "with no principal branch, the anyOf is said all the same")
+
+	for _, name := range []string{"SameText", "SameRef"} {
+		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, "%s: a branch written as the principal says nothing more", name)
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/allOf/0"), name)
+	}
+
+	byRef, ok := typeByName(doc, "ByRef").(*ir.Scalar)
+	require.True(t, ok, "ByRef is a use of Str, not %T", typeByName(doc, "ByRef"))
+	assert.Equal(t, componentID("Str"), byRef.Base.Target)
+	assert.Empty(t, byRef.Unmodeled, "Str lies within one branch and shares no kind with another")
+
+	for name, key := range map[string]string{
+		"TwoMatch": "openapi:allOf/0", "BothWithin": "openapi:allOf/0", "FormatNotHeld": "openapi:allOf/0",
+		"Overlapping": "openapi:allOf/0", "Bounded": "openapi:allOf/0", "BoundedOne": "openapi:allOf/0",
+		"Patterned": "openapi:allOf/0", "Described": "openapi:allOf/0",
+	} {
+		kept := typeByName(doc, name).Common().Unmodeled[key]
+		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, "%s keeps the union, which says more", name)
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/"+name+"/allOf/0"), name)
+	}
+
+	_, composes := typeByName(doc, "Disjoint").(*ir.Model)
+	assert.True(t, composes, "a union sharing no value with the rest leaves the allOf a composition")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Disjoint/allOf/1"))
+
+	widest, ok := typeByName(doc, "Widest").(*ir.Scalar)
+	require.True(t, ok, "Widest is an alias over its principal, not %T", typeByName(doc, "Widest"))
+	u, ok := doc.Types[widest.Base.Target].(*ir.Union)
+	require.True(t, ok, "the union branch is the principal")
+	assert.Len(t, u.Variants, 2)
+	assert.Equal(t, "either", widest.Docs.Description)
 }
 
 // TestRefinement_DisjointConjunctsStayAComposition pins what GitHub #1043 keeps:
@@ -306,6 +400,41 @@ func TestRefinement_KeywordsLandAtEveryPosition(t *testing.T) {
 	}
 }
 
+// TestRefinement_ACollectionBoundLandsAtEveryPosition pins where a refinement's
+// collection bound lands, beside the allOf or in a branch: on the carrier that
+// holds the position, else on the alias it hoists, as one beside a $ref does.
+func TestRefinement_ACollectionBoundLandsAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	const names = "{$ref: '#/components/schemas/Names'}"
+	want := &ir.Constraints{MinItems: new(int64(1)), UniqueItems: true}
+	for name, written := range map[string]string{
+		"beside": "{allOf: [" + names + "], minItems: 1, uniqueItems: true}",
+		"branch": "{allOf: [" + names + ", {minItems: 1, uniqueItems: true}]}",
+		"split":  "{allOf: [" + names + ", {minItems: 1}], uniqueItems: true}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, positionsDoc(refinementTargets, written))
+			noDegradation(t, diags)
+			op := openapitest.FindOp(t, doc, "op")
+			param, ok := openapitest.ParamBySource(op, "id")
+			require.True(t, ok)
+			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints, "property")
+			assert.Equal(t, want, param.Constraints, "parameter")
+			assert.Equal(t, want, op.Responses[0].Headers[0].Constraints, "header")
+			_, nodes := positionRefs(t, doc)
+			for position, ref := range nodes {
+				alias := aliasAt(t, doc, ref)
+				assert.Equal(t, componentID("Names"), alias.Base.Target, position)
+				assert.Equal(t, want, alias.Constraints, position)
+			}
+			named, ok := typeByName(doc, "Named").(*ir.Scalar)
+			require.True(t, ok)
+			assert.Equal(t, want, named.Constraints)
+		})
+	}
+}
+
 // TestRefinement_KeptKeywordsLandAtEveryPosition pins what no reference can
 // hold: a narrower keyword beside the allOf or in a branch, kept verbatim where
 // the position keeps what it writes, with one report.
@@ -332,9 +461,9 @@ func TestRefinement_KeptKeywordsLandAtEveryPosition(t *testing.T) {
 			"{allOf: [{$ref: '#/components/schemas/Names'}, {type: array, items: {type: string, minLength: 1}}]}",
 			"openapi:allOf/1", "the branch (items)",
 		},
-		"a collection bound": {
-			"{allOf: [{$ref: '#/components/schemas/Names'}, {minItems: 1}]}",
-			"openapi:allOf/1", "the branch (minItems)",
+		"a collection bound no field states": {
+			"{allOf: [{$ref: '#/components/schemas/Names'}, {uniqueItems: false}]}",
+			"openapi:allOf/1", "the branch (uniqueItems)",
 		},
 		"an overlapping enum": {
 			"{allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [set, put]}]}",
@@ -435,9 +564,6 @@ func TestRefinement_ReachesNoFurtherThanItCanRead(t *testing.T) {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/R'}]}\n    R: {allOf: [{$ref: '#/components/schemas/S'}]}\n",
 		},
 		"an unresolved $ref": {schemas: "    S: {allOf: [{$ref: '#/components/schemas/Gone'}, {type: string}]}\n", errs: true},
-		"a union on a branch": {
-			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}, {oneOf: [{minLength: 1}, {maxLength: 2}]}]}\n",
-		},
 		"a union beside": {
 			schemas: "    S: {allOf: [{$ref: '#/components/schemas/Str'}], oneOf: [{minLength: 1}, {maxLength: 2}]}\n",
 		},
@@ -630,17 +756,158 @@ func TestRefinement_ANarrowingKeepsItsTargetOnANode(t *testing.T) {
 // keeps the reference, so the target's node stands as it does beneath a Base.
 func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Host:
+	const mode = "{$ref: '#/components/schemas/Host/$defs/Mode'}"
+	for name, written := range map[string]string{
+		"in a branch":  "{allOf: [" + mode + ", {enum: [a]}]}",
+		"beside":       "{enum: [a], allOf: [" + mode + "]}",
+		"const beside": "{const: a, allOf: [" + mode + "]}",
+	} {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Host:
       type: object
       $defs:
         Mode: {type: string, enum: [a, b], example: b}
-    Narrow: {allOf: [{$ref: '#/components/schemas/Host/$defs/Mode'}, {enum: [a]}]}
+    Narrow: `+written+"\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
+		require.True(t, ok, "%s: nothing but the kept $ref names the target", name)
+		assert.Len(t, en.Members, 2, name)
+		assert.NotEmpty(t, en.Examples, "%s: the target's examples stay on its node", name)
+	}
+}
+
+// TestRefinement_AValueSetIsTypedByEveryConjunct pins GitHub #1641: the value
+// set a refinement lowers to takes its ValueType from the type and format every
+// conjunct declares, as one schema writing them all gives it, and keeps none of
+// them. Two formats neither of which narrows the other select no one primitive,
+// nor does one the value is not of or one written with no type, so each stays
+// with its branch.
+func TestRefinement_AValueSetIsTypedByEveryConjunct(t *testing.T) {
+	t.Parallel()
+	const uuid = `"0b5c6f4e-6b9e-4a77-9f0f-5b0b8d5c1a11"`
+	for name, tc := range map[string]struct {
+		written string
+		want    ir.PrimKind
+		kept    []string
+	}{
+		"a type on a branch":   {"{allOf: [{type: integer}, {const: 80.0}]}", ir.PrimInteger, nil},
+		"in the other order":   {"{allOf: [{const: 80.0}, {type: integer}]}", ir.PrimInteger, nil},
+		"a format on a branch": {"{allOf: [{type: integer, format: int32}, {const: 80}]}", ir.PrimInt32, nil},
+		"an enum":              {"{allOf: [{type: string, format: uuid}, {enum: [" + uuid + "]}]}", ir.PrimUUID, nil},
+		"a const beside":       {"{const: 80.0, allOf: [{type: integer}]}", ir.PrimInteger, nil},
+		"a type beside":        {"{type: integer, format: int32, allOf: [{const: 80}]}", ir.PrimInt32, nil},
+		"a wider type beside":  {"{type: number, const: 80, allOf: [{type: integer}]}", ir.PrimInteger, nil},
+		"a wider format with the value": {"{allOf: [{type: integer, format: int32}, {type: integer, format: int64, const: 80}]}",
+			ir.PrimInt32, nil},
+		"a wider format on another branch": {"{allOf: [{type: integer, format: int64}, {type: integer, format: int32}, {const: 80}]}",
+			ir.PrimInt32, nil},
+		"a wider format beside": {"{type: integer, format: int64, allOf: [{enum: [80]}, {type: integer, format: int32}]}",
+			ir.PrimInt32, nil},
+		"a $ref": {"{allOf: [{$ref: '#/components/schemas/Int32'}, {enum: [80]}]}", ir.PrimInt32, []string{"openapi:allOf/0"}},
+		"a $ref to a refinement": {"{allOf: [{$ref: '#/components/schemas/Port'}, {enum: [80]}]}", ir.PrimInt32,
+			[]string{"openapi:allOf/0"}},
+		"two formats": {"{allOf: [{type: integer, format: int8}, {type: integer, format: uint8}, {const: 80}]}",
+			ir.PrimNumber, []string{"openapi:allOf/0", "openapi:allOf/1"}},
+		"a format the value is not of": {"{allOf: [{type: integer, format: int8}, {const: 300}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/0"}},
+		"a format a member is not of": {"{allOf: [{type: integer, format: int8}, {enum: [1, 300]}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/0"}},
+		"a format with no type": {"{allOf: [{type: integer}, {format: int32}, {const: 80}]}", ir.PrimInteger,
+			[]string{"openapi:allOf/1"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+				"    Int32: {type: integer, format: int32}\n    Port: {allOf: [{$ref: '#/components/schemas/Int32'}]}\n"+
+					"    S: "+tc.written+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			pos := typeByName(doc, "S")
+			node := pos
+			if alias, ok := pos.(*ir.Scalar); ok {
+				node = doc.Types[alias.Base.Target]
+			}
+			switch n := node.(type) {
+			case *ir.Literal:
+				assert.Equal(t, tc.want, n.ValueType)
+			case *ir.Enum:
+				assert.Equal(t, tc.want, n.ValueType)
+			default:
+				t.Fatalf("lowered to %T", node)
+			}
+			assert.Equal(t, tc.kept, unmodeledKeys(pos.Common().Unmodeled))
+			assert.Empty(t, node.Common().Unmodeled)
+		})
+	}
+}
+
+// TestRefinement_ARefToAPrincipalNamesItsTypedNode pins what a $ref to a
+// principal's own pointer names, declared before or after the refinement: the
+// node the refinement typed, as a $ref names the node its target's owner builds.
+func TestRefinement_ARefToAPrincipalNamesItsTypedNode(t *testing.T) {
+	t.Parallel()
+	const s = "    S: {allOf: [{type: integer, format: int32}, {const: 80}]}\n"
+	const raw = "    Raw: {$ref: '#/components/schemas/S/allOf/1'}\n"
+	orders := []string{s + raw, raw + s}
+	docs := make([]*ir.Document, 0, len(orders))
+	for _, order := range orders {
+		doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", order))
+		openapitest.RequireNoErrorDiags(t, diags)
+		lit, ok := doc.Types["t/anon/components/schemas/S/allOf/1"].(*ir.Literal)
+		require.True(t, ok)
+		assert.Equal(t, ir.PrimInt32, lit.ValueType)
+		docs = append(docs, doc)
+	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
+}
+
+// TestRefinement_AValueSetBesideTheAllOfIsAConjunct pins GitHub #1309: an enum or
+// a const beside an allOf that refines is one of its conjuncts, not its rival. It
+// lowers as if no allOf were written where it is the principal, with what the
+// branches say folded as written beside it, and a narrower branch is the
+// principal. A branch writing what the enum has no field for stays whole, though
+// the enum holds its format. Beside an allOf that composes, the enum still wins
+// and keeps the allOf.
+func TestRefinement_AValueSetBesideTheAllOfIsAConjunct(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Flat: {type: string, enum: [a], description: the level, deprecated: true}
+    Noted: {type: string, enum: [a], allOf: [{description: the level, deprecated: true}]}
+    Const: {const: a, allOf: [{description: the level}]}
+    Narrowed: {enum: [a, b], allOf: [{enum: [a]}]}
+    Bounded: {enum: [1, 2000], allOf: [{type: integer, format: int64, maximum: 10}]}
+    Composes: {enum: [x], allOf: [{type: object, properties: {p: {type: string}}}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
-	require.True(t, ok, "nothing but the kept $ref names the target")
-	assert.Len(t, en.Members, 2)
-	assert.NotEmpty(t, en.Examples, "the target's examples stay on its node")
+	flat, noted := typeByName(doc, "Flat"), typeByName(doc, "Noted")
+	assert.Equal(t, ir.KindEnum, noted.Kind())
+	assert.Equal(t, flat.Common().Docs, noted.Common().Docs)
+	assert.Equal(t, flat.Common().Deprecation, noted.Common().Deprecation)
+	assert.Empty(t, noted.Common().Unmodeled)
+	lit, ok := typeByName(doc, "Const").(*ir.Literal)
+	require.True(t, ok, "got %T", typeByName(doc, "Const"))
+	assert.Equal(t, "the level", lit.Docs.Description)
+	assert.Empty(t, lit.Unmodeled)
+
+	narrowed, ok := typeByName(doc, "Narrowed").(*ir.Scalar)
+	require.True(t, ok, "got %T", typeByName(doc, "Narrowed"))
+	en, ok := doc.Types[narrowed.Base.Target].(*ir.Enum)
+	require.True(t, ok, "the narrower branch is the principal")
+	assert.Len(t, en.Members, 1)
+	assert.Empty(t, narrowed.Unmodeled, "the wider set beside it says nothing more")
+	for _, at := range []string{"/components/schemas/Noted", "/components/schemas/Const", "/components/schemas/Narrowed"} {
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "%s keeps nothing", at)
+	}
+
+	bounded, ok := typeByName(doc, "Bounded").(*ir.Enum)
+	require.True(t, ok, "got %T", typeByName(doc, "Bounded"))
+	assert.Equal(t, ir.PrimInt64, bounded.ValueType)
+	assert.Equal(t, []string{"openapi:allOf/0"}, unmodeledKeys(bounded.Unmodeled))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/Bounded/allOf/0"), "the branch (maximum) is kept verbatim")
+
+	composes, ok := typeByName(doc, "Composes").(*ir.Enum)
+	require.True(t, ok)
+	assert.Contains(t, composes.Unmodeled, "openapi:allOf")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Composes"),
+		"it lowered as the enum, with allOf kept verbatim")
 }
 
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
@@ -1436,17 +1703,19 @@ func TestRefinement_AConstUnreadableStaysAComposition(t *testing.T) {
 }
 
 // TestRefinement_DecidingSchemaIsAskedOfAWholeChain pins the reader of a body's
-// shape through two refinements, one a $ref's and one inline, and past an enum.
+// shape through two refinements, one a $ref's and one inline, and past an enum,
+// one beside the allOf among them, to the narrower branch it refines to.
 func TestRefinement_DecidingSchemaIsAskedOfAWholeChain(t *testing.T) {
 	t.Parallel()
 	l, _ := schema.LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", `    Blob: {type: string, format: binary}
     Inner: {allOf: [{$ref: '#/components/schemas/Blob'}], description: inner}
     Outer: {allOf: [{$ref: '#/components/schemas/Inner'}, {description: outer}]}
     Inline: {allOf: [{type: string, format: binary}, {description: inline}]}
+    Narrowed: {enum: [a, b], allOf: [{type: string, format: binary, enum: [a]}]}
     Bare: {allOf: [{description: says nothing}]}
 `))
 	schemas := l.Ctx.Doc.Components.GetSchemas()
-	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Bare": ""} {
+	for name, format := range map[string]string{"Outer": "binary", "Inline": "binary", "Narrowed": "binary", "Bare": ""} {
 		js, ok := schemas.Get(name)
 		require.True(t, ok, name)
 		assert.Equal(t, format, schema.DecidingSchema(l.Ctx, js.GetSchema()).GetFormat(), name)
@@ -1498,6 +1767,24 @@ func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
 	assert.Equal(t, "d", beside.Docs.Description)
 }
 
+// TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt pins a value
+// bound on a branch of an allOf beside a type list: it stays with its branch,
+// reported, as the variants the same bound beside the allOf reaches, the integer
+// one among them here, need not be ones it constrains (GitHub #1310). A
+// collection bound there lands on the list variant
+// (TestCollectionBound_OnABranchLandsAsItsFlatSpelling).
+func TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    OnBranch: {type: [string, integer], format: x-mine, allOf: [{maxLength: 2}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	u, ok := typeByName(doc, "OnBranch").(*ir.Union)
+	require.True(t, ok, "got %T", typeByName(doc, "OnBranch"))
+	assert.Contains(t, u.Unmodeled, "openapi:allOf/0")
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/components/schemas/OnBranch/allOf/0"), "the branch (maxLength)")
+}
+
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
 // nothing flattens it, so its keyword stays, as in a composition.
 func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {
@@ -1522,7 +1809,6 @@ func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
         beside: {$ref: '#/components/schemas/Str', allOf: [{description: branch, default: b}]}
         dynamic: {$dynamicRef: '#node', allOf: [{description: branch}]}
         dynamicRef: {$dynamicRef: '#node', allOf: [{$ref: '#/components/schemas/Bound'}]}
-        elected: {enum: [a], allOf: [{description: branch}]}
     Bound: {type: string, readOnly: true}
     Items:
       type: array
@@ -1535,8 +1821,6 @@ func TestRefinement_KeywordsBesideARefAreNotConjuncts(t *testing.T) {
 	assert.Contains(t, beside.Unmodeled, "openapi:allOf")
 	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamic").Docs.Description)
 	assert.Empty(t, propertyOf(t, doc, "Holder", "dynamicRef").Visibility.Only)
-	elected := propertyOf(t, doc, "Holder", "elected")
-	assert.Empty(t, doc.Types[elected.Type.Target].Common().Docs.Description, "an election's loser speaks for nothing")
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
 	assert.Empty(t, doc.Types[items.Elem.Target].Common().Docs.Description, "nor does a branch beside a $ref")

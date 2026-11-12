@@ -3,11 +3,19 @@
 `Reserved()` holds the language's keywords and predeclared names, reserved everywhere. Generated
 code binds names of its own too, and a spec name rendered equal to one of them shadows it or fails
 to compile, so each scope reserves what the code generated into it binds as well, and the units'
-scope what a unit cannot be named:
+scope and a unit's what a unit or a top-level declaration cannot be named:
 
-- **The units** ([output units](output-units.md)), whose names are a scope of their own: `shared`,
-  the shared unit's, and the names a target's toolchain treats apart.
-- **A unit**: the names the target declares at its top level beside the spec's.
+- **The units** ([output units](output-units.md)), whose names are a scope of their own: `shared`
+  and `runtime`, the shared unit's and the runtime's, and the names a target's toolchain, or a file
+  system it writes to, treats apart.
+- **A unit**: the names the target declares at its top level beside the spec's, and those a
+  top-level declaration cannot take, as when a file system refuses the file it is written to or the
+  declaration would shadow a name the language imports by default. No spec name lands in the
+  runtime's unit ([the runtime's unit](output-units.md#the-runtimes-unit)), so its names need
+  reserving only where a file cannot write one beside a spec name of its own: Go writes each
+  qualified and reserves none, while Kotlin reserves them in every unit
+  ([Kotlin](../targets/kotlin/naming.md#reserved-names)), as a namespace every unit shares does
+  ([Swift](../targets/kotlin/swift.md)).
 - **A type**: the members the target gives every model.
 - **A union's variants**: `Unknown`, the fallback's name ([unions](unions.md)), which a variant the
   spec names so yields to.
@@ -30,5 +38,7 @@ each target says ([Go](../targets/go/naming.md#imports),
 and no caller depends on its name. That is why `ComputeImports` runs before the naming steps ([the
 refiner contract](pipeline.md)): what a file imports is fixed by where declarations landed, and what
 the file calls each import is a name like any other. Names that collide once cased are `Ctx.Syms`'s
-on every target ([naming](naming.md)). T-19 holds every scope's set, the names with no words and the
-names that begin with a digit to code that compiles.
+on every target, and so, in a scope a target writes as paths, are names that differ in letter case
+alone ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's
+set, the names with no words and the names that begin with a digit to code that compiles, and names
+that differ in letter case alone to paths that do not fold alike.

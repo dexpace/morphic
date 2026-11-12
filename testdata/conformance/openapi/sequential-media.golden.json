@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -120,8 +122,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -210,8 +211,7 @@
                     "method": "GET",
                     "uriTemplate": "/parts",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

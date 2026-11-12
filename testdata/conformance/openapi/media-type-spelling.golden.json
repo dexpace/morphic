@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -114,8 +116,7 @@
                       "Multipart/Form-Data"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -179,8 +180,7 @@
                       "Application/X-WWW-Form-Urlencoded; charset=utf-8"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -260,8 +260,7 @@
                       "Application/Octet-Stream"
                     ],
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

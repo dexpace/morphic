@@ -15,8 +15,10 @@ formatting](../targets/kotlin/overview.md#formatting)).
 
 ## Determinism, and the velocity answer
 
-Emit walks the AST in source order and any map in sorted-key order (INV7); identical `IR + options`
-⇒ byte-identical output ([T-6](../testing/mandatory-tests.md)), which is what makes golden snapshots
+Emit walks the AST in source order and any map in sorted-key order (INV7); identical inputs, the
+prior manifest among them ([contract
+rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), ⇒ byte-identical
+output ([T-6](../testing/mandatory-tests.md)), which is what makes golden snapshots
 and the ID-keyed manifest meaningful. On velocity: a new *language* is expensive (node set +
 printer + pipeline), but a new *non-SDK emitter* (docs, mock) is cheap because it reuses the shared
 plan and most of the refine step library ([docs and mocks](../docs-and-mock.md)); and the

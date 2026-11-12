@@ -474,8 +474,9 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 // writes as format: time, which lowers to a Scalar the table pairs with no kind:
 // a full-time default is adopted and a const that is one narrows the field,
 // while a value with no offset, another string format and an enum of no time
-// are refused with a warning, and a node holding detail of its own is kept
-// beside the const. Each case is compiled in both branch orders.
+// are refused with a warning, and a node holding detail of its own meets the
+// const in a literal holding it too. Each case is compiled in both branch
+// orders.
 func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 	t.Parallel()
 	const timed = "{type: string, format: time}"
@@ -493,7 +494,7 @@ func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
 		{"a local time", timed, "{type: string, format: time-local}", "", "", diag.ConflictingRedecl},
 		{"an enum of no time", timed, "{type: string, enum: [a]}", "", "", diag.ConflictingRedecl},
 		{"a full-time const beside detail", "{type: string, format: time, description: d}", `{const: "12:00:00Z"}`,
-			"", "", diag.DegradedConstruct},
+			ir.KindLiteral, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -692,4 +693,104 @@ func nonBareSpec(extra, schemaA, schemaB string) string {
 		"          properties: {v: " + schemaA + "}\n" +
 		"        - type: object\n" +
 		"          properties: {v: " + schemaB + "}\n")
+}
+
+// TestAllOf_EnumsAndListsNarrowToWhatTheyShare pins GitHub #1042 in both branch
+// orders: an enum within another is the field's type, and a list whose element
+// is narrower than a described list's is a list of the narrower element holding
+// the description, minted for the field. A minItems or an x- extension on the
+// broader list is adopted the same way. Nothing is kept or reported.
+func TestAllOf_EnumsAndListsNarrowToWhatTheyShare(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, broad, narrow string
+		check               func(t *testing.T, doc *ir.Document, target ir.TypeID)
+	}{
+		{"an enum within another", "{type: string, enum: [a, b]}", "{type: string, enum: [a]}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				e, ok := doc.Types[target].(*ir.Enum)
+				require.True(t, ok)
+				require.Len(t, e.Members, 1)
+				assert.Equal(t, "a", e.Members[0].Value.Str)
+			}},
+		{"a described list", "{type: array, description: d, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, "d", l.Docs.Description)
+			}},
+		{"a bounded list", "{type: array, minItems: 1, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, l.Constraints)
+			}},
+		{"an extended list", "{type: array, x-kept: 1, items: {type: integer}}",
+			"{type: array, items: {type: integer, format: int32}}",
+			func(t *testing.T, doc *ir.Document, target ir.TypeID) {
+				t.Helper()
+				l, ok := doc.Types[target].(*ir.List)
+				require.True(t, ok)
+				assert.Equal(t, ir.TypeID("t/prim/int32"), l.Elem.Target)
+				assert.Contains(t, l.Unmodeled, "openapi:x-kept")
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, order := range [][2]string{{tc.broad, tc.narrow}, {tc.narrow, tc.broad}} {
+				p, doc, diags := redeclared(t, order[0], order[1])
+				assert.Empty(t, diags, "%v", order)
+				assert.Empty(t, p.Unmodeled, "%v", order)
+				tc.check(t, doc, p.Type.Target)
+			}
+		})
+	}
+}
+
+// TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem pins the enum minted for
+// two sharing only some values: it holds those, each member identified beneath
+// it in the composed namespace, where irverify holds a member's ID.
+func TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem(t *testing.T) {
+	t.Parallel()
+	p, doc, diags := redeclared(t, "{type: string, enum: [a, b]}", "{type: string, enum: [b, c]}")
+
+	assert.Empty(t, diags)
+	require.Equal(t, ir.TypeID("t/composed/components/schemas/T/allOf/1/properties/v"), p.Type.Target)
+	e, ok := doc.Types[p.Type.Target].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, e.Members, 1)
+	assert.Equal(t, "b", e.Members[0].Value.Str)
+	assert.Equal(t, ir.EnumMemberID("e/composed/components/schemas/T/allOf/1/properties/v/s:b"), e.Members[0].ID)
+	assert.Empty(t, validated(t, doc), "the minted enum's members live where irverify holds them")
+	declared, ok := doc.Types["t/anon/components/schemas/T/allOf/0/properties/v"].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.EnumMemberID("e/anon/components/schemas/T/allOf/0/properties/v/s:b"), declared.Members[1].ID,
+		"the declared enum's members are as they were")
+}
+
+// TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds pins a default written beside
+// a list or an enum the field's node is built from: the list of int32 refuses a
+// default past it, and the enum of the shared values one it cut, so each is
+// reported and kept in either order rather than adopted when written first.
+func TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds(t *testing.T) {
+	t.Parallel()
+	for _, pair := range [][2]string{
+		{"{type: array, description: d, items: {type: integer}, default: [5000000000]}", "{type: array, items: {type: integer, format: int32}}"},
+		{"{type: string, enum: [a, b], default: a}", "{type: string, enum: [b, c]}"},
+	} {
+		for i, order := range [][2]string{{pair[0], pair[1]}, {pair[1], pair[0]}} {
+			p, _, diags := redeclared(t, order[0], order[1])
+			assert.Nil(t, p.Default, "%v", order)
+			require.Len(t, diags, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
+			assert.Equal(t, fmt.Sprintf("/components/schemas/T/allOf/%d/properties/v", i), string(diags[0].Provenance.Pointer), "%v", order)
+		}
+	}
 }

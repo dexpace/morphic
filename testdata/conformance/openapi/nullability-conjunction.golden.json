@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -194,7 +196,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Holder": {
       "kind": "model",
@@ -501,7 +505,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/WrapBoth": {
       "kind": "model",

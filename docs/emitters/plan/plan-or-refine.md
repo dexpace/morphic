@@ -31,19 +31,23 @@ of the artifact that uses it — how an untagged union's variant is recognized o
 The procedure decided every existing field:
 
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
-   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union and on an enum,
-   `Strict`, `Effects`, which a binding sets where the IR states nothing, and `PagePlan`, an
-   inferred one included.
+   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union, on a model narrowing
+   one and on an enum, `Strict`, `Effects`, which a binding sets where the IR states nothing,
+   `Examples`, synthesized where none is declared, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
-   `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
-   `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened`
-   are read along the flattening walk ([TypePlan](types.md)), `Inclusive` closes over every pair of
-   unions' positions ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a
-   decorator over several of its fields and resolves its chain
-   ([decorators](../refine/decorators.md)), and `Reach` walks every operation ([output
-   units](../refine/output-units.md)); SDKs and docs that disagreed on any of them would mark a
-   member optional, name a field's type, hold one variant where another holds several, or place a
-   type differently.
+   `Stream`, `LRO` and `Stability`, which walks an operation's groups; and `Flattened`, `Required`,
+   `Undeclared`, `Redacted`, `Sensitive`, `Unflattened`, `Composed`, `Union`, `Discrim`,
+   `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared`, `Redacted` and
+   `Unflattened` are read along the flattening walk ([TypePlan](types.md)), `Composed` along it once
+   for each entry, with a variant in each union's place
+   ([TypePlan](types.md#a-model-narrowing-a-union)), `Sensitive` along a `Base` chain, `Inclusive`
+   closes over every pair of unions' positions
+   ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a decorator over
+   several of its fields and resolves its chain ([decorators](../refine/decorators.md)), and `Reach`
+   walks every operation ([output units](../refine/output-units.md)); SDKs and docs that disagreed
+   on any of them would mark a member optional, print a secret, name a field's type, hold one
+   variant where another holds several, document a shape no SDK declares, or place a type
+   differently.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and the
    idempotency token ([OpPlan](operations.md)), a model's `Base`, `Implements` and `Mixins`, an
    enum's declared openness, value type, flags and fallback member, a union's variant list, and the

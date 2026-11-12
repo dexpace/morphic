@@ -507,3 +507,23 @@ func TestBuild_MeasuresAnAliasTargetUnderItsContext(t *testing.T) {
 
 	assert.GreaterOrEqual(t, measured-walked, len(items)/nodeview.AskEvery)
 }
+
+// TestBuild_TotalsThePointersToItsNodes pins Written and PointerBytes on a tree
+// small enough to sum by hand. A node's pointer spells the keys and indexes on
+// the way to it, a '/' before each, and an alias names its target's subtree
+// again under its own key: the sequence and what it holds spell 2, 4, 4, 6 and
+// 6 beneath d, 22 bytes, beside the 32 the tree spells as written. Written is
+// each node's text and a byte for the node, an alias's name among them.
+func TestBuild_TotalsThePointersToItsNodes(t *testing.T) {
+	t.Parallel()
+	idx := sourceindex.Build(t.Context(), openapitest.YAMLDocument(t, "ab: &s [x, {c: y}]\nd: *s\n"), sourceindex.MaxIndexedNodes)
+	require.False(t, idx.Truncated())
+	assert.Equal(t, 1+3+1+2+1+2+2+2+2, idx.Written())
+	assert.Equal(t, 32+22, idx.PointerBytes())
+	assert.Equal(t, 3, idx.Nesting())
+
+	items := append(make([]*yaml.Node, 10), ynode.Scalar("abc"))
+	skipped := sourceindex.Build(t.Context(), ynode.Seq(items...), sourceindex.MaxIndexedNodes)
+	assert.Equal(t, len("/10"), skipped.PointerBytes(), "nil children skipped keep the next one's index")
+	assert.Equal(t, 1+4, skipped.Written())
+}

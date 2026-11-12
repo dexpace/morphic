@@ -41,6 +41,9 @@ var valuePayloads = map[ir.ValueKind]payloadRule{
 	ir.ValueObject:  {field: "Object", zeroIsValue: true},
 	ir.ValueRefKind: {field: "Ref"},
 	ir.ValueCtor:    {field: "Ctor"},
+	ir.ValueInf:     {},
+	ir.ValueNegInf:  {},
+	ir.ValueNaN:     {},
 }
 
 // checkValues asserts every ir.Value is what its Kind says it is: a declared

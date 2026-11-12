@@ -609,11 +609,11 @@ func TestDocumentPath_SegmentCapStopsTheWalk(t *testing.T) {
 	root := ynode.Map(ynode.Scalar("a"), nil)
 	root.Content[1] = root
 
-	path, complete := New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments)))
+	path, complete := New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", MaxPointerSegments)))
 	require.True(t, complete, "a pointer at the segment cap resolves")
 	assert.Same(t, root, path[len(path)-1])
 
-	_, complete = New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", maxPointerSegments+1)))
+	_, complete = New().DocumentPath(root, jsontext.Pointer(strings.Repeat("/a", MaxPointerSegments+1)))
 	assert.False(t, complete, "one past it does not")
 }
 

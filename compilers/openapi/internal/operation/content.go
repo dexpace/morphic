@@ -27,7 +27,7 @@ import (
 // (the response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema, or under the components/mediaTypes entry an
 // entry written as a $ref names (declaredMedia).
-func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
+func lowerPayload(c lowering.Ctx, w walk, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
 	}
@@ -41,7 +41,7 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[s
 		if !ok {
 			continue
 		}
-		one, contentDiags := lowerContent(decl, ts, mt)
+		one, contentDiags := lowerContent(decl, w, mt)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -97,7 +97,7 @@ func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Point
 // version, as load reports the key below 3.2 (diag.LaterVersionConstruct).
 func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
 	description, read, diags := annotation.TakeString(u, d.media.GetRootNode(), "description", nil,
-		d.ctx.ProvenanceAt, d.pointer, "")
+		d.ctx.Place(), d.pointer, "")
 	docs := ir.Docs{Description: description}
 	if d.use != nil {
 		docs = resolve.UseDocs[soa.MediaType](d.use, docs)
@@ -111,9 +111,9 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 // lowerContent lowers one media-type view: its type graph, examples, binary/
 // form specialization, sequential-media shape, docs and extensions, as d
 // declares them, under mt, the key it is written under.
-func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.Diagnostic) {
+func lowerContent(d mediaDecl, w walk, mt string) (ir.Content, []ir.Diagnostic) {
 	c, media, mediaPtr := d.ctx, d.media, d.pointer
-	mediaType, diags := schema.Ref(c, ts, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
+	mediaType, diags := schema.Ref(c, w.types, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
 		Type:      mediaType,
@@ -126,17 +126,17 @@ func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.D
 	switch file := bodyFile(c, mt, readFile(c, media.GetSchema())); {
 	case file != nil:
 		content.File = file
-		content.Type = fileBodyType(ts, file, content.Type)
+		content.Type = fileBodyType(w.types, file, content.Type)
 	case isFormContent(mt):
-		enc, encUnmodeled, encDiags := partEncodings(c, ts, media, mt, mediaPtr, content.Type.Target)
+		enc, encUnmodeled, encDiags := partEncodings(c, w, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if enc != nil {
 			content.Encoding = enc
 		}
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, encUnmodeled)
 	}
-	diags = append(diags, fillSequential(c, ts, &content, media, mediaPtr)...)
-	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.ProvenanceAt, mediaPtr)
+	diags = append(diags, fillSequential(c, w, &content, media, mediaPtr)...)
+	ext, extDiags := annotation.ExtensionsFrom(media.GetExtensions(), c.Place(), mediaPtr)
 	diags = append(diags, extDiags...)
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
@@ -145,7 +145,7 @@ func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.D
 	content.Docs = docs
 	diags = append(diags, docDiags...)
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, taken...)...)
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.Place(), mediaPtr, taken...)...)
 }
 
 // fileBodyType is the type of the file body file whose schema lowered to

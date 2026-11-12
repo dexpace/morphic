@@ -97,6 +97,32 @@ components:
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/headers/H")
 }
 
+// TestUnreferencedComponents_AFollowedLinkIsNotKept pins that a links map's
+// $ref is followed: the entry it names lowers onto the response, so it is not
+// kept on the document too.
+func TestUnreferencedComponents_AFollowedLinkIsNotKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          links: {next: {$ref: '#/components/links/Next'}}
+components:
+  links:
+    Next: {operationId: a}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/links/Next")
+	resp := openapitest.FindOp(t, doc, "a").Responses[0]
+	require.Len(t, resp.Links, 1, "the entry lowers where the $ref is followed")
+	assert.Equal(t, "next", resp.Links[0].Name.Source)
+}
+
 // TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget pins what
 // "referenced" means: a $ref a lowering follows, not a $ref string written
 // somewhere. Each document below names its entry only where no lowering
@@ -107,12 +133,6 @@ func TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget(t *testing
 	for _, tc := range []struct {
 		name, paths, components, kept string
 	}{
-		{"a response's links map", `
-      responses:
-        "200":
-          description: ok
-          links: {next: {$ref: '#/components/links/Next'}}`,
-			"  links:\n    Next: {operationId: a}\n", "openapi:components/links/Next"},
 		{"an extension", `
       x-meta: {$ref: '#/components/parameters/P'}
       responses: {"200": {description: ok}}`,

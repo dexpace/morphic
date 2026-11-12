@@ -14,8 +14,9 @@ import (
 )
 
 // Explanation is what a compile produced at one source coordinate: the type
-// node interned there, the coordinates interned beneath it, and the
-// diagnostics stamped at it.
+// node its document holds there, the coordinates beneath it that hold one, and
+// the diagnostics stamped at it. A pass may replace or remove a node the
+// compiler interned, so it describes the document, not the compile alone.
 //
 // It answers "why did my example disappear" from the document alone: every
 // hoisted node records its coordinate in Provenance.Pointer, so the
@@ -25,10 +26,11 @@ import (
 type Explanation struct {
 	// Pointer is the coordinate explained; "" is the whole document.
 	Pointer jsontext.Pointer `json:"pointer"`
-	// Node is the type node interned at Pointer, or nil when none was.
+	// Node is the type node the document holds at Pointer, or nil when it
+	// holds none: none was interned there, or a pass removed it.
 	Node *Interned `json:"node,omitzero"`
-	// Below holds the coordinates strictly beneath Pointer that interned a
-	// node, in pointer order and, at one pointer, in ID order.
+	// Below holds the coordinates strictly beneath Pointer that hold a node,
+	// in pointer order and, at one pointer, in ID order.
 	Below []Interned `json:"below,omitempty"`
 	// Diagnostics holds the diagnostics stamped at Pointer, in reported order.
 	Diagnostics []ir.Diagnostic `json:"diagnostics,omitempty"`
@@ -42,15 +44,13 @@ type Interned struct {
 }
 
 // Explain reports what the compile that produced doc and diags produced at
-// pointer in the source it compiled. sources is the table each
-// Provenance.Source indexes, a run's engine.Result.Sources: a position in the
-// source, or credited to an overlay patching it (ir.SourceInfo.IsOverlay), is
-// read, and one in another document a split source reads is not, since its
-// pointer spells a position of that document. A nil document has no types; a
-// nil registry entry, untyped or a typed nil pointer, is skipped rather than
-// dereferenced, since a malformed registry is what pass.Validate and irverify
-// exist to report.
-func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, pointer jsontext.Pointer) Explanation {
+// pointer in the source it compiled: a position in the source is read, whoever
+// wrote it, an overlay included, and one in another document, a split source's
+// or the overlay's own, is not, since its pointer spells a position of that
+// document. A nil document has no types; a nil registry entry, untyped or a
+// typed nil pointer, is skipped rather than dereferenced, since a malformed
+// registry is what pass.Validate and irverify exist to report.
+func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) Explanation {
 	e := Explanation{Pointer: pointer}
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
@@ -58,7 +58,7 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 			continue
 		}
 		prov := td.Common().Provenance
-		if !inSource(sources, prov.Source) {
+		if !inSource(prov.Source) {
 			continue
 		}
 		// The first node at the pointer, in ID order, names it: several can
@@ -72,7 +72,7 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 	}
 	slices.SortStableFunc(e.Below, func(a, b Interned) int { return cmp.Compare(a.Pointer, b.Pointer) })
 	for _, d := range diags {
-		if inSource(sources, d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
+		if inSource(d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
 			e.Diagnostics = append(e.Diagnostics, d)
 		}
 	}
@@ -80,19 +80,16 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 }
 
 // inSource reports whether a position the Document.Sources entry at source
-// names can be in the source's coordinates: it is the source's own, the first
-// entry, or an overlay's, credited with what it wrote into the source at the
-// source's positions, though it names its own for a finding about itself.
-func inSource(sources []ir.SourceInfo, source int) bool {
-	if source == 0 {
-		return true
-	}
-	return source > 0 && source < len(sources) && sources[source].IsOverlay()
+// names is in the source's coordinates: it is the source's own, the first
+// entry. An overlay's writing into the source is located there too, at the
+// source's index with the overlay as its writer.
+func inSource(source int) bool {
+	return source == 0
 }
 
 // WriteExplanation writes e to w as the lines --explain prints: the
-// coordinate, the node at it or a line saying none was interned, what interned
-// below it when anything did, and its diagnostics. It stops at the first write
+// coordinate, the node at it or a line saying the document holds none, what is
+// interned below it when anything is, and its diagnostics. It stops at the first write
 // that fails and returns that write's error, and refuses a nil w.
 func WriteExplanation(w io.Writer, e Explanation) error {
 	if w == nil {
@@ -108,7 +105,7 @@ func WriteExplanation(w io.Writer, e Explanation) error {
 	if e.Node != nil {
 		lw.printf("  node %s (%s)\n", e.Node.ID, e.Node.Kind)
 	} else {
-		lw.printf("  no type node was interned at this coordinate\n")
+		lw.printf("  the document holds no type node at this coordinate\n")
 	}
 
 	if len(e.Below) > 0 {

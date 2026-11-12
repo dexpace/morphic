@@ -130,7 +130,7 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
-	kept, diags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, "format", ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(&common.Unmodeled, s, "format", ir.ReasonNoIRHome, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"format and contentEncoding both name an encoding and ir.Encoding holds one; "+
@@ -188,7 +188,7 @@ func recordUnplacedContent(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, td i
 	}
 	var diags []ir.Diagnostic
 	for _, keyword := range contentKeywords {
-		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.ProvenanceAt)
+		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
 		diags = append(diags, keptDiags...)
 		if !kept {
 			continue

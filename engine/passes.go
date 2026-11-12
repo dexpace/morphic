@@ -29,7 +29,7 @@ var ErrUnknownPass = errors.New("unknown pass")
 // after that one, so a second run changes nothing; architecture.md §2.2 gives
 // the reasons.
 func Passes() []pass.Pass {
-	return []pass.Pass{pass.Names{}, pass.Validator{}}
+	return []pass.Pass{pass.ConstUnions{}, pass.Names{}, pass.Validator{}}
 }
 
 // namedPass is a pass with the name it answered to when the engine was built.

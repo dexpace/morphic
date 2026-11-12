@@ -12,5 +12,5 @@ func Services() ([]ir.Service, map[ir.MessageID]ir.Message) {
 // Edge builds a registry and fills a name channel.
 func Edge(name string) (ir.TypeRegistry, ir.TypeID, ir.Naming) {
 	reg := ir.TypeRegistry{}                                // want "registrywrites: builds a type registry (a map from ir.TypeID to ir.TypeDef) outside ir and compilers/compile; edit a document's registry through an ir.Editor"
-	return reg, ir.TypeID(name), ir.Naming{Canonical: name} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use compile.NamingFor, compile.NamingHint or ir.CanonicalWords"
+	return reg, ir.TypeID(name), ir.Naming{Canonical: name} // want "namechannels: ir.Naming.Canonical is filled by something other than a call into ir or compilers/compile; use ir.NamingFor, compile.NamingHint or ir.CanonicalWords"
 }

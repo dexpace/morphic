@@ -63,7 +63,8 @@ type Property struct {
 	ID PropID `json:"id"`
 	// Name is the property's naming.
 	Name Naming `json:"name"`
-	// WireName is the serialized name; defaults to Name.Source.
+	// WireName is the serialized name; defaults to Name.Source. A Header under
+	// a Prefix has none, as it names no field of its own.
 	WireName string `json:"wireName,omitempty"`
 	// WireNameByFormat carries per-media-type overrides (TypeSpec @encodedName
 	// json/xml).
@@ -138,7 +139,9 @@ type Property struct {
 // EffectiveWireName returns the name p travels under on the wire: its
 // WireName, or its source name where it sets none (docs/ir/properties.md). It
 // is what tells one member of a model from another, across composition too
-// (docs/ir/models.md#the-flattening).
+// (docs/ir/models.md#the-flattening). A Header under a Prefix travels under no
+// one name, so for one it names none of its fields
+// (docs/ir/responses.md#prefix-headers).
 func (p *Property) EffectiveWireName() string {
 	if p.WireName != "" {
 		return p.WireName
@@ -148,9 +151,9 @@ func (p *Property) EffectiveWireName() string {
 
 // Header is one entry of a Response's, an ErrorCase's or a PartEncoding's
 // Headers: a Property, which names and types the value, and how it is written
-// into its field, which a property elsewhere has no use for. A response header
-// has no binding to hold that, as a parameter's HTTPParamBinding does
-// (docs/ir/responses.md).
+// into its field, or its fields under a prefix, which a property elsewhere has
+// no use for. A response header has no binding to hold that, as a parameter's
+// HTTPParamBinding does (docs/ir/responses.md).
 type Header struct {
 	Property
 	// Style is how the value is written into the field, in
@@ -159,4 +162,9 @@ type Header struct {
 	// Explode is the header's explode, as declared, which
 	// HTTPParamBinding.Explode is a parameter's; nil = the style's default.
 	Explode *bool `json:"explode,omitzero"`
+	// Prefix, when set, makes the header a map of every field whose name starts
+	// with it, compared without case, each keyed by the rest of its name, and ""
+	// takes every field (Smithy @httpPrefixHeaders). nil = the one field its
+	// wire name names (docs/ir/responses.md#prefix-headers).
+	Prefix *string `json:"prefix,omitzero"`
 }

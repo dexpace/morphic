@@ -133,6 +133,7 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 var integerFields = map[string]string{
 	"HTTPBinding.SuccessStatus": "keys index Operation.Responses; bounds-checked by checkIndices",
 	"Provenance.Source":         "index into Document.Sources; bounds-checked by checkProvenance",
+	"Provenance.WrittenBy":      "index into Document.Sources, 0 for none; checkProvenance holds it to an overlay entry",
 
 	// Deliberately unchecked. Index selects an element of the tuple a variant or
 	// subtype happens to be, so the slice it addresses is not fixed by the

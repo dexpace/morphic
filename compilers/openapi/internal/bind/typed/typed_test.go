@@ -137,8 +137,8 @@ func TestBuilder_BuildsEachLandingOnce(t *testing.T) {
 	assert.True(t, built[2].Schema.IsBool())
 }
 
-// TestBindings_ANilOneKnowsNothing pins the nil Bindings a context with no
-// load carries: every answer is none.
+// TestBindings_ANilOneKnowsNothing pins what the nil Bindings answers: none,
+// whatever is asked.
 func TestBindings_ANilOneKnowsNothing(t *testing.T) {
 	t.Parallel()
 	var b *typed.Bindings

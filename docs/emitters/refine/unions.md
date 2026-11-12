@@ -39,10 +39,13 @@ fact base is identical. What a union holds when several variants of an `anyOf` a
 Within the untagged case, choosing *how* a variant is recognized on decode is refine's job, and
 ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in order, explicit
 discriminator → implicit discriminator (variant const/name) → JSON-type discrimination (variants
-distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
-ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
-generation. Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a
-refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
+distinguishable by JSON kind) → unique-field discrimination → value-based. A compiler may have read
+the implicit one in already: a `Discriminator` marked `Inferred`
+([unions](../../ir/unions.md#tag-modes)) tags the union, and refine reads it as an explicit one,
+since the payload names its variant by it all the same. The decisive divergence: ogen computes this
+*while building the Go model*, so a union it cannot discriminate aborts the whole generation.
+Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a refiner
+that finds no strategy emits a coded diagnostic and decodes every value into the fallback
 below, which keeps its bytes as they arrived — a degrade, never a whole-document failure
 ([T-7](../testing/mandatory-tests.md)). That graceful-degradation margin is exactly what the ABI
 seam buys and the fused-pipeline generator cannot have.
@@ -157,8 +160,9 @@ variant too and fails only its pattern. Validation reports every set variant's f
 passes, and refuses a union with no variant set.
 
 The set variants hold one value, so a member any of them redacts is redacted in all: where an SDK
-renders or logs an inclusive union, a position is redacted when a set variant holding it marks it
-`Secret` or types it `Sensitive`. Rendering one variant alone follows that variant's own type.
+renders or logs an inclusive union, a position is redacted when a set variant holding it redacts it
+([redaction](redaction.md#a-redacted-value)). Rendering one variant alone follows that variant's
+own type.
 
 This is not the optional-field merge [the rule above](#variant-identity-and-recognition) forbids.
 That merge pools the variants' properties into one bag, losing which variant a member belongs to and

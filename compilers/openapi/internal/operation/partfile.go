@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,8 +46,8 @@ func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipar
 // fileFor judges a multipart part or item whose schemas read as least, with
 // contentTypes its encoding entry's: a file where it declares raw bytes; where
 // it leaves its media type to say, one where the entry names only binary media
-// types (partContentFile), or, from OpenAPI 3.1 and naming none, where it
-// writes no type, whose default media type is application/octet-stream.
+// types (partContentFile), or, naming none, as the media type its encoding
+// defaults to (untypedPartFile).
 func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile {
 	switch {
 	case least == readsBinary:
@@ -56,8 +57,20 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 	case len(contentTypes) > 0:
 		return partContentFile(c, contentTypes)
 	default:
-		return partFile{file: least == readsUntyped && !c.Is30()}
+		return untypedPartFile(c, least)
 	}
+}
+
+// untypedPartFile judges a part read as least whose encoding names no media
+// type: one writing no type is judged as naming the contentType the Encoding
+// Object's rows default that case to (lowering.EncodingRules), which from
+// OpenAPI 3.1 is application/octet-stream, and any other is no file.
+func untypedPartFile(c lowering.Ctx, least fileReading) partFile {
+	contentType, ok := lowering.EncodingRules(c).UntypedContentType()
+	if least != readsUntyped || !ok {
+		return partFile{}
+	}
+	return partContentFile(c, []string{contentType})
 }
 
 // readDeclaration reads js, one declaration of a part, as a file: an array
@@ -66,7 +79,7 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 // (readPartBranch).
 func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 	if s := schemaOf(c.Bindings(), js); isArraySchema(s) {
-		return readElements(c, s)
+		return readElements(c, js, s)
 	}
 	return readSchema(c, js, readPartBranch)
 }
@@ -76,7 +89,7 @@ func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fi
 // (readElements), as the part repeats where the branch holds.
 func readPartBranch(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 	if s := schemaOf(c.Bindings(), branch); isArraySchema(s) {
-		return readElements(c, s)
+		return readElements(c, branch, s)
 	}
 	return readBranch(c, branch)
 }
@@ -86,18 +99,22 @@ func isArraySchema(s *oas3.Schema) bool {
 	return s != nil && slices.Equal(withoutNull(s.GetType()), []oas3.SchemaType{oas3.SchemaTypeArray})
 }
 
-// readElements reads the elements of the array s as one: its prefixItems and
-// the items following them, items false admitting none. An array writing no
-// items reads as other, as one admitting no element does: what its elements
-// past its prefix are is left unsaid, not said to be anything.
-func readElements(c lowering.Ctx, s *oas3.Schema) fileReading {
-	items := s.GetItems()
-	if !annotation.Written(items) {
+// readElements reads the elements of the array js, whose schema is s, as one:
+// a draft's tuple entries and the additionalItems past them
+// (schema.ListedTuple), else its prefixItems and the items following them, a
+// rest of false admitting none. An array writing no rest reads as other, as
+// one admitting no element does: what its elements past its prefix are is
+// left unsaid, not said to be anything.
+func readElements(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) fileReading {
+	elems, rest, tuple := schema.ListedTuple(c, js)
+	if !tuple {
+		elems, rest = slices.Clone(s.GetPrefixItems()), s.GetItems()
+	}
+	if !annotation.Written(rest) {
 		return readsOther
 	}
-	elems := slices.Clone(s.GetPrefixItems())
-	if !annotation.IsFalseSchema(items) {
-		elems = append(elems, items)
+	if !annotation.IsFalseSchema(rest) {
+		elems = append(elems, rest)
 	}
 	if len(elems) == 0 {
 		return readsOther

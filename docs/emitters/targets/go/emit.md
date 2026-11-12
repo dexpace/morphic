@@ -41,11 +41,13 @@ type Iface   struct{}                       // any
 ## Why a domain AST → text → `go/format`, not `go/ast` directly
 
 `go/ast` is awkward to *synthesize* (it wants a `token.FileSet` and real positions and cannot carry
-generator intent like a field's `Origin` IR ID or a `Docs.Refs` span). The domain AST is
-smaller, holds provenance and wire metadata on its nodes, and prints to text that `go/format` then
-makes canonical. `go/ast` is used in exactly one place — re-parsing *existing* files for additive
-merge ([write / integrate](../../write-integrate.md)) — where its parser is the right tool. The two
-Go trees are kept aligned by ID-keying: "a symbol I generated" ↔ "a symbol I parsed" is a lookup.
+generator intent like a field's `Origin` IR ID or a `Docs.Refs` span). The domain AST is smaller,
+holds provenance and wire metadata on its nodes, and prints to text that `go/format` then makes
+canonical. A syntax tree of Go is used in exactly one place — re-parsing *existing* files for
+additive merge ([write / integrate](../../write-integrate.md)) — and that one is `dst`'s, which
+keeps comments on their nodes where `go/ast` cannot
+([merging](overview.md#merging-and-surface-extraction)). The two Go trees are kept aligned by
+ID-keying: "a symbol I generated" ↔ "a symbol I parsed" is a lookup.
 
 ## Runtime templates
 

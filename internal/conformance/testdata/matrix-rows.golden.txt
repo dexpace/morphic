@@ -9,6 +9,7 @@ negation	Negation
 enums-string	Enums (string)
 enums-numeric	Enums (numeric, valued)
 open-enums	Open enums (unknown values allowed)
+open-unions	Open unions (unknown variants allowed)
 custom-scalars	Custom scalars
 encoding-hints	Wire encoding hints (@encode / format)
 field-wire-ids	Field wire IDs (numeric tags)
@@ -27,6 +28,7 @@ operation-grouping	Operations grouped by service/interface
 resource-hierarchy	Resource hierarchy (CRUDL)
 http-binding	HTTP binding (method/path/status)
 param-styles	Param styles (explode, matrix…)
+prefix-headers	Headers bound to a map by a name prefix
 multi-content	Multiple content types per body
 multipart-encoding	Multipart/form encoding
 per-status-errors	Per-status error types
@@ -34,6 +36,7 @@ streaming-server	Streaming: server (SSE/chunk)
 streaming-client	Streaming: client / bidi
 events-channels	Events / pub-sub channels
 callbacks	Callbacks / request-reply
+operation-links	Links from a response to the operation it leads to
 pagination	Pagination (first-class)
 long-running-operations	Long-running operations
 idempotency	Idempotency

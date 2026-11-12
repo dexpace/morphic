@@ -345,6 +345,7 @@ func mergedKeys(root bool) string {
     Mapped: {properties: {<<: *d70, q: {$ref: '#/$defs/X'}}}
     Shallow: {<<: *d10, properties: {r: {$ref: '#/$defs/Y'}}}
     Plain: {$ref: '#/$defs/X'}
+    Unnamed: {$ref: '#1x'}
 `)
 	return b.String()
 }
@@ -352,7 +353,8 @@ func mergedKeys(root bool) string {
 // TestBind_SaysAKeyMayLiePastTheMergeBound pins MergeBound at each read a
 // merge past the bound can stop: a pointer, a schema resource's own
 // definitions, an $id a schema above a $ref may hide, which would give it
-// another base, a map of schemas' definitions, and the root's. A key a
+// another base, a map of schemas' definitions, the root's, and a plain name no
+// grammar admits, which a draft 4 `id` past the bound may declare. A key a
 // shallow merge lacks is missing outright, and one it supplies resolves.
 func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 	t.Parallel()
@@ -365,6 +367,7 @@ func TestBind_SaysAKeyMayLiePastTheMergeBound(t *testing.T) {
 		"/components/schemas/Missing":              bind.NoTarget,
 		"/components/schemas/Shallow/properties/r": bind.NoDefinition,
 		"/components/schemas/Plain":                bind.NoDefinition,
+		"/components/schemas/Unnamed":              bind.MergeBound,
 	} {
 		assert.Equal(t, want, entryAt(t, table, site).Hop.Reason, site)
 	}
@@ -473,15 +476,16 @@ func TestSpellings(t *testing.T) {
 		"it names a position that holds no parameter":     {Reason: bind.NotObject, Detail: "parameter"},
 		"it names nothing in the schema resource u, whose root its pointer is read from": {
 			Reason: bind.NoResourceTarget, Detail: "u"},
-		"two or more schemas of the resource it names declare that name as their $anchor or $dynamicAnchor, " +
-			"so it names none of them": {Reason: bind.DuplicateAnchor},
-		"two or more schemas declare u as their $id, so it names none of them":                   {Reason: bind.DuplicateID, Detail: "u"},
-		"no schema of the resource it names declares that name as its $anchor or $dynamicAnchor": {Reason: bind.NoAnchor},
-		"its fragment is no JSON pointer":                                                        {Reason: bind.BadPointer},
+		"two or more schemas of the resource it names declare that name as their $anchor, their $dynamicAnchor " +
+			"or, in a draft before 2019-09, an identifier naming that fragment alone, so it names none of them": {
+			Reason: bind.DuplicateAnchor},
+		"two or more schemas declare u as their identifier, so it names none of them":                                                                                      {Reason: bind.DuplicateID, Detail: "u"},
+		"no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone": {Reason: bind.NoAnchor},
+		"its fragment is no JSON pointer": {Reason: bind.BadPointer},
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
 		"the schema writing it defines that name, but a schema's own definitions answer a \"#/$defs/...\" " +
-			"pointer only where an $id makes it a resource of its own, and neither the document's root nor a " +
+			"pointer only where an identifier makes it a resource of its own, and neither the document's root nor a " +
 			"schema of the model above it holds one": {Reason: bind.OwnDefinition},
 		"raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no schema of " +
 			"the model whose definitions answer it, and neither the document's root nor a schema of the model " +

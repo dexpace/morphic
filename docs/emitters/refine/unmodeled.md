@@ -20,9 +20,9 @@ add only "this target ignores it", which the table already says of every SDK tar
 
 **Keys are read by name only through a policy.** An SDK emitter reads an entry's key only where a
 policy names it, and only `vendor_extension` and `out_of_scope` entries are kept for policies
-(INV6), so the stability of key names (#429) reaches an SDK through those two reasons alone. The
-validation emitter reads `validation_only` keys as the keywords they are ([docs and
-mocks](../docs-and-mock.md)), which #429 covers too.
+(INV6), so what a key promises ([unmodeled](../../ir/unmodeled.md#what-a-key-promises)) reaches an
+SDK through those two reasons alone. The validation emitter reads `validation_only` keys as the
+keywords they are ([docs and mocks](../docs-and-mock.md)), which the same promise covers.
 
 The copies of `readOnly` and `default` that the OpenAPI compiler keeps where they were declared,
 after applying them at every use

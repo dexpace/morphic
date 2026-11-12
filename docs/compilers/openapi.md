@@ -35,18 +35,30 @@ gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 ### `openapi-versions`
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
-name, and every rule below that differs by minor follows that one. A version that is not three runs
-of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
-`openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
-and the document still lowers under the minor it names. Any other
-version is not this compiler's. The engine refuses a document declaring one before any compiler
-runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
-handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
-Document.
+name, and every rule below that differs by minor follows that one. So is a document a reference
+reaches beside the source: its schemas are read in that minor's dialect, where neither its
+`jsonSchemaDialect` nor a schema's `$schema` names another ([`dialect-keywords`](#dialect-keywords)),
+its Encoding Objects take that minor's defaults, its objects are held to that minor's table, and its
+`Document.Sources` entry names that minor. One declaring no version, such as a bare schema file, or
+a version the compiler does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's
+minor, and the compile stands. A source declaring a version that is not three runs of digits, major,
+minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the
+class `validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
+names; a document a reference reaches is read at the minor such a version names too, with no
+finding, since only what a reference reaches is judged. Any other version is not this compiler's.
+The engine refuses a document declaring one before any compiler runs, as it refuses a Swagger 2.0
+document ([`swagger-lift`](#swagger-lift)), and the compiler, handed one directly, refuses it with
+an `openapi/unsupported-version` error and compiles to no Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
   `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
+  `e2e.TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares`,
+  `e2e.TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable`,
+  `e2e.TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument`,
+  `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
+  `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
+  `e2e.TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
@@ -155,43 +167,57 @@ reference into it is unresolved ([`references`](#references)), and the compile r
 `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
 than the node and alias budgets admit together, without bound where either has none, and nests no
 deeper than the scan's depth bound, so it stops on no document they admit; a check it does stop is
-an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold whatever the
-caller sets, since past them no answer the pre-parse scan gives is whole: a document nested past the
-scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep` error at the
-least pointer where its nesting passes the bound; one with more nodes than the scan indexes, as an
-`openapi/source-too-large` error; and one whose aliases expand it past a fixed multiple of its own
-size, with a floor for a small document, as an `openapi/alias-amplification` error at the least
-pointer of the smallest structures past the ratio. An overlay is held to the same refusals before it
-is applied, and so is a document an external reference names, which fails the reference instead;
-each is read no further than the byte budget. The member budget of an enum is
+an `openapi/budget-exceeded` error at the object it stopped on. Four bounds hold whatever the caller
+sets, since past them no answer the pre-parse scan gives is whole, or what the compile spends is
+out of proportion to the document: a document nested past the scan's depth bound, its aliases
+expanded, is refused as an `openapi/source-too-deep` error at the least pointer where its nesting
+passes the bound; one with more nodes than the scan indexes, as an `openapi/source-too-large`
+error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
+document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
+past the ratio; and one whose nesting and aliases the scan admits, but whose nodes' JSON pointers,
+its aliases expanded, total past a fixed multiple of the bytes it writes, with a floor for a small
+document, as an `openapi/pointer-amplification` error at the document, since the compile spells a
+pointer for each node it reads and the IR's IDs embed them. An overlay is held to the same refusals
+before it is applied, and so is a document an external reference names, which fails the reference
+instead; each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
 
 `MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
-and size the budgets above leave free. A declaration a `$ref` names, a schema or a link aside,
-lowers again at each `$ref` naming it, so each such `$ref` is charged what the declarations its
-chain names weigh: the one it ends at, and each component alias it passes through, whose fields
-beside its own `$ref` lower at every use too
-([`reference-object-siblings`](#reference-object-siblings),
+and size the budgets above leave free. A declaration a `$ref` names, a schema aside, lowers again at
+each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
+the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
+lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
 [`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
 schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
-copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
-link's is kept as written, so neither is charged. Past the budget no `$ref` lowers, and the compile
-is refused as one `openapi/budget-exceeded` error at the source and no position in it, compiling to
-no Document, beside what the load phase found and nothing the lowering did: which `$ref` crossed the
-budget, and so what lowered before it, follows the walk's order. With no Document to list the
-documents `$ref`s read, what the load phase found in one of them is left out too.
+copy, a link's among them, since each response naming one lowers its own. A schema's `$ref` names
+one registry entry ([`schema-registry`](#schema-registry)), so it is not charged. A path item's
+operations copy what the item declares itself. Its fixed methods bound those copies, and OpenAPI
+3.2's `additionalOperations` does not, so each operation that field declares is charged too, the
+first among them, which charges an item the same in any order of its entries: an inline parameter of
+the item that it takes, weighed in the document writing it as a `$ref`'s declaration is, the entries
+it keeps of the item, a byte for each byte of their keywords and raw values and one between, the
+item's summary and description its `PathDocs` holds ([`path-item-docs`](#path-item-docs)), a byte
+for each byte of their keywords and text and one between, and the IDs of the item's servers where it
+names none of its own ([`path-item-servers`](#path-item-servers)). Past the budget no `$ref` lowers,
+nor such an operation, and the compile is refused as one `openapi/budget-exceeded` error at the
+source and no position in it, compiling to no Document, beside what the load phase found and nothing
+the lowering did: which copy crossed the budget, and so what lowered before it, follows the walk's
+order. With no Document to list the documents `$ref`s read, what the load phase found in one of them
+is left out too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
-  `openapi/alias-amplification`
+  `openapi/alias-amplification`, `openapi/pointer-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `load.TestLoad_ANamedOverlayPastTheBudgetIsRefused`,
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
+  `load.TestLoad_RefusesLongKeysNestedDeepBeforeBuildingTheModel`,
+  `load.TestLoad_ReportsAShapeOnceItsNestingRefuses`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
   `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
@@ -205,11 +231,17 @@ documents `$ref`s read, what the load phase found in one of them is left out too
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
-  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
+  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
+  `openapi.TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy`,
+  `openapi.TestCompile_APathItemsFixedMethodsAreNotCharged`,
+  `openapi.TestCompile_AnItemsAdditionalOperationsAreChargedInAnyOrder`,
+  `openapi.TestCompile_AnItemsParameterIsWeighedInItsOwnDocument`,
+  `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path
-  item's own fields copied into each of its operations (#1428) and aliases of a long scalar (#1429)
-  cost gigabytes within every bound.
+  document budget twice (#571), aliases of a long scalar (#1429) cost gigabytes within every
+  bound, and the pointer bound counts the values a compile keeps verbatim, an example or an
+  extension, whose nodes it never names one by one, so a document whose values nest long keys deep
+  is refused though it would compile cheaply (#1499).
 
 ### `overlays`
 
@@ -219,28 +251,32 @@ from the local file `Overlay.Path` names, through the caller's reader and unconf
 caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
 is, and so are an overlay naming no file and one naming an http(s) URL, since no setting takes a
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
-tree as they hold the source, and validation and every lowering read it. Each action is charged the
+tree as they hold the source, and validation and every lowering read it. A refusal at a node the
+overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
+pointers' bytes, since the source passed the same refusals alone; its message says it reads the
+tree the overlay leaves, which the overlay's own refusal does not. Each action is charged the
 nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
 `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
 so it is refused while the tree is past the budget whatever a later action removes. An action that
 builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
 the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
-introduced or rewrote names that entry as its `Provenance.Source`, while a position it left alone
-keeps the source's line and column. An overlay that is one JSON text is read as JSON, as a source is
-([`yaml-decoding`](#yaml-decoding)), so the characters and escapes the YAML parser refuses compile
-as the characters they name. An overlay that does not parse, including one writing half of a
-surrogate pair, or is not a valid Overlay — no version, no actions, an action naming no target — is
-refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot apply as
-written, or whose grafted content expands past the walk's node budget, is refused as an
-`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
-tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
-that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
-an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
-selector matches nothing is reported the same way and refuses the overlay as
-`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
-cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
-the overlay is applied and every position names the source, as with no overlay, reported as an
-`openapi/overlay-origin-incomplete` warning.
+introduced or rewrote names the source as its `Provenance.Source` and that entry as its `WrittenBy`
+([provenance](../ir/provenance.md)), while a position it left alone keeps the source's line and
+column; a finding about the overlay document itself names the overlay as its `Source`. An overlay
+that is one JSON text is read as JSON, as a source is ([`yaml-decoding`](#yaml-decoding)), so the
+characters and escapes the YAML parser refuses compile as the characters they name. An overlay that
+does not parse, including one writing half of a surrogate pair, or is not a valid Overlay — no
+version, no actions, an action naming no target — is refused as an `openapi/invalid-overlay` error
+and nothing is applied. One the parser cannot apply as written, or whose grafted content expands
+past the walk's node budget, is refused as an `openapi/overlay-failed` error. Either way the source
+compiles to no Document rather than lowering a tree the caller believes was patched. Application is
+strict unless `Overlay.Lax` is set: each action that changed nothing, or relies on JSONPath
+behaviour the overlay did not opt into, is reported as an `openapi/overlay-action` warning naming
+the action, and the compile proceeds; an action whose selector matches nothing is reported the same
+way and refuses the overlay as `openapi/overlay-failed`. Lax application reports none of these, and
+refuses only an overlay it cannot apply. Where the walk that attributes positions to the overlay
+runs out of its node budget, the overlay is applied and no position names it as a writer, as with no
+overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
@@ -254,6 +290,7 @@ the overlay is applied and every position names the source, as with no overlay, 
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
+  `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`,
   `overlay.TestParseDocument_ReadsWhatTheLibraryReads`,
   `overlay.TestParseDocument_ReadsWhatTheLibraryRefuses`,
   `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
@@ -267,9 +304,10 @@ the overlay is applied and every position names the source, as with no overlay, 
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, and the rules that bind fields together; what data cannot
-state is written as code beside it, such as a path template against its path parameters, a server
-URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
+each, which fields each minor requires, the rules that bind fields together, and the defaults of
+fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
+cannot state is written as code beside it, such as a path template against its path parameters, a
+server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
 as `openapi/validation` suffixed with its class (`openapi/validation/validation-required-field`), at
 the node it is about, its message naming the object, the field, the minor and the section of the
 specification it cites. A finding never refuses the document,
@@ -302,7 +340,8 @@ stands ([`security-requirements`](#security-requirements)).
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
 that kind, one under an `x-` key or in another document, is read as the kind the reference
-expects and held to the source's minor. A finding about it is placed at its node, in the entry of
+expects and held to the minor of the document that writes it
+([`openapi-versions`](#openapi-versions)). A finding about it is placed at its node, in the entry of
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
@@ -340,8 +379,10 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
-- Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839).
+- Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
+  is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
+  admits it, and a keyword only the draft defines, or a `definitions` entry no `$ref` reaches, is
+  held to none (#1466).
 
 ### `minor-required-fields`
 
@@ -367,15 +408,14 @@ the field.
   `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
   `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
   `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
-- Status: open: which minor governs a document a reference reaches, held to the source's until it is
-  settled (#839).
 
 ### `later-version-construct`
 
 A document may write a field, or one value of a field, that a later minor of its format added to the
 object it sits on: a `name` on an OpenAPI 3.1 Server Object, `in: querystring` on a 3.0 Parameter
-Object. It lowers exactly as in a document declaring the minor that added it, and is reported once,
-at its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
+Object. It lowers exactly as in a document declaring the minor that added it, but for the one case
+set out below, whose keywords are read as the declared minor defines them, and is reported once, at
+its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
 the lowering and the diagnostic a consumer can still set the construct aside, while from a verbatim
 copy it could not rebuild the operation a `query` key declares. Except in the one case set out
 below, the declared minor gives the construct no meaning at all, so the lowering asserts nothing the
@@ -387,20 +427,38 @@ added and which [`reference-object-siblings`](#reference-object-siblings) folds 
 and every keyword beside a Schema Object's `$ref`, which 3.1 applies alongside the reference as JSON
 Schema 2020-12 conjoins them ([`ref-use-site`](#ref-use-site)). That is the one case: 3.0 reads
 either position as a Reference Object, which admits no key beside its `$ref` and says one SHALL be
-ignored, so a 3.0 document writing one is warned that it was read as 3.1 reads it. What the keyword
-then means is the 3.1 dialect's, so a `nullable` there, which no minor gives an effect beside a
-`$ref`, is read by the policy [`nullable`](#nullable) sets out. A keyword whose meaning differs
-between minors, such as `exclusiveMinimum`, follows the declared one
-([`constraints`](#constraints)).
+ignored, so a 3.0 document writing one is warned that it was applied as 3.1 applies it. It is then
+read as the declared minor's dialect defines it, the only reading that gives what the author wrote
+its meaning: a `nullable` there adds `null` to a `type` written beside it
+([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
+([`constraints`](#constraints)), and a `type: array` there requires `items` unless what the `$ref`
+lands on supplies one ([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
-so no field's treatment can depend on whether the parser happens to model it. The construct's value
-is held to the shape its table row gives it, and any object inside it to the table like any other.
+so no field's treatment can depend on whether the parser happens to model it. How a schema keyword
+reads at its document's minor is asked of the same table, the Schema Object's rows at that minor:
+whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
+beside `type: array`; and what an Encoding Object leaves unwritten defaults to is asked of the
+Encoding Object's rows, the `contentType` of a part writing no `type`
+([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: outside format
+detection, which reads it to name the format a file declares, only the load phase and the table
+read the version a document declares, and `make lint` refuses the parser library's version field
+and accessor, and the table's reading of a version, anywhere else (a `forbidigo` rule in
+`.golangci.yml`). The construct's value is held to the shape its table row gives it, and any object
+inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
-Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering reads beside a
-3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
+Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
+a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
 warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
+JSON Schema drafts 4, 6 and 7 ignore a schema's keywords beside its `$ref` too, and 2019-09 applies
+them, so in a schema read in one of those drafts ([`dialect-keywords`](#dialect-keywords)) the
+schema lowering applies each as 2020-12 does and warns of each field the draft's rows define at its
+key, OpenAPI's own among them, bar those whose reading applying them leaves alike: the `$schema`
+naming the draft, `definitions`, whose schemas only a `$ref` reads, and `$comment`. The identifier
+is not applied, as applying it would change what the `$ref` names: it names nothing there, as the
+draft has it ([`references`](#references)), and draws no warning. A key the rows define nothing
+for, an extension or an unknown keyword, is kept as written either way, and draws none.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
@@ -410,17 +468,20 @@ judges a Parameter Object's `allowReserved` against where the declared minor app
 ([`allow-reserved-locations`](#allow-reserved-locations)), and its `allowEmptyValue` against the
 style it is written under ([`allow-empty-value`](#allow-empty-value)).
 
-- Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
+- Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`,
+  `schema-drafts`
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `e2e.TestSchemaRefSiblings_LowerAsIn31`,
+  `e2e.TestOlderDrafts_RefSiblingsAreWarnedOf`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
+  `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
 - Status: partly built: a JSON Schema 2020-12 keyword in a 3.0 schema lowers with no diagnostic
-  (#820). Open: which minor governs a document a reference reaches (#839).
+  (#820).
 
 ### `references`
 
@@ -478,15 +539,34 @@ names the schema writing the `$id`; under none, `#` names the document's root. A
 fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, in the
 source or another document, so a name under an `$id` is that `$id`'s resource's and not its
 document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
-name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
-none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed:
+name or a URI two schemas declare names neither, and a name its schema's dialect's grammar refuses
+is declared by none, the load phase reporting it: 2020-12's admits a leading `_` and no `:`, the
+grammar of 2019-09's `$anchor` and of drafts 6 and 7's identifier naming a fragment alone the
+reverse. Draft 4 states none, so its `id` naming a fragment alone declares any name no JSON pointer
+spells, read as a `$ref`'s fragment is, and a `$ref` naming one no grammar admits resolves to it;
+where no schema declares such a name, the `$ref` is reported as naming no JSON pointer.
+An anchor keyword a draft defines none of, draft 7's `$anchor` or 2019-09's `$dynamicAnchor`, is
+read as 2020-12 reads it, by 2020-12's grammar. Identifiers are read only where a schema is placed:
 by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,
 so one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
 document that names none has no grammar, so it is read as a document of schemas: its root and any
 key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source,
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
-it is read. An `$id` names the URI its part before the `#` resolves to against the base above it, by
+it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
+it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
+`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
+or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
+check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
+refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
+name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
+dialect rather than to the rule table's 2020-12 row; one
+beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
+every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
+a value is one. A schema another holds roots a resource where it writes an identifier as the
+dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
+its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
+ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
 RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
 and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -571,6 +651,17 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 - Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
   `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
+  `e2e.TestOlderDrafts_AnIDNamesAResource`,
+  `e2e.TestOlderDrafts_AnIdentifierBesideARefSetsNoBase`,
+  `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
+  `bind.TestDialectRule_AFragmentIdentifierDeclaresByItsDialectsGrammar`,
+  `bind.TestFragmentName_DeclaresAnyNameDraft4Writes`,
+  `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
+  `bind.TestDialectRule_AnIdentifierBesideARefNamesNothing`,
+  `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
+  `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
+  `bind.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,
+  `bind.TestDialectRule_AWalkStartsInTheDialectAboveIt`,
   `e2e.TestGolden_SplitSpec`, `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
   `schema.TestMapping_InAnotherDocumentIsReportedWhereItIsWritten`,
@@ -617,6 +708,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
   `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
+  `e2e.TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
@@ -648,7 +740,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
   JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
   it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359).
+  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
+  in the length of a chain of reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
@@ -674,6 +767,7 @@ of its own is reported as an `openapi/cycle-scan-failed` warning, and the compil
   `e2e.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
   `e2e.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
   `e2e.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
@@ -800,20 +894,20 @@ kept.
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
 chain lands on, and the retention runs after every other lowering and keeps what that record lacks.
-A `$ref` written where nothing follows it — in a response's verbatim `links` map, under an `x-`
-extension, inside an example's literal value, inside an entry that is itself not lowered — carries
-nothing of its target into the IR, so the target is kept; and a reference spelled another way than
+A `$ref` written where nothing follows it — under an `x-` extension, inside an example's literal
+value, inside an entry that is itself not lowered — carries nothing of its target into the IR, so
+the target is kept; and a reference spelled another way than
 its target's key, percent-encoded or naming this document by its file, still reaches the entry it
 resolves to, so that entry is not kept beside its lowering. Deciding this from the `$ref` strings
 instead would answer both questions by a reading of its own, and wrongly: it drops the first kind of
 target in silence and gives the second two homes. The record is written by lowerings that never read
 it, so it cannot change their answers or depend on their order.
 
-`no_ir_home` rather than a boundary, and no diagnostic, are the links precedent generalized: the gap
-is one the IR can close by finding a use for the entry, so a promotion pass should read it, and a
-document that declares a component is not making a mistake a warning could name. `Reason` is where
-that decision lives ([unmodeled](../ir/unmodeled.md#reasons)), which is what keeps a
-promotion pass from mistaking one for an oversight.
+`no_ir_home` rather than a boundary, and no diagnostic: the gap is one the IR can close by finding a
+use for the entry, so a promotion pass should read it, and a document that declares a component is
+not making a mistake a warning could name. `Reason` is where that decision lives
+([unmodeled](../ir/unmodeled.md#reasons)), which is what keeps a promotion pass from mistaking one
+for an oversight.
 
 - Cases: `unreferenced-components`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`
@@ -952,8 +1046,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 ### `ref-use-site`
 
-The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
-3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
+The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
+a 3.0 document, each read in its own document's dialect
+([`later-version-construct`](#later-version-construct)), and the annotations its target
 declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
@@ -1003,8 +1098,9 @@ A Reference Object's own siblings are the annotations of the use site. OpenAPI l
 writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use* of
 the referenced object rather than the object. Where the IR has a docs field at the position — a
 parameter, a response or error case, a header, an example, a request body, a security scheme, a
-body's media type — both are read off the entry and folded over the declaration's docs field by
-field, a sibling the entry writes winning and one it omits leaving the declaration's value standing.
+body's media type, a link — both are read off the entry and folded over the declaration's docs field
+by field, a sibling the entry writes winning and one it omits leaving the declaration's value
+standing.
 A parameter's or header's content entry has no docs field of its own, so what the fold takes there
 is kept verbatim under `no_ir_home`, each from the position writing it, with an info
 `openapi/degraded-construct`; one an alias of the chain writes in another document, which this
@@ -1025,7 +1121,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
-  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
+  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`
 - Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
   no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
   declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
@@ -1056,8 +1153,9 @@ declaration that owns it.
 
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
-keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply, and which can state the deprecation itself where no keyword does. An operation, and a
+keyword states no message, version, date or replacement, which only
+[`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
+where no keyword does. An operation, and a
 tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
 beside its `description` and `externalDocs`; a response and an error case take `description` and
 `summary` ([`response-summary`](#response-summary)); a request
@@ -1078,8 +1176,6 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
   `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
-- Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
-  (#670).
 
 ### `disjoint-visibility`
 
@@ -1122,8 +1218,8 @@ reference ([`union-null-variant`](#union-null-variant)).
 
 OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Schema Object, as
 `type: [T, "null"]` does from 3.1, and then conjoins as that does: 3.0.3 and 3.0.4 state it, as a
-clarification of every 3.0 release. With no `type` beside it, or beside a `$ref`, it has no effect,
-and 3.1 removed the keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
+clarification of every 3.0 release. With no `type` beside it, it has no effect, and 3.1 removed the
+keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
 use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
 nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
@@ -1139,9 +1235,8 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-widening`, which `false` turns off. A
-`nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
-define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
+its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
 
@@ -1152,6 +1247,7 @@ model does not name.
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
   `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
   `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`
@@ -1175,20 +1271,18 @@ with an `openapi/degraded-construct` warning at it.
 
 A schema's `xml` object lowers to `XMLHints` on the node the position owns, or, where it owns none,
 on the property that carries it, the property's hints its own beside its type's
-([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix` and `wrapped` as
-written, and the node type from 3.2's `nodeType`
-([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)) or, where none is written, from
-`attribute: true` as `attribute`. An `attribute` flag that a `nodeType` beside it contradicts, which
-3.2 forbids, is kept verbatim under `openapi:xml/attribute` (`degraded_lowering`) with an
-`openapi/degraded-construct` warning at it, and the `nodeType` is placed. The object's `x-*`
-extensions are kept as `openapi:xml/x-*` ([`vendor-extensions`](#vendor-extensions)), and the hints
-of a parameter's schema, which `ir.Parameter` has no field for, are
-[`parameter-schema-keywords`](#parameter-schema-keywords)'.
+([constraints](../ir/constraints.md)): `name`, `namespace`, `prefix`, `attribute` and `wrapped`
+as written, a declared `false` included, and 3.2's `nodeType`
+([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)). An `attribute` flag that a `nodeType`
+beside it contradicts, which 3.2 forbids, is kept verbatim under `openapi:xml/attribute`
+(`degraded_lowering`) with an `openapi/degraded-construct` warning at it, and the `nodeType` is
+placed alone. The object's `x-*` extensions are kept as `openapi:xml/x-*`
+([`vendor-extensions`](#vendor-extensions)), and the hints of a parameter's schema, which
+`ir.Parameter` has no field for, are [`parameter-schema-keywords`](#parameter-schema-keywords)'.
 
 - Cases: `xml-hints`, `xml-nodetype-32`
 - Codes: `openapi/degraded-construct`
 - Tests: `annotation.TestXMLHints_ReadsEveryFieldDirectly`, `schema.TestModel_PropertyXML`
-- Status: open: whether a property's hints override its type's field by field or whole (#465).
 
 ## 5. Schemas: composition, unions and enumerations
 
@@ -1202,7 +1296,9 @@ becomes a `Mixin`; and an inline entry merges into the composing model's own `Pr
 property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
 [`allof-redeclared-property`](#allof-redeclared-property)). So every `$ref` entry stays composed
 and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
-on the field without its source.
+on the field without its source. A `$ref` entry naming a union is no exception: the union is the
+`Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
+([models](../ir/models.md#a-union-a-composition-names)).
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -1223,7 +1319,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
   `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
   `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
-  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`,
+  `schema.TestAllOf_AUnionItNamesComposesAsWritten`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
@@ -1251,7 +1348,7 @@ be, with nothing lost, where:
 2. it writes more than 64 conjuncts, which the election below compares pairwise;
 3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
    depth ([`allof-classification`](#allof-classification));
-4. `oneOf` or `anyOf` is written on a branch or beside the `allOf`
+4. `oneOf` or `anyOf` is written beside the `allOf`
    ([`union-beside-structure`](#union-beside-structure));
 5. two conjuncts are `$ref`s: both keep composing, since keeping one reference typed would mean
    dropping the other ([models](../ir/models.md#composition-entries));
@@ -1262,10 +1359,12 @@ be, with nothing lost, where:
    holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
    names the contradiction.
 
-An `enum` or a `const` beside the `allOf` wins the election of
-[`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
-`allOf` writes alone speaks for it as a narrowed one does below. That `allOf` stays verbatim: its
-branches fold nothing, and its `$ref` lowers nothing.
+An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts, the keywords beside
+the `allOf` writing a value set, rather than its rival in the election of
+[`competing-keywords`](#competing-keywords): `{enum: [a], allOf: [{$ref: Level}]}` elects its
+principal from the same set as `{allOf: [{$ref: Level}, {enum: [a]}]}`, its branches fold and its
+`$ref` still lowers. Beside an `allOf` that composes, the value set wins that election and the
+`allOf` stays verbatim.
 
 The principal is chosen from the whole set:
 
@@ -1296,6 +1395,17 @@ inline branch as a schema carried by the position. A branch that reduces to a sh
 written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
 `readOnly` and `writeOnly` as it keeps its schema's.
 
+The value set a refinement lowers to, the `Enum` or `Literal` of a principal or of the keywords
+beside the `allOf`, is typed by every conjunct. Each selects a primitive as
+[`enum-const`](#enum-const) reads one schema, from its `type` and `format`, else its `type`, where
+every value is of it, a `$ref` conjunct by the schema deciding what it lands on, past a chain of
+`$ref`s and refinements. The `ValueType` is the one of these, the value set's own included, that
+narrows every other, and each `type` and `format` it holds is consumed, a wider one included. So
+`{allOf: [{type: integer}, {const: 80.0}]}` is an `integer`, as `{type: integer, const: 80.0}` is,
+and keeps nothing. Where none narrows every other, as of two formats neither of which narrows the
+other, the value set keeps the `ValueType` its own schema gives it, and a format that reaches none
+stays with its branch.
+
 What the conjuncts say lands where the position keeps what it writes: on the carrier
 ([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes
 something ([annotations](../ir/annotations.md#one-structural-home-per-declaration)), so a position
@@ -1311,7 +1421,17 @@ more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a 
 branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
 speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
 takes it, and still lowers, though nothing else names it, as a position no component holds lowers
-for a `$ref`.
+for a `$ref`. A `oneOf` or `anyOf` written on a branch is a conjunct admitting what any of its
+branches admits, naming the kinds they name, so it may be the principal, lowering at its own pointer
+as an inline branch does. The principal says the union where one of its branches says nothing the
+principal does not, each keyword the branch writes compared as one written beside the `allOf` is,
+and a `oneOf` only where that branch also shares no kind with another, so that exactly one admits
+each value the position holds:
+`{allOf: [{anyOf: [{type: string}, {type: number}]}, {type: string, maxLength: 1000}]}` lowers as
+`{type: string, maxLength: 1000}` does, keeping nothing. A branch writing a bound, a `pattern` or an
+annotation says more than the principal, so
+`{allOf: [{anyOf: [{type: string, maxLength: 5}, {type: integer}]}, {type: string, maxLength: 1000}]}`
+keeps the union with its branch.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
@@ -1341,6 +1461,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AValueComparesAsAnEnumEntryDoes`,
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
   `schema.TestRefinement_ANarrowedRefStillLowersItsTarget`,
+  `schema.TestRefinement_AValueSetBesideTheAllOfIsAConjunct`,
+  `schema.TestRefinement_AValueSetIsTypedByEveryConjunct`,
+  `schema.TestRefinement_ARefToAPrincipalNamesItsTypedNode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
@@ -1354,10 +1477,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`,
   `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
+  `schema.TestRefinement_AUnionBranchIsAConjunct`,
   `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
-- Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
-  (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
-  (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
+- Status: partly built: a structural keyword beside a 3.1 `$ref` keeps what the same keyword here
+  consumes (#1067).
 
 ### `allof-beside-ref`
 
@@ -1376,36 +1499,49 @@ hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under 
 A branch written inline rather than as a `$ref` owns no node, so composition has nowhere to point
 ([models](../ir/models.md#composition)) and the branch is merged into the composing model in place.
 That merge consumes the branch's `properties`, its `required` list, a `type` that is exactly
-`object`, which the composed `Model` already restates, and, for an entry flattened under
-[`allof-classification`](#allof-classification), its `allOf`.
+`object`, which the composed `Model` already restates, for an entry flattened under
+[`allof-classification`](#allof-classification), its `allOf`, and the `oneOf` or `anyOf` the
+position distributes across its variants ([`union-beside-structure`](#union-beside-structure)).
 
 JSON Schema conjoins an `allOf`'s keywords with those beside it, so what a branch writes for the
 position reads as written beside the `allOf`, in a composition and in a refinement
 ([`allof-refinement`](#allof-refinement)) alike: its `title`, `description`, `externalDocs`,
 `deprecated`, `example`, `examples`, `xml`, `default`, `readOnly`, `writeOnly`, value constraints,
-`format: password` ([`password`](#password)), vendor extensions and validation-only keywords
-([`validation-only`](#validation-only)) land where the same keyword beside the `allOf` lands, each
-read at the branch's own pointer and reported as that keyword is there, which for most is not at
-all. A `nullable` folds only from a branch writing no `properties`, under the nullable-widening
-policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not fold, being a composing
-model's openness; a value bound does not where the position owns a node with no field for one; and a
-composition distributed across a union keeps every branch on each variant
-([`union-beside-structure`](#union-beside-structure)).
+collection bounds, `format: password` ([`password`](#password)), vendor extensions and
+validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
+the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
+which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
+the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
+fold, being a composing model's openness; a bound does not where the position has no field for it,
+as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound on a node with
+no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
+of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
+a `uniqueItems` of `false` or a count past 64 bits, never folds. A `oneOf`, an `anyOf` or a
+`$dynamicRef` beside the `allOf` keeps it from refining ([`allof-refinement`](#allof-refinement))
+and changes nothing else here: where the `allOf` composes, its branches fold into the composition
+as they do with none of them there, beside a `$dynamicRef` it keeps from expanding
+([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
+([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
+its branches distributes, a branch's annotations and what a use binds reach the `Union` and its
+carriers, and a value bound each variant, as the same keyword beside the `allOf` does, and a branch
+with no residue is kept on no variant
+([models](../ir/models.md#composition-beside-a-union)).
 
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value bounds
-agree where they meet, as a redeclared field's do
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
-folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
-written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
-`exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently. A branch whose folding keywords write a relative `$ref` it reads against
-another base than the position does, an `$id` at or above it naming another URI, folds nothing
-either, since that `$ref` would name another schema read at the position; it stays whole, with its
-report, and is no conjunct the others are compared with. One writing none there, or only absolute
-ones, reads the same at the position, so an `$id` alone keeps nothing it writes from folding.
+folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
+to `12`, whatever their order, a number written two ways keeping the first spelling. Two `pattern`s
+have no one value, and neither has a 3.0 `exclusiveMinimum` with no bound beside it, which fills no
+field, so each disagrees with another written differently. A branch whose folding keywords write a
+relative `$ref` it reads against another base than the position does, an `$id` at or above it naming
+another URI, folds nothing either, since that `$ref` would name another schema read at the position;
+it stays whole, with its report, and is no conjunct the others are compared with. One writing none
+there, or only absolute ones, reads the same at the position, so an `$id` alone keeps nothing it
+writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1448,14 +1584,19 @@ every entry reads that one twice.
   `schema.TestVoices_BoundsMeetInEveryOrder`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
-  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
+  `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
+  `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
+  `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
   `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
-  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
-- Status: partly built: a collection bound on an inline branch of a refinement stays with its
-  branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
-  principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that
-  has the field, as one over a `$ref` does (#1312).
+  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestCollectionBound_OnABranchLandsAsItsFlatSpelling`,
+  `schema.TestCollectionBound_OnABranchMeetsInEveryOrder`,
+  `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
+  `schema.TestRefinement_AValueBoundOnABranchBesideATypeListStaysWithIt`
+- Status: partly built: a value bound on a branch beside a type list stays with its branch, though
+  the variants that hold one beside the `allOf` hold it too, since those need not be variants it
+  constrains (#1310).
 
 ### `allof-redeclared-property`
 
@@ -1470,7 +1611,10 @@ unrelated. A disjoint pair is unsatisfiable but for a null both declarations adm
 satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
 this order.
 `{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
-unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
+unconvertible const), which is unrelated to every type, and so does an alias of `{}` that says
+nothing of its values: as a field's own type it may hold the docs, deprecation and redaction a
+reference carries down to the field ([annotations](../ir/annotations.md#what-a-reference-carries-down)),
+and anywhere else nothing but where it was declared. Where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
 by value domain and spelling (`integer` against `number`, `uuid` against `string`, `int32` against
 `int64`). A `Scalar` or `Enum` against a bare primitive wins over a kind it equals or narrows
@@ -1488,7 +1632,9 @@ with members against `bytes` stays an overlap. A `const` wins when the kind admi
 it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
 `Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
 the node admits it and says nothing but its base, the format and bounds, so a field typed by the
-`const` loses none of it; a node saying more, a description or an example, overlaps it. Two
+`const` loses none of it. Where the node also says what a `const` can hold beside its value, a
+description or a deprecation, the two meet in a `const` holding that too (below); a node giving
+examples overlaps it, since nothing shows the `const` admits them. Two
 enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
 whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
 one type where both were written inline at the field's own declarations, in their document, as the
@@ -1498,23 +1644,44 @@ are two types the source declared apart, which overlap. A copy is one type with 
 gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
 read it against one base where each is written: under an `$id` naming another URI, or in another
 document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
-Two lists,
-or two maps with one key, compare
-by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other, its bounds say all the other's do, and the other holds nothing else the
-winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
-examples, deprecation, XML hints or `Unmodeled`. Disjoint members still overlap where both admit
-null, or where both containers admit the empty one. Two tuples compare position by position, and
-relate only where every position, and what may follow the last, is one type; a tuple that a
-container or another tuple holds is not compared, since a tuple has a member per position where any
-other node has one, and comparing them nested would cost its width to the power of the depth. Two
-lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
-one type where both were written inline, the one declared elsewhere winning over an inline copy in
-either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
-all but their bounds are judged by those bounds, wherever each was declared: the one whose bounds
-say all the other's do is narrower, and where neither does, or a keyword with no order differs, the
-two meet. Two that meet as a container's members overlap, since a fold builds a node for a field's
-own type and none for what it holds. A structure is narrower than
+Two `const`s of different values share none, so they are disjoint. Two enums of one value type,
+closedness, bit-flag reading and fallback, whose members holding one value say the same of it, are
+judged by the values they hold: sharing none, they are disjoint; one whose values the other holds
+every one of is narrower where it also says all the other does beside its members, and otherwise the
+two meet, as do two each holding a value the other lacks, in an enum of the values they share
+(below), where both list those values in one order. Two listing them in different orders overlap,
+since an enum of both would take its order from one declaration. Two holding one set of values in
+another order or saying the rest differently, and any other pair of enums, are judged by their kind.
+Two models alike in every member but where they and what they name were declared (the same
+properties in the same order, each with the same wire name, required flag, visibility, docs,
+constraints, values and kept text, and the same catch-all, composition and discriminator, its tag
+read by position) are judged the same way where every type they name relates to the other's as the
+same type, or as that rule relates the two models: a component wins over an inline copy of itself,
+a nested object included, in either order, and two inline copies are one type. A property keeping a
+relative `$ref` makes them one only under one base, as above. Two components alike were declared
+apart, and models alike in all but a type that relates otherwise are no copies, so either pair
+composes as two models do (below). One judgment compares at most 64 pairs of models member by
+member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
+two are unrelated and compose, which loses nothing.
+Two lists, two maps with one key, or two tuples of one length are judged by their parts: each
+element, value or position, with what may follow a tuple's last, judged as a pair a level down, null
+included, nested up to a bound; their bounds, a keyword with no order (`pattern`) given two ways
+meeting; and what else each says, read as two `Scalar`s are but where each was declared: encoding,
+documentation, examples, deprecation, XML hints and `Unmodeled`. Two `Scalar`s of one base and
+encoding are judged by their bounds and what else they say the same way. A node says all another
+does of a part where its member is the narrower or admits null no more widely, its bounds say all
+the other's do, or it sets every detail the other sets, alike. Two saying one set of values are
+judged as two equal enums are where they say the rest alike; where they do not, they are two types
+declared apart, which overlap, but for two `Scalar`s, then judged by their kind. Otherwise the one
+saying all the other does in every part is narrower, and two each saying what the other lacks meet in
+a node holding both (below), unless they give one detail differently, or one gives examples the
+other does not, since nothing shows that node admits them, which leaves them an overlap. Members that
+meet, or that compose as two models or a model and a map or a union do (below), make their
+containers meet, so lists of two models stand on a list of a model composing both. Disjoint members
+still overlap where both admit null, or where both containers admit the empty one, and members
+related otherwise leave their containers so. A tuple that a container or another tuple holds is not
+compared, since a tuple has a member per position where any other node has one, and comparing them
+nested would cost its width to the power of the depth. A structure is narrower than
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
@@ -1525,11 +1692,27 @@ pair is judged by what the two types hold, an alias as the
 type it stands for and a `const` object or array as a structure of that instance type: disjoint
 where their kinds share no value, or a value type meets a structure, or two structures of different
 instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
-in a kind, but for the `time` node above, or another `const`; and unrelated where nothing says
+in a kind, but for the `time` node above, or a `const` of its value; and unrelated where nothing says
 what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
-and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
-types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
+and a kind, or a union or an external and anything else. A structure whose source states no
+instance type is the exception to the disjoint pairs: its own `type` and its `allOf`, read as
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reads a conjunct, state none, so it admits
+every value of another instance type, as `properties` alone constrains objects and admits a string.
+That read follows only `type`, `allOf` and an entry's `$ref`, so a schema it reaches writing what
+else could refuse a value of some instance type reads as stating its type: a `oneOf`, `anyOf`,
+`not`, `if`, `enum`, `const`, `$dynamicRef` or `$recursiveRef`, a keyword beside an entry's or an
+alias's `$ref`, a `$ref` landing on no schema or on `false`, or a `false` entry. A value type or a
+structure of another instance type is narrower than it, in either order, where it and each alias
+naming it hold no more than an alias of `{}` may to be read as `{}`, and overlaps it otherwise,
+since a type replacing it would lose what it holds. So a structure written at the declaration
+itself, which keeps its docs, deprecation and redaction on its own node, overlaps a value type or a
+structure of another instance type where it holds any of them; one a `$ref` reached carries them
+down to the field. Two such structures of different instance types overlap, sharing every value of
+a third. The source is read in the document holding the composing model, so a structure another
+document declares, and one whose `allOf` runs past the 256 schemas that read spends, reads as
+stating its type. A pair gets the same verdict as a field's types and as two containers' members,
+but for tuples, above.
 
 The field takes the type of the declaration whose type is the same as, narrower than, or meets the
 most declarations' types, the first of them on a tie. A declaration's type within every other's
@@ -1539,28 +1722,46 @@ other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with no
 every order, while `int32` and `uint32` alone keep the first declared and report the other.
 
 Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
-takes a node the merge mints: all the winner's node holds, with the bounds of each declaration
-meeting it folded as a property's are, below. So `minItems: 1` beside `maxItems: 5` is one list
-holding both, in either order. It is anonymous, in the `composed` namespace, and derives from the
-declaration naming the field, as a composed model does below. Where that fold leaves the winner's
-bounds as they stand, because only a keyword with no order differs, the field keeps the winner's
-node and nothing is minted.
+takes a node the merge mints: all the winner's node holds, with what each declaration meeting it
+adds. Its bounds fold as a property's do, below; each detail the winner leaves empty is taken as a
+reference to that node would read it; an enum's values are cut to those every one holds, in the
+order the winner lists them; and each member is built from theirs a level down, composed or meeting
+theirs in turn, at a position of its own beneath the field's (`/items`, `/additionalProperties`,
+`/prefixItems/<n>`). That position is named beneath the declaration naming the field whether the
+declaration writes the container or a `$ref` there reaches it, so it may be one the source does not
+write; the member's own position would give one ID to two fields building different members of
+it. A `const` meeting a
+`Scalar` is the node, holding what the `Scalar` says beside its values. So `minItems: 1` beside
+`maxItems: 5` is one list holding both, a described list of `integer` beside a list of `int32` one
+list of `int32` holding the description, `[a, b]` beside `[b, c]` the enum `[b]`, and lists of two
+models a list of a model composing both, each in either order. Every node it mints is anonymous, in
+the `composed` namespace, an enum's members too, and derives from its position: the declaration
+naming the field, as a composed model does below, or a position beneath it. Where two declarations
+meeting the winner give one detail differently, the first's is kept and the later one reported and
+kept, as a property's detail is. Where no node holds every declaration meeting the winner, as when
+three meet in pairs but no member holds all of theirs, or no value is in every enum, the field keeps
+the winner's node, and each declaration meeting it is dropped and reported as an overlap. Where the
+declarations leave the winner's node as it stands, because only a keyword with no order differs, the
+field keeps that node and nothing is minted.
 
-Two models neither of which holds the other are the exception, since an instance satisfying both is
-a value of a type neither names. Where the declarations whose types no other declaration holds are
-two or more models, each named directly or through an alias, the field's type is a `Model` the merge
-mints: anonymous, holding no property of its own, and composing each of those types once as a
-written `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written
-as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
+Two models neither of which holds the other are the exception, and so are a model and a map or a
+union, since an instance satisfying both is a value of a type neither names. Where the declarations
+whose types no other declaration holds are two or more models, maps or unions, each named directly
+or through an alias, and one of them a model, the field's type is a `Model` the merge mints:
+anonymous, holding no property of its own, and composing each of those types once as a written
+`allOf` of them composes ([`allof-classification`](#allof-classification)). The one written as the
+only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
-property list. Whatever another declaration's type holds adds no conjunct: a `{}`, a model saying
+property list. Whatever another declaration's type holds adds no conjunct: a `{}` or an alias of it
+read as one, a model saying
 nothing but `type: object` beside one saying more, and a model another declaration composes. Two
 models saying nothing, declared apart, are two types neither of which holds the other, so they
 compose, and an object saying anything else composes too, so what it says stays reachable. Two
 aliases of one model are two types, each able to say more than the model, so they compose, and so
-does an alias of a bare object beside another model. Any other type beside the models (a map, a
-kind, a degraded node) leaves the choice to the rule above. Every declaration then folds into the
+does an alias of a bare object beside another model. Any other type beside them (a kind, a list, a
+degraded node, an alias of `{}` saying something of its values), or maps and unions with no model
+among them, leaves the choice to the rule above. Every declaration then folds into the
 field, so none is dropped for its type, and each conjunct keeps the node its own pointer denotes.
 The minted model's ID is in the `composed` namespace ([identity](../ir/identity.md#the-id-grammar),
 [models](../ir/models.md#composition-beside-a-union)), so no `$ref` reaches it, and derives from the
@@ -1601,7 +1802,9 @@ each bound, `multipleOf`, a length counted in code points, an item or property c
 declaration's value is held by the same checks to each bound the field keeps that another
 declaration brought, on the property or on a node. A value is its declaration's own to answer for
 against a bound it states itself at the value the field keeps, so a default its own bound refuses
-stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+stays, and against its own type where that is the field's but for bounds; a node the merge builds
+can hold members or values the declaration's own does not, so a value written beside it is judged
+against that node. Nothing
 judges a value against a model, and no declaration's type is a composed field's own, so a composed
 field takes no value but a null it admits. A value the field does not take is reported in an info
 `openapi/degraded-construct` at
@@ -1660,17 +1863,21 @@ whose say the field kept. A dropped declaration is reported against the winner a
 `openapi/conflicting-redeclaration`
 warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
 against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
-admits, a scalar against a
-structure, two structures of different instance types, or two lists or maps whose members share no
+admits, two `const`s of different values, two enums sharing no value, a scalar against a
+structure stating its instance type, two structures of different instance types each stating
+theirs, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
-two enums of one kind, each with members, a `const` against a kind with no judge, against a node
-that ends in a kind, but for the `time` node above, or against another `const`, or two lists or
-maps whose members share only null or share nothing while
-both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
-the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
-node a degraded lowering minted, or two models beside a type that keeps them from composing), since
-which of them the field keeps then follows declaration order. No declaration is dropped without a
+a `const` against a kind with no judge, against a node that ends in a kind, but for the `time` node
+above, or against a `const` of its value saying more, two `Scalar`s of different encodings, such as
+`format: hex` against `format: byte`, which no one node holds, two nodes saying one set of values
+differently, two enums listing the values they share in different orders, two nodes giving one
+detail differently or examples only one gives, or two lists or maps whose members share only null
+or share nothing while both admit the empty one) are named in an info `openapi/degraded-construct`,
+and so are two types the judgment does not compare (a list and a tuple, a map or a union with no
+model to compose with, an opaque scalar, a node a degraded lowering minted, or models beside a type
+that keeps them from composing), since which of them the field keeps then follows declaration
+order. No declaration is dropped without a
 diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
@@ -1718,6 +1925,38 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
   `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
   `schema.TestAllOf_AnObjectSayingMoreThanItsTypeComposes`,
+  `schema.TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct`,
+  `schema.TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind`,
+  `schema.TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites`,
+  `schema.TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict`,
+  `schema.TestAllOf_ASourceIsReadOnlyInItsOwnDocument`,
+  `merge.TestTypeJudge_ModelsAlikeAreCopies`,
+  `merge.TestTypeJudge_ModelsKeepingAReferenceAreAlikeUnderOneBase`,
+  `merge.TestFold_ModelsAlikeAreOneType`,
+  `merge.TestTypeJudge_ModelPairsStopAtTheirBudget`,
+  `merge.TestTypeJudge_NestedModelsCostTheirBudgetNotTheirWidthToTheDepth`,
+  `schema.TestAllOf_ModelsAlikeAreOneType`,
+  `schema.TestAllOf_AModelComposesWithAMapOrAUnion`,
+  `merge.TestFold_EnumsAreJudgedByTheValuesTheyShare`,
+  `merge.TestFold_EnumsSharingNoValueTogetherKeepTheWinner`,
+  `merge.TestFold_EnumsListingSharedValuesApartKeepTheWinner`,
+  `merge.TestFold_TwoEnumsCostTheirWidth`,
+  `merge.TestFold_ANarrowerListAdoptsTheBroadersDetail`,
+  `merge.TestFold_ANarrowerListAdoptsTheBroadersEncoding`,
+  `merge.TestFold_ContainersOfModelsComposeTheirMembers`,
+  `merge.TestFold_AConstMeetsATimeScalarHoldingDetail`,
+  `merge.TestFold_AMeetingNoNodeHoldsKeepsTheWinner`,
+  `merge.TestFold_AFailedMeetingReportsOnlyItsDrops`,
+  `merge.TestFold_ADetailTwoMeetingDeclarationsGiveDifferentlyIsKept`,
+  `schema.TestAllOf_EnumsAndListsNarrowToWhatTheyShare`,
+  `schema.TestAllOf_ContainersOfDifferentModelsComposeTheirMembers`,
+  `schema.TestAllOf_EnumsSharingSomeValuesMeetInAnEnumOfThem`,
+  `merge.TestFold_AnEnumWithinAnotherAdoptsItsDetail`,
+  `merge.TestFold_ANarrowerListAdoptsWhatTheBroaderKeeps`,
+  `merge.TestFold_TuplesBuildWhatFollowsTheirPositions`,
+  `merge.TestBuilder_RefusesWhatNoNodeHolds`,
+  `merge.TestFold_AValueIsJudgedByTheNodeTheFieldHolds`,
+  `schema.TestAllOf_ADefaultIsJudgedByTheNodeTheFieldHolds`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
@@ -1788,7 +2027,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
   `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
   `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
-  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder`,
+  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsAdoptedInEitherOrder`,
   `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,
   `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
@@ -1815,17 +2054,14 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
-- Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums whose members fit each other's kind, two different literals), a list or map whose
-  broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
-  description or other detail of its own against a `const` it admits, a node adding a bound beside
-  one adding other detail, and a list or map whose members meet, are reported as an overlap and
-  never narrowed (#1042); two models alike in every property compose rather than collapse to one
-  type (#1083); a model and a map or a union are reported as types the merge does not compare
-  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
-  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
-  wrapper it flattens that fold different sets only because the model stops at the flattening depth
-  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
+- Status: partly built: two enums of different value types are judged by their kind, so one within
+  the other overlaps it rather than narrowing (#1654); a structure stating no instance type that
+  refuses some kinds only through a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so
+  it conflicts with a kind it admits (#1671); an alias of an enum, a `Scalar` or a list is judged
+  by its kind beside a node it could meet, so the two overlap or are not compared rather than
+  meeting (#1672); a model and the wrapper it flattens that fold different sets only because the
+  model stops at the flattening depth are refused as `compile/registry-refused`, not told apart,
+  since one declaration names both.
 
 ### `allof-required`
 
@@ -1855,15 +2091,20 @@ it, under `openapi:<path>` as [`allof-inline-residue`](#allof-inline-residue) ke
 (`degraded_lowering`), which is what distinguishes it from a model that merely wrote
 `additionalProperties: false`, and reported as an info `openapi/false-schema` at the branch. What
 the other branches contributed stays — closing is the nearest shape the IR has, and emptying the
-model would trade one silent loss for another. A `true` conjunct admits everything, so contributing
-nothing from it is exact and nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is
-distributed ([`union-beside-structure`](#union-beside-structure)), every composed variant is closed
-and keeps the branch, and the branch is reported once.
+model would trade one silent loss for another. The model's catch-all keeps only its patterns, as
+beside `additionalProperties: false` ([catch-alls](../ir/models.md#catch-alls)), since the closure
+forbids every key they leave: its value goes, an `additionalProperties` the schema writes being kept
+verbatim under `openapi:additionalProperties` (`degraded_lowering`), and a catch-all left no pattern
+goes whole. A `true` conjunct admits everything, so contributing nothing from it is exact and
+nothing is reported. Where a `oneOf` or `anyOf` beside the `allOf` is distributed
+([`union-beside-structure`](#union-beside-structure)), every composed variant is closed and keeps
+the branch, and the branch is reported once.
 
 - Cases: `allof-boolean-branch`, `allof-nested-inline`
 - Codes: `openapi/false-schema`
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
-  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
+  `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`,
+  `schema.TestAllOf_FalseBranchClosesTheCatchAllItForbids`
 
 ### `allof-disjoint-conjuncts`
 
@@ -1903,8 +2144,9 @@ any version. A conjunct writing an `allOf` also states nothing here where its `t
 leave at most a null, which is what keeps a schema composing a reported one from drawing a second
 report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
 entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
-`allOf` that does not compose, one beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) or
-passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)), is not read.
+`allOf` beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) does not compose and is not read.
+One passed over for a `const` or an `enum` ([`competing-keywords`](#competing-keywords)) is read as
+any composition is, and the warning names the value set the position lowered as.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
@@ -1915,9 +2157,10 @@ passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
-  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
+  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`,
+  `schema.TestAllOf_DisjointReportNamesWhatThePositionLoweredAs`
 - Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
-  (#1390), and an `allOf` an `enum` or a `const` beside it passes over is not read (#1309).
+  (#1390).
 
 ### `union`
 
@@ -1926,8 +2169,11 @@ A `oneOf` lowers to a `Union` with `Exclusive` set and an `anyOf` to one without
 the branch's lowering — a `$ref` branch to its target, an inline one to its own node or primitive
 ([`inline-hoisting`](#inline-hoisting)) — and never collapsed into optional fields. The union is
 untagged, `WireTagged` false, unless a `discriminator` beside it routes it
-([`discriminator`](#discriminator)): the tag property's value then names the variant, so the union
-is `WireTagged`, an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). A branch set of
+([`discriminator`](#discriminator)), or [`discriminator-inference`](#discriminator-inference) reads
+one off its variants: the tag property's value then names the variant, so the union is `WireTagged`,
+an `anyOf` as much as a `oneOf` ([unions](../ir/unions.md)). Every union is
+`Closed`, since JSON Schema admits only what matches a listed branch; an extension a promotion
+mapping names may open one ([`extension-promotion`](#extension-promotion)). A branch set of
 one schema and `null` ([`union-null-variant`](#union-null-variant)), of `null` alone
 ([`union-null-only`](#union-null-only)), and one written beside structure, a `$ref` or the other
 combinator ([`union-beside-structure`](#union-beside-structure),
@@ -1962,14 +2208,37 @@ property or parameter ([`constraints`](#constraints)). Each variant is built fro
 so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
 is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
 
-- Cases: `keywords-at-every-outcome`, `type-array-numeric`
+The `object` variant holds no `discriminator`, so the census keeps it on the union, whether or not a
+`oneOf` or `anyOf` is written beside it. No `$ref` or `mapping` can name the variant's position,
+which holds a type's name and no schema, so no type is its subtype, and every route the
+discriminator takes leads elsewhere: a `mapping` target, the `defaultMapping`, or a component whose
+`allOf` names the schema, which composes the union and keeps it as its `Base`, with the
+`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)). The
+object instances the union admits still route by the discriminator, so its targets are resolved as
+[`discriminator`](#discriminator) resolves a model's: each position one names is lowered, and one
+naming no schema is reported as an `openapi/unresolved-ref` error at its entry. A type array listing
+no `object` admits no instance a tag routes, and resolves nothing, as a scalar beside a
+discriminator does. Settling the variant's discriminator by its routes, as one beside a union kept
+verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would keep it only where
+it routes nowhere, and would have to find every component composing the schema to know that. Two
+typed homes lose as well. A subtype's `Base` naming the variant would compose the schema's object
+half where its `allOf` names the schema, and `Base` names what the source wrote
+([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
+discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
+`Union` base into its object variant would part from that relation, and teaching the relation the
+step would change what it means for every document.
+
+- Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
+- Codes: `openapi/unresolved-ref`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
-  `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a value
-  bound lands on any variant with a `Constraints` field, whether or not it constrains that variant's
-  type (#1310).
+  `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
+  `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`
+- Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
+  not it constrains that variant's type (#1310); and a type array listing no `object`, as every
+  node keeping a discriminator verbatim, reports no target naming nothing (#1662) and lowers no
+  position only a target reaches (#1708).
 
 ### `union-null-variant`
 
@@ -2011,27 +2280,68 @@ rule: the body is composed into each variant, and the result is an ordinary `Uni
 `Model`s, reported as an info `openapi/composition-lowering` at the schema, since nothing is lost
 but the IR's shape no longer mirrors the source's, bar one thing: a `false` in the `allOf` states
 that the composition admits nothing, which every composed variant then holds only as the closed
-model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept on each. Five
-shapes distribution cannot reach:
+model [`allof-false-branch`](#allof-false-branch) gives it, with the branch kept on each. A
+variant conjoins its branch by reference: a `$ref` branch's target, through the alias what is
+written beside the `$ref` hoists, and an inline branch's own node, hoisted at its pointer as any
+inline schema is ([`inline-hoisting`](#inline-hoisting)), which an outside `$ref` to that pointer
+finds too. The referent is carried as written, a branch admitting no object among them
+([models](../ir/models.md#composition-entries)). A bare `required` is a body too where every
+branch admits only an object or null, the values it constrains or leaves alone, so each variant
+requires those names of its branch.
+
+A `discriminator` beside the union, where no branch composes the schema (shape 4), routes the
+distributed union ([`discriminator`](#discriminator)): a `mapping` target, or the
+`defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
+that branch. OpenAPI routes a variant no entry names by the name of the component its branch
+names, which a composed variant, named for its position, does not carry, so that route is written
+into the `Mapping`: each such name keys its variant, unless two branches name that component or an
+entry spells that key already. No variant carries a `DiscriminatorValue`, which tags a subtype in a
+hierarchy, since the mapping's keys tag the union's variants, and
+[`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
+
+A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
+the composition as one written beside the `allOf` does, so it distributes the same way, where the
+schema writes no union of its own and neither it nor the branch a `discriminator`, its `allOf`
+composes rather than refines ([`allof-refinement`](#allof-refinement)), and the union is the one
+branch union whose branches declare shape (below). Its variants take their IDs from the
+branch's pointers, its `$ref` and inline branches conjoin as above, and the branch keeps nothing of
+the union, what else it writes merging as any branch does
+([`allof-inline-residue`](#allof-inline-residue)). A union on a branch that is one
+of the shapes below, one of two branch unions declaring shape, distributing either of which would
+drop the other, or one on a branch nested past the flattening depth stays whole with its branch, and
+so does one whose branches declare no shape, on each variant where another union distributes. Below
+a discriminated ancestor (shape 6) a union on a branch stays whole even at a position no route
+names: which positions a route names is read from the position, and every reader of the schema
+shares one reading of it, which has none. Distribution cannot reach these shapes:
 
 1. the structural body is not a `Model` (a `const`, an `enum`, a scalar, or a bare
-   `required`/`items`/`prefixItems`/`additionalProperties`/`patternProperties` with neither
-   `properties` nor a `type`), so there are no composition fields for the variants to carry;
-2. a branch is written inline rather than as a `$ref`, so it names no node for `Base`/`Mixins` to
-   point at — a `type: null` branch included;
-3. a branch *is* a `$ref` but names no referent the compilation resolves — a cross-document target
-   it does not intern, an undeclared component, a pointer addressing no schema. The branch is
-   unusable for the same reason an inline one is, so it declines the same way rather than composing
-   a variant whose branch quietly went missing;
-4. a `discriminator` is declared, binding the branch schemas by name;
-5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other.
+   `items`/`prefixItems`/`additionalProperties`/`patternProperties`, or `required` beside a branch
+   that may be no object, with neither `properties` nor a `type`), so there are no composition
+   fields for the variants to carry;
+2. a branch is a bare `type: null`, which a union lifts onto the position's `Nullable` rather than
+   conjoining it ([`union-null-variant`](#union-null-variant)), so no variant could say whether the
+   body admits the null;
+3. a branch is a `$ref` that names no referent the compilation resolves — a cross-document target
+   it does not intern, an undeclared component, a pointer addressing no schema — so it declines
+   rather than composing a variant whose branch quietly went missing;
+4. a `discriminator` is declared and a branch composes the schema through `allOf`, at any depth
+   (`Cat: {allOf: [{$ref: Pet}, …]}`): the schema is the base of a hierarchy the discriminator
+   routes, which a union of composed variants would no longer be the base of;
+5. `oneOf` and `anyOf` are both declared, so distributing one would drop the other;
+6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
+   as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
+   lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
+   `pass/validate` holds a mapping to), so it stays a `Model` under it, with the tag that rule gives
+   it, if any. One written beside a union routes by name only what that union lists, so beside a
+   schema it does not list, and no `mapping` key names, a union distributes.
 
-In all five, whatever structural body the schema declares is lowered — `properties` or a declared
+In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
-`openapi/degraded-construct` at the schema naming which of the five applied; in case 3 the broken
-reference is reported as well, as an `openapi/unresolved-ref` error. Case 1's body-less sibling
-leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
+`openapi/degraded-construct` at the schema naming which applied; in case 3 the broken
+reference is reported as well, as an `openapi/unresolved-ref` error, or, on a loop the compiler
+reads, by the loop's one `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)). Case 1's
+body-less sibling leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
 [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
 sibling's are both reported. A `null` branch in this shape is **not** lifted to `Nullable`: the
 union it belongs to is no longer structural, so lifting one branch out of it would assert something
@@ -2039,7 +2349,22 @@ the lowered type does not say. The degradation is that the generated SDK is *und
 admits values the union would reject — which is why the branches must survive for a validating
 emitter to reach.
 
-A `discriminator` beside any of the five whose body lowers to a `Model` stays on that `Model` only
+A keyword beside the union that every branch already says adds nothing to it: a `type` naming each
+kind a branch admits, null included, and a `format`, an `enum`, a `const` or an `items` each branch
+is held to, read as [`allof-refinement`](#allof-refinement) reads what a conjunct admits and within
+its bounds, a read cut short saying none. An `items` written as a list, a draft's tuple, is said by
+no branch. Where the branches declare shape (below) and say every
+keyword that makes a body, the schema means the union alone, and it lowers as if those keywords
+were not written: `{type: string, anyOf: [{$ref: V4}, {$ref: V6}]}` as `{anyOf: [{$ref: V4},
+{$ref: V6}]}`, and `{type: object, oneOf: [{$ref: A}, {$ref: B}]}` as the union of `A` and `B`, not
+a union of models composed over each, which a `discriminator` beside it routes. A `nullable` beside
+such a union reads as it reads beside any union ([`nullable`](#nullable)), and a keyword the
+branches do not all say, a bound or a `format` among them, is kept as the census keeps it beside a
+union ([`shape-applicator`](#shape-applicator)). Branches declaring no shape only narrow the body,
+which stays validation logic beside it whatever they repeat, and a `discriminator` beside the union
+keeps the body where a branch composes it (shape 4).
+
+A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
 when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
 `pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
 each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
@@ -2050,15 +2375,15 @@ union, with an info `openapi/degraded-construct` at the discriminator; a subtype
 `DiscriminatorValue` its mapping key gives it, since that is still the tag its instances carry, and
 a body the move leaves holding a map and nothing else lowers to that map's `MapT`
 ([containers](../ir/containers.md)). A union whose branches declare no shape
-(`validation_only`) is held to the same rule, and so is a multi-typed body, which lowers to a
-`Union` whose object variant, built from the same schema, holds the discriminator. The compiler
-decides once every node is interned (`compile.Settlement`), because neither the walk nor the source
-schemas can answer it: a subtype declared after the `Model` has no `Base` while the `Model` lowers,
-and a schema whose `allOf` names the `Model` may still lower to no subtype — an `enum`, a `const`,
-an alias over a `$ref` beside it, or a union its `allOf` is distributed across.
+(`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
+[`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
+The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
+nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
+`Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
+`enum`, a `const`, or an alias over a `$ref` beside it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
-a degradation and is not one of the five: it narrows the body without reshaping it, which is
+a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
 validation logic, so it is kept under `validation_only` with the keyword family of
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
 `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A `$ref`
@@ -2108,7 +2433,7 @@ the body's own `type`, so repeating the body never changes a verdict:
    `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
    `$schema`, `$vocabulary` and any keyword of no vocabulary.
 
-A branch declaring shape falls to the five shapes above. The branches and the body are read within
+A branch declaring shape falls to the shapes above. The branches and the body are read within
 the bounds of [`allof-refinement`](#allof-refinement), which a union's branches share, an `enum`
 a branch writes counting its members, and the body only as far as they need: a branch writing only
 keywords point 1 names reads none of it, the declarations of what a schema nests are read only
@@ -2116,12 +2441,23 @@ where it nests something, and what the body declares of one property or element 
 however many branches restate it. A read that does not finish says nothing, so its union is judged
 as one whose branches declare shape.
 
-- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
-  `keywords-at-every-outcome`, `union-restated-branches`
+- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`,
+  `discriminated-union-distributed`, `unhomed-keywords`,
+  `keywords-at-every-outcome`, `union-restated-branches`, `union-restated-type`,
+  `union-inline-branches`, `allof-union-branch`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
+  `schema.TestOneOf_CoDeclaredKeywordsEveryBranchSaysLeaveTheUnionAlone`,
+  `schema.TestOneOf_CoDeclaredTypeReadsNullableByItsDialect`,
+  `schema.TestOneOf_CoDeclaredInlineBranchIsConjoinedByItsNode`,
+  `schema.TestOneOf_CoDeclaredBareRequiredConjoinsObjectBranches`,
+  `schema.TestUnion_AListOfItemsBesideTheBranchesIsNotSaid`,
+  `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
+  `schema.TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
+  `schema.TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
@@ -2129,13 +2465,15 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType`,
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
-  `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a union
-  beside a composition the bounds cut short degrades even where each branch restates only what the
-  body itself writes (#1423); and comparing a nested schema's text renders it again at each level,
-  so restating one many levels deep costs about the cube of its depth (#1424). Open: keeping a
-  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
-  union's inline branches when properties sit beside it (#661).
+  `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`,
+  `schema.TestOneOf_CoDeclaredDiscriminatorRoutesTheComposedVariants`,
+  `schema.TestOneOf_CoDeclaredDiscriminatorImpliesNoRouteIntoAnotherDocument`,
+  `schema.TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf`
+- Status: partly built: a union beside a composition the bounds cut short degrades even where each
+  branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
+  keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
+  no route names the schema (#1695), and a discriminated union on a branch stays whole with its
+  branch (#1698).
 
 ### `union-beside-ref`
 
@@ -2150,8 +2488,8 @@ reported as an info `openapi/degraded-construct` at the position.
 
 ### `competing-keywords`
 
-Keywords conjoin, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a narrowing of `Base` rather than a
-malformed document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
+Keywords conjoin, so `{const: a, enum: [a, b]}` admits `a` alone rather than being a malformed
+document, and `{oneOf: […], anyOf: […]}` demands both, yet a position lowers to one node.
 Three families compete for it: the value keywords `const`, `enum` and `allOf`, elected in that
 order; the two union combinators, where `oneOf` wins; and a parameter's or header's `schema` beside
 its `content`, where `content` wins, since a media-type entry names both a schema and the media type
@@ -2169,8 +2507,11 @@ nullable `X` ([type-graph](../ir/type-graph.md#type-references)), because the co
 asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins with it, and
 collapsing would resolve the position to a shared primitive, which must never carry one
 declaration's keywords. Where a *structural* sibling is written as well,
-[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept. A
-keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing an object,
+[`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept.
+An `allOf` that refines ([`allof-refinement`](#allof-refinement)) is no rival of an `enum` or a
+`const` beside it, which is one of its conjuncts, so the election passes over it only where it
+composes. A keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing
+an object,
 `format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
 asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
 asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
@@ -2189,7 +2530,12 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
-`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. A mapping
+`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. With no
+`mapping`, the `Mapping` is nil, and a union routes each variant by the name of its type, as
+OpenAPI's implicit mapping does by component name, unless
+[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin, or the
+variants are composed over their branches ([`union-beside-structure`](#union-beside-structure)),
+which writes those names out. A mapping
 target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the entry,
 which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag —
 takes the smallest in byte order as its `DiscriminatorValue`
@@ -2216,8 +2562,9 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298). Open: inferring a
-  discriminator from pinned tag values, as an injectable policy (#659).
+  type two variants alias, which a valid document can write (#1298); a mapping naming some variants
+  of a union leaves the routes OpenAPI implies for the others unwritten, where a distributed union's
+  carries them, and the IR does not say how a partial mapping routes (#1702).
 
 ### `discriminator-value`
 
@@ -2228,26 +2575,124 @@ through and no schema its own ancestor — as the key an ancestor's `mapping` sp
 the mapping naming it by reference or by bare schema name, an inline subtype by its position's
 reference, and where several keys name it [`discriminator`](#discriminator) elects one. A key of
 `""` is a tag, not an absence. Once no ancestor's mapping names it, the tag is the subtype's schema
-name as declared (`Cat/Dog`, not its pointer token) if it is a component schema, OpenAPI's implicit
-mapping. A subtype that is no component schema — inline as a property or a union branch, or under an
-extension — has no name to answer to, so only a mapping entry tags it, and a chain with no
-discriminated ancestor carries no tag however deep. A variant of a distributed `oneOf`/`anyOf`
-([`union-beside-structure`](#union-beside-structure)) carries the tag of the schema enclosing it.
+name as declared (`Cat/Dog`, not its pointer token) if it is a component schema that an ancestor's
+discriminator routes by name, OpenAPI's implicit mapping, unless
+[`discriminator-inference`](#discriminator-inference) reads that the subtype rules that name out.
+OpenAPI's conditions for a discriminator say which schemas it routes by name: one written beside no
+`oneOf` or `anyOf`, a parent schema, routes every schema building on it through `allOf`, and one
+beside either routes the schemas that union lists, where "all possible schemas MUST be listed
+explicitly": each schema a `$ref` branch, of the `oneOf` where both are written, ends on, in
+whichever document, as the ancestors are read. A schema composing a discriminated union that does
+not list it is a narrowing of that union, every instance of it an instance of one variant and
+carrying that variant's tag, so no tag routes to it and it carries none, and it composes the union
+as written ([models](../ir/models.md#a-union-a-composition-names)). Reading what such a schema
+admits for the tag instead, as
+[`discriminator-inference`](#discriminator-inference) reads a subtype's, would not do: where the
+union's variants pin nothing it admits its name, which still routes to no variant. At
+`cloudflare/api-schemas` @`e411be7e` three schemas compose such a union, every branch of which holds
+the tag to values other than the composing schema's name. A subtype that is no component schema —
+inline as a property or a union branch, or under an extension — has no name to answer to, so only a
+mapping entry tags it, and a chain with no discriminated ancestor carries no tag however deep. A
+subtype a discriminator routes to is never distributed across a union written beside its `allOf` or
+on one of its branches ([`union-beside-structure`](#union-beside-structure)), since a union would be
+no subtype, so no variant of a distributed union carries a tag.
 
-- Cases: `discriminator-transitive`, `discriminator-inline-subtype`
+- Cases: `discriminator-transitive`, `discriminator-inline-subtype`, `oneof-discriminated`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
   `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
-  `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`
+  `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`,
+  `schema.TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists`,
+  `schema.TestRoutesByName_ReadsAUnionsListOnce`,
+  `schema.TestDiscriminatorValue_AUnionListsTheSchemaItsBranchEndsOn`
+
+### `discriminator-inference`
+
+The discriminator-inference policy reads a union's tags off what its variants pin, and a subtype's
+off what it admits: the Go option `Options.DiscriminatorInference`, whose zero value is on and whose
+`Disabled` reads only what the document declares, and the text option `discriminator-inference`,
+which `false` turns off (invariant 6). A variant pins a property where the declarations its
+flattening reads of it (`ir.FlattenedProperties`), the one the member takes and those it overrides,
+hold it to one string, as an instance meets them all: one is a reference to a string `Literal`, or
+to a closed `Enum` of one string member, read through alias scalars, none pins another value, and
+not every one admits null. So a body beside a union that redeclares the tag as a string, which its
+composed variants take, leaves each branch's pin in force
+([`union-beside-structure`](#union-beside-structure)). A number, a boolean, or a value set of more
+than one pins nothing a `Mapping` holds, since a discriminator's tag is the wire string. The reading
+waits for every node to be interned (`compile.Settlement`), since a variant lowered after its union
+has no node while the union lowers, and what it finds no other settlement changes, whichever settles
+first. Two unions and a subtype meet it:
+
+1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
+   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant and names a tag
+   a variant pinning another value rejects. Where every variant pins the `propertyName` to a
+   distinct string and some variant's is not that name, the `Mapping` is read off the pinned
+   values, the union's `Provenance.Inferred` names `discriminator-inference`, and an info
+   `openapi/inferred-discriminator` at the discriminator names the first variants it reads
+   otherwise. `Discriminator.Inferred` stays false: the tag property is declared.
+2. A closed union of two or more variants declaring no discriminator, no variant admitting null,
+   gets one where every variant requires a property and pins it to a distinct string: the first
+   such property in the first variant's layout order is its `PropertyName`, each pinned value maps
+   to its variant, and the union is `WireTagged`, `Discriminator.Inferred` set and
+   `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no other
+   admits, a payload names its variant as validation finds it, departing from nothing the document
+   says, so nothing is reported. An open union may meet a variant carrying any tag
+   ([unions](../ir/unions.md#open-unions)), and is left alone.
+3. A subtype a discriminator routes by its name ([`discriminator-value`](#discriminator-value))
+   carries that name, which validation rejects where the subtype admits only other strings for the
+   `propertyName`. A declaration admits a string `Literal`'s one string, or the members of a closed
+   `Enum` every one of which is a string, read through alias scalars, and any string otherwise,
+   null being no tag; the subtype admits what every declaration its flattening reads of the member
+   admits. Where that rules the name out, the subtype carries the one string it admits, or,
+   admitting several or none, no tag, since none routes to it; its `Provenance.Inferred` names
+   `discriminator-inference`, and an info `openapi/inferred-discriminator` at it names what it
+   admits. Each subtype is read alone, so two admitting one string both carry it, as their instances
+   do ([models](../ir/models.md#discriminator)).
+
+- Cases: `discriminator-inferred`
+- Codes: `openapi/inferred-discriminator`
+- Tests: `schema.TestDiscriminatorInference_MapsAnUnmappedDiscriminator`,
+  `schema.TestDiscriminatorInference_LeavesADeclaredMapping`,
+  `schema.TestDiscriminatorInference_NamesAFewDisagreements`,
+  `schema.TestDiscriminatorInference_InfersAnUndeclaredDiscriminator`,
+  `schema.TestDiscriminatorInference_LeavesALoneOrNullableVariant`,
+  `schema.TestDiscriminatorInference_DisabledReadsNothing`,
+  `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
+  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`,
+  `schema.TestPinnedMember_ReadsEveryDeclaration`,
+  `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
+  `schema.TestSubtypeTagReading_ReportsWhatItCannotSettle`,
+  `schema.TestTypeStrings_ReadsAClosedSetOfStrings`,
+  `schema.TestDiscriminatorInference_JoinsTheMarksANodeCarries`
+- Status: partly built: what a union a subtype composes admits is not read, so a name only it rules
+  out stands (#1712), and a declaration writing its strings as a union of values, `oneOf` or
+  `anyOf` of `const` branches, is read as admitting any, for a variant as for a subtype (#1715).
 
 ### `string-const-union`
 
-A `oneOf` or `anyOf` whose every branch is a string `const` is to normalize to a closed `Enum` in a
-`pass/` normalization, not in the compiler, so that each branch's `Docs` survive until a pass
-chooses the collapse.
+A `oneOf` or `anyOf` whose every branch is a string `const`, a one-member string `enum` or such a
+union is a closed set of strings in another spelling. The compiler lowers it as any union
+([`union`](#union)), each branch to its `Literal` or `Enum` holding what the branch says of its
+value, and the engine's `const-unions` pass, not the compiler, normalizes it to the closed `Enum` of
+those values at the union's own ID, so an emitter meets one shape however the document wrote the
+set. A branch that is such a union is read as the `Enum` it becomes, in the same run, so no second
+run finds one. Each member is identified and named as the same value in an `enum` is
+([`enum-const`](#enum-const)), in branch order, and holds what its branch says of its value: its
+docs, deprecation, availability, examples and kept constructs. A branch's type nothing else
+references goes with the union.
 
-- Status: not built: the compiler keeps such a union a `Union` of `Literal`s with each branch's
-  docs, and no pass normalizes it to an `Enum` (#990).
+The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
+its own that an `Enum` member is not; a branch holding several values, a set of its own that the
+`Enum` would copy into each union naming it, which a document can make grow with the square of its
+size; a value two branches hold, which a `oneOf` rejects and whose two branches may say two things
+of it; values typed by two primitives; a nullable branch; a construct a branch keeps verbatim for
+any reason but being a vendor extension, such as a constraint its `Literal` has no home for, which
+narrows the branch and would not narrow a member; a branch whose `Provenance.Inferred` names a
+heuristic, whose mark no member could carry; and one fact two places say of one value. A union of
+numbers, or of values of several kinds, is outside this rule and stays a union.
+
+- Cases: `string-const-union`
+- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
 
 ### `enum-const`
 
@@ -2271,8 +2716,12 @@ An entry repeating an earlier entry's value, compared as JSON Schema compares in
 each occurrence a member of its own ([enums](../ir/enums.md)), and reported as an
 `openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
 to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
-`Literal` of its value, and one that cannot convert to the top type, with an
-`openapi/degraded-construct` warning at the schema. A
+`Literal` of its value, whose `ValueType` is read as an enum's is, from the type and format the
+value fits, else the type, else the value's own kind ([containers](../ir/containers.md#literals)),
+so a `type` or `format` the value fits is held and draws nothing, and one it does not fit is kept
+verbatim with the same info report. A `const` that cannot convert lowers to the top type, with an
+`openapi/degraded-construct` warning at the schema. A value set an `allOf` refines is typed by every
+conjunct ([`allof-refinement`](#allof-refinement)). A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
 
@@ -2283,14 +2732,15 @@ at that position, whichever is lowered first.
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
+  `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,
   `schema.TestEnum_ReportsWhyAFormatStayedVerbatim`,
   `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an enum whose members do not match its declared type lowers to a union with
-  only an info diagnostic (#619); and a `Literal` carries no value type or format (#668). Open:
-  whether a mixed-type enum's `null` lifts out of its union (#618).
+  only an info diagnostic (#619). Open: whether a mixed-type enum's `null` lifts out of its union
+  (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -2309,19 +2759,21 @@ is the empty schema, so it types the catch-all as the top type exactly as `{}` d
 `MapT` of the top type, and beside properties an `AdditionalProps` of the top type. An absent
 `additionalProperties` states nothing, so `{type: object}` stays a `Model` with no properties and
 `Additional` unspecified; whether such an object is a free-form map is a target's policy, not a fact
-the source declared. The one catch-all the source does not write is beside `patternProperties`:
-`AdditionalProps.Value` is not optional, and a key no pattern matches is unconstrained, so it is the
-top type, and beside patterns the IR does not tell an absent `additionalProperties` from `true`.
-That object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
+the source declared. Beside `patternProperties` the catch-all's `Value` types a key no pattern
+matches ([catch-alls](../ir/models.md#catch-alls)): absent, such a key is unconstrained, so it is
+the top type, and the IR does not tell an absent `additionalProperties` from `true`; `false` admits
+no such key, so the catch-all holds the patterns and no `Value` beside `Additional` closed. That
+object stays a `Model`, since a `MapT` has no field for a pattern-scoped value.
 
 - Cases: `maps`, `constraints`, `allof-position-constraints`
 - Tests: `schema.TestObject_CatchAllBesideAnotherFactStaysModel`,
   `schema.TestObject_MapAndNothingElseLowersToMapT`,
-  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`
-- Status: partly built: `additionalProperties: false` beside `patternProperties` also carries a
-  catch-all typed as the top type, which the closure contradicts (#987), and an
-  `unevaluatedProperties: false` that a catch-all beside it makes inert in JSON Schema still lowers
-  to a closure, which keeps the object a `Model` (#862).
+  `schema.TestModel_UnevaluatedPropertiesClosedAfterComposition`,
+  `schema.TestAllOf_AClosureAfterCompositionKeepsTheCatchAll`
+- Status: partly built: an `unevaluatedProperties: false` that a catch-all beside it makes inert
+  in JSON Schema still lowers to a closure, which keeps the object a `Model`, and one beside
+  `patternProperties` alone leaves the catch-all typing a key no pattern matches as the top type,
+  where JSON Schema admits such a key only if composition evaluates it (#862).
 
 ### `required-members`
 
@@ -2367,9 +2819,14 @@ warning at the schema's own pointer, wherever it sits (a property, a parameter's
 a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since the report reads the
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
-Nor is a schema reported beside a `$ref`, whose siblings 3.0 ignores, an inline `allOf` branch,
-which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
-under `not`; the branch a refinement lowers from is reported as the position it is
+A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
+([`later-version-construct`](#later-version-construct)), where nothing they conjoin with writes an
+`items` either: beside a `$ref` landing on a schema that writes one, through an alias or an `allOf`
+as well, a `type: array` leaves the elements to it, and `{$ref: X, type: array}` is then as silent as
+`{allOf: [{$ref: X}, {type: array}]}`. An `items` written in a union's branches does not count, nor
+does `items: true`, which holds the elements to nothing. An inline `allOf` branch, which merges in
+place or restates what a refinement names, is not reported, nor is a subschema kept verbatim, such as
+one under `not`; the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`
@@ -2388,18 +2845,48 @@ absent `items` reads as `true`, the top type, and either of those or a schema lo
 them stays the verbatim entry [`validation-only`](#validation-only) keeps, as it does beside a
 `List`, reported as an info `openapi/validation-only-keyword`.
 
-- Cases: `tuples-prefixitems`
-- Codes: `openapi/validation-only-keyword`
-- Tests: `schema.TestLower_TupleRest`
+JSON Schema drafts 4, 6 and 7 and 2019-09 write a tuple as `items` holding a list, its rest as the
+`additionalItems` beside it. In a schema read in one of them
+([`dialect-keywords`](#dialect-keywords)) the list lowers to a `Tuple`'s `Elems`, one per entry,
+each a schema whose `$ref` is bound, and `additionalItems` to its `Rest` as 2020-12's `items` does
+beside `prefixItems`: `false` leaves none, and an absent one reads as `true`. Each entry is named as
+a `prefixItems` entry is, and the rest as an `items` schema is. Each is judged as its 2020-12 twin
+is ([`validation`](#validation)), whether or not a `$ref` reaches it: an entry no schema spells,
+such as `5` or `null`, is an `openapi/validation` error at it, and a rest no schema spells an error
+at it, or for `null` the warning a `null` field draws, read as left out, as `items` is beside
+`prefixItems`. Each lowers as its twin does: `5` as `false` and `null` as
+[`null-schema`](#null-schema) reads it. A type list's array variant is the tuple the schema writes,
+which leaves nothing on the union. Any other position that lowers to no `Tuple`, such as one with no
+`type: array`, keeps the list and the `additionalItems` beside it as
+[`shape-applicator`](#shape-applicator) keeps `items` and `prefixItems`. Beside an `items` that is no
+list, `additionalItems` is the rest of no tuple, kept verbatim with an info
+`openapi/unknown-schema-keyword`.
+
+In any other dialect a list of items is no schema: the load phase reports it as an
+`openapi/invalid-items-list` error, at every schema the [`validation`](#validation) check reads, and
+the lowering reads `items` as absent; an `additionalItems` beside it is kept as at a position
+lowering to no `Tuple`.
+
+- Cases: `tuples-prefixitems`, `schema-drafts`
+- Codes: `openapi/validation-only-keyword`, `openapi/invalid-items-list`,
+  `openapi/unknown-schema-keyword`, `openapi/validation`
+- Tests: `schema.TestLower_TupleRest`, `e2e.TestOlderDrafts_AListOfItemsIsATuple`,
+  `e2e.TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs`,
+  `e2e.TestOlderDrafts_ATypeListsArrayVariantIsTheTupleWritten`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`,
+  `bind.TestTuples_AListOfItemsHoldsSchemas`,
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`, `load.TestBuiltTargets`,
+  `oas.TestSchemaRules_TupleRestFindingJudgesTheRestBesideAList`
 - Status: partly built: `items: true` and an absent `items` lower alike, though only the first makes
   an `unevaluatedItems` beside them inert, and that one is still kept as live (#862).
 
 ### `shape-applicator`
 
-`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`
-each constrain an instance whether or not a `type` is written beside them, and each has exactly one
-IR home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a
-`Tuple`'s positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
+`properties`, `patternProperties`, `additionalProperties`, `required`, `items` and `prefixItems`,
+and the `additionalItems` written beside a list of `items` ([`tuples`](#tuples)), each
+constrain an instance whether or not a `type` is written beside them, and each has exactly one IR
+home: a `Model`'s property set, openness and pattern bindings, or a `List`'s element and a `Tuple`'s
+positions and rest. A `MapT` homes an object's catch-all and the empty `properties`,
 `patternProperties` and `required` lists that left it a map
 ([containers](../ir/containers.md)), and a `required` naming a key keeps it a `Model`
 ([`required-members`](#required-members)). A position whose lowering produced none of these — an
@@ -2443,7 +2930,8 @@ is kept on the union, under a report naming a union of models.
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
-  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
+  `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
+  `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`
 - Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
@@ -2517,7 +3005,13 @@ to name it by, and nothing can collide with it, since such a schema has nothing 
 boolean `true` schema is the top type, as `{}` is, and reports nothing. A `$ref` naming a boolean
 schema below a component takes what that position lowers to, whichever is declared first: the closed
 `Model` at its pointer, or an alias there of the top type. A position nothing else lowers, such as a
-closed tuple's `items: false`, is lowered for the `$ref` alone.
+closed tuple's `items: false`, is lowered for the `$ref` alone. The parser decodes as `false` a
+schema the document writes as a mapping where a keyword beneath it fails to decode under its own
+name, such as an `items` above a JSON Schema draft's list of `items`
+([`failure-beneath-itself`](../parser-library.md#failure-beneath-itself)). The load phase decodes
+each such schema again as written, and in turn each one that leaves `false` below it, up to
+`typed.MaxMends` of them one below another; one past them becomes the top type, reported as an
+`openapi/degraded-construct` error at it, since it is no `false` the document writes.
 
 That preservation is load-bearing, not decorative: a closed empty `Model` admits `{}`, and the
 source admits nothing, so the lowered type is one value wider than what was written. Without the
@@ -2538,7 +3032,9 @@ emitter that wants the exact reading has everything it needs to produce it.
 
 - Cases: `allof-boolean-branch`
 - Codes: `openapi/degraded-construct`, `openapi/false-schema`
-- Tests: `schema.TestLower_DepthCapExceeded`,
+- Tests: `schema.TestLower_DepthCapExceeded`, `schema.TestLower_ASchemaPastTheMendsIsTheTopType`,
+  `e2e.TestOlderDrafts_ATupleBelowAnotherSchemaIsATuple`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`,
   `e2e.TestMaxNesting_AdmitsWhatTheLoweringLowersInFull`,
   `e2e.TestCompile_ARefToABooleanSchemaResolvesInEitherOrder`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
@@ -2588,9 +3084,8 @@ of its own, since reading it so loses nothing.
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
   `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
-  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
-- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
-  an `items`, turns the outer position into the `false` schema (#1299).
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
+  `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
 
 ## 7. Schemas: keywords beyond the shape
 
@@ -2602,21 +3097,28 @@ of the node or carrier the position owns (a `Scalar`, a `Property` or a `Paramet
 `maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
 carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
 union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
-the target is; and
+the target is, as does one on an inline `allOf` branch
+([`allof-inline-residue`](#allof-inline-residue)); and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
-literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
-that wrote it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound
-beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so
-a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and `true` with no bound
-beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum` or
-`openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-construct` warning. In
-3.1 and 3.2 the keyword is a bound of its own, kept beside `Min`/`Max` when both are declared, a
-field apiece and no `Unmodeled` entry ([constraints](../ir/constraints.md)). The other
-dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
-`openapi/invalid-exclusive-bound` error. A bound beside a node with no `Constraints` field to take
-it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
+literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the keyword.
+Exclusive bounds follow the schema's dialect
+([`dialect-keywords`](#dialect-keywords)). In 3.0's, and in JSON Schema draft 4's, the boolean
+modifies the bound beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears
+`Min` or `Max`, so a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and
+`true` with no bound beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum`
+or `openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-construct` warning. In
+2020-12's, the dialect 3.1 and 3.2 name, the keyword is a bound of its own, kept beside `Min`/`Max`
+when both are declared, a field apiece and no `Unmodeled` entry
+([constraints](../ir/constraints.md)). The other dialect's form (a boolean in 2020-12's, a number in
+3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error at the keyword. Both
+errors are the load phase's, once each schema's dialect is known, at every schema the
+[`validation`](#validation) check reads, which the rule table leaves these keywords' shape to: one
+under `not`, `if` or `propertyNames`, or beside an `enum`, is reported as one the lowering reads,
+and an aliased value once. A bound beside a
+node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
+kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
@@ -2625,7 +3127,10 @@ which a bool cannot tell from one never written, and a count that does not fit i
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
-- Tests: `schema.TestConstraints_ExclusiveBoolean30`,
+- Tests: `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`,
+  `load.TestOwnedFindings_ReportAnAliasedValueOnce`,
+  `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
   `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`,
@@ -2636,12 +3141,11 @@ which a bool cannot tell from one never written, and a count that does not fit i
   `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
   `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
-  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
+  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`,
+  `schema.TestCollectionBound_ARefinementReachesWhatThePositionOwns`,
+  `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`
 - Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference (#1050); and a collection bound on an
-  inline branch of a refinement ([`allof-refinement`](#allof-refinement)), whatever its principal,
-  stays verbatim with its branch, which folds no collection bound, where one beside the `allOf`
-  reaches `Constraints` (#1312).
+  everywhere but the collection bounds beside a reference or on an inline `allOf` branch (#1050).
 
 ### `validation-only`
 
@@ -2652,12 +3156,16 @@ position owns, one entry per family: `not`, `dependentSchemas`, `dependentRequir
 one object, at the schema — `if`, `then` and `else` under `openapi:if-then-else`, `contains` with
 `minContains` and `maxContains` under `openapi:contains`, and `unevaluatedItems` with an
 `unevaluatedProperties` that is not `false` under `openapi:unevaluated`, the `false` one being a
-closure ([`additional-properties`](#additional-properties)). Each entry is reported as an info
-`openapi/validation-only-keyword` at the schema that wrote it.
+closure ([`additional-properties`](#additional-properties)). In a schema read in JSON Schema draft
+4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
+`dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
+elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
+info `openapi/validation-only-keyword` at the schema that wrote it.
 
-- Cases: `negation-not`, `dependent-required`
+- Cases: `negation-not`, `dependent-required`, `schema-drafts`
 - Codes: `openapi/validation-only-keyword`
 - Tests: `annotation.TestValidationOnlyAt_KeepsEveryKeywordItClaims`,
+  `e2e.TestOlderDrafts_DependenciesAreValidationOnly`,
   `schema.TestLower_ValidationOnlyKeywords`,
   `annotation.TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept`
 
@@ -2740,16 +3248,73 @@ identifier and base URI a `$ref` resolves against where [`references`](#referenc
 it stops a `$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)); a reference to it
 lowers to the schema's type, whose ID its pointer gives, so nothing of the identifier reaches the IR
 beyond the verbatim copy. A document's `jsonSchemaDialect`, the default `$schema` of its schemas, is
-kept on the Document the same way, every schema read in the OpenAPI dialect whatever it names.
+kept on the Document the same way.
+
+`$schema` and `jsonSchemaDialect` are read besides for the dialect a schema is read in, as OpenAPI
+3.1 has them choose it. A schema of a 3.1 or 3.2 document is read in the dialect the `$schema` of
+the innermost schema resource root holding it names, itself included: a Schema Object no other
+Schema Object holds, the root of a document that is no OpenAPI document, which holds every schema in
+it, or a schema whose identifier roots a resource of its own ([`references`](#references)), as JSON
+Schema lets an embedded resource name its dialect. Else it is read in its document's
+`jsonSchemaDialect`, and else in its minor's own, the OAS dialect. A `$schema` on any other schema
+chooses nothing, since JSON Schema writes one at a resource's root, and an `$id` naming its own
+document roots no resource. A 3.0 document defines neither keyword, so its schemas are read in 3.0's
+dialect whatever either names. The rule table has rows for each dialect named here by the id its
+meta-schema declares, with or without a trailing empty fragment. The OAS dialect,
+`https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema 2020-12,
+`https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the OAS
+dialect is also named by each dated id its meta-schema is published under:
+`https://spec.openapis.org/oas/3.1/dialect/2024-10-25` and `2024-11-10`, and
+`https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
+support values of `$schema` besides. JSON Schema 2019-09,
+`https://json-schema.org/draft/2019-09/schema`, draft 7, `http://json-schema.org/draft-07/schema#`,
+draft 6, `http://json-schema.org/draft-06/schema#`, and draft 4,
+`http://json-schema.org/draft-04/schema#`, have keyword rows of their own. A dialect changes the
+keywords alone: the fields OpenAPI adds to a Schema Object, such as `discriminator` and `xml`, and
+the rules it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4
+spells an exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)),
+the drafts before 2020-12 a tuple as a list of `items` ([`tuples`](#tuples)), those before 2019-09
+`dependencies` ([`validation-only`](#validation-only)) and an identifier naming a fragment alone
+([`references`](#references)), draft 4 the identifier as `id`, and drafts 4, 6 and 7 ignore the
+keywords beside a `$ref` ([`later-version-construct`](#later-version-construct)). A schema naming
+any other dialect by an absolute URI, an earlier draft or one of the author's, is read in its
+minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`
+naming it. A value no absolute URI names chooses nothing, as though it were not written, and draws
+no such warning: the rule table reports it where it judges it ([`validation`](#validation)), which
+in a document a reference reaches is only what the reference reaches
+([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
+an alias places under two roots is read in each one's at each, by the folding of an `allOf` and the
+reading of a body as a file too.
+
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
 what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as
 an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
 [`references`](#references) reads resolves to the schema declaring it.
 
-- Cases: `dialect-keywords`
-- Codes: `openapi/degraded-construct`
-- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`
+- Cases: `dialect-keywords`, `schema-dialects`
+- Codes: `openapi/degraded-construct`, `openapi/unread-dialect`
+- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`,
+  `e2e.TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames`,
+  `e2e.TestDocumentDialect_AParameterReadsItsSchemasDialect`,
+  `e2e.TestDocumentDialect_AReferenceReadsWhatItNamesInItsRootsDialect`,
+  `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
+  `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
+  `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
+  `e2e.TestDocumentDialect_ASchemaIsReadInItsOwnDocumentsDialect`,
+  `e2e.TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPlaceByEveryReader`,
+  `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
+  `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
+  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`,
+  `load.TestReadDialects_GivesAnotherDocumentsOwnRowsToWhatNoRootHolds`
+- Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
+  dialect, bar the shapes and formats it leaves to the load phase ([`constraints`](#constraints),
+  [`tuples`](#tuples), [`references`](#references)), so a keyword only the draft defines, such as
+  `dependencies` or draft 4's `id`, is held to none, as is a `definitions` entry no `$ref` reaches
+  (#1466); a keyword 2020-12 added, such as `prefixItems`, is read as
+  2020-12 reads it in a draft's schema too (#820); 2019-09's `$recursiveRef` is kept verbatim, never
+  expanded as its `$dynamicRef` is (#1475); and an identifier naming its document by the 3.2 `$self`
+  roots a resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -2861,29 +3426,25 @@ such item, and a component item two paths mount is kept once per mount. It is re
 
 ### `path-item-docs`
 
-A path item's own `summary` and `description`, at the same three mounts, are kept verbatim on each
-operation it mounts, under `openapi:pathItem/summary` and `openapi:pathItem/description`
-(`no_ir_home`), reported as an info `openapi/degraded-construct` at the operation, rather than
-merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
-documents the path, so merging would need a precedence rule and would attach documentation the
-operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering. The keys sit beneath the item's scope, as its extensions and undeclared keys do, so no
-key the operation's own census writes can spell one: the census escapes a `/` in the key it keeps.
-A path item that mounts no operation keeps the pair where it keeps what else it writes
+A path item's own `summary` and `description`, at the same three mounts, lower to the `PathDocs`
+of each HTTP binding of each operation it mounts ([http-binding](../ir/http-binding.md#path-documentation)),
+with nothing reported, rather than merged into the operation's `Docs`: `ir.Docs` holds the
+operation's own pair, and a path item's documents the path, so merging would need a precedence rule
+and would attach documentation the operation's author never wrote, an inference invariant 6 places
+in policy. Each keyword is read where the nearest layer of a `$ref`'d path item declares it
+([`path-item-ref-fields`](#path-item-ref-fields)). A path item that mounts no operation has no
+binding to hold the pair, so it keeps it where it keeps what else it writes
 ([`path-item-servers`](#path-item-servers)), with the item's pointer in the scope, under
 `openapi:pathItem/<item pointer>/summary` and `openapi:pathItem/<item pointer>/description`, since
 one carrier holds every such item; the warning announcing that item covers them, so they draw no
-info of their own.
+finding of their own.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`,
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`, `operation.TestPathItem_DocsAddNoMarker`,
   `operation.TestPathItem_DocsKeepApartFromAnOperationsOwnKeys`,
   `operation.TestPathItem_KeepsWhatItDeclaresOncePerMount`,
   `operation.TestPathItem_WithNoOperationKeepsItsDocs`,
   `operation.TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite`
-- Status: open: whether a path's documentation gets a typed home in the IR, rather than `Unmodeled`,
-  is undecided (#1319).
 
 ### `path-item-ref-fields`
 
@@ -2949,8 +3510,59 @@ that declares no parents groups exactly as it would were parents never read.
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
-- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738). Open:
-  grouping operations by a vendor extension (#582).
+- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+
+### `extension-groups`
+
+Under the `extension` grouping strategy (`Options.Grouping`), an operation's groups are read from a
+vendor extension stating a *group path*, the nested sub-client an SDK generator files it under: a
+group for each segment, each nested in the group its prefix names. OpenAPI gives an `x-` key no
+meaning, so the reading is policy (invariant 6), never the default: an operation it files lists
+`group-extension` in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched
+([`vendor-extensions`](#vendor-extensions)). `Options.GroupingExtension` names the key, by default
+`x-fern-sdk-group-name`, read on the operation alone, where the conventions write it: a key its path
+item writes is not read for the item's operations. A string is one path, its segments separated by
+dots, so `zero-trust.devices.policies` nests three groups. Conventions disagree on a list: one
+writes the segments of a single path, as `x-fern-sdk-group-name` does, another several paths, each a
+group the operation belongs to, as `x-speakeasy-group` does. So a list's reading is named beside the
+key, `segments` or `groups`, and is never taken from another key's: a key named without one is
+refused, as is one without the key. Under `segments` each entry adds its own segments; under
+`groups` the operation is filed under the first entry's path, and placing it under the others is a
+remount an emitter's plan reads from the kept extension, so no group is minted for them.
+
+A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
+([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
+key, so a configuration can name a group, and a group nests in the one its prefix names whichever
+operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
+it; group and sibling order are first-seen from the operations, as under tags.
+
+An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
+`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
+So is one whose value names no path: one that is neither text nor a list of text, or whose path has
+an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
+whole, so under `groups` an entry after the first that names no path is enough. That bound is over
+twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
+spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
+reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
+whichever document declares it, so a path item two paths `$ref` is reported once. A value that does
+not serialize is reported where any extension's is ([`vendor-extensions`](#vendor-extensions)), and
+not again. A webhook's operation stays in the webhook group and a callback's in its parent's, as
+under tags, whatever its key states.
+
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestGrouping_ByExtensionNestsAGroupPerSegment`,
+  `operation.TestGrouping_ByExtensionReportsAValueStatingNoPath`,
+  `operation.TestGrouping_ByExtensionFallsBackToPathPrefix`,
+  `operation.TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst`,
+  `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
+  `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
+  `lowering.TestGroupingExtension_PathReadsEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
+  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
+- Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
+  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
+  such as one a `groups` list names after the first or one another extension names as an alias
+  (#1726).
 
 ## 9. Parameters
 
@@ -3078,8 +3690,6 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 - Codes: `openapi/inapplicable-location-keyword`
 - Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
   `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
-- Status: open: which minor governs a parameter another document holds, held to the source's until
-  it is settled (#839).
 
 ### `parameter-schema-keywords`
 
@@ -3161,11 +3771,12 @@ type. It leaves the media type to say where it is absent, `true`, or writes no k
 `string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
 the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
-the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
-payload's octets,
+the value, as a JSON Schema draft's spellings of them do where the schema's dialect defines one,
+draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds
+`maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
-keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
 ([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
 own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
@@ -3188,7 +3799,8 @@ response and an error case.
   `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
   `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
   `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
-  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`,
+  `operation.TestBodyFile_ReadsADraftsSpellingAsItsTwin`
 
 ### `binary-media`
 
@@ -3289,9 +3901,9 @@ its entries separated by commas, and refuses one that is neither a media type no
   `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
   `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
 - Status: partly built: a response
-  offering a plain body and an event stream does not record which content streams (#601); and an
-  event stream's terminator, and a response that streams only when a request field asks it to, have
-  no IR home (#666, #667).
+  offering a plain body and an event stream does not record which content streams (#601); and no
+  promotion reads an extension stating a stream's `Terminator`, or the input whose `Condition`
+  selects it, into either field (#1668).
 
 ### `multipart-encoding`
 
@@ -3325,7 +3937,8 @@ they are read from every declaration of the part's name: `Multi` where any is an
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with
 `format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
 it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
-elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+elements, its `prefixItems` and the `items` after them, or a draft's list of `items` and the
+`additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an
 array branch of a union it writes, whose other branches are read as a body's union branches are: one
 declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
 names only `application/octet-stream` or media types the binary policy names
@@ -3335,21 +3948,21 @@ default content type OpenAPI makes `application/octet-stream`, a union being rea
 each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
 that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
-default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
-neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
-declares no encoding still gets entries for its array and file parts, and an entry declaring nothing
-leaves none. What an Encoding Object writes beyond those fields is
-[`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI gives it no
-effect is reported as an `openapi/validation` warning, of the class `validation-no-effect`, at the
-field ([`validation`](#validation)): an `encoding` under a media type that is neither multipart nor
-form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `prefixEncoding` or
-`itemEncoding` under one that is not multipart. A media type is read without its parameters and in
-any case.
+default disagrees, and an array writing no `items`, or a draft's tuple no `additionalItems`, says
+nothing of its elements past its prefix, so neither is a file. A part is entered only when its
+`PartEncoding` holds something, so a body that declares no encoding still gets entries for its array
+and file parts, and an entry declaring nothing leaves none. What an Encoding Object writes beyond
+those fields is [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where
+OpenAPI gives it no effect is reported as an `openapi/validation` warning, of the class
+`validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a media type
+that is neither multipart nor form, which lowers nowhere, or before 3.2 outside a request body, and
+a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is read
+without its parameters and in any case.
 
 - Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
@@ -3367,7 +3980,9 @@ any case.
   `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
   `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
   `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
-  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
+  `operation.TestReadPartFile_ReadsADraftsTupleThroughItsEntries`,
+  `schema.TestListedTuple_ReadsADraftsEntriesAndRest`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own
@@ -3477,33 +4092,87 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
 
 ### `links`
 
-A response's `links` are kept verbatim under `openapi:links` (`no_ir_home`), with no diagnostic, on
-the `Response` and the `ErrorCase` alike: the two are lowerings of one Response Object, so a
-construct kept on only the success one would make a declaration survive or vanish on nothing but its
-status code. The gap is one the IR can close, so a promotion pass may read the entry later.
+A response's `links` lower to `Links` on the `Response`, the `ErrorCase` or the `Default` that
+carries them, in source order ([links](../ir/responses.md#links)): the three are lowerings of one
+Response Object, so a construct kept on only one would make a declaration survive or vanish on its
+status code alone. A link is resolved once every operation has lowered and the type registry is
+whole, since it may name an operation declared after it and a member of a type the registry builds
+last. Each `$ref` in the map is followed, so the `components/links` entry it names lowers there and
+is not also kept on the document ([`unreferenced-components`](#unreferenced-components)), and the
+`summary` and `description` beside it fold over the link's docs
+([`reference-object-siblings`](#reference-object-siblings)).
+
+1. Its target is the operation its `operationId` names, or the one its `operationRef` points to
+   in this document: the operation mounted at that position, else the one declared there when it is
+   mounted once.
+2. Each `parameters` key names a parameter of the target: as `<in>.<name>`, or as a name alone that
+   one parameter carries, a header's matched in any case. Each parameter is given one value.
+3. Each value, and the `requestBody`, is a constant, or a runtime expression written whole. `$url`,
+   `$method` and `$statusCode` lower to their kinds; `$request.<path|query|header>.<name>` to the
+   parameter the operation answered binds there; `$response.header.<name>` to the one header the
+   response declares under that name in any case; and a `body` reference to the body whole, or to
+   the chain of members its pointer walks from the root of every content of that body, which every
+   content must walk alike.
+4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
+   keys stay on it.
+
+A link that does not lower whole is kept verbatim on its response under `openapi:links/<name>`
+(`no_ir_home`), as it resolved, with a finding at its entry in the links map:
+
+1. An `openapi/invalid-link` warning when it names its operation both ways or neither, or by an
+   `operationRef` that is no JSON pointer, or its target, a parameter it names or a value it reads
+   names nothing the document declares or names it more than once, or a value breaks the
+   runtime-expression grammar or reads a response's query or path.
+2. An `openapi/untyped-link` info when the link is sound but reads what no link value spells: an
+   operation of another document or one mounted more than once, a request value no parameter of the
+   operation answered binds, a header the response does not declare once, a body the document does
+   not describe, a member reached through an array index, a map, a union or any type but a model,
+   members the contents of a body disagree on, a string an expression is substituted into, whether
+   the expression keeps the grammar or not and whether the string is the value or sits within a
+   list or an object the value holds, or a constant the IR has no value for.
 
 - Cases: `response-links`
-- Status: not built: no IR field holds a link yet (#669).
+- Codes: `openapi/invalid-link`, `openapi/untyped-link`
+- Tests: `operation.TestLinks_AFindingKeepsTheLinkWhole`, `operation.TestLinks_ResolvedFormsLower`,
+  `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
+  `operation.TestLinks_ASharedResponseResolvesPerOperation`,
+  `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
+  `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
+  `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
+  `operation.TestLinksResolve_IndexesEachListOnce`,
+  `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
+  `operation.TestParseExpression_ReadsTheGrammar`,
+  `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
+  `operation.TestEmbedsExpression_AllocatesNothing`,
+  `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
+- Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
+  dropped with no record, as beside any other reference (#1321). A body whose media types hold
+  distinct models composing one wide model costs a link reading it their number times that width
+  (#1723).
 
 ## 12. Webhooks and callbacks
 
 ### `webhooks`
 
 Each operation of a `webhooks` entry's path item lowers to an `Operation` mounted at its own
-pointer, in the synthesized `webhooks` group, its HTTP binding marked `IsWebhook`, with the entry's
-key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a webhook, with the
+entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
+`security` describes requests clients send, and a webhook is one the API sends
+([auth](../ir/auth.md#inbound-operations)).
 
 - Cases: `webhooks`
-- Status: open: whether a webhook operation inherits the service's auth (#626).
 
 ### `callbacks`
 
 An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each runtime expression of
-each named callback, a `Callback` holding the expression as written and the `OpID`s of the
-operations its path item declares. Each of those lowers to an `Operation` of its own, mounted at its
-own pointer below the declaring operation's (`…/callbacks/<name>/<expression>/<method>`, the name
-escaped as one token), grouped as any other operation is, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md)). A key is a runtime expression, by the grammar each
+each named callback, a `Callback` holding the callback's name and the expression as written and the
+`OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
+mounted at its own pointer below the declaring operation's
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
+operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
+webhook does. A key is a runtime expression, by the grammar each
 minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
 constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
 error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
@@ -3514,8 +4183,7 @@ lowers as written.
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858); and a callback operation is not marked inbound, and a callback has no name (#625). Open:
-  whether a callback operation inherits the service's auth (#626).
+  (#858).
 
 ## 13. Security
 
@@ -3525,7 +4193,8 @@ lowers as written.
 its pointer, and a `security` list — the document's to the Service's, an operation's to the
 Operation's — to an OR of ANDs: each requirement object one alternative, naming its schemes, each
 with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `security`
-inherits the document's, and one writing `security: []` is public; the two stay apart, absent
+inherits the document's, save a webhook or a callback, which inherits none
+([`webhooks`](#webhooks)), and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
 spellings apart in `Service.Auth`.
 
@@ -3626,16 +4295,17 @@ field, and never lowered into a field the flow lacks.
 ### `servers`
 
 The document's `servers` lower to `Document.Servers`, each server registered at the pointer of its
-Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the
-service names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description`
-to its docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the
-order written, to a variable with its `default`, `enum` and `description`, and the server's `x-*`
-and undeclared keys to its own `Unmodeled`. A document whose `servers` is absent or empty is served
-at the one server OpenAPI supplies, at `/`, minted as `server/default` and recording no pointer,
-since nothing in the document writes it. A name one servers list repeats — the document's, a path
-item's or an operation's, compared as written at every version, since the parser reads `name` on
-each — is kept as declared on both entries and reported as an `openapi/duplicate-server-name`
-warning at the repeat's name, naming the first.
+Server Object, as its ID's path and its provenance ([servers](../ir/servers.md)), and the service
+names them, in order, on `Service.Servers`: `url` to `URLTemplate` as written, `description` to its
+docs, 3.2's `name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the order
+written, to a variable with its `default`, an empty string kept and none where the entry writes no
+`default`, its `enum` and its `description`, and the server's `x-*` and undeclared keys to its own
+`Unmodeled`. A document whose `servers` is absent or empty is served at the one server OpenAPI
+supplies, at `/`, minted as `server/default` and recording no pointer, since nothing in the document
+writes it. A name one servers list repeats — the document's, a path item's or an operation's,
+compared as written at every version, since the parser reads `name` on each — is kept as declared on
+both entries and reported as an `openapi/duplicate-server-name` warning at the repeat's name, naming
+the first.
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
@@ -3643,9 +4313,10 @@ warning at the repeat's name, naming the first.
   `servers.TestRegistry_RootServesADocumentWithNoServersAtTheRoot`,
   `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
-  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
-- Status: partly built: a variable's `default` cannot tell an empty default from none (#883); and a
-  servers list only a `$ref` reaches is never checked for a repeated name (#880).
+  `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`,
+  `servers.TestServerVariables_AnEmptyDefaultIsNotNone`
+- Status: partly built: a servers list only a `$ref` reaches is never checked for a repeated name
+  (#880).
 
 ## 15. Vendor extensions and policy
 
@@ -3665,9 +4336,9 @@ service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathIt
 `openapi:itemEncoding/x-*`; on a schema's node, `openapi:xml/x-*`, `openapi:discriminator/x-*` and
 `openapi:externalDocs/x-*`; and on a security scheme, `openapi:flows/x-*`. `<part>` and `<name>` are
 escaped as RFC 6901 tokens, so a name the document chooses stays one segment
-([unmodeled](../ir/unmodeled.md#keys)). A Link Object's own extensions ride inside the
-verbatim `links` entry rather than taking a key beside it, and a path item that mounts no operation
-keeps its own under `openapi:pathItem/<item pointer>/x-*`
+([unmodeled](../ir/unmodeled.md#keys)). A Link Object lowers to a link that holds its own, and one
+kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)); a path item
+that mounts no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`
 ([`path-item-servers`](#path-item-servers)). An extension whose value converts to no JSON reaches
 the IR in no form, reported as an `openapi/degraded-construct` warning at the object holding it.
 
@@ -3796,6 +4467,31 @@ polarity. A document that writes `x-extensible-enum` *instead* of `enum` lowers 
 and there is no node to open — minting one from a vendor key would be a compiler reading a member
 list out of an extension, not a promotion, so the entry is left for a consumer that wants to.
 
+`Union.Closed` is read the same way, by presence, through the target `union.open`: a `oneOf` or
+`anyOf` is closed by definition, so a document can only declare the open case. No default key names
+it, since no spelling for an open union has become common, so a union opens only under a mapping
+that names its key. The union a mixed `enum` lowers to ([`enum-const`](#enum-const)) reads
+`enum.open` instead, as the enum would, since a target names what the document writes, whatever
+node holds it: `x-extensible-enum` opens it under the default mapping, a `union.open` key does not,
+and on a `oneOf` the enum's key opens nothing. Each node reads one target, so no fact is read twice,
+where one reading could override what the other reports.
+
+`Deprecation.ReplacedBy` is read through the target `deprecation.replacedBy`, which no default key
+names either, since no spelling for a replacement has become common. A mapped key's string, or list
+of strings, names each replacement as the document names an entity of the node's class: an operation
+by its `operationId`, a parameter of the same operation as a link's key names one (`<in>.<name>` or
+a name one parameter carries), a header by its name among the headers beside it, a response's or
+those an encoding gives a part or a stream's items, in any case, a property by its name within its
+model, a schema by its name under `components/schemas`, and a security scheme by its key. A property
+whose schema lowers to a type of its own, such as an inline object or enum, is deprecated on that
+type ([`docs-and-deprecation`](#docs-and-deprecation)), so a name there is read as a schema's. The
+names are resolved once the document is whole, since a replacement may be declared after what it
+replaces, and they fill the field all or none: a name that names nothing, names more than one
+entity, or names the node itself, leaves the field unset and is reported as an info
+`openapi/degraded-construct` at the key, as no entity is picked from several. As a deprecation's
+other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
+the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
+
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
@@ -3803,11 +4499,19 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `lowering.TestPromoterStability_ReadsEachWord`,
   `lowering.TestPromoterRedaction_OnlyTrueWrites`,
   `lowering.TestPromoterEnumOpenness_WritesNothing`,
+  `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`,
+  `e2e.TestPromotion_AMappedKeyOpensAUnion`,
+  `e2e.TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
   `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
   `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
+  `lowering.TestPromoter_ReadsReplacementNames`, `lowering.TestParamIndex_NamedReadsALocationQualifiedName`,
+  `replacement.TestResolve_NamesEachReplacementInItsNodesScope`,
+  `replacement.TestResolve_ANameNamingNothingFillsNothing`,
+  `replacement.TestResolve_ANameNamingSeveralFillsNothing`,
+  `e2e.TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
   `e2e.TestPromotion_ARefinementLendsWhatItRefines`,
@@ -3823,9 +4527,11 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
-  `oneOf` kept verbatim beside structure waits for those branches to lower (#661); a flattened
-  member reads no redaction off a declaration it overrides, a key's as `format: password`'s (#1211);
-  and a mapping naming a target nothing reads is accepted in silence (#1281).
+  `oneOf` kept verbatim beside a body, as the base of a hierarchy keeps the union of its subtypes
+  ([`union-beside-structure`](#union-beside-structure)), reaches no field; a mapping naming a target
+  nothing reads is accepted in silence (#1281); and header parameters or response headers whose
+  names differ only in case lower as two, so a replacement naming either names both and fills
+  nothing (#635).
 
 ### `mutually-exclusive-parameters`
 
@@ -3841,8 +4547,8 @@ field bound through `HTTPParamBinding.ParamPath`.
 Pagination is set only by an injectable policy, and what it sets is marked `Inferred` (invariant 6):
 the compiler reads no pagination out of a document's parameter or response names by itself.
 
-- Status: not built: no policy infers pagination yet, so the compiler sets no `Pagination` (#989),
-  and the IR cannot address a request-body input, a page count or a stop condition (#665).
+- Status: not built: no policy infers pagination yet, and no promotion reads it from an extension,
+  so the compiler sets no `Pagination` (#989, #656).
 
 ## 16. Swagger 2.0
 

@@ -14,7 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -155,12 +155,10 @@ paths:
 // crashed compile.
 func TestBesideRefs_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
-	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), modelOf(t, siblingSpec), provenance.Tree{})
 	require.NotEmpty(t, sibs.list, "a registry holding a model is walked")
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
-	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
-
-	diags := besideRefs(at, sibs, panics, nil)
+	diags := besideRefs(provenance.Doc{}, sibs, panics, nil)
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)

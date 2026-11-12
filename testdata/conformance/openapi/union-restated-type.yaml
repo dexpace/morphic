@@ -1,0 +1,46 @@
+openapi: 3.1.0
+info: {title: UnionRestatedType, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    V4: {type: string, format: ipv4}
+    V6: {type: string, format: ipv6}
+    # Every branch is a string, so the `type` beside them says nothing they do
+    # not, and the schema is the union alone.
+    Address:
+      type: string
+      anyOf:
+        - $ref: '#/components/schemas/V4'
+        - $ref: '#/components/schemas/V6'
+    # The same with inline branches, a range and a value.
+    Ttl:
+      type: number
+      anyOf:
+        - {type: number, minimum: 30, maximum: 86400}
+        - {type: number, enum: [1]}
+    # A type admitting null beside a branch that is null: the union alone, which
+    # collapses to its other branch, nullable.
+    MaybeAddress:
+      type: [string, 'null']
+      oneOf:
+        - $ref: '#/components/schemas/V4'
+        - {type: 'null'}
+    Item: {type: object, properties: {name: {type: string}}}
+    # `type: object` beside branches that are all objects is the union of them,
+    # not a union of models composed over each.
+    Entry:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/Item'
+        - {type: object, properties: {id: {type: string}}}
+    # A bare `required` beside object branches composes each with the names it
+    # requires.
+    Target:
+      required: [name]
+      oneOf:
+        - $ref: '#/components/schemas/Item'
+    # A branch with a type of its own beside `type: string` keeps the body: the
+    # string is the meet, and the union is kept beside it.
+    Mixed:
+      type: string
+      oneOf: [{type: string}, {type: number}]

@@ -47,7 +47,7 @@ func (g *Merger) identify(merged *ir.Property, schema, field jsontext.Pointer) {
 	if !g.carriedApart(merged.Provenance.Pointer, schema) {
 		return
 	}
-	merged.ID = g.PropAt(field)
+	merged.ID = g.IDs.ComposedProp(field)
 	merged.Provenance.Pointer = field
 }
 
@@ -56,7 +56,7 @@ func (g *Merger) identify(merged *ir.Property, schema, field jsontext.Pointer) {
 // one of whole's, so the two are different fields.
 func (g *Merger) carriedApart(first, whole jsontext.Pointer) bool {
 	for schema := schemaOf(first); len(schema) > len(whole); schema = schemaOf(schema) {
-		if g.Interned(schema) {
+		if g.Walk.Interned(schema) {
 			return true
 		}
 	}

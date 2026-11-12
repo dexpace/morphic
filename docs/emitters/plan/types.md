@@ -8,13 +8,22 @@ type TypePlan struct {
                                     // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
+    Redacted   []ir.PropID          // the flattened members a value is redacted at: each whose
+                                    // ir.FlatProperty.Secret is set, as one of its declarations is
+                                    // Secret or of a sensitive type (../refine/redaction.md)
+    Sensitive  bool                 // the type, or one its Base chain reaches, is Sensitive
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
+    Composed   []ComposedVariant    // a model narrowing a union: each shape an instance takes, the
+                                    // model with a variant in the union's place; empty otherwise,
+                                    // for one adding nothing to its union, and where no
+                                    // distribution serves (below)
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
-    Open       bool                 // a union, polymorphic base or enum keeps a value no variant or
-                                    // member recognizes rather than refusing it (policy.md,
-                                    // ../refine/unions.md, ../refine/enums.md)
+    Open       bool                 // a union, polymorphic base, model narrowing a union or enum
+                                    // keeps a value no variant or member recognizes rather than
+                                    // refusing it (policy.md, ../refine/unions.md,
+                                    // ../refine/enums.md)
     Inclusive  bool                 // an any_of union two of whose variants can admit one value in
                                     // the declaration no shape projects (below); false otherwise
     Strict     bool                 // a one_of union refuses a value two variants admit unless its
@@ -28,6 +37,19 @@ type TypePlan struct {
     Reach      []ir.GroupID         // the top-level operation groups whose operations reach this
                                     // type, sorted; empty = none does (../refine/output-units.md)
     Inferred   map[string]ir.Provenance
+}
+
+// ComposedVariant is one shape an instance of a model narrowing a union takes: the composition
+// with a variant in the union's place, and in that of each union it narrows in turn (below).
+type ComposedVariant struct {
+    Over        []ir.TypeID         // the variant taken in each union's place, outermost first
+    Flattened   []ir.PropID         // these five as TypePlan's own, read over the composition
+    Required    []ir.PropID         // with Over's variants in their unions' places
+    Undeclared  []string
+    Redacted    []ir.PropID
+    Unflattened []ir.TypeID
+    Shapes      []ModelShape        // one for each of the model's, holding what Flattened shows
+                                    // there
 }
 
 // UnionShape is the wire shape a union's serializer reads, from Exclusive, WireTagged and
@@ -72,7 +94,67 @@ required on the composed model. A name `Requires` lists that no flattened proper
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
-not hold what it admits, so each refiner lowers it or degrades with a code of its own.
+not hold what it admits, so each refiner lowers it or degrades with a code of its own; the three
+targets lower a union there as [inheritance](../refine/models.md#inheritance) says.
+
+## A model narrowing a union
+
+A model whose `Unflattened` holds a union that does not list it narrows that union, a union its
+composition reaches at any distance: each of its instances is an instance of one of the union's
+variants with the rest of the composition beside it
+([models](../../ir/models.md#a-union-a-composition-names)). `Unflattened` lists a composition
+entry's target as written, so where it names an alias scalar, as a 3.1 `$ref` beside a `description`
+hoists one ([composition entries](../../ir/models.md#composition-entries)), the union is the one the
+alias stands for, read through as the flattening reads every composition entry. `Composed` holds an
+entry for each shape that gives: the composition with a variant in the union's place, flattened by
+`ir`'s walk reading that variant where it meets the union ([the
+flattening](../../ir/models.md#the-flattening), #1734), never by a walk of the plan's own, so the
+variant's members are laid out, overridden and required as any conjunct's are. Where that
+composition narrows a union in turn, as a variant that is a union or narrows one makes it, the entry
+gives way to one for each of that union's variants, its `Over` one longer, so no entry narrows a
+union, and the entries follow each union's variants in source order, depth first. An entry's
+`Shapes` are the model's, each with the model's filter and patch and the `Props` the entry's
+`Flattened` shows there. In each shape the model is inclusive and strict where its union is
+([inheritance](../refine/models.md#inheritance)), which the union's own plan says, so no entry
+repeats it.
+
+`Composed` is empty for a model adding nothing to its union, which is that union, and for one no
+distribution serves: a model narrowing two unions, itself or through an entry; one whose union has a
+variant composing the model in turn, or reaches itself through the unions among its variants, either
+of which no distribution ends; one over a key-tagged or enveloped union, whose variants are not the
+values it admits; one over a union tagged by a tuple index, whose values are no objects; and one
+whose entries, counted with what each one's walk reads, would number more than
+`plan.MaxComposedSize`, a fixed limit the plan package states ([overview](overview.md)), which
+`Build` reports as a warning `emitters/plan/composed-limit` naming the model. A walk reads each
+variant it takes in a union's place, each model and composition entry it passes, each alias scalar
+it reads through, each property and `Requires` name, and each type it reads a redaction off, which
+is what it costs ([the flattening](../../ir/models.md#the-flattening)) and what `ir`'s walk is to
+report beside the entry it flattens (#1734). Nested unions multiply the entries and each walk reads
+the whole composition again, so counting only the members the entries hold would leave that cost
+free: a 124 KB spec composing a chain of 1,000 models, each redeclaring one member, beside unions
+nested 14 deep holds 81,918 entries and members where its walks take 83 million steps. Counting each
+variant read keeps the entries' `Over` lists within the limit too: a 193 KB spec nesting unions
+1,000 deep, each beside one leaf, gives 1,000 entries whose `Over` lists hold 500,500 variants,
+while the entries and the rest of what their walks read count 10,000. On the golden spec the
+largest, `rulesets_ResponseRule`, counts 1,143 (spec @bc6fad24, morphic @ea70eba79). The SDK targets
+alias a model adding nothing, and degrade the others
+([inheritance](../refine/models.md#inheritance)). An entry whose declarations of one member admit no
+value in common, as one over a variant pinning a tag the model pins otherwise does, is an entry like
+any, its member as the flattening takes it; whether to leave it out is #1739's.
+
+The plan holds the entries because several artifacts read them: an SDK target declares a variant for
+each, the docs render a table for it, a CLI gives flags for its members ([a command-line
+target](../docs-and-mock.md#a-command-line-target)), and the samples and a mock show values of it,
+which the example set holds ([one set of examples](../docs-and-mock.md#one-set-of-examples)). Two of
+them reading the shapes apart would show members another lacks, which is the third test of [plan or
+refine](plan-or-refine.md), and the example set is the plan's, which imports only `ir` and
+`ir/irfacts` ([packages](../packages.md)), so no refine helper can serve it. A target with
+intersection types writes the composition as it stands and need not read `Composed`, as a
+class-based one need not read `Flattened`. On the golden spec (spec @bc6fad24, morphic
+@ea70eba79), 23 models narrow a union beside a member of their own, in 158 entries:
+`rulesets_ResponseRule` over the 21 variants of `rulesets_RequestRule`, and
+`dns-records_dns-record-batch-patch` over a union of two variants that narrow unions of 8 and 13,
+so 21 entries. The 26 others add nothing to their union, and none is a case no distribution serves.
 
 ## Variants that can share a value
 
@@ -119,9 +201,9 @@ admitting no value in common, by these rules, and a pair none of them separates 
   decided for every filter at once: a member separates only where no filter can leave it out, its
   `Visibility` the zero value, and a declaration some filter leaves out separates only where its
   model is closed as well. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
-  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
-  add, counts as open.
+  `patternProperties` beside `additionalProperties: false` does
+  ([catch-alls](../../ir/models.md#catch-alls)), so the closure alone separates nothing, and a
+  polymorphic base, which holds its subtypes' values and the members they add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through a
 finite chain of separated members, and a cycle of models separates nothing by itself. The plan
@@ -220,7 +302,9 @@ coincide, every model it reaches holding and requiring the same members in both,
 declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)), so they take one
 answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
 every member but those `Visibility.None` hides, requires only the required members no filter can
-leave out, and `TypePlan.Inclusive` decides it.
+leave out, and `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it
+narrows, too, every value of the model being a value of one of that union's variants
+([inheritance](../refine/models.md#inheritance)).
 
 ## A model with lifecycle visibility
 

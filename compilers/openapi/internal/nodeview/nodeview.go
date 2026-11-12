@@ -24,11 +24,11 @@ import (
 // would invert the dependency.
 const maxAliasChain = 10000
 
-// maxPointerSegments bounds how many tokens one JSON pointer walk follows. A
+// MaxPointerSegments bounds how many tokens one JSON pointer walk follows. A
 // pointer names a position in the document, so a real one is a handful of
 // segments deep; the bound is what keeps the walk terminating on a pointer built
 // to be long rather than to name anything, per the bounded-recursion rule.
-const maxPointerSegments = 1024
+const MaxPointerSegments = 1024
 
 // MergeDepthLimit bounds how deep a chain of `<<` merge keys the mapping view
 // expands. It is far tighter than maxAliasChain: each merge level
@@ -484,7 +484,7 @@ func (v *View) DocumentPath(root *yaml.Node, pointer jsontext.Pointer) (path []*
 	segments := 0
 	for token := range pointer.Tokens() {
 		segments++
-		if segments > maxPointerSegments {
+		if segments > MaxPointerSegments {
 			return path, false
 		}
 		cur = Deref(v.ChildByToken(cur, token))

@@ -259,9 +259,10 @@ func TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest(t *testing.T) {
 
 // TestPassedOverEntries_KeepsOneCopyPerDeclaration lowers a parameter and a header
 // through several references. What they pass over belongs to the declaration, so
-// the Document holds it once and no reference copies it, and the warning stands
-// once at the declaration: the IR grows with the source, not with its product
-// with the references (GitHub #1240).
+// the Document holds it once and no reference copies it, and the walk reads it
+// once, its warning standing once in the walk's own report rather than left to
+// compile.Diags to drop: the work grows with the source, not with its product with
+// the references (GitHub #1240).
 func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 	t.Parallel()
 	const (
@@ -296,7 +297,8 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
         application/json: {schema: {type: integer}}
         text/plain: {schema: {type: string}}
 `)
-	doc, diags := parseFull(t, openapitest.PathsSpec(spec.String()))
+	src := openapitest.PathsSpec(spec.String())
+	doc, diags := parseFull(t, src)
 
 	assert.Equal(t, []string{"openapi:" + headerMap + "/text~1plain", "openapi:" + paramMap + "/text~1plain"},
 		slices.Sorted(maps.Keys(doc.Unmodeled)))
@@ -309,6 +311,91 @@ func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
 		assert.Empty(t, op.Responses[0].Headers[0].Unmodeled, name)
 	}
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "%+v", diags)
+	_, reported := serviceAsReported(t, src)
+	assert.Equal(t, []jsontext.Pointer{headerMap, paramMap}, openapitest.PointersOf(reported, diag.DegradedConstruct),
+		"%+v", reported)
+}
+
+// TestPassedOverEntries_KeepsOneAtEveryPosition puts a content map of two
+// entries at each position the service walk reaches the election from: a path
+// item's, an operation's, a callback's and a webhook's parameter, and a success,
+// error-range and default response's, a form part's and a 3.2 sequential item's
+// header. Each route hands the walk down itself, so one handing its lowerings a
+// walk of their own would keep its entry from the Document. Each map keeps one
+// entry, and the walk warns once at each.
+func TestPassedOverEntries_KeepsOneAtEveryPosition(t *testing.T) {
+	t.Parallel()
+	src := openapitest.PathsSpecVer("3.2.0", fmt.Sprintf(`  /x:
+    parameters:
+      - {name: i, in: query, content: %[1]s}
+    get:
+      parameters:
+        - {name: q, in: query, content: %[1]s}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Ok: {content: %[1]s}
+          content:
+            multipart/mixed:
+              itemSchema: {type: string}
+              itemEncoding:
+                headers:
+                  X-Item: {content: %[1]s}
+        "4XX":
+          description: error
+          headers:
+            X-Error: {content: %[1]s}
+        default:
+          description: other
+          headers:
+            X-Default: {content: %[1]s}
+      callbacks:
+        cb:
+          "{$request.query.q}":
+            post:
+              parameters:
+                - {name: c, in: query, content: %[1]s}
+              responses: {"200": {description: ok}}
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {f: {type: string}}}
+            encoding:
+              f:
+                headers:
+                  X-Part: {content: %[1]s}
+      responses: {"200": {description: ok}}
+webhooks:
+  hook:
+    post:
+      parameters:
+        - {name: w, in: query, content: %[1]s}
+      responses: {"200": {description: ok}}
+`, "{application/json: {schema: {type: integer}}, text/plain: {schema: {type: string}}}"))
+	contentMaps := []jsontext.Pointer{
+		"/paths/~1x/parameters/0/content",
+		"/paths/~1x/get/parameters/0/content",
+		"/paths/~1x/get/responses/200/headers/X-Ok/content",
+		"/paths/~1x/get/responses/200/content/multipart~1mixed/itemEncoding/headers/X-Item/content",
+		"/paths/~1x/get/responses/4XX/headers/X-Error/content",
+		"/paths/~1x/get/responses/default/headers/X-Default/content",
+		"/paths/~1x/get/callbacks/cb/{$request.query.q}/post/parameters/0/content",
+		"/paths/~1x/post/requestBody/content/multipart~1form-data/encoding/f/headers/X-Part/content",
+		"/webhooks/hook/post/parameters/0/content",
+	}
+	wantKept := make([]string, 0, len(contentMaps))
+	for _, at := range contentMaps {
+		wantKept = append(wantKept, "openapi:"+string(at)+"/text~1plain")
+	}
+	slices.Sort(wantKept)
+	slices.Sort(contentMaps)
+
+	doc, _ := parseFull(t, src)
+	assert.Equal(t, wantKept, slices.Sorted(maps.Keys(doc.Unmodeled)))
+	_, reported := serviceAsReported(t, src)
+	assert.Equal(t, contentMaps, openapitest.PointersOf(reported, diag.DegradedConstruct), "%+v", reported)
 }
 
 // TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry

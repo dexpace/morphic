@@ -12,14 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
@@ -202,11 +200,6 @@ func TestExpansion_UnboundedAdmitsWithoutWeighing(t *testing.T) {
 	assert.Zero(t, e.Weighed())
 	_, refused := e.Refusal(0)
 	assert.False(t, refused)
-
-	var none *lowering.Expansion
-	assert.True(t, none.Admit(raw, declaration()), "a zero context's expansion bounds nothing")
-	_, refused = none.Refusal(0)
-	assert.False(t, refused)
 }
 
 // TestExpansion_RefusalNamesTheBudgetAndNoPosition pins the refusal: an error
@@ -220,20 +213,16 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	assert.True(t, refused)
 	assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded,
 		Provenance: ir.Provenance{Source: 3},
-		Message: "the copies its $refs make weigh more than the 5 budgeted for them: each $ref to a " +
-			"declaration other than a schema or a link lowers its own copy of it"}, got)
+		Message: "the copies its $refs and path items make weigh more than the 5 budgeted for them: each $ref " +
+			"to a declaration other than a schema lowers its own copy of it, and each " +
+			"additionalOperations entry its own copy of what its path item declares"}, got)
 }
 
 // loaded returns the context of src, loaded as a source, with its $refs'
 // copies held to limit.
 func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
 	t.Helper()
-	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{MaxReferenceExpansion: limit},
-		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
-		overlay.Origin{}).WithLoaded(doc)
+	return loweringtest.Context(t, src, lowering.Policy{Limits: lowering.Limits{MaxReferenceExpansion: limit}})
 }
 
 // TestDeclared_ResolvesNoReferencePastTheExpansionBudget pins what bounds a
@@ -314,7 +303,7 @@ components:
 
 // TestReadingOf_ReadsTheObjectTheUseSiteWrites pins the reading a copy is
 // weighed under: the object read at the $ref's position, and raw YAML where
-// that is no object a $ref names, or where the context holds no table.
+// that is no object a $ref names.
 func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	t.Parallel()
 	c := loaded(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n", budget.Unbounded())
@@ -323,7 +312,35 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	assert.True(t, param.Below("schema").Schema())
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
-	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(lowering.Ctx{}, "/paths/~1a/get/parameters/0"))
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c.InScope(resolve.Scope{Foreign: true}), "/paths/~1a/get/parameters/0"),
 		"what another document holds, read at the source's coordinates, has no position of its own")
+}
+
+// TestChargeExpansion_ChargesTheRunsExpansion pins the two charges a copy made
+// with no $ref adds to the budget: a declaration, weighed as the grammar reads
+// its position, here a path item's parameter weighing 25 as paramP's does, and
+// raw bytes beside it. Past the budget the run is refused.
+func TestChargeExpansion_ChargesTheRunsExpansion(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{name: q, in: query, schema: {type: string}}]
+    get: {responses: {"200": {description: ok}}}
+`
+	c := loaded(t, src, budget.AtMost(25+3))
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
+
+	lowering.ChargeExpansionAt(c, "/paths/~1a/parameters/0", param)
+	lowering.ChargeExpansion(c, 3)
+	_, refused := c.ExpansionRefusal()
+	assert.False(t, refused, "a copy weighing 25 and three raw bytes beside it reach the budget of 28")
+	assert.False(t, lowering.ExpansionCrossed(c), "a budget reached is not crossed")
+	lowering.ChargeExpansion(c, 1)
+	_, refused = c.ExpansionRefusal()
+	assert.True(t, refused, "one more crosses it")
+	assert.True(t, lowering.ExpansionCrossed(c))
 }

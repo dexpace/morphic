@@ -91,7 +91,7 @@ promotion requires evidence from all three, not two and an expectation.
 |---|---|---|---|---|
 | Interning + type registry | `compile.Types` | own `types.go` | own `types.go` | already framework |
 | Diagnostic accumulation | `compile.Diags` | own `diag.go` | own `diag.go` | already framework |
-| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `compile.NamingFor` the compiler-facing constructor |
+| Canonical naming grammar | `schema.go` | `naming.go` | `naming.go` | **promoted to `ir`** — `ir.CanonicalWords`, with `NamingFor` the constructor a compiler calls, since moved beside it |
 | ID grammar | `ids.go` | `ids.go` | `ids.go` | **promoted, derivation left behind** — `compile.TypeID` and friends over a `compile.Space`, except the primitives: see §3.4 |
 | Bounded-recursion guard | `depth`, cap 256 | `depth`, cap 256 | `depth`, cap 32 | **do not promote** — see §3.2 |
 | Reference resolution | `resolve.go` | `resolve.go` | — | do not promote |
@@ -121,8 +121,9 @@ Two boundaries were listed here as beyond that check and are no longer. The lett
 (`foo2bar` against `foo_2_bar`) is decidable from the neutral name alone. The camel-case split is
 not — lowercasing erases the case change that marked it — so the grammar itself moved to `ir`,
 beside the field whose doc comment already states it in prose, and `irverify` recomputes a canonical
-from the `Naming.Source` next to it. `compilers/compile` keeps `NamingFor`, the compiler-facing
+from the `Naming.Source` next to it. `compilers/compile` kept `NamingFor`, the compiler-facing
 constructor that pairs the two; what moved is the derivation, not the API a compiler calls.
+`NamingFor` followed it into `ir` once a pass, which imports `ir` alone, named an enum member.
 
 That matters because the architecture sweep reaches only this repository's own compilers. A
 `Document` arriving any other way — decoded from JSON, produced by a compiler outside this tree,
@@ -281,7 +282,7 @@ roughly 1.4% of the time and 2.7% of the allocations, spent on a keyword almost
 nothing uses. So it is a memo, built on the first `$dynamicRef` and not before.
 
 *Later:* the memo moved into `Ctx`, which builds it on the first ask and shares it
-with every copy, as it does the answers `TypePosition` reads (`Ctx.DynamicAnchorSites`,
+with every copy, as it did the answers `TypePosition` read (`Ctx.DynamicAnchorSites`,
 GitHub #982). It is still built on the first `$dynamicRef` and not before; what
 changed is that no lowering carries it as a parameter.
 
@@ -290,11 +291,14 @@ changed is that no lowering carries it as a parameter.
 each document's `$dynamicAnchor`s beside its other identifiers, and
 `Ctx.DynamicAnchorSites` only asks the table (GitHub #401, #454, #1031).
 
-That makes it the one counterexample to §4's claim that interning is
-"irreducibly shared and stateful; nothing else is". It is a weaker exception than
-that phrasing suggests — a memo caches a pure function of the document, where the
-interning table accumulates decisions — but it is shared and it is mutated, and
-the claim as written does not admit it.
+The memo was the first counterexample to §4's claim that interning is
+"irreducibly shared and stateful; nothing else is", and the memos `Ctx` holds now are
+of its kind: `Remembered` keeps each answer a reading of the documents and their
+bindings gives (GitHub #1480), the namer each node's name (GitHub #1106), and the
+promotion policy what each schema lends a carrier (GitHub #1269). Each is a weaker
+exception than that phrasing suggests — a memo caches a pure function of the document,
+where the interning table accumulates decisions — but each is shared and mutated, and
+the claim as written does not admit them.
 
 *Later:* a second shared record does accumulate decisions. `resolve.Reached`, held
 by `Ctx` and written by every reference resolution, records where each one landed,
@@ -305,6 +309,33 @@ answers, and it is read as a set whose contents do not depend on the order they 
 written in. Only the lowering knows what it followed, so the alternatives were a
 reading of the source that guesses — which dropped entries and gave others two
 homes — or threading a return value through every lowering.
+
+*Later:* another shared record changes answers. `Ctx`'s expansion budget charges each
+`$ref` that `lowering.Declared` resolves what the declarations its chain names weigh, and
+each `additionalOperations` entry what it copies of its path item. Once the run's budget
+is crossed, no copy of `Ctx` lowers another such `$ref` or entry, and the compiler refuses
+the document rather than assemble one from whichever copies came first
+(GitHub #1430, #1470). Of what copies of `Ctx` share, it is the one that changes what
+another lowering reads.
+
+*Later:* the `operationIDs` row did not survive either. The operation walk recurses
+through callbacks, each a path item with operations of its own, and whether an
+operationId is unique is a question about every operation the service mounts, callbacks
+included, so the claims are judged once the walks over paths and webhooks have returned
+(GitHub #548). They sit in `walk`, the value `LowerService` builds around the type
+registry and hands down, beside what else only the service walk writes: the server and
+security-scheme registries the service's servers and security requirements go into,
+each holding an entry once by ID (GitHub #1144, #1226, #1479), and the content entries a
+parameter or header passes over, read once per declaration however many references reach
+it (GitHub #1240, #1484). They are effect handles beside `ts`, which §4 admits none of.
+A server and a passed-over entry are lowered once however many operations reach them,
+which values each operation returned could not settle without lowering them at every
+reach. The claims and the schemes no entry declares could be such values, since a claim
+is judged once every operation has lowered and such a scheme is a function of its name
+and the source; they sit in `walk` beside the rest, which spares returning them up
+through every path item and callback that mounts an operation. They are the walk's and
+not the run's: `LowerService` judges or returns each before it returns, so no lowering
+outside the service walk reaches them, and `Ctx` holds none.
 
 `diagnosedConstraints` suppressed duplicate constraint diagnostics when a sub-schema is read from
 two positions.

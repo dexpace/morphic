@@ -93,6 +93,7 @@ func TestFold_ALosingDetailIsKeptAndReported(t *testing.T) {
 		{"examples", ir.Property{Examples: []ir.Example{{Value: one}}}, ir.Property{Examples: []ir.Example{{Value: two}}}, "examples"},
 		{"deprecation", ir.Property{Deprecation: &ir.Deprecation{Since: "1"}}, ir.Property{Deprecation: &ir.Deprecation{Since: "2"}}, "deprecation"},
 		{"xml", ir.Property{XML: &ir.XMLHints{Name: "a"}}, ir.Property{XML: &ir.XMLHints{Name: "b"}}, "xml"},
+		{"xml wrapping", ir.Property{XML: &ir.XMLHints{Wrapped: new(true)}}, ir.Property{XML: &ir.XMLHints{Wrapped: new(false)}}, "xml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -145,7 +146,7 @@ func TestFold_AnIdenticalDetailIsNotADisagreement(t *testing.T) {
 			Default:     &ir.Value{Kind: ir.ValueNumber, Num: "1"},
 			Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueNumber, Num: "1"}}},
 			Deprecation: &ir.Deprecation{Since: "1"},
-			XML:         &ir.XMLHints{Name: "a"},
+			XML:         &ir.XMLHints{Name: "a", Wrapped: new(true)},
 			Provenance:  ptrAt("/allOf/1/properties/id"),
 		}
 	}

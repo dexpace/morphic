@@ -6,6 +6,8 @@ package operation_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,9 +17,13 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -417,7 +423,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 // at one pointer are two findings, not one repeated.
 func TestDiag_DistinctDefectsAtOnePointerBothSurvive(t *testing.T) {
 	t.Parallel()
-	var c lowering.Ctx
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
 	var acc compile.Diags
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "first"))
 	acc.Append(c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/p", "second"))
@@ -603,12 +609,12 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 
-// serversNamed returns the URL of each server ids names, in order, read from
-// doc's registry, failing when one names nothing there.
-func serversNamed(t *testing.T, doc *ir.Document, ids []ir.ServerID) []string {
+// serversNamed returns the URL of each server serverIDs names, in order, read
+// from doc's registry, failing when one names nothing there.
+func serversNamed(t *testing.T, doc *ir.Document, serverIDs []ir.ServerID) []string {
 	t.Helper()
-	urls := make([]string, 0, len(ids))
-	for _, id := range ids {
+	urls := make([]string, 0, len(serverIDs))
+	for _, id := range serverIDs {
 		s, ok := doc.Servers[id]
 		require.True(t, ok, "%s names no registered server", id)
 		urls = append(urls, s.URLTemplate)
@@ -778,4 +784,29 @@ components:
 		assert.NotContains(t, string(id), "%",
 			"no node is interned at an encoded path")
 	}
+}
+
+// TestLowerService_LeavesTheDeclaredSchemesAsTheyWere pins that the walk adds
+// the scheme an unresolved name stands for to a registry of its own, and
+// returns it: the map the compiler's run lowered and handed in still holds what
+// securitySchemes declares, and nothing else.
+func TestLowerService_LeavesTheDeclaredSchemesAsTheyWere(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - ghost: []
+paths: {}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`
+	c := loweringtest.Context(t, spec, lowering.Policy{Grouping: lowering.GroupByTags})
+	declared, _ := auth.LowerSecuritySchemes(c)
+
+	lowered, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), declared)
+
+	assert.Equal(t, []ir.AuthID{ids.Auth("key")}, slices.Sorted(maps.Keys(declared)), "the declared schemes alone")
+	assert.Equal(t, []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("ghost")}, slices.Sorted(maps.Keys(lowered.Auth)),
+		"the walk returns them with the scheme the requirement named")
 }

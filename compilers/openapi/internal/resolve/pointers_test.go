@@ -16,7 +16,7 @@ import (
 
 func TestInternalPointer(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml"}
 	cases := []struct {
 		ref    string
 		want   jsontext.Pointer
@@ -51,7 +51,7 @@ func TestInternalPointer(t *testing.T) {
 // declared names failed every spec-correct escape (GitHub #40).
 func TestInternalPointer_AgreesWithTheResolverOnWhatItIsHanded(t *testing.T) {
 	t.Parallel()
-	sc := resolve.Scope{SelfPath: "m.yaml", Declares: func(string) bool { return false }}
+	sc := resolve.Scope{SelfPath: "m.yaml"}
 	tests := []struct {
 		name, ref string
 		want      jsontext.Pointer

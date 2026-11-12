@@ -138,9 +138,10 @@ reader gets. One that reaches an `OtherResponse` holds the member at `Value` in 
 
 ## Headers
 
-`Headers` are what the response declares, each whole, so its name, its type and the `Style` and
-`Explode` it is read by reach the reader. `Return`'s are the primary response's, and each entry of
-`Others` and `Errors` holds its own. A success and a failure then read alike: the raw headers are on
+`Headers` are what the response declares, each whole, so its name, its type and the `Style`,
+`Explode` and [`Prefix`](../../ir/responses.md#prefix-headers) it is read by reach the reader.
+`Return`'s are the primary response's, and each entry of `Others` and `Errors` holds its own. A
+success and a failure then read alike: the raw headers are on
 the value, and the declared ones typed beside its body ([failures](../operations/errors.md), [return
 shapes](../operations/returns.md)).
 

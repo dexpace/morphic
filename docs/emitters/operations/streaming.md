@@ -38,9 +38,10 @@ decode](../plan/responses.md#a-body-that-does-not-decode)). What a stream yields
 Direction comes from the *core* ([streams](../plan/streams.md)), and the framing from the plan. A
 client stream ends by reading what `Return` reads, a bidi operation has both sides, each with its
 own element and framing, and a gRPC binding of the same core would reuse the same stream shape over
-length-prefixed frames. A sentinel frame that ends a stream without being a variant has no IR home
-yet (#666), so a target cannot tell one from an element; nor does the IR say which input selects a
-stream, where a request field does (#667).
+length-prefixed frames. A frame whose data is a side's `Terminator` ends that stream and is no
+element, and a stream a request input selects is a method of its own beside one for the
+non-streaming content, which never sends the value asking for the stream
+([streams](../plan/streams.md)).
 
 The stream *runtime* is boilerplate behind the `Transport` interface: one template, and one per
 framing the document uses, which refine picks rather than a template branching on it ([structure and

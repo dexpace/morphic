@@ -6,10 +6,12 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
       "default",
+      "extension",
       "path-prefix",
       "tags",
       "webhooks"
@@ -130,8 +132,7 @@
                     "method": "GET",
                     "uriTemplate": "/widgets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -184,8 +185,7 @@
                     "method": "POST",
                     "uriTemplate": "/widgets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -239,8 +239,7 @@
                     "method": "POST",
                     "uriTemplate": "/gadgets",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

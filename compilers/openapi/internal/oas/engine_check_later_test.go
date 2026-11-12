@@ -145,9 +145,9 @@ components:
 // TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct pins GitHub #871: in
 // 3.0 a schema written as a $ref is a Reference Object, which ignores every key
 // beside the $ref, while 3.1 applies them as the schema's keywords. The
-// lowering reads them as 3.1 does, so below 3.1 each key beside the $ref is
-// warned of at its own pointer, whatever the position and the key, and the
-// $ref itself never is.
+// lowering applies them as 3.1 does, each read as 3.0 defines it, so below 3.1
+// each key beside the $ref is warned of at its own pointer, whatever the
+// position and the key, and the $ref itself never is.
 func TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct(t *testing.T) {
 	laterAt := func(version string) map[string]string {
 		got := map[string]string{}
@@ -172,7 +172,8 @@ func TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct(t *testing.T) {
 		"/paths/~1a/get/parameters/0/schema/default",
 	}, slices.Collect(maps.Keys(got)))
 	assert.Equal(t, `keyword "readOnly" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by `+
-		`OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document`,
+		`OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document `+
+		`and read as in an OpenAPI 3.0 one`,
 		got["/components/schemas/M/properties/p/readOnly"])
 	for _, version := range []string{"3.1.0", "3.2.0"} {
 		assert.Empty(t, laterAt(version), version)
