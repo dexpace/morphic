@@ -81,9 +81,11 @@ highlights, and the list moves to a specification of its own when the compiler l
 - resources → OperationGroup + ResourceInfo (identifiers, properties, lifecycle incl.
   put/@noReplace, instance vs collection ops)
 - http traits → HTTPBinding incl. `@endpoint`/`@hostLabel` → HostPrefix/host location (additive
-  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings, `@httpResponseCode` →
-  Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
-  ChecksumRequired
+  binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix bindings on an input, the empty
+  prefix and `@httpQueryParams` once #1748 gives them a spelling, and `@httpPrefixHeaders` → a
+  Header's Prefix on an output or an error ([prefix headers](../ir/responses.md#prefix-headers)),
+  `@httpResponseCode` → Response.StatusCodeProp, `@requestCompression` → Compression,
+  `@httpChecksumRequired` → ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType

@@ -28,6 +28,7 @@ operation-grouping	Operations grouped by service/interface
 resource-hierarchy	Resource hierarchy (CRUDL)
 http-binding	HTTP binding (method/path/status)
 param-styles	Param styles (explode, matrix…)
+prefix-headers	Headers bound to a map by a name prefix
 multi-content	Multiple content types per body
 multipart-encoding	Multipart/form encoding
 per-status-errors	Per-status error types

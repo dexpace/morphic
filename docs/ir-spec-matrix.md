@@ -52,6 +52,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `resource-hierarchy` | Resource hierarchy (CRUDL) | — | — | ⚠ @autoRoute | ✅ resource (incl. put, instance vs collection ops) | — | — | — | — |
 | `http-binding` | HTTP binding (method/path/status) | ✅ | ✅ | ✅ @route/@get… | ✅ http traits | — | ⚠ ws binding | ⚠ transcoding | — |
 | `param-styles` | Param styles (explode, matrix…) | ✅ style/explode | ⚠ collectionFormat | ✅ | ✅ | — | — | — | — |
+| `prefix-headers` | Headers bound to a map by a name prefix | — | — | — | ✅ @httpPrefixHeaders (input, output, error) | — | — | — | — |
 | `multi-content` | Multiple content types per body | ✅ | ⚠ consumes | ✅ @header contentType | ⚠ | — | ✅ | — | — |
 | `multipart-encoding` | Multipart/form encoding | ✅ encoding | ✅ formData | ✅ multipart | — | — | — | — | — |
 | `per-status-errors` | Per-status error types | ✅ responses | ✅ | ✅ @error models | ✅ errors list (client/server fault) | — | — | ⚠ status codes | ⚠ {error, R} variants |
