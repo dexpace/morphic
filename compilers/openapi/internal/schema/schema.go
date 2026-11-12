@@ -320,7 +320,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
-		return lowerModel(c, ts, depth, s, pointer, true)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	case oas3.SchemaTypeArray:
 		return lowerArray(c, ts, depth, s, pointer)
 	default:
@@ -333,7 +333,7 @@ func lowerTyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // else is schemaless.
 func lowerUntyped(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
-		return lowerModel(c, ts, depth, s, pointer, true)
+		return lowerModel(c, ts, depth, s, pointer, true /* discriminated */)
 	}
 	return ts.PrimID(ir.PrimAny), nil
 }

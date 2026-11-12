@@ -441,7 +441,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // (docs/compilers/openapi.md#type-arrays).
 func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	if st == oas3.SchemaTypeObject {
-		return lowerModel(c, ts, depth, s, pointer, false)
+		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */)
 	}
 	return lowerTyped(c, ts, depth, s, pointer, st)
 }
