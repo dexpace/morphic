@@ -10,10 +10,12 @@ scope and a unit's what a unit or a top-level declaration cannot be named:
   system it writes to, treats apart.
 - **A unit**: the names the target declares at its top level beside the spec's, and those a
   top-level declaration cannot take, as when a file system refuses the file it is written to or the
-  declaration would shadow a name the language imports by default. The runtime's names are none of
-  them, since no spec name lands in its unit ([the runtime's
-  unit](output-units.md#the-runtimes-unit)), though a namespace every unit shares still reserves
-  them, as a Kotlin Multiplatform framework's does ([Swift](../targets/kotlin/swift.md)).
+  declaration would shadow a name the language imports by default. No spec name lands in the
+  runtime's unit ([the runtime's unit](output-units.md#the-runtimes-unit)), so its names need
+  reserving only where a file cannot write one beside a spec name of its own: Go writes each
+  qualified and reserves none, while Kotlin reserves them in every unit
+  ([Kotlin](../targets/kotlin/naming.md#reserved-names)), as a namespace every unit shares does
+  ([Swift](../targets/kotlin/swift.md)).
 - **A type**: the members the target gives every model.
 - **A union's variants**: `Unknown`, the fallback's name ([unions](unions.md)), which a variant the
   spec names so yields to.

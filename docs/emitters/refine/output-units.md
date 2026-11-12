@@ -39,20 +39,20 @@ declaration out of the root unit. Both are off by default, and the first that ap
    says; `Reach` spreads from each operation's roots along the type graph as usage does
    ([derived-facts](../../ir/derived-facts.md)), a service's `CommonErrors` counting as every one of
    its groups' roots, since each of its operations can return them. A type several groups reach goes
-   to a shared unit, and a type none reaches stays in the root with the client. No cycle can arise:
-   whatever a reached type holds is reached by every group that reaches it, so a group unit imports
-   at most the shared unit and the runtime's, the shared unit at most the runtime's, which imports
-   none ([the runtime's unit](#the-runtimes-unit)), and only the root, which nothing imports, holds
-   a type that may reach into a group. A sub-client holds what its operations read of the client,
-   its transport, server, credentials and client settings, as values of the runtime's types or of
-   types its operations reach, which the client hands it when built, since a declaration of the
-   root's would import the root. A type moves between a group's unit and the shared unit only when
-   the set of groups reaching it changes, which takes a change to the operations that reach it. An
-   operation a hint places in another group, by `Remount` or `AlsoMount` ([shaping
-   hints](../contract/shaping-hints.md)), counts as each group whose client gets a method for it,
-   so what it reaches goes where a type those groups reach goes: two groups mounting each other's
-   operations would otherwise import each other. Placement reads the hints for that alone, and
-   changing one moves the types its operation reaches.
+   to a shared unit, and a type none reaches stays in the root with the client. With no partition,
+   no cycle can arise: whatever a reached type holds is reached by every group that reaches it, so a
+   group unit imports at most the shared unit and the runtime's, the shared unit at most the
+   runtime's, which imports none ([the runtime's unit](#the-runtimes-unit)), and only the root,
+   which nothing imports, holds a type that may reach into a group. A sub-client holds what its
+   operations read of the client, its transport, server, credentials and client settings, as values
+   of the runtime's types or of types its operations reach, which the client hands it when built,
+   since a declaration of the root's would import the root. A type moves between a group's unit and
+   the shared unit only when the set of groups reaching it changes, which takes a change to the
+   operations that reach it. An operation a hint places in another group, by `Remount` or
+   `AlsoMount` ([shaping hints](../contract/shaping-hints.md)), counts as each group whose client
+   gets a method for it, so what it reaches goes where a type those groups reach goes: two groups
+   mounting each other's operations would otherwise import each other. Placement reads the hints for
+   that alone, and changing one moves the types its operation reaches.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root, the shared unit is `shared` under the root, the runtime's is `runtime` under the
@@ -84,8 +84,9 @@ sends through its transport, and a model in any unit may hold one of its types. 
 named for a spec entity: each operation's row of its settings lands in the operation's unit (above),
 and its failure kinds are the configuration's
 ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). So a runtime name meets a spec
-name only in a file importing both, settled as any import is ([Go](../targets/go/naming.md#imports),
-[Kotlin](../targets/kotlin/naming.md#imports)), and in the Objective-C names every unit shares. Each
+name only in a file importing both, where Go writes it qualified
+([Go](../targets/go/naming.md#imports)), and Kotlin, which cannot always, reserves it in every unit
+([Kotlin](../targets/kotlin/naming.md#reserved-names)). Each
 target's document says what that unit is in its build ([Go](../targets/go/overview.md#output-units),
 [Kotlin](../targets/kotlin/overview.md#output-units)).
 

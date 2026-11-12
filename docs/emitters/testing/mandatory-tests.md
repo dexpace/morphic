@@ -70,11 +70,12 @@ throughout these documents.
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` with every group's operations failing with the runtime's
     failure value, and under `Partition` with a partition's model holding a runtime type, the units'
-    imports form no cycle and build; the runtime's declarations are in its unit, which imports none,
-    with either rule on and with both off; groups whose names render alike, or as a name the units'
-    scope reserves, get distinct units; a union with a variant in another unit compiles; two groups
-    whose operations `AlsoMount` puts in each other's client compile, the types those operations
-    reach in the shared unit; and every partition error and warning of [output
+    imports form no cycle and build, on Kotlin code compiling against any one module naming the
+    runtime's types its signatures use; the runtime's declarations are in its unit, which imports
+    none, with either rule on and with both off; groups whose names render alike, or as a name the
+    units' scope reserves, get distinct units; a union with a variant in another unit compiles; two
+    groups whose operations `AlsoMount` puts in each other's client compile, the types those
+    operations reach in the shared unit; and every partition error and warning of [output
     units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
@@ -86,11 +87,11 @@ throughout these documents.
     it binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
     options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
     leave every module's sources, no path the build writes, an artifact's or a class file's, has a
-    Windows device name for a segment, and the Multiplatform framework links, its header giving each
-    declaration the Swift name the naming policy chose, none of them a type Swift's standard library
-    or Foundation declares or a module's name, so a Swift file that imports the framework and
-    Foundation compiles its uses of both and qualifies a name by either module
-    ([Swift](../targets/kotlin/swift.md)).
+    Windows device name for a segment, and the Multiplatform framework links, its header holding
+    none of what only generated code calls and giving each declaration the Swift name the naming
+    policy chose, none of them a type Swift's standard library or Foundation declares or a module's
+    name, so a Swift file that imports the framework and Foundation compiles its uses of both and
+    qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

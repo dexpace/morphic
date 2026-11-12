@@ -46,17 +46,25 @@ or the root's sources. Under `modules/` each builds, and a `clean` and a `wrappe
 module's sources. What a module's project still meets is in [naming](naming.md#reserved-names).
 
 The [runtime's unit](../../refine/output-units.md#the-runtimes-unit) is `<root>.runtime`, the
-module `modules/runtime`, which every other module depends on and a Multiplatform framework exports
-with the rest ([Swift](swift.md)). Measured with Kotlin 2.4.0, a framework that did not export it
-named its `ApiException` `RuntimeApiException` in the header and left out the `NotFoundException`
-under it, which no signature names, so a Swift caller could neither match a failure's class nor
-name the runtime's types as a Kotlin caller does. Kotlin's `internal` reaches only its own module,
-and a call to an `internal` runtime function from a group's module failed ("it is internal"), so
-what generated code in another module calls of the runtime is public. On Multiplatform it carries
-`@HiddenFromObjC` as well, which kept it out of the header, so the framework exports no more of the
-runtime than its callers use ([scale](scale.md)). `@HiddenFromObjC` is experimental in Kotlin
-2.4.0, so a runtime file using it opts in with `@file:OptIn(ExperimentalObjCRefinement::class)`,
-which no caller inherits. That such a function is then public on the JVM is #1730's.
+module `modules/runtime`, which every other module depends on as an `api` dependency and a
+Multiplatform framework exports with the rest ([Swift](swift.md)). Measured with Kotlin 2.4.0, code
+depending on a group's module that took the runtime as `implementation` could not name the
+runtime's `ApiException` ("Unresolved reference 'runtime'"), and a framework that did not export
+the runtime named its `ApiException` `RuntimeApiException` in the header and left out the
+`NotFoundException` under it, which no signature names, so a Swift caller could neither match a
+failure's class nor name the runtime's types as a Kotlin caller does.
+
+Kotlin's `internal` reaches only its own module, and a call to an `internal` runtime function from a
+group's module failed ("it is internal"), so what generated code calls in another module is public:
+the runtime's helpers, and the function building a sub-client, which the root's client calls while
+the sub-client's constructor stays `internal`. On Multiplatform each carries `@HiddenFromObjC` as
+well, which kept it out of the header, so the framework exports no more than its callers use
+([scale](scale.md)). The function is there because a constructor cannot be hidden so ("This
+annotation is not applicable to target 'constructor'"), and a sub-client's public constructor was
+exported as `init(settings:)` over an `id`, which a Swift caller could call with any object.
+`@HiddenFromObjC` is experimental in Kotlin 2.4.0, so a file using it opts in with
+`@file:OptIn(ExperimentalObjCRefinement::class)`, which no caller inherits. That such a declaration
+is then public on the JVM is #1730's.
 
 Kotlin's limit counts a Gradle module's declarations, and its default is set when the Kotlin targets
 are first measured ([open questions](../../open-questions.md)).

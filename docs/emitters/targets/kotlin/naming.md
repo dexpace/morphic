@@ -16,14 +16,18 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   and its plugins keep at a build's root meet no unit, as no module sits there ([output
   units](overview.md#output-units)).
 - **A unit**: what the target declares there and what a top-level declaration cannot take:
-  - `Client` and each sub-client, in the unit holding it. What a runtime template declares is its
-    own unit's, which holds no spec name ([the runtime's
-    unit](../../refine/output-units.md#the-runtimes-unit)), so it is reserved only in the
-    Objective-C namespace below: `ApiFailure`, `ApiException` and the exceptions under it
-    ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`, `Response`,
-    `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`, `Transport`, and the
-    opt-in annotations `AlphaApi` and `BetaApi` ([stability](operations.md#stability)) among them,
-    and on Multiplatform `Decimal` and `OffsetDateTime`.
+  - `Client` and each sub-client, in the unit holding it, and in every unit what a runtime template
+    declares, though the runtime's own unit holds no spec name ([the runtime's
+    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException` and the
+    exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`,
+    `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
+    `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
+    ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
+    `OffsetDateTime`. A file naming one beside a spec class of its name would write it qualified
+    ([imports](#imports)), which fails in an expression where a member shadows the package's first
+    segment: in a class with a property `com`, `com.acme.runtime.Duration(1)` failed ("unresolved
+    reference 'acme'"). Once #1496 settles that, these names need no reserving outside the
+    Objective-C namespace below.
   - Each name Kotlin's default imports give that a refine step, or a template rendering beside the
     spec's names, can write, such as `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and
     `Result`, since a top-level declaration shadows a default import for its whole package: with a
