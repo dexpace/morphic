@@ -119,13 +119,13 @@ element (Appendix C.2), and a text is percent-decoded as its location's rules sa
 `+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as
 itself in a path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A header's
 text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar `Set-Cookie`'s,
-each of whose lines is one element since its values hold commas (§4.21.3), and only a list's or an
-object's split drops anything, the whitespace beside a comma and an empty element (§5.6.1), so a
-string header keeps its own whitespace. A `Prefix` binding's map holds every field whose name starts
-with the prefix and that no other binding reads, a header's in any case (RFC 9110 §5.1), keyed by
-the rest of the name in lower case, as HTTP/2 carries every field name (RFC 9113 §8.2) and as
-`X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's as `X-meta-foo` and Node's as
-`x-meta-foo`. A response's headers hold no such binding yet (#1745).
+each of whose lines is one element since its values hold commas, as OpenAPI's Header Object has it
+(§4.21.3), and only a list's or an object's split drops anything, the whitespace beside a comma and
+an empty element (RFC 9110 §5.6.1), so a string header keeps its own whitespace. A `Prefix`
+binding's map holds every field whose name starts with the prefix and that no other binding reads, a
+header's in any case (RFC 9110 §5.1), keyed by the rest of the name in lower case, as HTTP/2 carries
+every field name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's
+as `X-meta-foo` and Node's as `x-meta-foo`. A response's headers hold no such binding yet (#1745).
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
