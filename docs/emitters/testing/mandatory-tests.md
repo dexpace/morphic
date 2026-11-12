@@ -75,8 +75,11 @@ throughout these documents.
     project or any one module names the runtime's types its signatures use; groups whose names
     render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
     get distinct units; a union with a variant in another unit compiles; two groups whose operations
-    `AlsoMount` puts in each other's client compile, the types those operations reach in the shared
-    unit; and every partition error and warning of [output units](../refine/output-units.md) has a
+    `AlsoMount` puts in each other's client compile, the types those operations reach and what a
+    target derives from each of them, its request, headers and response headers types and its row
+    of the runtime's settings, in the shared unit, a caller passing one request value to both
+    methods, while an operation `Remount` moves keeps what it derives in the one group's unit; and
+    every partition error and warning of [output units](../refine/output-units.md) has a
     fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
