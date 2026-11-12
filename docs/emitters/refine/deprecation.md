@@ -25,8 +25,8 @@ none names a replacement in `ReplacedBy` (spec @bc6fad24, morphic @fa253fe19), w
 Each `ReplacedBy` entry, in order, is named through the declaration its entity lowers to, as a
 reference by ID that the printer resolves once `ResolveCollisions` has run, as it resolves a
 [`Docs.Refs`](../../ir/annotations.md#references-in-prose) span, so the name is the one the
-replacement renders as wherever it lands. An operation names its method in the group the plan
-places it in, a type its declaration, a property or parameter its field, a member its constant, a
+replacement renders as wherever it lands. An operation names its method in the group it is placed
+in, after any `Remount`, an inbound one its receiver's parse method, a type its declaration, a property or parameter its field, a member its constant, a
 variant its wrapper, a group its sub-client and a service its client. A replacement in another unit
 is named by a reference the target can resolve from there, which each target's document spells. A
 docs target links the replacement's page through the route plan, by its ID, and names one no route
