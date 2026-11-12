@@ -2533,9 +2533,9 @@ beside either routes the schemas that union lists, where "all possible schemas M
 explicitly": each schema a `$ref` branch, of the `oneOf` where both are written, ends on, in
 whichever document, as the ancestors are read. A schema composing a discriminated union that does
 not list it is a narrowing of that union, every instance of it an instance of one variant and
-carrying that variant's tag, so no tag routes to it and it carries none; it composes the union
-([`allof-classification`](#allof-classification)), which an emitter lowers as the union it narrows.
-Reading what such a schema admits for the tag instead, as
+carrying that variant's tag, so no tag routes to it and it carries none, and it composes the union
+as written ([models](../ir/models.md#a-union-a-composition-names)). Reading what such a schema
+admits for the tag instead, as
 [`discriminator-inference`](#discriminator-inference) reads a subtype's, would not do: where the
 union's variants pin nothing it admits its name, which still routes to no variant. At
 `cloudflare/api-schemas` @`e411be7e` three schemas compose such a union, every branch of which holds
