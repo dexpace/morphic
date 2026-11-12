@@ -52,41 +52,46 @@ declaration out of the root unit. Both are off by default, and the first that ap
    since a declaration of the root's would import the root. A type moves between a group's unit and
    the shared unit only when the set of groups reaching it changes, which takes a change to the
    operations that reach it. An operation a hint places in another group, by `Remount` or
-   `AlsoMount` ([shaping hints](../contract/shaping-hints.md)), counts as each group whose client
-   gets a method for it, so what it reaches goes where a type those groups reach goes: two groups
-   mounting each other's operations would otherwise import each other. What a target derives from
-   such an operation for a caller to name, its request, headers and response headers types, goes
-   there too, into the shared unit, since each group's method names it: left in the
-   operation's own group, it makes two groups mounting each other's operations import each other,
-   which Go refuses as `import cycle not allowed`, and a copy in each group's unit gives one
-   operation two request types, so a caller cannot hand the value it built for one method to the
-   other and the surface differ sees two declarations where the manifest keys one. Its row of the
-   runtime's settings is no such declaration, and goes with each method (below). An operation
-   `Remount` alone moves counts as the one group, which holds what it derives. Placement reads the
-   hints for that alone, and changing one moves the types its operation reaches and what it
-   derives, renaming them for a caller as any move does. T-18 holds it.
+   `AlsoMount` ([shaping hints](../contract/shaping-hints.md)), counts as each top-level group under
+   which a client gets a method for it, so what it reaches goes where a type those groups reach
+   goes: two groups mounting each other's operations would otherwise import each other. What a
+   target derives from such an operation for a caller to name, its request, headers and response
+   headers types, goes there too, into the shared unit where those are several groups, since each
+   one's method names it, and into the one group's unit where every mount sits under it, as one in a
+   group and one in its subgroup do: left in the operation's own group, it makes two groups mounting
+   each other's operations import each other, which Go refuses as `import cycle not allowed`, and a
+   copy in each group's unit gives one operation two request types, so a caller cannot hand the
+   value it built for one method to the other and the surface differ sees two declarations where the
+   manifest keys one. Its row of the runtime's settings is no such declaration, and goes with each
+   method (below). An operation `Remount` alone moves counts as the one group, which holds what it
+   derives. Placement reads the hints for that alone, and changing one moves the types its operation
+   reaches and what it derives, renaming them for a caller as any move does. Leaving an alias in the
+   group the declaration left, so a caller's import of it still compiles, was weighed: with Kotlin
+   2.4.0 a caller star-importing that group's package and `shared` then fails, `unresolved
+   reference`, the alias meeting the class, and the alias would stay for every later generation.
+   T-18 holds it.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root, the shared unit is `shared` under the root, the runtime's is `runtime` under the
 root, and a partition's unit is the name its key maps to. The units' names are a scope of their own
 ([reserved names](reserved-names.md)): a group named `shared` or `runtime`, or `internal` in Go,
-meets a reserved name, and two groups whose names render
-alike — tags `Webhooks` and `webhooks`, both the Go package `webhooks` — collide, and are told apart
-by group ID as any collision is. A unit is a directory on Go and on Kotlin, so the scope compares
-its names by the path fold ([collisions](naming.md#collisions-and-the-names-a-generation-shipped)),
-and a group whose name folds as a partition's does yields to it. A name the options
-give a unit never yields. A declaration a target derives from another lands in that one's unit — a
-visibility shape ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a
-union's interface, wrappers and fallback in the union's, an operation's request and headers types
-in its group's, or in the shared unit where the operation counts as several groups (above), and its
-row of the runtime's settings ([runtime policy](../contract/runtime-policy.md#delivery)) in each
-unit holding a method that reads it ([below](#the-runtimes-unit)) — and a unit
-is a namespace of its own, so two declarations collide only within one
-([reserved names](reserved-names.md)), save in the Objective-C names a Kotlin Multiplatform
-framework gives them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A wrapper, or
-an inclusive union's field, imports a variant another unit holds, which is how a union reaches into
-the shared unit. A service-wide error's headers type lands where a type all its groups reach does.
-T-18 holds placement to these rules.
+meets a reserved name, and two groups whose names render alike — tags `Webhooks` and `webhooks`,
+both the Go package `webhooks` — collide, and are told apart by group ID as any collision is. A unit
+is a directory on Go and on Kotlin, so the scope compares its names by the path fold
+([collisions](naming.md#collisions-and-the-names-a-generation-shipped)), and a group whose name
+folds as a partition's does yields to it. A name the options give a unit never yields. A declaration
+a target derives from another lands in that one's unit — a visibility shape
+([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
+wrappers and fallback in the union's, an operation's request and headers types in the unit holding
+its group's client, the root unless `SplitByGroup` is on, or in the shared unit where the operation
+counts as several top-level groups (above), and its row of the runtime's settings ([runtime
+policy](../contract/runtime-policy.md#delivery)) in each unit holding a method that reads it
+([below](#the-runtimes-unit)) — and a unit is a namespace of its own, so two declarations collide
+only within one ([reserved names](reserved-names.md)), save in the Objective-C names a Kotlin
+Multiplatform framework gives them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A
+wrapper, or an inclusive union's field, imports a variant another unit holds, which is how a union
+reaches into the shared unit. A service-wide error's headers type lands where a type all its groups
+reach does. T-18 holds placement to these rules.
 
 ## The runtime's unit
 
