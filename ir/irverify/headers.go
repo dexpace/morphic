@@ -38,7 +38,9 @@ var headerPath = map[reflect.Type]bool{
 // field of its own (docs/ir/responses.md#prefix-headers). A Type reaching no
 // MapT is ir/prefix-header-not-map, since an emitter declares the header as a
 // map, and a WireName beside the prefix is ir/prefix-header-wire-name, since
-// the prefix and each key name its fields.
+// the prefix and each key name its fields. The prefix is held to no field-name
+// grammar, as no header's name is: refusing an ill-formed one is its
+// compiler's, as GitHub #1572 asks of OpenAPI's header names.
 //
 // It prunes all but operationPath and headerPath, for checkStreamingModes's
 // reason.

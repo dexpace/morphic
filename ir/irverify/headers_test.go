@@ -98,22 +98,21 @@ func TestVerify_AHeaderUnderAPrefixIsCheckedWhereverAHeaderIs(t *testing.T) {
 	bad := func() []ir.Header {
 		return []ir.Header{{ID: "p/x/h", Name: named("meta"), Type: ir.TypeRef{Target: "t/x/Name"}, Prefix: new("")}}
 	}
-	parts := func() ir.Payload {
-		return ir.Payload{Contents: []ir.Content{{
+	parts := func() *ir.Payload {
+		return &ir.Payload{Contents: []ir.Content{{
 			MediaType: "multipart/mixed", Type: ir.TypeRef{Target: "t/x/Name"},
 			ItemEncoding: &ir.PartEncoding{Headers: bad()},
 			Encoding:     map[ir.PropID]ir.PartEncoding{"p/x/part": {Headers: bad()}},
 		}}}
 	}
-	payload := func() *ir.Payload { p := parts(); return &p }
 	doc := opDoc(ir.Operation{
-		ID: "op/x/S/op", Request: payload(),
-		Responses: []ir.Response{{Headers: bad(), Payload: payload()}},
-		Default:   &ir.Response{Headers: bad(), Payload: payload()},
-		Errors:    []ir.ErrorCase{{Headers: bad(), Payload: payload()}},
+		ID: "op/x/S/op", Request: parts(),
+		Responses: []ir.Response{{Headers: bad(), Payload: parts()}},
+		Default:   &ir.Response{Headers: bad(), Payload: parts()},
+		Errors:    []ir.ErrorCase{{Headers: bad(), Payload: parts()}},
 	})
-	doc.Services[0].CommonErrors = []ir.ErrorCase{{Headers: bad(), Payload: payload()}}
-	doc.Messages = map[ir.MessageID]ir.Message{"m/x": {ID: "m/x", Name: named("m"), Payload: parts()}}
+	doc.Services[0].CommonErrors = []ir.ErrorCase{{Headers: bad(), Payload: parts()}}
+	doc.Messages = map[ir.MessageID]ir.Message{"m/x": {ID: "m/x", Name: named("m"), Payload: *parts()}}
 	doc.Types = prefixHeaderTypes()
 
 	const op = "doc.Services[0].Groups[0].Operations[0]"
