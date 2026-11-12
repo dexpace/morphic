@@ -10,8 +10,8 @@ IR bug (INV9), not a compiler change.
 
 | IR construct | Wire truth preserved |
 |---|---|
-| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | — |
-| unbounded `Primitive` (`integer`, `number`, `float`) | every digit, when exact |
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | an integer's value, read in any spelling of it and written as plain digits ([type table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)) |
+| unbounded `Primitive` (`integer`, `number`, `float`) | every digit, when exact; an `integer`'s value as a fixed-width one's |
 | `decimal`, `decimal128` | every digit |
 | `bool`, `string`, `bytes`, `url` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
 | `uuid` | canonical text |

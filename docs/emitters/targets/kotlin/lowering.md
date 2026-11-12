@@ -6,7 +6,7 @@ where Multiplatform differs from the JVM ([Multiplatform common code](multiplatf
 
 | IR construct | Kotlin (JVM and KMP) |
 |---|---|
-| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | `Byte`…`Long`, `UByte`…`ULong`, `Float`, `Double` |
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | `Byte`…`Long`, `UByte`…`ULong`, `Float`, `Double`, an integer through the runtime's serializer, which reads by value ([integers](types.md#integers)) |
 | unbounded `Primitive` (`integer`, `number`, `float`) | `Long`, `Double` by the built-in type-table rows ([type table](../../contract/type-table.md)), marked `Inferred`; exact where a row maps them so: JVM `BigInteger`/`BigDecimal`, KMP the runtime `Decimal` |
 | `decimal`, `decimal128` | JVM `BigDecimal`; KMP the runtime `Decimal` |
 | `bool`, `string`, `bytes`, `url` | `Boolean`, `String`, `ByteArray` through the runtime's base64 serializer, `String` |

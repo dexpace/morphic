@@ -645,3 +645,13 @@ throughout these documents.
     method's is; a component the source calls `UserCreate` keeps that name in either declaration
     order and the shape takes a suffix; and two lifecycles whose keys would join alike, one holding
     a `,`, key apart ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)).
+70. **T-70 · Integers by value** — on every target, a member of each integer kind, bare, optional,
+    nullable, in a list, as a map's value, in a declaration over the kind and in a union's variant,
+    decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
+    `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; refuses `1.5`,
+    `15e-1`, `1e-400`, the string `"1"`, the first value past each kind's range in plain digits and
+    in exponent form, and a negative number into an unsigned kind; refuses `1e1000000000` and reads
+    a literal a megabyte long that names 1, each within a time bound a literal's expansion would
+    pass; writes plain digits; reads a parameter's and a header's text by the same table, in an SDK
+    and in a mock; and leaves a caller's own decoder for an integer type its precedence at any
+    depth ([type table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).

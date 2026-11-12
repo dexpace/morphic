@@ -92,3 +92,47 @@ every other name ([reserved names](../refine/reserved-names.md)): two rows that 
 two packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row
 may name a type of the SDK's runtime, which the target imports from the runtime's unit ([output
 units](../refine/output-units.md#the-runtimes-unit)).
+
+## An integer row reads a number by its value
+
+A built-in row for an integer kind, `integer` and `int8` to `uint64`, reads a JSON number by its
+value, in whatever spelling: `1`, `1.0`, `1e0` and `10e-1` are one value, and `-0` is zero. It
+refuses, with a decode error, a number whose value has a fraction (`1.5`, `1e-400`), one outside
+the row's range (`256` for a `uint8`, `9223372036854775808` and `1e400` for an `int64`) and
+anything that is no number, a string of digits among them, which only a declared encoding reads. It
+writes plain digits. A declaration over such a row reads the same way, as an enum over one already
+compares its members ([a member on the wire](../refine/enums.md#a-member-on-the-wire)), and so does
+every text position, a parameter, a header and a form field, in an SDK and in a mock: `120.0` in a
+`Retry-After` typed `integer` is 120.
+
+A JSON number is its value and not its digits, which is how JSON Schema counts `1.0` an integer and
+how the plan already compares values when it separates a union's variants
+([TypePlan](../plan/types.md#variants-that-can-share-a-value)). Producers write these spellings for
+whole numbers held as floats: Python's and Ruby's JSON encoders write `1.0` and `1e+16`, and
+JavaScript's `1e+21`. Neither first target's library reads them unaided, and the two disagree
+(Go 1.27.3; kotlinx-serialization-json 1.11.0 on Kotlin 2.4.0):
+
+| JSON | json/v2 into `int64` | kotlinx into `Long` | this rule |
+|---|---|---|---|
+| `1.0` | refused | refused | 1 |
+| `1e0`, `10e-1` | refused | 1 | 1 |
+| `-0` | 0, refused into `uint8` | 0, refused into `UByte` | 0 |
+| `1.5` | refused | refused | refused |
+| `1e-400` | refused | 0 | refused |
+| `1e400`, `9223372036854775808` | refused | refused | refused |
+| `"1"` | refused | 1 | refused |
+
+Refusing every spelling but plain digits on every target was the alternative. It costs Go nothing,
+and it fails a whole response over how a server spelled a count, leaves an `integer` enum reading
+`1.0` beside a plain field that refuses it, and still needs a serializer on Kotlin to stop `1e-400`
+reading as zero.
+
+The reader decides on the literal's text, in time linear in its length, and builds no number wider
+than the row: it compares the digits with the exponent, so `1e1000000000` is refused as out of
+range without being expanded, and a literal a megabyte long is read in one pass. A row a
+configuration maps to an exact type reads through that type's own codec, which the SDK does not
+wrap: Go's `*big.Int` reads plain digits alone, and a codec that expands an exponent bounds it
+itself, since thirteen bytes can name a billion digits. `number`, `float` and `decimal` rows read
+every spelling already. Each target says how its rows read
+([Go](../targets/go/types.md#integers), [Kotlin](../targets/kotlin/types.md#integers)), and T-70
+holds the rule.

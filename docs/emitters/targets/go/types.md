@@ -36,6 +36,29 @@ its JSON handler writes as JSON. json/v2 reads none of them, and the SDK writes 
 query value from the value, `string(k)`, never through `fmt`, which would send the marker. An alias
 can declare no method, so only its holders redact it.
 
+## Integers
+
+json/v2 reads only plain digits into an integer and has no option for more, so the runtime carries
+a reader for each fixed-width integer type that decides [by
+value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value), and every codec
+the SDK generates decodes under it. A model's `UnmarshalJSONFrom` decodes its members under the
+readers beside the `RejectUnknownMembers` it pins ([`User`](models.md#user-in-go)), joined after the
+caller's own unmarshalers as an inclusive union joins its own ([unions](unions.md)), so a caller's
+`json.Unmarshal` into a model reads `1.0` too, through a box, a slice, a map and a nested model, and
+a caller's unmarshaler for `int64` keeps its precedence. The runtime joins once for a caller's set
+and a nested model finds that join again, so a value 50 models deep joins once. A defined type over
+an integer, a scalar's or an enum's, declares the pair itself, since a function registered for
+`int64` is not called for a type defined over it, and the client decodes a body that is an integer,
+or a list or map of them, under the same readers.
+
+On a 242 KB body of 2,000 models holding thirteen integers each, decoding took 2.25 ms with json/v2
+alone and 2.97 ms under the readers, with no allocation more; registering an unmarshaler that
+matches nothing accounts for 0.29 ms of that (Go 1.27.3, darwin/arm64). Three other placements lost.
+Readers passed only where the client decodes leave a caller's own `json.Unmarshal` refusing what the
+client reads. A runtime type in the field's place, `runtime.Int64`, changes every caller's field.
+And a second struct with such types, converted after decoding, cannot convert a `[]int64` or a
+`map[string]int64` without copying it.
+
 ## Enums
 
 An enum is a named type with a typed constant per member, over its `ValueType`'s Go row or, where

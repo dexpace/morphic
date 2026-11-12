@@ -4,7 +4,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 
 | IR construct | Go |
 |---|---|
-| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | the same-named Go type |
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | the same-named Go type, an integer read by value ([integers](types.md#integers)) |
 | unbounded `Primitive` (`integer`, `number`, `float`) | `int64`, `float64` by the built-in type-table rows ([type table](../../contract/type-table.md)), marked `Inferred`; exact where a row maps them so: `*big.Int`, the runtime decimal |
 | `decimal`, `decimal128` | the runtime decimal type, over `math/big` |
 | `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, which json/v2 writes as base64, `string` |
@@ -49,7 +49,7 @@ lowers to in Go.
 | `ResolveScalarChains` | a defined type over a root with no methods, an alias over any other ([declarations over a root](types.md#a-declaration-over-a-root)), the root typed by the type table ([type table](../../contract/type-table.md)), + merged constraints; nil-base → newtype (opaque-scalar strategy) |
 | `LowerContainers` | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic |
 | `LowerLiterals` | typed constant / single-value newtype (incl. `symbol`) |
-| `LowerModels` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` ([`User`](models.md#user-in-go)), a union the model narrows lowered as that union ([inheritance](../../refine/models.md#inheritance)) and any other `Unflattened` conjunct lowered or degraded with a code |
+| `LowerModels` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` ([`User`](models.md#user-in-go)), members decoded under the runtime's integer readers ([integers](types.md#integers)), a union the model narrows lowered as that union ([inheritance](../../refine/models.md#inheritance)) and any other `Unflattened` conjunct lowered or degraded with a code |
 | `ProjectVisibilityShapes` | `User` / `UserCreate` / `UserUpdatePatch` structs, one per `ModelShape.Name` |
 | `LowerOptionality` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer ([recursive references](models.md#recursive-references)) |
 | `LowerConstraints` | field-level `validate` tags + a refine-built `Validate()` method structure |

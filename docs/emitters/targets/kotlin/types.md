@@ -16,6 +16,21 @@ Multiplatform differ.
 A Kotlin type codes through its row's `Codec`, a `KSerializer` the row names unless the type is
 `@Serializable`.
 
+## Integers
+
+Each built-in integer row names a serializer of the runtime's as its `Codec`, which decides [by
+value](../../contract/type-table.md#an-integer-row-reads-a-number-by-its-value). Under a
+`JsonDecoder` it reads the literal's text through `decodeJsonElement()`, the one way kotlinx hands
+a serializer a number unparsed, and under any other format it reads as the type's own serializer
+does. It applies wherever the row types a position, as any row's codec does: a property, a list's
+element, a map's value, a nullable and the field of a value class each read a whole number spelled
+with a fraction or an exponent under the SDK's `Json`, under a caller's own and from a
+`JsonElement`, where the same member without it refuses `5.0`. On a 173 KB body of 2,000 models
+holding fourteen integers each, decoding took 0.95 ms with
+kotlinx alone and 1.90 ms through the serializer (Kotlin 2.4.0, kotlinx-serialization-json 1.11.0,
+JVM 25). kotlinx offers no cheaper seam: its `Long` decoder cannot be asked to try and fall back,
+since a refused literal has already been consumed.
+
 ## A declaration over a root
 
 Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a value class over
