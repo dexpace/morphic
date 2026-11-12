@@ -930,3 +930,21 @@ throughout these documents.
     ([the runtime's unit](../refine/output-units.md#the-runtimes-unit),
     [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
     [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)).
+48. **T-79 · Credentials** — on every target, against the behavior server (T-14), a client whose
+    credential is a value the test can search for, configured in turn for an `apiKey` in a header,
+    in the query and in a cookie, for `http_basic` and `http_bearer`, and through an
+    `Authenticator` writing a header, a query parameter and a cookie no document names, over a
+    base URL holding a user, a password and a query of that value. Across a call that returns, one
+    a status fails with a `Set-Cookie` of the value, one redirected to a `Location` holding it in
+    its path and its query, one retried, one timed out, one whose connection is refused and one
+    whose credential a header cannot carry, the value is found in no event and no failure: not in
+    any string form the target's printing and logging read of either, each `fmt` verb and both
+    `log/slog` handlers in Go and `toString` in Kotlin among them, not in an event encoded as
+    JSON, nor in what a Kotlin event's `copy` and each `componentN` hand on, and not in the
+    messages of a failure's chain, which holds no `*url.Error` in Go. Each event's `URL` is the URL as shown, a redirect's the origin and the marker; a
+    `RequestID` longer than 128 bytes or holding a line break is empty; a parameter declared in a
+    scheme's slot prints as `[REDACTED]` in its request type; and the test fails when the event
+    is built after the auth step, which it is run once to show
+    ([auth](../operations/auth.md#where-a-credential-can-be-read),
+    [what an event holds](../contract/runtime-policy.md#what-an-event-holds),
+    [redaction](../refine/redaction.md#a-redacted-value)).

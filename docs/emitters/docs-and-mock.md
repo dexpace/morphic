@@ -39,9 +39,11 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
   target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
   diffed against. A response content whose example set is empty, as one can be with `Synthesize`
-  off, is a warning `emitters/mock/example-missing`, never a body it invents. It sends a webhook or
-  a callback rather than routing one, as [operations the API sends](operations/inbound.md) says, and
-  the docs give each a page of its own there.
+  off, is a warning `emitters/mock/example-missing`, never a body it invents. What it logs of a
+  request is what an SDK's event holds of one
+  ([auth](operations/auth.md#where-a-credential-can-be-read)), so no header and no body. It sends a
+  webhook or a callback rather than routing one, as [operations the API
+  sends](operations/inbound.md) says, and the docs give each a page of its own there.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key

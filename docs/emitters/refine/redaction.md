@@ -28,6 +28,23 @@ each on its own when their type is, so a map whose values alone are redacted sho
 variant is redacted when its type is. The docs and a command-line target read what is redacted here
 as an SDK does, so none shows a value another hides.
 
+A parameter is redacted as well where it sits in the slot a scheme of the document writes its
+credential to, whatever its declaration marks: the header, query parameter or cookie an `apiKey`
+scheme's `In` and `KeyName` name, a header's name compared without case, and the `Authorization`
+header where `Document.Auth` holds an `http_basic`, an `http_bearer`, an `oauth2` or an
+`openid_connect` scheme, or a `custom` one stating an HTTP `Scheme`, as OpenAPI's `scheme: digest`
+lowers. No other kind's credential sits where a parameter can
+([auth](../operations/auth.md#where-a-credential-can-be-read)). A document may declare such a
+parameter beside its scheme, and the compiler keeps an `Authorization` header
+parameter OpenAPI says to ignore
+([`reserved-header-names`](../../compilers/openapi.md#reserved-header-names)), so the request type
+holding it would print a credential. The rule reads every scheme of the document, not those an
+operation requires, since a caller may send one an operation does not ask for. It marks nothing on
+the golden spec, none of whose 11,994 parameters is `Secret` or sits in a slot of its four declared
+schemes; what it does not reach is a credential only a name suggests, the `R2-Secret-Access-Key`
+header two of its operations declare, which stays the document's to mark (spec @bc6fad24, morphic
+@fa253fe19).
+
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
 text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's
 printing and logging read of every type the SDK or its runtime declares that holds one, a model, a
@@ -43,7 +60,8 @@ renders it. So does a value a renderer reaches without asking it, which shows wh
 one encoding it as JSON, as logrus's JSON formatter and zap's `Reflect` do, or reading its fields,
 as Node's `console.log` and `JSON.stringify` do a JavaScript object's, a Kotlin/JS one's among them,
 since no form a type declares reaches either. A credential an auth injector writes is no IR fact
-this reads, so keeping it out of the logging hooks' events is #1633's. A redacted collection shows
+this reads: it is kept out of every rendering by where the auth step runs, not by a mark
+([auth](../operations/auth.md#where-a-credential-can-be-read)). A redacted collection shows
 the marker alone, not its length, since how many tokens or keys a value holds can be what a reader
 must not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds
 the wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted

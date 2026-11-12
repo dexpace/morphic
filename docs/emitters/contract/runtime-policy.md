@@ -309,6 +309,63 @@ A documentation link per failure, which the vocabulary this began from carries, 
 rule reads one, and a failure's page is the docs emitter's to link ([docs and
 mocks](../docs-and-mock.md)).
 
+## What an event holds
+
+The hook a client takes is handed one value per step of a call, of the kinds `Logging.Events`
+lists. How a hook is given to a client is the target's; what it is handed is the same on each:
+
+```go
+type Event struct {          // the runtime's: one step of one call
+    Kind      EventKind
+    Operation string         // the method called, as the SDK names it: "Users.GetUser"
+    Attempt   int            // 1 for the first send
+    Method    string         // the request's method
+    URL       string         // the request's URL as shown (below)
+    Status    int            // the response's status; 0 where none has arrived
+    Wait      time.Duration  // "wait": how long until the next attempt
+    Elapsed   time.Duration  // since the call began
+    RequestID string         // what the Telemetry.RequestID header held (below); "" = nothing
+    Failure   FailureClass   // "end": how the call failed; "" = it returned
+}
+
+type FailureClass string     // "status" | "transport" | "timeout" | "canceled" | "decode" |
+                             // "refused"
+```
+
+`attempt` precedes each send, `response` follows a response's status and headers, `wait` precedes
+the wait before another attempt, `redirect` precedes a redirect's following and carries where it
+leads, and `end` reports what the call returned. A page of a pager and the opening of a stream are
+each a call; a stream's elements draw no event.
+
+**An event holds no value it would have to hide.** It has no member for a header, a body, a
+request, a response or an error value, so nothing printing, encoding or copying one can show a
+credential: there is none in it. The alternative, an event holding the request with each
+credential in a type that prints as the marker, was prototyped and leaks. In Go 1.27.3 such a
+type's `String` and `GoString` are not asked under `%d`, nor under any verb once the value sits in
+an unexported field or behind a pointer to its holder, where `fmt` and `log/slog`'s text handler
+read the field itself; in Kotlin 2.4.0 a data class's `toString` showed the marker while its
+`copy`, its `componentN` and a reader of its fields each handed on the credential. An event of
+plain members leaked in no form either language has. And a list of headers to hide fails the
+header it does not name: a caller's `Authenticator` may write any
+([auth](../operations/auth.md#where-a-credential-can-be-read)).
+
+**The URL as shown** is text the runtime builds, never a URL it sends:
+
+- for a request the operation's bindings built, the scheme, host and port it goes to, the path, and
+  the operation's declared query parameters, a redacted one as `[REDACTED]`
+  ([redaction](../refine/redaction.md#a-redacted-value)). It is built before the auth step runs
+  ([auth](../operations/auth.md#where-a-credential-can-be-read)), so a key an injector or an
+  `Authenticator` writes into the query is not in it, and neither is the user and password, the
+  query or the fragment of a base URL the caller gave, which may hold a proxy's or a signature's;
+- for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
+  poll, the scheme, host and port, then `/[REDACTED]`. A server signs such a URL in its query, as
+  a link to stored bytes is, or in its path, and nothing the document declares says which part is
+  the signature.
+
+`RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
+ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response.
+T-79 holds an event to all of this.
+
 ## Layers and operations
 
 An API's operations rarely want one setting each: an export wants a longer timeout, a `POST` no

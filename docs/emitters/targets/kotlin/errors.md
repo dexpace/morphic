@@ -20,6 +20,10 @@ inline fun <reified B> ApiException.body(): B? = failure.body as? B
 inline fun <reified H> ApiException.headers(): H? = failure.headers as? H
 ```
 
+`ApiFailure` is no data class and an `ApiException` has no message, so the `toString` of each names
+its class and no member, and neither prints `rawHeaders` or `rawBody`
+([auth](../../operations/auth.md#where-a-credential-can-be-read)).
+
 `e.body<T>()` checks a class, and Kotlin erases a generic type's arguments even when `T` is reified,
 so `e.body<List<A>>()` also matches a `List<B>` and fails when an element is read: a caller reads a
 list or a map body by status. Go's assertion is exact.
