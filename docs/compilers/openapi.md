@@ -1105,8 +1105,9 @@ declaration that owns it.
 
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
-keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply, and which can state the deprecation itself where no keyword does. An operation, and a
+keyword states no message, version, date or replacement, which only
+[`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
+where no keyword does. An operation, and a
 tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
 beside its `description` and `externalDocs`; a response and an error case take `description` and
 `summary` ([`response-summary`](#response-summary)); a request
@@ -1127,8 +1128,6 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
   `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
-- Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
-  (#670).
 
 ### `disjoint-visibility`
 
