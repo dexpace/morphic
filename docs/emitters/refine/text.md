@@ -1,11 +1,11 @@
 # Values as text
 
-Over HTTP, a body whose media type is JSON carries a value as JSON, while a path segment, a query,
-header or cookie value, a `text/plain` body, an `application/x-www-form-urlencoded` field and a
-`multipart/form-data` part whose content type is `text/plain` carry it as text. OpenAPI says how
-`style` and `explode` arrange texts, but leaves how a number, a boolean or a date becomes one to
-each implementation (OpenAPI 3.2, Appendix B), and the targets' own conversions disagree: the JVM's
-`OffsetDateTime.toString()` writes `2020-01-01T00:00Z`, which RFC 3339 does not admit, and its
+Over HTTP, a body whose media type is JSON carries a value as JSON, while a path segment, a host
+label, a query, header or cookie value, a `text/plain` body, an `application/x-www-form-urlencoded`
+field and a `multipart/form-data` part whose content type is `text/plain` carry it as text. OpenAPI
+says how `style` and `explode` arrange texts, but leaves how a number, a boolean or a date becomes
+one to each implementation (OpenAPI 3.2, Appendix B), and the targets' own conversions disagree: the
+JVM's `OffsetDateTime.toString()` writes `2020-01-01T00:00Z`, which RFC 3339 does not admit, and its
 `Double.toString()` writes `1.0` and `1.0E21` where Go's json/v2 writes `1` and `1e+21` (JDK 25, Go
 1.27). So one rule decides a value's text, both ways, on every target. A message's headers and an
 RPC's metadata are their own protocols' to spell ([open question 4](../open-questions.md)).
@@ -39,7 +39,8 @@ UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a l
 lists sends, which OpenAPI leaves undefined, is #1731's. A `Prefix` binding writes each entry of its
 map, in that order, as a field of its own, named by the prefix followed by the entry's key, its
 value the entry's text, and an entry naming a field another binding writes gives way to it, as
-Smithy's rules have a client do. A parameter whose `ContentType` names a media type
+Smithy's rules have a client do. An empty prefix, Smithy's catch-all for every header or query
+parameter, has no spelling yet (#1748). A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
 media type's serialization of the value instead, so as JSON a string keeps its quotes.
 
@@ -62,17 +63,35 @@ require of a client.
 ## Escaping
 
 A text is percent-encoded as OpenAPI says for its location (§4.12.4, Appendix E): as RFC 6570's
-expansion for its style encodes it, `AllowReserved` passing RFC 3986's reserved characters through,
-and a space always as `%20`. Every decoder those rules name reads `%20` as a space, while the `+` a
-form encoder writes, as Go's `url.Values` does, reads as a plus under RFC 3986's rules (Appendix E).
+expansion for its style encodes it, and a space always as `%20`. Every decoder those rules name
+reads `%20` as a space, while the `+` a form encoder writes, as Go's `url.Values` does, reads as a
+plus under RFC 3986's rules (Appendix E). `AllowReserved` passes through, as RFC 6570's reserved
+expansion does, each percent-encoded triple and each of RFC 3986's reserved characters, bar those a
+URL cannot hold there: a `#`, `[` or `]` in a path or a query, and a `?` in a path, is still
+encoded. RFC 3986 ends a path at a `?` and a query at a `#` (§3), so a path holding `a?b` would
+reach `a`, and admits a `[` or `]` in neither, which the JDK's `URI` refuses in a path while Go and
+`fetch` send it. A `/` still passes in a path, though OpenAPI forbids one unescaped in a path
+parameter's value (§4.8.2), as gRPC's multi-segment variables and Smithy's greedy labels pass it,
+and as the golden spec's three R2 `object_key` parameters ask at the revisions above. What a
+`PathPattern` binding's text sends, which gRPC percent-encodes but for a `/` and RFC 3986's
+unreserved characters, is #1755's.
+
+A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
+such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
+before it, as RFC 3986's dot-segment removal does (§5.2.4), while Go and the JDK send it as it is,
+so one call would send two paths, and `fetch`'s would name the collection above the item.
+
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
 (§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
-character other than a tab, which no field value may carry (RFC 9110 §5.5), or a character past
-ASCII, or named by a `Prefix` key that is no field name (§5.1), fails the call before anything is
-sent, never trimmed or escaped. A CR LF in it would begin a header of its own, and the HTTP
-libraries the targets can run on disagree past ASCII: Go sends `é` as its UTF-8 octets and
-JavaScript's `fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the
-`€` Go sends (Go 1.27, Node 26, JDK 25).
+character other than a tab, or a space or a tab at either end, which no field value carries
+(RFC 9110 §5.5), a character past ASCII, or named by a `Prefix` key that is no field name (§5.1),
+fails the call before anything is sent, never trimmed or escaped. So does a list's or an object's
+text in a header holding an empty element, which a sender must not write, or one with a space or a
+tab at either end, which a reader takes for the whitespace beside a comma (§5.6.1). A CR LF would
+begin a header of its own, the HTTP libraries the targets can run on each trim the whitespace at a
+text's ends, and they disagree past ASCII: Go sends `é` as its UTF-8 octets and JavaScript's
+`fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the `€` Go sends
+(Go 1.27, Node 26, JDK 25).
 
 ## Reading a text
 
@@ -82,10 +101,11 @@ the API sends it ([inbound operations](../../ir/http-binding.md#inbound-operatio
 percent-decoded as its location's rules say (Appendix E.5), a header's and a `cookie`-style cookie's
 not at all (§4.12.2.2), and a list's or an object's is split as its `Style` and `Explode` arrange
 it. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, and
-only a split drops the whitespace beside a comma (§5.6.1), so a string header keeps its own. A
-`Prefix` binding's map holds every field whose name starts with the prefix and that no other binding
-reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name. A response's headers
-hold no such binding yet (#1745).
+only a list's or an object's split drops anything, the whitespace beside a comma and an empty
+element (§5.6.1), so a string header keeps its own whitespace. A `Prefix` binding's map holds every
+field whose name starts with the prefix and that no other binding reads, a header's in any case
+(RFC 9110 §5.1), keyed by the rest of the name. A response's headers hold no such binding yet
+(#1745).
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
@@ -131,3 +151,9 @@ which keys its row as any encoding does: an emitter never reads which format a d
   and `fetch` and the JDK's `HttpClient` refuse `€` outright.
 - **A map's entries in the map's own order**: a Go map has none, so one call would send them in a
   different order on each run.
+- **`AllowReserved` passing every reserved character, or only a `/`**: the first sends a path
+  holding `a?b` to `a`, and the second encodes the percent-encoded triples OpenAPI has a caller
+  write before reserved expansion (§4.12.4), sending a key written `100%25` as `100%2525`.
+- **A dot segment percent-encoded**: WHATWG URL reads `%2e` as `.`, so `fetch` still removes it.
+- **A header's text trimmed**, as each target's HTTP library trims it: two texts differing only in
+  the whitespace at their ends would send one.
