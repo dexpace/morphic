@@ -117,7 +117,10 @@ darwin/arm64, but for the Windows device names, which Windows' own file-naming r
 A Kotlin hard keyword used as a name (`class`, `object`, `true`) is escaped with backticks, which
 Kotlin allows on both platforms and which leaves the wire name alone; a name a scope reserves for
 what the generated code binds ([reserved names](../../refine/reserved-names.md)), which backticks
-would not set apart, takes a trailing underscore.
+would not set apart, takes a trailing underscore. An identifier holding a character the lexer
+refuses as it stands, a mark or a letter or digit newer than its tables, is written in backticks too
+and keeps the character, wherever a file writes it, an import and a KDoc link among them
+([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)).
 
 ## Imports
 

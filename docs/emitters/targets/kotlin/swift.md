@@ -24,32 +24,50 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   camel role cases them, and with one `VALUE_1_0` exported as `value1_0` beside `VALUE_10`'s
   `value10`. Entries `A_日本` and `A日本` exported as `a日本` and `a日本_`, the second in
   declaration order taking the `_`, and with `A_日本`'s explicit name, which is in ASCII (below), as
-  `aU65e5u672c` and `a日本`.
-- A name holding a character past ASCII reaches Swift by its Objective-C name, since clang drops a
-  `swift_name` holding one (`'swift_name' attribute has invalid identifier for the base name`).
-  Measured with Kotlin 2.4.0 and Swift 6.2.3, a class `A日本` was `ProbeA日本` in Swift, `A日本()`
-  failing (`cannot find 'A日本' in scope`); a property `名前` kept its name; a method `取得(値: Int)`
-  was `取得値(_:)`, its selector `取得値:`, so `取得(値: 1)` failed; and an ASCII class kept its
-  Swift name beside a member `café`. That Objective-C name is the declaration's Swift name, which
-  the policy reads as the export forms it, and resolves in the namespace every unit shares (below).
-  A declaration past ASCII that takes an explicit name by a rule here takes one in ASCII, its words
-  cased as its role cases them and each character past ASCII written as the character-name table
-  writes one it does not hold, `u` and its code point in lowercase hex
+  `a_u65e5u672c` and `a日本`.
+- A declaration reaches Swift by its Objective-C name wherever the `swift_name` the export writes
+  for it would hold a character past ASCII, in or out of backticks, since clang drops that
+  attribute: in the declaration's own name (`'swift_name' attribute has invalid identifier for the
+  base name`), in a parameter's (`for the parameter name`) or in the name of a class it is nested in
+  (`for the context name`). Measured with Kotlin 2.4.0 and Swift 6.2.3, a class `A日本` was `ProbeA日本`
+  in Swift, `A日本()` failing (`cannot find 'A日本' in scope`), the `Builder` it nests
+  `ProbeA日本Builder`, and a class `Inनाम` nested in an ASCII `Outer` `ProbeOuterInनाम`, none keeping
+  its nesting; a property `名前` and an enum entry kept their names, and a constructor its labels; and
+  an ASCII class kept its Swift name beside a member `café`. For a class, a property and an entry
+  that Objective-C name is the Swift name, which the policy reads as the export forms it, and
+  resolves in the namespace every unit shares (below).
+- A method whose name or a parameter's is past ASCII has a selector the export forms, the method's
+  name, its first parameter's capitalized and each later parameter's, and a Swift name Swift derives
+  from the selector by rules of its own. Measured so, `取得(値:数:)` was `取得値(_:数:)`, so `取得(値: 1)`
+  failed, an ASCII `fetch(id:名前:)` was `fetchId(_:名前:)`, a builder's `名前(value:)` `名前Value(_:)`, and
+  a first piece holding a preposition was split at it, `listBy(id:名前:)` becoming `list(byId:名前:)`.
+  So the policy fixes such a method's selector and states no Swift name for it: T-54 holds the
+  selector, and reads the name a Swift caller writes from the framework it builds. A parameter keeps
+  its name as its label, and an ASCII method's Swift name moves when it gains a parameter past
+  ASCII, as it does on any new parameter, a default argument not reaching Swift (below).
+- A declaration past ASCII that takes an explicit name by a rule here takes one in ASCII, the
+  identifier its role renders with each character past ASCII written as Go writes one it cannot
+  hold, `u` and its code point in lowercase hex
   ([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)). So
   does one whose exported name would hold U+2E2F, which no header can: `@ObjCName("Au2e2f")` on a
   class `Aⸯ` built a module a Swift file called (`Au2e2f()`). Giving every declaration past ASCII
   an explicit ASCII name was not taken: it writes each such name in code points, `u540du524d` for
-  `名前`, where the export's names read as the spec's. Nor was writing those characters by name in
-  the Kotlin name, which would cost a JVM caller the spec's name for Swift's sake.
+  `名前`, where the export's names read as the spec's. Nor was giving one to each parameter past
+  ASCII, though it kept a method its Swift name (`fetch2(id:u540du524d:)` under
+  `@ObjCName("u540du524d")`): a caller would read a label in code points beside a property in the
+  spec's script, and a method named past ASCII would still be Swift's to name. Nor was writing those
+  characters by name in the Kotlin name, which would cost a JVM caller the spec's name for Swift's
+  sake.
 - The export drops a declaration's package and joins a nested one's name to its outer's, so every
   unit's declarations, nested ones among them, share one namespace, and of two that share a name it
   appends `_` to one. Measured with Kotlin 2.4.0, within one module and across modules the framework
   exports, the runtime's `ApiException` in `p.runtime` exported as `ApiException_` beside a model
   `p.accounts.ApiException`; a model `PetDog` as `PetDog_` beside the class `Dog` that a sealed
   interface `Pet` nests, which Swift calls `PetDog` too; and a model `UserBuilder` as `UserBuilder_`
-  in Objective-C beside `User.Builder`, whose Swift name keeps its nesting. Two declarations collide
-  there when their exported names do, whichever units and types hold them, and a name the target
-  declares is reserved there in every unit ([naming](naming.md#reserved-names)).
+  in Objective-C beside `User.Builder`, whose Swift name keeps its nesting while every name in it is
+  ASCII (above). Two declarations collide there when their exported names do, whichever units and
+  types hold them, and a name the target declares is reserved there in every unit
+  ([naming](naming.md#reserved-names)).
 - A Swift caller has Swift's standard library and Foundation in scope beside the framework, and the
   export renames neither side. Measured with Kotlin 2.4.0 and Swift 6.2.3, a framework class named
   `Optional`, `Result` or `Duration` shadowed Swift's own in a caller's file (`cannot specialize

@@ -148,8 +148,8 @@ case, the pass also reports names whose words join alike (below).
   case writes `_` at a break it leaves unmarked
   ([naming](../emitters/refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)), so
   they render apart there, as Go's `V1_2` and `V12`, and the exact comparison needs no rule for
-  them. A service's group is the exception: split into a package of its own, its words join with
-  no separator, so two such groups meet (#1742).
+  them. A service's group is the exception: split into a package of its own, its words join with no
+  separator, so two such groups meet, which the pass reports (below).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
   operations; an operation's parameters; a model's own properties; an enum's members; a union's

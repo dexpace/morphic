@@ -20,7 +20,8 @@ type Policy interface {
     LeadingWord(role Role) string         // from the options: the word before an identifier that
                                           // would begin with what its role cannot (below)
     Unwritable(role Role) RuneSet         // the options version's: what an identifier of the role
-                                          // cannot hold, each written by its name (below)
+                                          // cannot hold as it stands, written in the target's form
+                                          // for one (below)
 }
 
 type Word struct {
@@ -122,13 +123,14 @@ source spelling](#the-source-spelling-for-letter-case-only)), upper-casing gives
 capital, as it does `ı` and `i` and each of the 22 letters Go 1.27.3 upper-cases to another's
 capital, and a leading word or a character's name adds words (below). The `names` pass compares
 words, so it reports such a pair only where it compares them joined. `Ctx.Syms` reports each name it
-gives a suffix because another holds its rendered identifier, where the two names' neutral names
-differ, or, for two with no words, their spellings do, as a warning `emitters/naming/collision`
-naming both entities, the identifier both rendered to and the one each was given, so a scope of `n`
-names draws fewer than `n` ([T-39](../testing/mandatory-tests.md)). So a target keeps names of
-different words apart or says where it did not, under every table a configuration gives it. In a
-scope the pass compares joined, both can report one pair: the pass's warning says the two may meet
-on some target, and this one that they met on this target, and which took the suffix.
+gives a suffix because another holds its rendered identifier, or in a scope compared folded one that
+folds as it does, as `Strasse` does beside `Straße`, where the two names' neutral names differ, or,
+for two with no words, their spellings do, as a warning `emitters/naming/collision` naming both
+entities, the identifier each rendered to and the one each was given, so a scope of `n` names draws
+fewer than `n` ([T-39](../testing/mandatory-tests.md)). So a target keeps names of different words
+apart or says where it did not, under every table a configuration gives it. In a scope the pass
+compares joined, both can report one pair: the pass's warning says the two may meet on some target,
+and this one that they met on this target, and which took the suffix.
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's
@@ -174,14 +176,18 @@ An acronym or a spelling can make two names meet: `iOSVersion` and `IOSVersion`,
 such a pair apart and reports it ([collisions](#collisions-and-the-names-a-generation-shipped)).
 Reading a spelling or an acronym only where the identifier, read back by the grammar, gives the
 name's words, or writing `_` where it would not, keeps every pair apart unreported, at a cost real
-names show: of the 106,743 names the golden spec's source spells in its declared types and its lists
-of properties, members, parameters, operations, groups and variants, 6,292 read back as other words
-once spelled, such as `Secondary DNS (ACL)`'s `SecondaryDNSACL` and `SSL/TLS Mode Recommendation`'s
-`SSLTLSModeRecommendation`, while no two names of one of those lists render alike either way
-(`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe1`). Either rule would rewrite one spelled
-name in seventeen to part pairs the spec does not hold. Comparing names in the `names` pass as an
-acronym table and spellings render them was not taken either, since a configuration replaces the
-table and the pass serves every target.
+names show: of the 106,743 names with words that the golden spec's source spells in its declared
+types and its lists of properties, members, parameters, operations and groups, 70 more having a
+source and no words, 6,292 read back as other words once spelled, such as `Secondary DNS (ACL)`'s
+`SecondaryDNSACL` and `SSL/TLS Mode Recommendation`'s `SSLTLSModeRecommendation`, while no two names
+of one of those lists render alike either way (`cloudflare/api-schemas` @ `bc6fad24`, morphic @
+`fa253fe19`). Either rule would rewrite one spelled name in seventeen to part pairs the spec does
+not hold. Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken
+either: a shipped name keeps its symbol
+([collisions](#collisions-and-the-names-a-generation-shipped)), so only a newcomer could take it,
+and only where the newcomer is the one misread, which leaves the number for every other pair.
+Comparing names in the `names` pass as an acronym table and spellings render them was not taken
+either, since a configuration replaces the table and the pass serves every target.
 
 ## A name with no words takes its characters' names
 
@@ -189,11 +195,12 @@ A `Source` with no letter or digit in it — an enum value `>=`, an `operationId
 `<` — has neither `Canonical` nor `Hint` ([naming](../../ir/naming.md)), and still needs an
 identifier, wherever it is written. `RenderCasing` names it: from each position, the longest
 sequence the character-name table holds becomes that entry's words, and a character it does not hold
-becomes one word, `u` and its code point in lowercase hex (`u2192` for `→`). The words have no
-source spelling, so they are cased as a hint's are, and the node they name carries `Inferred`
-provenance, `character-names` (INV6). The words read nothing but the name, as `EnumMember.ID` reads
-nothing but the value, so reordering an enum renames none of its members. Two names that meet — `=`
-and `==` are both `equal` — are `Ctx.Syms`'s, like any other collision.
+becomes one word, `u` and its code point in lowercase hex, four digits at least (`u2192` for `→`,
+`u00a7` for `§`). The words have no source spelling, so they are cased as a hint's are, and the node
+they name carries `Inferred` provenance, `character-names` (INV6). The words read nothing but the
+name, as `EnumMember.ID` reads nothing but the value, so reordering an enum renames none of its
+members. Two names that meet — `=` and `==` are both `equal` — are `Ctx.Syms`'s, like any other
+collision.
 
 The table is one of the naming tables, so a configuration may replace any entry of it, and a
 target's is a default of its options version ([target options](../contract/options.md)). The first
@@ -218,66 +225,110 @@ $   dollar                  ?   question_mark           .   period          ,   
 The word grammar keeps a combining mark in the word of the letter it follows, and takes every
 letter and decimal digit Go's Unicode tables hold
 ([the word grammar](../../ir/naming.md#the-word-grammar)), and no first target can write each of
-them in an identifier. Measured over every code point:
+them in an identifier as it stands. Measured over every one past ASCII, the 145,620 letters, 2,543
+marks and 760 digits of Unicode 17.0.0:
 
 - **Go** 1.27.3 takes every letter, and every decimal digit after the first character, and no mark:
-  `go/token.IsIdentifier` refuses each of the 2,543 marks its Unicode 17.0.0 tables hold, and a
-  field `Café` spelled with U+0301 COMBINING ACUTE ACCENT fails `go build` (`invalid character
-  U+0301 '́' in identifier`). An import path takes no character past ASCII (`malformed import path
-  "goexp/名前": invalid char '名'`), so a package, whose name its unit's import path ends in, takes
-  none.
-- **Kotlin** 2.4.0's lexer takes no mark either, and of the letters and digits Go's tables hold,
-  only those of an older Unicode: it refuses 15,385 letters, such as U+0870 ARABIC LETTER ALEF WITH
-  ATTACHED FATHA and, past the BMP, U+10570 VITHKUQI CAPITAL LETTER A, 130 digits, such as U+10D40
-  GARAY DIGIT ZERO, and 4,696 word characters Java 25's own tables class as none of these, and
-  kotlinc refuses a property named with each witness.
-- **On Multiplatform** an exported name reaches Objective-C and Swift too. Of every letter Kotlin's
-  lexer takes, clang 17.0.0 and Swift 6.2.3 refuse U+2E2F VERTICAL TILDE alone, and a framework
-  whose header holds it builds no module, so a Swift file using none of its names fails as well
-  (`could not build Objective-C module 'Probe'`).
+  `go/token.IsIdentifier` refuses each of the 2,543 marks, and a field `Café` spelled with U+0301
+  COMBINING ACUTE ACCENT fails `go build` (`invalid character U+0301 '́' in identifier`). An import
+  path takes no character past ASCII (`malformed import path "goexp/名前": invalid char '名'`), so a
+  package, whose name its unit's import path ends in, takes none.
+- **Kotlin** 2.4.0's lexer takes no mark either, and of the letters and digits only those of an
+  older Unicode: it refuses 20,029 letters, such as U+0870 ARABIC LETTER ALEF WITH ATTACHED FATHA,
+  past the BMP U+10570 VITHKUQI CAPITAL LETTER A, and U+A7CB LATIN CAPITAL LETTER RAMS HORN, the
+  capital of a `ɤ` it takes, and 140 digits, such as U+10D40 GARAY DIGIT ZERO. In backticks it takes
+  each of them, first in a name or later: kotlinc built a property named for every one in both
+  places, and a class, a property, a parameter, a method, an enum entry and a nested class so named
+  built and ran on the JVM, JS and Wasm, and on the JVM under the serialization plugin, from a
+  caller in another module and from Java, their class files named as they are
+  (`नाम$$serializer.class`).
+- **On Multiplatform** an exported name reaches Objective-C and Swift too, and Kotlin/Native 2.4.0
+  writes one in backticks to the framework's header as it is: Swift imported a property named for
+  each character the lexer refuses. After an identifier's first character, clang 17.0.0 and Swift
+  6.2.3 refuse U+2E2F VERTICAL TILDE alone, and as its first U+2E2F and 225 marks (U+0300 to U+036F,
+  U+1DC0 to U+1DFF, U+20D0 to U+20F0, U+FE20 to U+FE2F). A framework whose header holds either
+  builds no module, so a Swift file using none of its names fails as well (`could not build
+  Objective-C module 'Probe'`).
 
-`RenderCasing` writes each character an identifier of the role cannot hold where it stands in its
-word, as the character-name table writes a character it does not hold: `u` and its code point in
-lowercase hex. A decomposed `café` is Go's field `Cafeu0301` and Kotlin's `cafeu0301`, `नाम`, whose
-`ा` is U+093E DEVANAGARI VOWEL SIGN AA, is Kotlin's `नu093eम` and Go's `Field_नu093eम` (below), and
-a group `名前` is Go's package `u540du524d`. The node carries `Inferred` provenance,
-`character-names`, as a name with no words does. Which characters a role cannot hold is a table of
-the target's options version, read from its toolchain and no configuration's to replace, since a
-toolchain that learns a letter would otherwise rename every identifier holding it ([target
-options](../contract/options.md)). On Multiplatform the Kotlin name, which a JVM caller shares,
-keeps U+2E2F, and the declaration takes an explicit Objective-C name instead
-([Swift](../targets/kotlin/swift.md)). A name that meets another so is `Ctx.Syms`'s, and reported
+`RenderCasing` settles an identifier before it writes any character another way. `Case` reads the
+grammar's words beside their spellings and the tables, the role composes the identifier, and the
+leading word and the underscore below are decided on that identifier, which still holds the name's
+own characters. The target's form for a character the role cannot hold as it stands comes last, so
+it changes nothing those read:
+
+- **Go** writes each such character where it stands in its word, as the character-name table writes
+  a character it does not hold: `u`, in lower case wherever it falls, and its code point in
+  lowercase hex, four digits at least (`u0301`, `u10570`). A decomposed `café` is the field
+  `Cafeu0301`, `नाम`, whose `ा` is U+093E DEVANAGARI VOWEL SIGN AA, `Field_नu093eम` (below), a
+  property of U+0301 and `x`, whose word begins with the mark, `Field_u0301x`, and a group `名前` the
+  package `u540du524d`. The node carries `Inferred` provenance, `character-names`, as a name with no
+  words does.
+- **Kotlin** writes the identifier in backticks and keeps every character: a property `` `café` ``,
+  a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name,
+  in a class file or in the header, so the node is marked nothing, and a caller writes them where
+  its own compiler needs them. A KDoc link writes them too, around each such segment: Dokka 2.3.0
+  linked ``[`नाम`.`café`]`` and left `[नाम]` plain text. What backticks cannot hold is ASCII
+  punctuation, a backtick and a line break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:`
+  and `\` on the JVM and a further thirteen on Native), none of which an identifier holds: a word is
+  letters, marks and digits, and a name with none is named in ASCII (above). A Java caller writes
+  such a name where its JDK's tables hold each character, as javac 25 did `नाम` and the decomposed
+  `café`; Java 25's lack 4,709 of the code points above.
+
+Which characters a role cannot hold as they stand is a table of the target's options version, read
+from its toolchain and no configuration's to replace: on Go a toolchain that learns a mark would
+otherwise rename every identifier holding it, and on Kotlin a later table moves only where backticks
+are written ([target options](../contract/options.md)). The letter case `Case` gives a character,
+and the categories the tests below read, are tables of that version as well, Unicode 17.0.0's in
+version 1, which Go's language floor reads identifiers by
+([Go](../targets/go/overview.md#the-language-floor)), and never the `unicode` package's of the Go
+release that builds Morphic: `unicode.ToUpper` differs between Go 1.26.3 and Go 1.27.3 at 55 code
+points, `ɤ` among them, whose capital the later alone knows, so a type `ɤx` would otherwise be
+renamed by the toolchain a release was built with. On Multiplatform a declaration whose exported
+name would hold U+2E2F keeps its Kotlin name, which a JVM caller shares, and takes an explicit
+Objective-C name instead, in ASCII, each character past it written as Go writes one
+([Swift](../targets/kotlin/swift.md)); none begins with a mark, since a name that would takes a
+leading word (below). A name that meets another so, as a Go property `cafeu0301` meets the
+decomposed `café`, is `Ctx.Syms`'s, and reported
 ([collisions](#collisions-and-the-names-a-generation-shipped)). T-54 holds every class above.
 
 Composing a decomposed letter with its mark (Unicode NFC) was not taken: it gives `café` its `é`,
 leaves every mark with no composed form, as most Indic vowel signs have none, and makes a decomposed
 and a composed spelling, which the IR holds as two names, render alike; whether a name composes is
-the word grammar's question. Dropping a mark misspells the word and makes `नाम` meet `नम`. Kotlin's
-backticks are a form the Objective-C export cannot carry, and Go has none.
+the word grammar's question. Dropping a mark misspells the word and makes `नाम` meet `नम`. Go has no
+form that holds a mark, so it alone writes a character by its name. Writing Kotlin's so as well,
+`नu093eम`, was not taken: backticks keep the spec's name on every platform the target builds for,
+and Swift reads it from the header as it reads any name past ASCII.
 
 ## An identifier its role cannot begin with takes a leading word
 
 Canonical words may begin with a digit — a property `1000`, a schema `10_gbps_to_100_gbps`, an enum
 value `10002` — and no first target accepts an identifier that does. Go takes one only from a
 letter, and exports one only from an upper-case letter, so `1000` cannot be a field at all; Kotlin
-takes one only in backticks, which the Objective-C export a Multiplatform SDK reaches iOS through
-cannot carry ([Swift](../targets/kotlin/swift.md)). Upper-casing a name's first letter often gives
-no upper-case letter either: a letter of no case, as every Han, Kana, Hangul, Arabic and Hebrew
-letter is, a modifier letter, a lower-case letter with no upper-case form, such as `ß`, and a Greek
-letter with ypogegrammeni, whose upper-case form is titlecase (`ᾳ` is `ᾼ`). With Go 1.27.3, a second
+takes one only in backticks, where no Java caller can write it (javac 25 refused `E.10002`) and the
+Objective-C export a Multiplatform SDK reaches iOS through renames it, a property `1000` to `_1000`.
+A word may begin with a combining mark too, which Go, javac and, for the 225 above, clang and Swift
+refuse as an identifier's first character. Upper-casing a name's first letter often gives no
+upper-case letter either: a letter of no case, as every Han, Kana, Hangul, Arabic and Hebrew letter
+is, a modifier letter, a lower-case letter with no upper-case form, such as `ß`, and a Greek letter
+with ypogegrammeni, whose upper-case form is titlecase (`ᾳ` is `ᾼ`). With Go 1.27.3, a second
 package read none of the fields `名前`, `ʰx`, `ßx`, `ᾼx` and, past the BMP, `𐀀x` (`cannot refer to
 unexported field 名前`), and read `Ꭰx`, `𝐀x` and `ℤx`, which begin with upper-case letters.
 
 Where the identifier a role composes would begin with a character the role cannot begin with,
 `RenderCasing` puts the policy's leading word for that role before its words, and the node it names
-carries `Inferred` provenance, `leading-word` (INV6). That is a digit in every role, and on Go, in a
-role it exports, a type, a field, a method or a constant, any character but an upper-case letter
-(category `Lu`), read once cased. The test reads the composed identifier, not the name: a Go enum
-constant begins with its enum's name ([Go enums](../targets/go/types.md#enums)), so `Code` and
-`1000` make `Code1000` and need no word, where a Kotlin entry is the member's name alone and takes
-one. A hint is held to the same test. A parameter and a package, which Go leaves unexported, and
-every Kotlin role, which takes `名前` as it is, take a word before a digit alone. Leaving such a Go
-name unexported was not taken, since a caller outside its package could neither set nor read it.
+carries `Inferred` provenance, `leading-word` (INV6). That is a digit or a mark in every role, and
+on Go, in a role it exports, a type, a field, a method or a constant, any character but an
+upper-case letter (category `Lu`). The test reads the identifier once cased and before any character
+is written by its name ([above](#a-character-a-target-cannot-write-is-written-by-its-name)), so a
+word beginning with a mark takes the word on every target, where Go's would else begin with the `u`
+of the mark's name. The test reads the composed identifier, not the name: a Go enum constant begins
+with its enum's name ([Go enums](../targets/go/types.md#enums)), so `Code` and `1000` make
+`Code1000` and need no word, where a Kotlin entry is the member's name alone and takes one. A hint
+is held to the same test. A parameter and a package, which Go leaves unexported, and every Kotlin
+role, which takes `名前` as it is, take a word before a digit or a mark alone. Leaving such a Go name
+unexported was not taken, since a caller outside its package could neither set nor read it, nor was
+writing Kotlin's in backticks as it stands, a name javac cannot write and the Objective-C export
+renames or, before a mark, cannot write.
 
 The words are a naming table too, one per role, and like the character names a default of the
 target's options version ([target options](../contract/options.md)). Version 1's are `type` for a
@@ -286,15 +337,15 @@ type, `field` for a field, `call` for a method, `value` for a constant, `arg` fo
 `VALUE_10002`, and `名前` is Go's field `Field_名前`, a word beginning with a letter of no case taking
 `_` before it ([a break](#a-break-letter-case-cannot-mark-takes-an-underscore)). A word that makes
 one name meet another — `Field1000` beside a property spelled `field_1000` — is `Ctx.Syms`'s, like
-any collision, and reported. T-19 holds the digit test and T-54 Go's export.
+any collision, and reported. T-19 holds the digit test and T-54 the mark's and Go's export.
 
 ## A break letter case cannot mark takes an underscore
 
 Camel and Pascal case mark where a word begins by upper-casing its first character, as every role of
 the first targets does but two: a package, whose words join with no separator, and a Kotlin
 constant, which writes `_` between every two (`VALUE_10002`). Upper-casing leaves some characters as
-they are — a digit, a letter of no case such as `日`, one already upper-case such as `ℤ`, or a
-lower-case one with no upper-case form such as `ß` — so a word beginning with one is not marked.
+they are — a digit, a mark, a letter of no case such as `日`, one already upper-case such as `ℤ`, or
+a lower-case one with no upper-case form such as `ß` — so a word beginning with one is not marked.
 `v_1_2` and `v_12` would both be Go's field `V12`, and an enum `Version`'s members `1_0` and `10`
 both its constant `Version10`, though their words differ, and words are what the `names` pass
 compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
@@ -316,11 +367,13 @@ So two names whose words differ only where they break render apart in a camel or
 words are each cased by their first character alone, and the pass's exact comparison answers for
 them. An acronym or a spelling that upper-cases more of a word can still make two meet, which
 `Ctx.Syms` reports ([collisions](#collisions-and-the-names-a-generation-shipped)), and a package,
-which joins every word, drops this break with the rest (#1742). A Multiplatform SDK's Objective-C
-export writes a Kotlin constant's Swift name in camel case, dropping each `_`, so a constant whose
-words hold such a break takes an explicit one, its words cased as a camel role cases them:
-`VALUE_1_0` is `value1_0` in Swift, beside `VALUE_10`'s `value10`, and `A_日本`, whose explicit
-name is written in ASCII, `aU65e5u672c`, beside `A日本`'s `a日本` ([Swift](../targets/kotlin/swift.md)).
+which joins every word, drops this break with the rest, a pair the pass reports where it compares
+words joined ([names one scope shares](../../ir/naming.md#names-one-scope-shares)). A Multiplatform
+SDK's Objective-C export writes a Kotlin constant's Swift name in camel case, dropping each `_`, so
+a constant whose words hold such a break takes an explicit one, its words cased as a camel role
+cases them: `VALUE_1_0` is `value1_0` in Swift, beside `VALUE_10`'s `value10`, and `A_日本`, whose
+explicit name is written in ASCII, `a_u65e5u672c`, beside `A日本`'s `a日本`
+([Swift](../targets/kotlin/swift.md)).
 
 Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
 without an underscore. The two names would collide, and `Ctx.Syms` would tell them apart by ID
@@ -346,13 +399,19 @@ rules](../emit/rules.md)). So `RenderCasing` holds each identifier of a role a t
 path, as its naming document names them ([Go](../targets/go/naming.md#package-directories),
 [Kotlin](../targets/kotlin/naming.md#reserved-names)), to a cap, 110 bytes of UTF-8 in version 1, a
 default of the target's options version as the naming tables are. A longer identifier keeps the
-leading words that fit beside one more, the first eight hex digits of the SHA-256 of its canonical
-words, a first word too long alone being cut at a character's end, and the node carries `Inferred`
+leading words that fit beside one more, the first eight hex digits of the SHA-256 of the identifier
+whole, a first word too long alone being cut at a character's end, and the node carries `Inferred`
 provenance, `shortened` (INV6), with a warning `emitters/<target>/name-shortened` naming the entity
 and both names. The shortened name reads nothing but the name, so it moves only with it, and two
 names that keep the same words still differ in their last. A path the target names apart from any
 identifier, as Go names a declaration's file, is shortened as its target says, and the identifier
 is not ([Go](../targets/go/naming.md#file-names)).
+
+The hash reads the identifier and not `Naming.Canonical`, which a name with no words and a type
+named from a hint lack, and which holds no word a role or the plan adds: `____________` and
+`_____________`, twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type's
+`Create` and `UpdatePatch` declarations ([TypePlan](../plan/types.md#the-declaration-a-shape-takes))
+their type's words alone. T-53 holds it.
 
 The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
 110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and 251 in
