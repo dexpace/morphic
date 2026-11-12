@@ -52,7 +52,9 @@ declaration out of the root unit. Both are off by default, and the first that ap
    `AlsoMount` ([shaping hints](../contract/shaping-hints.md)), counts as each group whose client
    gets a method for it, so what it reaches goes where a type those groups reach goes: two groups
    mounting each other's operations would otherwise import each other. Placement reads the hints for
-   that alone, and changing one moves the types its operation reaches.
+   that alone, and changing one moves the types its operation reaches. Which unit holds what an
+   operation derives once `AlsoMount` counts it as several groups, its request type and its row of
+   the runtime's settings among them, is #1736's.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root, the shared unit is `shared` under the root, the runtime's is `runtime` under the
@@ -81,8 +83,8 @@ and the helpers the generated code calls. It lands in a unit of its own, `runtim
 whether or not a rule above moves anything, so turning one on moves none of it. It imports no other
 unit, and every unit may import it, since an operation in any unit fails with its failure value and
 sends through its transport, and a model in any unit may hold one of its types. It declares nothing
-named for a spec entity: each operation's row of its settings lands in the operation's unit (above),
-and its failure kinds are the configuration's
+named for a spec entity: each operation's row of its settings, though a template renders it, lands
+in the operation's unit (above), and its failure kinds are the configuration's
 ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). So a runtime name meets a spec
 name only in a file importing both, where Go writes it qualified
 ([Go](../targets/go/naming.md#imports)), and Kotlin, which cannot always, reserves it in every unit

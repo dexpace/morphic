@@ -70,13 +70,13 @@ throughout these documents.
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` with every group's operations failing with the runtime's
     failure value, and under `Partition` with a partition's model holding a runtime type, the units'
-    imports form no cycle and build, on Kotlin code compiling against any one module naming the
-    runtime's types its signatures use; the runtime's declarations are in its unit, which imports
-    none, with either rule on and with both off; groups whose names render alike, or as a name the
-    units' scope reserves, get distinct units; a union with a variant in another unit compiles; two
-    groups whose operations `AlsoMount` puts in each other's client compile, the types those
-    operations reach in the shared unit; and every partition error and warning of [output
-    units](../refine/output-units.md) has a fixture that draws it.
+    imports form no cycle and build; with either rule on and with both off, the runtime's
+    declarations are in its unit, which imports none, and on Kotlin, code compiling against the
+    root project or any one module names the runtime's types its signatures use; groups whose names
+    render alike, or as a name the units' scope reserves, get distinct units; a union with a
+    variant in another unit compiles; two groups whose operations `AlsoMount` puts in each other's
+    client compile, the types those operations reach in the shared unit; and every partition error
+    and warning of [output units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)

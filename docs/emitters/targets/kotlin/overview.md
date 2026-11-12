@@ -46,13 +46,13 @@ or the root's sources. Under `modules/` each builds, and a `clean` and a `wrappe
 module's sources. What a module's project still meets is in [naming](naming.md#reserved-names).
 
 The [runtime's unit](../../refine/output-units.md#the-runtimes-unit) is `<root>.runtime`, the
-module `modules/runtime`, which every other module depends on as an `api` dependency and a
-Multiplatform framework exports with the rest ([Swift](swift.md)). Measured with Kotlin 2.4.0, code
-depending on a group's module that took the runtime as `implementation` could not name the
-runtime's `ApiException` ("Unresolved reference 'runtime'"), and a framework that did not export
-the runtime named its `ApiException` `RuntimeApiException` in the header and left out the
-`NotFoundException` under it, which no signature names, so a Swift caller could neither match a
-failure's class nor name the runtime's types as a Kotlin caller does.
+module `modules/runtime`, which the root project and every other module depend on as an `api`
+dependency and a Multiplatform framework exports with the rest ([Swift](swift.md)). Measured with
+Kotlin 2.4.0, code depending on the root project, or on a group's module, that took the runtime as
+`implementation` could not name the runtime's `ApiException` ("Unresolved reference 'runtime'"),
+and a framework that did not export the runtime named its `ApiException` `RuntimeApiException` in
+the header and left out the `NotFoundException` under it, which no signature names, so a Swift
+caller could neither match a failure's class nor name the runtime's types as a Kotlin caller does.
 
 Kotlin's `internal` reaches only its own module, and a call to an `internal` runtime function from a
 group's module failed ("it is internal"), so what generated code calls in another module is public:

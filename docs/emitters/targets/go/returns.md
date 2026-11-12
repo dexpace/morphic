@@ -49,4 +49,4 @@ func (r *OtherResponse) Unwrap() error { return r.BodyErr }
 
 It takes Go's `error` path because the method's result has no place for it, and it is no
 `*APIError`, so `errors.Is` answers neither fault, no retry reads it, and
-`errors.AsType[*sdk.OtherResponse](err)` finds it.
+`errors.AsType[*runtime.OtherResponse](err)` finds it.
