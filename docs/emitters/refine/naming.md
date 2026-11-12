@@ -216,7 +216,9 @@ beside the other and nothing need set them apart. The pairs above render `V1_2` 
 composes, as the leading word's test does, so a Go constant writes one where its enum's name meets
 its member's: `V1`'s member `2` is `V1_2`, apart from `V`'s `12`. The underscore adds no word and
 reads nothing but the words, so it marks nothing `Inferred`. A path named from the identifier takes
-the underscore with it, and Go reads a file name ending in `_386` as a build constraint (#1756).
+the underscore with it, as Kotlin's class file `V1_2.class` does, while Go names a declaration's
+file from its words joined ([Go](../targets/go/naming.md#file-names)): a type `V1_386` is declared
+in `v1386.go`, which Go builds on every platform, where `v1_386.go` would build on `386` alone.
 
 So two names whose words differ only where they break render apart in a camel or Pascal role whose
 words are each cased by their first character alone, and the pass's exact comparison answers for
