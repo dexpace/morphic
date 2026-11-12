@@ -1019,9 +1019,11 @@ throughout these documents.
     without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside the vocabulary
     ([bindings](../plan/bindings.md), [capabilities](../contract/registry.md#capabilities)).
 69. **T-69 · One snapshot for a target without `CrossVersion`** — on a document sliced into three
-    versions, the Go, Kotlin and mock-server targets each write the last label's snapshot at the
-    output root, its `Snapshot` that label, and with `RunOptions.Version` naming the first, that
-    one; an SDK and its mock server in one run read one version; a label the document lacks is
+    versions, the Go, Kotlin and mock-server targets each write the snapshot `RunOptions.Version`
+    names at the output root, its `Snapshot` that label, the first and the last alike; a run naming
+    none is `engine/target-unversioned` before any run, its message naming the three labels, and
+    writes nothing, while a docs run naming one of them for samples alone is not refused; an SDK and
+    its mock server in one run read one version; a label the document lacks is
     `engine/snapshot-unknown` before any run; each such target is run on the other snapshots for
     its samples alone, writing nothing there; and a regeneration moving the label keeps the name of
     every entity both snapshots hold and prunes the files of one only the first held

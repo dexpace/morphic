@@ -190,24 +190,25 @@ the document, which determines it.
   alike are told apart rather than refused
   ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)). Any other
   target, an SDK, a mock server, a CLI or a validator, writes one snapshot: the one whose label
-  `RunOptions.Version` names, else the last `Document.Versions` lists, as the newest. It writes it
-  at the output root, as an unsliced run does, its manifest a `Manifest` whose IDs, which every
-  snapshot shares, carry the names it shipped when the label changes, and it is run on every other
-  snapshot only for its samples, which writes nothing ([docs and
-  mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names that
-  `Document.Versions` lacks is an error `engine/snapshot-unknown` before any run. The setting is the
-  run's, not each target's, so an SDK and the mock server its wire conformance runs against read one
-  version (T-69 holds this). Writing a unit for each snapshot under the one module path, Gradle
-  coordinate or framework was rejected: a Kotlin Multiplatform framework gives every unit one
+  `RunOptions.Version` names. A run asking such a target for its artifacts from a sliced document
+  without the setting is an error `engine/target-unversioned` before any run, its message naming the
+  labels. It writes the snapshot at the output root, as an unsliced run does, its manifest a
+  `Manifest` whose IDs, which every snapshot shares, carry the names it shipped when the label
+  changes, and it is run on every other snapshot only for its samples, which writes nothing ([docs
+  and mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names
+  that `Document.Versions` lacks is an error `engine/snapshot-unknown` before any run. The setting
+  is the run's, not each target's, so an SDK and the mock server its wire conformance runs against
+  read one version (T-69 holds this). Writing a unit for each snapshot under the one module path,
+  Gradle coordinate or framework was rejected: a Kotlin Multiplatform framework gives every unit one
   Objective-C namespace ([Swift](../targets/kotlin/swift.md)), and Kotlin/Native 2.4.0 exports
   `sdk.v1.Zone` and `sdk.v2.Zone` as `Zone` and `Zone_`, so each class a second version keeps loses
   its name in Swift; each entity becomes a type per version, a value of one passing to no method of
   another; and a mock server or a CLI answering every version needs to know how a request names its
   version, which no IR field states, an `api-version` being an ordinary parameter of each operation.
-  Refusing a sliced document would leave a versioned API with no SDK. A run wanting another
-  version's SDK names it, and one wanting several runs once per label, each into an output root of
-  its own. Defaulting to the newest moves the SDK to a version the document appends, as a new
-  revision of an unversioned document moves it, and the surface differ reports what that breaks
-  ([surface verification](../surface-verification.md)). The pass is designed, not built
-  (architecture.md §2.2); until it is, no pass slices a document, and every run's `Snapshot` is
-  `""`, the one label a cross-version run's `Routes` keys.
+  Refusing every sliced document would leave a versioned API with no SDK. A run wanting several
+  versions runs once per label, each into an output root of its own. Defaulting to the last label,
+  as the newest, was rejected: the slicing settings have no neutral default (architecture.md §2.2),
+  and a document appending a preview label would move the SDK, its mock server and a CLI to it on
+  the next run, while only an SDK has a surface differ to report what that breaks. The pass is
+  designed, not built (architecture.md §2.2); until it is, no pass slices a document, and every
+  run's `Snapshot` is `""`, the one label a cross-version run's `Routes` keys.
