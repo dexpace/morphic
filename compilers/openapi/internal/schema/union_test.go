@@ -772,6 +772,38 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 	}
 }
 
+// TestLower_ATypeArrayResolvesItsDiscriminatorRoutes pins that a type array
+// admitting an object resolves its discriminator's routes though its union
+// keeps the discriminator verbatim: a position only a mapping names is
+// lowered, in either order, and a target naming nothing is reported once, at
+// its entry. One admitting no object routes nothing, as a scalar does.
+func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
+	t.Parallel()
+	const reached = "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +
+		"      $defs: {Sub: {type: object, properties: {s: {type: string}}}}\n" +
+		"      discriminator: {propertyName: kind, mapping: {sub: '#/components/schemas/Pet/$defs/Sub'}}\n"
+	for _, doc := range discriminatedOrders(t, "3.1.0", reached, cat) {
+		_, ok := doc.Types["t/anon/components/schemas/Pet/$defs/Sub"].(*ir.Model)
+		assert.True(t, ok, "the position only the mapping names is lowered")
+	}
+
+	const dangling = "{propertyName: kind, mapping: {a: '#/components/schemas/Nope'}}"
+	_, diags := parseFull(t, openapitest.ComponentSpecVer("3.2.0",
+		"    Obj: {type: [object, string], properties: {kind: {type: string}}, discriminator: "+dangling+"}\n"+
+			"    Def: {type: [object, string], properties: {kind: {type: string}}, "+
+			"discriminator: {propertyName: kind, defaultMapping: '#/components/schemas/Nope'}}\n"+
+			"    NoObj: {type: [string, integer], discriminator: "+dangling+"}\n"))
+	var at []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedRef {
+			at = append(at, d.Provenance.Pointer)
+		}
+	}
+	assert.ElementsMatch(t, []jsontext.Pointer{
+		"/components/schemas/Obj/discriminator/mapping/a", "/components/schemas/Def/discriminator/defaultMapping",
+	}, at)
+}
+
 // assertKeptOnTheUnion requires the union at id, lowered from the type array
 // at pointer, to keep its discriminator whole, holding want, and reported once
 // by the census, and its object variant, of kind variant, to hold none.

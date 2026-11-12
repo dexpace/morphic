@@ -50,6 +50,22 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir
 	return disc, append(diags, defaultDiags...)
 }
 
+// resolveDiscriminatorRoutes resolves the mapping and defaultMapping targets of
+// s's discriminator as lowerDiscriminator does, at pointer: each position one
+// names is hoisted, and one naming no schema is reported at its entry. A type
+// array admitting an object routes it by the discriminator though no node of
+// its union holds it (lowerTypeVariant), so what it routes to is lowered all
+// the same, and the census keeps the discriminator itself.
+func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	d := s.GetDiscriminator()
+	if d == nil {
+		return nil
+	}
+	_, diags := discriminatorMapping(c, ts, d, mappingRoute{}, pointer)
+	_, defaultDiags := discriminatorDefault(c, ts, d, mappingRoute{}, pointer)
+	return append(diags, defaultDiags...)
+}
+
 // variantTargets returns the set of types the variants name: the types a
 // union's discriminator may route to, as pass.Validate holds its mapping. It is
 // nil for none, which is a model's.

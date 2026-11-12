@@ -2162,16 +2162,22 @@ The `object` variant holds no `discriminator`, so the census keeps it on the uni
 which holds a type's name and no schema, so no type is its subtype, and every route the
 discriminator takes leads elsewhere: a `mapping` target, the `defaultMapping`, or a component whose
 `allOf` names the schema, which composes the union and keeps it as its `Base`, with the
-`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)).
-Settling the variant's discriminator by its routes, as one beside a union kept verbatim is settled
-([`union-beside-structure`](#union-beside-structure)), would keep it only where it routes nowhere,
-and would have to find every component composing the schema to know that.
+`DiscriminatorValue` the discriminator gives it ([`discriminator-value`](#discriminator-value)). The
+object instances the union admits still route by the discriminator, so its targets are resolved as
+[`discriminator`](#discriminator) resolves a model's: each position one names is lowered, and one
+naming no schema is reported as an `openapi/unresolved-ref` error at its entry. A type array listing
+no `object` admits no instance a tag routes, and resolves nothing, as a scalar beside a
+discriminator does. Settling the variant's discriminator by its routes, as one beside a union kept
+verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would keep it only where
+it routes nowhere, and would have to find every component composing the schema to know that.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
+- Codes: `openapi/unresolved-ref`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
-  `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`
+  `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
+  `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`
 - Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
   not it constrains that variant's type (#1310).
 

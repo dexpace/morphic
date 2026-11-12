@@ -420,6 +420,9 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 				Type: ir.TypeRef{Target: vid},
 			})
 		}
+		if slices.Contains(types, oas3.SchemaTypeObject) {
+			diags = append(diags, resolveDiscriminatorRoutes(c, ts, s, pointer)...)
+		}
 		return &ir.Union{
 			TypeCommon: common,
 			Variants:   variants,
