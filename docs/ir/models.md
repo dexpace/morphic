@@ -85,13 +85,13 @@ A subtype's `DiscriminatorValue` is the tag by which a discriminator on one of i
 to it: a key that discriminator's `Mapping` names it under, or else the name the source routes it
 by. It is empty on a model no one tag routes to, such as one no discriminator routes, as none routes
 a schema composing a discriminated union that does not list it, each of its instances carrying the
-tag of the variant it is. Where the subtype admits no instance carrying the name it is routed by, a
-heuristic may read the tag off the strings it admits instead, leaving the field empty where it
-admits several or none, and names itself in the subtype's `Provenance.Inferred`. Two subtypes may
-carry one tag, where the instances of each carry only it, as every subtype of a base pinning its tag
-to one value does, and that tag then routes to more than one. A reading that declined there, as one
-filling a `Mapping`, which keys one target per tag, must, would leave each a tag its own instances
-reject for an encoder to write.
+tag of the variant it is ([below](#a-union-a-composition-names)). Where the subtype admits no
+instance carrying the name it is routed by, a heuristic may read the tag off the strings it admits
+instead, leaving the field empty where it admits several or none, and names itself in the subtype's
+`Provenance.Inferred`. Two subtypes may carry one tag, where the instances of each carry only it, as
+every subtype of a base pinning its tag to one value does, and that tag then routes to more than
+one. A reading that declined there, as one filling a `Mapping`, which keys one target per tag, must,
+would leave each a tag its own instances reject for an encoder to write.
 
 ## Composition
 
@@ -342,3 +342,41 @@ the `Mapping`. Where a branch composes `S` in turn, a subtype of the hierarchy `
 the discriminator routes subtypes rather than variants, and a union of them would leave them no
 base: `S` stays a `Model` holding the discriminator, and the OpenAPI compiler keeps the union
 verbatim ([`union-beside-structure`](../compilers/openapi.md#union-beside-structure)).
+
+## A union a composition names
+
+A union a composition names by reference, rather than writing it beside the `allOf` or on one of its
+inline branches, composes as any other referent does ([composition entries](#composition-entries)):
+the `Model` names it as its `Base` or a `Mixin`, declares what the schema writes itself, and
+distributes nothing.
+`Stored: {allOf: [{$ref: Rule}, {properties: {id: …}}]}`, `Rule` a union of `Block` and `Log`, is a
+`Model` whose `Base` is `Rule` and which declares `id`: `Stored ∧ Rule`, as the source writes it.
+Each instance of `Stored` is an instance of one variant of `Rule` carrying `id` beside that
+variant's members, so a discriminator on `Rule` says which by routing the instance's tag to the
+variant it names, and no tag names `Stored`, which carries no `DiscriminatorValue`
+([discriminator](#discriminator)). An emitter whose target has no intersection type lowers the
+`Model` as the union it narrows, at its refiner
+([inheritance](../emitters/refine/models.md#inheritance)), whether or not the union routes by a tag:
+invariant 2 places a lowering to what a target can express there.
+
+Distributing it in the compiler instead, as a union written beside the `allOf` is distributed
+[above](#composition-beside-a-union), would hand every consumer a node for each shape an instance
+takes, and the tag a route to it. It was rejected on input the compiler must lower (spec
+@`e411be7e`, morphic @`c74411086`):
+
+- **It would repeat, and still leave the shape.** A variant a distribution composes names its
+  branch's referent, which may itself be a union, and a schema composing a distributed one composes
+  a union in turn: 15 of the golden spec's 48 models composing a union are composed variants, and
+  `dlp_EntryWithSharedProfiles` composes `dlp_EntryWithUploadStatus`, which composes `dlp_Entry`.
+  Each would distribute again, a schema the next reason keeps a `Model` would keep its union, and
+  the compiler would hold a second copy of the refiner's mechanism.
+- **A distant fact would decide it.** A schema a discriminator on one of its ancestors routes to
+  stays a subtype of that ancestor (`ir.IsSubtype`), which no `Union` is: in
+  `Cat: {allOf: [{$ref: Pet}, {$ref: Breeds}, …]}`, `Pet` routing `Cat` by its name, `Breeds` must
+  stay a `Mixin`. Whether a schema distributed would turn on what another schema declares, as shape
+  6 of [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lets it for a
+  union written beside the `allOf`.
+- **A shared union would be copied.** Each schema composing a union would carry its own copy of the
+  union's variants and discriminator, the golden spec's most shared union ten times over, each
+  composed variant a node minted per pair of schema and variant, and no node would say that the
+  schema composes the union, as the source does.

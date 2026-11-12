@@ -76,7 +76,8 @@ required on the composed model. A name `Requires` lists that no flattened proper
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
-not hold what it admits, so each refiner lowers it or degrades with a code of its own.
+not hold what it admits, so each refiner lowers it or degrades with a code of its own, and lowers a
+union there as the three targets do ([inheritance](../refine/models.md#inheritance)).
 
 ## Variants that can share a value
 

@@ -114,6 +114,67 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	assert.Equal(t, "Dog", dog.DiscriminatorValue, "falls back to schema name")
 }
 
+// TestAllOf_AUnionItNamesComposesAsWritten pins a union an allOf names by
+// $ref (docs/ir/models.md#a-union-a-composition-names): the schema is a Model
+// naming the union as its Base, or as a Mixin beside a hierarchy's base, and
+// declaring its own members alone. Nothing is distributed over the union's
+// variants or reported, discriminated or not, in either declaration order.
+func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
+	t.Parallel()
+	const branches = "[{$ref: '#/components/schemas/Block'}, {$ref: '#/components/schemas/Log'}]\n"
+	const hierarchy = "    Pet: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
+		"    Stored:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
+		"        - $ref: '#/components/schemas/Rule'\n" +
+		"        - {type: object, required: [id], properties: {id: {type: string}}}\n"
+	const unpinned = "    Block: {type: object, properties: {action: {type: string}}}\n" +
+		"    Log: {type: object, properties: {action: {type: string}}}\n"
+	cases := []struct {
+		name, union, rest string
+		base              string   // the component Stored's Base names
+		mixins            []string // the components its Mixins name
+		discriminated     bool     // Rule carries a discriminator, declared or inferred
+	}{
+		{"a discriminated oneOf", "    Rule:\n      discriminator: {propertyName: action}\n      oneOf: " + branches,
+			pinnedRules + stored, "Rule", nil, true},
+		{"an undiscriminated anyOf", "    Rule:\n      anyOf: " + branches, unpinned + stored, "Rule", nil, false},
+		{"beside a hierarchy's base", "    Rule:\n      oneOf: " + branches, pinnedRules + hierarchy, "Pet",
+			[]string{"Rule"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range taggedOrders(t, c.union, c.rest) {
+				s, ok := typeByName(doc, "Stored").(*ir.Model)
+				require.True(t, ok, "Stored lowers to a model; got %T", typeByName(doc, "Stored"))
+				require.NotNil(t, s.Base)
+				assert.Equal(t, componentID(c.base), s.Base.Target)
+				var mixins []ir.TypeID
+				for _, m := range s.Mixins {
+					mixins = append(mixins, m.Target)
+				}
+				var want []ir.TypeID
+				for _, m := range c.mixins {
+					want = append(want, componentID(m))
+				}
+				assert.Equal(t, want, mixins)
+				require.Len(t, s.Properties, 1)
+				assert.Equal(t, "id", s.Properties[0].Name.Source)
+
+				u, ok := typeByName(doc, "Rule").(*ir.Union)
+				require.True(t, ok, "Rule lowers to a union; got %T", typeByName(doc, "Rule"))
+				assert.Equal(t, c.discriminated, u.Discriminator != nil)
+				require.Len(t, u.Variants, 2)
+				assert.Equal(t, componentID("Block"), u.Variants[0].Type.Target)
+				assert.Equal(t, componentID("Log"), u.Variants[1].Type.Target)
+				for id := range doc.Types {
+					assert.NotContains(t, string(id), "t/composed/", "nothing is distributed")
+				}
+				assert.Empty(t, withCode(doc.Diagnostics, diag.CompositionLowering))
+			}
+		})
+	}
+}
+
 func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Bad:

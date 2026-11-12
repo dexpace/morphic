@@ -1248,7 +1248,9 @@ becomes a `Mixin`; and an inline entry merges into the composing model's own `Pr
 property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
 [`allof-redeclared-property`](#allof-redeclared-property)). So every `$ref` entry stays composed
 and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
-on the field without its source.
+on the field without its source. A `$ref` entry naming a union is no exception: the union is the
+`Base` or a `Mixin`, never distributed over its variants as one written beside the `allOf` is
+([models](../ir/models.md#a-union-a-composition-names)).
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -1269,7 +1271,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `schema.TestAllOf_NestedInlineWrapperFlattens`, `schema.TestAllOf_NestedWrapperBaseSelection`,
   `schema.TestAllOfBranches_DepthCapKeepsWrapperVerbatim`,
   `schema.TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites`,
-  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`
+  `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`,
+  `schema.TestAllOf_AUnionItNamesComposesAsWritten`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
 
@@ -2530,16 +2533,18 @@ beside either routes the schemas that union lists, where "all possible schemas M
 explicitly": each schema a `$ref` branch, of the `oneOf` where both are written, ends on, in
 whichever document, as the ancestors are read. A schema composing a discriminated union that does
 not list it is a narrowing of that union, every instance of it an instance of one variant and
-carrying that variant's tag, so no tag routes to it and it carries none. Reading what such a schema
-admits for the tag instead, as [`discriminator-inference`](#discriminator-inference) reads a
-subtype's, would not do: where the union's variants pin nothing it admits its name, which still
-routes to no variant. At `cloudflare/api-schemas` @`e411be7e` three schemas compose such a union,
-every branch of which holds the tag to values other than the composing schema's name. A subtype that
-is no component schema — inline as a property or a union branch, or under an extension — has no name
-to answer to, so only a mapping entry tags it, and a chain with no discriminated ancestor carries no
-tag however deep. A subtype a discriminator routes to is never distributed across a union written
-beside its `allOf` or on one of its branches ([`union-beside-structure`](#union-beside-structure)),
-since a union would be no subtype, so no variant of a distributed union carries a tag.
+carrying that variant's tag, so no tag routes to it and it carries none; it composes the union
+([`allof-classification`](#allof-classification)), which an emitter lowers as the union it narrows.
+Reading what such a schema admits for the tag instead, as
+[`discriminator-inference`](#discriminator-inference) reads a subtype's, would not do: where the
+union's variants pin nothing it admits its name, which still routes to no variant. At
+`cloudflare/api-schemas` @`e411be7e` three schemas compose such a union, every branch of which holds
+the tag to values other than the composing schema's name. A subtype that is no component schema —
+inline as a property or a union branch, or under an extension — has no name to answer to, so only a
+mapping entry tags it, and a chain with no discriminated ancestor carries no tag however deep. A
+subtype a discriminator routes to is never distributed across a union written beside its `allOf` or
+on one of its branches ([`union-beside-structure`](#union-beside-structure)), since a union would be
+no subtype, so no variant of a distributed union carries a tag.
 
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`, `oneof-discriminated`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
@@ -2549,8 +2554,6 @@ since a union would be no subtype, so no variant of a distributed union carries 
   `schema.TestDiscriminatorValue_TheImplicitMappingRoutesWhatAUnionLists`,
   `schema.TestRoutesByName_ReadsAUnionsListOnce`,
   `schema.TestDiscriminatorValue_AUnionListsTheSchemaItsBranchEndsOn`
-- Status: partly built: a schema composing a discriminated union that does not list it composes the
-  union as it would any other, where it may lower as the union narrowed (#1716).
 
 ### `discriminator-inference`
 
