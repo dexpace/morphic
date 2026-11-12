@@ -364,7 +364,9 @@ throughout these documents.
     table of its own; a model narrowing a union a table for each entry of its `TypePlan.Composed` in
     each shape, each holding its variant's members beside the model's as the entry's flattening
     takes them, so `rulesets_ResponseRule`'s tables mark required the five members it requires and
-    its union's variants do not, each naming the variants its `Over` lists and its tag, a union of
+    its union's variants do not, each naming the variants its `Over` lists and its tag and anchored
+    from the model, that `Over` and its shape, a value of it redacted at its entry's `Redacted`
+    members and whole where a variant its `Over` lists is sensitive, a union of
     unions a table for each entry it expands to, each member anchored once, one the model declares
     in the first table holding it and one a variant declares where that variant is rendered, an
     anonymous union only the model's composition reaches giving its anonymous variants no table of
