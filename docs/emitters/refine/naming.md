@@ -265,14 +265,17 @@ it changes nothing those read:
   words does.
 - **Kotlin** writes the identifier in backticks and keeps every character: a property `` `café` ``,
   a class `` `नाम` ``, and for a type `ɤx`, cased `Ɤx`, `` `Ɤx` ``. Backticks are no part of a name,
-  in a class file or in the header, so the node is marked nothing, and a caller writes them where
-  its own compiler needs them. A KDoc link writes them too, around each such segment: Dokka 2.3.0
-  linked ``[`नाम`.`café`]`` and left `[नाम]` plain text. What backticks cannot hold is ASCII
-  punctuation, a backtick and a line break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:`
-  and `\` on the JVM and a further thirteen on Native), none of which an identifier holds: a word is
-  letters, marks and digits, and a name with none is named in ASCII (above). A Java caller writes
-  such a name where its JDK's tables hold each character, as javac 25 did `नाम` and the decomposed
-  `café`; Java 25's lack 4,709 of the code points above.
+  in a class file or in the header, so the node is marked nothing, a caller writes them where its
+  own compiler needs them, and they go around the identifier as the later steps leave it, since a
+  reserved name's underscore and a collision's suffix neither add such a character nor remove one. A
+  KDoc link writes them too, around each such segment: Dokka 2.3.0 linked ``[`नाम`.`café`]`` and
+  left `[नाम]` plain text. What backticks cannot hold is ASCII punctuation, a backtick and a line
+  break (kotlinc refused `.`, `;`, `[`, `]`, `/`, `<`, `>`, `:` and `\` on the JVM and a further
+  thirteen on Native), none of which an identifier holds: a word is letters, marks and digits, and a
+  name with none is named in ASCII (above). A Java caller writes such a name where its JDK's tables
+  hold each character, as javac 25 did `नाम` and the decomposed `café`; Java 25's lack 4,709 of the
+  code points above. A unit's name, a package segment and a module's directory too, is rendered as
+  the target's naming document says ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 Which characters a role cannot hold as they stand is a table of the target's options version, read
 from its toolchain and no configuration's to replace: on Go a toolchain that learns a mark would
@@ -407,11 +410,12 @@ names that keep the same words still differ in their last. A path the target nam
 identifier, as Go names a declaration's file, is shortened as its target says, and the identifier
 is not ([Go](../targets/go/naming.md#file-names)).
 
-The hash reads the identifier and not `Naming.Canonical`, which a name with no words and a type
-named from a hint lack, and which holds no word a role or the plan adds: `____________` and
-`_____________`, twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type's
-`Create` and `UpdatePatch` declarations ([TypePlan](../plan/types.md#the-declaration-a-shape-takes))
-their type's words alone. T-53 holds it.
+The cap measures the identifier as it is written, backticks aside, and the hash reads that
+identifier whole rather than `Naming.Canonical`, which a name with no words and a type named from a
+hint lack, and which holds no word a role or the plan adds: `____________` and `_____________`,
+twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type's `Create` and
+`UpdatePatch` declarations ([TypePlan](../plan/types.md#the-declaration-a-shape-takes)) their type's
+words alone. T-53 holds it.
 
 The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
 110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and 251 in

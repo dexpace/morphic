@@ -768,25 +768,26 @@ throughout these documents.
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
-    does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with `ɤx`,
-    whose capital it does not know, with a name whose first word and one whose second begins with
-    U+0301, and with names whose first letter Go does not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx`
-    and past the BMP `𐀀x`, generates code that compiles on every target: on Go each character a role
-    cannot hold written by its name once the identifier is cased, its `u` in lower case
-    (`Cafeu0301`, `Field_u0301x`), and every import path in ASCII; on Kotlin each such identifier in
-    backticks with the spec's characters (a type `Ɤx`, a property of `field_`, U+0301 and `x`),
-    built for the JVM, JS, Wasm and a framework, under the serialization plugin, every KDoc link to
-    one resolving; and the policy's casing of every code point equal to a golden held to the options
-    version, so a Go release moving its Unicode tables fails the suite and renames nothing. A caller
-    in another unit, a Go package or a Kotlin module, and a Java caller, sets and reads each
-    property and calls each operation by its rendered name; a name holding U+2E2F links into a
-    Multiplatform framework whose header clang compiles, and a Swift file importing the framework
-    reaches each class, property and entry by the Swift name the policy chose, past ASCII its
-    Objective-C name, as `ProbeA日本` for a class `A日本` in a framework `Probe` and `ProbeA日本Builder`
-    for the builder it nests, or an explicit name in ASCII where it takes one, as enum entries
-    `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both declaration orders, and each method whose
-    name or a parameter's is past ASCII, an ASCII `fetch(id:名前:)` and a `listBy(id:名前:)` among them,
-    by the name read from the built module, its selector the policy's
+    does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark
+    past the BMP, U+11046 after a letter, with `ɤx`, whose capital it does not know, with a name
+    whose first word and one whose second begins with U+0301, and with names whose first letter Go
+    does not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, generates code that
+    compiles on every target: on Go each character a role cannot hold written by its name once the
+    identifier is cased, its `u` in lower case and its hex four digits at least (`Cafeu0301`,
+    `Field_u0301x`, `u11046`), and every import path in ASCII; on Kotlin each such identifier in
+    backticks with the spec's characters (a type `Ɤx`, a property of `field_`, U+0301 and `x`), a
+    collision's suffix inside them, built for the JVM, JS, Wasm and a framework, under the
+    serialization plugin, every KDoc link to one resolving; and the policy's casing of every code
+    point equal to a golden held to the options version, so a Go release moving its Unicode tables
+    fails the suite and renames nothing. A caller in another unit, a Go package or a Kotlin module,
+    and a Java caller, sets and reads each property and calls each operation by its rendered name; a
+    name holding U+2E2F links into a Multiplatform framework whose header clang compiles, and a
+    Swift file importing the framework reaches each class, property and entry by the Swift name the
+    policy chose, past ASCII its Objective-C name, as `ProbeA日本` for a class `A日本` in a framework
+    `Probe` and `ProbeA日本Builder` for the builder it nests, or an explicit name in ASCII where it
+    takes one, as enum entries `A_日本` and `A日本` are `a_u65e5u672c` and `a日本` in both declaration
+    orders, and each method whose name or a parameter's is past ASCII, an ASCII `fetch(id:名前:)` and
+    a `listBy(id:名前:)` among them, by the name read from the built module, its selector the policy's
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
     [leading
     words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
