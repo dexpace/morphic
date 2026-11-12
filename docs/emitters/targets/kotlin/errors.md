@@ -50,15 +50,15 @@ raw](../../refine/redaction.md#what-the-runtime-holds-raw)) is no property of it
 `OtherResponse`, `Response`, `EnvelopedResponse`, the runtime's `Headers` and an `InboundRequest`
 each keep it in a private `@Transient` field read through a function, are never a `data class`,
 whose `toString`, `copy` and `componentN` hand on every member, and declare no `toString` reading
-it. Measured with Kotlin 2.4.0, Gson 2.11.0 and Jackson 2.17.2, over `toString`, a string
-template, `String.format`, both encoders, Jackson told to read every field, Java serialization
-and an exception's stack trace, for a failure, its exception, a response and `Headers`, each alone
-and in another class's property: none of 72 renderings held a header's value or the body's bytes,
-where 10 of 36 did with the same members as properties, and 6 of 18 as private fields without
-`@Transient`, which Gson reads. `kotlinx.serialization` encodes none of them, since a class
-without `@Serializable` has no serializer to compile against, and from Swift a failure's
-`description`, `String(reflecting:)` and `dump` showed none of it. `@Transient` is
-`kotlin.jvm.Transient`, which common code may write and the other platforms ignore.
+it. Measured with Kotlin 2.4.0, Gson 2.11.0 and Jackson 2.17.2, over `toString`, a string template,
+`String.format`, both encoders, Jackson told to read every field, Java serialization and an
+exception's stack trace, for a failure, its exception, a response and `Headers`, each alone and in
+another class's property: none of 72 renderings held a header's value or the body's bytes, where 10
+of 36 did with the same members as properties, and 6 of 18 as private fields without `@Transient`,
+which Gson reads. `kotlinx.serialization` encodes none of them, since a class without
+`@Serializable` has no serializer to compile against, and from Swift a failure's `description`,
+`String(reflecting:)` and `dump` showed none of it. `@Transient` is `kotlin.jvm.Transient`, which
+common code may write and the other platforms ignore. T-65 holds this section.
 
 ## A transport's failure
 
@@ -82,7 +82,7 @@ whose class is the platform's and dropping the library's was weighed, and the so
 why not: its class is `java.net.SocketTimeoutException` and its message Ktor's. The cost is the
 library's stack trace, which a caller who wants it reads in a `Transport` wrapper
 ([auth](../../operations/auth.md#where-a-credential-can-be-read)). A caller's own cancelling
-passes through as the `CancellationException` it is.
+passes through as the `CancellationException` it is. T-65 holds this section.
 
 ## A failure's place
 

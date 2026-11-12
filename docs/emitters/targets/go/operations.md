@@ -98,7 +98,7 @@ body past the bound 400, which with the bound removed it answered 200. Under `ht
 check reading `req.TLS.PeerCertificates` accepted the client certificate the API presented and
 refused a connection presenting none; a receiver given no key for a query `apiKey`, and one given no
 setting for an operation declaring no security, refused a request, both of which answered 200 when
-the receiver compared the absent key or checked nothing.
+the receiver compared the absent key or checked nothing. T-71 holds this section.
 
 ## The client
 

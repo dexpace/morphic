@@ -661,7 +661,7 @@ On the golden spec (spec @bc6fad24, morphic @fa253fe19) 13 operations stream. 8 
 its one method beside CSV and Markdown no method asks for, and one offers `sse` frames of a model
 beside JSON. 5 the client writes: one `json_lines`
 text and 4 `bytes` files. None is `bidi` or sets a `Condition` or a `Terminator`, which no compiler
-fills yet (#1668).
+fills yet (#1668). T-66 holds this section.
 
 ### A page walk on the mock
 
@@ -736,7 +736,7 @@ compiler infers it yet (#989). By the names of their query parameters, its `GET`
 `POST`s take `page`. None declares a `Link` header, and 15 return an optional, nullable `next`
 string in `result_info`, 12 of them `format: uri`. Of the 92, 12 require the `cursor` that
 `result_info` returns, 8 as a string that is not nullable, whose walks the empty cursor ends
-cleanly under `no_next` and the end position under `empty`.
+cleanly under `no_next` and the end position under `empty`. T-67 holds this section.
 
 ## The mock's options
 

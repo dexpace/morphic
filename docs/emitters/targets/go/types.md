@@ -57,7 +57,7 @@ matches nothing accounts for 0.29 ms of that (Go 1.27.3, darwin/arm64). Three ot
 Readers passed only where the client decodes leave a caller's own `json.Unmarshal` refusing what the
 client reads. A runtime type in the field's place, `runtime.Int64`, changes every caller's field.
 And a second struct with such types, converted after decoding, cannot convert a `[]int64` or a
-`map[string]int64` without copying it.
+`map[string]int64` without copying it. T-61 holds this section.
 
 ## Enums
 

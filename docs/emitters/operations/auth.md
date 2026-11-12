@@ -56,6 +56,8 @@ writes today, changes nothing here. Where a scheme states one, whatever its `Kin
   `[REDACTED]`, as a sensitive type's does ([redaction](../refine/redaction.md#a-redacted-value)),
   whatever its members mark.
 
+T-65 holds this section.
+
 ## A parameter in a credential's slot
 
 A document may declare as a parameter what a scheme already sends: an `X-Api-Key` header parameter

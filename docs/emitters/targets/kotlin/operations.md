@@ -14,11 +14,11 @@ long-running operations and auth lower as the [lowering table](lowering.md) says
 The runtime times each attempt, and each read or write of a body it does not buffer, with
 `withTimeout`, and sets none of Ktor's timeouts ([runtime
 policy](../../contract/runtime-policy.md#what-a-layer-writes)). Measured with Ktor 3.2.3's CIO
-engine on Kotlin 2.4.0: the library's request timeout of 300ms ended a server stream 300ms after
-its request, a frame already read, so it cannot stand for `Timeout.Request`, which ends with the
-headers; a read of that stream under `withTimeout(300)` failed at 300ms with nothing of the
-request in its text, which is `Timeout.Idle`; and each of the library's timeouts wrote the
-request's URL into its message ([a transport's failure](errors.md#a-transports-failure)).
+engine on Kotlin 2.4.0: the library's request timeout of 300ms ended a server stream 300ms after its
+request, a frame already read, so it cannot stand for `Timeout.Request`, which ends with the
+headers; a read of that stream under `withTimeout(300)` failed at 300ms with nothing of the request
+in its text, which is `Timeout.Idle`; and each of the library's timeouts wrote the request's URL
+into its message ([a transport's failure](errors.md#a-transports-failure)). T-37 holds this section.
 
 ## The request type
 
@@ -54,7 +54,7 @@ framework did, building the receiver with every parameter, since Swift sees no d
 check as a closure returning `KotlinBoolean`; on the JVM and from Swift, a receiver given no key for
 a query `apiKey`, or no setting for an operation declaring no security, refused the request. A
 response type's `encode()` returns the runtime's `OutboundResponse(status, headers, body)`, which
-the user's server writes.
+the user's server writes. T-71 holds this section.
 
 ## Stability
 

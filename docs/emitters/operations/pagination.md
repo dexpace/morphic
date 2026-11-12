@@ -77,3 +77,8 @@ syntax-based normalization of RFC 3986 §6.2.2, which changes no URL's meaning. 
 sooner, so the pager reads no item fewer than the source's own rule would, and an empty `Stop`,
 which states no rule, ends there alone: the pager reads none into the shape. T-45 holds this
 section.
+
+A server whose continuations differ and never end meets none of these, so a walk is bounded as
+well: it fetches at most the runtime policy's `Pagination.MaxPages` pages and then fails, never
+ending as a walk that reached its end does ([runtime policy](../contract/runtime-policy.md)). T-37
+holds the bound.

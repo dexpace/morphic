@@ -18,7 +18,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 - **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which
   no function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)),
   and in the unit holding a service's receiver, `Receiver`, `NewReceiver`, `ReceiverOption`,
-  `WithVerify` and the option named for each scheme ([operations the API
+  `WithVerify`, `WithUnauthenticated` and the option named for each scheme ([operations the API
   sends](operations.md#operations-the-api-sends)).
   The runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`,
   `Response` and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
@@ -110,8 +110,9 @@ so it is the one Go role held to the length cap
 A name the options give, the root's module path or a partition's unit, never yields, so one that
 `golang.org/x/mod/module.CheckPath` refuses, or whose last element is a units name above, is an
 options error, a device name or a character past ASCII in any element among them, and so is a path
-whose first element holds no dot, `corp/sdk` (`missing dot in first path element`), which names
-no module the `go` command can fetch, though `CheckImportPath` takes it.
+whose first element holds no dot, `corp/sdk` (`missing dot in first path element`), which names no
+module the `go` command can fetch, though `CheckImportPath` takes it. T-19 and T-54 hold this
+section.
 
 ## The escape
 

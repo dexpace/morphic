@@ -58,7 +58,7 @@ and in full under a verb `fmt` has no form for: `%O` of a failure began `%!O(*st
 Set-Cookie:[…`. The function's cost is that two responses holding equal bytes are unequal to
 `reflect.DeepEqual`, which never finds two functions equal, so a test compares what `RawHeader`
 and `RawBody` return. A `RawBody` and a `Stream`, which hold a response still open, are declared
-over state structs as a sub-client is, and read it through their methods.
+over state structs as a sub-client is, and read it through their methods. T-65 holds this section.
 
 ## `OtherResponse`
 

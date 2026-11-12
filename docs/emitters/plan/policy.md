@@ -115,7 +115,8 @@ mocks](../docs-and-mock.md)).
 ([unions](../refine/unions.md#a-value-no-variant-recognizes)), so a caller builds only the variants
 the document lists, and a value kept from a response goes out as it came. A mock holds a request to
 the declared `Closed` and sends the examples the plan holds, each checked against it ([docs and
-mocks](../docs-and-mock.md)), so opening a type changes nothing a mock accepts or sends.
+mocks](../docs-and-mock.md)), so opening a type changes nothing a mock accepts or sends. T-22 and
+T-58 hold this section.
 
 ## An enum keeps a value it does not list
 
@@ -140,7 +141,8 @@ alone, and a mock refuses a request carrying any other ([docs and mocks](../docs
 `Closed` says nothing of what a later version of the API will list, and that is what a client
 reading a response has to survive. On the golden spec (spec @bc6fad24, morphic @fa253fe19) all 7,687
 enums are closed, since an OpenAPI `enum` is a closed value set, so without the policy each one a
-response carries would fail to decode the first time the API added a member.
+response carries would fail to decode the first time the API added a member. T-36 and T-58 hold this
+section.
 
 ## Neither policy reads which way a type travels
 
@@ -192,6 +194,7 @@ offers that content beside others its ranking ties it with, the policy elects it
 `Inferred` ([one election](responses.md#one-election)), so the body an SDK sends is the one relaxed.
 No other media type is read this way: a JSON Patch (`application/json-patch+json`) is a list of
 operations, and a `PATCH` sent as `application/json` says nothing about the members it leaves out.
+T-59 holds this section.
 
 ## An operation's effects come from its binding
 

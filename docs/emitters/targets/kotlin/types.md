@@ -28,7 +28,8 @@ an exponent under the SDK's `Json`, under a caller's own and from a `JsonElement
 member without it refuses `5.0`. On a 173 KB body of 2,000 models holding fourteen integers each,
 decoding took 0.95 ms with kotlinx alone and 1.90 ms through the serializer (Kotlin 2.4.0,
 kotlinx-serialization-json 1.11.0, JVM 25). kotlinx offers no cheaper seam: its `Long` decoder
-cannot be asked to try and fall back, since a refused literal has already been consumed.
+cannot be asked to try and fall back, since a refused literal has already been consumed. T-61 holds
+this section.
 
 ## Bytes
 

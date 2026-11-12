@@ -358,7 +358,7 @@ No compiler sets the field today, and the plan reads nil as stating nothing, sin
 binding and never the format behind it (INV1), so one default has to serve every format. The IR's
 own comment still words nil otherwise, as "the protocol default (PATCH projections make properties
 optional)" ([http-binding](../../ir/http-binding.md),
-[properties](../../ir/properties.md#visibility)), which #TBD-patch-nil is to settle; until then an
+[properties](../../ir/properties.md#visibility)), which #1775 is to settle; until then an
 emitter follows this document.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) every one of the 276 `PATCH` bindings leaves

@@ -130,7 +130,7 @@ has one that cannot validate a pattern drop it with a diagnostic ([HTTP
 bindings](../../ir/http-binding.md)), and a pattern dropped whole would send `a/b` as `a%2Fb`, one
 segment where the pattern names two, so the value is still escaped by this rule. The IR's comment on
 the field says the template uses reserved expansion, which this rule departs from and
-#TBD-pathpattern corrects. T-50 holds it.
+#1776 corrects. T-50 holds it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -256,7 +256,7 @@ its scalar chain, and of where it is bound:
   `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each element of a list a
   part of that name (`Multi`). An object there has none. OpenAPI gives one a default media type,
   `application/json` (§4.15.1), but the default is OpenAPI's and no other format's, so it is the
-  compiler's to lower into `ContentTypes` (#TBD-part-content-type) and never an emitter's to assume
+  compiler's to lower into `ContentTypes` (#1777) and never an emitter's to assume
   of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label and a `text/plain` body or part have one where their type is a leaf.
@@ -308,7 +308,7 @@ other parameter, header or form field. The parts are the `metadata` of `POST
 /accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
 `PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
 stay their caller's text until the compiler lowers OpenAPI's default for them
-(#TBD-part-content-type), which types each as its object and sends it as JSON. The descriptions of
+(#1777), which types each as its object and sends it as JSON. The descriptions of
 ten of the parameters call theirs JSON, one array in one parameter, as in
 `search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's one pair
 sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE
@@ -400,7 +400,7 @@ primitive's spelling ([type table](../contract/type-table.md#a-row-keyed-by-an-e
   refuses the golden spec's example, whose day name is not its date's, and writes `6 Nov` with one
   digit, and Go's `http.ParseTime` reads an rfc850-date's year `70` as 1970 at any date.
 - **A `PathPattern` text under RFC 6570's reserved expansion**, as the IR's comment on the field
-  describes it (#TBD-pathpattern): `a:b%41?c` would travel as written and read as `a:bA` with a
+  describes it (#1776): `a:b%41?c` would travel as written and read as `a:bA` with a
   query of `c`.
 - **A Smithy greedy label under `AllowReserved`**: it passes a triple and the reserved characters,
   so `a%41?c` would travel as written where Smithy sends `a%2541%3Fc`.

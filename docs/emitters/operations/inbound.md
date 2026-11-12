@@ -31,7 +31,7 @@ send it to. A target generates instead, for each service holding an inbound oper
 
 Each target's spelling is in its document
 ([Go](../targets/go/operations.md#operations-the-api-sends),
-[Kotlin](../targets/kotlin/operations.md#operations-the-api-sends)).
+[Kotlin](../targets/kotlin/operations.md#operations-the-api-sends)). T-71 holds this section.
 
 ## Reading the request
 
@@ -71,7 +71,7 @@ A parse method reads one request as it arrived, in an order a signature needs:
 What the request's sender controls is its body, its headers and its query. The body is held to the
 bound above and decodes only past the checks; the headers and the query are what the user's HTTP
 server already bounds, Go's `net/http` at 1 MB of headers by default, and the receiver reads only
-the parameters the operation declares, each once.
+the parameters the operation declares, each once. T-71 holds this section.
 
 ## What the plan holds for one
 
@@ -87,8 +87,8 @@ a receiver reading frames.
 
 `Inbound` is the HTTP binding's alone. An AsyncAPI `receive` operation is a message the client
 receives, a messaging target's through `MsgView` ([bindings](../plan/bindings.md)); a GraphQL
-subscription is a call the client starts; an OTP binding names a process the client calls. None is
-a request the API sends to a URL, so the receiver reads HTTP bindings alone.
+subscription is a call the client starts; an OTP binding names a process the client calls. None is a
+request the API sends to a URL, so the receiver reads HTTP bindings alone. T-71 holds this section.
 
 ## The mock server and the docs
 

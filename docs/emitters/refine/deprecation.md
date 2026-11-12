@@ -32,7 +32,7 @@ spec (spec @bc6fad24, morphic @fa253fe19), 465 of 778 deprecations set no field 
 message, none names a replacement in `ReplacedBy`, and of the 187 operations'
 `x-stainless-deprecation-message` values, 175 name a replacement operation: 147 by a Markdown link
 to its page, 26 by its method and path, as `Use GET /events/event-categories/by-id/{category_id}
-before 2026-11-28.` does, and 2 by its path alone.
+before 2026-11-28.` does, and 2 by its path alone. T-70 holds this section.
 
 ## Each replacement
 

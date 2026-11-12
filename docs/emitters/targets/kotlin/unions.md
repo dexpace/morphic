@@ -23,7 +23,8 @@ The serializer writes a variant's tag as [the shared
 rule](../../refine/unions.md#the-tag-a-variants-value-carries) says. A model's properties are
 `val`s, so it encodes a variant with one own tag to a `JsonObject` under the encoder's `Json` and
 writes that object with the tag at its member, in the member's place or first where the object has
-none, and a variant with several or none as it stands once its tag is checked.
+none, and a variant with several or none as it stands once its tag is checked. T-56 holds this
+section.
 
 ## An inclusive union
 

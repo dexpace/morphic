@@ -102,7 +102,7 @@ highlights, and the list moves to a specification of its own when the compiler l
   the IR documents ([encodings](../ir/constraints.md#encodings)), which key an emitter's rows:
   `http-date` as written, `date-time` → `rfc3339`, and `epoch-seconds` → `unixTimestamp` with a
   `float64` WireType, the number with a fraction Smithy writes; the `@mediaType` string waits on
-  the IR telling a string to encode from one already encoded (#TBD-encoding-direction, [a row
+  the IR telling a string to encode from one already encoded (#1778, [a row
   keyed by an encoding](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding))
 - xml traits → XMLHints at type and property level
 - `@examples` → Examples (Input/Output/Error)
