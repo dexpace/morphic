@@ -6,7 +6,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 
 - **The units**: `internal`, which no caller outside the SDK may import, `testdata`, which `./...`
   skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies.
-- **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client. The
+- **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client and
+  the function the root's client builds it with ([output units](overview.md#output-units)). The
   runtime's names (`APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response`,
   `Stream`) are its own unit's, which holds no spec name ([the runtime's
   unit](../../refine/output-units.md#the-runtimes-unit)), and code elsewhere writes them qualified,
