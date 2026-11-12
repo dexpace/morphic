@@ -39,12 +39,15 @@ func deprecated() *ir.Deprecation { return &ir.Deprecation{} }
 
 // replacementDoc is a document in which each kind of node replacement reads
 // is deprecated and names its replacement through value, and each has another
-// of its kind to name.
+// of its kind to name: headers among them at each place a list of them sits.
 func replacementDoc(c lowering.Ctx, value string) *ir.Document {
 	v2 := c.IDs().NamedType("/components/schemas/v2")
 	old := c.IDs().NamedType("/components/schemas/old")
 	header := func(id ir.PropID, name string, unmodeled ir.Unmodeled, dep *ir.Deprecation) ir.Header {
 		return ir.Header{ID: id, WireName: name, Unmodeled: unmodeled, Deprecation: dep}
+	}
+	pair := func(at string) []ir.Header {
+		return []ir.Header{header(ir.PropID(at+"/old"), "X-Old", names(value), deprecated()), header(ir.PropID(at+"/v2"), "v2", nil, nil)}
 	}
 	return &ir.Document{
 		Services: []ir.Service{{Groups: []ir.OperationGroup{{Operations: []ir.Operation{
@@ -56,9 +59,15 @@ func replacementDoc(c lowering.Ctx, value string) *ir.Document {
 				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{
 					{Param: "param/old", Location: ir.HTTPLocationQuery}, {Param: "param/v2", Location: ir.HTTPLocationQuery},
 				}}}},
+				Request: &ir.Payload{Contents: []ir.Content{{
+					ItemEncoding: &ir.PartEncoding{Headers: pair("p/item")},
+					Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: pair("p/part")}},
+				}}},
 				Responses: []ir.Response{{Headers: []ir.Header{
 					header("p/h/old", "X-Old", names(value), deprecated()), header("p/h/v2", "V2", nil, nil),
-				}}},
+				}, Payload: &ir.Payload{Contents: []ir.Content{{
+					Encoding: map[ir.PropID]ir.PartEncoding{"p/part": {Headers: pair("p/response-part")}},
+				}}}}},
 				Errors: []ir.ErrorCase{{Headers: []ir.Header{
 					header("p/e/old", "X-Old", names(value), deprecated()), header("p/e/v2", "v2", nil, nil),
 				}}},
@@ -85,8 +94,9 @@ func replacementDoc(c lowering.Ctx, value string) *ir.Document {
 
 // TestResolve_NamesEachReplacementInItsNodesScope pins how each node's name
 // resolves: an operation by operationId, a parameter and a header among its
-// siblings, a property within its model, a schema by its components name and a
-// security scheme by its key, each marked as promoted.
+// siblings, a response's or an encoding's, a property within its model, a
+// schema by its components name and a security scheme by its key, each marked
+// as promoted.
 func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 	t.Parallel()
 	c := mapped()
@@ -110,6 +120,13 @@ func TestResolve_NamesEachReplacementInItsNodesScope(t *testing.T) {
 			ir.EntityRef{Property: "p/e/v2"}},
 		{"a default's header", op.Default.Headers[0].Deprecation, op.Default.Headers[0].Provenance,
 			ir.EntityRef{Property: "p/d/v2"}},
+		{"a request part's header", op.Request.Contents[0].Encoding["p/part"].Headers[0].Deprecation,
+			op.Request.Contents[0].Encoding["p/part"].Headers[0].Provenance, ir.EntityRef{Property: "p/part/v2"}},
+		{"a stream item's header", op.Request.Contents[0].ItemEncoding.Headers[0].Deprecation,
+			op.Request.Contents[0].ItemEncoding.Headers[0].Provenance, ir.EntityRef{Property: "p/item/v2"}},
+		{"a response part's header", op.Responses[0].Payload.Contents[0].Encoding["p/part"].Headers[0].Deprecation,
+			op.Responses[0].Payload.Contents[0].Encoding["p/part"].Headers[0].Provenance,
+			ir.EntityRef{Property: "p/response-part/v2"}},
 		{"a schema", doc.Types[old].Common().Deprecation, doc.Types[old].Common().Provenance, ir.EntityRef{Type: v2}},
 		{"a property", doc.Types[old].(*ir.Model).Properties[0].Deprecation,
 			doc.Types[old].(*ir.Model).Properties[0].Provenance, ir.EntityRef{Property: "p/v2"}},

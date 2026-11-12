@@ -4,12 +4,16 @@
 package replacement
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
 // service fills the replacements of every operation svc holds, nested groups
-// included to ir.MaxGroupDepth, of its parameters and of its responses' headers.
+// included to ir.MaxGroupDepth, of its parameters, and of the headers its
+// responses and its bodies' encodings declare.
 func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 	ops := operations(svc)
 	byName := map[string][]ir.OpID{}
@@ -30,14 +34,41 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, ir.EntityRef{Operation: op.ID},
 			"operation", operation)...)
 		diags = append(diags, r.params(op)...)
+		diags = append(diags, r.payload(op.Request)...)
 		for i := range op.Responses {
-			diags = append(diags, r.headers(op.Responses[i].Headers)...)
+			diags = append(diags, r.response(op.Responses[i].Headers, op.Responses[i].Payload)...)
 		}
 		for i := range op.Errors {
-			diags = append(diags, r.headers(op.Errors[i].Headers)...)
+			diags = append(diags, r.response(op.Errors[i].Headers, op.Errors[i].Payload)...)
 		}
 		if op.Default != nil {
-			diags = append(diags, r.headers(op.Default.Headers)...)
+			diags = append(diags, r.response(op.Default.Headers, op.Default.Payload)...)
+		}
+	}
+	return diags
+}
+
+// response fills the replacements of a response's headers, hs, and of those its
+// body, p, declares.
+func (r *resolver) response(hs []ir.Header, p *ir.Payload) []ir.Diagnostic {
+	return append(r.headers(hs), r.payload(p)...)
+}
+
+// payload fills the replacements of the headers each media type of p declares
+// for a part or a stream's items, each among the headers beside it. A part's
+// encoding is a map value, whose Headers still share their array with p.
+func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
+	if p == nil {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for i := range p.Contents {
+		c := &p.Contents[i]
+		if c.ItemEncoding != nil {
+			diags = append(diags, r.headers(c.ItemEncoding.Headers)...)
+		}
+		for _, part := range slices.Sorted(maps.Keys(c.Encoding)) {
+			diags = append(diags, r.headers(c.Encoding[part].Headers)...)
 		}
 	}
 	return diags

@@ -18,8 +18,8 @@ import (
 // replacements, the entities those names resolve to, each named as the
 // document names an entity of the node's class: an operation by its
 // operationId, a parameter by `<in>.<name>` or its name within its operation,
-// a header by name within its response, a property by name within its model,
-// a schema by its components name, and a security scheme by its key
+// a header by name among the headers beside it, a property by name within its
+// model, a schema by its components name, and a security scheme by its key
 // (docs/compilers/openapi.md#extension-promotion). c is the source's context.
 func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	r := resolver{c: c, p: c.Promoter(), doc: doc}

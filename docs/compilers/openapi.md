@@ -4377,17 +4377,19 @@ where one reading could override what the other reports.
 
 `Deprecation.ReplacedBy` is read through the target `deprecation.replacedBy`, which no default key
 names either, since no spelling for a replacement has become common. A mapped key's string, or list
-of strings, names each replacement as the document names an entity of the node's class: an
-operation by its `operationId`, a parameter of the same operation as a link's key names one
-(`<in>.<name>` or a name one parameter carries), a header by its name among its response's headers,
-in any case, a property by its name within its model, a schema by its name under
-`components/schemas`, and a security scheme by its key. The names are resolved once the document is
-whole, since a replacement may be declared after what it replaces, and they fill the field all or
-none: a name that names nothing, names more than one entity, or names the node itself, leaves the
-field unset and is reported as an info `openapi/degraded-construct` at the key, as no entity is
-picked from several. As a deprecation's other members, a replacement on a node that is not
-deprecated annotates nothing, and it is read from the node's own keys alone, never lent by a
-`$ref`'s target, whose class is another.
+of strings, names each replacement as the document names an entity of the node's class: an operation
+by its `operationId`, a parameter of the same operation as a link's key names one (`<in>.<name>` or
+a name one parameter carries), a header by its name among the headers beside it, a response's or
+those an encoding gives a part or a stream's items, in any case, a property by its name within its
+model, a schema by its name under `components/schemas`, and a security scheme by its key. A property
+whose schema lowers to a type of its own, such as an inline object or enum, is deprecated on that
+type ([`docs-and-deprecation`](#docs-and-deprecation)), so a name there is read as a schema's. The
+names are resolved once the document is whole, since a replacement may be declared after what it
+replaces, and they fill the field all or none: a name that names nothing, names more than one
+entity, or names the node itself, leaves the field unset and is reported as an info
+`openapi/degraded-construct` at the key, as no entity is picked from several. As a deprecation's
+other members, a replacement on a node that is not deprecated annotates nothing, and it is read from
+the node's own keys alone, never lent by a `$ref`'s target, whose class is another.
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
