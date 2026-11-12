@@ -22,7 +22,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     runtime's unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException`
     and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
     `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-    `Authenticator`, `Transport`, `InboundRequest`, `OutboundResponse`, and the opt-in annotations
+    `Authenticator`, `Transport`, `InboundRequest`, `InboundCheck`, `OutboundResponse`, and the opt-in
+    annotations
     `AlphaApi`, `BetaApi` and `InternalSdkApi` ([stability](operations.md#stability)) among them,
     and on Multiplatform `Decimal` and `OffsetDateTime`. A file naming one beside a spec class of
     its name imports one under a name of its own ([imports](#imports)), so no generated file needs

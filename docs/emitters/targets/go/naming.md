@@ -25,8 +25,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   each built, a caller's file importing `error_` and `string_` among them.
 - **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which no
   function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)), and
-  in the unit holding a service's receiver, `Receiver`, `NewReceiver`, `ReceiverOption`,
-  `WithVerify`, `WithUnauthenticated` and the option named for each scheme ([operations the API
+  in the unit holding a service's receiver, `Receiver`, `NewReceiver` and `ReceiverConfig`, whose
+  fields `Verify` and `Unauthenticated` each scheme's field yields to ([operations the API
   sends](operations.md#operations-the-api-sends)). The runtime's names, `APIError`, `Body`,
   `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response` and `Stream` among them, are its own
   unit's, which holds no spec name ([the runtime's

@@ -41,7 +41,9 @@ type's property for it is nullable, null taking the client's.
 A service's receiver ([operations the API sends](../../operations/inbound.md)) is a class `Receiver`
 built with a value for each scheme its operations name that the receiver can compare, `verify:
 ((InboundRequest, InboundCheck) -> Boolean)?` for the caller's check and `allowUnauthenticated:
-Boolean`, stating that an operation declaring no security admits any sender, each unset by default.
+Boolean`, stating that an operation declaring no security admits any sender, each unset by default;
+a scheme named as either takes the escape, as any parameter meeting a name generated code binds
+does ([naming](naming.md#the-escape)).
 The check is handed the runtime's `InboundCheck(operation, scheme)`, the parse method as the SDK
 names it and the name the document gives the scheme, null for an alternative naming none. A parse
 method takes the runtime's `InboundRequest(method, target, headers, body: ByteArray,
