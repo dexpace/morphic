@@ -182,11 +182,11 @@ type, `field` for a field, `call` for a method, `value` for a constant, `arg` fo
 Camel and Pascal case mark where a word begins by upper-casing its first character, as every role of
 the first targets does but two: a package, whose words join with no separator, and a Kotlin
 constant, which writes `_` between every two (`VALUE_10002`). Upper-casing leaves some characters as
-they are — a digit, a letter of no case such as `日`, one already upper-case such as `ℤ` — so a word
-beginning with one is not marked. `v_1_2` and `v_12` would both be Go's field `V12`, and an enum
-`Version`'s members `1_0` and `10` both its constant `Version10`, though their words differ, and
-words are what the `names` pass compares ([names one scope
-shares](../../ir/naming.md#names-one-scope-shares)).
+they are — a digit, a letter of no case such as `日`, one already upper-case such as `ℤ`, or a
+lower-case one with no upper-case form such as `ß` — so a word beginning with one is not marked.
+`v_1_2` and `v_12` would both be Go's field `V12`, and an enum `Version`'s members `1_0` and `10`
+both its constant `Version10`, though their words differ, and words are what the `names` pass
+compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
 
 Where a word begins with such a character, `Case` writes `_` before it, unless one of the two
 characters the break falls between is a letter and the other a digit: the grammar breaks wherever
@@ -205,14 +205,14 @@ them. An acronym or a spelling that upper-cases more of a word can still make tw
 a package, which joins every word, drops this break with the rest (#1742).
 
 Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
-without an underscore. The two names would collide, and `Ctx.Syms` would part them by ID order:
-`1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version102`, each constant
-reading as another value, which no warning of the pass could set right. Go's standard library writes
-the underscore between two digit words itself (`sha512.Sum512_256`), and golint's naming rule, which
-revive's `var-naming` keeps, accepts it there while reporting one between two letters (`A_日本`,
-measured with golangci-lint 2.14.0). Kotlin's conventions write a camel name with none, so on Kotlin
-this departs from them; kotlinc 2.4.0 compiles the names, writing `V1_2.class` beside `V12.class`.
-The golden spec's unmarked breaks all fall between two digits, as in `zones_tls_1_2_only` and a SAML
-`2_0` (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`). Writing `_` before every word
-with no upper case, `Type_10GbpsTo_100Gbps`, was not taken either: it marks breaks no name could
-have joined.
+without an underscore. The two names would collide, and `Ctx.Syms` would tell them apart by ID
+order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version102`, each
+constant reading as another value, which no warning of the pass could set right. Go's standard
+library writes the underscore between two digit words itself (`sha512.Sum512_256`), and golint's
+naming rule, which revive's `var-naming` keeps, accepts it there while reporting one between two
+letters (`A_日本`, measured with golangci-lint 2.14.0). Kotlin's conventions write a camel name with
+none, so on Kotlin this departs from them; kotlinc 2.4.0 compiles the names, writing `V1_2.class`
+beside `V12.class`. The golden spec's unmarked breaks all fall between two digits, as in
+`zones_tls_1_2_only` and a SAML `2_0` (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`).
+Writing `_` before every word with no upper case, `Type_10GbpsTo_100Gbps`, was not taken either: it
+marks breaks no name could have joined.

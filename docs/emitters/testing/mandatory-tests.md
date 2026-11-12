@@ -323,10 +323,12 @@ throughout these documents.
     suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
     suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
     is passed over; names whose words differ only at a break letter case cannot mark, properties
-    `v1.2` and `v12`, an enum's members `1.0` and `10`, and on Go the constants of `V1`'s member `2`
-    and `V`'s `12`, render apart with no suffix, while of `V12` and `v12`, one name, the second
-    takes its suffix after `_` (Go's `V12_2`); and on Multiplatform a type added in another unit,
-    its ID sorting first, leaves an incumbent's Objective-C name as it shipped
+    `v1.2` and `v12`, and `a-日本` and `a日本`, an enum's members `1.0` and `10`, and on Go the
+    constants of `V1`'s member `2` and `V`'s `12`, render apart with no suffix, a letter beside a
+    digit taking no `_`, as a schema `10_gbps_to_100_gbps` renders `Type10GbpsTo100Gbps`, while of
+    `V12` and `v12`, one name, the second takes its suffix after `_` (Go's `V12_2`); and on
+    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
+    Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
