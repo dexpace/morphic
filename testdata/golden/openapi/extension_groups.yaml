@@ -1,0 +1,63 @@
+openapi: 3.1.0
+info:
+  title: Extension groups
+  version: "1"
+  description: >-
+    Operations grouped by the path x-fern-sdk-group-name states, compiled with
+    grouping=extension: a dotted string, a list of segments, a path nested in
+    another that holds operations of its own, an operation stating no path and
+    one whose value names none, both grouped by their tags, a callback filed
+    with its parent and a webhook in the webhook group.
+tags:
+  - name: misc
+paths:
+  /accounts/{account_id}/members:
+    parameters:
+      - name: account_id
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      operationId: listMembers
+      x-fern-sdk-group-name: accounts.members
+      responses:
+        "200": {description: ok}
+  /accounts:
+    get:
+      operationId: listAccounts
+      x-fern-sdk-group-name: accounts
+      callbacks:
+        changed:
+          '{$request.query.callback}':
+            post:
+              operationId: accountsChanged
+              responses:
+                "200": {description: ok}
+      responses:
+        "200": {description: ok}
+  /zero-trust/devices/policies:
+    get:
+      operationId: listDevicePolicies
+      x-fern-sdk-group-name: [zero-trust, devices.policies]
+      responses:
+        "200": {description: ok}
+  /status:
+    get:
+      operationId: getStatus
+      tags: [misc]
+      responses:
+        "200": {description: ok}
+  /legacy:
+    get:
+      operationId: getLegacy
+      tags: [misc]
+      x-fern-sdk-group-name: legacy..v1
+      responses:
+        "200": {description: ok}
+webhooks:
+  accountCreated:
+    post:
+      operationId: accountCreated
+      x-fern-sdk-group-name: accounts
+      responses:
+        "200": {description: ok}

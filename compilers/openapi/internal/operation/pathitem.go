@@ -122,7 +122,7 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGrou
 			continue
 		}
 		diags = append(diags, found...)
-		diags = append(diags, lowerPathItem(c, w, groups, svc, path, layers)...)
+		diags = append(diags, lowerPathItem(w, groups, svc, path, layers)...)
 	}
 	return diags
 }
@@ -131,11 +131,11 @@ func lowerPaths(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGrou
 // into its group, carrying along any callback operations registered under the
 // same group. Each operation keeps its mount pointer (under path) as its
 // identity, and lowers from where its layer declares it (see pathItemLayers).
-func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
-	route := opContext{key: path, withCallbacks: true, inferred: groupingInferred(c)}
+func lowerPathItem(w walk, groups *serviceGroups, svc *ir.Service, path string, layers []layer) []ir.Diagnostic {
+	route := opContext{key: path, withCallbacks: true, groups: groups}
 	mounted, diags := mountPathItem(w, layers, ids.Ptr("paths", path), route, &svc.Unmodeled)
 	for _, m := range mounted {
-		grp := groups.place(groups.groupFor(c, m.src, path))
+		grp := groups.place(m.levels)
 		grp.Operations = append(grp.Operations, m.op)
 		grp.Operations = append(grp.Operations, m.extra...)
 	}
@@ -143,11 +143,12 @@ func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Servic
 }
 
 // mountedOp is one operation a path item mounts, the callback operations
-// lowered under it, and the source operation its route places it by.
+// lowered under it, and the groups its route files it in, nil on a route
+// filing none.
 type mountedOp struct {
-	src   *soa.Operation
-	op    ir.Operation
-	extra []ir.Operation
+	op     ir.Operation
+	extra  []ir.Operation
+	levels []groupLevel
 }
 
 // mountPathItem lowers every operation the layers of one path item mount, below
@@ -188,6 +189,12 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		opCtx.method = po.method
 		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
 		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
+		var filed filing
+		if route.groups != nil {
+			filed = route.groups.file(l.in, po.src, opCtx.ptrs.decl, route.key)
+			opCtx.inferred = filed.inferred
+			diags = append(diags, filed.diags...)
+		}
 		op, extra, opDiags := lowerOperation(l.in, w, po.src, opCtx)
 		diags = append(diags, opDiags...)
 		takes := len(op.Servers) == 0
@@ -195,7 +202,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 			op.Servers = slices.Clone(named)
 		}
 		diags = append(diags, keepOn(&op, kept, docs)...)
-		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
+		mounted = append(mounted, mountedOp{op: op, extra: extra, levels: filed.levels})
 		if po.additional {
 			// mergeParameters puts the operation's own parameters first, so what
 			// follows them is what it takes of its item's.

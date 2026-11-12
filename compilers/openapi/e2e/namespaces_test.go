@@ -25,8 +25,8 @@ import (
 // a glued path spelled the same, and nothing else notices it.
 //
 // The corpus is every committed spec, compiled under each grouping strategy,
-// because the path-prefix groups exist only under the second and a vocabulary
-// listing them would otherwise look unused.
+// because the path-prefix and extension groups exist only under their own and
+// a vocabulary listing them would otherwise look unused.
 func TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses(t *testing.T) {
 	t.Parallel()
 	specs, err := filepath.Glob("../../../testdata/*/openapi/*.yaml")
@@ -38,7 +38,9 @@ func TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses(t *testing.T) {
 	for _, spec := range specs {
 		data, err := os.ReadFile(spec)
 		require.NoError(t, err)
-		for _, grouping := range []openapi.GroupingStrategy{openapi.GroupByTags, openapi.GroupByPathPrefix} {
+		for _, grouping := range []openapi.GroupingStrategy{
+			openapi.GroupByTags, openapi.GroupByPathPrefix, openapi.GroupByExtension,
+		} {
 			doc, _, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: filepath.Base(spec), Data: data}},
 				compilers.Options{FormatOptions: openapi.Options{Grouping: grouping}})
