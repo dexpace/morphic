@@ -12,6 +12,15 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   opt-in fails to compile, so each such file opts in with
   `@file:OptIn(ExperimentalObjCName::class)`. No caller inherits that, and no signature carries it
   ([the language floor](overview.md#the-language-floor)).
+- The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
+  only `_` marks
+  ([naming](../../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)): measured
+  with Kotlin 2.4.0, entries `VALUE_1_0` and `VALUE_10` both became `value10`, the one the class
+  declares second taking a trailing `_`, so which value a Swift caller's `value10` named followed
+  their order. An entry whose words hold such a break takes an explicit name, its words cased as a
+  camel role cases them, and with one `VALUE_1_0` exported as `value1_0` beside `VALUE_10`'s
+  `value10`. `@ObjCName` refuses a name holding a character past ASCII, so `A_日本` and `A日本`
+  cannot take one and export as `a日本` and `a日本_` (#1765).
 - The export drops a declaration's package and joins a nested one's name to its outer's, so every
   unit's declarations, nested ones among them, share one namespace, and of two that share a name it
   appends `_` to one. Measured with Kotlin 2.4.0, within one module and across modules the framework

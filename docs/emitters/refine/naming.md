@@ -188,21 +188,25 @@ lower-case one with no upper-case form such as `ß` — so a word beginning with
 both its constant `Version10`, though their words differ, and words are what the `names` pass
 compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
 
-Where a word begins with such a character, `Case` writes `_` before it, unless one of the two
-characters the break falls between is a letter and the other a digit: the grammar breaks wherever
-those meet ([the word grammar](../../ir/naming.md#the-word-grammar)), so no word holds one beside
-the other and nothing need set them apart. The pairs above render `V1_2` beside `V12` and
+Where a word after the first begins with such a character, `Case` writes `_` before it, unless one
+of the two characters the break falls between is a letter and the other a digit: the grammar breaks
+wherever those meet ([the word grammar](../../ir/naming.md#the-word-grammar)), so no word holds one
+beside the other and nothing need set them apart. The pairs above render `V1_2` beside `V12` and
 `Version1_0` beside `Version10`, `a_日本` and `a日本` render `A_日本` and `A日本`, and
 `Type10GbpsTo100Gbps`, `HttpServer2Fa` and `Field1000` take none. The rule reads the words the role
 composes, as the leading word's test does, so a Go constant writes one where its enum's name meets
 its member's: `V1`'s member `2` is `V1_2`, apart from `V`'s `12`. The underscore adds no word and
-reads nothing but the words, so it marks nothing `Inferred`. Where a name becomes a path the
-underscore goes with it, and Go reads a file name ending in `_386` as a build constraint (#1756).
+reads nothing but the words, so it marks nothing `Inferred`. A path named from the identifier takes
+the underscore with it, and Go reads a file name ending in `_386` as a build constraint (#1756).
 
 So two names whose words differ only where they break render apart in a camel or Pascal role whose
 words are each cased by their first character alone, and the pass's exact comparison answers for
 them. An acronym or a spelling that upper-cases more of a word can still make two meet (#1751), and
-a package, which joins every word, drops this break with the rest (#1742).
+a package, which joins every word, drops this break with the rest (#1742). A Multiplatform SDK's
+Objective-C export writes a Kotlin constant's Swift name in camel case, dropping each `_`, so a
+constant whose words hold such a break takes an explicit one, its words cased as a camel role cases
+them: `VALUE_1_0` is `value1_0` in Swift, beside `VALUE_10`'s `value10`
+([Swift](../targets/kotlin/swift.md)).
 
 Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
 without an underscore. The two names would collide, and `Ctx.Syms` would tell them apart by ID

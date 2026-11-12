@@ -146,7 +146,8 @@ the neutral words answers for all of them, and the `names` pass reports it to th
   names, though letter case marks no break before a digit: a target marking words by their letter
   case writes `_` at a break it leaves unmarked
   ([naming](../emitters/refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)), so
-  they render apart there, as Go's `V1_2` and `V12`, and no finding is due.
+  they render apart there, as Go's `V1_2` and `V12`, and the exact comparison needs no rule for
+  them. A package, which joins every word, is the exception: two groups of such names meet (#1742).
 - **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
   operations; an operation's parameters; a model's own properties; an enum's members; a union's
