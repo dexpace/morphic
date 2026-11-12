@@ -85,7 +85,10 @@ keys](../../ir/derived-facts.md#correlation-keys)).
 2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
    else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
    reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units
-   reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+   reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set
+   apart from a name ending in a digit as its role sets two digit words apart ([a break letter case
+   cannot mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is
+   `V12_2`.
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
 names that differ in letter case alone collide too. A file system that ignores case, as macOS's and
@@ -194,3 +197,49 @@ type, `field` for a field, `call` for a method, `value` for a constant, `arg` fo
 `pkg` for a package, so the examples render `Field1000`, `Type10GbpsTo100Gbps` and Kotlin's
 `VALUE_10002`. A word that makes one name meet another — `Field1000` beside a property spelled
 `field_1000` — is `Ctx.Syms`'s, like any collision.
+
+## A break letter case cannot mark takes an underscore
+
+Camel and Pascal case mark where a word begins by upper-casing its first character, as every role of
+the first targets does but two: a package, whose words join with no separator, and a Kotlin
+constant, which writes `_` between every two (`VALUE_10002`). Upper-casing leaves some characters as
+they are — a digit, a letter of no case such as `日`, one already upper-case such as `ℤ`, or a
+lower-case one with no upper-case form such as `ß` — so a word beginning with one is not marked.
+`v_1_2` and `v_12` would both be Go's field `V12`, and an enum `Version`'s members `1_0` and `10`
+both its constant `Version10`, though their words differ, and words are what the `names` pass
+compares ([names one scope shares](../../ir/naming.md#names-one-scope-shares)).
+
+Where a word after the first begins with such a character, `Case` writes `_` before it, unless one
+of the two characters the break falls between is a letter and the other a digit: the grammar breaks
+wherever those meet ([the word grammar](../../ir/naming.md#the-word-grammar)), so no word holds one
+beside the other and nothing need set them apart. The pairs above render `V1_2` beside `V12` and
+`Version1_0` beside `Version10`, `a_日本` and `a日本` render `A_日本` and `A日本`, and
+`Type10GbpsTo100Gbps`, `HttpServer2Fa` and `Field1000` take none. The rule reads the words the role
+composes, as the leading word's test does, so a Go constant writes one where its enum's name meets
+its member's: `V1`'s member `2` is `V1_2`, apart from `V`'s `12`. The underscore adds no word and
+reads nothing but the words, so it marks nothing `Inferred`. A path named from the identifier takes
+the underscore with it, as Kotlin's class file `V1_2.class` does, while Go names a declaration's
+file from its words joined ([Go](../targets/go/naming.md#file-names)): a type `V1_386` is declared
+in `v1386.go`, which Go builds on every platform, where `v1_386.go` would build on `386` alone.
+
+So two names whose words differ only where they break render apart in a camel or Pascal role whose
+words are each cased by their first character alone, and the pass's exact comparison answers for
+them. An acronym or a spelling that upper-cases more of a word can still make two meet (#1751), and
+a package, which joins every word, drops this break with the rest (#1742). A Multiplatform SDK's
+Objective-C export writes a Kotlin constant's Swift name in camel case, dropping each `_`, so a
+constant whose words hold such a break takes an explicit one, its words cased as a camel role cases
+them: `VALUE_1_0` is `value1_0` in Swift, beside `VALUE_10`'s `value10`
+([Swift](../targets/kotlin/swift.md)).
+
+Leaving the break unmarked was not taken, though it keeps the camel names Go and Kotlin write
+without an underscore. The two names would collide, and `Ctx.Syms` would tell them apart by ID
+order: `1.0`, whose ID sorts first, would take `Version10` and `10` a suffix, `Version102`, each
+constant reading as another value, which no warning of the pass could set right. Go's standard
+library writes the underscore between two digit words itself (`sha512.Sum512_256`), and golint's
+naming rule, which revive's `var-naming` keeps, accepts it there while reporting one between two
+letters (`A_日本`, measured with golangci-lint 2.14.0). Kotlin's conventions write a camel name with
+none, so on Kotlin this departs from them; kotlinc 2.4.0 compiles the names, writing `V1_2.class`
+beside `V12.class`. The golden spec's unmarked breaks all fall between two digits, as in
+`zones_tls_1_2_only` and a SAML `2_0` (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`).
+Writing `_` before every word with no upper case, `Type_10GbpsTo_100Gbps`, was not taken either: it
+marks breaks no name could have joined.
