@@ -60,24 +60,33 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     Objective-C and Swift name, so no JVM name moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
-The names a unit declares and a union's variants are compared case-folded
-([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)), since the JVM
+The names a unit declares and a union's variants are compared by the path fold ([emit
+rules](../../emit/rules.md),
+[collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)), since the JVM
 writes each class to a class file of its name, a nested one's joined to its outer's by `$`, and a
 case-insensitive file system makes two that differ in letter case alone one file. With classes
 `Setup` and `SetUp` in a package `p`, Kotlin 2.4.0 wrote one `p/Setup.class`, and with variants
 `Card` and `CARD` of a sealed interface `Payment` one `p/Payment$Card.class`; each program built
 without a diagnostic and failed to load the class it had lost (`NoClassDefFoundError: p/Payment$Card
-(wrong name: p/Payment$CARD)`). So one of each pair takes a suffix, as one of two names that render
-alike does, and a source file named for its class is held apart with it. A template writing a file
+(wrong name: p/Payment$CARD)`), as classes `Straße` and `Strasse` did. So one of each pair takes
+a suffix, as one of two names that render alike does, and a source file named for its class is
+held apart with it. A template writing a file
 in a unit, as the one writing each operation's row of the runtime's settings does ([runtime
 policy](../../contract/runtime-policy.md#delivery)), names it for a name it declares there, which
 the unit reserves, so no spec class's file meets it. An inclusive union's variants are properties,
 not classes, and compare folded all the same, so a union whose kind a revision changes keeps the
 comparison its variants' names shipped under. A model's properties are no class, so they keep names
-apart by case. A failure kind's exception is a class too, named for its kind in `Policy.Errors`
-([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
-letter case alone would share a class file; whether a configuration may give two such kinds is
-#1471's.
+apart by case, and so do a class's methods, though kotlinc writes a class for each `suspend` one,
+since it numbers them in their class: Kotlin 2.4.0 wrote `Client$getA$1.class` and
+`Client$geta$2.class` for methods `getA` and `geta`, and both ran. A failure kind's exception is a
+class too, named for its kind in `Policy.Errors` ([failures](errors.md)), and a name a template
+declares never yields, so two kinds that differ in letter case alone would share a class file;
+whether a configuration may give two such kinds is #1471's.
+
+A type's name, a variant's, a package segment and a method's are the roles Kotlin writes into
+paths, a method's in its continuation's class file, so each is held to the length cap
+([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)); a source file is named
+for its class, so the cap holds it too, and a Gradle module's directory is its unit's name.
 
 A group's package segment is its words in lowercase, joined with no separator (`useraccounts`), as
 Go's package names are, and a partition's is the name the options give it. So two groups whose words

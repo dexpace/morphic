@@ -89,10 +89,17 @@ throughout these documents.
     other and from a name the scope reserves, one of its types in each unit after each file a
     template writes there, and its groups after every units name, after each name a Kotlin build
     keeps at its root ([output units](../targets/kotlin/overview.md#output-units)) and after the
-    standard-library packages its files import, generates code that compiles on every target, no two
-    of its paths, an artifact's or a class file's, folding alike, the Go file holding two such types
-    byte-identical in both declaration orders, with every template's declared names held to what it
-    binds, and on Kotlin to the default-imported names it writes. On Kotlin a root project the
+    standard-library packages its files import, and its types and groups after each Windows device
+    name in two letter cases, after names whose last word `go/build` reads as a platform's or as
+    `test`, and in pairs past ASCII that fold alike (`Straße` and `Strasse`, an `é` composed and
+    decomposed, `ı` and `I`), generates code that compiles on every target, no two of its paths, an
+    artifact's or a class file's, folding alike, the Go file holding two such types byte-identical
+    in both declaration orders, with every template's declared names held to what it binds, and on
+    Kotlin to the default-imported names it writes. On Go `go list` lists every file the target
+    writes on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
+    every file and import path is one the module proxy takes
+    ([Go](../targets/go/naming.md#file-names), [package
+    directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the
     options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
     leave every module's sources, no path the build writes, an artifact's or a class file's, has a
     Windows device name for a segment, and the Multiplatform framework links, its header holding
@@ -148,8 +155,10 @@ throughout these documents.
     enum value, description and example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and
     compiles. Each function map is held to a literal list, and the lint refuses `call`. One worker
     and many give identical artifacts, and so do two runs under different `LC_ALL`, over a fixture
-    whose sort order a collation would change. Two artifacts on one path, and two differing only by
-    case, each draw the error. A template that fails the formatter draws a located error and no
+    whose sort order a collation would change. Two artifacts on one path, and two whose paths fold
+    alike, each draw the error, and a segment past 255 bytes, a Windows device name before a first
+    dot in two letter cases, a character Windows refuses and a trailing dot or space each draw
+    `artifact-path-unportable`. A template that fails the formatter draws a located error and no
     artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
     nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute path, a
     sibling sharing the root's prefix and a symlink leaving the root are each refused.
@@ -871,3 +880,18 @@ throughout these documents.
     `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
     `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
     ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
+50. **T-50 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
+    `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
+    `Strasse`, an `é` composed and decomposed and a Cherokee letter in each case, and `ı` and `I`,
+    which NTFS upper-cases alike; and on a case-insensitive APFS volume, a name per fold class of
+    each assigned character's spellings, written to one empty directory, draws no collision, where
+    the same sweep under a fold of ASCII letters alone draws some ([the path
+    fold](../emit/rules.md)).
+51. **T-51 · Names past the length cap** — a fixture naming a type, a union and its variant, a
+    group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
+    characters of two, three and four bytes, generates code that compiles on every target: each
+    identifier of a role written into a path within the cap, a shortened one keeping its leading
+    words and its hash word and drawing one `name-shortened`, two that share their first 110 bytes
+    apart, the property's name whole, and no segment of a path the build writes past 255 bytes,
+    every class file kotlinc writes among them
+    ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).

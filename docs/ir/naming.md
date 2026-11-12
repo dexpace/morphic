@@ -222,7 +222,8 @@ Left out, each for its reason:
   names that differ only at a break before such a character.
 - **Names beyond ASCII that a file system folds alike** though their words do not join alike, in a
   scope that compares words joined: groups `Straße` and `Strasse`, of words `straße` and `strasse`,
-  are one directory on macOS. Which fold artifact paths are compared by beyond ASCII is #1729's.
+  are one directory on macOS, which the fold the emitters compare paths by joins ([the path
+  fold](../emitters/emit/rules.md)).
 - **A group beside an operation of the same parent.** Whether a sub-client and a method share a
   namespace is the target's: a Go struct cannot hold a field and a method of one name, while a
   Kotlin class can hold a property and a function.

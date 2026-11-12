@@ -86,8 +86,9 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    `get` beside the `get` that group's client already shipped.
 2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
    else that name with the lowest numeric suffix, `2` up, that nothing holds and the scope does not
-   reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units
-   reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set
+   reserve: a suffix can make a reserved name, as `com2` is a Windows device name the units of Go
+   and Kotlin reserve ([Go](../targets/go/naming.md#reserved-names),
+   [Kotlin](../targets/kotlin/naming.md#reserved-names)). The suffix is a digit word, set
    apart from a name ending in a digit as its role sets two digit words apart ([a break letter case
    cannot mark](#a-break-letter-case-cannot-mark-takes-an-underscore)), so a second `V12` is
    `V12_2`. The declaration a visibility shape adds to a type is named after every type's own in
@@ -95,11 +96,12 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    so a name the plan derives never takes one the source gives.
 
 In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
-names that differ in letter case alone collide too. A file system that ignores case, as macOS's and
-Windows' do by default, makes them one path: on macOS, Kotlin 2.4.0 wrote classes `Setup` and
-`SetUp` of one package to a single `p/Setup.class`, and the program then failed to load it
-(`NoClassDefFoundError: p/Setup (wrong name: p/SetUp)`). Such a scope compares names case-folded, by
-the fold the engine compares artifact paths by ([emit rules](../emit/rules.md)), in both rules: a
+names that fold alike collide too. A file system that ignores case, as macOS's and Windows' do by
+default, makes them one path: on macOS, Kotlin 2.4.0 wrote classes `Setup` and `SetUp` of one
+package to a single `p/Setup.class`, and the program then failed to load it
+(`NoClassDefFoundError: p/Setup (wrong name: p/SetUp)`), as it did classes `Straße` and `Strasse`
+(`wrong name: p/Strasse`). Such a scope compares names case-folded, by the fold the engine compares
+artifact paths by ([the path fold](../emit/rules.md)), in both rules: a
 name held, shipped or reserved there meets every name that folds as it does, and a suffix is chosen
 against them so. This holds for a reserved name that is no path too, such as a name Kotlin imports
 by default, since one comparison per scope is the simpler rule and errs toward a suffix rather than
@@ -332,3 +334,38 @@ beside `V12.class`. The golden spec's unmarked breaks all fall between two digit
 `zones_tls_1_2_only` and a SAML `2_0` (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `ea70eba7`).
 Writing `_` before every word with no upper case, `Type_10GbpsTo_100Gbps`, was not taken either: it
 marks breaks no name could have joined.
+
+## A name too long for a path is shortened
+
+A spec name has no length limit, and a name becomes a path segment, or part of one, wherever a
+target writes it as one: a Go package's directory, a Kotlin class's file, which joins a nested
+class's name to its outer's by `$` (`Payment$Card.class`), and the classes kotlinc writes beside
+them, such as the continuation of each `suspend` method, named for the method (`Client$getA$1.class`
+with Kotlin 2.4.0). No segment past 255 bytes is one every file system writes ([emit
+rules](../emit/rules.md)). So `RenderCasing` holds each identifier of a role a target writes into a
+path, as its naming document names them ([Go](../targets/go/naming.md#package-directories),
+[Kotlin](../targets/kotlin/naming.md#reserved-names)), to a cap, 110 bytes of UTF-8 in version 1, a
+default of the target's options version as the naming tables are. A longer identifier keeps the
+leading words that fit beside one more, the first eight hex digits of the SHA-256 of its canonical
+words, a first word too long alone being cut at a character's end, and the node carries `Inferred`
+provenance, `shortened` (INV6), with a warning `emitters/<target>/name-shortened` naming the entity
+and both names. The shortened name reads nothing but the name, so it moves only with it, and two
+names that keep the same words still differ in their last. A path the target names apart from any
+identifier, as Go names a declaration's file, is shortened as its target says, and the identifier
+is not ([Go](../targets/go/naming.md#file-names)).
+
+The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
+110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and 251 in
+a method's inlined continuation, which kotlinc 2.4.0 named `CKt$main$$inlined$Continuation$1.class`.
+No name of the golden spec reaches it: its longest is 99 bytes as words joined, 106 with the
+`WithResponse` a method may add, and its longest union and variant joined by `$` 156, by `jq` over
+its compiled IR (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the
+target's own code makes kotlinc add beyond that room is held by T-51, which lowers the cap in the
+options version adding it.
+
+Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only
+the readability of a name no reader takes in whole. Nor was a cap on the segment rather than the
+name, since a nested name's room would read its outer's length, so renaming a union would shorten
+its variants, and an outer near the limit would leave its variants none. Nor was cutting with no
+hash: two names that keep the same leading words would meet, and `Ctx.Syms` would part them by ID
+order, giving each a name that reads as the other's.

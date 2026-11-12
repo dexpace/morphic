@@ -5,7 +5,14 @@
 What each [scope](../../refine/reserved-names.md) reserves in Go:
 
 - **The units**: `internal`, which no caller outside the SDK may import, `testdata`, which `./...`
-  skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies.
+  skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies;
+  `main`, which makes a package a program, and `init`, which names only a function, so neither
+  imports under its name (with Go 1.27.3, `import "example.com/sdk/main" is a program, not an
+  importable package` and `cannot import package as init - init must be a func`); and each Windows
+  device name ([emit rules](../../emit/rules.md)), which the `go` command refuses as an element of
+  an import path on every host (`malformed import path "example.com/sdk/aux": "aux" disallowed as
+  path element component on Windows`). A unit so named takes the escape, `main_` or `aux_`, which
+  each built.
 - **A unit**: `Client`, its option type and their constructors, and a group unit's sub-client and
   the function the root's client builds it with ([output units](overview.md#output-units)). The
   runtime's names, `APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`, `RawBody`, `Response`
@@ -23,12 +30,14 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 ## File names
 
 Where Go names a file for a declaration, as `user.go` for `User` ([`User`](models.md#user-in-go)),
-the name is the declaration's words, joined with no separator and case-folded by the fold the engine
-compares paths by ([emit rules](../../emit/rules.md)): the neutral words its `Ident` starts as
+the name is the declaration's words, joined with no separator, case-folded by the fold the engine
+compares paths by ([the path fold](../../emit/rules.md)), and each character then outside `a`–`z`
+and `0`–`9` written as `u` and its code point in lowercase hex, as the character-name table writes
+one it does not hold ([below](#package-directories)): the neutral words its `Ident` starts as
 ([naming](../../refine/naming.md)), or for a name with none those its characters' names give, which
 read nothing but the name and the character-name table
 ([naming](../../refine/naming.md#a-name-with-no-words-takes-its-characters-names)). Declarations of
-one unit whose words join alike share one file, which holds them in ID order, so `Setup` and
+one unit whose file names come out alike share a file, which holds them in ID order, so `Setup` and
 `SetUp`, whose words are `setup` and `set_up`, share `setup.go` and keep their names, since a Go
 file holds any number of declarations and Go tells identifiers apart by case. So of Go's scopes only
 the units' compares names case-folded, each unit being a directory
@@ -46,14 +55,56 @@ while one file declaring both with those imports failed (`time redeclared in thi
 the name the words in snake case, since the `go` command builds a file whose name ends in `_test.go`
 only for the package's tests, and one ending in `_` and a `GOOS` or `GOARCH` value only for that
 platform: with Go 1.27.3 on darwin/arm64, a package declaring `UserTest` in `user_test.go` and
-`ServerLinux` in `server_linux.go` failed where it used them (`undefined: UserTest`). A file name
-that is a Windows device name is #1492's. The runtime's templates write their files in its own unit,
-which holds no declaration of the spec's ([the runtime's
-unit](../../refine/output-units.md#the-runtimes-unit)). The template writing each operation's row of
-the runtime's settings renders in the operation's unit instead ([runtime
+`ServerLinux` in `server_linux.go` failed where it used them (`undefined: UserTest`). `go/build`
+reads a platform only after an underscore before the name's first dot, so a name with none is read
+against no list at all, and a Go release adding a port to its lists, which already name ports Go
+does not build, such as `hurd` and `zos`, cannot change which files an SDK generated earlier builds.
+`go list` listed the files of the six golden-spec types whose last word is a platform's or `test`,
+`botmanagementenablejs.go` and `observatorypagetest.go` among them, and `v1386.go`, on each of the
+47 ports `go tool dist list` gives, where a planted `x_js.go` was listed on `js/wasm` alone. T-19
+holds it.
+
+A file name that is a Windows device name before its first dot takes a trailing underscore,
+`aux_.go` for a type `Aux`. `go build` builds a package holding `aux.go`, but its module is one no
+caller can download ([emit rules](../../emit/rules.md)). The underscore leaves an empty word after
+it, which `go/build` reads as no platform: `go list` listed `aux_.go` on all 47 ports. Characters
+past ASCII are escaped rather than kept, since a module may hold a file name only of ASCII letters,
+digits, some punctuation and Unicode letters: `golang.org/x/mod` 0.42.0 refused `cafe` and U+0301
+COMBINING ACUTE ACCENT as a file name (`invalid char`) and `x٣.go`, a digit past ASCII, while once
+escaped every name is ASCII, where every file system's fold agrees. A name whose part before `.go`
+passes the cap a path segment holds, 110 bytes
+([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)), as an escaped name of 22
+characters past ASCII can, keeps its first 102 bytes and the first eight hex digits of the SHA-256
+of the whole, so the declarations sharing a file still share it.
+
+The runtime's templates write their files in its own unit, which holds no declaration of the spec's
+([the runtime's unit](../../refine/output-units.md#the-runtimes-unit)). The template writing each
+operation's row of the runtime's settings renders in the operation's unit instead ([runtime
 policy](../../contract/runtime-policy.md#delivery)), so its file joins two words with an underscore,
-which no declaration's file name holds: `operation_settings.go`, which the `go` command builds for
-every platform, its last word being neither `test` nor a `GOOS` or `GOARCH` value.
+which no declaration's file name holds between two words: `operation_settings.go`, which the `go`
+command builds for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH`
+value, as `go list` showed on each of the 47 ports.
+
+## Package directories
+
+A unit's package name is its directory's, the last element of its import path, so a caller writes
+the name its import ends in. An import path takes ASCII letters, digits and `-._~+` alone: with Go
+1.27.3, a root importing a unit `straße` failed (`malformed import path "example.com/sdk/straße":
+invalid char 'ß'`). So a unit's name is rendered as a declaration's file is
+([above](#file-names)): its words joined, folded by the path fold, and each character outside
+`a`–`z` and `0`–`9` written as `u` and its hex code point. A group `Straße` is the package
+`strasse`, `日本` the package `u65e5u672c`, and both built where `straße` did not; on the golden
+spec, whose groups' names are ASCII, the rule renders each as its words joined in lowercase. A
+package clause that kept the name and a directory that escaped it, `package straße` in `strasse`,
+would have each caller write a name its import does not show. The units' scope compares the names
+so rendered, so `Straße` and `Strasse` collide there as `Webhooks` and `webhooks` do ([output
+units](../../refine/output-units.md)). A package name is the one Go identifier written into a path,
+so it is the one Go role held to the length cap
+([naming](../../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
+
+A name the options give, the root's module path or a partition's unit, never yields, so one that
+`golang.org/x/mod/module.CheckPath` refuses, or whose last element is a units name above, is an
+options error, a device name or a character past ASCII in any element among them.
 
 ## The escape
 
@@ -61,7 +112,7 @@ Go's casing lifts exported names clear of its keywords, so only locals and param
 there: a keyword (`type`, `default`), a predeclared identifier a parameter would shadow (`string`,
 `error`), a package its file imports (`time`, `url`) or a name the method's body binds (`ctx`,
 `params`) takes a trailing underscore, and so does an exported name the target declares itself
-(`Client`).
+(`Client`) and a unit named for a units name (`internal_`).
 
 ## Imports
 

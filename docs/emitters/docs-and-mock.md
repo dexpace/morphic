@@ -275,10 +275,13 @@ a way to show one entity across API versions. Each is decided by data, never by 
   group's direct children. A slug is presentation (INV3), rendered from names by the naming policy,
   and two that collide in one template's scope are told apart by the ID-keyed resolution identifiers
   take ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
-  canonical words, which the SDKs resolve as well. Two slugs collide whatever their letter case, as
-  artifact paths do ([emit rules](emit/rules.md)), since a file system that ignores case keeps one
-  page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
-  `webhooks`, which slugs spelt as the source spells them would part by case alone.
+  canonical words, which the SDKs resolve as well. Two slugs collide where they fold alike, as
+  artifact paths do ([the path fold](emit/rules.md)), since a file system that ignores case keeps
+  one page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
+  `webhooks`, which slugs spelt as the source spells them would part by case alone. A slug that is a
+  Windows device name, which no page's path may hold ([emit rules](emit/rules.md)), is told apart as
+  a colliding one is, and a slug is held to the length cap of a name a path holds
+  ([naming](refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
   another's page an anchor there, every table of a model narrowing a union an anchor where the model

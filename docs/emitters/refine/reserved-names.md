@@ -44,7 +44,6 @@ and what the file calls each import is a name like any other. Names that collide
 `Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that differ in
 letter case alone ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds
 every scope's set, the names with no words and the names that begin with a digit to code that
-compiles, and names that differ in letter case alone to paths that do not fold alike; T-55 holds
-names holding a character a target cannot write, or beginning with one its role cannot begin with,
-to code that compiles and a caller in another unit that reaches each; and T-60 holds each reference
-to the declaration it means.
+compiles, and names that fold alike to paths that do not; T-55 holds names holding a character a
+target cannot write, or beginning with one its role cannot begin with, to code that compiles and a
+caller in another unit that reaches each; and T-60 holds each reference to the declaration it means.
