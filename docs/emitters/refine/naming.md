@@ -93,8 +93,10 @@ Windows' do by default, makes them one path: on macOS, Kotlin 2.4.0 wrote classe
 (`NoClassDefFoundError: p/Setup (wrong name: p/SetUp)`). Such a scope compares names case-folded, by
 the fold the engine compares artifact paths by ([emit rules](../emit/rules.md)), in both rules: a
 name held, shipped or reserved there meets every name that folds as it does, and a suffix is chosen
-against them so. A target compares each scope one way whatever the spec says, so two symbols rule 1
-keeps were apart under the comparison they shipped under. The units' scope is one ([output
+against them so. This holds of a reserved name that is no path too, such as a name Kotlin imports by
+default, since one comparison per scope is the simpler rule and errs toward a suffix rather than a
+lost file. A target compares each scope one way whatever the spec says, so two symbols rule 1 keeps
+were apart under the comparison they shipped under. The units' scope is one ([output
 units](output-units.md)), and each target names its others
 ([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
 [docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,

@@ -20,14 +20,26 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 ## File names
 
 Where Go names a file for a declaration, as `user.go` for `User` ([`User`](models.md#user-in-go)),
-the name is the declaration's identifier case-folded, by the fold the engine compares paths by
-([emit rules](../../emit/rules.md)). Declarations whose identifiers differ in letter case alone,
-`Setup` and `SetUp`, share one file, `setup.go`, and keep their names, since a Go file holds any
-number of declarations and Go tells identifiers apart by case. So of Go's scopes only the units'
-compares names case-folded, each unit being a directory
+the name is the declaration's words, joined with no separator and case-folded by the fold the engine
+compares paths by ([emit rules](../../emit/rules.md)): its canonical words, its hint's, or those its
+characters' names give
+([naming](../../refine/naming.md#a-name-with-no-words-takes-its-characters-names)). Declarations of
+one unit whose words join alike share one file, which holds them in ID order, so `Setup` and
+`SetUp`, whose words are `setup` and `set_up`, share `setup.go` and keep their names, since a Go
+file holds any number of declarations and Go tells identifiers apart by case. So of Go's scopes only
+the units' compares names case-folded, each unit being a directory
 ([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)): renaming
-`SetUp` would cost a Go caller the spec's name for nothing a Go build needs. The name is not the
-identifier's words in snake case, since the `go` command builds a file whose name ends in `_test.go`
+`SetUp` would cost a Go caller the spec's name for nothing a Go build needs. Nor are two such files
+named apart, `setup.go` and `setup2.go`, which would make a unit's files a scope of their own, each
+name kept across generations as a symbol's is, where one shared file needs neither.
+
+The name is read from the words, not from the identifier, since which declarations share a file must
+be settled before `ComputeImports` gives each file its imports, and the naming steps settle an
+identifier after it ([the refiner contract](../../refine/pipeline.md)). Files whose imports were
+named apart can conflict once joined: with Go 1.27.3, a file declaring `Setup`, which imports the
+standard library's `time`, and one declaring `SetUp`, which imports a unit named `time`, built,
+while one file declaring both with those imports failed (`time redeclared in this block`). Nor is
+the name the words in snake case, since the `go` command builds a file whose name ends in `_test.go`
 only for the package's tests, and one ending in `_` and a `GOOS` or `GOARCH` value only for that
 platform: with Go 1.27.3 on darwin/arm64, a package declaring `UserTest` in `user_test.go` and
 `ServerLinux` in `server_linux.go` failed where it used them (`undefined: UserTest`). A file name

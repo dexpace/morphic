@@ -78,18 +78,19 @@ throughout these documents.
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
     reserves, after characters alone and after names that begin with a digit, two of its types in
-    each unit and two variants of each union in names that differ in letter case alone, and
-    its groups after every units name, after each name a Kotlin build keeps at its root ([output
-    units](../targets/kotlin/overview.md#output-units)) and after the standard-library packages its
-    files import, generates code that compiles on every target, no two of its paths, an artifact's
-    or a class file's, folding alike, with every template's declared names held to what it binds,
-    and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
-    `wrapper` at the build's root leave every module's sources, no path the build writes, an
-    artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
-    framework links, its header giving each declaration the Swift name the naming policy chose, none
-    of them a type Swift's standard library or Foundation declares or a module's name, so a Swift
-    file that imports the framework and Foundation compiles its uses of both and qualifies a name by
-    either module ([Swift](../targets/kotlin/swift.md)).
+    each unit and two variants of each union in names that differ in letter case alone, from each
+    other and from a name the scope reserves, and its groups after every units name, after each name
+    a Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units))
+    and after the standard-library packages its files import, generates code that compiles on every
+    target, no two of its paths, an artifact's or a class file's, folding alike, the Go file holding
+    two such types byte-identical in both declaration orders, with every template's declared names
+    held to what it binds, and on Kotlin to the default-imported names it writes. On Kotlin a
+    `clean` and a `wrapper` at the build's root leave every module's sources, no path the build
+    writes, an artifact's or a class file's, has a Windows device name for a segment, and the
+    Multiplatform framework links, its header giving each declaration the Swift name the naming
+    policy chose, none of them a type Swift's standard library or Foundation declares or a module's
+    name, so a Swift file that imports the framework and Foundation compiles its uses of both and
+    qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -325,8 +326,10 @@ throughout these documents.
     `Keys` pins nothing; an operation moved into a group whose client shipped its name takes a
     suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
     suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
-    is passed over; and on Multiplatform a type added in another unit, its ID sorting first, leaves
-    an incumbent's Objective-C name as it shipped
+    is passed over; a type added in a name differing from a shipped one's in letter case alone, its
+    ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; and on
+    Multiplatform a type added in another unit, its ID sorting first, leaves an incumbent's
+    Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
     spec reformatted, one drawing a warning among them, is the same generation; a generated file
