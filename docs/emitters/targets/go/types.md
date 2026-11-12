@@ -72,7 +72,10 @@ leaves such a closed enum closed ([plan
 policy](../../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)). The two forms are one named
 type with the same constants, so opening an enum changes its decoder and takes no declaration from a
 caller. An enum with no members is that type with no constant and the strict decoder, which then
-refuses every value ([enums](../../refine/enums.md#an-enum-with-no-members)).
+refuses every value ([enums](../../refine/enums.md#an-enum-with-no-members)), and its
+`MarshalJSONTo` refuses every value too, the zero value among them: a struct requiring one then
+fails to encode, where decoding alone refused and `json.Marshal` wrote `{"must":""}`, and an
+optional member left unset is still left out (Go 1.27.3).
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its

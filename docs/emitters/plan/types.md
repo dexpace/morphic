@@ -145,20 +145,23 @@ alias a model adding nothing, and degrade the others
 `Composed` leaves out an entry no value takes. An entry admits no value where a member its
 `Required` lists has two declarations that each admit finitely many values, as the Values rule
 [below](#variants-that-can-share-a-value) counts them, a nullable reference's `null` among them,
-with no value in both: one the model's own flattening reads, taken or overridden, and one the
-flattening of a model its `Over` lists reads. `Item: {allOf: [Leaf, Node]}`, where `Node` is a union
-of `Group` and `Leaf` and each requires `kind` and pins it to its own name, has no instance over
-`Group`, whose `kind` no `Leaf` holds, so `Item` narrows `Node` to its one entry over `Leaf`. A
+with no value in both: the one the model's own flattening takes, its union set aside, and the one
+the flattening of a model its `Over` lists takes. `Item: {allOf: [Leaf, Node]}`, where `Node` is a
+union of `Group` and `Leaf` and each requires `kind` and pins it to its own name, has no instance
+over `Group`, whose `kind` no `Leaf` holds, so `Item` narrows `Node` to its one entry over `Leaf`. A
 member the entry leaves optional proves nothing, since a value may omit it, nor does one a filter
 can leave out, a declaration of it carrying a `Visibility`. The answer is the entry's in every
 shape, a patch shape among them: what a patch relaxes describes a change to an instance, and an
 entry with no instance has none to change. Two declarations on one side prove nothing either. A
 model redeclaring its own member is read as the flattening takes it wherever it stands, a variant of
 a union among them, so an error body composing a success shape and then a failure schema, which pins
-`success` both ways, stays a variant of the union listing it and of a model narrowing that union.
-Finite value sets alone prove an entry empty: the rule reads no kind, pattern or bound, so it is
-sound and not complete, and an entry it keeps may still admit no value. Such an entry declares a
-variant nothing takes, where one wrongly left out would refuse a value the API sends.
+`success` both ways, stays a variant of the union listing it and of a model narrowing that union. So
+neither side reads a declaration its flattening overrides: under `SelfBody: {allOf: [Env,
+Failure]}`, the variant `ErrBody: {allOf: [OkB, Failure]}` of `Env` overrides `OkB`'s `true` with
+the `false` the model pins too, and reading the `true` would leave out the one entry every failure
+body takes. Finite value sets alone prove an entry empty: the rule reads no kind, pattern or bound,
+so it is sound and not complete, and an entry it keeps may still admit no value. Such an entry
+declares a variant nothing takes, where one wrongly left out would refuse a value the API sends.
 
 Where every entry of a model admits no value by that rule, the model keeps them all, each member as
 its flattening takes it. The document as written then admits no value of the model at all, and the

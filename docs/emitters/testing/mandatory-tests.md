@@ -339,13 +339,16 @@ throughout these documents.
     decodes a value it does not list and re-encodes it as it came, its constants naming only the
     listed members, one only requests carry is open the same, turning `OpenEnums` off restores
     strict decoding, one with no members stays closed under either setting and refuses every value,
-    an optional member of it decoding only where it is absent, one declaring a `FallbackMember`
-    reads an unlisted value as that member, and an open `Flags` enum keeps a bit no member names in
-    its flags form; an enum declared open is `Open` wherever it is used, with no `Inferred` mark. A
-    `oneOf` of two string variants only their `pattern`s tell apart decodes each value into the
-    variant whose pattern it meets, in either declaration order; a value both admit and meet decodes
-    into the first, and under `StrictExclusive` is a coded error, as is one both admit and neither
-    meets ([plan policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
+    a flags one refusing 0 too, an optional member of it decoding only where it is absent, and
+    refuses to encode every value a target can hand it, so that Go fails to encode a struct
+    requiring one left at its zero value and leaves out an optional one unset, one declaring a
+    `FallbackMember` reads an unlisted value as that member, and an open `Flags` enum keeps a bit no
+    member names in its flags form; an enum declared open is `Open` wherever it is used, with no
+    `Inferred` mark. A `oneOf` of two string variants only their `pattern`s tell apart decodes each
+    value into the variant whose pattern it meets, in either declaration order; a value both admit
+    and meet decodes into the first, and under `StrictExclusive` is a coded error, as is one both
+    admit and neither meets ([plan
+    policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
@@ -669,14 +672,17 @@ throughout these documents.
     the model and a variant it is over pin to finite sets sharing no value is left out: `Item:
     {allOf: [Leaf, Node]}` over a `Node` of `Group` and `Leaf`, each pinning `kind`, declares the
     one variant over `Leaf`, still as a union, routes the tag `group` to no variant and has no
-    table, flag or example over `Group`; a model every entry of which is such keeps them all, each
-    member as its flattening takes it; and a variant that pins a member both ways itself keeps its
-    entry. A model its union lists is that variant, a model the union's sum holds. A model adding
-    nothing to its union aliases it, and one narrowing two unions, one whose union has a variant
-    composing it or reaches itself through its variants, one over a key-tagged, enveloped or
-    index-tagged union, and one whose entries, with what their walks read, would pass
-    `plan.MaxComposedSize`, among them one holding few members over a long composition and one over
-    unions nested deep, each beside one leaf, which `Build` reports as
+    table, flag or example over `Group`; an entry is kept where the member the two pin apart is one
+    its `Required` does not list; a model every entry of which is such keeps them all, each member
+    as its flattening takes it; and a variant that pins a member both ways itself keeps its entry
+    under a model pinning it as the variant's later declaration does, `SelfBody: {allOf: [Env,
+    Failure]}` keeping its entry over `ErrBody: {allOf: [OkB, Failure]}`, since neither side reads a
+    declaration its own flattening overrides. A model its union lists is that variant, a model the
+    union's sum holds. A model adding nothing to its union aliases it, and one narrowing two unions,
+    one whose union has a variant composing it or reaches itself through its variants, one over a
+    key-tagged, enveloped or index-tagged union, and one whose entries, with what their walks read,
+    would pass `plan.MaxComposedSize`, among them one holding few members over a long composition
+    and one over unions nested deep, each beside one leaf, which `Build` reports as
     `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
 47. **T-47 · Values as text** — on every target, under T-12's interception, a value of each
@@ -858,23 +864,27 @@ throughout these documents.
     variants leave the tag a plain string encodes a variant built with that member unset, or set to
     another variant's tag, with the one tag routing to it, and decodes the result as that variant; a
     variant two tags route to writes the one its value holds and refuses, with a coded error, a
-    value holding neither; a variant pinning its tag as a number is routed by that number's text; a
-    variant that is a union carries the outer union's tag in the object its value is, added where
-    that object has no such member; and a variant no tag routes to decodes by recognition, after
-    `Default`, and refuses to encode a value carrying another variant's tag. Every example the plan
-    synthesizes for a variant, and every member `plan.Shown` fills, carries one of that variant's
-    own tags and decodes as the variant it was made from, one whose member's set lists another
-    variant's tag first among them, and a declared example that the variant its tag routes to does
-    not admit is `emitters/plan/example-refused`
+    value holding neither; a variant pinning its tag as a number is routed by that number's value, a
+    payload spelling it `10016.0` or `1.0016e4` decoding at a closed union as `10016` does and one
+    carrying it as the string `"10016"` failing in that variant; a variant that is a union carries
+    the outer union's tag in the object its value is, added where that object has no such member;
+    and a variant no tag routes to decodes by recognition, before `Default`, in a union declaring a
+    `Default` too, where a value no such variant admits decodes as `Default`, and refuses to encode
+    a value carrying another variant's tag, as `Default`'s variant refuses one such a variant
+    admits. Every example the plan synthesizes for a variant, and every member `plan.Shown` fills,
+    carries one of that variant's own tags and decodes as the variant it was made from, one whose
+    member's set lists another variant's tag first among them, and a declared example that the
+    variant its tag routes to does not admit is `emitters/plan/example-refused`
     ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 57. **T-57 · What a mock accepts** — the mock accepts every example the plan holds for a request,
     shown in the shape its operation sends, and refuses a body narrowing a discriminated union that
     lacks a member the entry its tag routes to requires, breaks a constraint of a declaration that
-    entry takes, or carries a tag routing to no entry, the model's own members admitting all three.
-    It refuses, in a request, an enum value and a variant the document does not list whatever
-    `TypePlan.Open` says, and accepts one where the IR declares the type open; and it tries each
-    entry of a body narrowing an untagged union at most once ([what a mock
-    accepts](../docs-and-mock.md#what-a-mock-accepts)).
+    entry takes or of one it overrides, a member redeclared with no bound over a declaration
+    bounding its length refusing a value past the bound in a model narrowing no union too, or
+    carries a tag routing to no entry, the model's own members admitting all of them. It refuses, in
+    a request, an enum value and a variant the document does not list whatever `TypePlan.Open` says,
+    and accepts one where the IR declares the type open; and it tries each entry of a body narrowing
+    an untagged union at most once ([what a mock accepts](../docs-and-mock.md#what-a-mock-accepts)).
 58. **T-58 · A declaration no operation moves** — adding to a fixture an operation that returns an
     enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
     removing the one operation returning others, changes no declaration on any target: each is

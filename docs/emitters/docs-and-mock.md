@@ -221,8 +221,13 @@ otherwise break on a generated site.
 A handler reads a request body as the SDK's types decode it in the shape its operation sends it in
 ([a shape reaches what it holds](plan/types.md#a-shape-reaches-what-it-holds)), and holds it to what
 `Build` holds a declared example to ([below](#one-set-of-examples)): admission in that shape
-([unions](refine/unions.md#a-value-several-variants-admit)), then the constraints of the
-declarations the value lands on. So an example the plan keeps for a request is a body the mock
+([unions](refine/unions.md#a-value-several-variants-admit)), then the constraints of every
+declaration of each member the value lands on, the one its flattening takes and those that one
+overrides. A member's type is the taken declaration's, but an instance carries what each declaration
+asks of it ([the flattening](../ir/models.md#the-flattening)): the third variant of the golden
+spec's `realtimekit_StorageConfig` redeclares `access_key` with no bound over a declaration bounding
+it to one character at least, and a handler reading the taken one alone accepts `""` (spec
+@bc6fad24, morphic @fa253fe19). So an example the plan keeps for a request is a body the mock
 accepts, and a body the mock refuses is one the plan would refuse as an example.
 
 - **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
@@ -232,14 +237,14 @@ accepts, and a body the mock refuses is one the plan would refuse as an example.
 - **A model narrowing a union** is read as that union, each entry of its `TypePlan.Composed` a
   variant ([inheritance](refine/models.md#inheritance)). The tag routes to the entry over the
   variant it names, through each union the entry's `Over` passes, and the body is held to the
-  members the entry's `Shapes` hold and require in the request's shape and to the constraints of the
-  declarations its `Flattened` takes. The model's own `Flattened` holds only what it adds, so a
-  handler reading it alone accepts what the API refuses. The golden spec's `rulesets_Rule` request
-  body adds `position` to a `oneOf` of 21 rules that `action` routes, and the rule `block` routes to
-  bounds a response's `status_code` to 400 through 499 and requires `content` and `content_type`
-  beside it, none of which the body's own member says (spec @bc6fad24, morphic @fa253fe19). There 15
-  models a client writes narrow a union beside a member of their own, 3 of them over a discriminated
-  one.
+  members the entry's `Shapes` hold and require in the request's shape and to the constraints of
+  every declaration of each member its `Flattened` holds, taken and overridden. The model's own
+  `Flattened` holds only what it adds, so a handler reading it alone accepts what the API refuses.
+  The golden spec's `rulesets_Rule` request body adds `position` to a `oneOf` of 21 rules that
+  `action` routes, and the rule `block` routes to bounds a response's `status_code` to 400 through
+  499 and requires `content` and `content_type` beside it, none of which the body's own member says
+  (spec @bc6fad24, morphic @fa253fe19). There 15 models a client writes narrow a union beside a
+  member of their own, 3 of them over a discriminated one.
 - **What the document lists is all a request carries.** A handler refuses a variant or an enum value
   the document does not list wherever the IR declares the type closed, whatever `TypePlan.Open`
   says: `Open` is what a client survives in a response, and the API accepts what `Closed` states
@@ -426,45 +431,44 @@ member and operation:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
   one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
   since no value of it can be checked, shown, filled from or sent; each checked against its type and
-  constraints with visibility set aside, since the shape it is shown through settles that: a value
-  no shape could make valid, such as one its enum does not list, is refused, an enum the document
-  leaves open (`Enum.Closed` false) admitting a value it does not list. Shown through a shape, an
-  example drops the members that shape does not hold, keeping a key no member declares that the
-  model's catch-all admits, checked against the catch-all's type, and takes, for each member the
-  shape requires and the example lacks, the value a synthesized model gives that member (below), an
-  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and
-  labels it generated, its
-  declared members kept as written; with `Assemble` off it fills nothing, and an example missing a
-  member the shape requires gives way as one it cannot complete does. So a response-form example
-  serves a create shape, a patch body's may leave out a required member, and, with `Assemble` on,
-  every required member's set holding a value and no `Strict` union left ambiguous by the shape, no
-  shape is left without one. `Build` refuses a union value several variants admit where the union is
-  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
-  discriminated union that the variant its tag routes to does not admit, whichever other variant
-  does, since decoding reads it by its tag
-  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows
-  such a value elsewhere through all of them, keeping each member one of them holds in the shape,
-  since an inclusive value may be several variants at once. A shape can make a value two variants of
-  a `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
+  constraints, a member's being those of every declaration its flattening takes or overrides, as a
+  synthesized value's are (below), with visibility set aside, since the shape it is shown through
+  settles that: a value no shape could make valid, such as one its enum does not list, is refused,
+  an enum the document leaves open (`Enum.Closed` false) admitting a value it does not list. Shown
+  through a shape, an example drops the members that shape does not hold, keeping a key no member
+  declares that the model's catch-all admits, checked against the catch-all's type, and takes, for
+  each member the shape requires and the example lacks, the value a synthesized model gives that
+  member (below), an `Undeclared` name's from its catch-all type's set, which marks what is shown
+  `Inferred` and labels it generated, its declared members kept as written; with `Assemble` off it
+  fills nothing, and an example missing a member the shape requires gives way as one it cannot
+  complete does. So a response-form example serves a create shape, a patch body's may leave out a
+  required member, and, with `Assemble` on, every required member's set holding a value and no
+  `Strict` union left ambiguous by the shape, no shape is left without one. `Build` refuses a union
+  value several variants admit where the union is `TypePlan.Strict`, which decodes it as no variant,
+  reporting it once as above, and a value of a discriminated union that the variant its tag routes
+  to does not admit, whichever other variant does, since decoding reads it by its tag
+  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows such a value
+  elsewhere through all of them, keeping each member one of them holds in the shape, since an
+  inclusive value may be several variants at once. A shape can make a value two variants of a
+  `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
   admission again in the shape it shows and is false there, as for a member it cannot fill. A model
   narrowing a union is checked and shown as that union, the entries of its `TypePlan.Composed` its
   variants, each in its entry's shape and filled from what that entry requires there, strict and
   inclusive where the union is ([TypePlan](plan/types.md#a-model-narrowing-a-union)), so a value no
-  entry admits is refused, and a model adding nothing to its union as that union.
-  `plan.Shown` does this, the one projection every consumer reads an example through, reading
-  `Assemble` from `Plan.Policy.Examples`, and returns false for an example it cannot complete, a
-  required member's set being empty, so the consumer takes the set's next one; with none left the
-  position has no example there, which the docs show as none, a sample reports as
-  `sample-unrendered` and the mock as `example-missing`. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  entry admits is refused, and a model adding nothing to its union as that union. `plan.Shown` does
+  this, the one projection every consumer reads an example through, reading `Assemble` from
+  `Plan.Policy.Examples`, and returns false for an example it cannot complete, a required member's
+  set being empty, so the consumer takes the set's next one; with none left the position has no
+  example there, which the docs show as none, a sample reports as `sample-unrendered` and the mock
+  as `example-missing`. One they refuse is reported as a warning `emitters/plan/example-refused` and
+  left out, so every consumer falls to the next set alike: an SDK's test sending it would be refused
+  by the mock, as by the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a declared
+  example fails its own type in at least 295 types: in 292 no member of the enum, each closed, holds
+  it, such as `json` against `JSON` and `CSV`, and in 3 it is longer than `maxLength`. One declaring
+  none that adds no constraint to its type's takes its type's set, so a property shows the value its
+  type does, save an enum member, which takes its own value. A position whose type is a decorator
+  takes its own examples, else the nearest decorator's along the chain, as `CollapseAliases` folds
+  them, else, where it adds no constraint, the set of the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather

@@ -23,15 +23,19 @@ A closed enum with no members admits no value ([the empty enum](../../ir/enums.m
 and `OpenEnums` leaves it closed whatever its `Flags` ([plan
 policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list)): opened, a position the document
 says accepts nothing would keep every value of its `ValueType`, which is the widening the IR
-forbids. Each target lowers it in its closed form, a type with no constant whose decoder refuses
-every value with the coded error a closed enum gives a value it does not list
-([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)). So an optional
-member of that type decodes only where it is absent, a nullable one only as `null`, and a model
-requiring one decodes no value, which is what the document states. It has no example, and a model
-requiring it none ([one set of examples](../docs-and-mock.md#one-set-of-examples)). The rule reads
-the member list, which adding a member changes: an enum gaining its first member takes the open
-form, and with it a meaning, some value, that it did not have. The golden spec declares none (spec
-@bc6fad24, morphic @fa253fe19). T-36 holds the rule.
+forbids. A flags one admits no combination either, the empty one, 0, included: the IR states the
+empty value space for every closed enum with no members and excepts no `Flags` one. Each target
+lowers it in its closed form, a type with no constant whose decoder refuses every value with the
+coded error a closed enum gives a value it does not list ([Go](../targets/go/types.md#enums),
+[Kotlin](../targets/kotlin/types.md#enums)), and whose encoder refuses every value alike wherever
+the target's type has a value to hand it, as Go's has its zero value and any conversion. So an
+optional member of that type decodes only where it is absent and is sent only unset, a nullable one
+only as `null`, and a model requiring one decodes and encodes no value, which is what the document
+states. It has no example, and a model requiring it none ([one set of
+examples](../docs-and-mock.md#one-set-of-examples)). The rule reads the member list, which adding a
+member changes: an enum gaining its first member takes the open form, and with it a meaning, some
+value, that it did not have. The golden spec declares none (spec @bc6fad24, morphic @fa253fe19).
+T-36 holds the rule.
 
 ## A member on the wire
 
