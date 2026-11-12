@@ -20,7 +20,9 @@ changed files' domain skill, such as `morphic-openapi-compiler`, `morphic-changi
    (`references/correctness.md#refactor-differential-fuzz`), a query
    (`references/correctness.md#query-differential`), a generated sweep
    (`references/correctness.md#reroot-generated-sweep`), a merge of `main`
-   (`references/correctness.md#ported-check-grammar`), a CI or cache change
+   (`references/correctness.md#ported-check-grammar`,
+   `.claude/skills/morphic-shipping-prs/references/merging-main.md#merged-code-meets-a-changed-type`),
+   a CI or cache change
    (`references/correctness.md#simulate-ci-runs`) or a dependency update
    (`references/correctness.md#dependency-update-differential`).
 6. Where a position lowers to a node of another kind, compile it as each consumer names it

@@ -43,7 +43,7 @@ grep -niE "${pat:?}" "$o"; grep -nE "${cs:?}" "$o"
 (`gh pr view N --json title,body --jq '.title, .body'`), and an edited body before its send.
 
 Once every hit is fixed or justified, push behind the lint and the subject check
-(`references/commits-and-prs.md#pushed-subject-is-disclosed`), which exit 1 on a hit. `<title>`
+(`references/commits-and-prs.md#pushed-subject-is-disclosed`), which gate it by exit status. `<title>`
 serves until the PR opens.
 
 ```bash
@@ -60,7 +60,8 @@ After the push, read CI by `references/commits-and-prs.md#conflicting-pr-has-no-
 
 Merge a stacked branch's base, then `origin/main`, into a pushed branch; never rebase it. Read
 `references/merging-main.md` before resolving a conflict, and rerun what the merge can break
-(`references/merging-main.md#merge-main-first`). `morphic-changing-the-ir` picks an `IRVersion`
+(`references/merging-main.md#merge-main-first`,
+`references/merging-main.md#merged-code-meets-a-changed-type`). `morphic-changing-the-ir` picks an `IRVersion`
 bump's version.
 
 ## Before the first push

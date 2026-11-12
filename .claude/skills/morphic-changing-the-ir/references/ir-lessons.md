@@ -162,19 +162,20 @@ verifier and codecs must reach.
 - **Probe.** Each test whose comment `git grep -niE 'fully( populated|$)' -- 'ir/*_test.go'` hits
   calls one of those three.
 
-## Read what the documents assume of a field before widening its values
+## Read what the documents assume of a field before changing its values
 `widened-field-values`
 
-- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
+- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, mode or
   media type), or stops filling it at a position, grep the field and its old values across
   `docs/`, find each normative statement that assumes the old set, and change it or name the gap
-  where it stands. No emitter reads the value yet, so no test objects, but it changes meaning,
+  there. No emitter reads the value yet, so no test objects, but it changes meaning,
   which `docs/ir/ir-version.md` bumps for.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
 - **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
-  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers` and
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-prose-a-meaning-change-falsifies`.
 
 ## A verdict landing on another node changes no meaning
 `verdict-on-another-node`

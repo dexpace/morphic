@@ -14,7 +14,9 @@ PR ships by the repository's rules. It loads `morphic-shipping-prs`.
    (`references/claims-and-process.md#run-prescribed-commands`), with the flags a neighbouring rule
    passes the same tool (`references/claims-and-process.md#command-keeps-its-neighbours-flags`).
 2. **Process.** Run the push checklist in `morphic-shipping-prs` without its push, on the PR's tree
-   and text; then hold title, commits, body, labels and scope to
+   and text, its `--pushed` naming the head the setup fetched
+   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#pushed-subject-is-disclosed`);
+   then hold title, commits, body, labels and scope to
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, closing keywords to
    `.claude/skills/morphic-shipping-prs/references/closing-issues.md`, and open PRs to
    `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`, counting a

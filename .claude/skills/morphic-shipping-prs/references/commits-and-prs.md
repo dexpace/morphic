@@ -87,7 +87,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `pushed-subject-is-disclosed`
 
 - **Rule.** The push checklist passes the branch as pushed, `subjects.py --pushed origin/<branch>`,
-  which counts its commits among the branch's own
+  and a review the head it fetched; `subjects.py` counts its commits among the branch's own
   (`references/commits-and-prs.md#own-commits-against-the-base`) but prints a finding on one as a
   `pushed commit` and refuses only the title and what the push adds: a pushed commit is never
   rewritten. The PR body names each such commit; on a one-commit branch, a second commit lands the
