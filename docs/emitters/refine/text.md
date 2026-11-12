@@ -21,7 +21,7 @@ type: `1`, `0.1`, `1000000000000000000000`, `0.0000001`, and `0.1` for a `float3
 `0.10000000149011612` its widening to a double holds. It writes no exponent, no `+`, no trailing
 zero and no `-0`, so two numbers JSON compares equal write one text, as an enum's members compare,
 and a whole value is written as an integer is. A target never writes a value through a conversion of
-its own, a Kotlin value class's or `enum class` entry's `toString()` or Go's `fmt`, which spell no
+its own, a Kotlin scalar class's or `enum class` entry's `toString()` or Go's `fmt`, which spell no
 wire form.
 
 A value its wire form cannot spell has no text, and the call fails before anything is sent, naming

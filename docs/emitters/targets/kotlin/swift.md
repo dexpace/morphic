@@ -90,9 +90,8 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   among them, took the same Objective-C name, and the framework failed to link (`Linking globals
   named 'OBJC_METACLASS_$_ProbeNumber': symbol multiply defined!`). With an explicit `@ObjCName` it
   linked, so each of these names is reserved ([naming](naming.md#reserved-names)).
-- The export gives a value class no declaration: a position of its type is `id` in Objective-C and
-  `Any` in Swift, and its companion is unreachable. So an open enum, which a Swift caller names
-  wherever it sets or reads one, is a final class on Multiplatform ([enums](types.md#enums)).
+- The export gives a value class no declaration, so neither Kotlin target declares one
+  ([below](#no-value-class)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
@@ -113,3 +112,37 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   enum's KDoc names each deprecated entry with its text, since Kotlin/Native 2.4.0 exports no
   entry's KDoc. A `@RequiresOptIn`
   annotation does not reach Swift at all ([stability](operations.md#stability)).
+
+## No value class
+
+Neither Kotlin target declares a value class. Each form a value class would serve is a final class
+holding one value, with a generated `equals`, `hashCode` and `toString` over it and a generated
+serializer that writes the value as its wire form, never as an object holding it: an open enum and a
+flags enum ([enums](types.md#enums)), a scalar's declaration, a redacting one and one over the
+runtime's `Bytes` among them ([declarations over a root](types.md#a-declaration-over-a-root)), and
+the runtime's `Decimal` ([Multiplatform](multiplatform.md)).
+
+The Objective-C export gives a value class no declaration. Measured with Kotlin/Native 2.4.0 and
+Swift 6.2.3, a `value class Status(val wire: String)` was absent from the framework's header and
+every position of its type was `id`, `Any` in Swift, or the underlying number's own type, so a Swift
+caller passed the string `"active"` or the number 7 where the Kotlin signature asks a `Status` or a
+flags enum, reached no constant of either companion, could not compare two scalars over `Bytes`, and
+read a sensitive scalar's value in clear, its redacting `toString` gone with the class. As final
+classes each was a class of the header that a Swift caller named, constructed and compared with
+`==`, two equal ones were one element of a `Set`, the constants were reached through `companion`, a
+kept unlisted member was read through `wire`, the wrong argument types no longer compiled, and the
+sensitive scalar printed `[REDACTED]` from `print`, an interpolation and `String(reflecting:)`.
+Through Gradle on macOS arm64 (kotlinx-serialization-json 1.11.0), a model holding one of each
+encoded them as `"status":"active"`, `"perms":3`, `"secret":"hunter2"`, `"blob":"AQID"` and
+`"price":0.10`, and a map keyed by the enum's class under the member's text, and decoded back equal;
+the same class left `@Serializable` with no serializer of its own encoded as `{"wire":"active"}`.
+
+The JVM could keep the value class, and the two targets were weighed apart. On JVM 25 a model
+holding a value class over `String` took 28 bytes where one holding the final class took 44, the 16
+being the class's own object; in a list either took 20 for each element, a value class being boxed
+there. Against that, a function taking a value class compiles to a mangled name
+(`takeV-scETfWE(String)`) that Java cannot call, one returning it hands Java the bare `String`, a
+sensitive one included, and the form is part of every signature that names the type, so an SDK could
+never move between the two forms, or between the two targets, without breaking each binary built
+against it. One form on both costs the 16 bytes and keeps one declaration for common code, for Java
+and for Swift. T-58 holds this.

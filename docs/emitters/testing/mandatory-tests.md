@@ -697,13 +697,13 @@ throughout these documents.
     `a/b%3Fc%23d` and `a//b`, a map's entries and a `Prefix` map's fields in their keys' order, the
     map's entry, and a `form`-exploded map's, giving way to a field another binding writes, a string
     under `ContentType` `application/json` with its quotes, a `text/plain` body as its UTF-8 octets
-    with no byte-order mark, and a value class and an `enum class` entry as their wire forms, never
-    their `toString()`. An optional query input holding null or an empty list is sent as an absent
-    one, a null member of a list is left out, and a path parameter or a `host` label holding null or
-    an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, an `event_t`
-    of `1.5` in `{event_t}.{event_n}`, a required query list holding no member, a header holding a
-    CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string, a header
-    `Prefix` map holding keys `A` and `a`, a `text/plain` request whose media type names
+    with no byte-order mark, and a scalar's class and an `enum class` entry as their wire forms,
+    never their `toString()`. An optional query input holding null or an empty list is sent as an
+    absent one, a null member of a list is left out, and a path parameter or a `host` label holding
+    null or an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, an
+    `event_t` of `1.5` in `{event_t}.{event_n}`, a required query list holding no member, a header
+    holding a CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string,
+    a header `Prefix` map holding keys `A` and `a`, a `text/plain` request whose media type names
     `charset=iso-8859-1`, a NaN, a year past 9999, an offset with seconds and a `decimal`
     `1E+999999999` each fail before anything is sent, as a NaN, a year past 9999 and an offset with
     seconds in a body do. The mock server reads each such request back to the values sent, a header
@@ -888,11 +888,15 @@ throughout these documents.
 58. **T-58 · A declaration no operation moves** — adding to a fixture an operation that returns an
     enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
     removing the one operation returning others, changes no declaration on any target: each is
-    `Open` before and after, marked `Inferred`. On Multiplatform an open enum reaches the Swift
-    export as a type with a constant for each member, with which a Swift caller builds a request and
-    reads a value the SDK kept ([plan
-    policy](../plan/policy.md#neither-policy-reads-which-way-a-type-travels),
-    [Swift](../targets/kotlin/swift.md)).
+    `Open` before and after, marked `Inferred`. On Multiplatform an open enum, a flags enum, a
+    scalar's declaration over a string, over a number and over `bytes`, and the runtime's `Decimal`
+    each reach the Swift export as a class a Swift caller names, constructs and compares with `==`,
+    an enum's with a constant for each member, with which that caller builds a request and reads a
+    value the SDK kept, a sensitive scalar printing `[REDACTED]` there; a Swift call passing a
+    string or a number where one is asked does not compile; and on both Kotlin targets each encodes
+    as its wire form, never as an object holding it, as a map's key too, and decodes back equal
+    ([plan policy](../plan/policy.md#neither-policy-reads-which-way-a-type-travels),
+    [Swift](../targets/kotlin/swift.md#no-value-class)).
 59. **T-59 · What a patch relaxes** — on every target, in the docs and in a mock, a `PATCH` body
     sent as `application/json` requires each member its schema requires, a builder refusing a
     request without one and a mock one arriving without it; the same type sent as
