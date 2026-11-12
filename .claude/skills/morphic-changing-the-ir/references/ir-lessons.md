@@ -195,14 +195,14 @@ verifier and codecs must reach.
 `widened-field-consumers`
 
 - **Rule.** When a field's values widen, or a lowering stops filling it at a position, list the
-  field's readers, `ir`'s own predicates included, and ask what each did with the old value: one may
-  depend on it with no sentence saying so, or decide a node's kind on it.
+  field's readers in every package, `ir`'s predicates included, and ask what each did with the old
+  value: one may depend on it with no sentence saying so, or decide a node's kind on it.
 - **Why.** A file body's `Content.Type` held only `bytes`, so a plain upload needed no rule and had
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
   #1706 stopped filling `Model.Discriminator` on a type array's `object` variant, so `mapOnly` made
   one holding only a catch-all a map, past five review rounds (#1710).
-- **Probe.** `git grep -nE '\.<Field>([^A-Za-z0-9_]|$)' -- 'ir/*.go' 'compilers/*.go' 'pass/*.go' ':!*_test.go'`;
-  list in the PR body each reader asked, and its answer.
+- **Probe.** `git grep -nE '\.<Field>([^A-Za-z0-9_]|$)' -- '*.go' ':!*_test.go'`; list in the PR
+  body each reader asked, and its answer.
 
 ## Say which declarations a reader of a flattened member needs
 `flattened-member-declarations`
