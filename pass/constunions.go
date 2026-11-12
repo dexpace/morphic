@@ -21,10 +21,10 @@ const ConstUnionsName = "const-unions"
 // them, at the union's own ID, so a consumer meets one closed set of strings in
 // one shape however the document spelled it
 // (docs/compilers/openapi.md#string-const-union). Each variant names one value,
-// a string Literal, a one-member Enum or a union that is one in turn, and gives
-// its member what it says of the value. Where the Enum could not say all the
-// union does, or a variant names several values, the union stays. It holds no
-// state, so it is safe for concurrent use.
+// a string Literal, a one-member Enum or a union of one value in turn, and
+// gives its member what it says of the value. Where the Enum could not say all
+// the union does, or a variant names several values, the union stays. It holds
+// no state, so it is safe for concurrent use.
 type ConstUnions struct{}
 
 // Name returns [ConstUnionsName].

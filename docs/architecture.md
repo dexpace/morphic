@@ -351,8 +351,8 @@ engine refuses there.
 Built, and in the default list:
 
 - **const-unions** — a closed union of strings, every variant a string `Literal`, a one-member
-  `Enum` or such a union, is rewritten as the closed `Enum` of its values at the union's own ID,
-  each member holding what its variant and branch say of its value, and each branch type nothing
+  `Enum` or a union of one value, is rewritten as the closed `Enum` of its values at the union's own
+  ID, each member holding what its variant and branch say of its value, and each branch type nothing
   else references is removed ([`string-const-union`](./compilers/openapi.md#string-const-union)). A
   transform, it runs first. It is no convenience simplification of reference-learnings.md §B0, which
   are off by default: it loses nothing, keeping the union wherever an `Enum` could not say all it

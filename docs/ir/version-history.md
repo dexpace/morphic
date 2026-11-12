@@ -425,8 +425,8 @@ it sees. Changes made together in one bump are listed together under it.
   object alone does. A consumer pinned to 0.40.0 that read the variant's `Discriminator` no longer
   finds it there.
 - **0.42.0** — no shape change. The engine's `const-unions` pass, on by default, rewrites a closed
-  union whose every variant names an anonymous string `Literal`, closed `Enum` of one string or
-  union that is one in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
+  union whose every variant names an anonymous string `Literal`, a closed `Enum` of one string or a
+  union of one value in turn, such as a `oneOf` of `const`s or an `anyOf` of one-member `enum`s, as
   the closed `Enum` of its values at the union's own ID, each member holding what its branch said of
   its value, and removes the branch types nothing else references
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to 0.41.0
