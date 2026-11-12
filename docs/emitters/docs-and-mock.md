@@ -405,7 +405,7 @@ spells the call. The label is on every version's pages, the written one's among 
 target cannot tell which versions' SDKs are published: a pipeline running once per label publishes
 each, and a run naming a target for samples alone names no version. Showing samples on the written
 snapshot's pages alone was rejected for dropping what such a pipeline ships, and labelling only the
-others for making a docs page depend on which targets share its run. A run made for samples
+others for making a docs page depend on which targets share its run (T-69). A run made for samples
 alone reports what any run of that target reports, and the engine decides as for any run whether
 that is fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs
 showing it. A target returns a sample for every operation its callers call, whatever its `Scope`,
