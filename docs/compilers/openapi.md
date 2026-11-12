@@ -2169,7 +2169,13 @@ naming no schema is reported as an `openapi/unresolved-ref` error at its entry. 
 no `object` admits no instance a tag routes, and resolves nothing, as a scalar beside a
 discriminator does. Settling the variant's discriminator by its routes, as one beside a union kept
 verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would keep it only where
-it routes nowhere, and would have to find every component composing the schema to know that.
+it routes nowhere, and would have to find every component composing the schema to know that. Two
+typed homes lose as well. A subtype's `Base` naming the variant would compose the schema's object
+half where its `allOf` names the schema, and `Base` names what the source wrote
+([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
+discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
+`Union` base into its object variant would part from that relation, and teaching the relation the
+step would change it for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
