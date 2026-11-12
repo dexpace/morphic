@@ -49,9 +49,9 @@ hold what a type `error_2` renders to, and their IDs would decide which kept it.
 reserved name are escaped and then told apart as any two are, `Result_` and `Result_2`, and a suffix
 that would make a reserved name is passed over, as `com2` is. Two reservations are answered
 otherwise. An import that yields (below) takes the collision rule's suffix whatever it met, `error2`
-or `Dog2`: it yields to its file's own declarations too, which only that rule compares, and its
-name is its file's alone, so nothing a caller writes turns on it. A Kotlin method or enum entry in
-an Objective-C method family takes its role's leading word in its Swift name, since a trailing
+or `Dog2`: it yields to its file's own declarations too, which only that rule compares, and its name
+is its file's alone, so nothing a caller writes turns on it. A Kotlin method or enum entry in an
+Objective-C method family takes its role's leading word in its Swift name, since a trailing
 underscore leaves it in the family ([Swift](../targets/kotlin/swift.md)).
 
 Only spec names yield, since the target's own names are what its runtime and templates are written

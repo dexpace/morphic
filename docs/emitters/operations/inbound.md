@@ -144,8 +144,8 @@ T-71 holds this document on every target.
 - **Decoding before the checks** acts on a body nothing has verified.
 - **The caller's check on every request**, beside the receiver's own comparison, made a conjunction
   of two alternatives: with `[{http_basic}, {mutual_tls}]` and a check verifying the certificate,
-  correct basic credentials over a connection presenting none were refused. A check told neither
-  the operation nor the scheme could not tell which of the two it was asked about.
+  correct basic credentials over a connection presenting none were refused. A check told neither the
+  operation nor the scheme could not tell which of the two it was asked about.
 - **Checking nothing where nothing is declared or configured.** A receiver built with no setting
   answered a forged body 200 for an operation stating no security, and a request with no key for an
   `apiKey` scheme the receiver held no key for, since an absent key equals an unset one; a check

@@ -149,8 +149,8 @@ is](../refine/text.md#reading-a-text), whatever its row does with a value in a b
 1 is the name `"1"` and reads back from `"1"`, `"1.0"` and `"1e0"`, a boolean's is `"true"`, an
 enum's its member's wire text, a number's or a string's included, and a date's its string, on every
 target, in an SDK and in a mock. Two names of one object that read as one key are refused as a
-duplicate name is. A key whose type has no text, a model's, a list's, a map's or an `any`, stays
-the diagnosed degrade it was.
+duplicate name is. A key whose type has no text, a model's, a list's, a map's or an `any`, stays the
+diagnosed degrade it was.
 
 Neither first target's library does this unaided (Go 1.27.3; kotlinx-serialization-json 1.11.0 on
 Kotlin/Native 2.4.0). json/v2 writes and reads an integer key in plain digits, refuses a `bool` key
@@ -162,8 +162,8 @@ name `"1.0"`, and a serializer reading through `decodeJsonElement()` sees a name
 value, so the by-value serializer and an integer enum's refused the key `"1"`. Each target says how
 it reads a name ([Go](../targets/go/types.md#integers),
 [Kotlin](../targets/kotlin/types.md#integers)). Protobuf's `map<int64, V>` and `map<bool, V>` write
-such keys in JSON; the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds
-the rule.
+such keys in JSON; the golden spec types no key (spec @bc6fad24, morphic @fa253fe19). T-61 holds the
+rule.
 
 ## What a built-in row writes
 
@@ -234,13 +234,13 @@ value as its primitive's default row does unless the target's lowering table say
   that reading alone depends on when it is made, and a date that year does not hold is none, as
   `29-Feb-00` read in 2060, whose year is then 2100, since the year 2000 that holds it lies outside
   the hundred years the rule reads. Whether a date is more than 50 years after is decided on its
-  fields, its year less 50 and then its month, day and time against the clock's in
-  GMT, never by adding years to the clock, which Go's `AddDate` and the JDK's `plusYears` do
-  differently on 29 February (Go 1.27, JDK 25). The reader takes the clock's instant as an argument,
-  which the codec fills from the system clock, so a test reads at an instant it names. On the golden
-  spec (spec @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21
-  Oct 2023 07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the
-  JDK's `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
+  fields, its year less 50 and then its month, day and time against the clock's in GMT, never by
+  adding years to the clock, which Go's `AddDate` and the JDK's `plusYears` do differently on 29
+  February (Go 1.27, JDK 25). The reader takes the clock's instant as an argument, which the codec
+  fills from the system clock, so a test reads at an instant it names. On the golden spec (spec
+  @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21 Oct 2023
+  07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the JDK's
+  `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
   IMF-fixdate, and Go's `http.ParseTime` reads it and reads an rfc850-date's `70` as 1970 at any
   date (Go 1.27, JDK 25). A header list of such dates splits around the comma each holds ([values as
   text](../refine/text.md#reading-a-text)).

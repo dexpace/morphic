@@ -76,16 +76,15 @@ A service's receiver ([operations the API sends](../../operations/inbound.md)) i
 built with a value for each scheme its operations name that the receiver can compare, `verify:
 ((InboundRequest, InboundCheck) -> Boolean)?` for the caller's check and `allowUnauthenticated:
 Boolean`, stating that an operation declaring no security admits any sender, each unset by default;
-a scheme named as either takes the escape, as any parameter meeting a name generated code binds
-does ([naming](naming.md#the-escape)).
-The check is handed the runtime's `InboundCheck(operation, scheme)`, the parse method as the SDK
-names it and the name the document gives the scheme, null for an alternative naming none. A parse
-method takes the runtime's `InboundRequest(method, target, headers, body: ByteArray,
-peerCertificates: List<ByteArray>)`, the target its path and query as received and each certificate
-its DER bytes, the client's first and none where the server exposes none, since Kotlin has no
-request type every server hands over, and a JVM certificate type would not reach Swift; it returns
-the request type, throwing the runtime's `InboundException` on a refused check and a decode failure
-apart from it.
+a scheme named as either takes the escape, as any parameter meeting a name generated code binds does
+([naming](naming.md#the-escape)). The check is handed the runtime's `InboundCheck(operation,
+scheme)`, the parse method as the SDK names it and the name the document gives the scheme, null for
+an alternative naming none. A parse method takes the runtime's `InboundRequest(method, target,
+headers, body: ByteArray, peerCertificates: List<ByteArray>)`, the target its path and query as
+received and each certificate its DER bytes, the client's first and none where the server exposes
+none, since Kotlin has no request type every server hands over, and a JVM certificate type would not
+reach Swift; it returns the request type, throwing the runtime's `InboundException` on a refused
+check and a decode failure apart from it.
 
 The caller's server reads the body, so it holds the body to the bound, which the receiver states as
 `maxBodyBytes`, the largest of its operations' bounds: the server reads one byte past it and no

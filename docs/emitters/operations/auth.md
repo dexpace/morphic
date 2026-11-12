@@ -178,4 +178,4 @@ the step again. So a credential reaches the transport and nothing else, wherever
 
 A redirect to another origin carries none of the client's credentials ([runtime
 policy](../contract/runtime-policy.md#the-canonical-vocabulary)), which is this rule's other half:
-the step does not run for a host the client was not configured for.
+the step does not run for a host the client was not configured for. T-65 holds this section.

@@ -142,13 +142,13 @@ the record holds because a built value never changes (above). Nothing recurses i
 limit: the client refuses to encode it, with an error and nothing sent, `toString` shows its class
 and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
 and `hashCode` is then its depth. Each records in `jsonValues`, beside it, how many values its JSON
-form holds, the sum of its members' and one for itself, held at the greatest `Int` once past it,
-and a value past `MaxValues` is treated the same way, its count shown beside its depth: one sharing
-each child at 22 levels, 16,777,214 values, printed, hashed, compared and was found in a set in 0.9
-s, and one at 30 levels answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25).
-Measured on Kotlin/Native 2.4.0, a value 200,002 levels deep
-printed, hashed, compared and was found in a set on a 64 KB stack, where the same nesting with no
-record ended the process on 512 KB. Both Kotlin targets do this. On the JVM a `MaxDepth` raised past
-what a thread's stack takes still leaves a value within it the `StackOverflowError` any deep
-structure meets there, which its caller can catch. A count kept in a thread-local as each method
-recurses would bound them too, at two reads of it for every nested value hashed. T-63 holds these.
+form holds, the sum of its members' and one for itself, held at the greatest `Int` once past it, and
+a value past `MaxValues` is treated the same way, its count shown beside its depth: one sharing each
+child at 22 levels, 16,777,214 values, printed, hashed, compared and was found in a set in 0.9 s,
+and one at 30 levels answered all four in 68 µs, equal only to itself (Kotlin 2.4.0, JVM 25).
+Measured on Kotlin/Native 2.4.0, a value 200,002 levels deep printed, hashed, compared and was found
+in a set on a 64 KB stack, where the same nesting with no record ended the process on 512 KB. Both
+Kotlin targets do this. On the JVM a `MaxDepth` raised past what a thread's stack takes still leaves
+a value within it the `StackOverflowError` any deep structure meets there, which its caller can
+catch. A count kept in a thread-local as each method recurses would bound them too, at two reads of
+it for every nested value hashed. T-63 holds these.

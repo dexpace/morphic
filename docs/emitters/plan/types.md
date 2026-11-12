@@ -404,12 +404,12 @@ one the operation names for its view, `ParameterVisibility` for the request and
 What the client reads takes `read`. What it writes takes the lifecycles of its HTTP method, its
 primary mapping's ([bindings](bindings.md)): `query` for `GET` and `HEAD`, `create` for `POST`,
 `create` and `update` for `PUT`, `update` for `PATCH`, `delete` for `DELETE`, and `create` and
-`update` for any other method and for an operation with no HTTP mapping. So the request of
-a webhook or a callback, which the API starts, takes `read`, and a message takes the side its
-binding's direction gives it. A `PATCH` body's shape is a patch shape where [its binding or its
-media type](#what-a-patch-relaxes) says so. A `readOnly` member, visible in `read`, `delete` and
-`query`, thus reaches a `GET`'s parameters and a `DELETE`'s body, and never the body of a `POST` or
-a `PUT` the client sends.
+`update` for any other method and for an operation with no HTTP mapping. So the request of a webhook
+or a callback, which the API starts, takes `read`, and a message takes the side its binding's
+direction gives it. A `PATCH` body's shape is a patch shape where [its binding or its media
+type](#what-a-patch-relaxes) says so. A `readOnly` member, visible in `read`, `delete` and `query`,
+thus reaches a `GET`'s parameters and a `DELETE`'s body, and never the body of a `POST` or a `PUT`
+the client sends.
 
 A shape reaches every type a position of it holds, in that same shape: each member the shape holds,
 a catch-all's values, a union's variants, a polymorphic base's subtypes, a map's values, and a
@@ -452,12 +452,12 @@ is set and its declaration is an alias of the type's own, `type UserCreate = Use
 ([Go](../targets/go/models.md#a-shape-that-is-an-alias),
 [Kotlin](../targets/kotlin/models.md#a-shape-that-is-an-alias)). A signature names the shape either
 way, so the name a caller writes for a request is the same before and after its projection leaves
-the read one. That holds for each name a caller writes to build the value, a union's variants
-among them: Go aliases the union's interface and each wrapper and declares each factory under the
-shape's name, and Kotlin reaches a model's factory and a union's, one for each variant, through the
-alias. It does not hold for a class Kotlin nests, a builder or a variant's wrapper, which no
-`typealias` reaches: a caller naming one writes the type's own, `User.Builder`, and changes that
-line when the projections part.
+the read one. That holds for each name a caller writes to build the value, a union's variants among
+them: Go aliases the union's interface and each wrapper and declares each factory under the shape's
+name, and Kotlin reaches a model's factory and a union's, one for each variant, through the alias.
+It does not hold for a class Kotlin nests, a builder or a variant's wrapper, which no `typealias`
+reaches: a caller naming one writes the type's own, `User.Builder`, and changes that line when the
+projections part.
 
 The docs give shapes that coincide one table, which names each of them ([what the docs
 render](../docs-and-mock.md#what-the-docs-render)).

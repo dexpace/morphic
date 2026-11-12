@@ -42,10 +42,10 @@ caller set it, so a filter and a limit hold across the walk:
   operation whose page input declares no default has no `Page` and is lowered as a plain method,
   which the plan reports once as a warning `emitters/plan/first-page-unknown`. The number is sent as
   [below](#the-numbers-a-walk-reads-and-sends); an input of a type holding no integer, or a default
-  that is none, gives no first page, and is planned as with the policy null. The golden spec has
-  254 `GET`s taking a query parameter named `page` (spec @bc6fad24, morphic @fa253fe19): 202 declare
-  a default, 200 the number 1 and 2 the string `"1"`, 4 of them beside an inclusive minimum of 0,
-  and 52 none, 7 of these only a minimum, 0 in three; 5 of the 254 are strings. Two `POST`s take one
+  that is none, gives no first page, and is planned as with the policy null. The golden spec has 254
+  `GET`s taking a query parameter named `page` (spec @bc6fad24, morphic @fa253fe19): 202 declare a
+  default, 200 the number 1 and 2 the string `"1"`, 4 of them beside an inclusive minimum of 0, and
+  52 none, 7 of these only a minimum, 0 in three; 5 of the 254 are strings. Two `POST`s take one
   too, each defaulting to 1.
 - **`next_link` and `link_header`**: a `GET` of the link, whatever the operation's method, resolved
   against the URL of the page that gave it (RFC 3986 §5), which carries the inputs itself, so no
@@ -58,9 +58,9 @@ mock](../docs-and-mock.md#a-page-walk-on-the-mock)), which T-67 holds.
 
 ### The numbers a walk reads and sends
 
-A page number, an offset, a limit and a total are integers, each read and sent in its own input's
-or member's type: an `integer` or a `number` as a JSON number, or as its decimal text where a query
-or a header carries it, and a `string` as its decimal text, an optional `-` and digits. The golden
+A page number, an offset, a limit and a total are integers, each read and sent in its own input's or
+member's type: an `integer` or a `number` as a JSON number, or as its decimal text where a query or
+a header carries it, and a `string` as its decimal text, an optional `-` and digits. The golden
 spec's 37 `GET`s taking an `offset` query parameter beside a `limit` or `per_page` type 4 offsets
 and 4 limits as strings and 6 and 8 as `number`s, which admit a fraction (spec @bc6fad24, morphic
 @fa253fe19). A value read that is no integer, such as `2.5` or `"ten"`, or one below 0, is none: a
@@ -102,7 +102,6 @@ was sent does, meets the bound and fails the walk, never handing a caller part o
 the whole of it. T-45 holds this section.
 
 A server whose continuations never end, whether they differ or repeat, meets none of these, so a
-walk is bounded as well:
-it fetches at most the runtime policy's `Pagination.MaxPages` pages and then fails, never ending as
-a walk that reached its end does ([runtime policy](../contract/runtime-policy.md)). T-37 holds the
-bound.
+walk is bounded as well: it fetches at most the runtime policy's `Pagination.MaxPages` pages and
+then fails, never ending as a walk that reached its end does ([runtime
+policy](../contract/runtime-policy.md)). T-37 holds the bound.

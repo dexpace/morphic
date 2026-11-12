@@ -106,8 +106,8 @@ the fallback's among them, `type PaymentCreateCard = PaymentCard`, and a functio
 `func NewPaymentCreateCard(v CardCreate) PaymentCreate`, which calls the type's own. A caller that
 built `sdk.PaymentCreate{Value: sdk.PaymentCreateCard{Value: sdk.CardCreate{…}}}`, called a factory
 and switched over a `sdk.PaymentCreateVariant`, one variant's type in another unit, compiled before
-and after the three became declarations of their own. With the struct aliased alone, the same
-caller had only `sdk.PaymentCard` to write and stopped at the split (`PaymentCard does not implement
+and after the three became declarations of their own. With the struct aliased alone, the same caller
+had only `sdk.PaymentCard` to write and stopped at the split (`PaymentCard does not implement
 PaymentCreateVariant`). An inclusive union's alias is its struct's alone, its variants being fields.
 T-60 holds this section.
 

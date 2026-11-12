@@ -96,9 +96,9 @@ the value a generator reading only its own key would, which is why the conflict 
 returns the layer these rules give whatever severity a report carries, a refused key's error among
 them: whether a run fails on one is the engine's verdict (architecture.md §4), and a run it lets
 through, or a caller reading a failed run's result, gets this layer and no other. T-33 holds each
-case. An operation's own key and its path item's both set the operation's entry, so a
-status one names in a retry list and the other in the other list would be one scope's status named
-twice; it stays only in the operation's list instead, as it would in a list set higher
+case. An operation's own key and its path item's both set the operation's entry, so a status one
+names in a retry list and the other in the other list would be one scope's status named twice; it
+stays only in the operation's list instead, as it would in a list set higher
 ([retries](runtime-policy.md#the-canonical-vocabulary)).
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an

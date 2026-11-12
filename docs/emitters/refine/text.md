@@ -119,11 +119,11 @@ lowerings](../../compilers/planned-lowerings.md)) and never to `AllowReserved`, 
 `%41` and the `?` that Smithy encodes. `AllowReserved` beside such a pattern changes nothing, since
 the pattern's format gives the rule, and what `AllowReserved` says of an empty segment and this
 section of a dot segment hold for it as for any path parameter. A pattern of one segment, `*` or a
-literal, is written as a binding with none is. A reader takes the segments the pattern names, a
-`**` the run the rest of the template leaves it ([below](#reading-a-text)), and decodes each triple
-but `%2F` and `%2f`, which it keeps as the three characters they are, as
-google.api.http has a server do, so every text written reads back and a `%2F` another client sent is
-never taken for a separator. A `PathPattern` is carried to a refiner as `ParamBind.PathPattern`
+literal, is written as a binding with none is. A reader takes the segments the pattern names, a `**`
+the run the rest of the template leaves it ([below](#reading-a-text)), and decodes each triple but
+`%2F` and `%2f`, which it keeps as the three characters they are, as google.api.http has a server
+do, so every text written reads back and a `%2F` another client sent is never taken for a separator.
+A `PathPattern` is carried to a refiner as `ParamBind.PathPattern`
 ([bindings](../plan/bindings.md)). No emitter checks a value against its pattern before it is sent,
 which the server still does, and each reports the binding as an info
 `emitters/<target>/unchecked-constraint`. That check is all an emitter drops: the IR has one that
@@ -306,11 +306,11 @@ on what the position carries:
 Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or, in
 the order they came, every pair whose name the input owns by that test. So each pair reaches one
 input, as `search` and `searchBranches`, which share the query of `GET
-/accounts/{account_id}/cloudforce-one/events`, each read back their own, and one no input owns, as
-a parameter the document does not declare, reaches none. A request's reader holds no more pairs
-than the request carries, so the request's bounds are its own: a query's and a cookie's are within
-what the server bounds a request's head to, Go's `net/http` at 1 MB by default, and a form or
-multipart body's within the bound its body is read to, the mock's `MaxRequestBytes` ([docs and
+/accounts/{account_id}/cloudforce-one/events`, each read back their own, and one no input owns, as a
+parameter the document does not declare, reaches none. A request's reader holds no more pairs than
+the request carries, so the request's bounds are its own: a query's and a cookie's are within what
+the server bounds a request's head to, Go's `net/http` at 1 MB by default, and a form or multipart
+body's within the bound its body is read to, the mock's `MaxRequestBytes` ([docs and
 mocks](../docs-and-mock.md#the-mocks-options)) and a receiver's buffered body's ([operations the API
 sends](../operations/inbound.md#reading-the-request)), while the test compares each pair with the
 names its location owns, which the document fixes.
@@ -321,15 +321,15 @@ no refiner derives it again: `ParamBind.Text` for a parameter, a request's heade
 reads, with its fields and parts, whose reader's `Type` is then `string` ([body
 shapes](../plan/responses.md#body-shapes)), and `OpPlan.RequestText` for a request's contents
 ([OpPlan](../plan/operations.md)). It reports each as a warning `emitters/plan/unarranged-value` at
-its binding, its header or its content. A content no election picks is not reported, and no
-election passes over one. Whether a content holds such a value is its own fact, however it is
-chosen: an inbound request is read through the content its `Content-Type` names ([operations the
-API sends](../operations/inbound.md)), so each such content of its request is reported, and one
-that arrives is the string it held, as a response a receiver writes in one is the string it is
-given. Such an input or content has no example: a declared one holds its value, not its text, so it
-is refused as one its type refuses is ([docs and mocks](../docs-and-mock.md)), and none is
-synthesized, a text made up for it being a guess, so the mock answers in such a content with no body
-and a warning `emitters/mock/example-missing`.
+its binding, its header or its content. A content no election picks is not reported, and no election
+passes over one. Whether a content holds such a value is its own fact, however it is chosen: an
+inbound request is read through the content its `Content-Type` names ([operations the API
+sends](../operations/inbound.md)), so each such content of its request is reported, and one that
+arrives is the string it held, as a response a receiver writes in one is the string it is given.
+Such an input or content has no example: a declared one holds its value, not its text, so it is
+refused as one its type refuses is ([docs and mocks](../docs-and-mock.md)), and none is synthesized,
+a text made up for it being a guess, so the mock answers in such a content with no body and a
+warning `emitters/mock/example-missing`.
 
 A document that means JSON says so: a parameter declaring `content` with `application/json` in place
 of `schema` (§4.12.2.3), as an overlay can make it, lowers to `ContentType`, which types the input
@@ -344,19 +344,18 @@ At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, e
 under an exploded `form` whose elements are objects or lists, three such multipart parts, and no
 other parameter, header or form field. Two operations hold two of the parameters in one query,
 `search` beside `searchBranches` or `tagSearch`, and no name one of them or a part owns is another
-binding's. The parts are the `metadata` of `POST
-/accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
-`PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
-stay their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types
-each as its object and sends it as JSON. The descriptions of ten of the parameters call theirs JSON,
-one array in one parameter, as in
-`search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's one pair
-sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE
-/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say nothing of their text, and a
-`DELETE` whose filter the server did not read would delete as one given none. It has two such
-bodies, the `text/plain;charset=UTF-8` requests of `POST /accounts/{account_id}/one/integrations`
-and its `PATCH`, each an object beside an `application/json` content of the same schema. T-48 holds
-the rule.
+binding's. The parts are the `metadata` of `POST /accounts/{account_id}/images/v1`, of `POST
+/accounts/{account_id}/images/v2/direct_upload` and of `PUT
+/zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they stay
+their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types each
+as its object and sends it as JSON. The descriptions of ten of the parameters call theirs JSON, one
+array in one parameter, as in `search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`,
+which a caller's one pair sends and an overlay declaring `content` types. The other two, the
+`filters` of `GET` and `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say
+nothing of their text, and a `DELETE` whose filter the server did not read would delete as one given
+none. It has two such bodies, the `text/plain;charset=UTF-8` requests of `POST
+/accounts/{account_id}/one/integrations` and its `PATCH`, each an object beside an
+`application/json` content of the same schema. T-48 holds the rule.
 
 ## Other formats
 

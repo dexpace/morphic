@@ -198,11 +198,11 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
   failure's body read no further than `Errors.MaxBody`, and a body handed over unread waiting no
   longer than `Timeout.Idle` for its next bytes. A walk fetches at most `Pagination.MaxPages` pages
   and a poller polls at most `Polling.MaxPolls` times, each a call so bounded. Every one has an
-  upper bound of its own, so no configuration removes a limit by writing a large one. A success
-  body the method decodes has no bound in bytes: it becomes the value the call returns, so what it
-  holds is the caller's answer, which a bound below it would refuse, while `Timeout.Request` bounds
-  its time and `Nesting` its depth. No document states any of these limits, so each default is a
-  choice, measured on no input.
+  upper bound of its own, so no configuration removes a limit by writing a large one. A success body
+  the method decodes has no bound in bytes: it becomes the value the call returns, so what it holds
+  is the caller's answer, which a bound below it would refuse, while `Timeout.Request` bounds its
+  time and `Nesting` its depth. No document states any of these limits, so each default is a choice,
+  measured on no input.
 - **A redirect** is followed where following it keeps what the request asks, as RFC 9110 §15.4
   allows: 307 and 308 send the method and body again, 303 sends a `GET`, or a `HEAD` for a `HEAD`,
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
@@ -278,8 +278,8 @@ Each leaf's comment above gives its type, its default and its range, and a value
   measured;
 - a header's name, compared without case, that names a field RFC 9110 registers (§18.4),
   `Transfer-Encoding`, `Cookie` or `Set-Cookie`, or one the other of `Idempotency.Header` and
-  `Telemetry.Client` names: the runtime would write the key or the agent over a field it or a
-  scheme writes, and `RequestID` would copy a `Set-Cookie` into every event;
+  `Telemetry.Client` names: the runtime would write the key or the agent over a field it or a scheme
+  writes, and `RequestID` would copy a `Set-Cookie` into every event;
 - a list holding an entry twice, or more entries than its comment allows, and a status below 300 or
   past 599;
 - a `Backoff` or a `Kinds` row naming a member it does not have or leaving out one it must name,
@@ -398,24 +398,24 @@ mocks](../docs-and-mock.md)).
 ## What an event holds
 
 The hook a client takes is handed one value per step of a call, of the kinds `Logging.Events` lists.
-A hook is a client setting ([the client](../operations/client.md)): Go's
-`WithHook(func(ctx context.Context, e runtime.Event) context.Context)` and the Kotlin builder's
-`hook { context, event -> context }`, a `(CoroutineContext, Event) -> CoroutineContext`. Each is
-handed the context the call runs in, the caller's for its first event and for each later one what
-the hook returned for the one before, and returns the context the call goes on in; an attempt's
-request is sent in what its `attempt` event returned. So a tracer starts the call's span under the
-caller's at the first `attempt`, and a `Transport` wrapper finds it in the request's context and
-writes the header that propagates it ([auth](../operations/auth.md#where-a-credential-can-be-read)).
-Measured with Go 1.27.3, and with Kotlin 2.4.0 over Ktor 3.2.3 in a `suspend` call: each of two
-overlapping calls sent a header naming its own call's span under its caller's, and a call sent
-again sent it on both attempts. A hook handed the caller's context alone was measured first and
-fails: the span it keeps per `Call` is out of the wrapper's reach, which propagates the caller's
-span, so the server's span is a sibling of the call's; and a Kotlin hook that does not suspend
-cannot read `coroutineContext`, so it is handed one. Whatever a hook returns, the call ends when its
-caller's context does: Go cancels the request with the caller's, and Kotlin drops the `Job` of what
-the hook returns. The runtime calls the hook where the step happens and waits for it, and a hook
-changes nothing of the request but the context it goes in. `Call` pairs a call's events where calls
-overlap. What a hook is handed is the same on each target:
+A hook is a client setting ([the client](../operations/client.md)): Go's `WithHook(func(ctx
+context.Context, e runtime.Event) context.Context)` and the Kotlin builder's `hook { context, event
+-> context }`, a `(CoroutineContext, Event) -> CoroutineContext`. Each is handed the context the
+call runs in, the caller's for its first event and for each later one what the hook returned for the
+one before, and returns the context the call goes on in; an attempt's request is sent in what its
+`attempt` event returned. So a tracer starts the call's span under the caller's at the first
+`attempt`, and a `Transport` wrapper finds it in the request's context and writes the header that
+propagates it ([auth](../operations/auth.md#where-a-credential-can-be-read)). Measured with Go
+1.27.3, and with Kotlin 2.4.0 over Ktor 3.2.3 in a `suspend` call: each of two overlapping calls
+sent a header naming its own call's span under its caller's, and a call sent again sent it on both
+attempts. A hook handed the caller's context alone was measured first and fails: the span it keeps
+per `Call` is out of the wrapper's reach, which propagates the caller's span, so the server's span
+is a sibling of the call's; and a Kotlin hook that does not suspend cannot read `coroutineContext`,
+so it is handed one. Whatever a hook returns, the call ends when its caller's context does: Go
+cancels the request with the caller's, and Kotlin drops the `Job` of what the hook returns. The
+runtime calls the hook where the step happens and waits for it, and a hook changes nothing of the
+request but the context it goes in. `Call` pairs a call's events where calls overlap. What a hook is
+handed is the same on each target:
 
 ```go
 type Event struct {          // the runtime's: one step of one call
@@ -473,8 +473,8 @@ either language has. And a list of headers to hide fails the header it does not 
 - for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
   poll, the scheme, host and port, then `/[REDACTED]`, the host itself written `[REDACTED]` where it
   is past the 255 bytes RFC 1035 §2.3.4 lets a name hold, so a log line takes no megabyte from a
-  response. A server signs such a URL in its query, as a link to stored bytes is, or in its
-  path, and nothing the document declares says which part is the signature.
+  response. A server signs such a URL in its query, as a link to stored bytes is, or in its path,
+  and nothing the document declares says which part is the signature.
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
 ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response. T-65

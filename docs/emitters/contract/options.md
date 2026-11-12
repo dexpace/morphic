@@ -48,7 +48,6 @@ options version as well, but one the target's toolchain fixes, so no configurati
 so are the letter case and the character categories casing reads, a named Unicode version's and
 never those of the Go release that builds Morphic. The path fold, which names are compared by too,
 is the engine's and reads the building release's tables, which fold every assigned character alike
-([emit rules](../emit/rules.md)). The target-AST nodes a default shapes carry
-`Inferred` provenance ([target AST](../refine/target-ast.md)), as INV6 requires. How a failure
-reaches its caller is a setting here as well
-([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).
+([emit rules](../emit/rules.md)). The target-AST nodes a default shapes carry `Inferred` provenance
+([target AST](../refine/target-ast.md)), as INV6 requires. How a failure reaches its caller is a
+setting here as well ([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).

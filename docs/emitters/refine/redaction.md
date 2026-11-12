@@ -59,19 +59,19 @@ rendering that asks the value nothing, as Go's `fmt` asks no method under a verb
 `%w` outside `Errorf` and `%p` of a struct, nor below an unexported field, shows nothing of a
 redacted one either, since a target holds it where such a rendering does not reach
 ([Go](../targets/go/models.md#a-redacted-member)). The wire form is written from the value, never
-through those forms. A
-value a caller takes out of every holder, as a string or a list of its own, renders as the target
-renders it. So does a value a renderer reaches without asking it, which shows what the value holds:
-one encoding it as JSON, as logrus's JSON formatter and zap's `Reflect` do, or reading its fields,
-as Node's `console.log` and `JSON.stringify` do a JavaScript object's, a Kotlin/JS one's among them,
-since no form a type declares reaches either. A credential an auth injector writes is no IR fact
-this reads: it is kept out of every rendering by where the auth step runs, not by a mark
-([auth](../operations/auth.md#where-a-credential-can-be-read)). A redacted collection shows the
-marker alone, not its length, since how many tokens or keys a value holds can be what a reader must
-not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's untyped JSON, holds the
-wire's bytes, so no rendering above prints a raw body whose declared type holds a redacted position,
-showing its decoded, redacted form instead. The docs emitter marks a redacted parameter or property
-secret and shows a placeholder for its example ([docs](../docs-and-mock.md#what-the-docs-render)).
+through those forms. A value a caller takes out of every holder, as a string or a list of its own,
+renders as the target renders it. So does a value a renderer reaches without asking it, which shows
+what the value holds: one encoding it as JSON, as logrus's JSON formatter and zap's `Reflect` do, or
+reading its fields, as Node's `console.log` and `JSON.stringify` do a JavaScript object's, a
+Kotlin/JS one's among them, since no form a type declares reaches either. A credential an auth
+injector writes is no IR fact this reads: it is kept out of every rendering by where the auth step
+runs, not by a mark ([auth](../operations/auth.md#where-a-credential-can-be-read)). A redacted
+collection shows the marker alone, not its length, since how many tokens or keys a value holds can
+be what a reader must not learn. A body kept as it arrived, a failure's `RawBody` or a fallback's
+untyped JSON, holds the wire's bytes, so no rendering above prints a raw body whose declared type
+holds a redacted position, showing its decoded, redacted form instead. The docs emitter marks a
+redacted parameter or property secret and shows a placeholder for its example
+([docs](../docs-and-mock.md#what-the-docs-render)).
 
 ## What the runtime holds raw
 
@@ -103,9 +103,8 @@ the document spells:
   and an encoder's, of a request: the type the value was read into or written from, and the types in
   the library's chain;
 - a transport's failure, a refused connection's, a TLS handshake's and a name lookup's among them,
-  and an `Authenticator`'s: the method, the URL as shown
-  ([what an event holds](../contract/runtime-policy.md#what-an-event-holds)) and the types in the
-  chain;
+  and an `Authenticator`'s: the method, the URL as shown ([what an event
+  holds](../contract/runtime-policy.md#what-an-event-holds)) and the types in the chain;
 - a URL that does not parse, a base URL the caller gave, a redirect's `Location`, a link to the next
   page or a place to poll: the setting or the member it came from, never its text. Such a redirect
   is returned as the response, and such a link or place fails the walk or the wait;

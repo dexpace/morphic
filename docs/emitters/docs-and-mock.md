@@ -28,23 +28,22 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   and each response content's [example set](#one-set-of-examples) for canned responses, synthesizing
   none of its own, so with `Synthesize` off its streams and page walks hold only values the document
   declares, bar the links and totals a walk states of itself, sending the whole `Envelope.Body`
-  where a response is enveloped, `Others` to answer as
-  each declared response does, the error taxonomy to simulate declared failures, the declared
-  `Closed` of a union or an enum to say whether a request may carry a variant or a value the
-  document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a mock
-  accepts](#what-a-mock-accepts)), `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the
-  binding it lowers ([bindings](plan/bindings.md)) to route requests, `Stream` to answer each stream
-  as its sides frame it and `Page` to end each page walk a pager makes ([the mock's streams and page
-  walks](#the-mocks-streams-and-page-walks)), and the visibility projections to honor the same wire
-  shapes an SDK sends/receives. Refine lowers into a server-routing AST (routes from
-  `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
-  SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
-  target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
-  diffed against. A response content whose example set is empty, as one can be with `Synthesize`
-  off, is a warning `emitters/mock/example-missing`, never a body it invents. What it logs of a
-  request is what an SDK's event holds of one
-  ([auth](operations/auth.md#where-a-credential-can-be-read)), so no header and no body. It sends a
-  webhook or a callback rather than routing one, as [operations the API
+  where a response is enveloped, `Others` to answer as each declared response does, the error
+  taxonomy to simulate declared failures, the declared `Closed` of a union or an enum to say whether
+  a request may carry a variant or a value the document does not list, `TypePlan.Composed` to read a
+  body narrowing a union ([what a mock accepts](#what-a-mock-accepts)), `TypePlan.Strict` to refuse
+  a `oneOf` value as the SDK does, the binding it lowers ([bindings](plan/bindings.md)) to route
+  requests, `Stream` to answer each stream as its sides frame it and `Page` to end each page walk a
+  pager makes ([the mock's streams and page walks](#the-mocks-streams-and-page-walks)), and the
+  visibility projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
+  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
+  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
+  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
+  ([mandatory tests](testing/mandatory-tests.md)) is diffed against. A response content whose
+  example set is empty, as one can be with `Synthesize` off, is a warning
+  `emitters/mock/example-missing`, never a body it invents. What it logs of a request is what an
+  SDK's event holds of one ([auth](operations/auth.md#where-a-credential-can-be-read)), so no header
+  and no body. It sends a webhook or a callback rather than routing one, as [operations the API
   sends](operations/inbound.md) says, and the docs give each a page of its own there.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
@@ -441,20 +440,20 @@ member and operation:
   ([values as text](refine/text.md#reading-a-text)), a member's being those of every declaration its
   flattening takes or overrides, as a synthesized value's are (below), with visibility set aside,
   since the shape it is shown through settles that: a value no shape could make valid, such as one
-  its enum does not list, is refused,
-  an enum the document leaves open (`Enum.Closed` false) admitting a value it does not list. Shown
-  through a shape, an example drops the members that shape does not hold, keeping a key no member
-  declares that the model's catch-all admits, checked against the catch-all's type, and takes, for
-  each member the shape requires and the example lacks, the value a synthesized model gives that
-  member (below), an `Undeclared` name's from its catch-all type's set, which marks what is shown
-  `Inferred` and labels it generated, its declared members kept as written; with `Assemble` off it
-  fills nothing, and an example missing a member the shape requires gives way as one it cannot
-  complete does. So a response-form example serves a create shape, a patch body's may leave out a
-  required member, and, with `Assemble` on, every required member's set holding a value and no
-  `Strict` union left ambiguous by the shape, no shape is left without one. `Build` refuses a union
-  value several variants admit where the union is `TypePlan.Strict`, which decodes it as no variant,
-  reporting it once as above, and a value of a discriminated union that the variant its tag routes
-  to does not admit, whichever other variant does, since decoding reads it by its tag
+  its enum does not list, is refused, an enum the document leaves open (`Enum.Closed` false)
+  admitting a value it does not list. Shown through a shape, an example drops the members that shape
+  does not hold, keeping a key no member declares that the model's catch-all admits, checked against
+  the catch-all's type, and takes, for each member the shape requires and the example lacks, the
+  value a synthesized model gives that member (below), an `Undeclared` name's from its catch-all
+  type's set, which marks what is shown `Inferred` and labels it generated, its declared members
+  kept as written; with `Assemble` off it fills nothing, and an example missing a member the shape
+  requires gives way as one it cannot complete does. So a response-form example serves a create
+  shape, a patch body's may leave out a required member, and, with `Assemble` on, every required
+  member's set holding a value and no `Strict` union left ambiguous by the shape, no shape is left
+  without one. `Build` refuses a union value several variants admit where the union is
+  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
+  discriminated union that the variant its tag routes to does not admit, whichever other variant
+  does, since decoding reads it by its tag
   ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows such a value
   elsewhere through all of them, keeping each member one of them holds in the shape, since an
   inclusive value may be several variants at once. A shape can make a value two variants of a
@@ -558,12 +557,11 @@ member and operation:
   entry of a model narrowing a union, is seeded from the entity's [correlation
   key](../ir/derived-facts.md#correlation-keys), or from its ID where no key identifies it, save on
   a recurrence of its type along the value or deeper than `ExamplePolicy.MaxDepth`, where it takes
-  the first variant, entry or member, in source order, from which a value ends.
-  So a required recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches
-  itself through a variant requiring a non-empty list of it. So a value is the same in either
-  declaration order, and on every regeneration until the entity's schema, its key, or its ID where
-  it seeds from one, the example policy, `irfacts.CorrelationVersion` or the synthesizer's code
-  changes.
+  the first variant, entry or member, in source order, from which a value ends. So a required
+  recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches itself through
+  a variant requiring a non-empty list of it. So a value is the same in either declaration order,
+  and on every regeneration until the entity's schema, its key, or its ID where it seeds from one,
+  the example policy, `irfacts.CorrelationVersion` or the synthesizer's code changes.
 - **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
   synthesizes its own.
 

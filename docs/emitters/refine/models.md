@@ -118,9 +118,9 @@ nested past it is a body that does not decode
 bytes and a decode error, never a crash. The depth is runtime policy's `Nesting.MaxDepth`, 64 unless
 a configuration sets another ([runtime
 policy](../contract/runtime-policy.md#how-deep-a-value-nests)), and it is one depth on every target:
-each refuses a body nested 65 levels. Leaving each runtime its own limit, json/v2's 10,000 levels
-on Go and whatever its thread's stack takes on Kotlin, was the alternative: a body would decode on
-one target and not on the other, with no setting to move either.
+each refuses a body nested 65 levels. Leaving each runtime its own limit, json/v2's 10,000 levels on
+Go and whatever its thread's stack takes on Kotlin, was the alternative: a body would decode on one
+target and not on the other, with no setting to move either.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) the deepest value of a type that neither
 recurs nor reaches an `any` nests 13 levels, a model, a list and a map each one, and 50 of its
@@ -138,10 +138,10 @@ Depth does not bound work. A value that holds one child twice at each of 60 leve
 memory and 2^60 values as JSON, and it nests within the limit, so encoding, printing, hashing or
 comparing it would not end. So `Nesting.MaxValues`, 16,777,216 unless a configuration sets another,
 bounds the values of one JSON text, each object, array, string, number and literal counting one and
-a member's name none. A text holding more is refused as one nested too deep is, read or written,
-and no target visits more values than that to print, hash or compare one, each saying what its
-caller then sees. A cap on the printed form alone was the alternative, and leaves the encoder and
-a generated comparison unbounded. T-63 holds this section.
+a member's name none. A text holding more is refused as one nested too deep is, read or written, and
+no target visits more values than that to print, hash or compare one, each saying what its caller
+then sees. A cap on the printed form alone was the alternative, and leaves the encoder and a
+generated comparison unbounded. T-63 holds this section.
 
 ## Recursive references
 

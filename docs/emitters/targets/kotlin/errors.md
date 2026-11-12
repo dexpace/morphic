@@ -27,8 +27,8 @@ fun <H : Any> ApiException.headers(type: KClass<H>): H? = type.safeCast(failure.
 
 `ApiFailure` is no data class and an `ApiException`'s message is its status, so the `toString` of
 each names its class and, for the exception, the status, as Go's `Error` does, and nothing else that
-reads either finds the headers or the body ([below](#what-a-failure-prints)). With no message, a
-JVM log line read `ServerException` alone and Swift's `localizedDescription` named no status
+reads either finds the headers or the body ([below](#what-a-failure-prints)). With no message, a JVM
+log line read `ServerException` alone and Swift's `localizedDescription` named no status
 (Kotlin/Native 2.4.0).
 
 `e.body(Problem::class)` checks a class, which holds no type arguments, so `e.body(List::class)`
@@ -91,15 +91,15 @@ platform gives none, a link carries the runtime's own. Measured with Kotlin 2.4.
 kotlinx.serialization 1.8.1, a decoder's chain kept 9 frames of `kotlinx.serialization` and none of
 the 28 renderings of the failure, Java serialization, Gson and Jackson among them, held the body.
 Measured with Ktor 3.2.3's CIO engine on Kotlin 2.4.0 and a key in the query, the messages of the
-library's request, connect and socket timeouts each held the URL with the key (`Request timeout
-has expired [url=http://…?limit=5&api_key=…`), and so did each one's stack trace. With none of
-them set ([timeouts](operations.md#timeouts)), a refused connection raised
-`java.net.ConnectException: Connection refused` and the runtime's own bound a
-`TimeoutCancellationException` saying how long it waited, neither with the URL. Keeping a cause
-whose class is the platform's and dropping the library's was weighed, and the socket timeout is why
-not: its class is `java.net.SocketTimeoutException` and its message Ktor's. A `causes` list of class
-names, which the chain replaced, kept no frame at all. A caller's own cancelling passes through as
-the `CancellationException` it is. An `ApiException` does not survive Java serialization
+library's request, connect and socket timeouts each held the URL with the key (`Request timeout has
+expired [url=http://…?limit=5&api_key=…`), and so did each one's stack trace. With none of them set
+([timeouts](operations.md#timeouts)), a refused connection raised `java.net.ConnectException:
+Connection refused` and the runtime's own bound a `TimeoutCancellationException` saying how long it
+waited, neither with the URL. Keeping a cause whose class is the platform's and dropping the
+library's was weighed, and the socket timeout is why not: its class is
+`java.net.SocketTimeoutException` and its message Ktor's. A `causes` list of class names, which the
+chain replaced, kept no frame at all. A caller's own cancelling passes through as the
+`CancellationException` it is. An `ApiException` does not survive Java serialization
 (`NotSerializableException: ApiFailure`), which is what keeps a raw body out of a serialized one: a
 caller who must serialize a failure serializes what it reads of it. T-65 holds this section.
 

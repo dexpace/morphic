@@ -57,11 +57,11 @@ print as exported ones do. A pointer to them prints as an address under `%v` and
 verb `fmt` has no form for: `%O` of a failure began `%!O(*state.raw=&{map[ Set-Cookie:[…`. The
 function's cost is that two responses holding equal bytes are unequal to `reflect.DeepEqual`, which
 never finds two functions equal, a value and itself among them, so a test compares what `RawHeader`
-and `RawBody` return; that `==` on a `Response` does not compile, a function being incomparable;
-and that a test double a caller builds by literal holds no raw response, so the runtime exports
-`NewRaw(h http.Header, body []byte) Raw`, which holds the caller's own values. A
-`RawBody` and a `Stream`, which hold a response still open, are declared over state structs as a
-sub-client is, and read it through their methods. T-65 holds this section.
+and `RawBody` return; that `==` on a `Response` does not compile, a function being incomparable; and
+that a test double a caller builds by literal holds no raw response, so the runtime exports
+`NewRaw(h http.Header, body []byte) Raw`, which holds the caller's own values. A `RawBody` and a
+`Stream`, which hold a response still open, are declared over state structs as a sub-client is, and
+read it through their methods. T-65 holds this section.
 
 ## `OtherResponse`
 

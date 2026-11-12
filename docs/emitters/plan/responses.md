@@ -87,8 +87,8 @@ in a second channel. The first rule that applies decides:
 
 1. **`void`** — nothing is read: the operation has no primary response ([plan policy](policy.md)),
    or the response carries no content. A binding can leave a response no body too, as an HTTP `HEAD`
-   does, which is that binding's `NoBody` and no `Shape`, since another binding of the operation
-   may carry one: a target lowering such a binding reads every response as `void`
+   does, which is that binding's `NoBody` and no `Shape`, since another binding of the operation may
+   carry one: a target lowering such a binding reads every response as `void`
    ([bindings](bindings.md)). An operation with no primary response returns only an error, and
    "Which entry answers" below says which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the

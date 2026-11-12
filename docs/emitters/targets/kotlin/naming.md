@@ -117,9 +117,9 @@ A model's properties are no class, and a builder's setters, named for them, hold
 keep names apart by case. A file holding a declaration that is no class, a `typealias`, gets a class
 of kotlinc's named for the file, `MoneyKt` for `Money.kt`, which a spec class `MoneyKt` beside it
 met ("duplicate JVM class name 'p/MoneyKt'"); so that file names it for the alias with
-`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. That
-is the only class a unit's file gets from kotlinc, since none declares a function or a property at
-its top level and each alias has a file of its own ([models](models.md#a-shape-that-is-an-alias)). A
+`@file:JvmName("Money")`, a name the unit already holds apart, which built beside `MoneyKt`. That is
+the only class a unit's file gets from kotlinc, since none declares a function or a property at its
+top level and each alias has a file of its own ([models](models.md#a-shape-that-is-an-alias)). A
 failure kind's exception is a class too, named for its kind in `Policy.Errors`
 ([failures](errors.md)), and a name a template declares never yields, so two kinds that differ in
 letter case alone would share a class file: measured with Kotlin 2.4.0 on a file system that ignores
