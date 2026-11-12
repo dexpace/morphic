@@ -107,7 +107,7 @@ func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := ex.lk.bound(ex.from).Bound(ir.HTTPLocation(e.part), e.name)
+	found := ex.lk.paramIndex(ex.from).Bound(ir.HTTPLocation(e.part), e.name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
 			e.part, e.name, ex.from.ID)
@@ -181,7 +181,7 @@ func noChain(tokens []string, side, mediaType string) *linkFailure {
 // targetParam returns the parameter of op that a link's parameters key names
 // (lowering.ParamIndex.Named), which must name one parameter only.
 func targetParam(lk *lookups, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
-	id, matched := lk.bound(op).Named(key)
+	id, matched := lk.paramIndex(op).Named(key)
 	switch matched {
 	case 1:
 		return id, nil

@@ -78,8 +78,8 @@ func (lk *lookups) walk(root ir.TypeID, tokens []string) ([]ir.PropID, bool) {
 	return segments, true
 }
 
-// bound returns op's parameters by where its HTTP bindings place them.
-func (lk *lookups) bound(op *ir.Operation) lowering.ParamIndex {
+// paramIndex returns op's parameters by where its HTTP bindings place them.
+func (lk *lookups) paramIndex(op *ir.Operation) lowering.ParamIndex {
 	ix, indexed := lk.params[op.ID]
 	if !indexed {
 		ix = lowering.IndexParams(op)
