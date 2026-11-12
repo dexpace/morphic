@@ -4,6 +4,7 @@
 package pass_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -233,8 +234,10 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"a number", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
 			red.Value = ir.Value{Kind: ir.ValueNumber, Num: "1"}
 		}},
-		{"a literal no primitive types", func(_ *ir.Union, red *ir.Literal, _ *ir.Enum, _ ir.TypeRegistry) {
-			red.ValueType = ""
+		{"literals no primitive types", func(u *ir.Union, red *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
+			untyped := lit(u.Variants[1].Type.Target, "green")
+			red.ValueType, untyped.ValueType = "", ""
+			types[untyped.ID] = untyped
 		}},
 		{"an open enum", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) { green.Closed = false }},
 		{"a flags enum", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) { green.Flags = true }},
@@ -245,8 +248,10 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 		{"an enum of a bool", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
 			green.Members[0].Value = ir.Value{Kind: ir.ValueBool, Bool: true}
 		}},
-		{"an enum no primitive types", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, _ ir.TypeRegistry) {
-			green.ValueType = ""
+		{"enums no primitive types", func(u *ir.Union, _ *ir.Literal, green *ir.Enum, types ir.TypeRegistry) {
+			untyped := pinned(u.Variants[0].Type.Target, "red")
+			green.ValueType, untyped.ValueType = "", ""
+			types[untyped.ID] = untyped
 		}},
 		{"a branch of another kind", func(u *ir.Union, _ *ir.Literal, _ *ir.Enum, types ir.TypeRegistry) {
 			types[u.Variants[0].Type.Target] = &ir.Model{ID: "t/x/U/0", Anonymous: true}
@@ -401,6 +406,22 @@ func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	carrying := model()
 	carrying.Docs.Refs = []ir.DocRef{{Type: "t/x/U/0"}}
 	assert.Greater(t, pass.TypeRefVisits(withTypes(carrying), "t/x/U/0"), bare, "the walk passed over a doc ref")
+}
+
+// TestConstUnions_ReadsEachGoTypeOnce pins what the walk's pruning costs:
+// whether a Go type can hold a TypeID is read once, however many values have
+// it, so a document of many models reads no more types than one of one.
+func TestConstUnions_ReadsEachGoTypeOnce(t *testing.T) {
+	t.Parallel()
+	models := make([]ir.TypeDef, 0, 50)
+	for i := range cap(models) {
+		models = append(models, &ir.Model{ID: ir.TypeID(fmt.Sprintf("t/x/M%d", i)),
+			Properties: []ir.Property{{ID: ir.PropID(fmt.Sprintf("p/x/M%d/p", i)), Type: ir.TypeRef{Target: "t/x/U/0"}}}})
+	}
+	one := pass.TypeReads(withTypes(models[0]), "t/x/U/0")
+	require.Positive(t, one)
+
+	assert.Equal(t, one, pass.TypeReads(withTypes(models...), "t/x/U/0"))
 }
 
 // TestConstUnions_RemovesNothingPastTheWalksReach pins that a walk the depth

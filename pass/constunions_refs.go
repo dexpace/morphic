@@ -52,8 +52,10 @@ type typeRefs struct {
 	// each type once, so a second key is another map's: a reference.
 	keys map[ir.TypeID]int
 	// carries holds, for each Go type met, whether a value of it can hold a
-	// TypeID.
-	carries map[reflect.Type]bool
+	// TypeID, and typesRead counts the types canCarry read to learn it, each
+	// once however many values have it, which is what the pruning costs.
+	carries   map[reflect.Type]bool
+	typesRead int
 }
 
 // Visit records a reference v makes to a watched type, and asks for what v
@@ -87,6 +89,7 @@ func (r *typeRefs) canCarry(t reflect.Type) bool {
 	if known, read := r.carries[t]; read {
 		return known
 	}
+	r.typesRead++
 	seen := map[reflect.Type]bool{t: true}
 	queue := []reflect.Type{t}
 	var carries bool
