@@ -68,20 +68,23 @@ a Smithy service's protocol traits came first.
 
 **The binding a target lowers** is the first of `All` its
 [capabilities](../contract/registry.md#capabilities) cover, an RPC binding only where `RPCSystems`
-lists its `System`. Every reader of an operation's binding reads that one, the request's path
-parameters ([request shaping](../refine/requests.md)), a stream's frames ([streams](streams.md)) and
-the mock's routes ([docs and mocks](../docs-and-mock.md#what-the-mock-streams)) among them, so a
-target covering `http` lowers `HTTP[0]` wherever there is one, and the mock routes the binding an
-HTTP SDK sends. An HTTP target reaches a gRPC method through its transcoding, as does a target
-covering `rpc` and `http`, and one listing `rpc` with `grpc` alone reaches it as gRPC. An operation
-none of whose bindings a target covers is a warning `emitters/<target>/unsupported-binding` naming
-the operation and its bindings, the mock's included, with nothing generated for it (T-68 holds
-these). `RPC` first was weighed: either order moves a target covering both protocols under some
-additive change, a gRPC method gaining a transcoding under this one and a Smithy service gaining an
-RPC protocol under that, and no IR fact says which protocol a source prefers, so `All` keeps the
-order the IR states first, `HTTP`'s, at its head. Reading the order from the target's `Protocols`
-was rejected too: that list is a set the registry checks, and its order would decide what a target
-generates while no check reads it.
+lists its `System`. Every target's reader of an operation's binding reads that one, the request's
+path parameters ([request shaping](../refine/requests.md)), a stream's frames
+([streams](streams.md)) and the mock's routes ([docs and
+mocks](../docs-and-mock.md#what-the-mock-streams)) among them, so a target covering `http` lowers
+`HTTP[0]` wherever there is one, and the mock routes the binding an HTTP SDK sends. A plan fact,
+which every target shares, reads `All` instead, as `Effects` takes only what every binding states
+([plan policy](policy.md#an-operations-effects-come-from-its-binding)), or `HTTP[0]`, as a `HEAD`
+response's `void` does ([responses](responses.md)). An HTTP target reaches a gRPC method through its
+transcoding, as does a target covering `rpc` and `http`, and one listing `rpc` with `grpc` alone
+reaches it as gRPC. An operation none of whose bindings a target covers is a warning
+`emitters/<target>/unsupported-binding` naming the operation and its bindings, the mock's included,
+with nothing generated for it (T-68 holds these). `RPC` first was weighed: either order moves a
+target covering both protocols under some additive change, a gRPC method gaining a transcoding under
+this one and a Smithy service gaining an RPC protocol under that, and no IR fact says which protocol
+a source prefers, so `All` keeps the order the IR states first, `HTTP`'s, at its head. Reading the
+order from the target's `Protocols` was rejected too: that list is a set the registry checks, and
+its order would decide what a target generates while no check reads it.
 
 No `ProtoBinding` holds a binding as `ir.RawConfig`: the GraphQL entry point and the OTP call shape
 are typed in the IR, so the plan hands them over by reference as it does HTTP's and RPC's. A
