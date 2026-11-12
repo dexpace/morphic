@@ -131,7 +131,7 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | parameter | its operation, where the parameter travels and its wire name, a header's in lower case; one no binding places, its name |
 | property | the model declaring it, and its wire name. The anonymous models a model composes in place are part of it: their properties are keyed as its own, each wire name keying the declaration the model's [flattening](./models.md#the-flattening) takes and none it overrides |
 | field argument | its property, and its name |
-| header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case, or for a [prefix header](./responses.md#prefix-headers), which names no field of its own, its prefix |
+| header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case, or for a [prefix header](./responses.md#prefix-headers), which names no field of its own, its prefix in lower case |
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
 | server | the service or operation naming it, or the response and link that name it, and its URL template |
 | callback operation | the operation declaring it, the callback's name and the method; the runtime expression is a detail of where the request goes, so a rewritten one keeps the key, unless the name keys two operations of one method, which only their expressions tell apart |

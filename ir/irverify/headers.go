@@ -79,10 +79,10 @@ func appendPrefixHeaderViolations(vs []Violation, doc *ir.Document, h *ir.Header
 }
 
 // reachesMap reports whether ref names a MapT, directly or through decorators.
-// A target types does not hold, or holds nil, reports true, as
-// ir/dangling-type-ref and ir/nil-type report those. The chain is
-// followed once per registered type at most, so a cycle of decorators, which
-// never reaches a map, ends and reports false.
+// A target the registry does not hold, or holds as nil, reports true, as
+// ir/dangling-type-ref and ir/nil-type report those. The chain is followed once
+// per registered type at most, so a cycle of decorators, which never reaches a
+// map, ends and reports false.
 func reachesMap(types ir.TypeRegistry, ref ir.TypeRef) bool {
 	for range len(types) + 1 {
 		td, ok := types[ref.Target]
