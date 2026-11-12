@@ -158,9 +158,7 @@ type mountedOp struct {
 // layer's item parameters merged into its own, the mount's servers where it names
 // none (itemServers), and what the layers keep (keepOn). A mount lowering none
 // keeps what its layers declare in residue instead. route holds what the route
-// sets on every operation; each brings its own method, pointers and parameters,
-// and, where route.groups files it, its groups and grouping marker, read where
-// it is declared.
+// sets on every operation; each brings its own method, pointers and parameters.
 func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
 	ops := mountedOperations(layers)
 	owner, diags := precedence(layers)
