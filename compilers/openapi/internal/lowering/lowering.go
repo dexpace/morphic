@@ -51,6 +51,9 @@ type Ctx struct {
 	// by tags, which is what makes the unnormalized zero value harmless rather
 	// than a second spelling of the default to keep in step.
 	Grouping GroupingStrategy
+	// GroupingExtension is what GroupByExtension reads, arriving resolved as
+	// Grouping does: the compiler's Options fills in the default extension.
+	GroupingExtension GroupingExtension
 	// Limits is the caller's budget for the constructs the walk builds. Like
 	// Grouping it arrives already resolved: the compiler's Options fills the
 	// unset budgets in and translates its own spelling of "unbounded" before
@@ -183,6 +186,7 @@ type ScopedPosition struct {
 // Options resolve it.
 type Policy struct {
 	Grouping               GroupingStrategy
+	GroupingExtension      GroupingExtension
 	Limits                 Limits
 	Streaming              StreamingMedia
 	Binary                 BinaryMedia
@@ -205,6 +209,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		Source:                 doc.Source,
 		SrcIndex:               srcIndex,
 		Grouping:               p.Grouping,
+		GroupingExtension:      p.GroupingExtension,
 		Limits:                 p.Limits,
 		schemas:                declaredSchemaNames(doc.Doc),
 		streaming:              streamingSet(p.Streaming),

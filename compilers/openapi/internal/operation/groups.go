@@ -4,12 +4,15 @@
 package operation
 
 import (
+	"encoding/json/jsontext"
 	"slices"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
@@ -50,25 +53,81 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 	return d
 }
 
-// groupFor resolves the groups an operation is filed under by the active
-// strategy, outermost first, by identity: the ID is both the group's key here
-// and its ID in the IR, so two operations share a group exactly when they share
-// an ID. The untagged group's hint stays "default" beside a tag of that name:
-// the IDs differ, the emitter resolves name collisions by ID
-// (docs/emitters/refine/naming.md), and the names pass reports this one. By
-// tags, the group is the first navigational tag's, nested under the tags its
-// declared parents name (GitHub #613).
-func (g *serviceGroups) groupFor(c lowering.Ctx, src *soa.Operation, path string) []groupLevel {
-	if c.Grouping == lowering.GroupByPathPrefix {
+// filing is where an operation is filed: the groups it nests in, outermost
+// first, the heuristic that chose them, empty where the document declares them,
+// and what reading the document for them found.
+type filing struct {
+	levels   []groupLevel
+	inferred ir.Inferred
+	diags    []ir.Diagnostic
+}
+
+// filingFor resolves where the active strategy files src, declared at decl in
+// c's document and mounted at path. A group is resolved by identity: its ID is
+// its key here and in the IR, so two operations share a group exactly when they
+// share an ID. GroupByExtension files src by the path its extension states, or
+// by GroupingExtension.Fallback where it states none, keeping what reading the
+// extension found whichever strategy files it.
+func (g *serviceGroups) filingFor(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer, path string) filing {
+	if c.Grouping != lowering.GroupByExtension {
+		return g.filingBy(c.Grouping, src, path)
+	}
+	levels, diags := extensionLevels(c, src, decl)
+	filed := filing{levels: levels, inferred: lowering.GroupExtensionHeuristic}
+	if levels == nil {
+		filed = g.filingBy(c.GroupingExtension.Fallback, src, path)
+	}
+	filed.diags = diags
+	return filed
+}
+
+// filingBy files src, mounted at path, by its path's first segment under
+// GroupByPathPrefix and by its tags under any other strategy: in the first
+// navigational tag's group, nested under the tags its declared parents name
+// (GitHub #613), or in the untagged group. That group's hint stays "default"
+// beside a tag of that name: the IDs differ, the emitter resolves name
+// collisions by ID (docs/emitters/refine/naming.md), and the names pass reports
+// this one.
+func (g *serviceGroups) filingBy(strategy lowering.GroupingStrategy, src *soa.Operation, path string) filing {
+	if strategy == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
+		levels := []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
+		return filing{levels: levels, inferred: lowering.GroupPathPrefixHeuristic}
 	}
 	for _, tag := range src.GetTags() {
 		if g.tags.navigational(tag) {
-			return g.tags.levels(tag)
+			return filing{levels: g.tags.levels(tag)}
 		}
 	}
-	return []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}
+	return filing{levels: []groupLevel{{id: ids.DefaultGroup(), name: compile.NamingHint("default")}}}
+}
+
+// extensionLevels returns the groups the path src's grouping extension states
+// nests it in, outermost first, or nil where it states none. A value stating no
+// path is reported at the key, as the document means something else by it, and
+// the operation is filed as if the key were absent. A value that does not
+// serialize is absent here, as applyOperationAnnotations reports it.
+func extensionLevels(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) ([]groupLevel, []ir.Diagnostic) {
+	ext := c.GroupingExtension
+	entry, written := annotation.ExtensionsNamed(src.GetExtensions(), slices.Values([]string{ext.Key}))["openapi:"+ext.Key]
+	if !written {
+		return nil, nil
+	}
+	path, ok := ext.Path(entry.Value)
+	if !ok {
+		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
+			"extension %q names no group path of at most %d segments, none empty, written as text whose dots "+
+				"separate them or as a list of such text, so the operation is grouped as if it were absent",
+			ext.Key, lowering.MaxGroupPathDepth)}
+	}
+	if len(path) == 0 {
+		return nil, nil
+	}
+	levels := make([]groupLevel, 0, len(path))
+	for i, seg := range path {
+		levels = append(levels, groupLevel{id: ids.ExtensionGroup(path[:i+1]), name: ir.NamingFor(seg)})
+	}
+	return levels, nil
 }
 
 // groupLevel is one group an operation is filed under: its ID, and the naming
@@ -156,16 +215,6 @@ func (x tagIndex) levels(tag string) []groupLevel {
 	return out
 }
 
-// groupingInferred is the inferred marker groupFor's strategy stamps on a path
-// operation: lowering.GroupByPathPrefix is a heuristic, so it stamps one, and
-// grouping by declared tags is a declared fact, so it stamps none.
-func groupingInferred(c lowering.Ctx) ir.Inferred {
-	if c.Grouping == lowering.GroupByPathPrefix {
-		return lowering.GroupPathPrefixHeuristic
-	}
-	return ""
-}
-
 // firstPathSegment returns the first non-empty segment of a path, or "" when the
 // path has none.
 func firstPathSegment(path string) string {
@@ -214,8 +263,10 @@ func (g *serviceGroups) group(id ir.GroupID, mk func() ir.OperationGroup) *ir.Op
 // place returns the innermost group of levels, creating each level on first
 // sight nested under the one before it. A level's parent is fixed when it is
 // created, which is sound because every operation reaching a group reaches it
-// through the same outer levels (tagIndex.chain), and it puts each parent
-// before its children in the insertion order.
+// through the same outer levels: a tag's chain is its descendants' too
+// (tagIndex.chain), and a group path's prefix names the group it nests in
+// (ids.ExtensionGroup). It puts each parent before its children in the
+// insertion order.
 func (g *serviceGroups) place(levels []groupLevel) *ir.OperationGroup {
 	var grp *ir.OperationGroup
 	var parent ir.GroupID

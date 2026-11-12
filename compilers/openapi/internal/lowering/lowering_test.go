@@ -101,18 +101,22 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 }
 
 // TestNew_KeepsTheDocumentItWasGiven pins the rest of the context: the document,
-// grouping policy, source identity and index arrive unchanged, since every
-// Provenance the compile stamps is built from the last two.
+// grouping policy and its extension, source identity and index arrive
+// unchanged, since every Provenance the compile stamps is built from the last
+// two.
 func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	t.Parallel()
 	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, &load.Document{Doc: doc, Source: src}, lowering.Policy{Grouping: lowering.GroupByPathPrefix})
+	ext := lowering.GroupingExtension{Key: "x-group", Lists: lowering.ListsAreGroups, Fallback: lowering.GroupByPathPrefix}
+	c := lowering.New(7, &load.Document{Doc: doc, Source: src},
+		lowering.Policy{Grouping: lowering.GroupByExtension, GroupingExtension: ext})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
-	assert.Equal(t, lowering.GroupByPathPrefix, c.Grouping)
+	assert.Equal(t, lowering.GroupByExtension, c.Grouping)
+	assert.Equal(t, ext, c.GroupingExtension)
 	assert.Equal(t, 7, c.SrcIndex)
 }
 

@@ -75,6 +75,12 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
+	// Here and not in optionsFrom: detection reads its byte budget through
+	// optionsFrom, taking the default one on an error, so a grouping the compile
+	// cannot honour would have it read past the caller's.
+	if err := formatOpts.checkGrouping(); err != nil {
+		return nil, nil, err
+	}
 	loadedDoc, loadDiags, err := load.Load(ctx, rootSrcIndex, sources[0], loadOptions(formatOpts, opts.Reader, sources[0]))
 	// The load phase reads a document once under each name a reference spells
 	// it by, as a relative and an absolute path to one file where external
@@ -288,7 +294,8 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 // $refs and path items copy, as loadOptions reads the others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 	return lowering.New(rootSrcIndex, doc, lowering.Policy{
-		Grouping: o.Grouping,
+		Grouping:          o.Grouping,
+		GroupingExtension: o.GroupingExtension,
 		Limits: lowering.Limits{
 			MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
 			MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
