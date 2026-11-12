@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/replacement"
 	"github.com/dexpace/morphic/ir"
 )
@@ -22,8 +22,7 @@ func mapped() lowering.Ctx {
 	policy := lowering.ExtensionPromotions{Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
 		lowering.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
 	}}
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		policy, lowering.NullableWidening{}, overlay.Origin{})
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Promotions: policy})
 }
 
 // names is a node's x-replaced-by key, holding value.
@@ -145,8 +144,7 @@ func TestResolve_ANameNamingNothingFillsNothing(t *testing.T) {
 // nothing, as a deprecation's other members do.
 func TestResolve_AnUnmappedOrUndeprecatedNodeTakesNone(t *testing.T) {
 	t.Parallel()
-	unmapped := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	unmapped := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 	doc := replacementDoc(unmapped, `"v2"`)
 	assert.Empty(t, replacement.Resolve(unmapped, doc))
 	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Deprecation.ReplacedBy)

@@ -193,6 +193,23 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, tc.inferred, enum.Provenance.Inferred, "%s heuristic marker", tc.schema)
 	}
 
+	// A mixed enum lowers to a union, which its key opens as it would the enum;
+	// a oneOf writing the key is no enum, so the key opens nothing there.
+	for _, tc := range []struct {
+		schema   string
+		closed   bool
+		inferred ir.Inferred
+	}{
+		{"Mixed", false, "extension-promotion"},
+		{"MixedFixed", true, ""},
+		{"NotAnEnum", true, ""},
+	} {
+		u, ok := doc.Types[componentID(tc.schema)].(*ir.Union)
+		require.True(t, ok, "%s lowers to a union", tc.schema)
+		assert.Equal(t, tc.closed, u.Closed, "%s openness", tc.schema)
+		assert.Equal(t, tc.inferred, u.Provenance.Inferred, "%s heuristic marker", tc.schema)
+	}
+
 	for _, schema := range []string{"Size", "Shade"} {
 		enum, ok := doc.Types[componentID(schema)].(*ir.Enum)
 		require.True(t, ok)
@@ -277,6 +294,94 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion, "the caller's key is read")
 	assert.Empty(t, op.Deprecation.Message, "a default the caller replaced is not read")
 	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+}
+
+// TestPromotion_AMappedKeyOpensAUnion pins the compiler applying the union
+// openness promotion, which the promoter's own test cannot see: under a mapping
+// naming the key, a oneOf and an anyOf writing it open and are marked as a
+// guess, one not writing it stays closed, and under the default mapping, which
+// names no key for it, the key opens nothing.
+func TestPromotion_AMappedKeyOpensAUnion(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    One:
+      oneOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Any:
+      anyOf: [{type: string}, {type: integer}]
+      x-open-union: true
+    Plain:
+      oneOf: [{type: string}, {type: integer}]
+`
+	mapped := openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{openapi.TargetUnionOpen: {{Key: "x-open-union"}}},
+	}}
+	for _, tc := range []struct {
+		name string
+		opts openapi.Options
+		open map[string]bool
+	}{
+		{"a mapping naming the key", mapped, map[string]bool{"One": true, "Any": true, "Plain": false}},
+		{"the default mapping", openapi.Options{}, map[string]bool{"One": false, "Any": false, "Plain": false}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := compileClean(t, spec, tc.opts)
+
+			for name, open := range tc.open {
+				u, ok := doc.Types[componentID(name)].(*ir.Union)
+				require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+				assert.Equal(t, !open, u.Closed, name)
+				var guess ir.Inferred
+				if open {
+					guess = "extension-promotion"
+				}
+				assert.Equal(t, guess, u.Provenance.Inferred, name)
+			}
+		})
+	}
+}
+
+// TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone pins that the union a
+// mixed enum lowers to reads enum.open and not union.open, a oneOf's or an
+// anyOf's: one fact read through one target, so a union key opens nothing
+// there, the first key stated decides, and a key stating otherwise is reported
+// once, however many targets a mapping lists it under.
+func TestPromotion_AMixedEnumsUnionReadsTheEnumTargetAlone(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    UnionKey: {enum: [1, a], x-u: true}
+    Conflict: {enum: [1, a], x-a: false, x-b: [1, a]}
+`
+	doc := compileClean(t, spec, openapi.Options{Promotions: openapi.ExtensionPromotions{
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetEnumOpen:  {{Key: "x-a"}, {Key: "x-b"}},
+			openapi.TargetUnionOpen: {{Key: "x-u"}, {Key: "x-a"}, {Key: "x-b"}},
+		},
+	}})
+
+	for _, name := range []string{"UnionKey", "Conflict"} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, "%s is a union, not %T", name, doc.Types[componentID(name)])
+		assert.True(t, u.Closed, "%s stays closed", name)
+		assert.Empty(t, u.Provenance.Inferred, name)
+	}
+
+	var lost []string
+	for _, d := range doc.Diagnostics {
+		if d.Provenance.Pointer == "/components/schemas/Conflict/x-b" {
+			lost = append(lost, d.Message)
+		}
+	}
+	assert.Len(t, lost, 1, "x-b, losing to x-a, is reported once: %q", lost)
 }
 
 // defaultKeySpec is a document one default source fills one target of: the key,

@@ -69,6 +69,13 @@ wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag pic
 several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
 shape twice.
 
+A union whose source declares no discriminator may still name its variant in the payload: where
+every variant requires one property and pins it to a distinct value, that value tells them apart as
+validation does. A compiler policy may read such a tag in, as a `Discriminator` with `Inferred` set
+([models](./models.md#discriminator)), and the union is then `WireTagged`, since the payload does
+name its variant. The mark keeps the reading auditable: a consumer taking only what the source
+declares reads such a union as untagged, which validation still decodes.
+
 ## Open unions
 
 `Closed` says whether a payload can hold a variant the union does not list, as `Enum.Closed` says
@@ -83,7 +90,8 @@ members as a schema evolves, and is open. A `@oneOf` input object is closed, sin
 validates what a client sends. A document that marks an OpenAPI union open can only do it through
 an extension, which a promotion mapping may read into `Closed`
 ([promotion](./unmodeled.md#promotion)); no spelling is common enough for the OpenAPI compiler's
-default mapping to name one. Whether a target tolerates an unknown variant of a closed union is
+default mapping to name one, bar the key that opens an enum, which also opens the union of literals
+a mixed enum lowers to. Whether a target tolerates an unknown variant of a closed union is
 its policy, never the IR's.
 
 `InputOnly` marks a union only a request may carry, with an identity distinct from every output

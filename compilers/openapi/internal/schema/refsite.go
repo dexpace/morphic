@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -32,6 +33,10 @@ import (
 // them through PreserveRefSiteKeywords (GitHub #114).
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
+	// A rule about the declaration holds the keywords beside its $ref as it holds
+	// a body's (schemaBody), with what the $ref lands on.
+	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
+	diags = append(diags, ignoredRefFields(c, s, pointer)...)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
@@ -44,6 +49,44 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
 	}
 	return ref, diags
+}
+
+// ignoredRefFields warns of each field s writes beside its $ref where the
+// dialect s is read in ignores them, as the JSON Schema drafts before 2019-09
+// do: each is applied as 2020-12 applies it, the reading that loses least, as a
+// 3.0 schema's are (docs/compilers/openapi.md#later-version-construct). One
+// whose reading applying it leaves alike draws none (readsBesideRef).
+func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	rules := lowering.SchemaRulesAt(c, pointer)
+	if !rules.IgnoresRefFields() {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, key := range rawMappingKeys(s.GetRootNode()) {
+		if !readsBesideRef(rules, key) {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.LaterVersionConstruct, pointer+ids.Ptr(key),
+			"keyword %q beside a $ref is ignored by this schema's dialect, as by the JSON Schema drafts "+
+				"before 2019-09; it is applied as in 2020-12", key))
+	}
+	return diags
+}
+
+// readsBesideRef reports whether applying key, written beside a $ref in a
+// schema read with rules, reads otherwise than ignoring it: a field the rows
+// define, OpenAPI's own among them, bar the $ref, the `$schema` naming the
+// dialect, `definitions`, whose schemas only a $ref reads, `$comment`, which
+// nothing reads, and the identifier, which the binder ignores there as the
+// dialect does (bind.DialectRule.IgnoresRefFields). A key they define none for,
+// an extension or an unknown keyword, is kept as written either way.
+func readsBesideRef(rules oas.SchemaRules, key string) bool {
+	switch key {
+	case "$ref", "$schema", "definitions", "$comment", rules.Identifier():
+		return false
+	default:
+		return rules.Defines(key)
+	}
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
@@ -67,8 +110,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		unhomed, shape := referenceOutcomeKeywords(c, s, pointer)
-		return recordUnhomedAt(c, p, s, unhomed, shape, pointer)
+		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
+		// reference just as a $ref site does.
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, p, s, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -205,7 +249,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

@@ -157,12 +157,14 @@ const (
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see boundLiteralDiag).
+	// number, at every schema the load phase's check reads (error severity:
+	// Morphic owns these keywords, so this is the sole diagnostic for the
+	// defect — see load.ownedFinding).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
-	// form is wrong for the document's dialect (a boolean under 2020-12, or a
-	// number under 3.0) — see exclusiveFormDiag.
+	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
+	// number under 3.0's or draft 4's), at every schema the load phase's check
+	// reads — see load.ownedFinding.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The
@@ -265,11 +267,21 @@ const (
 	// openapi.Limits.MaxAliasSurplus is BudgetExceeded instead, and one past both
 	// is this.
 	AliasAmplification = "openapi/alias-amplification"
+	// PointerAmplification reports a document whose nodes' JSON pointers, the
+	// keys and indexes on the way to each, total past a fixed multiple of the
+	// bytes it writes (scan's maxPointerAmplification, with a floor for small
+	// documents). A compile spells a pointer for every node of the model it
+	// reads, and the IR's IDs embed them, so long keys nested deep cost gigabytes
+	// inside every other bound (GitHub #931). It refuses the document before the
+	// parser builds it, at the document, and like AliasAmplification no setting
+	// admits one. Values kept verbatim are counted too (GitHub #1499).
+	PointerAmplification = "openapi/pointer-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
-	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
-	// schema $refs, chains through other documents and rule checks, detection's
-	// merges, and the declarations of one field the allOf merge judges.
+	// enum's members (GitHub #75), external documents, what $refs and path
+	// items copy. Fixed bounds cover load's schema $refs, chains through other
+	// documents and rule checks, detection's merges, and the declarations of one
+	// field the allOf merge judges.
 	//
 	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
 	// error: the document is refused, validation stops, an enum loses its members
@@ -438,14 +450,15 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, or a keyword beside a 3.0 schema's $ref, which 3.1 applies. It is
-	// lowered as in a document declaring that minor, the reading that loses the
-	// least: from the lowering and this diagnostic a consumer can set it aside,
-	// while from a verbatim copy it could not recover the lowering
+	// on, lowered as in a document declaring that minor, or a keyword beside a
+	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
+	// versions apply one and read in its schema's minor and dialect. Either
+	// reading loses least: a consumer can set the construct aside, and could not
+	// recover the lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
-	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
-	// document is invalid for the version it declares, but it still lowers.
+	// A warning: the construct lowers, though the version or dialect it is
+	// written in reads it otherwise.
 	LaterVersionConstruct = "openapi/later-version-construct"
 	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
 	// document, so it has no sequence of items to describe
@@ -467,13 +480,37 @@ const (
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
-	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
-	// keyword that excludes null, at the keyword; or keywords beside a $ref that
-	// admit null over a target that does not, at the schema writing them. Each
-	// is reported once, and each reference whose null rests on it is marked
-	// Inferred (docs/compilers/openapi.md#nullable). Info: the reading is the
-	// document's evident intent, and the mark keeps the declared one.
+	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
+	// that excludes null, or on an allOf branch another conjunct contradicts, at
+	// the keyword; or keywords beside a $ref that admit null over a target that
+	// does not, at the schema writing them. Each is reported once, and each
+	// reference whose null rests on it is marked Inferred
+	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
+	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
+	// UnreadDialect reports a `$schema` on a schema resource root, or a
+	// jsonSchemaDialect, naming a JSON Schema dialect the rule table has no
+	// rows for, at it: the schemas it governs are read in the dialect their
+	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).
+	// Warning: a keyword written in that dialect may read otherwise there.
+	UnreadDialect = "openapi/unread-dialect"
+	// InvalidItemsList reports `items` written as a list, a tuple as JSON
+	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
+	// no list there, at it. The rule table's check leaves such a list to the
+	// load phase, which knows the schema's dialect once its references are
+	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
+	// is.
+	InvalidItemsList = "openapi/invalid-items-list"
+	// InferredDiscriminator reports a mapping the discriminator-inference
+	// policy reads off the tag values a union's variants pin, where the
+	// discriminator declares none and the component names OpenAPI's implicit
+	// mapping routes by are not those values, at the discriminator; and a
+	// subtype's tag it reads off the values the subtype admits, where they rule
+	// out the name it is routed by, at the subtype. The node is marked Inferred
+	// (docs/compilers/openapi.md#discriminator-inference).
+	// Info, as InferredNullable is: the reading is the document's evident
+	// intent, and the mark keeps the declared one.
+	InferredDiscriminator = "openapi/inferred-discriminator"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

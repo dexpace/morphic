@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -289,8 +290,8 @@ func TestAllOf_OverlappingPrimitivesAreReportedNotConflicting(t *testing.T) {
 // TestAllOf_EnumPairsAreJudgedByKind pins what an enum side draws at the schema
 // level, in either order: an enum over a bare kind it equals or narrows wins
 // with no diagnostic; a bare kind that admits one of its members overlaps it,
-// which is info; a kind that admits none of them warns, as does another family;
-// and two enums of one kind, each with members, overlap. A Scalar node of a
+// which is info; a kind that admits none of them warns, as does another family
+// and another enum sharing none of them. A Scalar node of a
 // judged kind is judged by member too, and one with no judge refuses nothing.
 func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 	t.Parallel()
@@ -306,7 +307,7 @@ func TestAllOf_EnumPairsAreJudgedByKind(t *testing.T) {
 		{"empty enum against byte", "{type: string, enum: []}", "{type: string, format: byte}", false, true},
 		{"enum against byte", "{type: string, enum: [a]}", "{type: string, format: byte}", true, false},
 		{"enum against integer", "{type: string, enum: [a]}", "{type: integer}", false, true},
-		{"enum against enum", "{type: string, enum: [a]}", "{type: string, enum: [b]}", true, false},
+		{"enum against an enum sharing no member", "{type: string, enum: [a]}", "{type: string, enum: [b]}", false, true},
 		{"enum against string", "{type: string, enum: [a]}", "{type: string}", false, false},
 	}
 	for _, tc := range cases {
@@ -1192,22 +1193,18 @@ func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
 }
 
 // TestAllOf_RelatedStructuresAreNotCalledAConflict pins the warning to pairs
-// that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, a
-// union may hold the very model it meets, and a `const` object may be a value of
-// a model, so each draws an info saying the merge does not compare them, in
-// either order.
+// that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, and
+// a `const` object may be a value of a model, so each draws an info saying the
+// merge does not compare them, in either order.
 func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
 	t.Parallel()
 	list := "{type: array, items: {type: string}}"
 	tuple := "{type: array, prefixItems: [{type: string}]}"
 	model := "{$ref: '#/components/schemas/A'}"
-	union := "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}"
 	object := "{const: {a: x}}"
 	for _, tc := range []struct{ name, a, b string }{
 		{"a list, then a tuple", list, tuple},
 		{"a tuple, then a list", tuple, list},
-		{"a model, then a union", model, union},
-		{"a union, then a model", union, model},
 		{"a model, then a const object", model, object},
 		{"a const object, then a model", object, model},
 	} {
@@ -1232,5 +1229,482 @@ func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
 		assert.Contains(t, merged[0].Message, "that the merge does not compare", tc.name)
 		assert.Contains(t, propertyOf(t, doc, "T", "v").Unmodeled,
 			"openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v", tc.name)
+	}
+}
+
+// TestAllOf_RedeclarationsUnderAnotherBaseStayApart holds two declarations of
+// a field written alike but read against two bases, an $id at one naming
+// another URI, to two declarations: `n.json` names A at the first and B at the
+// second, so the second's `not` is kept and reported rather than folded into
+// the first's, whether it lands on the field or on a hoisted enum.
+func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
+	t.Parallel()
+	for name, x := range map[string]string{
+		"OnTheField":     "{type: string, not: {$ref: 'n.json'}}",
+		"OnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {$ref: 'n.json'}}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/n.json', type: string, maxLength: 1}
+    B: {$id: 'https://ex.test/b/n.json', type: string, minLength: 5}
+    S:
+      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - {$id: 'https://ex.test/a/c.json', type: object, properties: {x: `+x+`}}
+        - {type: object, properties: {x: `+x+`}}
+`))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			require.True(t, ok)
+			assert.Contains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x",
+				"the second declaration is kept")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+				"%+v", diags)
+		})
+	}
+}
+
+// TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart pins a declaration
+// written as the schema another declaration names: an $id at the copy's
+// branch, or at the resource holding the schema, gives the two different
+// bases, so `#n` names A in one and B in the other, and the copy is kept and
+// reported. Without a $ref the copy says what the schema says, so that schema
+// is the field's type and nothing is kept.
+func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
+	t.Parallel()
+	const copyUnderAnID = `    E: %[1]s
+    S:
+      allOf:
+        - {type: object, properties: {x: {$ref: '#/components/schemas/E'}}}
+        - $id: 'https://ex.test/b/w.json'
+          $defs: {b: {$anchor: n, type: string, minLength: 5}}
+          type: object
+          properties: {x: %[1]s}
+`
+	const namedInAnotherResource = `    C:
+      $id: 'https://ex.test/b/c.json'
+      $defs: {b: {$anchor: n, type: string, minLength: 5}, e: %[1]s}
+    S:
+      allOf:
+        - {type: object, properties: {x: {$ref: 'https://ex.test/b/c.json#/$defs/e'}}}
+        - {type: object, properties: {x: %[1]s}}
+`
+	for _, tc := range []struct {
+		name, schemas, not string
+		kept               bool
+	}{
+		{"CopyUnderAnID", copyUnderAnID, "{$ref: '#n'}", true},
+		{"CopyUnderAnID", copyUnderAnID, "{const: q}", false},
+		{"NamedInAnotherResource", namedInAnotherResource, "{$ref: '#n'}", true},
+		{"NamedInAnotherResource", namedInAnotherResource, "{const: q}", false},
+	} {
+		x := "{type: string, enum: [ab, abcdef], not: " + tc.not + "}"
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0",
+			"    A: {$anchor: n, type: string, maxLength: 1}\n"+fmt.Sprintf(tc.schemas, x)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, tc.name)
+		got, ok := openapitest.PropsByWire(m.Properties)["x"]
+		require.True(t, ok, tc.name)
+		assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", tc.name, tc.not)
+		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x"]
+		assert.Equal(t, tc.kept, kept, "%s %s", tc.name, tc.not)
+		assert.Equal(t, tc.kept,
+			openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+			"%s %s", tc.name, tc.not)
+	}
+}
+
+// TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase is the
+// other side of TestAllOf_RedeclarationsUnderAnotherBaseStayApart: two
+// declarations written alike that write no $ref, or only an absolute one, say
+// the same under any base, so they fold to one field, or one hoisted enum, with
+// nothing kept or reported.
+func TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase(t *testing.T) {
+	t.Parallel()
+	for name, x := range map[string]string{
+		"OnTheField":             "{type: string, not: {const: q}}",
+		"OnAHoistedEnum":         "{type: string, enum: [ab, abcdef], not: {const: q}}",
+		"AbsoluteOnTheField":     "{type: string, not: {$ref: 'https://ex.test/b/n.json'}}",
+		"AbsoluteOnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {$ref: 'https://ex.test/b/n.json'}}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    B: {$id: 'https://ex.test/b/n.json', type: integer}
+    S:
+      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - {$id: 'https://ex.test/a/c.json', type: object, properties: {x: `+x+`}}
+        - {type: object, properties: {x: `+x+`}}
+`))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			require.True(t, ok)
+			assert.NotContains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+				"%+v", diags)
+		})
+	}
+}
+
+// TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct pins GitHub #1194 wherever the
+// alias stands among the declarations: a component that is `{}` with a
+// description is the top type, so beside two models it adds no conjunct and the
+// field composes the models, as a bare `{}` does, with nothing kept or reported.
+// The description reaches the field, which a reference carries it down to. An
+// alias holding examples says something of its values a model would lose, so it
+// still keeps the field from composing.
+func TestAllOf_AnAliasOfTheTopTypeAddsNoConjunct(t *testing.T) {
+	t.Parallel()
+	const spec = `    M: {type: object, properties: {m: {type: string}}}
+    N: {type: object, properties: {n: {type: string}}}
+    Anything: {description: admits every value}
+    Sampled: {examples: [1]}
+    T:
+      allOf:
+        - {type: object, properties: {f: %s}}
+        - {type: object, properties: {f: %s}}
+        - {type: object, properties: {f: %s}}
+`
+	m, n := "{$ref: '#/components/schemas/M'}", "{$ref: '#/components/schemas/N'}"
+	for _, alias := range []string{"{$ref: '#/components/schemas/Anything'}", "{}"} {
+		for _, order := range [][3]string{{alias, m, n}, {m, alias, n}, {m, n, alias}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1], order[2])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := fmt.Sprint(order)
+			assert.Empty(t, diags, name)
+			assert.Empty(t, propertyOf(t, doc, "T", "f").Unmodeled, name)
+			assert.Equal(t, []ir.TypeRef{{Target: componentID("M")}, {Target: componentID("N")}},
+				composedField(t, doc, "T", "f").Mixins, name)
+			if alias != "{}" {
+				assert.Equal(t, "admits every value", propertyOf(t, doc, "T", "f").Docs.Description, name)
+			}
+		}
+	}
+
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, m, n, "{$ref: '#/components/schemas/Sampled'}")))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Len(t, diags, 2, "an alias holding examples keeps the models apart, each drop reported")
+	assert.Equal(t, componentID("M"), propertyOf(t, doc, "T", "f").Type.Target)
+}
+
+// TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind pins GitHub #1391 in
+// both branch orders: a schema writing `properties` and no `type` constrains
+// objects and admits a string, so a scalar or an array declared beside it is
+// the narrower, and the field takes it with nothing kept or reported. A schema
+// stating `object`, directly or through its allOf, still conflicts with one,
+// and so does one whose allOf cycles past what the read of its source spends,
+// which keeps the verdict a structure had before that read. One holding examples
+// would lose them, so the two overlap.
+func TestAllOf_AStructureStatingNoTypeAdmitsEveryOtherKind(t *testing.T) {
+	t.Parallel()
+	const spec = `    Str: {type: string}
+    Int: {type: integer}
+    List: {type: array, items: {type: string}}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/Str'}]}
+    Props: {properties: {a: {type: string}}}
+    PropsAlias: {$ref: '#/components/schemas/Props', description: d}
+    Obj: {type: object, properties: {a: {type: string}}}
+    ObjByAllOf: {allOf: [{type: object}], properties: {a: {type: string}}}
+    Sampled: {properties: {a: {type: string}}, examples: [{a: x}]}
+    Loop: {allOf: [{$ref: '#/components/schemas/Loop2'}], properties: {a: {type: string}}}
+    Loop2: {allOf: [{$ref: '#/components/schemas/Loop'}], properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: %s}}
+        - {properties: {f: %s}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		narrow, untyped string
+		want            ir.TypeID
+	}{
+		{ref("Str"), ref("Props"), componentID("Str")},
+		{ref("Wrapped"), ref("Props"), componentID("Wrapped")},
+		{ref("Int"), ref("Props"), componentID("Int")},
+		{ref("List"), ref("Props"), componentID("List")},
+		{ref("Str"), ref("PropsAlias"), componentID("Str")},
+		{"{type: string}", "{properties: {a: {type: string}}}", "t/prim/string"},
+	} {
+		for _, order := range [][2]string{{tc.narrow, tc.untyped}, {tc.untyped, tc.narrow}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := order[0] + " then " + order[1]
+			assert.Empty(t, diags, name)
+			p := propertyOf(t, doc, "T", "f")
+			assert.Equal(t, tc.want, p.Type.Target, name)
+			assert.Empty(t, p.Unmodeled, name)
+		}
+	}
+
+	for _, tc := range []struct {
+		other, code string
+	}{
+		{ref("Obj"), diag.ConflictingRedecl},
+		{ref("ObjByAllOf"), diag.ConflictingRedecl},
+		{ref("Loop"), diag.ConflictingRedecl},
+		{ref("Sampled"), diag.DegradedConstruct},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref("Int"), tc.other)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		require.Len(t, withCode(diags, tc.code), 1, tc.other)
+		assert.Equal(t, componentID("Int"), propertyOf(t, doc, "T", "f").Type.Target, tc.other)
+	}
+}
+
+// TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict pins a structure
+// writing no `type` beside a string, where a schema its allOf reaches writes
+// what the read of instance types does not follow but which can refuse a
+// string: a union, a `not`, a condition, an `enum` or `const`, a keyword beside
+// an entry's or an alias's $ref, a $ref landing on nothing or on `false`, or
+// a `false` entry.
+// The structure may admit no string, so the pair stays the conflict it was. A
+// `true` entry, and an alias of a structure holding only docs, refuse nothing,
+// so the string still narrows them.
+func TestAllOf_AnUntypedReadPassingOverAKeywordKeepsTheConflict(t *testing.T) {
+	t.Parallel()
+	const spec = `    Empty: {}
+    Props: {properties: {a: {type: string}}}
+    NotStr: {not: {type: string}}
+    ObjOneOf: {oneOf: [{type: object, required: [a]}, {type: object, required: [b]}]}
+    ObjAnyOf: {anyOf: [{type: object}, {type: array}]}
+    IfObj: {if: {required: [a]}, then: {type: object}, else: {type: object}}
+    AliasOneOf: {$ref: '#/components/schemas/Props', oneOf: [{type: object}]}
+    AliasDoc: {$ref: '#/components/schemas/Props', description: d}
+    Refuses: false
+    T:
+      allOf:
+        - {properties: {f: {type: string}}}
+        - {properties: {f: {allOf: [%s], properties: {b: {type: string}}}}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	compile := func(entry string) (ir.Property, []ir.Diagnostic) {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, entry)))
+		return propertyOf(t, doc, "T", "f"), diags
+	}
+	for _, entry := range []string{
+		ref("NotStr"), ref("ObjOneOf"), ref("ObjAnyOf"), ref("IfObj"), ref("AliasOneOf"),
+		"{$ref: '#/components/schemas/Empty', type: object}",
+		"{$ref: '#/components/schemas/Empty', allOf: [{type: object}]}",
+		"{enum: [{a: x}]}", "{const: {a: x}}", "{oneOf: [{type: object}, {type: array}], anyOf: [{type: object}]}",
+		"{anyOf: [{type: object}]}", "{not: {type: string}}", "{$dynamicRef: '#/components/schemas/Props'}",
+		"{$recursiveRef: '#'}", "false", ref("Missing"), ref("Refuses"),
+	} {
+		p, diags := compile(entry)
+		require.Len(t, withCode(diags, diag.ConflictingRedecl), 1, entry)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Len(t, p.Unmodeled, 1, "the structure is kept: %s", entry)
+	}
+
+	for _, entry := range []string{"true", ref("AliasDoc")} {
+		p, diags := compile(entry)
+		openapitest.RequireNoErrorDiags(t, diags)
+		var atT []ir.Diagnostic
+		for _, d := range diags {
+			if strings.HasPrefix(string(d.Provenance.Pointer), "/components/schemas/T/") {
+				atT = append(atT, d)
+			}
+		}
+		assert.Empty(t, atT, "the fold reports nothing: %s", entry)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, entry)
+		assert.Empty(t, p.Unmodeled, entry)
+	}
+}
+
+// TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites pins a structure
+// stating no instance type that holds docs or a deprecation, beside a string,
+// in both branch orders. Reached through a $ref, the reference carries them
+// down to the property, so the string takes the field and the property keeps
+// them. Written at the declaration, alone or composing what it reaches, they
+// are the structure's own, which a string would lose, so the two overlap: the
+// field keeps the first and reports the other.
+func TestAllOf_AnUntypedStructureKeepsWhatItsDeclarationWrites(t *testing.T) {
+	t.Parallel()
+	const spec = `    Described: {description: D, properties: {a: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: %s}}
+        - {properties: {f: %s}}
+`
+	compile := func(first, second string) (ir.Property, []ir.Diagnostic) {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, first, second)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		return propertyOf(t, doc, "T", "f"), diags
+	}
+	const text, described = "{type: string}", "{$ref: '#/components/schemas/Described'}"
+	for _, order := range [][2]string{{text, described}, {described, text}} {
+		p, diags := compile(order[0], order[1])
+		assert.Empty(t, diags, "%v", order)
+		assert.Equal(t, ir.TypeID("t/prim/string"), p.Type.Target, "%v", order)
+		assert.Equal(t, "D", p.Docs.Description, "%v", order)
+	}
+
+	for _, inline := range []string{
+		"{description: D, properties: {a: {type: string}}}",
+		"{deprecated: true, properties: {a: {type: string}}}",
+		"{description: D, allOf: [" + described + "]}",
+	} {
+		for i, order := range [][2]string{{text, inline}, {inline, text}} {
+			p, diags := compile(order[0], order[1])
+			require.Len(t, diags, 1, "%v", order)
+			assert.Equal(t, diag.DegradedConstruct, diags[0].Code, "%v", order)
+			want := []ir.TypeID{"t/prim/string", "t/anon/components/schemas/T/allOf/0/properties/f"}[i]
+			assert.Equal(t, want, p.Type.Target, "%v", order)
+			assert.Len(t, p.Unmodeled, 1, "the other is kept: %v", order)
+		}
+	}
+}
+
+// TestAllOf_ASourceIsReadOnlyInItsOwnDocument pins that what a structure's
+// source states is read where the structure was declared, never at the same
+// pointer in the composing model's document: another document's object here
+// states its type, and the composing document's own schema at that pointer
+// states none. The merge reads a site in another document as stating one, so
+// the pair stays the conflict it was.
+func TestAllOf_ASourceIsReadOnlyInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	doc, diags, _ := compileBeside(t, map[string]string{"other.yaml": `components:
+  schemas:
+    Props: {type: object, properties: {a: {type: string}}}
+`}, `openapi: 3.1.0
+info: {title: t, version: '1'}
+paths: {}
+components:
+  schemas:
+    Props: {properties: {a: {type: string}}}
+    T:
+      allOf:
+        - {properties: {f: {type: integer}}}
+        - {properties: {f: {$ref: 'other.yaml#/components/schemas/Props'}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Len(t, withCode(diags, diag.ConflictingRedecl), 1, "the other document's object conflicts with an integer")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), propertyOf(t, doc, "T", "f").Type.Target)
+}
+
+// TestAllOf_ModelsAlikeAreOneType pins GitHub #1083: a field declared as a
+// component model and as an inline object written the same way, a nested
+// object included, names the component in either order, and two inline copies
+// name one type, with nothing kept or reported. An inline object differing in a
+// member still composes with the component.
+func TestAllOf_ModelsAlikeAreOneType(t *testing.T) {
+	t.Parallel()
+	const spec = `    Owner:
+      type: object
+      properties:
+        name: {type: string}
+        address: {type: object, properties: {street: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {owner: %s}}
+        - {type: object, properties: {owner: %s}}
+`
+	owner := "{$ref: '#/components/schemas/Owner'}"
+	inline := "{type: object, properties: {name: {type: string}, address: {type: object, properties: {street: {type: string}}}}}"
+	for _, tc := range []struct {
+		a, b string
+		want ir.TypeID
+	}{
+		{owner, inline, componentID("Owner")},
+		{inline, owner, componentID("Owner")},
+		{inline, inline, "t/anon/components/schemas/T/allOf/0/properties/owner"},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, tc.a, tc.b)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, diags)
+		p := propertyOf(t, doc, "T", "owner")
+		assert.Equal(t, tc.want, p.Type.Target)
+		assert.Empty(t, p.Unmodeled)
+	}
+
+	other := "{type: object, properties: {name: {type: string}, address: {type: object, properties: {city: {type: string}}}}}"
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, owner, other)))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, diags)
+	m := composedField(t, doc, "T", "owner")
+	require.NotNil(t, m.Base)
+	assert.Equal(t, componentID("Owner"), m.Base.Target, "a copy differing in a nested member composes")
+}
+
+// TestAllOf_AModelComposesWithAMapOrAUnion pins GitHub #1182 in both branch
+// orders: a field declared as a model and as a map, or as a model and as a
+// union, names one minted model composing both, as a written allOf of them
+// does, with nothing kept or reported. The component is the Base as the sole
+// $ref, and the inline map or union a Mixin.
+func TestAllOf_AModelComposesWithAMapOrAUnion(t *testing.T) {
+	t.Parallel()
+	const spec = `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	model := "{$ref: '#/components/schemas/A'}"
+	for _, other := range []string{
+		"{type: object, additionalProperties: {type: string}}",
+		"{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}",
+	} {
+		for i, order := range [][2]string{{model, other}, {other, model}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			name := order[0] + " then " + order[1]
+			assert.Empty(t, diags, name)
+			assert.Empty(t, propertyOf(t, doc, "T", "v").Unmodeled, name)
+			m := composedField(t, doc, "T", "v")
+			require.NotNil(t, m.Base, name)
+			assert.Equal(t, componentID("A"), m.Base.Target, name)
+			require.Len(t, m.Mixins, 1, name)
+			inline := fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", 1-i)
+			assert.Equal(t, ir.TypeID(inline), m.Mixins[0].Target, name)
+		}
+	}
+}
+
+// TestAllOf_ContainersOfDifferentModelsComposeTheirMembers pins GitHub #1180 in
+// both branch orders: lists, maps or tuples of two different models stand on
+// one container whose member is a model composing both, each minted at a
+// position of its own, so both models' properties are reached, with nothing
+// kept or reported.
+func TestAllOf_ContainersOfDifferentModelsComposeTheirMembers(t *testing.T) {
+	t.Parallel()
+	const spec = `    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	field := "t/composed/components/schemas/T/allOf/1/properties/v"
+	for _, tc := range []struct {
+		shape  string
+		member func(ir.TypeDef) ir.TypeRef
+		at     string
+	}{
+		{"{type: array, items: {$ref: '#/components/schemas/%s'}}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.List).Elem }, "/items"},
+		{"{type: object, additionalProperties: {$ref: '#/components/schemas/%s'}}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.MapT).Value }, "/additionalProperties"},
+		{"{type: array, prefixItems: [{$ref: '#/components/schemas/%s'}]}",
+			func(td ir.TypeDef) ir.TypeRef { return td.(*ir.Tuple).Elems[0] }, "/prefixItems/0"},
+	} {
+		a, b := fmt.Sprintf(tc.shape, "A"), fmt.Sprintf(tc.shape, "B")
+		for _, order := range [][2]string{{a, b}, {b, a}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, order[0])
+			p := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, p.Unmodeled, order[0])
+			require.Equal(t, ir.TypeID(field), p.Type.Target, order[0])
+			member := tc.member(doc.Types[p.Type.Target])
+			require.Equal(t, ir.TypeID(field+tc.at), member.Target, order[0])
+			m, ok := doc.Types[member.Target].(*ir.Model)
+			require.True(t, ok, order[0])
+			assert.ElementsMatch(t, []ir.TypeID{componentID("A"), componentID("B")}, refTargets(m.Mixins), order[0])
+		}
 	}
 }

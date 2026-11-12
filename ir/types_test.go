@@ -122,6 +122,7 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 		Base:       &ir.TypeRef{Target: "t/model/Base"},
 		Implements: []ir.TypeRef{{Target: "t/iface/A"}, {Target: "t/iface/B"}},
 		Mixins:     []ir.TypeRef{{Target: "t/mixin/M1"}},
+		Requires:   []string{"createdAt"},
 		AdditionalProps: &ir.AdditionalProps{
 			Value: new(populatedTypeRef()),
 			Key:   &ir.TypeRef{Target: "t/prim/string"},
@@ -156,6 +157,8 @@ func TestUnion_PopulatedRoundTrip(t *testing.T) {
 		},
 		Exclusive:  true,
 		WireTagged: true,
+		Closed:     true,
+		InputOnly:  true,
 		Discriminator: &ir.Discriminator{
 			PropertyName: "petType",
 			Mapping:      map[string]ir.TypeID{"dog": "t/Dog"},
@@ -225,6 +228,7 @@ func TestLiteral_PopulatedRoundTrip(t *testing.T) {
 	want := &ir.Literal{
 		TypeCommon: populatedTypeCommon("t/literal/Fixed"),
 		Value:      ir.Value{Kind: ir.ValueString, Str: "fixed"},
+		ValueType:  ir.PrimString,
 	}
 	assertTypeDefRoundTrip(t, want)
 }

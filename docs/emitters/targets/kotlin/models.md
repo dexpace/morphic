@@ -11,8 +11,9 @@ classes out of a public API for the first reason. Each is a final class instead:
    takes the required properties in its constructor and the optional ones through setters. A Kotlin
    caller writes `User(name = "Ada") { email = "ada@example.com" }` over it; a Swift caller uses the
    builder itself.
-2. `equals`, `hashCode` and `toString` are generated, and `toString` redacts a `Secret` property or
-   a `Sensitive` type ([Go's `User`](../go/models.md#user-in-go)), which a data class's would print.
+2. `equals`, `hashCode` and `toString` are generated, and `toString` shows a member the model
+   redacts as `[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value), [Go's
+   `User`](../go/models.md#user-in-go)), which a data class's would print.
 3. An operation's request type ([request shaping](../../refine/requests.md)) is built the same way,
    so an optional property or input the spec adds is a new setter on both platforms.
 

@@ -22,7 +22,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -486,7 +486,7 @@ type escapedSource struct {
 func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	esc := newEscapes(nil)
 	esc.escape(t.Context(), root)
 	doc, err := unmarshal(t.Context(), []byte(src), root)
@@ -717,7 +717,7 @@ components:
 
 func TestRestoreFault_ReportsTheFaultWhereItEnded(t *testing.T) {
 	t.Parallel()
-	at := pointerAt(3, overlay.Origin{})
+	at := provenance.Doc{Source: 3}
 
 	assert.Empty(t, restoreFault(at, "/a", nil), "no fault, nothing to report")
 	got := restoreFault(at, "/a", errors.New("restoring $refs as written panicked: boom"))

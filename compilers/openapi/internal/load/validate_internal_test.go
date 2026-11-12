@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +21,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
 )
@@ -66,7 +67,7 @@ components:
       <<: {minLength: -1}
 `
 	root := decodeRoot(t, src)
-	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
+	tree := treeOf(t.Context(), provenance.Doc{Source: 4}, root)
 
 	got := judgeSource(t.Context(), root, tree, budget.Unbounded())
 
@@ -103,7 +104,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), budget.Unbounded())
+	got := judgeSource(t.Context(), root, treeOf(t.Context(), provenance.Doc{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -132,8 +133,8 @@ func nodeAt(t *testing.T, n *yaml.Node, keys ...string) *yaml.Node {
 }
 
 // TestJudgeSource_AnOverlayOwnsWhatItWrote pins the attribution of a finding
-// about a node an overlay introduced: the overlay's index, and the node's
-// pointer, where a node the overlay left alone keeps the source's.
+// about a node an overlay introduced: the node's pointer, with the overlay as
+// its writer, where a node the overlay left alone names no writer.
 func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	const spec = "openapi: 3.1.0\ninfo: {title: T}\npaths: {}\n"
@@ -234,7 +235,7 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), budget.AtMost(2))
+	got := judgeSource(t.Context(), &root, treeOf(t.Context(), provenance.Doc{}, &root), budget.AtMost(2))
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)
@@ -242,21 +243,41 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 
 // TestJudgeSource_RefusesTheAnchorsNoReferenceCanName holds the table's grammar
 // for an anchor's name to the binder's, which reads a $ref's plain-name
-// fragment: the table refuses a $anchor exactly where a $ref to its name
-// resolves to nothing.
+// fragment, in each dialect that declares one: the table refuses a $anchor, or
+// an identifier naming a fragment alone, exactly where a $ref to its name
+// resolves to nothing, and that is where the dialect's grammar refuses the
+// name: 2020-12's admits a leading '_' and no ':', the plain names of 2019-09's
+// `$anchor` and of drafts 6 and 7 the reverse. Draft 4 states no grammar, so
+// its `id` refuses none and each name resolves.
 func TestJudgeSource_RefusesTheAnchorsNoReferenceCanName(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
-		spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
-			"    A: {$anchor: '" + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
-		_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
-		require.NoError(t, err)
-		refused, unresolved := false, false
-		for _, d := range diags {
-			refused = refused || d.Provenance.Pointer == "/components/schemas/A/$anchor"
-			unresolved = unresolved || d.Code == diag.UnresolvedRef
+	plain := "_a 1a -a .a _ a/b é"
+	for _, d := range []struct{ dialect, keyword, prefix, refuses string }{
+		{"", "$anchor", "", "1a -a .a a:b a/b é"},
+		{"https://json-schema.org/draft/2019-09/schema", "$anchor", "", plain},
+		{"http://json-schema.org/draft-07/schema#", "$id", "#", plain},
+		{"http://json-schema.org/draft-06/schema#", "$id", "#", plain},
+		{draft04, "id", "#", ""},
+	} {
+		for _, name := range []string{"a", "_a", "Z9", "a.b-c_d", "1a", "-a", ".a", "_", "a:b", "a/b", "é"} {
+			spec := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: '" + d.dialect + "'\n" +
+				"paths: {}\ncomponents:\n  schemas:\n" +
+				"    A: {" + d.keyword + ": '" + d.prefix + name + "', type: string}\n    B: {$ref: '#" + name + "'}\n"
+			if d.dialect == "" {
+				spec = strings.Replace(spec, "jsonSchemaDialect: ''\n", "", 1)
+			}
+			_, diags, err := Load(t.Context(), 0, compilers.Source{Path: "a.yaml", Data: []byte(spec)}, Options{})
+			require.NoError(t, err)
+			refused, unresolved := false, false
+			for _, g := range diags {
+				refused = refused || g.Provenance.Pointer == jsontext.Pointer("/components/schemas/A/"+d.keyword) &&
+					g.Severity == ir.SeverityError
+				unresolved = unresolved || g.Code == diag.UnresolvedRef
+			}
+			want := slices.Contains(strings.Fields(d.refuses), name)
+			assert.Equal(t, want, refused, "%s %q in %q: %+v", d.keyword, name, d.dialect, diags)
+			assert.Equal(t, want, unresolved, "a $ref to %s %q in %q: %+v", d.keyword, name, d.dialect, diags)
 		}
-		assert.Equal(t, unresolved, refused, "%q: %+v", name, diags)
 	}
 }
 

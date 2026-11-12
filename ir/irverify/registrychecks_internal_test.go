@@ -114,7 +114,7 @@ func cleanRegistry(n int) *ir.Document {
 			model.Requires = append(model.Requires, fmt.Sprintf("inherited%d", j))
 		}
 		enumPath := "components/schemas/Enumeration" + suffix
-		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), Members: []ir.EnumMember{
+		enum := &ir.Enum{ID: ir.TypeID("t/x/" + enumPath), ValueType: ir.PrimString, Members: []ir.EnumMember{
 			{ID: ir.EnumMemberID("e/x/" + enumPath + "/a")}, {ID: ir.EnumMemberID("e/x/" + enumPath + "/b")},
 		}}
 		for _, td := range []ir.TypeDef{

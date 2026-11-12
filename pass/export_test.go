@@ -5,6 +5,7 @@ package pass
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -66,6 +67,13 @@ var ValidateWith = validate
 // context.
 func Families() int { return len(families(nil, walked{}, nil)) }
 
+// NameFamilies is how many families of scopes Names reads, each after a check
+// of its context.
+func NameFamilies() int {
+	var r nameReader
+	return len(r.families())
+}
+
 // FamilyAllocs returns the allocations one run of each rule family Validate
 // runs over doc makes, in the order it runs them, as testing.AllocsPerRun
 // counts. The walk they read is taken beforehand, and so is the index they
@@ -109,4 +117,27 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	tb.Helper()
 	w := walkedFor(tb, doc)
 	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+}
+
+// UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
+// them, which reading each once holds to how many doc has.
+func UnionReads(doc *ir.Document) int { return readingOf(doc).reads }
+
+// TypeReads is how many Go types a walk of doc for the references to ids
+// reads for whether a value of them can hold a TypeID.
+func TypeReads(doc *ir.Document, ids ...ir.TypeID) int {
+	r := refsTo(ids)
+	ir.WalkValues(doc, ir.DocumentPath, r)
+	return r.typesRead
+}
+
+// TypeRefVisits is how many values a walk of doc for the references to ids
+// shows its visitor, which pruning holds to what can hold a TypeID.
+func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
+	r, n := refsTo(ids), 0
+	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		n++
+		return r.Visit(v, at)
+	}))
+	return n
 }

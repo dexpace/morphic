@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -415,10 +416,10 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
                     "inbound": "webhook",
-                    "webhookName": "onEvent"
+                    "webhookName": "onEvent",
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

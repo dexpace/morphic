@@ -19,24 +19,27 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerService lowers one document into a single Service: its identity, docs
-// and servers, the declared tag registry, and every path, webhook, and callback
-// operation grouped per the grouping strategy (docs/ir/services.md). Servers go
-// to reg, links to links.
+// LowerService lowers one document's service, its operations grouped per the
+// configured strategy (docs/ir/services.md), and its declared tags. It returns
+// them beside every server it registers, every scheme in declared with each
+// unresolved one a requirement names, the Document's kept entries and its
+// links.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
-// the two loops between path items and returns the groups filled so far; the
+// both loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
-// rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *servers.Registry, schemes *auth.Registry, links *Links) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+// rather than assembling a Document from them.
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
+	reg := servers.NewRegistry()
+	schemes := auth.RegistryOf(c, declared)
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
-		Provenance: c.ProvenanceAt(""),
+		Provenance: c.Place().At(""),
 	}
 	if info := c.Doc.GetInfo(); info != nil {
 		title := info.GetTitle()
-		svc.Name = compile.NamingFor(title)
+		svc.Name = ir.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
 	svcAuth, diags := schemes.Requirements(c, c.Doc.GetSecurity(), "")
@@ -48,32 +51,56 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *s
 	// lowers to no node — its entries become operations. The service is the
 	// nearest node holding an Unmodeled map, so they are kept there under the
 	// keyword they were written at.
-	pathsExt, pathsDiags := annotation.ExtensionsUnder(c.Doc.GetPaths().GetExtensions(), c.ProvenanceAt, ids.Ptr("paths"), "paths")
+	pathsExt, pathsDiags := annotation.ExtensionsUnder(c.Doc.GetPaths().GetExtensions(), c.Place(), ids.Ptr("paths"), "paths")
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
-	w := walk{types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes, links: links}
+	w := walk{
+		types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes,
+		kept: newKeptOnce(), links: &Links{},
+	}
 	diags = append(diags, lowerPaths(ctx, c, w, groups, &svc)...)
 	diags = append(diags, lowerWebhooks(ctx, c, w, groups, &svc)...)
 	// After both walks: whether an operationId is unique is a question about
 	// every operation the service mounts, callbacks included.
 	diags = append(diags, w.claims.report(c)...)
 	svc.Groups = groups.finalize()
-	return svc, lowerTagDefs(c), diags
+	return Lowered{
+		Service: svc,
+		TagDefs: lowerTagDefs(c),
+		Servers: reg.Servers(),
+		Auth:    schemes.Schemes(),
+		Kept:    w.kept.entries,
+		Links:   *w.links,
+	}, diags
+}
+
+// Lowered is what LowerService builds from one document. Each field is the
+// Document field of its name, bar Service, the one entry of Services, Kept,
+// entries for the Document's Unmodeled, and Links, which Links.Resolve lowers
+// onto Service once the type registry is whole.
+type Lowered struct {
+	Service ir.Service
+	TagDefs []ir.TagDef
+	Servers map[ir.ServerID]ir.Server
+	Auth    map[ir.AuthID]ir.AuthScheme
+	Kept    ir.Unmodeled
+	Links   Links
 }
 
 // walk is what lowering a service's operations accumulates across all of them,
 // whichever route mounts each: the type registry, the operationId claims judged
 // once every operation has lowered, the server registry a path item's and an
 // operation's servers go into, the scheme registry a requirement's names go
-// into, and the links resolved once the service is whole. One is built per
-// service and handed down by value, since each field is the shared accumulator
-// itself.
+// into, what the walk keeps for the Document, and the links resolved once the
+// service is whole. One is built per service and handed down by value, since
+// each field is the shared accumulator itself.
 type walk struct {
 	types   *compile.Types
 	claims  *operationIDClaims
 	servers *servers.Registry
 	schemes *auth.Registry
+	kept    *keptOnce
 	links   *Links
 }
 
@@ -133,7 +160,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	// heuristic marker is filled in below, once every lowering that can add one
 	// has run: the grouping choice is known here, but the streaming reading is
 	// not known until the payloads are lowered.
-	opProv := c.ProvenanceAt(decl)
+	opProv := c.Place().At(decl)
 	opAuth, diags := w.schemes.Requirements(c, src.Security, decl)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
@@ -152,10 +179,10 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(c, w.types, mount, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(c, w, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
-	diags = append(diags, lowerResponses(c, w.types, w.links, &op, src, decl)...)
+	diags = append(diags, lowerResponses(c, w, &op, src, decl)...)
 	if opCtx.method == "" {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
 			"additionalOperations key names no method; the operation lowers with an empty "+
@@ -169,7 +196,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 		Inbound:       opCtx.inbound,
 		ParamBindings: bindings,
 	}
-	diags = append(diags, lowerRequestBody(c, w.types, &op, &hb, src, decl)...)
+	diags = append(diags, lowerRequestBody(c, w, &op, &hb, src, decl)...)
 	// After both payload lowerings, which are what it reads.
 	streaming := applyStreaming(c, w.types, &op, decl)
 	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, opCtx.inferred, streaming)
@@ -205,7 +232,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 // more response.
 func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operation, decl jsontext.Pointer) []ir.Diagnostic {
 	docsPtr := decl + ids.Ptr("externalDocs")
-	ext, diags := annotation.ExtensionsAt(c.ProvenanceAt,
+	ext, diags := annotation.ExtensionsAt(c.Place(),
 		annotation.ExtensionSite{Owner: decl, Ext: src.GetExtensions()},
 		annotation.ExtensionSite{Scope: "externalDocs", Owner: docsPtr,
 			Ext: src.GetExternalDocs().GetExtensions()},
@@ -213,9 +240,9 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 			Ext: src.GetResponses().GetExtensions()},
 	)
 	op.Unmodeled = annotation.MergeUnmodeled(op.Unmodeled, ext)
-	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
+	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.Place(), decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
-		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
+		src.GetExternalDocs(), c.Place(), docsPtr, "externalDocs")...)
 }
 
 // operationName builds an operation's neutral naming: the operationId when
@@ -223,7 +250,7 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 // the method and the route's key so emitters can synthesize a name.
 func operationName(src *soa.Operation, method, key string) ir.Naming {
 	if id := src.GetOperationID(); id != "" {
-		return compile.NamingFor(id)
+		return ir.NamingFor(id)
 	}
 	return compile.NamingHint(method + " " + key)
 }

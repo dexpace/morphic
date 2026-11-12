@@ -29,7 +29,6 @@ member 0 0 Deprecation.replacedBy
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
-member 0 0 Discriminator.inferred
 member 0 0 DocRef.endByte
 member 0 0 DocRef.startByte
 member 0 0 DocRef.type
@@ -51,8 +50,6 @@ member 0 0 EntityRef.type
 member 0 0 Enum.fallbackMember
 member 0 0 Enum.flags
 member 0 0 EnumMember.availability
-member 0 0 EnumMember.deprecation
-member 0 0 EnumMember.docs
 member 0 0 EnumMember.examples
 member 0 0 EnumMember.unmodeled
 member 0 0 EnumMember.wireName

@@ -48,6 +48,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // update rewrites oracleDisagreements and validationDisagreements from what
@@ -113,7 +114,8 @@ var oracleReasons = map[string]string{
 		"it reads past one for a reference object's own $ref; the compiler reads both alike " +
 		"(docs/compilers/openapi.md#references)",
 	"anchor-id": "the compiler reads a plain-name fragment as the $anchor or $dynamicAnchor the resource it " +
-		"names declares, and a URI an $id declares as that schema, every schema under no $id being in the " +
+		"names declares, or the identifier naming that fragment alone a draft before 2019-09 declares it by, " +
+		"and a URI an $id declares as that schema, every schema under no $id being in the " +
 		"document's resource, as OAS 3.1 reads one (JSON Schema 2020-12 §8.2, docs/compilers/openapi.md#references); " +
 		"the library looks for an anchor only inside the top-level schema it resolves, whatever URI names it, " +
 		"reads no $dynamicAnchor as one, and reads a URI an $id declares as a document to fetch",
@@ -446,8 +448,8 @@ func runOracleChild(t *testing.T, path, skip string) result {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), oracleTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(os.Environ(), childEnv+"=binding-oracle", inputEnv+"="+path, oracleSkipEnv+"="+skip)
+	env := []string{childEnv + "=binding-oracle", inputEnv + "=" + path, oracleSkipEnv + "=" + skip}
+	cmd := exectest.Command(ctx, t, env, os.Args[0])
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {

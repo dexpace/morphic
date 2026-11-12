@@ -335,7 +335,7 @@ func TestEnum_EmptyMemberListMatchesNoValue(t *testing.T) {
 // holding no member and lowering the union alone would state the opposite of
 // the source.
 //
-// It is a second case rather than a second row because declaresShape and
+// It is a second case rather than a second row because shapeKeywords and
 // composesAsModel test the keyword themselves, through enumWritten, and a union
 // reaches lower()'s dispatch only through them.
 func TestEnum_EmptyMemberListIsAUnionSibling(t *testing.T) {
@@ -885,6 +885,7 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 		{"an object", `{type: object, const: {a: 1}}`, "", ""},
 		{"a list", `{type: array, const: [1]}`, "", ""},
 		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type"},
+		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type"},
 		{"a null", `{type: "null", const: null}`, "", ""},
 	}
 	for _, tc := range tests {

@@ -22,15 +22,16 @@ type root struct {
 
 // frame is one position a walk has yet to read. In the source's own walk,
 // which reads the identifiers its schemas declare, res indexes the resource
-// its parent's content is in (identifiers.resources), and inert marks the
-// fields beside a reference object's $ref, which the model ignores, so no
-// identifier is read there.
+// its parent's content is in (identifiers.resources), dialect is the one its
+// parent is read in, and inert marks the fields beside a reference object's
+// $ref, which the model ignores, so no identifier is read there.
 type frame struct {
-	node  *yaml.Node
-	at    Position
-	state state
-	res   int32
-	inert bool
+	node    *yaml.Node
+	at      Position
+	dialect string
+	res     int32
+	state   state
+	inert   bool
 }
 
 // finder finds the positions a table answers for: the schema sites, the
@@ -50,9 +51,12 @@ type finder struct {
 	freshDynamic  []dynamicSite
 	expansions    []expansion
 	landings      map[Position]bool
-	pending       []root
-	covered       map[root]bool
-	roots         map[Position]state
+	// tupled is each schema the parser's model cannot hold, by the schema
+	// writing it (tupleOf).
+	tupled  map[Position]Position
+	pending []root
+	covered map[root]bool
+	roots   map[Position]state
 }
 
 // newFinder returns a finder over docs that has found nothing, noting what the
@@ -60,6 +64,7 @@ type finder struct {
 func newFinder(d *docs, w *work, ids *identifiers) *finder {
 	return &finder{docs: d, ids: ids, work: w, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
+		tupled:  map[Position]Position{},
 		covered: map[root]bool{}, roots: map[Position]state{}}
 }
 
@@ -75,8 +80,12 @@ func (w *finder) walk(r root, mark bool) {
 		w.roots[r.at] = r.state
 	}
 	declaring := !mark && !w.ids.read[r.at.Doc]
+	if !declaring {
+		// The dialect roots a walk reads are those its document declares.
+		w.identify(r.at.Doc)
+	}
 	w.ids.read[r.at.Doc] = w.ids.read[r.at.Doc] || declaring
-	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state}}
+	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state, dialect: dialectAbove(w.docs, w.ids, r.at)}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -93,8 +102,11 @@ func (w *finder) walk(r root, mark bool) {
 		w.visit(n, f)
 		if declaring {
 			f = w.declared(n, f)
+		} else if len(w.ids.dialects) > 0 {
+			f.dialect = rootDialect(w.ids, f.at, f.dialect)
 		}
-		stack = append(stack, w.children(n, f)...)
+		w.tupleOf(n, f)
+		stack = w.pushChildren(stack, n, f)
 	}
 }
 
@@ -109,7 +121,8 @@ func (w *finder) identify(id DocID) {
 	}
 	w.ids.read[id] = true
 	res := w.ids.document(id, resources{w.docs}.document(id))
-	stack := []frame{{node: w.docs.list[id].root, at: Position{Doc: id}, state: w.docs.identityState(id), res: res}}
+	stack := []frame{{node: w.docs.list[id].root, at: Position{Doc: id}, state: w.docs.identityState(id), res: res,
+		dialect: defaultDialect(w.docs, id)}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
@@ -117,7 +130,7 @@ func (w *finder) identify(id DocID) {
 		if n == nil || !modelled(f.state) {
 			continue
 		}
-		stack = append(stack, w.children(n, w.declared(n, f))...)
+		stack = w.pushChildren(stack, n, w.declared(n, f))
 	}
 }
 
@@ -140,7 +153,7 @@ func (w *finder) declared(n *yaml.Node, f frame) frame {
 	switch {
 	case f.inert:
 	case f.state == sSchema || f.state == sLoose:
-		f.res = w.ids.declare(resources{w.docs}, f.res, f.at, n)
+		f.res, f.dialect = w.ids.declare(resources{w.docs}, f.res, f.at, n, f.dialect)
 	case referenceKinds[f.state] && f.state != sPathItem:
 		_, f.inert = w.docs.refOf(f.at.Doc, n)
 	}
@@ -162,6 +175,26 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
 		}
+	}
+}
+
+// tupleOf notes each schema the schema at f, holding n and read in f's
+// dialect, writes where the parser's model has no member to hold one: each
+// entry of an `items` written as a list the dialect reads as a tuple, and the
+// `additionalItems` beside it, its rest. The table builds a schema for each,
+// as for a landing, held by the schema writing it.
+func (w *finder) tupleOf(n *yaml.Node, f frame) {
+	schema := f.state == sSchema || f.state == sLoose
+	if !schema || !dialectRule(w.docs, f.at.Doc, f.dialect).Tuples || !listsItems(w.docs, f.at.Doc, n) {
+		return
+	}
+	view := w.docs.list[f.at.Doc].view
+	items := f.at.below("items")
+	for i := range nodeview.Deref(view.ChildByToken(n, "items")).Content {
+		w.tupled[items.below(strconv.Itoa(i))] = f.at
+	}
+	if nodeview.Deref(view.ChildByToken(n, "additionalItems")) != nil {
+		w.tupled[f.at.below("additionalItems")] = f.at
 	}
 }
 
@@ -244,23 +277,24 @@ func containsHash(value string) bool {
 	return slices.Contains([]byte(value), '#')
 }
 
-// children are the positions directly below f, whose node is n.
-func (w *finder) children(n *yaml.Node, f frame) []frame {
-	var out []frame
+// pushChildren returns stack with the positions directly below f, whose node is
+// n, appended in order, so a walk reads its children with no slice of their
+// own.
+func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
-			out = append(out, frame{node: p.Val, at: f.at.below(p.Key), state: step(f.state, p.Key), res: f.res,
-				inert: f.inert})
+			stack = append(stack, frame{node: p.Val, at: f.at.below(p.Key),
+				state: stepIn(w.docs, f.at.Doc, n, f.state, p.Key, f.dialect), res: f.res, inert: f.inert, dialect: f.dialect})
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
 			token := strconv.Itoa(i)
-			out = append(out, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
-				inert: f.inert})
+			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
+				inert: f.inert, dialect: f.dialect})
 		}
 	}
-	return out
+	return stack
 }
 
 // below is the position token names under p.

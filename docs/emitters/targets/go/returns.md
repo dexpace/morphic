@@ -12,11 +12,22 @@ How each [return shape](../../operations/returns.md) lowers in Go.
   `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`. The
   `Response`'s `Body` is `struct{}` for `void`, and its `Headers` is `struct{}` where they declare
   none.
-- **An envelope.** `GetZone` returns `*Zone`, and `GetZoneWithResponse`'s `Response` holds the
-  envelope in `Envelope any`, a `*GetZoneResponse` there and nil on an operation with no envelope,
-  as `OtherResponse.Body` holds a body of any kind.
+- **An envelope.** `GetZone` returns `*Zone`, and `GetZoneWithResponse` returns
+  `*EnvelopedResponse[*Zone, GetZoneHeaders, *GetZoneResponse]`. The runtime's
+  `EnvelopedResponse[T, H, E]` embeds `Response[T, H]` and adds `Envelope E`, so the envelope's
+  `Messages` need no type assertion. A response the method returns with no envelope, such as a
+  `204`, leaves `Envelope` nil, which `*GetZoneResponse` already holds, and `E` is `any` only where
+  the responses it returns are wrapped in different envelope types.
 - **Another declared response.** With no body, `DeleteMethod` returns a nil `*Deleted` and a nil
   error, and a stream's `Recv` returns `io.EOF`.
+
+The runtime's `Response`, `EnvelopedResponse`, `OtherResponse` and `APIError`
+([failures](errors.md)) hold `RawHeader` and a body, so each takes from its response decoder the
+wire names of the headers its entry redacts, whose values it shows as `[REDACTED]`, and shows `Body`
+and `Headers` through their own forms ([redaction](../../refine/redaction.md#a-redacted-value)).
+`Response` and `EnvelopedResponse` declare `String`, `GoString` and `LogValue`. `OtherResponse` and
+`APIError` are Go errors, whose `Error` quotes neither and is what `fmt`'s `%v` and `log/slog` read,
+so they declare `GoString` alone, which `%#v` reads instead of dumping `RawHeader` and `RawBody`.
 
 ## `OtherResponse`
 

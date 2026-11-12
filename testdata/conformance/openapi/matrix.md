@@ -19,19 +19,21 @@ witnessing it.
 ### `inheritance`
 
 - Witnesses: `allof-inheritance`, `discriminator-inheritance`, `discriminator-inline-subtype`,
-  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`
+  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`,
+  `type-array-discriminator`
 
 ### `tagged-unions`
 
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
   `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
-  `discriminator-aliased-branch`
+  `discriminator-aliased-branch`, `discriminated-union-distributed`, `discriminator-inferred`
 
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`, `union-restated-type`,
+  `union-inline-branches`, `allof-union-branch`
 
 ### `intersection`
 
@@ -39,7 +41,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `codeclared-keywords`
+  `allof-refinement`, `codeclared-keywords`, `allof-union-branch`
 
 ### `negation`
 
@@ -47,7 +49,8 @@ witnessing it.
 
 ### `enums-string`
 
-- Witnesses: `codeclared-keywords`, `enum-string`, `nullable-enum-31`, `enum-member-identity`
+- Witnesses: `codeclared-keywords`, `enum-string`, `nullable-enum-31`, `enum-member-identity`,
+  `string-const-union`
 
 ### `enums-numeric`
 
@@ -59,11 +62,7 @@ witnessing it.
 
 ### `open-unions`
 
-- Uncovered: OpenAPI states it only through a vendor extension, and no spelling for one is common
-  enough to join the default promotion mapping, which the corpus compiles with. A spec here would
-  hold a closed union and witness nothing. `lowering.TestPromoterUnionOpenness_OpensOnAMappedKey`
-  holds the promotion under a mapping that names a key, and this retires when a spelling joins the
-  default mapping
+- Witnesses: `extension-promotion`
 
 ### `custom-scalars`
 
@@ -137,7 +136,8 @@ witnessing it.
 
 ### `multipart-encoding`
 
-- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`
+- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`,
+  `file-items-32`
 
 ### `per-status-errors`
 

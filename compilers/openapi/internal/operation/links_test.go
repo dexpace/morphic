@@ -114,6 +114,8 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 		{"an operationId nothing declares", "src", "{operationId: nope}", diag.InvalidLink, `operationId "nope", which no operation`},
 		{"an operationId two declare", "src", "{operationId: dup}", diag.InvalidLink, `operationId "dup", which 2 operations declare`},
 		{"an operationRef to no operation", "src", "{operationRef: '#/components/schemas/M'}", diag.InvalidLink, "which no operation"},
+		{"an operationRef to the whole document", "src", "{operationRef: '#'}", diag.InvalidLink, "no JSON pointer"},
+		{"an operationRef to an anchor", "src", "{operationRef: '#op'}", diag.InvalidLink, "no JSON pointer"},
 		{"a parameter the target lacks", "src", "{operationId: target, parameters: {nope: a}}", diag.InvalidLink, `parameter "nope"`},
 		{"a name two locations share", "src", "{operationId: target, parameters: {id: a}}", diag.InvalidLink, "declares in 2 locations"},
 		{"a dotted name no location starts", "src", "{operationId: target, parameters: {x.id: a}}", diag.InvalidLink, `parameter "x.id"`},
@@ -133,6 +135,7 @@ func TestLinks_AFindingKeepsTheLinkWhole(t *testing.T) {
 		{"a union's member", "src", "{operationId: target, parameters: {path.id: '$response.body#/u/id'}}", diag.UntypedLink, "no chain of members"},
 		{"a member no model declares", "src", "{operationId: target, parameters: {path.id: '$response.body#/gone'}}", diag.UntypedLink, "no chain of members"},
 		{"a template", "src", "{operationId: target, parameters: {path.id: 'item-{$response.body#/id}'}}", diag.UntypedLink, "an expression is substituted into"},
+		{"a template within an object", "src", "{operationId: target, requestBody: {a: 1, b: {c: [x, 'item-{$url}']}, d: '{$method}'}}", diag.UntypedLink, `holding "item-{$url}"`},
 		{"a value under a custom tag", "src", "{operationId: target, parameters: {path.id: !acme thing}}", diag.UntypedLink, "no constant for"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -186,7 +189,7 @@ func TestLinks_EveryValueKindLowers(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, linkSpec(
 		"{operationRef: '#/paths/~1t~1{id}/get', requestBody: '$request.body', server: {url: 'https://s.example'},"+
-			" parameters: {path.id: '$response.body#/id', X-Up: '$response.header.x-h', query.id: '$url'}}",
+			" parameters: {path.id: '$response.body#/id', X-Up: '$response.header.x-H', query.id: '$url'}}",
 		"{operationId: target, parameters: {path.id: '$method', query.id: '$statusCode'}}"))
 	assert.Empty(t, severitiesOf(diags, diag.InvalidLink))
 	assert.Empty(t, severitiesOf(diags, diag.UntypedLink))
@@ -272,26 +275,113 @@ components:
 	}
 }
 
+// TestLinks_AHeaderTwoCasesDeclareIsNeither pins that a link reading a header
+// its response declares twice, in two cases, reads neither, in either order of
+// the two: HTTP compares header names in any case, so taking one would be a
+// choice the order of declaration makes.
+func TestLinks_AHeaderTwoCasesDeclareIsNeither(t *testing.T) {
+	t.Parallel()
+	spec := func(first, second string) string {
+		return openapitest.PathsSpec(`  /a:
+    get:
+      operationId: a
+      parameters: [{name: id, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: ok
+          headers: {` + first + `: {schema: {type: string}}, ` + second + `: {schema: {type: string}}}
+          links: {Again: {operationId: a, parameters: {id: '$response.header.x-ID'}}}
+`)
+	}
+	for _, order := range [][2]string{{"X-Id", "x-id"}, {"x-id", "X-Id"}} {
+		doc, diags := parseFull(t, spec(order[0], order[1]))
+		resp := openapitest.FindOp(t, doc, "a").Responses[0]
+		assert.Empty(t, resp.Links, "%v: neither header is the one the link reads", order)
+		assert.Contains(t, resp.Unmodeled, "openapi:links/Again", "%v", order)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severitiesOf(diags, diag.UntypedLink), "%v", order)
+	}
+}
+
+// TestLinks_UseSiteDocsFoldOverTheDeclaration pins that the summary and
+// description written beside a link's $ref describe that use of it, each
+// overriding the declaration's field it names and leaving the other standing.
+func TestLinks_UseSiteDocsFoldOverTheDeclaration(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: a
+      responses:
+        "200":
+          description: ok
+          links:
+            Told: {$ref: '#/components/links/L', summary: use summary, description: use description}
+            Bare: {$ref: '#/components/links/L'}
+components:
+  links:
+    L: {operationId: a, description: declared description}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	links := openapitest.FindOp(t, doc, "a").Responses[0].Links
+	require.Len(t, links, 2)
+	assert.Equal(t, ir.Docs{Summary: "use summary", Description: "use description"}, links[0].Docs)
+	assert.Equal(t, ir.Docs{Description: "declared description"}, links[1].Docs)
+}
+
 // TestLinks_MediaTypesDisagreeingOnAMember pins that a body read is typed only
 // when every content walks it to the same members: the value is one whichever
-// media type arrives.
+// media type arrives. A member each content's model declares on its own is a
+// different one, and so is a member one content's model lacks; one model
+// under both is read alike.
 func TestLinks_MediaTypesDisagreeingOnAMember(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
+	for _, tc := range []struct {
+		name, json, xml, says string
+	}{
+		{"a member each declares", "{type: object, properties: {id: {type: string}}}",
+			"{type: object, properties: {id: {type: string}}}", "media types hold as different members"},
+		{"a member one lacks", "{type: object, properties: {id: {type: string}}}",
+			"{type: object, properties: {name: {type: string}}}", "application/xml content holds as no chain"},
+		{"one model under both", "{$ref: '#/components/schemas/M'}", "{$ref: '#/components/schemas/M'}", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
     get:
       operationId: a
       responses:
         "200":
           description: ok
           content:
-            application/json: {schema: {type: object, properties: {id: {type: string}}}}
-            application/xml: {schema: {type: object, properties: {id: {type: string}}}}
+            application/json: {schema: `+tc.json+`}
+            application/xml: {schema: `+tc.xml+`}
           links: {Again: {operationId: a, requestBody: '$response.body#/id'}}
+components:
+  schemas:
+    M: {type: object, properties: {id: {type: string}}}
 `))
-	resp := openapitest.FindOp(t, doc, "a").Responses[0]
-	assert.Empty(t, resp.Links)
-	assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severitiesOf(diags, diag.UntypedLink))
+			resp := openapitest.FindOp(t, doc, "a").Responses[0]
+			if tc.says == "" {
+				require.Len(t, resp.Links, 1, "the contents walk alike")
+				assert.Equal(t, &ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
+					Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+				}}, resp.Links[0].Body)
+				return
+			}
+			assert.Empty(t, resp.Links)
+			assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
+			var found []string
+			for _, d := range diags {
+				if d.Code == diag.UntypedLink {
+					found = append(found, d.Message)
+				}
+			}
+			require.Len(t, found, 1)
+			assert.Contains(t, found[0], tc.says)
+		})
+	}
 }
 
 // TestLinks_LowerAlikeInEitherDeclarationOrder compiles one document with its

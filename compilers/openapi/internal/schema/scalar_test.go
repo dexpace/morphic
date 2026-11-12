@@ -249,8 +249,8 @@ func TestContentVocabulary_KeepsTheBoundsWrittenBesideIt(t *testing.T) {
 
 // TestHoistedScalar_ReportsABoundItCannotConvert pins that every way a scalar
 // hoists a node of its own (format: byte, a format the IR does not place, the
-// content vocabulary) reports a numeric bound that is no decimal, at the
-// position that wrote it, and keeps no constraints in its place.
+// content vocabulary) has a numeric bound that is no decimal reported, at the
+// keyword that wrote it, and keeps no constraints in its place.
 func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
 	t.Parallel()
 	cases := []struct{ name, schema string }{
@@ -265,7 +265,7 @@ func TestHoistedScalar_ReportsABoundItCannotConvert(t *testing.T) {
 			sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 			require.True(t, ok, "the position hoists a Scalar of its own")
 			require.NotNil(t, sc.Encoding, "carrying what it wrote")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.NumericPrecision, "/components/schemas/A"))
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.NumericPrecision, "/components/schemas/A/minimum"))
 			assert.Nil(t, sc.Constraints, "and no bound it could not read")
 		})
 	}

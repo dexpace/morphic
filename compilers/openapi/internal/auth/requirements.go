@@ -18,13 +18,13 @@ import (
 
 // Requirements lowers an OR-of-ANDs security list (docs/ir/auth.md) declared
 // under base: "" at the root, else an operation's own declaration, never its
-// mount. A nil list inherits the enclosing default, and an empty one stays []. A
+// mount. A nil list stays nil, apart from an empty one, which stays []. A
 // non-nil list yields one AuthRequirement per option, diagnosed at
 // base+/security/<index>; an empty option {} means "no auth is one acceptable
 // choice".
 //
 // A security written as no list arrives nil, beside the loader's report, and so
-// does one under a local tag, with none (#1280). A list of entries that are no
+// does one under a local tag, with none (#1368). A list of entries that are no
 // object yields no option, beside the loader's report, and collapses to nil, since
 // [] would read as public.
 func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {

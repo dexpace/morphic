@@ -6,11 +6,14 @@ package main
 import (
 	"encoding/json/v2"
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/tools/go/analysis"
+
+	"github.com/dexpace/morphic/internal/exectest"
+	"github.com/dexpace/morphic/internal/lintrules"
 )
 
 // asTool makes this test binary run main in place of the tests. unitchecker
@@ -30,8 +33,7 @@ func TestMain(m *testing.M) {
 // its name, so the answer names the rules main passes it.
 func TestMain_HandsGoVetTheRules(t *testing.T) {
 	t.Parallel()
-	cmd := exec.CommandContext(t.Context(), os.Args[0], "-flags")
-	cmd.Env = append(os.Environ(), asTool+"=1")
+	cmd := exectest.Command(t.Context(), t, []string{asTool + "=1"}, os.Args[0], "-flags")
 	out, err := cmd.Output()
 	require.NoError(t, err, "the tool did not answer -flags")
 
@@ -43,4 +45,28 @@ func TestMain_HandsGoVetTheRules(t *testing.T) {
 	}
 	assert.Subset(t, names,
 		[]string{"fragmentreadings", "idderivations", "namechannels", "registrywrites", "servicetreewrites"})
+}
+
+// TestMain_RunsTheToolOnTheRules runs main in this process, with vet standing
+// in for unitchecker, and holds it to handing the tool every rule lintrules
+// has. A child's coverage is discarded, so this is what covers main.
+func TestMain_RunsTheToolOnTheRules(t *testing.T) {
+	orig := vet
+	t.Cleanup(func() { vet = orig })
+	var got []string
+	vet = func(analyzers ...*analysis.Analyzer) {
+		for _, a := range analyzers {
+			got = append(got, a.Name)
+		}
+	}
+
+	main()
+
+	analyzers := lintrules.Analyzers()
+	want := make([]string, 0, len(analyzers))
+	for _, a := range analyzers {
+		want = append(want, a.Name)
+	}
+	require.NotEmpty(t, want)
+	assert.Equal(t, want, got)
 }

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -159,7 +160,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/orders",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1orders/post/parameters/audit/query",
@@ -174,7 +174,6 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
                     "callbacks": [
                       {
                         "name": "onProgress",
@@ -183,7 +182,9 @@
                           "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -236,12 +237,12 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
-                    "sharedRoute": false,
+                    "inbound": "callback",
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "inbound": "callback"
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -302,13 +303,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
+                    "inbound": "webhook",
+                    "webhookName": "onShipped",
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "inbound": "webhook",
-                    "webhookName": "onShipped"
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

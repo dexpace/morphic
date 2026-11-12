@@ -8,7 +8,6 @@ import (
 	"iter"
 	"slices"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -63,8 +62,8 @@ const (
 	// that writes one names its own mapping.
 	TargetDeprecationReplacedBy ExtensionTarget = "deprecation.replacedBy"
 
-	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
-	// the document does not list.
+	// TargetEnumOpen clears ir.Enum.Closed, or a mixed enum's ir.Union.Closed,
+	// saying the member set admits values the document does not list.
 	//
 	// It names the fact rather than the field, unlike the rest of this
 	// vocabulary: a schema's `enum` is closed by definition, so openness is the
@@ -76,11 +75,11 @@ const (
 	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
 
-	// TargetUnionOpen clears ir.Union.Closed, saying a payload may hold a
-	// variant the union does not list. It names the fact for TargetEnumOpen's
-	// reason: a oneOf or anyOf is closed by definition. No default key names
-	// it, since no spelling for an open union has become common; a document
-	// that writes one names its own mapping.
+	// TargetUnionOpen clears the ir.Union.Closed of a oneOf or an anyOf, saying
+	// a payload may hold a variant the union does not list. It names the fact
+	// for TargetEnumOpen's reason: a oneOf or anyOf is closed by definition. No
+	// default key names it, since no spelling for an open union has become
+	// common; a document that writes one names its own mapping.
 	TargetUnionOpen ExtensionTarget = "union.open"
 
 	// TargetStability fills ir.Operation.Stability. The words a value may use
@@ -179,15 +178,16 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 // which is what makes "the extension survives its own promotion" structural
 // instead of a rule each caller has to remember: nothing here can consume an
 // entry. It takes them at the top level, so a key under a scope or inside a
-// verbatim entry reaches no field (GitHub #661, #1220, #1221).
+// verbatim entry reaches no field (GitHub #1220, #1221).
 type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
 	keys []string
-	// referents remembers what each position lends (Referent). Copies share it
-	// on purpose: an answer reads only the document and the policy, which no
-	// lowering changes. Nothing guards it, as a compile lowers on one goroutine.
-	referents map[bind.Position]Referent
+	// referents remembers what each schema lends (Referent), by the key a caller
+	// names it with. Copies share it on purpose: an answer reads only the
+	// document and the policy, which no lowering changes. Nothing guards it, as a
+	// compile lowers on one goroutine.
+	referents map[any]Referent
 }
 
 // Referent is what a carrier of a $ref reads of the schema the $ref ends on.
@@ -225,7 +225,7 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 	}
 	out := &Promoter{
 		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
-		referents: map[bind.Position]Referent{},
+		referents: map[any]Referent{},
 	}
 	for target, sources := range targets {
 		out.targets[target] = slices.Clone(sources)
@@ -242,23 +242,23 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 // referent.
 func (p Promoter) Keys() iter.Seq[string] { return slices.Values(p.keys) }
 
-// Referent returns what the schema at position at lends a carrier of a $ref
-// ending on it. declared is that schema's `deprecated: true`, and entries reads
-// its mapped keys in Unmodeled's form, once for every copy of p: a schema has as
-// many carriers as a document names it, and a key's value can be as large as the
-// document.
+// Referent returns what a schema lends a carrier falling back to it. of names
+// the schema, comparable and the same for each carrier, declared is its
+// `deprecated: true`, and entries reads its mapped keys in Unmodeled's form, once
+// for every copy of p: a schema has as many carriers as a document names it, and
+// a key's value can be as large as the document.
 //
 // The readings' findings are dropped because the schema is a declaration, and
 // reports where it is written; a use repeating them would be one report per use.
-func (p Promoter) Referent(at bind.Position, declared bool, entries func() ir.Unmodeled) Referent {
+func (p Promoter) Referent(of any, declared bool, entries func() ir.Unmodeled) Referent {
 	if len(p.keys) == 0 {
 		return Referent{}
 	}
-	if known, seen := p.referents[at]; seen {
+	if known, seen := p.referents[of]; seen {
 		return known
 	}
 	read := p.readReferent(declared, entries())
-	p.referents[at] = read
+	p.referents[of] = read
 	return read
 }
 
@@ -365,8 +365,9 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 	return diags
 }
 
-// EnumOpenness clears e.Closed when the vendor extensions kept in unmodeled
-// state the set open, and marks prov with the heuristic when they do.
+// EnumOpenness clears *closed, an enum's or that of the union a mixed enum
+// lowers to, when the vendor extensions kept in unmodeled state the set open,
+// and marks prov with the heuristic when they do.
 //
 // The key's presence is the statement, so every value shape but an explicit
 // `false` reads as open (extensionOpenness).
@@ -375,21 +376,21 @@ func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov 
 // so there is nothing to open. Minting an enum from a member-list extension is
 // out of scope; the entry survives verbatim for a consumer that wants it
 // (GitHub #427).
-func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Provenance) []ir.Diagnostic {
-	if e == nil || prov == nil {
+func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetEnumOpen, &e.Closed, prov)
+	return p.openness(unmodeled, TargetEnumOpen, closed, prov)
 }
 
-// UnionOpenness clears u.Closed when the vendor extensions kept in unmodeled
-// state the union open, and marks prov with the heuristic when they do, as
-// EnumOpenness opens an enum.
-func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, u *ir.Union, prov *ir.Provenance) []ir.Diagnostic {
-	if u == nil || prov == nil {
+// UnionOpenness clears *closed, that of a union a oneOf or anyOf lowers to,
+// when the vendor extensions kept in unmodeled state the union open, and marks
+// prov with the heuristic when they do, as EnumOpenness opens an enum.
+func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if closed == nil || prov == nil {
 		return nil
 	}
-	return p.openness(unmodeled, TargetUnionOpen, &u.Closed, prov)
+	return p.openness(unmodeled, TargetUnionOpen, closed, prov)
 }
 
 // openness clears *closed and marks prov when a source of target in unmodeled

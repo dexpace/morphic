@@ -1,0 +1,1568 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfUnionBranch",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfUnionBranch",
+        "canonical": "all_of_union_branch"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1upload/post",
+              "name": {
+                "source": "upload",
+                "canonical": "upload"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file": {
+                        "inferred": "binary-media-type",
+                        "contentTypes": [
+                          "image/png"
+                        ],
+                        "multi": false,
+                        "filename": true,
+                        "allowReserved": false
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "Uploaded"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload",
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/App/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/App/allOf/1/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App/allOf/1/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id",
+          "name": {
+            "source": "account_app_id",
+            "canonical": "account_app_id"
+          },
+          "wireName": "account_app_id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/App/allOf/1/oneOf/0/properties/account_app_id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/App/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/App/allOf/1/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App/allOf/1/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id",
+          "name": {
+            "source": "managed_app_id",
+            "canonical": "managed_app_id"
+          },
+          "wireName": "managed_app_id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/App/allOf/1/oneOf/1/properties/managed_app_id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/AppRequest/allOf/0/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/AppRequest/allOf/0/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id",
+          "name": {
+            "source": "account_app_id",
+            "canonical": "account_app_id"
+          },
+          "wireName": "account_app_id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/0/properties/account_app_id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/AppRequest/allOf/0/oneOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/AppRequest/allOf/0/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id",
+          "name": {
+            "source": "managed_app_id",
+            "canonical": "managed_app_id"
+          },
+          "wireName": "managed_app_id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/1/properties/managed_app_id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/WithoutData/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/WithoutData/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/WithoutData/properties/data"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "union",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "upload_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "without_data"
+          },
+          "type": {
+            "target": "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "with_data"
+          },
+          "type": {
+            "target": "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+      "name": {
+        "hint": "file"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "mediaType": "image/png"
+      }
+    },
+    "t/composed/components/schemas/App/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/App/allOf/1/oneOf/0",
+      "name": {
+        "hint": "app_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App/allOf/1/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/App/allOf/0/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/App/allOf/0/properties/id"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/App/allOf/1/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/App/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/App/allOf/1/oneOf/1",
+      "name": {
+        "hint": "app_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App/allOf/1/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/App/allOf/0/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/App/allOf/0/properties/id"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/App/allOf/1/oneOf/1",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/AppRequest/allOf/0/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/AppRequest/allOf/0/oneOf/0",
+      "name": {
+        "hint": "app_request_variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "anyOf": [
+              {
+                "required": [
+                  "breakout"
+                ],
+                "type": "object"
+              },
+              {
+                "required": [
+                  "priority"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/2/properties/breakout",
+          "name": {
+            "source": "breakout",
+            "canonical": "breakout"
+          },
+          "wireName": "breakout",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/2/properties/breakout"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/2/properties/priority",
+          "name": {
+            "source": "priority",
+            "canonical": "priority"
+          },
+          "wireName": "priority",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/2/properties/priority"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/AppRequest/allOf/0/oneOf/0",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/AppRequest/allOf/0/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/AppRequest/allOf/0/oneOf/1",
+      "name": {
+        "hint": "app_request_variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "anyOf": [
+              {
+                "required": [
+                  "breakout"
+                ],
+                "type": "object"
+              },
+              {
+                "required": [
+                  "priority"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest/allOf/0/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/2/properties/breakout",
+          "name": {
+            "source": "breakout",
+            "canonical": "breakout"
+          },
+          "wireName": "breakout",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/2/properties/breakout"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/AppRequest/allOf/2/properties/priority",
+          "name": {
+            "source": "priority",
+            "canonical": "priority"
+          },
+          "wireName": "priority",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AppRequest/allOf/2/properties/priority"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/anon/components/schemas/AppRequest/allOf/0/oneOf/1",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Record/allOf/0/anyOf/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Record/allOf/0/anyOf/0",
+      "name": {
+        "hint": "record_without_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Record/allOf/0/anyOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Record/allOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Record/allOf/1/properties/id"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/WithoutData",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Record/allOf/0/anyOf/1": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/Record/allOf/0/anyOf/1",
+      "name": {
+        "hint": "record_with_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Record/allOf/0/anyOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Record/allOf/1/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Record/allOf/1/properties/id"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/WithData",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/0": {
+      "kind": "model",
+      "id": "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/0",
+      "name": {
+        "hint": "upload_request_without_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+          "name": {
+            "source": "file",
+            "canonical": "file"
+          },
+          "wireName": "file",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireName": "note",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/WithoutData",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/1": {
+      "kind": "model",
+      "id": "t/composed/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/1",
+      "name": {
+        "hint": "upload_request_with_data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/1/oneOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+          "name": {
+            "source": "file",
+            "canonical": "file"
+          },
+          "wireName": "file",
+          "type": {
+            "target": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file"
+          }
+        },
+        {
+          "id": "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note",
+          "name": {
+            "source": "note",
+            "canonical": "note"
+          },
+          "wireName": "note",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/WithData",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/App": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/App",
+      "name": {
+        "source": "App",
+        "canonical": "app"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/App/allOf/1/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/App/allOf/1/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/AppRequest": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/AppRequest",
+      "name": {
+        "source": "AppRequest",
+        "canonical": "app_request"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/AppRequest/allOf/0/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/AppRequest/allOf/0/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WithoutData"
+              },
+              {
+                "$ref": "#/components/schemas/WithData"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "dog",
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Message": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Message",
+      "name": {
+        "source": "Message",
+        "canonical": "message"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "anyOf": [
+              {
+                "required": [
+                  "to"
+                ],
+                "type": "object"
+              },
+              {
+                "required": [
+                  "cc"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/allOf/0"
+          }
+        },
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "anyOf": [
+              {
+                "required": [
+                  "text"
+                ],
+                "type": "object"
+              },
+              {
+                "required": [
+                  "html"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Message"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Message/properties/to",
+          "name": {
+            "source": "to",
+            "canonical": "to"
+          },
+          "wireName": "to",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/properties/to"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Message/properties/cc",
+          "name": {
+            "source": "cc",
+            "canonical": "cc"
+          },
+          "wireName": "cc",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/properties/cc"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Message/properties/text",
+          "name": {
+            "source": "text",
+            "canonical": "text"
+          },
+          "wireName": "text",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/properties/text"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Message/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Message/properties/html"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Pet/properties/kind",
+        "mapping": {
+          "dog": "t/openapi/components/schemas/Dog"
+        },
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Record": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Record",
+      "name": {
+        "source": "Record",
+        "canonical": "record"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Record"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "without_data"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Record/allOf/0/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "with_data"
+          },
+          "type": {
+            "target": "t/composed/components/schemas/Record/allOf/0/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/WithData": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/WithData",
+      "name": {
+        "source": "WithData",
+        "canonical": "with_data"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/WithData"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/WithData/properties/content",
+          "name": {
+            "source": "content",
+            "canonical": "content"
+          },
+          "wireName": "content",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/WithData/properties/content"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/WithoutData": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/WithoutData",
+      "name": {
+        "source": "WithoutData",
+        "canonical": "without_data"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/WithoutData"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/WithoutData/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/anon/components/schemas/WithoutData/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/WithoutData/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Record"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/App"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AppRequest"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Message/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (anyOf) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Message/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (oneOf) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch conjoins with the rest of the composition; the composition is distributed across the union variants",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload/post/requestBody/content/multipart~1form-data/schema"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-union-branch.yaml",
+      "hash": "7f14b278a682f3536dff0c0a0a399957341a04dfecd912ff598e38614df8ba0c"
+    }
+  ]
+}

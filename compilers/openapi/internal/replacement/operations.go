@@ -44,8 +44,9 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 
 // params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
+	ix := lowering.IndexParams(op)
 	param := func(name string) (ir.EntityRef, bool) {
-		id, matched := lowering.ParamNamed(op, name)
+		id, matched := ix.Named(name)
 		return ir.EntityRef{Param: id}, matched == 1
 	}
 	diags := make([]ir.Diagnostic, 0, len(op.Params))

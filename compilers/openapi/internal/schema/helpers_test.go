@@ -87,6 +87,40 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 	return doc.Types[componentID(name)]
 }
 
+// The readings unionReading returns, besides the reason a kept union names.
+const (
+	readAlone       = "alone"
+	readDistributed = "distributed"
+)
+
+// unionReading returns how the component name's oneOf or anyOf, written beside
+// keywords of its own, was read (docs/compilers/openapi.md#union-beside-structure):
+// readDistributed where its Union's variants are composed models, readAlone
+// where it is a Union of the branches themselves, and otherwise the reason the
+// union is kept under, oneOf's where both are, "" where there is no such
+// component.
+func unionReading(doc *ir.Document, name string) string {
+	td := typeByName(doc, name)
+	if td == nil {
+		return ""
+	}
+	for _, key := range []string{"openapi:oneOf", "openapi:anyOf"} {
+		if kept, ok := td.Common().Unmodeled[key]; ok {
+			return string(kept.Reason)
+		}
+	}
+	u, ok := td.(*ir.Union)
+	if !ok {
+		return ""
+	}
+	if slices.ContainsFunc(u.Variants, func(v ir.Variant) bool {
+		return strings.HasPrefix(string(v.Type.Target), "t/composed/")
+	}) {
+		return readDistributed
+	}
+	return readAlone
+}
+
 // conflictDiags returns every conflicting-redeclaration diagnostic in diags.
 func conflictDiags(diags []ir.Diagnostic) []ir.Diagnostic {
 	var out []ir.Diagnostic

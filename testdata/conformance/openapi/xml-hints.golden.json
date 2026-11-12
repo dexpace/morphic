@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -144,12 +145,69 @@
           "xml": {
             "namespace": "urn:example:books",
             "prefix": "bk",
-            "nodeType": "attribute"
+            "attribute": true
           },
           "docs": {},
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Book/properties/isbn"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Book/properties/lang",
+          "name": {
+            "source": "lang",
+            "canonical": "lang"
+          },
+          "wireName": "lang",
+          "type": {
+            "target": "t/openapi/components/schemas/Lang",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Book/properties/lang"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Book/properties/title",
+          "name": {
+            "source": "title",
+            "canonical": "title"
+          },
+          "wireName": "title",
+          "type": {
+            "target": "t/openapi/components/schemas/Lang",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "xml": {
+            "attribute": false
+          },
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Book/properties/title"
           }
         },
         {
@@ -184,6 +242,28 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Lang": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Lang",
+      "name": {
+        "source": "Lang",
+        "canonical": "lang"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "xml": {
+        "attribute": true
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Lang"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -214,7 +294,7 @@
     {
       "format": "openapi@3.1",
       "path": "xml-hints.yaml",
-      "hash": "7e0b19cd368d9823b7a14ec7a58bc04fe1ecde6c3c38155099b3c222fa91a905"
+      "hash": "043e475c91555dbe4904817149462d615d4873b7291e95f23539cbb572205d7c"
     }
   ]
 }

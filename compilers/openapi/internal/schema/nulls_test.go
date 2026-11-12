@@ -82,9 +82,9 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 		also   jsontext.Pointer
 	}{
 		{"3.1 beside a type", "3.1.0", "{type: string, nullable: true}", "",
-			inferred(prim(ir.PrimString)), str, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(prim(ir.PrimString)), str, at + "/nullable", "no nullable keyword", ""},
 		{"3.2 beside a type", "3.2.0", "{type: string, nullable: true}", "",
-			inferred(prim(ir.PrimString)), str, at + "/nullable", "declares OpenAPI 3.2.0", ""},
+			inferred(prim(ir.PrimString)), str, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 beside a type array admitting null", "3.1.0", `{type: [string, "null"], nullable: true}`, "",
 			ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, ir.TypeRef{Target: prim(ir.PrimString), Nullable: true}, "", "", ""},
 		{"3.1 false", "3.1.0", "{type: string, nullable: false}", "", str, str, "", "", ""},
@@ -102,15 +102,17 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 			"{type: object, nullable: true, allOf: [{$ref: '#/components/schemas/Pet'}]}", "",
 			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "allOf branch", ""},
 		{"3.0 beside a $ref", "3.0.3", "{$ref: '#/components/schemas/Plain', nullable: true}", "",
-			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable", "beside a $ref", ""},
+			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable", "writes none", ""},
 		{"3.1 beside a $ref", "3.1.0", "{$ref: '#/components/schemas/Plain', nullable: true}", "",
-			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable", "beside a $ref", ""},
+			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable",
+			"no nullable keyword", ""},
 		{"3.1 on the target a $ref lands on", "3.1.0", "{$ref: '#/components/schemas/N'}",
 			"    N: {type: string, nullable: true}\n",
-			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/nullable", "no nullable keyword", ""},
 		{"3.1 beside an alias's own $ref", "3.1.0", "{$ref: '#/components/schemas/Mid'}",
 			"    Mid: {$ref: '#/components/schemas/Plain', nullable: true}\n",
-			inferred(componentID("Mid")), ir.TypeRef{Target: componentID("Mid")}, "/components/schemas/Mid/nullable", "beside a $ref", ""},
+			inferred(componentID("Mid")), ir.TypeRef{Target: componentID("Mid")}, "/components/schemas/Mid/nullable",
+			"no nullable keyword", ""},
 		{"3.0 on a type an alias reaches", "3.0.3", "{$ref: '#/components/schemas/Mid'}",
 			"    Mid: {$ref: '#/components/schemas/Base'}\n    Base: {type: string, nullable: true}\n",
 			ir.TypeRef{Target: componentID("Mid"), Nullable: true}, ir.TypeRef{Target: componentID("Mid"), Nullable: true}, "", "", ""},
@@ -128,20 +130,30 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at, "keywords beside this $ref",
 			at + "/nullable"},
 		{"3.1 in an allOf branch", "3.1.0", "{allOf: [{type: string, nullable: true}]}", "",
-			inferred(anon), ir.TypeRef{Target: anon}, at + "/allOf/0/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(ir.PrimTypeID(ir.PrimString)), ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)},
+			at + "/allOf/0/nullable", "no nullable keyword", ""},
 		{"3.1 beside a type and an enum listing null", "3.1.0", "{type: string, nullable: true, enum: [a, null]}", "",
-			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 in a union whose null branch declares it", "3.1.0",
 			`{oneOf: [{$ref: '#/components/schemas/N'}, {type: "null"}]}`, "    N: {type: string, nullable: true}\n",
 			ir.TypeRef{Target: componentID("N"), Nullable: true}, ir.TypeRef{Target: componentID("N"), Nullable: true},
-			"/components/schemas/N/nullable", "declares OpenAPI 3.1.0", ""},
+			"/components/schemas/N/nullable", "no nullable keyword", ""},
 		{"3.0 beside a $ref and a type, over an untyped target", "3.0.3",
 			"{$ref: '#/components/schemas/Free', type: string, nullable: true}", "    Free: {}\n",
-			inferred(componentID("Free")), ir.TypeRef{Target: componentID("Free")}, at + "/nullable", "beside a $ref", ""},
+			ir.TypeRef{Target: componentID("Free"), Nullable: true}, ir.TypeRef{Target: componentID("Free"), Nullable: true},
+			"", "", ""},
+		{"3.0 beside a $ref and a type, over a target excluding null", "3.0.3",
+			"{$ref: '#/components/schemas/Plain', type: string, nullable: true}", "",
+			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at + "/nullable",
+			"lands on excludes null", ""},
+		{"3.0 beside a $ref, a type and an allOf excluding null", "3.0.3",
+			"{$ref: '#/components/schemas/Free', type: object, nullable: true, allOf: [{$ref: '#/components/schemas/Pet'}]}",
+			"    Free: {}\n",
+			inferred(componentID("Free")), ir.TypeRef{Target: componentID("Free")}, at + "/nullable", "allOf branch", ""},
 		{"3.1 in an allOf branch of the target a $ref lands on", "3.1.0", "{$ref: '#/components/schemas/N'}",
 			"    N: {allOf: [{type: string, nullable: true}]}\n",
 			inferred(componentID("N")), ir.TypeRef{Target: componentID("N")}, "/components/schemas/N/allOf/0/nullable",
-			"declares OpenAPI 3.1.0", ""},
+			"no nullable keyword", ""},
 		{"3.1 a type array beside a $ref to a target admitting null", "3.1.0",
 			`{$ref: '#/components/schemas/N', type: [string, "null"]}`, "    N: {type: [string, \"null\"]}\n",
 			ir.TypeRef{Target: componentID("N"), Nullable: true}, ir.TypeRef{Target: componentID("N"), Nullable: true}, "", "", ""},
@@ -150,16 +162,16 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 			"    Outer: {$ref: '#/components/schemas/Inner', nullable: true}\n" +
 				"    Inner: {$ref: '#/components/schemas/End', type: [string]}\n    End: {type: [string, \"null\"]}\n",
 			inferred(componentID("Outer")), ir.TypeRef{Target: componentID("Outer")}, "/components/schemas/Outer/nullable",
-			"beside a $ref", ""},
+			"no nullable keyword", ""},
 		{"3.1 beside an expanded $dynamicRef", "3.1.0", "{$dynamicRef: '#node', nullable: true}",
 			"    Node: {$dynamicAnchor: node, type: string}\n",
-			inferred(componentID("Node")), ir.TypeRef{Target: componentID("Node")}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(componentID("Node")), ir.TypeRef{Target: componentID("Node")}, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 beside a union", "3.1.0", "{nullable: true, oneOf: [{type: string}, {type: integer}]}", "",
-			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "no nullable keyword", ""},
 		{"3.1 beside a union and the properties it intersects with", "3.1.0",
 			"{type: object, nullable: true, properties: {k: {type: string}}, " +
 				"oneOf: [{$ref: '#/components/schemas/Pet'}, {type: object}]}", "",
-			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "no nullable keyword", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -294,12 +306,132 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
 	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
-	for _, name := range []string{"WrapScalar", "WrapModel", "WrapPlain"} {
+	for _, name := range []string{"WrapModel", "WrapPlain"} {
 		m, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
 		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
 		assert.False(t, m.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
 	}
+	_, isModel := typeByName(doc, "WrapScalar").(*ir.Model)
+	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
+}
+
+// TestNullableWidening_ABranchWidensTheAllOfHoldingIt pins `nullable: true` on an
+// inline branch writing no properties: under the policy it says what the keyword
+// beside the allOf says, with one report at the keyword, whichever spelling of the
+// branch admits it, and the declared reading stays conjoined.
+func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/p/allOf/1/nullable"
+	for name, tc := range map[string]struct {
+		branches string
+		version  string
+		widens   bool
+		report   string
+	}{
+		"no type":   {"[{$ref: '#/components/schemas/Pet'}, {nullable: true}]", "3.0.3", true, "this schema writes none"},
+		"a type":    {"[{$ref: '#/components/schemas/Plain'}, {type: string, nullable: true}]", "3.0.3", true, "another conjunct"},
+		"an enum":   {"[{$ref: '#/components/schemas/Plain'}, {enum: [a, null], nullable: true}]", "3.0.3", true, "another conjunct"},
+		"3.1":       {"[{$ref: '#/components/schemas/Plain'}, {nullable: true}]", "3.1.0", true, "no nullable keyword"},
+		"a wrapper": {"[{$ref: '#/components/schemas/Pet'}, {allOf: [{nullable: true}]}]", "3.0.3", true, ""},
+		"writing properties": {"[{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]",
+			"3.0.3", false, ""},
+		"disagreeing": {"[{$ref: '#/components/schemas/Pet'}, {nullable: true, title: a}, {title: b}]", "3.0.3", false, ""},
+		"false":       {"[{$ref: '#/components/schemas/Pet'}, {nullable: false}]", "3.0.3", false, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := openapitest.HolderSpec(tc.version, "{allOf: "+tc.branches+"}", "")
+			doc, diags := compileNullable(t, src, false)
+			got := holderP(t, doc)
+			assert.Equal(t, tc.widens, got.Nullable)
+			assert.Equal(t, tc.widens, got.Inferred != "", "the null is the policy's")
+			if tc.report != "" {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredNullable, ir.SeverityInfo, at), tc.report)
+			}
+			off, _ := compileNullable(t, src, true)
+			assert.False(t, holderP(t, off).Nullable, "the declared reading stays conjoined")
+		})
+	}
+	src := openapitest.HolderSpec("3.0.3", "{allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true}]}", "")
+	_, diags := compileNullable(t, src, false)
+	assert.Len(t, withCode(diags, diag.InferredNullable), 1, "reported once, at the keyword")
+
+	viaRef := openapitest.HolderSpec("3.0.3", "{$ref: '#/components/schemas/Wide'}",
+		"    Wide: {allOf: [{$ref: '#/components/schemas/Plain'}, {type: string, nullable: true}]}\n")
+	doc, diags := compileNullable(t, viaRef, false)
+	assert.True(t, holderP(t, doc).Nullable, "a use reads the widening through its $ref")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Wide/allOf/1/nullable"},
+		openapitest.PointersOf(diags, diag.InferredNullable), "reported once, where it is written")
+
+	declared := openapitest.HolderSpec("3.0.3", "{allOf: [{type: string, nullable: true}]}", "")
+	doc, diags = compileNullable(t, declared, false)
+	assert.True(t, holderP(t, doc).Nullable)
+	assert.Empty(t, holderP(t, doc).Inferred, "the version admits this null, so nothing reads it in")
+	assert.Empty(t, withCode(diags, diag.InferredNullable))
+
+	besideEnum := openapitest.HolderSpec("3.0.3", "{enum: [a], allOf: [{nullable: true}]}", "")
+	doc, _ = compileNullable(t, besideEnum, false)
+	assert.True(t, holderP(t, doc).Nullable, "an enum beside the allOf is what a branch speaking for it widens")
+	assert.NotEmpty(t, holderP(t, doc).Inferred)
+
+	besideType := openapitest.HolderSpec("3.0.3", "{type: string, allOf: [{description: d}, {nullable: true}]}", "")
+	doc, diags = compileNullable(t, besideType, false)
+	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what a branch speaking for it widens")
+	assert.NotEmpty(t, holderP(t, doc).Inferred)
+	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
+	doc, _ = compileNullable(t, besideType, true)
+	assert.False(t, holderP(t, doc).Nullable)
+	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:allOf/1", "and with the policy off it stays kept")
+
+	// The one `true` is beside a $ref, which no fold compares, so the `false`
+	// branch speaks: it must widen nothing the spelling without it leaves alone.
+	for name, branch := range map[string]string{"nullable false": "{nullable: false, description: d}", "none": "{description: d}"} {
+		src := openapitest.HolderSpec("3.0.3",
+			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+branch+"]}", "")
+		doc, _ = compileNullable(t, src, false)
+		assert.False(t, holderP(t, doc).Nullable, "%s: a branch writing no true widens nothing", name)
+		assert.Equal(t, "d", propertyOf(t, doc, "Holder", "p").Docs.Description, name)
+	}
+
+	for name, tc := range map[string]struct{ union, code string }{
+		"degraded":    {"oneOf: [{$ref: '#/components/schemas/Pet'}], anyOf: [{$ref: '#/components/schemas/Toy'}]", diag.DegradedConstruct},
+		"distributed": {"oneOf: [{$ref: '#/components/schemas/Pet'}, {$ref: '#/components/schemas/Toy'}]", diag.CompositionLowering},
+	} {
+		besideUnion := openapitest.HolderSpec("3.0.3", "{"+tc.union+", allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true}]}",
+			"    Toy: {type: object, properties: {kind: {type: string}}}\n")
+		doc, diags = compileNullable(t, besideUnion, false)
+		require.True(t, openapitest.HasDiagCodeAt(diags, tc.code, "/components/schemas/Holder/properties/p"), name)
+		assert.True(t, holderP(t, doc).Nullable, "%s: so does one beside a union, as beside the allOf", name)
+		assert.NotEmpty(t, holderP(t, doc).Inferred, name)
+	}
+
+	properties := openapitest.HolderSpec("3.0.3",
+		"{allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]}", "")
+	doc, _ = compileNullable(t, properties, false)
+	kept, ok := doc0Model(doc)
+	require.True(t, ok)
+	assert.Contains(t, kept.Unmodeled, "openapi:allOf/1", "a nullable that folds nothing stays with its branch")
+
+	off, offDiags := compileNullable(t, src, true)
+	m, ok := doc0Model(off)
+	require.True(t, ok)
+	assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "with the policy off nothing reads the keyword, so it stays")
+	assert.Len(t, withCode(offDiags, diag.DegradedConstruct), 1)
+}
+
+// doc0Model is the node Holder's property p lowered to, as a model.
+func doc0Model(doc *ir.Document) (*ir.Model, bool) {
+	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	if !ok {
+		return nil, false
+	}
+	p, ok := openapitest.PropsByWire(m.Properties)["p"]
+	if !ok {
+		return nil, false
+	}
+	target, ok := doc.Types[p.Type.Target].(*ir.Model)
+	return target, ok
 }
 
 // TestConst_FixesWhetherTheValueSpaceHoldsNull pins that `const` decides null

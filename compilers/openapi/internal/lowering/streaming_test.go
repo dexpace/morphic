@@ -10,14 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
-	"github.com/dexpace/morphic/ir"
 )
 
 // streamingCtx builds a context carrying nothing but the streaming policy.
 func streamingCtx(policy lowering.StreamingMedia) lowering.Ctx {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, policy, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	return lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{Streaming: policy})
 }
 
 // TestMediaTypeStreams_AnswersFromThePolicy pins every answer the policy gives,

@@ -35,24 +35,6 @@ type bound struct {
 	others   Others
 }
 
-// placer returns where a finding at a position of b's table is placed: at's
-// Provenance for the source's, and for another document's its own
-// Document.Sources entry. One no entry holds, which a document the binder read
-// always has, is placed at the source's root rather than nowhere.
-func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Position) ir.Provenance {
-	table := b.bindings.Table()
-	return func(p bind.Position) ir.Provenance {
-		if p.Doc == bind.Source {
-			return at(p.Pointer)
-		}
-		o, ok := b.others.Named(table.Document(p.Doc).Name)
-		if !ok {
-			return at("")
-		}
-		return ir.Provenance{Source: o.Index, Pointer: p.Pointer}
-	}
-}
-
 // bindSchemas resolves every schema $ref of doc, the source's model, in the
 // compiler (internal/bind), never through the parser's resolver, which
 // overflows the stack on a cycle (docs/parser-library.md#schema-cycle-overflow)
@@ -61,18 +43,32 @@ func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Positio
 // them (see resolve). It runs once every reference object is resolved, since a
 // pointer through one reads on where the parser resolved it: ends says where
 // each one's chain ended, in whichever document writes it
-// (resolution.ends). reader reads other documents, or is nil when none is read.
+// (resolution.ends). reader reads other documents, or is nil; d reads each
+// dialect's rows (dialectRuleOf).
 func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
-	reader *external, ends map[refSite]referenceEnd,
+	reader *external, ends map[refSite]referenceEnd, d *dialects,
 ) bound {
+	opened := map[string]*yaml.Node{}
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
 		Through: func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 			e, ok := ends[self.siteIn(name, p)]
 			return bind.ReferenceEnd{Name: e.name, Pointer: e.pointer, Node: e.node}, ok
+		},
+		Dialect: func(name, dialect string) bind.DialectRule {
+			declared := doc.GetOpenAPI()
+			if name != self.path {
+				declared = declaredVersion(opened[name])
+			}
+			_, _, rows := d.of(declared, dialect)
+			return dialectRuleOf(rows.Schema, dialect)
 		}}
 	if reader != nil {
-		cfg.Open = func(name string) (*yaml.Node, error) { return reader.document(ctx, name) }
+		cfg.Open = func(name string) (*yaml.Node, error) {
+			tree, err := reader.document(ctx, name)
+			opened[name] = tree
+			return tree, err
+		}
 	}
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
@@ -206,20 +202,20 @@ func (s sourceDocument) nameOf(name string) string {
 // bindingDiags reports what the table found: each $ref that fails, at the
 // $ref, in whichever document; each loop of $refs once, where the table
 // places it; and the budget or the merge bound, if either stopped the reading.
-func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []ir.Diagnostic {
+func bindingDiags(sites places, table *bind.Table) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range table.Entries() {
 		if e.Hop.Status == bind.Unresolved {
-			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, place(e.Site),
+			diags = append(diags, diag.Newf(ir.SeverityError, diag.UnresolvedRef, sites.position(e.Site),
 				"unresolved $ref %q: %s", e.Hop.Ref, e.Hop.Why()))
 		}
 	}
 	for _, l := range table.Loops() {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, place(l.Site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.CyclicRef, sites.position(l.Site),
 			"cyclic $ref: the chain of $refs through %s comes back to where it started and never reaches a schema",
 			spellLoop(l, table)))
 	}
-	at := place(bind.Position{})
+	at := sites.position(bind.Position{})
 	if table.Exhausted() {
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.BudgetExceeded, at,
 			"resolving the schema $refs takes more than %d steps; the $refs past them are left unresolved",
@@ -236,7 +232,7 @@ func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []
 
 // buildFailures reports each landing no schema could be built for, at the
 // least position whose chain reaches it, in whichever document, with why.
-func buildFailures(place func(bind.Position) ir.Provenance, built []typed.Built) []ir.Diagnostic {
+func buildFailures(sites places, built []typed.Built) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, b := range built {
 		if b.Err == nil || !b.Landing.Reached {
@@ -246,7 +242,7 @@ func buildFailures(place func(bind.Position) ir.Provenance, built []typed.Built)
 		if b.Landing.At.Doc != b.Landing.Site.Doc {
 			where += " in " + b.Landing.Name
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place(b.Landing.Site),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, sites.position(b.Landing.Site),
 			"the $ref here reaches %s, where no schema could be built: %s", where, b.Err.Error()))
 	}
 	return diags

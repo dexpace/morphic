@@ -11,8 +11,15 @@ components:
         isbn:
           type: string
           xml: {attribute: true, namespace: 'urn:example:books', prefix: bk}
+        # A property using an attribute type as it is, and one declaring its node
+        # an element beside the $ref, which overrides the type's flag.
+        lang: {$ref: '#/components/schemas/Lang'}
+        title: {$ref: '#/components/schemas/Lang', xml: {attribute: false}}
         # An array hoists a node of its own, which is where its hints land.
         authors:
           type: array
           xml: {name: authors, wrapped: true}
           items: {type: string, xml: {name: author}}
+    Lang:
+      type: string
+      xml: {attribute: true}

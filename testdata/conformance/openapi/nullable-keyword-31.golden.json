@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -503,7 +504,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Name/nullable"
@@ -512,7 +513,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/inline/nullable"
@@ -521,7 +522,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though no OpenAPI version gives it an effect beside a $ref: 3.0 ignores every keyword there, and 3.1, which applies them, defines no nullable; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/besideRef/nullable"
@@ -530,7 +531,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/counts/items/nullable"
@@ -539,7 +540,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/described/items/nullable"
@@ -548,7 +549,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though this document declares OpenAPI 3.1.0, whose schemas define no nullable keyword; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though the dialect this schema is read in defines no nullable keyword; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Holder/properties/shaped/items/nullable"

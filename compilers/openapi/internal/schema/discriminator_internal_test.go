@@ -16,9 +16,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -70,7 +71,7 @@ func TestMappingTargetID(t *testing.T) {
 	// (issue #14, f31). It gets a context of its own rather than being added to the
 	// one above: the declared set is derived from the document now, so saying "and
 	// also this one" means saying it to a document.
-	empty := lowering.New(0, openapitest.DocDeclaring(""), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	empty := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring("")}, lowering.Policy{})
 	id, ok = mappingTargetID(empty, empty.RefScope(), &oas3.Discriminator{}, "")
 	require.True(t, ok)
 	assert.Equal(t, ids.Document{}.AnonType(ids.Ptr("components", "schemas", "")), id)
@@ -192,15 +193,16 @@ func TestResolveMappingTarget_RefusesWhatTheDocumentDoesNotDeclare(t *testing.T)
 // is unresolved.
 func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 	t.Parallel()
-	const sub = "#/components/schemas/Pet/properties/kind"
-
-	empty := NewRawLowerer(openapitest.DocDeclaring("Pet"))
-	_, ok := mappingTargetID(empty.Ctx, empty.Ctx.RefScope(), &oas3.Discriminator{}, sub)
-	assert.False(t, ok, "with no bindings the target lands nowhere, so it does not resolve")
+	const (
+		sub     = "#/components/schemas/Pet/properties/kind"
+		missing = "#/components/schemas/Pet/properties/missing"
+	)
 
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    Pet:\n      type: object\n"+
 		"      properties: {kind: {type: object, properties: {a: {type: string}}}}\n"+
-		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"'}}\n"))
+		"      discriminator: {propertyName: k, mapping: {s: '"+sub+"', m: '"+missing+"'}}\n"))
+	_, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), missing)
+	assert.False(t, ok, "the bindings land the target nowhere, so it does not resolve")
 	want := ids.Document{}.ForPointer("/components/schemas/Pet/properties/kind")
 	before, ok := mappingTargetID(l.Ctx, l.Ctx.RefScope(), petDiscriminator(t, l), sub)
 	require.True(t, ok, "nothing is interned yet, and the position is named all the same")
@@ -217,7 +219,7 @@ func TestMappingTargetID_NamesAPositionByItsPointer(t *testing.T) {
 }
 
 // TestMappingTargetID_ReadsEachPositionOnce pins that the position whose type a
-// mapping target names is read once a compile (lowering.Ctx.TypePosition), not
+// mapping target names is read once a compile (lowering.Remembered), not
 // once for each subtype asking: each reads its base's whole mapping, so a base
 // with n subtypes read each of its positions n times.
 func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
@@ -230,7 +232,8 @@ func TestMappingTargetID_ReadsEachPositionOnce(t *testing.T) {
 		"#/components/schemas/Hold/properties/p")
 	require.True(t, ok)
 	assert.Equal(t, componentIDByName("Cat"), id, "the position reads through to Cat")
-	at := l.Ctx.TypePosition(bind.Position{Pointer: "/components/schemas/Hold/properties/p"}, func() bind.Position {
+	held := bind.Position{Pointer: "/components/schemas/Hold/properties/p"}
+	at := lowering.Remembered(l.Ctx, typeAt{lowering.Scoped(l.Ctx, held)}, func() bind.Position {
 		t.Error("the position was read again")
 		return bind.Position{}
 	})
@@ -309,22 +312,21 @@ func TestResolveMappingTarget_DefsValueNothingInternedIsHoistedAtItsOwnPosition(
 }
 
 // TestBesideUnionDiscriminator_ReportsWhatItCannotSettle pins that a settlement
-// whose model is missing, nil or no model, or whose union's node is missing, is
-// announced rather than skipped: the discriminator it was deferred for would
-// otherwise be settled nowhere, unremarked. A nil map is no settled one.
+// whose model is missing, nil or no model is announced rather than skipped:
+// the discriminator it was deferred for would otherwise be settled nowhere,
+// unremarked. A nil map is no settled one.
 func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 	t.Parallel()
 	for name, reg := range map[string]ir.TypeRegistry{
-		"model missing":          {"t/owner": &ir.Union{ID: "t/owner"}},
-		"no model":               {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": &ir.Scalar{ID: "t/ghost"}},
-		"owner missing":          {"t/ghost": &ir.Model{ID: "t/ghost", Discriminator: &ir.Discriminator{Mapping: map[string]ir.TypeID{"cat": "t/cat"}}}},
-		"owner of a map missing": {"t/ghost": &ir.MapT{ID: "t/ghost"}},
-		"nil model":              {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.Model)(nil)},
-		"nil map":                {"t/owner": &ir.Union{ID: "t/owner"}, "t/ghost": (*ir.MapT)(nil)},
+		"model missing": {"t/other": &ir.Model{ID: "t/other"}},
+		"no model":      {"t/ghost": &ir.Scalar{ID: "t/ghost"}},
+		"nil model":     {"t/ghost": (*ir.Model)(nil)},
+		"nil map":       {"t/ghost": (*ir.MapT)(nil)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Ghost", owner: "t/owner", model: "t/ghost"}
+			c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+			d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Ghost", model: "t/ghost"}
 
 			diags := d.Settle(reg)
 
@@ -341,8 +343,9 @@ func TestBesideUnionDiscriminator_ReportsWhatItCannotSettle(t *testing.T) {
 func TestBesideUnionDiscriminator_LeavesASettledMapAlone(t *testing.T) {
 	t.Parallel()
 	mt := &ir.MapT{ID: "t/pet", Value: ir.TypeRef{Target: "t/prim/string"}}
-	reg := ir.TypeRegistry{"t/owner": &ir.Union{ID: "t/owner"}, "t/pet": mt}
-	d := besideUnionDiscriminator{c: lowering.Ctx{}, pointer: "/components/schemas/Pet", owner: "t/owner", model: "t/pet"}
+	reg := ir.TypeRegistry{"t/pet": mt}
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	d := besideUnionDiscriminator{c: c, pointer: "/components/schemas/Pet", model: "t/pet"}
 
 	assert.Empty(t, d.Settle(reg))
 	assert.Same(t, mt, reg["t/pet"], "the map is left in place")

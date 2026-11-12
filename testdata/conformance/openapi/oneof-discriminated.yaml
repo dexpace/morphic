@@ -20,3 +20,12 @@ components:
         mapping:
           cat: '#/components/schemas/Cat'
           dog: '#/components/schemas/Dog'
+    # Composing the union narrows it: the discriminator routes only the schemas
+    # the union lists, so no tag routes to this one, and each instance carries
+    # the tag of the variant it is.
+    StoredPet:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+        - type: object
+          properties:
+            id: {type: string}

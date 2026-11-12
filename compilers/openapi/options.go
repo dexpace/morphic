@@ -43,6 +43,17 @@ type StreamingMedia = lowering.StreamingMedia
 // extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
+// BinaryMedia is the binary media-type policy: which media types mean a body or
+// part is a file when its schema says nothing more than that it is a string. It
+// is another injectable-policy seam (architecture principle 6), named here for
+// the reason GroupingStrategy is.
+type BinaryMedia = lowering.BinaryMedia
+
+// DefaultBinaryMediaTypes returns the media types BinaryMedia classifies as
+// binary when the caller names none, for the reason DefaultStreamingMediaTypes
+// is exported.
+func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
+
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
 // are read into which typed IR field. It is another injectable-policy seam
 // (architecture principle 6), and is named here rather than restated for the
@@ -70,9 +81,11 @@ const (
 	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
 	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy.
 	TargetDeprecationReplacedBy = lowering.TargetDeprecationReplacedBy
-	// TargetEnumOpen clears ir.Enum.Closed.
+	// TargetEnumOpen clears ir.Enum.Closed, or ir.Union.Closed on the union a
+	// mixed enum lowers to.
 	TargetEnumOpen = lowering.TargetEnumOpen
-	// TargetUnionOpen clears ir.Union.Closed.
+	// TargetUnionOpen clears ir.Union.Closed on a union a oneOf or anyOf lowers
+	// to.
 	TargetUnionOpen = lowering.TargetUnionOpen
 	// TargetStability fills ir.Operation.Stability.
 	TargetStability = lowering.TargetStability
@@ -89,6 +102,19 @@ type NullableWidening = lowering.NullableWidening
 // NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
 // reference whose null the nullable-widening policy read in.
 const NullableWideningHeuristic = lowering.NullableWideningHeuristic
+
+// DiscriminatorInference is the discriminator-inference policy: whether a
+// union's tag is read off the value each variant pins its tag property to,
+// where the document declares no mapping or no discriminator, and a subtype's
+// off the values it admits, where it is routed by name. It is another
+// injectable-policy seam (architecture principle 6), and is named here rather
+// than restated for the reason GroupingStrategy is.
+type DiscriminatorInference = lowering.DiscriminatorInference
+
+// DiscriminatorInferenceHeuristic is the name a union's Provenance.Inferred
+// carries where the discriminator-inference policy filled its discriminator,
+// and a subtype's where it read its tag.
+const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
@@ -112,6 +138,11 @@ type Options struct {
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
 	StreamingMedia StreamingMedia `json:"streamingMedia"`
+	// BinaryMedia selects which media types make a file of a body or part whose
+	// schema says no more than that it is a string. The zero value is the
+	// default list, on; a caller who wants only what a document declares
+	// disables it.
+	BinaryMedia BinaryMedia `json:"binaryMedia"`
 
 	// Promotions selects which vendor extensions are read into typed IR fields.
 	// The zero value is the default mapping, on; a caller who wants extensions
@@ -121,6 +152,12 @@ type Options struct {
 	// written on, a reference it decides marked as inferred. The zero value is
 	// on; a caller who wants only what the document's version says disables it.
 	NullableWidening NullableWidening `json:"nullableWidening"`
+	// DiscriminatorInference selects whether a union's tag is read off the
+	// value each variant pins its tag property to, where the document declares
+	// no mapping or no discriminator, and a subtype's routed by name off the
+	// values it admits, what it reads marked as inferred. The zero value is on;
+	// a caller who wants only what the document declares disables it.
+	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -192,6 +229,16 @@ const (
 	// above are single files, and a description split per resource or per
 	// schema is what reading external documents is for.
 	DefaultMaxExternalDocuments = 1 << 14
+	// DefaultMaxReferenceExpansion is the reference-expansion budget:
+	// 16,777,216, a 4.3x margin over the 3,919,648 that the $refs of Microsoft
+	// Graph's description of its generally available API copy, the most of the
+	// descriptions the source budgets admit, measured 2026-11-04. Its beta
+	// API's, past those budgets, copies 6,614,806, GitHub's REST API
+	// description 3,121,777, Cloudflare's 270,530, and none of 1,840 others
+	// more than 2,216,018. The costliest document built to spend it, a response
+	// of inline headers, peaks near 5.6 GB writing its IR to standard output,
+	// about what Microsoft Graph's description costs there (5.8 GB).
+	DefaultMaxReferenceExpansion = 1 << 24
 )
 
 // Limits bounds the size and cardinality of one compile, so a legal but
@@ -244,6 +291,15 @@ type Limits struct {
 	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
 	// neither (docs/parser-library.md#resolution-unbounded).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
+	// MaxReferenceExpansion bounds what lowering copies through $refs and path
+	// items. A declaration a $ref names, a schema aside, lowers again at every
+	// $ref naming it, so each is charged what its chain's declarations weigh,
+	// each component alias included: one for each YAML node, a YAML alias as a
+	// copy of what it names, and one for each byte of scalar text, but one for a
+	// schema, which lowers once. Each additionalOperations entry is charged its
+	// copy of what its path item declares. A document past it is refused as
+	// openapi/budget-exceeded, compiling to no Document.
+	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
 }
 
 // Overlay is one OpenAPI Overlay document and how strictly to apply it.
@@ -289,24 +345,28 @@ func (o Options) withDefaults() Options {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping           = "grouping"
-	optAllowExternalRefs  = "allow-external-refs"
-	optOverlay            = "overlay"
-	optOverlayLax         = "overlay-lax"
-	optNullableWidening   = "nullable-widening"
-	optStreamingMedia     = "streaming-media"
-	optStreamingInference = "streaming-inference"
+	optGrouping               = "grouping"
+	optAllowExternalRefs      = "allow-external-refs"
+	optOverlay                = "overlay"
+	optOverlayLax             = "overlay-lax"
+	optNullableWidening       = "nullable-widening"
+	optDiscriminatorInference = "discriminator-inference"
+	optStreamingMedia         = "streaming-media"
+	optStreamingInference     = "streaming-inference"
+	optBinaryMedia            = "binary-media"
+	optBinaryInference        = "binary-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
 // caller holding only text sets the budgets a Go caller does.
 func limitOptions(l *Limits) map[string]*int {
 	return map[string]*int{
-		"max-source-bytes":       &l.MaxSourceBytes,
-		"max-source-nodes":       &l.MaxSourceNodes,
-		"max-enum-members":       &l.MaxEnumMembers,
-		"max-alias-surplus":      &l.MaxAliasSurplus,
-		"max-external-documents": &l.MaxExternalDocuments,
+		"max-source-bytes":        &l.MaxSourceBytes,
+		"max-source-nodes":        &l.MaxSourceNodes,
+		"max-enum-members":        &l.MaxEnumMembers,
+		"max-alias-surplus":       &l.MaxAliasSurplus,
+		"max-external-documents":  &l.MaxExternalDocuments,
+		"max-reference-expansion": &l.MaxReferenceExpansion,
 	}
 }
 
@@ -316,7 +376,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
-		optStreamingMedia, optStreamingInference,
+		optDiscriminatorInference, optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -378,12 +438,24 @@ func (d *optionDecode) set(key, value string) error {
 		err := decodeBool(&on, key, value)
 		d.opts.NullableWidening.Disabled = !on
 		return err
+	case optDiscriminatorInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.DiscriminatorInference.Disabled = !on
+		return err
 	case optStreamingMedia:
-		return decodeStreamingMedia(&d.opts.StreamingMedia.MediaTypes, value)
+		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
 	case optStreamingInference:
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.StreamingMedia.Disabled = !on
+		return err
+	case optBinaryMedia:
+		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
+	case optBinaryInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.BinaryMedia.Disabled = !on
 		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
@@ -420,18 +492,18 @@ func decodeGrouping(out *GroupingStrategy, value string) error {
 	}
 }
 
-// decodeStreamingMedia reads the streaming media list: entries separated by
-// commas, which no media type holds outside a parameter's quotes. An entry that
-// is neither a media type nor a suffix is refused rather than kept: it could
-// match nothing, and the list it sits in replaces the default. The promotion
-// mapping has no setting yet (GitHub #658).
-func decodeStreamingMedia(out *[]string, value string) error {
+// decodeMediaList reads the media list of the setting key, streaming's or
+// binary's: entries separated by commas, which no media type holds outside a
+// parameter's quotes. An entry that is neither a media type nor a suffix is
+// refused rather than kept: it could match nothing, and the list it sits in
+// replaces the default. The promotion mapping has no setting yet (GitHub #658).
+func decodeMediaList(out *[]string, key, value string) error {
 	entries := strings.Split(value, ",")
 	for i, entry := range entries {
 		entries[i] = strings.TrimSpace(entry)
 		if !namesMedia(entries[i]) {
 			return fmt.Errorf("openapi: option %q: want media types or +suffixes separated by commas, got %q",
-				optStreamingMedia, value)
+				key, value)
 		}
 	}
 	*out = entries

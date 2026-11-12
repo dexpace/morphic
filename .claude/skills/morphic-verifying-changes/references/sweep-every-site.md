@@ -16,6 +16,18 @@ it.
 - **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer and watch
   it go red.
 
+## Sweep a mechanism that turns on a type with the types
+`sweep-a-typed-mechanism-by-type`
+
+- **Rule.** Where the mechanism turns on a type, such as a range over a map or a value holding an
+  unexported field, sweep it with `go/types`: a `golang.org/x/tools/go/packages` program, run from
+  the module root of a scratch clone and removed after. A grep finds a spelling, not a type.
+- **Why.** Of 997 range statements outside tests at 0d09a96d, 63 range over a map, and 3 of those
+  lines match `grep -iE 'map|byid|keys'`: `for index := range status` names no map (#1538).
+- **Probe.** The program first reports a site planted for each form the mechanism takes, nested in a
+  container and behind a pointer too, and passes a planted near miss; then the report gives its
+  sites beside the grep's.
+
 ## Fix the state at the type that owns it, not where the defect surfaced
 `fix-at-the-invariants-owner`
 
@@ -38,7 +50,7 @@ it.
   substring, not a whole word, and a renamed term with its article ("a emitter").
 - **Why.** Comments pointed at deleted functions, removed receivers and replaced resolvers, sending
   readers to code that no longer exists (#195, #834).
-- **Probe.** For each name the diff removes, `git grep -n '<old>'` over `*.go`, `docs/`,
+- **Probe.** For each name the diff removes, `git grep -nF '<old>'` over `*.go`, `docs/`,
   `README.md`, `CLAUDE.md` and `.claude/skills` on the final tree; each hit outside the diff's own
   deletions is a finding.
 
@@ -50,9 +62,25 @@ it.
   above all those saying only, never, the single, records or reports. Re-check each precondition a
   doc comment states against every call site, new ones included.
 - **Why.** Converted functions still said they "record" diagnostics they now return, and "the single
-  append point" survived the change that made it false (#198, #213).
-- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages and
-  read each hit against the new code; list callers for each precondition.
+  append point" survived the change that made it false (#198, #213); two examples quoting #1309's
+  input outlived its fix, matching none of those words (#1642).
+- **Probe.** `git grep -nE 'only|never|single|the one|records|reports'` in the touched packages, and
+  `git grep -nF '<input>'` over the tree for each input whose result changed; read each hit against
+  the new code; list callers for each precondition.
+
+## Sweep the tree for prose stating a field's old meaning
+`sweep-prose-a-meaning-change-falsifies`
+
+- **Rule.** A change to what a field or a value means falsifies sentences stating the old meaning,
+  in any package and in `docs/`, which need none of the words
+  `references/sweep-every-site.md#sweep-comments-a-behaviour-change-falsifies` greps for. Grep the
+  whole tree for the old meaning's words, the field's name among them, in the order a sentence
+  states them, and read each hit's sentence against the new meaning.
+- **Why.** #1370 made `Provenance.Source` name the patched document rather than the overlay, and
+  three sentences crediting the overlay outlived several review rounds, one in
+  `docs/architecture.md`, outside the touched packages (#1680).
+- **Probe.** `git grep -nE '<pattern>' -- . ':!testdata'`, as
+  `(credit|Source).*overlay|overlay.*(credit|Source|index)|fallback` hit all three at `f060e417a`.
 
 ## Update the normative doc a change makes untrue, in the same change
 `update-normative-docs-in-same-change`

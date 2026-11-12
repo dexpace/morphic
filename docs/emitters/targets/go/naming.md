@@ -7,11 +7,15 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 - **The units**: `internal`, which no caller outside the SDK may import, `testdata`, which `./...`
   skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies.
 - **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, and any
-  runtime name it declares there (`APIError`, `Body`, `OtherResponse`, `Response`, `Stream`).
-- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate` and a redacting `String`, and the
-  field holding the catch-all ([`User`](models.md#user-in-go)). The struct Go gives a union declares
-  those codecs, `Validate` and `Value` ([unions](unions.md)), and a wrapper those codecs and
-  `Value`. No spec name lands in either, so none yields there.
+  runtime name it declares there (`APIError`, `Body`, `EnvelopedResponse`, `OtherResponse`,
+  `Response`, `Stream`).
+- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `String`,
+  `GoString` and `LogValue`, and the field holding the catch-all ([`User`](models.md#user-in-go)).
+  The struct Go gives a closed union declares those codecs and redacting forms, `Validate` and
+  `Value` ([unions](unions.md)), and a wrapper all of them but `Validate`; no spec name lands in
+  either. An inclusive union's struct declares those codecs and forms, `Validate` and, when open,
+  `Unknown` beside a field per variant ([unions](unions.md#an-inclusive-union)), and each field
+  yields to them.
 
 ## The escape
 

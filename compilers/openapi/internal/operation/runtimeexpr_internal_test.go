@@ -4,9 +4,11 @@
 package operation
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestParseExpression_ReadsTheGrammar holds parseExpression to the Runtime
@@ -48,6 +50,7 @@ func TestParseExpression_ReadsTheGrammar(t *testing.T) {
 			t.Parallel()
 			got, isExpr, err := parseExpression(tc.in)
 			assert.Equal(t, tc.isExpr, isExpr)
+			assert.Equal(t, tc.isExpr, startsExpression(tc.in), "startsExpression agrees")
 			if tc.malformed {
 				assert.ErrorIs(t, err, errMalformedExpression)
 				return
@@ -59,16 +62,18 @@ func TestParseExpression_ReadsTheGrammar(t *testing.T) {
 }
 
 // TestEmbedsExpression_FindsAnExpressionInBraces pins what counts as a string
-// an expression is substituted into: an expression in braces, wherever it sits
-// and whether or not the braces hold the whole string, but not braces holding
-// no expression.
+// an expression is substituted into: an expression in braces, wherever it sits,
+// whether or not the braces hold the whole string and whether or not the rest
+// of it keeps the grammar, but not braces holding what starts as none.
 func TestEmbedsExpression_FindsAnExpressionInBraces(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[string]bool{
 		"item-{$response.body#/id}":   true,
 		"{$url}":                      true,
 		"{$nope} then {$method}":      true,
-		"{$request.cookie.c}":         false,
+		"{$request.cookie.c}":         true,
+		"{$response.body#/a~2}":       true,
+		"{$requestx}":                 false,
 		"{$response.body#/id":         false,
 		"no braces at all":            false,
 		"{not an expression}":         false,
@@ -79,4 +84,19 @@ func TestEmbedsExpression_FindsAnExpressionInBraces(t *testing.T) {
 	} {
 		assert.Equal(t, want, embedsExpression(in), "%q", in)
 	}
+}
+
+// TestEmbedsExpression_AllocatesNothing pins that a string opening braces many
+// times before one close is read without parsing what each opening holds: a
+// parse, which splits a body pointer into tokens, allocates for each one. It
+// takes the fewest of single runs, and does not run in parallel, since the
+// count is process-wide.
+func TestEmbedsExpression_AllocatesNothing(t *testing.T) {
+	s := strings.Repeat("{$request.body#/a/b/c", 200) + "~2}"
+	require.True(t, embedsExpression(s))
+	least := testing.AllocsPerRun(1, func() { embedsExpression(s) })
+	for range 4 {
+		least = min(least, testing.AllocsPerRun(1, func() { embedsExpression(s) }))
+	}
+	assert.Zero(t, least)
 }

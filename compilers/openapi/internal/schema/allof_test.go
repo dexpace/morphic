@@ -114,6 +114,67 @@ func TestAllOf_DiscriminatorHierarchy(t *testing.T) {
 	assert.Equal(t, "Dog", dog.DiscriminatorValue, "falls back to schema name")
 }
 
+// TestAllOf_AUnionItNamesComposesAsWritten pins a union an allOf names by
+// $ref (docs/ir/models.md#a-union-a-composition-names): the schema is a Model
+// naming the union as its Base, or as a Mixin beside a hierarchy's base, and
+// declaring its own members alone. Nothing is distributed over the union's
+// variants or reported, discriminated or not, in either declaration order.
+func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
+	t.Parallel()
+	const branches = "[{$ref: '#/components/schemas/Block'}, {$ref: '#/components/schemas/Log'}]\n"
+	const hierarchy = "    Pet: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
+		"    Stored:\n      allOf:\n        - $ref: '#/components/schemas/Pet'\n" +
+		"        - $ref: '#/components/schemas/Rule'\n" +
+		"        - {type: object, required: [id], properties: {id: {type: string}}}\n"
+	const unpinned = "    Block: {type: object, properties: {action: {type: string}}}\n" +
+		"    Log: {type: object, properties: {action: {type: string}}}\n"
+	cases := []struct {
+		name, union, rest string
+		base              string   // the component Stored's Base names
+		mixins            []string // the components its Mixins name
+		discriminated     bool     // Rule carries a discriminator, declared or inferred
+	}{
+		{"a discriminated oneOf", "    Rule:\n      discriminator: {propertyName: action}\n      oneOf: " + branches,
+			pinnedRules + stored, "Rule", nil, true},
+		{"an undiscriminated anyOf", "    Rule:\n      anyOf: " + branches, unpinned + stored, "Rule", nil, false},
+		{"beside a hierarchy's base", "    Rule:\n      oneOf: " + branches, pinnedRules + hierarchy, "Pet",
+			[]string{"Rule"}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range taggedOrders(t, c.union, c.rest) {
+				s, ok := typeByName(doc, "Stored").(*ir.Model)
+				require.True(t, ok, "Stored lowers to a model; got %T", typeByName(doc, "Stored"))
+				assert.Equal(t, &ir.TypeRef{Target: componentID(c.base)}, s.Base)
+				var mixins []ir.TypeRef
+				for _, m := range c.mixins {
+					mixins = append(mixins, ir.TypeRef{Target: componentID(m)})
+				}
+				assert.Equal(t, mixins, s.Mixins)
+				var props []string
+				for _, p := range s.Properties {
+					props = append(props, p.Name.Source)
+				}
+				assert.Equal(t, []string{"id"}, props, "Stored declares its own members alone")
+
+				u, ok := typeByName(doc, "Rule").(*ir.Union)
+				require.True(t, ok, "Rule lowers to a union; got %T", typeByName(doc, "Rule"))
+				assert.Equal(t, c.discriminated, u.Discriminator != nil)
+				var variants []ir.TypeID
+				for _, v := range u.Variants {
+					variants = append(variants, v.Type.Target)
+				}
+				assert.Equal(t, []ir.TypeID{componentID("Block"), componentID("Log")}, variants)
+				for id := range doc.Types {
+					assert.NotContains(t, string(id), "t/composed/", "nothing is distributed")
+				}
+				assert.Empty(t, withCode(doc.Diagnostics, diag.CompositionLowering))
+			}
+		})
+	}
+}
+
 func TestAllOf_UnresolvedRefBranch(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Bad:
@@ -152,14 +213,88 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 // schema's minItems, an error the load reports and parseFull tolerates.
 func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    M:
+	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    U: {properties: {u: {type: string}}}
+    M:
       allOf:
         - {type: string, allOf: []}
-        - {$ref: '#/components/schemas/A'}
+        - {$ref: '#/components/schemas/U'}
 `))
 	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")
 	assert.Contains(t, msg, "the branch (type, allOf) is kept verbatim")
+}
+
+// TestAllOf_FalseBranchClosesTheCatchAllItForbids pins that a `false` allOf
+// branch leaves a catch-all only its patterns, since the closure it writes
+// forbids every key they leave (docs/ir/models.md#catch-alls), and keeps a
+// written additionalProperties verbatim instead, at the composed model and at
+// each variant a union beside the allOf distributes over.
+func TestAllOf_FalseBranchClosesTheCatchAllItForbids(t *testing.T) {
+	t.Parallel()
+	const pq = `    P: {type: object, properties: {p: {type: string}}}
+    Q: {type: object, properties: {q: {type: string}}}
+`
+	const written, patterns = "      additionalProperties: {type: string}\n", "      patternProperties: {'^x-': {type: string}}\n"
+	tests := []struct {
+		name, beside string
+		kept, raw    bool
+	}{
+		{"a written catch-all", written, false, true},
+		{"patterns alone", patterns, true, false},
+		{"patterns beside a written catch-all", written + patterns, true, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			const branches = "      allOf: [false, {type: object, properties: {a: {type: string}}}]\n"
+			spec := openapitest.ComponentSpec(pq + "    M:\n" + branches + tc.beside +
+				"    U:\n      oneOf: [{$ref: '#/components/schemas/P'}, {$ref: '#/components/schemas/Q'}]\n" + branches + tc.beside)
+			doc, diags := schema.LowerSpec(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, id := range []ir.TypeID{
+				componentID("M"), "t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1",
+			} {
+				m, ok := doc.Types[id].(*ir.Model)
+				require.True(t, ok, "%s is a model, not %T", id, doc.Types[id])
+				assert.Equal(t, ir.AdditionalClosed, m.Additional, id)
+				entry, raw := m.Unmodeled["openapi:additionalProperties"]
+				require.Equal(t, tc.raw, raw, "%s: what the source writes is kept, and only that: %+v", id, m.Unmodeled)
+				if raw {
+					assert.JSONEq(t, `{"type": "string"}`, string(entry.Value), id)
+					assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, id)
+				}
+				if !tc.kept {
+					assert.Nil(t, m.AdditionalProps, "%s: a catch-all left no pattern is none", id)
+					continue
+				}
+				require.NotNil(t, m.AdditionalProps, id)
+				assert.Nil(t, m.AdditionalProps.Value, "%s: no key beyond the patterns is allowed", id)
+				assert.Len(t, m.AdditionalProps.Patterns, 1, id)
+			}
+		})
+	}
+}
+
+// TestAllOf_AClosureAfterCompositionKeepsTheCatchAll pins the other side of
+// that rule: a catch-all `additionalProperties` writes evaluates every key the
+// patterns leave, so `unevaluatedProperties: false` beside it forbids none of
+// them, and the value stays.
+func TestAllOf_AClosureAfterCompositionKeepsTheCatchAll(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
+      allOf: [{type: object, properties: {a: {type: string}}}]
+      additionalProperties: {type: integer}
+      unevaluatedProperties: false
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	m, ok := typeByName(doc, "M").(*ir.Model)
+	require.True(t, ok, "M is a model, not %T", typeByName(doc, "M"))
+	assert.Equal(t, ir.AdditionalClosedAfterComposition, m.Additional)
+	require.NotNil(t, m.AdditionalProps)
+	assert.Equal(t, &ir.TypeRef{Target: "t/prim/integer"}, m.AdditionalProps.Value)
+	assert.NotContains(t, m.Unmodeled, "openapi:additionalProperties", "a catch-all the IR holds is not kept twice")
 }
 
 // TestAllOf_FalseBranchBesideUnionClosesEveryVariant pins that a `false` allOf

@@ -230,17 +230,20 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 
 // TestValidate_WalksOnlyThroughTheSharedWalk holds the other half, which counting
 // cannot see: a check that walked the document itself would not go through the
-// walk validate is handed. Of the reflection walks ir offers, the pass may name
-// ir.WalkValuesContext only in Validate, which hands it on, and ir.WalkValues
-// only in appendTypeIDs, which walks one GraphQL operation rather than the
-// document.
+// walk validate is handed. Of the reflection walks ir offers, the package may
+// name ir.WalkValuesContext only in Validate, which hands it on, and in
+// unreferenced, which walks a document of const-unions' own edit, one validate
+// is never handed, and ir.WalkValues only in appendTypeIDs, which walks one
+// GraphQL operation rather than the document.
 func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
 	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
 	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
 	require.True(t, reaches, "the pass must import ir")
-	for name, want := range map[string][]string{"WalkValuesContext": {"Validate"}, "WalkValues": {"appendTypeIDs"}} {
+	for name, want := range map[string][]string{
+		"WalkValuesContext": {"Validate", "unreferenced"}, "WalkValues": {"appendTypeIDs"},
+	} {
 		walk := irAsSeen.Scope().Lookup(name)
 		require.NotNil(t, walk, "the ir package must declare %s", name)
 		assert.Equal(t, want, p.FuncsUsing(walk), "the functions that walk through ir.%s", name)

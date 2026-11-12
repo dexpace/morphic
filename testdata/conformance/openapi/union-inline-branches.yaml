@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info: {title: UnionInlineBranches, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Shared properties beside inline branches: each branch lowers at its own
+    # pointer, and each variant composes the body with it.
+    Placement:
+      type: object
+      properties:
+        status: {type: string}
+      oneOf:
+        - type: object
+          required: [region]
+          properties: {region: {type: string}}
+        - type: object
+          required: [hostname]
+          properties: {hostname: {type: string}}
+    # A branch may redeclare a property of the body; its node keeps its own.
+    Check:
+      type: object
+      required: [transferable]
+      properties:
+        transferable: {type: boolean}
+      oneOf:
+        - properties: {transferable: {type: boolean, enum: [true]}}
+        - properties: {transferable: {type: boolean, enum: [false]}, reasons: {type: array, items: {type: string}}}
+    # An outside reference to a branch pointer finds the branch node, never the
+    # variant composed for it.
+    Region: {$ref: '#/components/schemas/Placement/oneOf/0'}
+    # A bare null branch declines distribution: the union is kept beside the
+    # body.
+    MaybePlacement:
+      type: object
+      properties:
+        status: {type: string}
+      oneOf:
+        - {type: object, properties: {region: {type: string}}}
+        - {type: 'null'}

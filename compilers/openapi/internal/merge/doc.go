@@ -6,8 +6,8 @@
 // reporting that they disagree.
 //
 // It is the compiler's most intricate logic and the part least tied to the walk
-// that drives it. The walk hands it each declaration through a PropIndex, and a
-// Merger folds a field's declarations once the registry is whole, reading it
-// through a function, so the conflict lattice can be exercised against a map
-// and a recorder rather than a document.
+// that drives it. The walk hands it each declaration through a PropIndex, which
+// folds a field's declarations once the registry is whole, through a Merger:
+// the registry and the walk's answers as values, so the conflict lattice can be
+// exercised against a map and a stub walk rather than a document.
 package merge

@@ -44,8 +44,8 @@ type generation struct {
 // A bump appends a row for the new IRVersion, and a change to jsonshape.Format
 // appends one describing the current generation anew. A row on main is never
 // edited: two changes claiming one version each append a row in the same
-// place, so whichever merges second meets the other's in a conflict and takes
-// the next version.
+// place, which can conflict or merge clean into two rows of one version, so
+// whichever merges second checks for a repeated version and takes the next.
 var generations = []generation{
 	{version: "0.14.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9"},
 	{version: "0.15.0", format: 1, shape: "9dabe5d1adf8d55ac0b06a72a113424ff063034fa92f1f35f2e6955bcc5a14b9",
@@ -77,18 +77,44 @@ var generations = []generation{
 	{version: "0.30.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "an operation keeps its path item's summary and description beneath the path item's key scope"},
-	{version: "0.31.0", format: 1, shape: "1d5ac686e769ead1aa2e3d0bb6bf33153ce8adbf2298495fe6bc75c634afb886",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.32.0", format: 1, shape: "600a0b3b39e88765696b02f5dc4e2636aec734e4150f51219511320385f4b367",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.33.0", format: 1, shape: "5c42173e035dc69d975f703c0ba2b3832d7f55fd6c59f3a776809bd60685c9d3",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.34.0", format: 1, shape: "aa38375958b399f09db7c31f9790a8732a4e57fc651142609e7836e7f1e69ff1",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.35.0", format: 1, shape: "9095594e496f49e06b8d0032b923c88ab44603eee693aca5999504858f6ecccf",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.36.0", format: 1, shape: "992ad6ec8eb464f90700b085c30080b389f3a933597d83a84305767e912e62b4",
-		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
+	{version: "0.31.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf no conjunct can make an object is a use of the conjunct deciding it, not a Model, and a node at an inline allOf branch is named as the schema holding it"},
+	{version: "0.32.0", format: 1, shape: "694a668c2583e6e7ef04f15195448dc7b011725bec72a5f1535b2260a5e4b1a0",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.33.0", format: 1, shape: "0adcd68b4066926aebce88cfba6729c8be8bc8a559bdef084429021ca5628dfa",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.34.0", format: 1, shape: "4f2bec076cd4bfdcdb4dc2d5657dd2b623d5255b9a57306d3600530aa8c1eb9f",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.35.0", format: 1, shape: "4f2bec076cd4bfdcdb4dc2d5657dd2b623d5255b9a57306d3600530aa8c1eb9f",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf conjunct says what it says written beside the allOf: a branch's collection bound reaches Constraints, an enum or a const beside a refining allOf is one of its conjuncts, its union variant hinted as the $ref it narrows, and the value set a refinement lowers to is typed by every conjunct"},
+	{version: "0.36.0", format: 1, shape: "5bbe58925cbec6b949bd9eceb9ebf1722fb5a7dd313603383a53d3b4cf4aa9ac",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.37.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.38.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an inline branch of an allOf beside a oneOf, an anyOf or a $dynamicRef folds into the composition: what it says of the position reaches the Union a distributed union lowers to and its carriers, and a value bound each variant"},
+	{version: "0.39.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a union the OpenAPI compiler kept verbatim on an allOf branch, beside a model with inline branches or beside keywords its branches say lowers typed, and an encoding key on a union body names a part of its variants, the first variant declaring it"},
+	{version: "0.40.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a discriminated union the OpenAPI compiler kept verbatim beside structure lowers typed, its discriminator routing the union; Discriminator.Inferred is set, and a union's Provenance.Inferred names discriminator-inference, where a policy reads a union's tags off what its variants pin"},
+	{version: "0.41.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "the object variant of a type array the OpenAPI compiler lowers holds no Discriminator, so one holding only a catch-all is a MapT; the discriminator is kept verbatim under openapi:discriminator on the union"},
+	{version: "0.42.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a closed union of strings, every variant an anonymous string Literal, closed Enum of one string or union of one value in turn, is the closed Enum of its values at its own ID, each member holding what its branch said of its value, and the branch types nothing else references are gone"},
+	{version: "0.43.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "a schema composing a discriminated union that does not list it has no DiscriminatorValue, and a union beside it distributes; one a policy reads admitting only other tags than its name carries the one it admits, or none, its Provenance.Inferred naming discriminator-inference"},
+	{version: "0.44.0", format: 1, shape: "b1509f418184621848a051945a46afcde0b6bd0eec1204415b49004f1c49204b",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.45.0", format: 1, shape: "2a615baaea3131a2dd2cbc51d5228ae75ed7f8a76eb4f6b35cc37f730a69d43b",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

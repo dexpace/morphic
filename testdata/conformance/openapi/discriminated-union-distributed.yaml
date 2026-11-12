@@ -1,0 +1,49 @@
+openapi: 3.1.0
+info:
+  title: Discriminated union beside a body it distributes
+  version: "1"
+paths: {}
+components:
+  schemas:
+    # The properties beside the union are no branch's, so each variant composes
+    # them with its branch, and the mapping routes to the variant composed over
+    # the branch its target names. The discriminator's extension stays on the
+    # union, as on any union holding one.
+    Payment:
+      type: object
+      required: [amount]
+      properties:
+        amount: {type: integer}
+      discriminator:
+        propertyName: method
+        x-note: kept
+        mapping:
+          card: '#/components/schemas/Card'
+          bank: '#/components/schemas/Bank'
+      oneOf:
+        - $ref: '#/components/schemas/Card'
+        - $ref: '#/components/schemas/Bank'
+    # With no mapping, OpenAPI routes each branch by the name of the component
+    # it names, which a composed variant does not carry, so the route is
+    # written out.
+    Refund:
+      type: object
+      properties:
+        reason: {type: string}
+      discriminator:
+        propertyName: method
+      oneOf:
+        - $ref: '#/components/schemas/Card'
+        - $ref: '#/components/schemas/Bank'
+    Card:
+      type: object
+      required: [method]
+      properties:
+        method: {type: string}
+        last4: {type: string}
+    Bank:
+      type: object
+      required: [method]
+      properties:
+        method: {type: string}
+        iban: {type: string}

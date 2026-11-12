@@ -2,12 +2,15 @@
 
 ## Visibility projections → N wire shapes
 
-`ProjectVisibilityShapes` consumes the precomputed `ModelShape` map and emits the concrete
+`ProjectVisibilityShapes` consumes the precomputed `ModelShape` list and emits the concrete
 create/read/update/patch declarations the target needs — Speakeasy's "public type vs wire
-(de)serialize shape" split made explicit. `None` properties are excluded from every projection;
-PATCH shapes make properties optional unless the binding disables it. A model used as both input
-and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL inputs) may emit
-two shapes.
+(de)serialize shape" split made explicit — for every type a shape reaches, so a union or a container
+holding a projected model is projected with it, as a model holding one is
+([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
+every projection; PATCH shapes make properties optional unless the binding disables it. A model used
+as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL
+inputs) may emit two shapes. How each shape's declaration is named, beyond `User`, `UserCreate` and
+`UserPatch`, is not stated yet (#1405).
 
 ## Optionality × Nullability × Presence (INV8)
 
@@ -44,6 +47,44 @@ members its `Implements` declare as well, since a type conforming to an interfac
 Subtyping survives as interfaces: `Implements` becomes an interface, and a discriminated or abstract
 base a sealed interface of its subtypes, which Go holds in a struct ([Go
 unions](../targets/go/unions.md)).
+
+A union in `TypePlan.Unflattened`, an entry along the model's composition, has no members to flatten
+in: each instance of the model is an instance of one of the union's variants, with the rest of the
+composition beside it ([models](../../ir/models.md#a-union-a-composition-names)). So each of the
+three targets lowers the model as the union it narrows, distributing the composition over the
+union's variants as [models](../../ir/models.md#composition-beside-a-union) distributes a union
+written beside one: a variant for each of the union's, the model with that variant's type in the
+union's place, flattened and lowered as any model is, and by this rule where that composes a union
+in turn. A model the union lists as a variant, as `Shape: {oneOf: [Circle, Square]}` lists
+`Circle: {allOf: [Shape, …]}`, narrows nothing: each of its instances is that variant, so the union
+adds no member to it and it lowers as a model, one the union's sum holds. A target with intersection
+types may write the composition as it stands instead, so the distribution is a shared refine helper
+rather than a plan fact ([plan or refine](../plan/plan-or-refine.md)), run by `LowerModels` before
+the steps projecting shapes and lowering unions and discriminators reach the variants
+([steps](steps.md)).
+
+The model takes the union's wire shape, a discriminator on the union routing each tag, and its
+default, to the variant composed over the one it names. Each variant composed here takes the model's
+shapes, each holding what its flattening shows there, as a model's `ModelShape` does
+([ModelShape](../plan/types.md#modelshape--visibility-projection)); a shape reaching the model
+reaches the union ([a shape reaches what it holds](../plan/types.md#a-shape-reaches-what-it-holds)),
+so what the variants hold is projected with them, and a variant's `readOnly` member is in no create
+or patch shape of the model's. In each shape the model is inclusive and strict where the union is,
+since two variants the union keeps apart stay apart once composed, and it is open as `TypePlan.Open`
+says of the model ([policy](../plan/policy.md#a-union-a-client-reads-is-open)). Every path to a
+variant composed here passes through the model, which a target declares as a union, so it breaks a
+cycle through the variant as a union does ([recursive references](#recursive-references)). Such a
+variant has no `TypeID`, unlike one the compiler composes, so `Ctx.Syms` keys it by the model's and
+its variant's, which name it from one generation to the next
+([naming](naming.md#collisions-and-the-names-a-generation-shipped)), and it goes to the model's
+output unit ([output units](output-units.md)).
+
+A model adding nothing to its union is that union, which each target's lowering table aliases
+([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)). Each of these is a
+diagnosed degrade: a model narrowing two unions; one whose union has a variant composing the model
+in turn, or reaches itself through the unions among its variants, either of which no distribution
+ends; one over a key-tagged or enveloped union, whose variants are not the values it admits; and one
+over a union tagged by a tuple index, whose values are no objects. T-46 holds the rule.
 
 ## Unknown members
 

@@ -232,13 +232,30 @@ and every diagnostic is true, located, and decided from what actually happened.
 ## Lower one construct at every position that can hold it
 `same-construct-at-every-position`
 
-- **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate each
-  position the spec allows (declaration, inline, property, parameter, header, `allOf` branch, beside
-  a `$ref`, nested object) and make each reach the same path or record what it cannot carry.
-- **Why.** One construct lowered two ways by position, and parameter, header and nested-object
-  positions dropped keywords the property position kept (#149, #156).
+- **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate every
+  position: each key `fields` and `schemaFields` in `compilers/openapi/internal/bind/grammar.go`
+  map to `sSchema`, `sSchemaMap` or `sSchemaList`, with the schema written inline, as a `$ref` to
+  a declaration, beside a `$ref`, and under an `$id` naming another base with its `$ref`s written
+  relative and absolute. Make each reach the same path or record what it cannot carry.
+- **Why.** Parameter, header and nested-object positions dropped keywords the property position
+  kept (#149, #156), and inline branches under two `$id` bases fold a keyword they spell alike
+  (#1408).
 - **Probe.** Compile one fixture writing the construct, with a sibling keyword and an `x-` key, at
-  every position, and diff the IR and diagnostics per position.
+  every position and in every spelling the Rule lists, and diff the IR and diagnostics per position
+  and per spelling.
+
+## Diff the reports an object draws kept whole against lowered
+`kept-whole-draws-the-lowered-reports`
+
+- **Rule.** When a change keeps whole an object a reader lowers elsewhere, compile a spec and its
+  twin differing only in which path takes it, and diff the diagnostic codes. Each report the kept
+  path drops is still made, or excused by a sentence in the rule keeping it whole, so a test
+  pinning the silence pins a recorded decision.
+- **Why.** #1498 kept whole an Encoding Object whose key names no part, and its twin under a part's
+  name drew two `unknown-object-key` warnings and a `reserved-header-name` the kept copy lost, a
+  test pinning the silence unexplained (#1660); `main`'s other objects kept whole drop them too
+  (#1662).
+- **Probe.** `diff <(go run ./cmd/morphic validate --verify a.yaml 2>&1 | cut -d' ' -f1,2) <(go run ./cmd/morphic validate --verify b.yaml 2>&1 | cut -d' ' -f1,2)`.
 
 ## Decide and test the combination when keywords co-occur
 `test-co-declared-keywords-together`

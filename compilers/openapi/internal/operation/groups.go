@@ -54,14 +54,14 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 // strategy, outermost first, by identity: the ID is both the group's key here
 // and its ID in the IR, so two operations share a group exactly when they share
 // an ID. The untagged group's hint stays "default" beside a tag of that name:
-// the IDs differ, and the emitter resolves name collisions by ID
-// (docs/emitters/refine/naming.md). By tags, the group is the first
-// navigational tag's, nested under the tags its declared parents name (GitHub
-// #613).
+// the IDs differ, the emitter resolves name collisions by ID
+// (docs/emitters/refine/naming.md), and the names pass reports this one. By
+// tags, the group is the first navigational tag's, nested under the tags its
+// declared parents name (GitHub #613).
 func (g *serviceGroups) groupFor(c lowering.Ctx, src *soa.Operation, path string) []groupLevel {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
-		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: compile.NamingFor(seg)}}
+		return []groupLevel{{id: ids.PathPrefixGroup(seg), name: ir.NamingFor(seg)}}
 	}
 	for _, tag := range src.GetTags() {
 		if g.tags.navigational(tag) {
@@ -151,7 +151,7 @@ func (x tagIndex) levels(tag string) []groupLevel {
 	chain := x.chain(tag)
 	out := make([]groupLevel, 0, len(chain))
 	for _, t := range chain {
-		out = append(out, groupLevel{id: ids.TagGroup(t), name: compile.NamingFor(t), docs: tagDocsFrom(x[t])})
+		out = append(out, groupLevel{id: ids.TagGroup(t), name: ir.NamingFor(t), docs: tagDocsFrom(x[t])})
 	}
 	return out
 }

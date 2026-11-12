@@ -81,8 +81,8 @@ func TestLoad_ADiagnosticOnAGraftedNodeNamesTheOverlay(t *testing.T) {
 
 // TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource is the control: with
 // the same overlay applied, a finding on a node the source declared keeps the
-// source and its line and column. The locator falls through to the source for
-// every node the overlay does not answer for, so a fix that attributed too
+// source and its line and column. The source's tree places every node the
+// overlay does not answer for in the source, so a fix that attributed too
 // widely would move this one.
 func TestLoad_ADiagnosticOnASourceNodeStillNamesTheSource(t *testing.T) {
 	t.Parallel()

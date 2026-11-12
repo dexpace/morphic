@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -175,8 +176,7 @@ webhooks:
 func TestListRepeats_AWalkThatPanicsIsReported(t *testing.T) {
 	t.Parallel()
 	panics := func(func(soa.WalkItem) bool) { panic("walk fault") }
-	at := func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} }
-	diags := listRepeats(at, Siblings{}, panics)
+	diags := listRepeats(provenance.Doc{}, Siblings{}, panics)
 	require.Len(t, diags, 1)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Equal(t, diag.Validation, diags[0].Code)

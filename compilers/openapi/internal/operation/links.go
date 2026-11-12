@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -89,7 +90,9 @@ type draftParam struct {
 
 // draftLinks drafts each link the response r, declared at rptr in c's
 // document, names. A $ref the resolver could not follow is its finding, and
-// drafts nothing.
+// drafts nothing. The summary and description written beside a link's $ref
+// describe that use of it, so they fold over the declaration's docs
+// (docs/compilers/openapi.md#reference-object-siblings).
 func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkDraft, []ir.Diagnostic) {
 	links := r.GetLinks()
 	if links == nil {
@@ -104,6 +107,7 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 			continue
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
+		d.docs = resolve.UseDocs[soa.Link](rl, d.docs)
 		d.at, d.use = c, use
 		drafts = append(drafts, d)
 		diags = append(diags, draftDiags...)
@@ -125,9 +129,9 @@ func draftLink(c lowering.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (
 			d.params = append(d.params, draftParam{key: key, value: value})
 		}
 	}
-	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), c.ProvenanceAt, ptr)
+	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), c.Place(), ptr)
 	d.extra = extra
-	return d, append(diags, annotation.UnknownKeysIn(&d.extra, l, c.ProvenanceAt, ptr)...)
+	return d, append(diags, annotation.UnknownKeysIn(&d.extra, l, c.Place(), ptr)...)
 }
 
 // keep records d verbatim in p, under openapi:links/<name>, reporting whether
@@ -137,5 +141,5 @@ func draftLink(c lowering.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (
 // verbatim form is reported.
 func (d *linkDraft) keep(p *ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(p, "openapi:"+ids.Scope("links", d.name),
-		d.node, ir.ReasonNoIRHome, d.c.ProvenanceAt(d.ptr))
+		d.node, ir.ReasonNoIRHome, d.c.Place().At(d.ptr))
 }

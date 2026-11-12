@@ -50,17 +50,27 @@ type expression struct {
 // errMalformedExpression for one that starts as an expression and breaks the
 // grammar: `$request.` or `$response.` followed by no part it names.
 func parseExpression(s string) (expression, bool, error) {
+	if !startsExpression(s) {
+		return expression{}, false, nil
+	}
 	switch s {
 	case "$" + exprURL, "$" + exprMethod, "$" + exprStatusCode:
 		return expression{source: s[1:]}, true, nil
 	}
-	for _, source := range []string{exprRequest, exprResponse} {
-		if rest, ok := strings.CutPrefix(s, "$"+source+"."); ok {
-			e, err := parseSource(source, rest)
-			return e, true, err
-		}
+	source, rest, _ := strings.Cut(s[1:], ".")
+	e, err := parseSource(source, rest)
+	return e, true, err
+}
+
+// startsExpression reports whether s reads as a runtime expression, well
+// formed or not: one of the three sources a name alone spells, or `$request.`
+// or `$response.` and whatever follows.
+func startsExpression(s string) bool {
+	switch s {
+	case "$" + exprURL, "$" + exprMethod, "$" + exprStatusCode:
+		return true
 	}
-	return expression{}, false, nil
+	return strings.HasPrefix(s, "$"+exprRequest+".") || strings.HasPrefix(s, "$"+exprResponse+".")
 }
 
 // parseSource reads rest, what follows `$request.` or `$response.`.
@@ -152,17 +162,24 @@ func isToken(s string) bool {
 // embedsExpression reports whether s holds a runtime expression in braces, as
 // a template such as `item-{$response.body#/id}` does: a string an expression
 // is substituted into, which no link value spells, even when the braces hold
-// the whole string.
+// the whole string. Braces count when what they hold starts as an expression,
+// whether or not the rest keeps the grammar, as parseExpression tells an
+// expression from a constant by its start. So no candidate is parsed, and
+// braces opened many times before one close cost a look at each opening.
 func embedsExpression(s string) bool {
-	for i := range len(s) {
-		if !strings.HasPrefix(s[i:], "{$") {
+	closing := -1
+	for i := 0; i+1 < len(s); i++ {
+		if s[i] != '{' || s[i+1] != '$' {
 			continue
 		}
-		end := strings.IndexByte(s[i:], '}')
-		if end < 0 {
-			return false
+		if closing < i {
+			end := strings.IndexByte(s[i:], '}')
+			if end < 0 {
+				return false
+			}
+			closing = i + end
 		}
-		if _, ok, err := parseExpression(s[i+1 : i+end]); ok && err == nil {
+		if startsExpression(s[i+1 : closing]) {
 			return true
 		}
 	}

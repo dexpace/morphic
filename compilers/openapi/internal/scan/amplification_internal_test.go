@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/internal/ctxtest"
@@ -149,7 +150,7 @@ func TestAliases_SyntheticWideBaseReuseIsNowRefused(t *testing.T) {
 	assert.Equal(t, diag.AliasAmplification, diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 
-	unbounded := Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.Unbounded())
+	unbounded := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded())
 	require.NotEmpty(t, unbounded, "turning the alias budget off leaves the ratio rule standing")
 	assert.Equal(t, diag.AliasAmplification, unbounded[0].Code)
 }
@@ -212,9 +213,9 @@ func TestAliases_FlatFanOutOfModestAnchorIsEventuallyRefused(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 	assert.Contains(t, diags[0].Message, fmt.Sprintf("past the %d-node alias budget", defaultSurplus))
 
-	assert.Empty(t, Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.AtMost(2*defaultSurplus)),
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(2*defaultSurplus)),
 		"a caller who raised the budget has the document admitted")
-	assert.Empty(t, Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.Unbounded()),
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded()),
 		"a caller who turned the budget off has the document admitted")
 }
 
@@ -231,10 +232,10 @@ func TestAliasAmplification_SurplusBoundIsExact(t *testing.T) {
 	added := probe.weight[root] - raw
 	require.Positive(t, added, "sanity: the fixture's aliases add nodes")
 
-	_, refused := aliasAmplification(t.Context(), InSource(0), root, raw, budget.AtMost(added))
+	_, refused := aliasAmplification(t.Context(), provenance.Tree{}, root, raw, budget.AtMost(added))
 	assert.False(t, refused, "aliases adding exactly the budget are within it")
 
-	d, refused := aliasAmplification(t.Context(), InSource(0), root, raw, budget.AtMost(added-1))
+	d, refused := aliasAmplification(t.Context(), provenance.Tree{}, root, raw, budget.AtMost(added-1))
 	require.True(t, refused, "aliases adding one node past the budget are refused")
 	assert.Equal(t, diag.BudgetExceeded, d.Code)
 	assert.Equal(t, fmt.Sprintf("YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
@@ -254,7 +255,7 @@ func TestAliasAmplification_ABombIsNamedForItsShapeWhateverTheBudget(t *testing.
 	for name, surplus := range map[string]budget.Limit{
 		"a budget of one": budget.AtMost(1), "the default": budget.AtMost(defaultSurplus), "no budget": budget.Unbounded(),
 	} {
-		diags := Aliases(t.Context(), InSource(0), indexOf(t, data), surplus)
+		diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, data), surplus)
 		require.Len(t, diags, 1, name)
 		assert.Equal(t, diag.AliasAmplification, diags[0].Code, name)
 	}
@@ -270,7 +271,7 @@ func TestAliasAmplification_ABudgetPastTheRatioRefusesNothing(t *testing.T) {
 	raw := rawNodes(t, root)
 
 	for _, surplus := range []int{shapeAllowance(raw).Cap() - raw, math.MaxInt} {
-		_, refused := aliasAmplification(t.Context(), InSource(0), root, raw, budget.AtMost(surplus))
+		_, refused := aliasAmplification(t.Context(), provenance.Tree{}, root, raw, budget.AtMost(surplus))
 		assert.False(t, refused, "surplus %d", surplus)
 	}
 }
@@ -292,7 +293,7 @@ func TestAliasAmplification_AnAdmittedDocumentIsWeighedOnce(t *testing.T) {
 	require.Less(t, surplus, shape-raw, "sanity: the budget binds before the ratio, so both bounds are live")
 
 	one := testing.AllocsPerRun(5, func() { newAliasWeigher(budget.AtMost(raw+surplus)).weigh(t.Context(), root) })
-	both := testing.AllocsPerRun(5, func() { aliasAmplification(t.Context(), InSource(0), root, raw, budget.AtMost(surplus)) })
+	both := testing.AllocsPerRun(5, func() { aliasAmplification(t.Context(), provenance.Tree{}, root, raw, budget.AtMost(surplus)) })
 	assert.Less(t, both, 1.5*one, "an admitted document costs one walk (one=%v both=%v)", one, both)
 }
 
@@ -302,10 +303,10 @@ func TestAliases_HoldsAnOverlayToTheBudgetItIsGiven(t *testing.T) {
 	t.Parallel()
 	src := "a: &x {p: 1, q: 2}\nb: [*x, *x, *x, *x]\n"
 
-	diags := Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.AtMost(1))
+	diags := Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.AtMost(1))
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Empty(t, Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.Unbounded()), "no budget, and well inside the ratio")
+	assert.Empty(t, Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, indexOf(t, []byte(src)), budget.Unbounded()), "no budget, and well inside the ratio")
 }
 
 // chainedAliasSpec writes a document whose Root schema is the top of a chain
@@ -381,7 +382,7 @@ func TestAliases_AllocatesLinearlyInItsInput(t *testing.T) {
 				var diags []ir.Diagnostic
 				// No alias budget, so only the expansion ratio refuses, and it
 				// refuses none of these sizes.
-				allocs[i] = testing.AllocsPerRun(1, func() { diags = Aliases(t.Context(), InSource(0), idx, budget.Unbounded()) })
+				allocs[i] = testing.AllocsPerRun(1, func() { diags = Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, idx, budget.Unbounded()) })
 				for _, d := range diags {
 					paths[i] = append(paths[i], d.Code)
 				}
@@ -418,12 +419,12 @@ func TestAliasAmplification_BoundaryPair(t *testing.T) {
 
 	under := aliasFanOutNode(12)
 	require.Equal(t, 5, rawNodes(t, under), "sanity: the raw count aliasFanOutNode promises")
-	_, refused := aliasAmplification(t.Context(), InSource(0), under, rawNodes(t, under), budget.AtMost(defaultSurplus))
+	_, refused := aliasAmplification(t.Context(), provenance.Tree{}, under, rawNodes(t, under), budget.AtMost(defaultSurplus))
 	assert.False(t, refused, "expandedWeight 24,573 stays under the 32,768 floor")
 
 	over := aliasFanOutNode(13)
 	require.Equal(t, 5, rawNodes(t, over), "sanity: the raw count aliasFanOutNode promises")
-	d, refused := aliasAmplification(t.Context(), InSource(0), over, rawNodes(t, over), budget.AtMost(defaultSurplus))
+	d, refused := aliasAmplification(t.Context(), provenance.Tree{}, over, rawNodes(t, over), budget.AtMost(defaultSurplus))
 	require.True(t, refused, "expandedWeight 49,149 crosses the 32,768 floor")
 	assert.Equal(t, diag.AliasAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
@@ -488,6 +489,42 @@ func TestAliasWeigher_MemoizesSharedTarget(t *testing.T) {
 	assert.Equal(t, 31, w.computations)
 }
 
+// TestAliasWeigher_PopsRepeatedFrame weighs an anchor and its own alias in both
+// sibling orders. pushChildren pushes both before either is weighed, and an
+// alias popped before the anchor pushes the anchor again, so the stack holds it
+// twice. Under either positional order, forward or backward, one row reaches
+// the check at the top of weigh's loop, which alone keeps the second frame from
+// computing the anchor again. An order keyed on a child's kind, such as aliases
+// first, can leave both rows short of it.
+func TestAliasWeigher_PopsRepeatedFrame(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		siblings func(base *yaml.Node) *yaml.Node
+	}{
+		{"anchor then alias", func(base *yaml.Node) *yaml.Node { return ynode.Seq(base, ynode.Alias(base)) }},
+		{"alias then anchor", func(base *yaml.Node) *yaml.Node { return ynode.Seq(ynode.Alias(base), base) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
+			root := ynode.Map(ynode.Scalar("a"), tt.siblings(base))
+
+			w := newAliasWeigher(budget.AtMost(1_000_000))
+			require.Empty(t, w.weigh(t.Context(), root))
+
+			assert.Equal(t, len(w.weight), w.computations,
+				"the anchor is computed once, however many frames hold it")
+			assert.Empty(t, w.inFlight,
+				"a weighed node's frame pops unexpanded, so nothing is left in flight")
+			// Distinct nodes: root, its key "a", the sequence, the alias node,
+			// base, and base's own key and value: 7.
+			assert.Equal(t, 7, w.computations)
+		})
+	}
+}
+
 func TestAliasWeigher_SaturatesWithoutOverflow(t *testing.T) {
 	t.Parallel()
 	root := aliasFanOutNode(40)
@@ -542,6 +579,8 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	require.NotEmpty(t, culprits, "a cyclic alias graph expands without bound and must be refused")
 	culprit := culprits[0]
 	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "the cycle saturates rather than looping")
+	assert.Equal(t, len(w.weight)-1, w.computations,
+		"the node the cycle cut holds a weight, and its frame pops uncomputed")
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
@@ -601,7 +640,7 @@ func TestAliasAmplification_NamesTheLeastSiteUnderABudget(t *testing.T) {
 			t.Run(tc.name+"/"+order, func(t *testing.T) {
 				t.Parallel()
 				root := indexOf(t, data).Root()
-				d, refused := aliasAmplification(t.Context(), InTree(0, Pointers(t.Context(), root)), root, rawNodes(t, root), budget.AtMost(100))
+				d, refused := aliasAmplification(t.Context(), provenance.Tree{Pointers: Pointers(t.Context(), root)}, root, rawNodes(t, root), budget.AtMost(100))
 				require.True(t, refused)
 				assert.Equal(t, tc.code, d.Code)
 				assert.Equal(t, tc.want, d.Provenance.Pointer)

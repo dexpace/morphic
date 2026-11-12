@@ -215,10 +215,10 @@ func SourceHash(data []byte) string {
 const OverlayFormat = "overlay"
 
 // IsOverlay reports whether s is an overlay applied to the source. A construct
-// an overlay wrote into the document it patched is credited to the overlay at
-// its position in that document, so a Provenance naming an overlay can spell
-// a position of either document. Another document a split source reads names
-// its own positions alone.
+// an overlay wrote into the document it patched names that document as its
+// Source and the overlay as its Provenance.WrittenBy, so a Provenance whose
+// Source is an overlay spells a position of the overlay itself, as another
+// document a split source reads names its own positions alone.
 func (s SourceInfo) IsOverlay() bool {
 	return strings.HasPrefix(s.Format, OverlayFormat+"@")
 }

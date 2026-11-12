@@ -17,16 +17,14 @@ import (
 // the referencing: which file it is, which component schemas it declares, and
 // what it parsed to.
 //
-// Declares is a predicate rather than the name set itself, for the reason the
-// lowering context keeps that set behind an accessor: a copied struct shares a
-// map, and a reader has no business writing to one.
+// Declares is a Names rather than a map because a copied struct shares a map,
+// and a reader has no business writing to one.
 type Scope struct {
 	// SelfPath is the source path of the document being compiled, against which
 	// a reference's document part is judged internal or external.
 	SelfPath string
-	// Declares reports whether the document declares a component schema of this
-	// name.
-	Declares func(name string) bool
+	// Declares holds the names of the component schemas the document declares.
+	Declares Names
 	// Doc is the parsed document a pointer is read against, as the resolver reads
 	// it; nil reads nothing there.
 	Doc any
@@ -66,6 +64,26 @@ type Scope struct {
 	// takes although Beside names its pointer. Nil writes none.
 	Writes func(pointer jsontext.Pointer, obj any) bool
 }
+
+// Names is a set of names, such as the component schemas a document declares,
+// never written once NewNames builds it. A copy shares the set, which only
+// resolve can reach, so no reader writes through one, and a Names is safe for
+// concurrent use. The zero Names holds no name.
+type Names struct {
+	set map[string]bool
+}
+
+// NewNames returns the set holding each of names.
+func NewNames(names ...string) Names {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return Names{set: set}
+}
+
+// Has reports whether name is one of n's.
+func (n Names) Has(name string) bool { return n.set[name] }
 
 // refuses reports whether ObjectAt refuses answer, the object the resolver
 // found at pointer: one Beside names, unless Writes says it is the field

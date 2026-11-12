@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -277,7 +278,7 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document and read as in an OpenAPI 3.0 one",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Owner/description",
@@ -290,7 +291,7 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "keyword \"description\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document and read as in an OpenAPI 3.0 one",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/owner/description",
@@ -303,7 +304,7 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "keyword \"nullable\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "keyword \"nullable\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document and read as in an OpenAPI 3.0 one",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/owner/nullable",
@@ -316,7 +317,7 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "keyword \"readOnly\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "keyword \"readOnly\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document and read as in an OpenAPI 3.0 one",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/owner/readOnly",
@@ -329,7 +330,7 @@
     {
       "severity": "warning",
       "code": "openapi/later-version-construct",
-      "message": "keyword \"title\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "message": "keyword \"title\" beside the $ref of a Schema Object is ignored by OpenAPI 3.0 and applied by OpenAPI 3.1, and this document declares 3.0.3; it is applied as in an OpenAPI 3.1 document and read as in an OpenAPI 3.0 one",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/keepers/items/title",
@@ -342,7 +343,7 @@
     {
       "severity": "info",
       "code": "openapi/inferred-nullable",
-      "message": "nullable: true is read as admitting null under the nullable-widening policy, though no OpenAPI version gives it an effect beside a $ref: 3.0 ignores every keyword there, and 3.1, which applies them, defines no nullable; a reference whose null rests on it is marked inferred",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pet/properties/owner/nullable"
@@ -353,7 +354,7 @@
     {
       "format": "openapi@3.0",
       "path": "schema-ref-siblings-30.yaml",
-      "hash": "25b85fd37df7574fb553888c4b097498ede599c16b9b1d7a6d5de19e1c9a7d34"
+      "hash": "c9372287d87bc507dd76ab240276d54e79d1a88409ecd0068b1d69bf86d9953f"
     }
   ]
 }

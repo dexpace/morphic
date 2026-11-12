@@ -5,15 +5,15 @@ declared or inferred.
 
 ```go
 type Provenance struct {
-    Source   int              // index into Document.Sources, or NoSource (-1)
-    Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
-    WrittenBy int             // the input that wrote what Pointer addresses when not Source, an
-                              // overlay; 0 = Source wrote it
-    Position Position         // 1-based line and column into that source, for a finding on a raw node
-    Node     string           // IR-space location: a stable ID or a path through the document's own fields
-    Inferred Inferred         // "" = declared; else the heuristics that produced this node or read a fact out of its
-                              // Unmodeled, or a $ref target's that lends it the fact, comma-separated
-                              // (docs/ir/unmodeled.md#promotion)
+    Source    int              // index into Document.Sources, or NoSource (-1)
+    Pointer   jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
+    WrittenBy int              // the input that wrote what Pointer addresses when not Source, an
+                               // overlay; 0 = Source wrote it
+    Position  Position         // 1-based line and column into that source, for a finding on a raw node
+    Node      string           // IR-space location: a stable ID or a path through the document's own fields
+    Inferred  Inferred         // "" = declared; else the heuristics that produced this node or read a fact out of its
+                               // Unmodeled, or a $ref target's that lends it the fact, comma-separated
+                               // (docs/ir/unmodeled.md#promotion)
 }
 
 type Position struct {
@@ -35,7 +35,10 @@ Everything heuristic is auditable; everything broken is reportable with an exact
 A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
 the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)). `ErrorCase`
 and `OAuthFlow` have none either, and record a promotion in an `Inferred` of their own
-([promotion](./unmodeled.md#promotion)).
+([promotion](./unmodeled.md#promotion)), as `FileInfo` and `PartEncoding` record the heuristic that
+read a body or a part as a file ([payloads](./payloads.md)): a marker on the operation's own
+`Provenance`, as a guessed stream takes, could not say which of its contents or parts the guess made
+a file.
 
 **`Source` is where, `WrittenBy` is who.** An overlay patches a document in place, so what it
 writes sits at that document's positions and is read there. Its provenance names the patched
@@ -46,8 +49,8 @@ finding about the overlay document itself, such as a refused action, is the over
 pointer into the overlay. The alternative weighed was a flag saying the pointer addresses the
 patched document, which keeps two meanings on `Source` that every reader must branch on.
 `WrittenBy` is 0 where `Source` wrote the construct, since entry 0, the document compiled, writes
-into no other; `irverify` holds any other value to an overlay entry other than `Source`
-(`ir/provenance-writer`).
+into no other; `irverify` holds any other value to an overlay entry other than `Source`, and
+refuses one on `NoSource`, which names no document to write into (`ir/provenance-writer`).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so

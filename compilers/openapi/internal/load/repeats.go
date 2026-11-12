@@ -11,6 +11,7 @@ import (
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -24,7 +25,7 @@ import (
 // through a $ref, so a list only a $ref reaches is not checked (GitHub #880).
 // The lists beside a path item's $ref are sibs's model's (writtenItem). A
 // panic in the walk is reported at the model it reached.
-func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items iter.Seq[soa.WalkItem],
+func listRepeats(place provenance.Doc, sibs Siblings, items iter.Seq[soa.WalkItem],
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	site, err := eachModel(items, "repeat check", func(site jsontext.Pointer, model any) error {
@@ -33,22 +34,22 @@ func listRepeats(at func(jsontext.Pointer) ir.Provenance, sibs Siblings, items i
 			// Placed from "", not site: the library renders the root's location
 			// as "/", the pointer to a key named "". Read from the field, since
 			// GetServers stands in a server the source never wrote.
-			diags = append(diags, serverRepeats(at, m.Servers, "")...)
+			diags = append(diags, serverRepeats(place, m.Servers, "")...)
 		case *soa.ReferencedPathItem:
 			if item, ok := writtenItem(m, sibs, site); ok {
-				diags = append(diags, paramRepeats(at, item.GetParameters(), site)...)
-				diags = append(diags, serverRepeats(at, item.GetServers(), site)...)
+				diags = append(diags, paramRepeats(place, item.GetParameters(), site)...)
+				diags = append(diags, serverRepeats(place, item.GetServers(), site)...)
 			}
 		case *soa.Operation:
-			diags = append(diags, paramRepeats(at, m.GetParameters(), site)...)
-			diags = append(diags, serverRepeats(at, m.GetServers(), site)...)
+			diags = append(diags, paramRepeats(place, m.GetParameters(), site)...)
+			diags = append(diags, serverRepeats(place, m.GetServers(), site)...)
 		default:
 			// No other model holds a parameter or a servers list.
 		}
 		return nil
 	})
 	if err != nil {
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, at(site), "%s", err.Error()))
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.Validation, place.At(site), "%s", err.Error()))
 	}
 	return diags
 }
@@ -80,7 +81,7 @@ type paramSlot struct {
 // An entry is read as the lowering reads it (refscope.Object), so a repeat
 // reported here is one the lowering numbers; one whose $ref resolved to nothing
 // has no slot.
-func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
+func paramRepeats(place provenance.Doc, params []*soa.ReferencedParameter, owner jsontext.Pointer) []ir.Diagnostic {
 	firstAt := make(map[paramSlot]jsontext.Pointer, len(params))
 	var diags []ir.Diagnostic
 	for i, rp := range params {
@@ -95,7 +96,7 @@ func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referen
 			firstAt[slot] = entry
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, at(entry),
+		diags = append(diags, diag.Newf(ir.SeverityError, diag.DuplicateParameter, place.At(entry),
 			"parameter %q in %q repeats the entry at %s", slot.name, slot.in, first))
 	}
 	return diags
@@ -107,7 +108,7 @@ func paramRepeats(at func(jsontext.Pointer) ir.Provenance, params []*soa.Referen
 // repeats nothing: a URL hint is the lowering's, not a name the source wrote.
 // A list shorter than two entries has nothing to compare, so most lists cost
 // no map.
-func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
+func serverRepeats(place provenance.Doc, servers []*soa.Server, owner jsontext.Pointer) []ir.Diagnostic {
 	if len(servers) < 2 {
 		return nil
 	}
@@ -124,7 +125,7 @@ func serverRepeats(at func(jsontext.Pointer) ir.Provenance, servers []*soa.Serve
 			firstAt[name] = key
 			continue
 		}
-		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, at(key),
+		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DuplicateServerName, place.At(key),
 			"server name %q repeats the name at %s; both servers are kept, and a consumer "+
 				"keying servers by name cannot tell them apart", name, first))
 	}

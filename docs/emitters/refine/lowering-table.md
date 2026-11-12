@@ -19,15 +19,17 @@ IR bug (INV9), not a compiler change.
 | `any`, `Any` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | — |
 | `Scalar{Base}` chain | encoding triple; the root's codec |
-| `Model` (Base/Implements/Mixins) | `WireID` order |
+| `Model` (Base/Implements/Mixins) | `WireID` order; over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](decorators.md)) | — |
-| `Model` whose `Base` is no model, not a decorator | — |
+| `Model` whose `Base` is no model, not a decorator | over a union it narrows, each variant's members and tag beside the model's own ([inheritance](models.md#inheritance)) |
 | `AdditionalProps` / `Additional` | pattern channel |
 | `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
-| `Enum` open/closed/flags | member `WireName`; each member's JSON kind, compared by value ([a member on the wire](enums.md#a-member-on-the-wire)) |
+| `Enum` open/closed/flags | member `WireName`; each member's wire form, compared as JSON compares values ([a member on the wire](enums.md#a-member-on-the-wire)) |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |
 | `External` | — |
+| `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](redaction.md)) | the value on the wire, untouched |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../operations/stability.md)) | — |
 | `Visibility` sets | — |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | — |
 | `Constraints` | numeric bounds as decimal |

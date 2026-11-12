@@ -80,6 +80,8 @@ func anchorHolds(c lowering.Ctx, name string, at bind.Position) (string, bool) {
 // dynamicRefName returns the $dynamicAnchor name the $dynamicRef s writes
 // addresses, or the reason it addresses none. It stops short of the index, so
 // the chain walk and the lowering path ask one function what a schema requests.
+// 2019-09's $recursiveRef, which no reading here asks of, is kept verbatim and
+// never expanded as a $dynamicRef is (GitHub #1475).
 func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 	node := annotation.RawPropertyNode(s, "$dynamicRef")
 	if node == nil {
@@ -100,14 +102,14 @@ func dynamicRefName(s *oas3.Schema) (name, why string, ok bool) {
 // any of these makes the reference irreducible; expanding regardless would
 // assert the target's shape and drop the sibling in silence.
 //
-// It is broader than declaresShape by narrowsInstance's keywords, for the reason
-// that predicate records: an expansion takes the target whole, so a keyword it
-// cannot carry is lost whether or not it declares a shape by itself.
+// It counts narrowingKeywords as well as shapeKeywords, for the reason the
+// former record: an expansion takes the target whole, so a keyword it cannot
+// carry is lost whether or not it declares a shape by itself.
 func dynamicRefSiblings(s *oas3.Schema) bool {
 	if s.Ref != nil || len(s.GetOneOf()) > 0 || len(s.GetAnyOf()) > 0 {
 		return true
 	}
-	return narrowsInstance(s) || declaresShape(s)
+	return writesSiblingKeyword(s)
 }
 
 // soleAnchorSite returns the one position of c's document declaring the named
@@ -164,17 +166,17 @@ func dynamicChainVerdict(c lowering.Ctx, at, from bind.Position) (string, bool) 
 }
 
 // oneResource reports whether the schema at p lies in its document's own schema
-// resource, or says why it does not, or may not: a merge past the bound can hide
-// an $id, which must not read as none, or the reference would expand across a
-// boundary the IR cannot express (GitHub #401).
+// resource, or says why it does not, or may not: a merge past the bound can
+// hide an identifier, which must not read as none, or the reference would
+// expand across a boundary the IR cannot express (GitHub #401).
 func oneResource(c lowering.Ctx, p bind.Position) (string, bool) {
 	own, known := c.Bindings().Table().InOwnResource(p)
 	switch {
 	case !known:
 		return fmt.Sprintf("a schema at or above %q merges past the levels the compiler expands, which may hide an "+
-			"$id starting a schema resource of its own", p.Pointer), false
+			"identifier starting a schema resource of its own", p.Pointer), false
 	case own:
-		return fmt.Sprintf("an $id at or above %q starts a schema resource of its own, "+
+		return fmt.Sprintf("an identifier at or above %q starts a schema resource of its own, "+
 			"and the IR resolves no resource base URIs", p.Pointer), false
 	default:
 		return "", true
@@ -212,7 +214,7 @@ func recordUnexpandedDynamicRef(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema,
 		return nil
 	}
 	at := pointer + ids.Ptr("$dynamicRef")
-	kept, diags := annotation.PreserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, pointer, c.ProvenanceAt)
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, "$dynamicRef", ir.ReasonDegradedLowering, pointer, c.Place())
 	if kept {
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 			"$dynamicRef was not expanded because %s; it is kept verbatim under Unmodeled", why))

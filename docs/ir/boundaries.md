@@ -7,9 +7,10 @@ is one an `Unmodeled` [reason](./unmodeled.md#reasons) names.
 
 JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`,
 `contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
-`unevaluatedProperties` express *validation logic*, not data shape; no target language's type
-system represents them, and none of the other source formats has an equivalent. The IR
-deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
+`unevaluatedProperties`, and the earlier drafts' `dependencies`, which 2019-09 split into
+`dependentSchemas` and `dependentRequired`, express *validation logic*, not data shape; no target
+language's type system represents them, and none of the other source formats has an equivalent.
+The IR deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
 (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
 emit an `info` diagnostic, so the information is never silently lost and a future
 validation-oriented emitter (request validators, mock servers) can still consume them — selecting
@@ -24,8 +25,8 @@ rather than a type, so only its degenerate `{type: string}` form names one.
 
 Two neighbouring keyword groups are *not* part of this boundary — the content vocabulary
 (`contentEncoding`, `contentMediaType`, `contentSchema`) and the keywords that identify a schema
-resource (`$id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the OpenAPI compiler
-lowers each is stated with its rules:
+resource (`$id`, draft 4's `id`, `$schema`, `$vocabulary`) — and neither is `$dynamicRef`. How the
+OpenAPI compiler lowers each is stated with its rules:
 [`content-vocabulary`](../compilers/openapi.md#content-vocabulary),
 [`dialect-keywords`](../compilers/openapi.md#dialect-keywords) and
 [`dynamic-ref`](../compilers/openapi.md#dynamic-ref).
@@ -52,8 +53,8 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
 `allOf` branch [`allof-false-branch`](../compilers/openapi.md#allof-false-branch)).
 
 - **JSON Schema shapes** — `oneOf`/`anyOf` co-declared with structural keywords that cannot be
-  distributed, competing keywords at one position, an inline `allOf` branch declaring more than the
-  merge consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
+  distributed, competing keywords at one position, an inline `allOf` branch declaring what no reader
+  consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
   lowered node cannot carry. Each is a rule of the OpenAPI compiler:
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
   [`competing-keywords`](../compilers/openapi.md#competing-keywords),
@@ -116,11 +117,14 @@ simply absent from the IR and preserve nothing.
   artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
   (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already covered
   by `Base`/`Mixins` ([models](./models.md#composition)); Smithy, GraphQL, Protobuf and Erlang/OTP
-  cannot express it at all. The shape is instead handled where it arises: distributed across the
-  union's variants per [models](./models.md#composition-beside-a-union) when every branch names a
-  referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
-  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. A second format
-  that declares a genuine intersection — not a model-only `&` — is what would reopen this.
+  cannot express it at all. The shape is instead handled where it arises: read as the union alone
+  where the structural keywords say nothing its branches do not, distributed across the union's
+  variants per [models](./models.md#composition-beside-a-union) when every branch names a
+  referent, and kept verbatim under `ReasonDegradedLowering` in the residual shapes
+  [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. Where an `allOf`
+  names the union by reference instead, `Base`/`Mixins` already state the conjunction
+  ([models](./models.md#a-union-a-composition-names)). A second format that declares a genuine
+  intersection — not a model-only `&` — is what would reopen this.
 
 ## Access
 
