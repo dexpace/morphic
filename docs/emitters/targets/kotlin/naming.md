@@ -43,13 +43,18 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     `java.lang.Error: boom`, so a type a later revision adds would break a caller that compiled, or
     change what it does. Reserving only the names generated code writes, as the target once did,
     guards generated code and not its caller, and leaving a star import's conflicts to the caller
-    was not taken for the reason the runtime's names above are reserved. On the golden spec, the
-    names its declarations take, as words joined in PascalCase, meet 11 such classes on the JVM or
-    Native, held by 1,772 declarations, of which the 1,679 named `Result` and the 4 named `Unit`
-    meet a name generated code writes; the other 89, in 9 classes of names folding alike, each take
-    the next suffix, 9 of them losing the name itself, as the first `Error` does (spec @bc6fad24,
+    was not taken for the reason the runtime's names above are reserved. On the golden spec, of the
+    28,873 models, enums, unions and scalars that are no decorator (`ir.Decorated`), each a
+    top-level declaration named for its `Canonical` or, with none, its `Hint`, as words joined in
+    PascalCase, 1,772 are named for one of 11 such classes on the JVM or Native: 1,679 `Result`, 47
+    `Metadata`, 17 `Error`, 12 `Target`, 4 `Unit`, 4 `System`, 3 `OnErrorAction`, 2 `Module`, 2
+    `Platform`, 1 `Annotation` and 1 `Function`. Each takes the escape ([below](#the-escape)),
+    `Result_`, and those of one unit sharing a name are then told apart as any two are, `Result_2`
+    (spec @bc6fad24,
     morphic @fa253fe19, each name resolved by kotlinc 2.4.0 on the JVM and by Kotlin/Native 2.4.0 in
-    a file importing nothing, the two a caller cannot reach left out).
+    a file importing nothing; `State` and `Shutdown`, which resolve to a declaration private in its
+    file and one package-private, left out, as no caller reaches either, and a shape's declaration,
+    whose name adds a word, not counted).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
@@ -70,10 +75,16 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     name of this bullet or the last only there keeps its Kotlin name and takes an explicit
     Objective-C and Swift name, so no JVM name moves for Swift's sake.
 - **A union's variants**: beside `Unknown`, each class kotlinc or the serialization plugin nests in
-  a sealed interface, `Companion` and `DefaultImpls`, since a variant is a class nested there: with
-  Kotlin 2.4.0, a variant `Companion` of a `@Serializable` union failed ("conflicting
-  declarations"), and a variant `DefaultImpls` of one declaring a method with a body failed
-  ("duplicate JVM class name 'p/Pet$DefaultImpls'").
+  a sealed interface, `Companion`, `DefaultImpls` and `WhenMappings`, since a variant is a class
+  nested there: with Kotlin 2.4.0, a variant `Companion` of a `@Serializable` union failed
+  ("conflicting declarations"), a variant `DefaultImpls` of one declaring a method with a body
+  failed ("duplicate JVM class name 'p/Pet$DefaultImpls'"), and a variant `WhenMappings` of one
+  whose method switches over an enum of another file failed likewise (`'p/Pet$WhenMappings'`), each
+  building once escaped.
+- **A member's Swift name**, on Multiplatform: each member `NSObject` and its protocol give every
+  exported class, a table of the options version as the Swift type names above are, compared with a
+  property's, a method's and an enum entry's exported name as [Swift](swift.md) says. A member that
+  meets one keeps its Kotlin name and takes an explicit Objective-C and Swift name.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder`, `Companion` and `jsonDepth`, the depth a
   value records ([nesting](models.md#nesting)).
 
@@ -148,9 +159,14 @@ darwin/arm64, but for the Windows device names, which Windows' own file-naming r
 ## The escape
 
 A Kotlin hard keyword used as a name (`class`, `object`, `true`) is escaped with backticks, which
-Kotlin allows on both platforms and which leaves the wire name alone; a name a scope reserves for
-what the generated code binds ([reserved names](../../refine/reserved-names.md)), which backticks
-would not set apart, takes a trailing underscore. An identifier holding a character the lexer
+Kotlin allows on both platforms and which leaves the wire name alone; any other name a scope
+reserves ([reserved names](../../refine/reserved-names.md)), which backticks would not set apart,
+takes a trailing underscore, as a type `Error_` does for the default import, a variant `Companion_`
+and a unit `con_`. With Kotlin 2.4.0, classes `Error_`, `Result_`, `System_` and `List_` built, and
+a caller importing their package with `*` still printed `java.lang.Error: boom` from `Error("boom")`
+and reached `System`, `Result<Int>` and `List<String>`. An explicit Swift name takes the underscore
+too, bar one in an Objective-C method family ([Swift](swift.md)). An identifier holding a character
+the lexer
 refuses as it stands, a mark or a letter or digit newer than its tables, is written in backticks too
 and keeps the character, wherever a file writes it, an import and a KDoc link among them
 ([naming](../../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name)).

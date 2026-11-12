@@ -6,8 +6,9 @@ to compile, so each scope reserves what the code generated into it binds as well
 scope and a unit's what a unit or a top-level declaration cannot be named:
 
 - **The units** ([output units](output-units.md)), whose names are a scope of their own: `shared`
-  and `runtime`, the shared unit's and the runtime's, and the names a target's toolchain, or a file
-  system it writes to, treats apart.
+  and `runtime`, the shared unit's and the runtime's, the names a target's toolchain, or a file
+  system it writes to, treats apart, and on Go each predeclared identifier, which an import of a
+  unit so named would hide in a caller's file ([Go](../targets/go/naming.md#reserved-names)).
 - **A unit**: the names the target declares at its top level beside the spec's, and those a
   top-level declaration cannot take, as when a file system refuses the file it is written to or the
   declaration would shadow a name the language imports by default. No spec name lands in the
@@ -33,8 +34,27 @@ Each target's sets are in its naming document ([Go](../targets/go/naming.md#rese
 [Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
 A spec name that meets a reserved one takes the target's escape
-([Go](../targets/go/naming.md#the-escape), [Kotlin](../targets/kotlin/naming.md#the-escape)). Only
-spec names yield, since the target's own names are what its runtime and templates are written
+([Go](../targets/go/naming.md#the-escape), [Kotlin](../targets/kotlin/naming.md#the-escape)),
+whatever reserved it: a keyword, a predeclared identifier, a name generated code binds in a function
+or declares in a type, one the runtime or a template declares in a unit, a class the language
+imports by default, a name a file system refuses, or a class the toolchain nests beside a union's
+variants. In a scope compared folded
+([naming](naming.md#collisions-and-the-names-a-generation-shipped)) a name that folds as a reserved
+one meets it. The escape is a trailing underscore, and for a Kotlin keyword backticks, which keep
+the name. The numeric suffix of the collision rule tells two spec names apart and answers no
+reservation. The escape reads the name and the reserved set and nothing else its scope holds, and no
+identifier casing renders ends in an underscore, so an escaped name is one no other declaration
+renders to. A suffix is one another can: a type `Error` given `Error2` for a reserved `Error` would
+hold what a type `error_2` renders to, and their IDs would decide which kept it. Names that meet one
+reserved name are escaped and then told apart as any two are, `Result_` and `Result_2`, and a suffix
+that would make a reserved name is passed over, as `com2` is. Two reservations are answered
+otherwise. An import that yields (below) takes the collision rule's suffix whatever it met, `error2`
+or `Dog2`: it yields to its file's own declarations too, which only that rule compares, and its
+name is its file's alone, so nothing a caller writes turns on it. A Kotlin method or enum entry in
+an Objective-C method family takes its role's leading word in its Swift name, since a trailing
+underscore leaves it in the family ([Swift](../targets/kotlin/swift.md)).
+
+Only spec names yield, since the target's own names are what its runtime and templates are written
 against, so an import yields to a name the target binds on every target. A declaration a caller
 names never yields to an import either: an import yields to it, so every reference a file writes
 begins with a name no nearer declaration takes, as each target says

@@ -104,9 +104,12 @@ package to a single `p/Setup.class`, and the program then failed to load it (`No
 p/Setup (wrong name: p/SetUp)`), as it did classes `Straße` and `Strasse` (`wrong name: p/Strasse`).
 Such a scope compares names case-folded, by the fold the engine compares artifact paths by ([the
 path fold](../emit/rules.md)), in both rules: a name held, shipped or reserved there meets every
-name that folds as it does, and a suffix is chosen against them so. This holds for a reserved name
+name that folds as it does, and a suffix is chosen against them so, while a name that folds as a
+reserved one takes the escape, as one equal to it does ([reserved names](reserved-names.md)). This
+holds for a reserved name
 that is no path too, such as a name Kotlin imports by default, since one comparison per scope is the
-simpler rule and errs toward a suffix rather than a lost file. A target compares each scope one way
+simpler rule and errs toward an escaped name rather than a lost file. A target compares each scope
+one way
 whatever the spec says, so two symbols rule 1 keeps were apart under the comparison they shipped
 under. The units' scope is one ([output units](output-units.md)), and each target names its others
 ([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
@@ -180,8 +183,12 @@ names show: of the 106,743 names with words that the golden spec's source spells
 types and its lists of properties, members, parameters, operations and groups, 70 more having a
 source and no words, 6,292 read back as other words once spelled, such as `Secondary DNS (ACL)`'s
 `SecondaryDNSACL` and `SSL/TLS Mode Recommendation`'s `SSLTLSModeRecommendation`, while no two names
-of one of those lists render alike either way (`cloudflare/api-schemas` @ `bc6fad24`, morphic @
-`fa253fe19`). Either rule would rewrite one spelled name in seventeen to part pairs the spec does
+of one of those lists render alike either way (spec @bc6fad24, morphic @fa253fe19). A name is
+spelled here as a Pascal role composes it: each word of `Canonical` as `Source` writes it, its first
+character upper-cased, with `_` before a word letter case cannot mark
+([below](#a-break-letter-case-cannot-mark-takes-an-underscore)), and it reads back as other words
+where `ir.CanonicalWords` of that identifier is not its `Canonical`; with no `_` written, 6,650 do.
+Either rule would rewrite one spelled name in seventeen to part pairs the spec does
 not hold. Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken
 either: a shipped name keeps its symbol
 ([collisions](#collisions-and-the-names-a-generation-shipped)), so only a newcomer could take it,
@@ -301,6 +308,14 @@ the word grammar's question. Dropping a mark misspells the word and makes `न�
 form that holds a mark, so it alone writes a character by its name. Writing Kotlin's so as well,
 `नu093eम`, was not taken: backticks keep the spec's name on every platform the target builds for,
 and Swift reads it from the header as it reads any name past ASCII.
+Nor is a name Kotlin writes into a path composed for the path's sake. The JDK lists a macOS
+directory's names composed, so with Kotlin 2.4.0 a class `Doǵ` spelled with U+0301, compiled to a
+directory, was an unresolved reference to a module compiled against that directory, and to one
+compiled against a jar the JDK's `jar` made from it, whose entries were composed. kotlinc writing
+the jar itself, and Gradle 9.8.2's `jar` task, kept the entries as the class is named, and both
+resolved, and those are how a generated build hands a module to another and publishes one, so no
+user of an SDK meets the failure. Composing would give a type a spelling its own properties, which
+are no path, do not share.
 
 ## An identifier its role cannot begin with takes a leading word
 
@@ -428,8 +443,9 @@ the cap (`error while writing`). So a method's body hands each lambda to a funct
 inline, as the runtime's pager and stream are and as `flow` is, and only the runtime's unit, whose
 names are its own, calls an inline function that writes a class. No name of the golden spec reaches
 the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may add, and
-its longest union and variant joined by `$` 156, by `jq` over its compiled IR
-(`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the target's own code makes
+its longest union and variant joined by `$` 100, a wrapper being named for its variant and not for
+the type it wraps ([Kotlin](../targets/kotlin/unions.md)), each name its `Canonical` or `Hint` cased
+for its role (spec @bc6fad24, morphic @fa253fe19). A suffix the target's own code makes
 kotlinc add beyond that room is held by T-53, which lowers the cap in the options version adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only the

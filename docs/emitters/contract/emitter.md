@@ -165,8 +165,12 @@ the document, which determines it.
   snapshot's at the output root, the one exception being the pages its last label writes for what
   spans versions ([docs and mocks](../docs-and-mock.md#routes-and-links)). So no two runs share a
   path, and the runs make one generation ([write /
-  integrate](../write-integrate.md#what-the-manifest-records)). A label that is no single segment,
-  or is `.` or `..`, is an error `engine/snapshot-label-invalid` before any run. Two labels that
+  integrate](../write-integrate.md#what-the-manifest-records)). A label is checked as a path only in
+  a run that writes it as one, a run of at least one target whose `CrossVersion` is set: there a
+  label that is no single segment, or is `.` or `..`, is an error `engine/snapshot-label-invalid`
+  before any target runs. A run of other targets alone writes one snapshot at the output root
+  (below) and no label's directory, so it refuses none: `2024-01-01T00:00Z`, whose `:` Windows
+  refuses in a name, is a version an SDK is generated for. Two labels that
   fold alike, by the fold the engine compares artifact paths by ([emit rules](../emit/rules.md)),
   would name one directory on a file system that ignores case, as macOS's and Windows' do by
   default. So each label, in `Document.Versions` order, names its directory where that folds as no
@@ -178,7 +182,8 @@ the document, which determines it.
   directory so named, its suffix included, is held to what every path segment is ([emit
   rules](../emit/rules.md)): one past 255 bytes, a Windows device name up to its first dot, or one
   holding a character Windows refuses or ending in `.` or a space is the same error, naming the
-  label and the rule it breaks, before any run, where the check of artifact paths would refuse it
+  label and the rule it breaks, before any target runs, where the check of artifact paths would
+  refuse it
   only once every target had generated. Such a label is refused where two that fold alike are told
   apart: a suffix leaves the label whole in its directory and in every link, and a directory escaped
   or cut to length would be a version's address under a name the API never gave it. Keeping a

@@ -54,7 +54,14 @@ T-25 gives each a test.
   volume stores, which no run here read, and the same two sweeps on an NTFS volume would settle it.
   A file system that tells case apart joins fewer. Unicode's stability policies keep the case
   folding and decomposition of a string of assigned characters across its versions, so a toolchain
-  moving Unicode refolds only a name holding a character the older one left unassigned. T-52 holds
+  moving Unicode refolds only a name holding a character the older one left unassigned. So the fold
+  reads the tables Morphic is built with, Go's `unicode` and those `golang.org/x/text` picks for the
+  Go release, where casing reads a named version's ([target options](../contract/options.md)): each
+  of the 149,249 characters the tables of Go 1.26.3 hold, Unicode 15.0.0's, folds alike built with
+  it and with Go 1.27.3, which holds Unicode 17.0.0, though `unicode.ToUpper` differs between them
+  at 55 code points, and a character the older left unassigned was no letter to the word grammar
+  either, so a name holding one changes its words with the release whatever the fold reads. T-52
+  holds
   it.
 - **A segment every file system writes.** Each segment of an artifact's path, a snapshot label's
   directory among them, is at most 255 bytes of UTF-8, the least any file system takes: ext4
@@ -69,7 +76,7 @@ T-25 gives each a test.
   breaking one is an error `engine/artifact-path-unportable` naming the artifact's `Origins` and the
   segment, before any write. This is a backstop as well: each target renders the names it writes as
   paths so that no spec name reaches it, and a snapshot label, which the engine takes as the
-  document writes it, is held to these rules before any run ([contract
+  document writes it, is held to these rules before any run that writes it as a directory ([contract
   rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
   [naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened),
   [Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),

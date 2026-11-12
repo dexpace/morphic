@@ -10,11 +10,19 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   imports under its name (with Go 1.27.3, `import "example.com/sdk/main" is a program, not an
   importable package` and `cannot import package as init - init must be a func`); `documentation`, a
   package clause `go/build` ignores, so its directory builds nothing (`build constraints exclude all
-  Go files`); a keyword, which no package clause takes (`expected 'IDENT', found 'type'`); and each
+  Go files`); a keyword, which no package clause takes (`expected 'IDENT', found 'type'`); each
   Windows device name ([emit rules](../../emit/rules.md)), which the `go` command refuses as an
   element of an import path on every host (`malformed import path "example.com/sdk/aux": "aux"
-  disallowed as path element component on Windows`). A unit so named takes the escape, `main_`,
-  `documentation_`, `type_` or `aux_`, which each built.
+  disallowed as path element component on Windows`); and each predeclared identifier, which an
+  import of a unit so named hides in the importing file: with Go 1.27.3, a caller importing units
+  `error`, `string`, `len` and `nil` failed where its own code wrote them (`string (package name) is
+  not a type`, `use of package len not in selector`). A caller can name such an import apart, but
+  must in every file, and the identifiers are ones nearly every file writes. They are a table of the
+  options version, read from the Go release's universe block, since a release can add one, as Go
+  1.21 added `min`, `max` and `clear`, and a unit an SDK shipped must not move with it. No group of
+  the golden spec is named for one (spec @bc6fad24, morphic @fa253fe19, each group's words joined).
+  A unit so named takes the escape, `main_`, `documentation_`, `type_`, `aux_` or `error_`, which
+  each built, a caller's file importing `error_` and `string_` among them.
 - **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, which no
   function of the unit builds ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)), and
   in the unit holding a service's receiver, `Receiver`, `NewReceiver`, `ReceiverOption`,
@@ -89,6 +97,13 @@ policy](../../contract/runtime-policy.md#delivery)), so its file joins two words
 which no declaration's file name holds between two words: `operation_settings.go`, which the `go`
 command builds for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH`
 value, as `go list` showed on each of the 47 ports.
+Every file a template writes whole in a unit holding spec declarations is named so, the client's,
+with its options and constructors, and the receiver's among them: `api_client.go` and
+`api_receiver.go`, which `go list` listed on the 47 ports beside a `client.go` declaring a spec type
+`Client_`. Named `client.go`, the template's file and that type's would be two artifacts on one
+path, which the engine refuses ([emit rules](../../emit/rules.md)). A declaration of the target's
+that refine builds as typed nodes is named from its words like any other, and shares its file with a
+spec declaration of the same words.
 
 ## Package directories
 
@@ -132,8 +147,9 @@ library's `runtime` and the runtime's unit, or two rows' `decimal` — one takes
 that file. A parameter or a local can hide one, `time.Second` failing beside a parameter `time`
 (`time.Second undefined (type string has no field or method Second)`), so it takes the escape above.
 An import in turn yields to a name the generated code binds, which never yields, and to a
-predeclared identifier its file writes: with Go 1.27.3, a unit `ctx` imported beside a parameter
-`ctx context.Context` failed (`ctx.Thing is not a type`), as a unit `error` did in a file returning
+predeclared identifier its file writes, which a package a type-table row imports can be named for
+though no unit is: with Go 1.27.3, a unit `ctx` imported beside a parameter `ctx context.Context`
+failed (`ctx.Thing is not a type`), as a package `error` did in a file returning
 `error` (`error (package name) is not a type`), and each built imported as `ctx2` and `error2`. Of
 two imports sharing a name, one the target's own code names, a standard library's or the runtime's,
 keeps it, two such, as the standard library's `runtime` and the runtime's unit, being named apart by

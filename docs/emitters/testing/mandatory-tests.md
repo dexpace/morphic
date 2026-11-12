@@ -103,9 +103,12 @@ throughout these documents.
     reserves, after characters alone and after names that begin with a digit, two of its types in
     each unit, two variants of each union and two operations of one group, a paged and a streamed
     one among them, in names that differ in letter case alone, from each other and from a name the
-    scope reserves, one of its types in each unit after each file a template writes there and one
-    after the class kotlinc names for a `typealias`'s file (`MoneyKt` beside `Money`), and its
-    groups after every units name, a keyword and `documentation` among them, after each name a
+    scope reserves, one of its types in each unit after each file a template writes there (`Client`
+    beside Go's `api_client.go`) and one after the class kotlinc names for a `typealias`'s file
+    (`MoneyKt` beside `Money`), a variant after `WhenMappings` in a union whose code switches over
+    an enum of another file, types named `Error` and `error_2` in one unit, and its groups after
+    every units name, a keyword, `documentation` and each predeclared identifier of Go among them
+    (`error`, `string`, `len`, `nil`), after each name a
     Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
     after the standard-library packages its files import, after a predeclared identifier its files
     write (`error`) and after a name the generated code binds (`ctx`), two of them `com` and `Com`,
@@ -116,7 +119,13 @@ throughout these documents.
     class file's, folding alike, the Go file holding two such types byte-identical in both
     declaration orders, with every template's declared names held to what it binds, and on Kotlin
     the table of default-imported classes to each name that resolves, on each platform the target
-    builds for, in a file importing nothing. On Go `go list` lists every file the target writes
+    builds for, in a file importing nothing. Every name that meets a reserved one, or folds as one
+    where its scope compares folded, is its own name with the target's escape, whatever reserved it,
+    and none is a name with a collision's suffix: the type `Error` is Kotlin's `Error_` beside an
+    `Error2` that keeps its name, in both declaration orders, and two types that meet one reserved
+    name are the escaped name and that name with a suffix. On Go a caller's package importing every
+    unit under its own name compiles its uses of `error`, `string`, `len` and `nil`. On Go `go list`
+    lists every file the target writes
     among a package's `GoFiles`, none among the files it ignores or builds for tests alone, on each
     port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every file and
     import path is one the module proxy takes ([Go](../targets/go/naming.md#file-names), [package
@@ -130,7 +139,15 @@ throughout these documents.
     what only generated code calls and giving each declaration the Swift name the naming policy
     chose, none of them a type Swift's standard library or Foundation declares or a module's name,
     so a Swift file that imports the framework and Foundation compiles its uses of both and
-    qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
+    qualifies a name by either module. The fixture also names a property, a parameterless method, a
+    `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
+    `zone`, `hash`, `self`, `load` and `copy` among them, a method of one parameter after each of
+    its one-parameter selectors (`responds(toSelector:)`), and a method and an entry after a name of
+    each method family: the header builds a module, a Swift caller reads each property's own value,
+    calls each method and reaches each entry by the name the policy chose, none of them one the
+    export renamed, a property `value` and one `version` keep their names, `hash`, `copy()` and
+    `responds(to:)` on a model still answer as `NSObject`'s, and the table equals the selectors read
+    from the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -186,7 +203,8 @@ throughout these documents.
     alike, each draw the error, and a segment of 86 three-byte characters, 258 bytes, where one of
     85 draws nothing, a Windows device name before a first dot in two letter cases and before the
     first of two (`aux.v1.go`), a character Windows refuses and a trailing dot or space each draw
-    `artifact-path-unportable`. A template that fails the formatter draws a located error and no
+    `engine/artifact-path-unportable`. A template that fails the formatter draws a located error and
+    no
     artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
     nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute path, a
     sibling sharing the root's prefix and a symlink leaving the root are each refused.
@@ -793,7 +811,13 @@ throughout these documents.
     the rule names, every spelling of each assigned character behind an `a` and names of one to four
     characters, each written to one empty directory, leave no two names of one file in two folds,
     where the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
-    upper-casing before it and under a fold of ASCII letters alone each do ([the path
+    upper-casing before it and under a fold of ASCII letters alone each do. The other direction is
+    held too: the names of two files that the fold joins in those sweeps equal a golden list, `aı`
+    and `ai` among them, and the fold keeps apart each pair of a second table, `ℌx` and `hx`, `café`
+    and `cafe`, `नाम` and `नम`, so a fold joining more, by a compatibility decomposition or by
+    dropping marks, fails as one joining less does; and the fold of every character the tables hold
+    equals a golden, which a Go release moving them may extend and must not otherwise change ([the
+    path
     fold](../emit/rules.md)).
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
@@ -801,7 +825,8 @@ throughout these documents.
     once as each shape a method lowers to, a plain, a paged and a streamed one, with and without its
     `WithResponse` method, generates code that compiles on every target: each identifier of a role
     written into a path within the cap, a shortened one keeping its leading words and its hash word
-    and drawing one `name-shortened`, two that share their first 110 bytes apart, among them two
+    and drawing one `emitters/<target>/name-shortened`, two that share their first 110 bytes apart,
+    among them two
     names with no words (twelve and thirteen `_`), two types named from hints and one long type's
     create and patch declarations, the property's name whole, and no segment of a path the build
     writes past 255 bytes, every class file kotlinc writes among them, none of which a method's body
@@ -1088,6 +1113,8 @@ throughout these documents.
     `engine/snapshot-unknown` before any run; a run naming a version on a document stating none
     writes its one snapshot and reports `engine/version-unused`, and with the setting unchanged
     writes that label's snapshot once the document states it, each entity both hold under its name;
+    a label holding a `:`, `2024-01-01T00:00Z`, generates in a run of these targets alone and is
+    `engine/snapshot-label-invalid` once the run includes a target writing a directory per label;
     each such target is run on the other snapshots for its samples alone, writing nothing there, and
     the docs head each sample with its page's snapshot's label, on the written snapshot's pages and
     the others' alike, and with none on a document stating no versions; and a regeneration moving
