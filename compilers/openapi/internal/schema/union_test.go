@@ -776,7 +776,8 @@ func TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion(t *testing.T) {
 // admitting an object resolves its discriminator's routes though its union
 // keeps the discriminator verbatim: a position only a mapping names is
 // lowered, in either order, and a target naming nothing is reported once, at
-// its entry. One admitting no object routes nothing, as a scalar does.
+// its entry. One admitting no object resolves nothing, as no node keeping a
+// discriminator verbatim does (GitHub #1662, #1708).
 func TestLower_ATypeArrayResolvesItsDiscriminatorRoutes(t *testing.T) {
 	t.Parallel()
 	const reached = "    Pet:\n      type: [object, string]\n      properties: {kind: {type: string}}\n" +

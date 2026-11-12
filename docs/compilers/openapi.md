@@ -2179,7 +2179,9 @@ it routes nowhere, and would have to find every component composing the schema t
   `schema.TestLower_ATypeArrayKeepsItsDiscriminatorOnTheUnion`,
   `schema.TestLower_ATypeArrayResolvesItsDiscriminatorRoutes`
 - Status: partly built: a value bound lands on any variant with a `Constraints` field, whether or
-  not it constrains that variant's type (#1310).
+  not it constrains that variant's type (#1310); and a type array listing no `object`, as every
+  node keeping a discriminator verbatim, reports no target naming nothing (#1662) and lowers no
+  position only a target reaches (#1708).
 
 ### `union-null-variant`
 

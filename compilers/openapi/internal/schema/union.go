@@ -420,6 +420,8 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 				Type: ir.TypeRef{Target: vid},
 			})
 		}
+		// A type array listing no object routes no instance and resolves nothing,
+		// as no node keeping a discriminator verbatim does (GitHub #1662, #1708).
 		if slices.Contains(types, oas3.SchemaTypeObject) {
 			diags = append(diags, resolveDiscriminatorRoutes(c, ts, s, pointer)...)
 		}
