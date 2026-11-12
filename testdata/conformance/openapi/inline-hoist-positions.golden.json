@@ -166,7 +166,6 @@
                         "location": "query",
                         "wireName": "audit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

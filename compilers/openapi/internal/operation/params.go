@@ -72,7 +72,7 @@ func lowerParameter(c lowering.Ctx, w walk, id ir.ParamID, p *soa.Parameter, ppt
 		Required:   p.GetRequired() || in == soa.ParameterInPath,
 		Provenance: c.Place().At(pptr),
 	}
-	style, explode := resolveStyleExplode(p, in)
+	style, explode := styleAndExplode(p, in)
 	binding := ir.HTTPParamBinding{
 		Param:         id,
 		Location:      httpLocation(in),
@@ -297,12 +297,13 @@ func fillParamDetail(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, p *
 		&param.Deprecation, &param.Secret, &param.Provenance)...)
 }
 
-// resolveStyleExplode materializes a parameter's resolved serialization style
-// and explode flag: an explicit value wins, else the OpenAPI per-location
-// default (query/cookie → form/true, path/header → simple/false, querystring →
-// neither). Explode defaults to true under form and under 3.2's cookie style,
-// false under any other. The result is declared facts, not policy.
-func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
+// styleAndExplode returns a parameter's serialization style and its explode
+// flag. The style is the written one, else the location's default, which a
+// binding states because the location fixes it. Explode is only what the
+// parameter writes and nil otherwise: its default turns on the style, so filling
+// it in would present the default as a declaration, and a deepObject that writes
+// none would read as one that wrote false (GitHub #627).
+func styleAndExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	style := defaultParamStyle(in)
 	if p.Style != nil {
 		style = string(*p.Style)
@@ -311,21 +312,11 @@ func resolveStyleExplode(p *soa.Parameter, in soa.ParameterIn) (string, *bool) {
 	// reason a declared style does: 3.2 forbids both at in: querystring, but
 	// dropping content the document states is an emitter's call, not a
 	// compiler's, and this position has an IR field to hold it.
-	if p.Explode != nil {
-		return style, new(*p.Explode)
+	if p.Explode == nil {
+		return style, nil
 	}
-	// Absent one, explode qualifies a style, so a position resolving to no style
-	// gets no default either — a querystring binding's ContentType is the whole
-	// of its declared serialization (GitHub #334).
-	if style == "" {
-		return "", nil
-	}
-	return style, new(style == string(soa.SerializationStyleForm) || style == styleCookie)
+	return style, new(*p.Explode)
 }
-
-// styleCookie is the serialization style 3.2 added for in: cookie, which the
-// parser library names no constant for.
-const styleCookie = "cookie"
 
 // defaultParamStyle returns the OpenAPI default serialization style for a
 // parameter location, and "" for one that has none: 3.2 binds in: querystring

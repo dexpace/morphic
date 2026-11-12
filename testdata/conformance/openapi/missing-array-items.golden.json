@@ -124,7 +124,6 @@
                         "location": "query",
                         "wireName": "ids",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

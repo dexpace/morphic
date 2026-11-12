@@ -447,3 +447,11 @@ it sees. Changes made together in one bump are listed together under it.
   pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
   there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
   instead.
+- **0.44.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
+  ([`parameters`](../compilers/openapi.md#parameters)): an `HTTPParamBinding.Explode` is nil where
+  the parameter writes none, where it had held its style's default, true under `form` and `cookie`
+  and false under any other. `Style` still holds the location's default where none is written. A
+  consumer pinned to 0.43.0 that read `Explode` as always present no longer finds the key on such a
+  binding, and must read its absence as the style's default, as it already does for a response
+  header's `Explode`, where it would otherwise read it as false and send a `form` parameter
+  unexploded.

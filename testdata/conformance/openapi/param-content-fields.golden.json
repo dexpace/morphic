@@ -243,7 +243,6 @@
                         "location": "query",
                         "wireName": "filter",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"
@@ -253,7 +252,6 @@
                         "location": "query",
                         "wireName": "plain",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

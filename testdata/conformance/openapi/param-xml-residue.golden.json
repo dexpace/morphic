@@ -157,7 +157,6 @@
                         "location": "query",
                         "wireName": "tag",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -166,7 +165,6 @@
                         "location": "query",
                         "wireName": "body",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/xml"

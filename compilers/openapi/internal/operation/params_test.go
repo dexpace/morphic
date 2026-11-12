@@ -38,15 +38,13 @@ func TestParams_LocationsAndSerializationDefaults(t *testing.T) {
 
 	id := bindings["id"]
 	assert.Equal(t, ir.HTTPLocationPath, id.Location)
-	assert.Equal(t, "simple", id.Style) // resolved OpenAPI default
-	require.NotNil(t, id.Explode)
-	assert.False(t, *id.Explode)
+	assert.Equal(t, "simple", id.Style) // the location's OpenAPI default, filled
+	assert.Nil(t, id.Explode, "the parameter writes no explode")
 
 	limit := bindings["limit"]
 	assert.Equal(t, ir.HTTPLocationQuery, limit.Location)
 	assert.Equal(t, "form", limit.Style)
-	require.NotNil(t, limit.Explode)
-	assert.True(t, *limit.Explode)
+	assert.Nil(t, limit.Explode, "the parameter writes no explode")
 
 	assert.Equal(t, "deepObject", bindings["filter"].Style)
 	assert.Equal(t, ir.HTTPLocationHeader, bindings["X-Trace"].Location)
@@ -416,6 +414,56 @@ func TestParams_ReservedHeaderNamesAreReported(t *testing.T) {
 			if tc.reported {
 				openapitest.AssertHasCode(t, diags, diag.ReservedHeaderName, ir.SeverityWarning)
 			}
+		})
+	}
+}
+
+// TestParams_ExplodeLowersAsDeclared pins that a binding's Explode is what the
+// parameter writes and nil where it writes none, whatever the style: the style's
+// own default is not filled in, since it would read as a declared value and
+// erase whether the document asked for it.
+func TestParams_ExplodeLowersAsDeclared(t *testing.T) {
+	t.Parallel()
+	yes, no := true, false
+	tests := []struct {
+		name    string
+		in      string
+		style   string
+		explode string
+		want    *bool
+	}{
+		{"deepObject absent", "query", "deepObject", "", nil},
+		{"deepObject true", "query", "deepObject", ", explode: true", &yes},
+		{"deepObject false", "query", "deepObject", ", explode: false", &no},
+		{"form absent", "query", "form", "", nil},
+		{"form true", "query", "form", ", explode: true", &yes},
+		{"form false", "query", "form", ", explode: false", &no},
+		{"simple absent", "header", "simple", "", nil},
+		{"simple true", "header", "simple", ", explode: true", &yes},
+		{"simple false", "header", "simple", ", explode: false", &no},
+		{"cookie absent", "cookie", "cookie", "", nil},
+		{"cookie true", "cookie", "cookie", ", explode: true", &yes},
+		{"cookie false", "cookie", "cookie", ", explode: false", &no},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// 3.2 for every row, as only it has the cookie style.
+			spec := openapitest.PathsSpecVer("3.2.0", `  /x:
+    get:
+      operationId: getX
+      parameters:
+        - {name: p, in: `+tc.in+`, style: `+tc.style+tc.explode+`, schema: {type: object, properties: {a: {type: string}}}}
+      responses: {"200": {description: ok}}
+`)
+			_, svc, diags := compileService(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := openapitest.FirstOp(t, svc)
+			require.Len(t, op.Bindings.HTTP, 1)
+			require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+			got := op.Bindings.HTTP[0].ParamBindings[0]
+			assert.Equal(t, tc.style, got.Style, "the written style is kept")
+			assert.Equal(t, tc.want, got.Explode)
 		})
 	}
 }

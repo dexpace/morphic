@@ -116,7 +116,6 @@
                         "location": "query",
                         "wireName": "legacy",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

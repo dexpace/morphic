@@ -209,7 +209,6 @@
                         "location": "path",
                         "wireName": "orderId",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

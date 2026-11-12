@@ -199,7 +199,6 @@
                         "location": "query",
                         "wireName": "p",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"
@@ -209,7 +208,6 @@
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false,
                         "contentType": "application/json"

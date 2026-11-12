@@ -151,7 +151,6 @@
                         "location": "query",
                         "wireName": "cursor",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -160,7 +159,6 @@
                         "location": "query",
                         "wireName": "override",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

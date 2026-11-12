@@ -19,8 +19,8 @@ paths:
       responses:
         "200": {description: ok}
   # The contrast, in its own operation because a querystring parameter may not
-  # share one with an in: query parameter: a location that does admit the
-  # defaults, so the golden shows the difference is the location.
+  # share one with an in: query parameter: a location that has a style, filled
+  # though none is written, so the golden shows the difference is the location.
   /reports/summary:
     get:
       operationId: summarize

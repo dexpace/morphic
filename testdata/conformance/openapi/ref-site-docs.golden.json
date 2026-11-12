@@ -211,7 +211,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -348,7 +347,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -517,7 +515,6 @@
                         "location": "query",
                         "wireName": "limit",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

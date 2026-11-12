@@ -114,7 +114,6 @@
                         "location": "query",
                         "wireName": "color",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

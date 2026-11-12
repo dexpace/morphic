@@ -3470,9 +3470,10 @@ An operation's own parameters, in order, and then those of its path item it does
 order, lower to the operation's `Params`, an operation's parameter overriding a path item's of the
 same `name` and `in`. Each is placed on the HTTP binding at its location (`path`, `query`,
 `querystring`, `header` or `cookie`) under its wire name, with its `style`, `explode` and
-`allowReserved`, each the default where the parameter writes none
-([http-binding](../ir/http-binding.md)): the location's style, and an `explode` true under
-`form` and 3.2's `cookie` style, false under any other. A parameter's ID is derived from the
+`allowReserved` ([http-binding](../ir/http-binding.md)). The `style` is the location's where the
+parameter writes none, and the `explode` is as declared, left unset where the parameter writes none,
+since its default turns on the style and filling it in would present the default as a declaration. A
+parameter's ID is derived from the
 operation's mount pointer, its name and its location ([identity](../ir/identity.md)). A list
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAPI forbids, keeps
 every occurrence, each repeat's ID ending in its occurrence number, and is reported as an
@@ -3487,14 +3488,13 @@ repeat's ending in its occurrence number (`no_ir_home`).
 
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
-- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
+- Tests: `operation.TestParams_ExplodeLowersAsDeclared`,
+  `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
   `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
   `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
   `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`
-- Status: partly built: an undeclared `explode` is written out as the location's default, which
-  erases whether the document declared it (#627); header parameters whose names differ only in case
-  are two parameters, unreported (#635); and a list only a `$ref` reaches is never checked for
-  repeats (#880).
+- Status: partly built: header parameters whose names differ only in case are two parameters,
+  unreported (#635); and a list only a `$ref` reaches is never checked for repeats (#880).
 
 ### `content-parameters`
 

@@ -185,7 +185,6 @@
                         "location": "query",
                         "wireName": "status",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
@@ -431,7 +430,7 @@
     {
       "format": "openapi@3.2",
       "path": "param-querystring.yaml",
-      "hash": "08ca0e775dcd7b1b445854e5809ee4a609e8d098bf19efe7e222185040cce8db"
+      "hash": "e7e451dd4658dcae074265e5a6e0580d24cb53fa8d74acd7669dc48122bdb951"
     }
   ]
 }

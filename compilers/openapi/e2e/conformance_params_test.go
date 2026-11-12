@@ -26,8 +26,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	}
 	q := byParam["q"]
 	assert.Equal(t, "form", q.Style, "query default style is form")
-	require.NotNil(t, q.Explode)
-	assert.True(t, *q.Explode, "form default explodes")
+	assert.Nil(t, q.Explode, "q writes no explode, so the IR states none")
 	assert.Equal(t, "deepObject", byParam["filter"].Style)
 	assert.Equal(t, "application/json", byParam["payload"].ContentType, "content-style param records its media type")
 	assert.True(t, byParam["path"].AllowReserved,
@@ -82,13 +81,14 @@ type paramSlot struct {
 	Location ir.HTTPLocation
 }
 
-// paramWire is what a parameter's location-dependent serialization resolves to:
-// the style it serializes with, and whether it explodes. The two travel together
-// because OpenAPI settles them together — the location picks the style when none
-// is written, and the style picks explode.
+// paramWire is what a parameter's binding states of its serialization: the
+// style, which the location fills in when none is written, and the explode, which
+// is only what the parameter writes, nil where it writes none. The two sit
+// together because OpenAPI reads explode through the style: the style's default
+// answers an omitted explode, and an emitter applies it.
 type paramWire struct {
 	Style   string
-	Explode bool
+	Explode *bool
 }
 
 // paramStylePair is one legal (in, style) combination of the Parameter object.
@@ -148,14 +148,7 @@ func paramStyleDefaultStyles() []paramStylePair {
 	}
 }
 
-// paramStyleExplodeDefault is what `explode` means when omitted: true under
-// form and under 3.2's cookie style, false under every other style a location
-// pairs with.
-func paramStyleExplodeDefault(style string) bool {
-	return style == "form" || style == "cookie"
-}
-
-// paramStyleMatrixWant generates what param-style-matrix.yaml must resolve to
+// paramStyleMatrixWant generates what param-style-matrix.yaml must lower to
 // from the two tables above, rather than restating it beside them. A literal
 // expectation and the fixture are two copies of one claim, so deleting a row
 // from both leaves nothing to disagree, and counts over a deduplicated set can
@@ -164,22 +157,22 @@ func paramStyleExplodeDefault(style string) bool {
 // together. TestParamStyleTable_MatchesTheSpecification holds the table to a
 // count that is OpenAPI's rather than this package's.
 func paramStyleMatrixWant() map[paramSlot]paramWire {
+	yes, no := true, false
 	want := map[paramSlot]paramWire{}
 	for _, p := range paramStyleLegalPairs() {
 		for _, e := range []struct {
 			suffix  string
-			explode bool
+			explode *bool
 		}{
-			{"Explode", true},
-			{"NoExplode", false},
-			{"DefaultExplode", paramStyleExplodeDefault(p.style)},
+			{"Explode", &yes},
+			{"NoExplode", &no},
+			{"DefaultExplode", nil},
 		} {
 			want[paramSlot{p.param(e.suffix), p.location}] = paramWire{p.style, e.explode}
 		}
 	}
 	for _, d := range paramStyleDefaultStyles() {
-		want[paramSlot{string(d.location) + "Defaulted", d.location}] =
-			paramWire{d.style, paramStyleExplodeDefault(d.style)}
+		want[paramSlot{string(d.location) + "Defaulted", d.location}] = paramWire{d.style, nil}
 	}
 	return want
 }
@@ -222,12 +215,13 @@ func TestParamStyleTable_MatchesTheSpecification(t *testing.T) {
 
 // assertParamStyleMatrix pins the whole of OpenAPI's location-dependent
 // serialization table at once, against a generated expectation rather than a
-// spot check per location.
+// spot check per location. The style is filled where the document writes none,
+// and the explode never is (GitHub #627).
 //
 // The table used to be readable for a whole location without any golden
 // noticing: deleting cookie from the arm that defaults it to form left the
 // entire suite green, because no committed spec declared a cookie parameter.
-// Comparing the resolved (style, explode) of every parameter closes that by
+// Comparing the (style, explode) every binding states closes that by
 // construction — a location that loses its arm changes rows here.
 func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "styleMatrix")
@@ -236,13 +230,12 @@ func assertParamStyleMatrix(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 
 	got := make(map[paramSlot]paramWire, len(op.Bindings.HTTP[0].ParamBindings))
 	for _, pb := range op.Bindings.HTTP[0].ParamBindings {
-		require.NotNil(t, pb.Explode, "%s: explode resolves to a value, never to nothing", pb.WireName)
 		slot := paramSlot{Name: pb.WireName, Location: pb.Location}
 		require.NotContains(t, got, slot, "two parameter bindings share the slot %+v", slot)
-		got[slot] = paramWire{Style: pb.Style, Explode: *pb.Explode}
+		got[slot] = paramWire{Style: pb.Style, Explode: pb.Explode}
 	}
 	if diff := cmp.Diff(paramStyleMatrixWant(), got); diff != "" {
-		t.Errorf("resolved parameter serialization (-want +got):\n%s", diff)
+		t.Errorf("parameter serialization as lowered (-want +got):\n%s", diff)
 	}
 
 	assertQuerystringParam(t, doc)
@@ -306,8 +299,7 @@ func assertParamQuerystring(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	q := summary.Bindings.HTTP[0].ParamBindings[0]
 	assert.Equal(t, ir.HTTPLocationQuery, q.Location)
 	assert.Equal(t, "form", q.Style, "a query parameter still takes its own location's default")
-	require.NotNil(t, q.Explode)
-	assert.True(t, *q.Explode)
+	assert.Nil(t, q.Explode, "but no explode, which it does not write")
 
 	raw, ok := opByName(doc, "rawReport")
 	require.True(t, ok)

@@ -184,7 +184,6 @@
                         "location": "path",
                         "wireName": "widget.id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -193,7 +192,6 @@
                         "location": "query",
                         "wireName": "filter[name]",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }

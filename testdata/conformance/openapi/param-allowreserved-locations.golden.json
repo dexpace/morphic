@@ -165,7 +165,6 @@
                         "location": "path",
                         "wireName": "id",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": true,
                         "allowEmptyValue": false
                       },
@@ -174,7 +173,6 @@
                         "location": "header",
                         "wireName": "X-Trace",
                         "style": "simple",
-                        "explode": false,
                         "allowReserved": true,
                         "allowEmptyValue": false
                       },
@@ -183,7 +181,6 @@
                         "location": "cookie",
                         "wireName": "session",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       },
@@ -192,7 +189,6 @@
                         "location": "query",
                         "wireName": "q",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": true,
                         "allowEmptyValue": false
                       }

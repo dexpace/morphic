@@ -46,7 +46,9 @@ type HTTPParamBinding struct {
                                   //   (OpenAPI 3.2 in: querystring, combined with ContentType)
     WireName   string
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
-    Explode    *bool
+    Explode    *bool              // as declared; nil = the style's default: true under form and
+                                  // cookie, false under any other; querystring has no style,
+                                  // so nil there = no explode
     AllowReserved bool
     AllowEmptyValue bool          // the client may send an empty value in place of omitting
                                   // the param (OpenAPI/Swagger allowEmptyValue); no effect under

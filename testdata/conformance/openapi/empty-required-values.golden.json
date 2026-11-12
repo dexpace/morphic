@@ -123,7 +123,6 @@
                         "param": "param/openapi/paths/~1items/get/parameters//query",
                         "location": "query",
                         "style": "form",
-                        "explode": true,
                         "allowReserved": false,
                         "allowEmptyValue": false
                       }
