@@ -516,3 +516,12 @@ throughout these documents.
     `link_header` among them, and at a page holding no items under `offset` or `page`, which is
     where an empty `Stop` ends it
     ([pagination](../operations/pagination.md#where-a-page-walk-ends)).
+46. **T-46 · A model composing a union** — on every target, a model composing a discriminated
+    union by `$ref` beside a property of its own decodes a payload of each variant into the variant
+    composed over it, the model's property beside the variant's members, and encodes it back byte
+    for byte, each tag routing as it does where the same union is written beside the model's
+    `allOf` and the compiler distributes it; so do an undiscriminated union as a `Base`, a union one
+    of whose variants is a union, and a union a subtype composes as a `Mixin`, under its base's
+    discriminator. A model adding nothing to its union aliases it, and one composing two unions, or
+    whose union has a variant composing it, draws a diagnostic and degrades
+    ([inheritance](../refine/models.md#inheritance)).

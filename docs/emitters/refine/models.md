@@ -65,7 +65,7 @@ to the next ([naming](naming.md#collisions-and-the-names-a-generation-shipped)),
 model's output unit ([output units](output-units.md)). A model adding nothing to its union is that
 union, which each target's lowering table aliases ([Go](../targets/go/lowering.md),
 [Kotlin](../targets/kotlin/lowering.md)), and one with two unions in `Unflattened`, or whose union
-has a variant composing the model in turn, is a diagnosed degrade.
+has a variant composing the model in turn, is a diagnosed degrade. T-46 holds the rule.
 
 ## Unknown members
 
