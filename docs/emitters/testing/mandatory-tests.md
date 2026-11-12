@@ -941,10 +941,11 @@ throughout these documents.
     any string form the target's printing and logging read of either, each `fmt` verb and both
     `log/slog` handlers in Go and `toString` in Kotlin among them, not in an event encoded as
     JSON, nor in what a Kotlin event's `copy` and each `componentN` hand on, and not in the
-    messages of a failure's chain, which holds no `*url.Error` in Go. Each event's `URL` is the URL as shown, a redirect's the origin and the marker; a
-    `RequestID` longer than 128 bytes or holding a line break is empty; a parameter declared in a
-    scheme's slot prints as `[REDACTED]` in its request type; and the test fails when the event
-    is built after the auth step, which it is run once to show
+    messages of a failure's chain, which holds no `*url.Error` in Go. Each event's `URL` is the
+    URL as shown, a redirect's the origin and the marker; a `RequestID` longer than 128 bytes or
+    holding a line break is empty; a parameter declared in a scheme's slot prints as `[REDACTED]`
+    in its request type; and the test fails when the event is built after the auth step, which
+    it is run once to show
     ([auth](../operations/auth.md#where-a-credential-can-be-read),
     [what an event holds](../contract/runtime-policy.md#what-an-event-holds),
     [redaction](../refine/redaction.md#a-redacted-value)).
