@@ -84,7 +84,8 @@ not at all (§4.12.2.2), and a list's or an object's is split as its `Style` and
 it. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, and
 only a split drops the whitespace beside a comma (§5.6.1), so a string header keeps its own. A
 `Prefix` binding's map holds every field whose name starts with the prefix and that no other binding
-reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name.
+reads, a header's in any case (RFC 9110 §5.1), keyed by the rest of the name. A response's headers
+hold no such binding yet (#1745).
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
