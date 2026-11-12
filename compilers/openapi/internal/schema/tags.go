@@ -236,7 +236,8 @@ func pinnedMember(reg ir.TypeRegistry, p ir.FlatProperty, required bool) (string
 }
 
 // pinnedValue returns the one string the type id admits, read through alias
-// scalars: a Literal's, or the member of a closed Enum of one.
+// scalars: a Literal's, or the member of a closed Enum of one. A union of one
+// string value pins none, as typeStrings bounds none (#1715).
 func pinnedValue(reg ir.TypeRegistry, id ir.TypeID) (string, bool) {
 	var v ir.Value
 	switch n := reg[throughAliases(reg, id)].(type) {

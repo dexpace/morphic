@@ -32,7 +32,8 @@ func deferSubtypeTag(c lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.Ty
 // subtypeTagReading settles the tag of the subtype id under the
 // discriminator-inference policy. What it reads, a member's declarations and
 // their types, no other settlement changes, as unionTags says, so the settling
-// order changes no answer.
+// order changes no answer. One is deferred per subtype, so N subtypes sharing a
+// tag enum of M strings read it N times (#1008).
 type subtypeTagReading struct {
 	c        lowering.Ctx
 	id       ir.TypeID
@@ -72,7 +73,7 @@ func (t subtypeTagReading) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 // admittedTags returns the strings an instance of the model id may hold its
 // member property to, sorted, and false where it may hold any: those every
 // declaration of the member admits (memberStrings). A member the model does
-// not declare, or no declaration of which is a string Literal or Enum, admits
+// not declare, or none of whose declarations bounds it (typeStrings), admits
 // any. What a union the model composes admits is not read: each subtype
 // composing one wide union would flatten every variant again (#1712).
 func admittedTags(reg ir.TypeRegistry, id ir.TypeID, property string) ([]string, bool) {
@@ -110,7 +111,9 @@ func memberStrings(reg ir.TypeRegistry, p ir.FlatProperty) ([]string, bool) {
 // typeStrings returns the strings the type id admits, read through alias
 // scalars, sorted: a string Literal's one, or the members of a closed Enum
 // every member of which is a string. Any other type bounds no string, and
-// returns false. pinnedValue is its reading of one string.
+// returns false: a union of string values too, which pass.ConstUnions only
+// later rewrites as such an Enum (#1715). pinnedValue is its reading of one
+// string.
 func typeStrings(reg ir.TypeRegistry, id ir.TypeID) ([]string, bool) {
 	switch n := reg[throughAliases(reg, id)].(type) {
 	case *ir.Literal:

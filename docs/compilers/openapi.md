@@ -2523,7 +2523,7 @@ reference, and where several keys name it [`discriminator`](#discriminator) elec
 `""` is a tag, not an absence. Once no ancestor's mapping names it, the tag is the subtype's schema
 name as declared (`Cat/Dog`, not its pointer token) if it is a component schema that an ancestor's
 discriminator routes by name, OpenAPI's implicit mapping, unless
-[`discriminator-inference`](#discriminator-inference) reads that the subtype admits another.
+[`discriminator-inference`](#discriminator-inference) reads that the subtype rules that name out.
 OpenAPI's conditions for a discriminator say which schemas it routes by name: one written beside no
 `oneOf` or `anyOf`, a parent schema, routes every schema building on it through `allOf`, and one
 beside either routes the schemas that union lists, where "all possible schemas MUST be listed
@@ -2609,7 +2609,8 @@ first. Two unions and a subtype meet it:
   `schema.TestTypeStrings_ReadsAClosedSetOfStrings`,
   `schema.TestDiscriminatorInference_JoinsTheMarksANodeCarries`
 - Status: partly built: what a union a subtype composes admits is not read, so a name only it rules
-  out stands (#1712).
+  out stands (#1712), and a declaration writing its strings as a union of values, `oneOf` or
+  `anyOf` of `const` branches, is read as admitting any, for a variant as for a subtype (#1715).
 
 ### `string-const-union`
 
