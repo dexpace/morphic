@@ -45,7 +45,8 @@ type HTTPParamBinding struct {
                                   // querystring = the whole query string serialized from one schema
                                   //   (OpenAPI 3.2 in: querystring, combined with ContentType)
     WireName   string
-    Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
+    Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited |
+                                  // cookie (OpenAPI 3.2's, at in: cookie)
     Explode    *bool              // as declared; nil = the style's default: true under form and
                                   // cookie, false under any other, and none where Style is
                                   // empty, as at querystring
