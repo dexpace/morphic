@@ -320,7 +320,9 @@ shapes](responses.md#body-shapes)).
 
 ## A page walk's first page
 
-A pager whose caller sends no page number sends the first one, `PagePlan.FirstPage`
+A pager whose caller sets no page number sends none on its first request, as for any input left
+unset ([values](../refine/values.md#a-default-is-documented-never-sent)), and counts its next from
+the page that request gets, `PagePlan.FirstPage`
 ([pagination](../operations/pagination.md#what-a-pager-sends-next)). The page input's declared
 default is it, unmarked, since a request sending none gets that page. A page input declaring none
 says nothing of where its pages start, so `FirstPage` takes the policy's number, marked `Inferred`
@@ -328,10 +330,10 @@ in `OpPlan.Inferred` under `Page.FirstPage`, since `PagePlan.Inferred` says only
 whole was inferred. A declared minimum is not read: it says what the API admits, and 4 of the golden
 spec's `GET`s taking a `page` query parameter declare a default of 1 beside an inclusive minimum of
 0 (spec @bc6fad24, morphic @fa253fe19), so reading the minimum would start them at a page the API
-does not number first. With the policy set every page walk whose input holds a number has a pager,
-so a default a document gains later changes the number sent and no method. With `FirstPage` nil the
-plan guesses none: an operation whose page input declares no default has no `Page`, so every target
-lowers it as a plain method taking the number as any input, the mock answers it with its example,
-and the plan reports it once as a warning `emitters/plan/first-page-unknown`. A pager reading only
-the page its caller names was weighed and refused: a caller sending no number would read one page of
-a walk it asked to read whole. T-45 holds this section.
+does not number first. With the policy holding a number every page walk whose input holds one has a
+pager, so a default a document gains later changes the number sent and no method. With `FirstPage`
+set to null the plan guesses none: an operation whose page input declares no default has no `Page`,
+so every target lowers it as a plain method taking the number as any input, the mock answers it with
+its example, and the plan reports it once as a warning `emitters/plan/first-page-unknown`. A pager
+reading only the page its caller names was weighed and refused: a caller sending no number would
+read one page of a walk it asked to read whole. T-45 holds this section.

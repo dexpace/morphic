@@ -63,9 +63,9 @@ own, can build it:
 
 - **A struct of exported fields alone**, built by a literal: `APIError`, `OtherResponse`
   ([failures](errors.md), [return shapes](returns.md)).
-- **A type declared over a struct of `internal/state`**, `type Stream[T any] state.Stream[T]`. Its
-  methods are declared in `<root>/runtime`, each converting to the struct and calling a function of
-  `internal/state`; `internal/runtime` builds one by converting the struct to it, which only a
+- **A type declared over a struct of `internal/state`**, `type Stream[T, H any] state.Stream[T, H]`.
+  Its methods are declared in `<root>/runtime`, each converting to the struct and calling a function
+  of `internal/state`; `internal/runtime` builds one by converting the struct to it, which only a
   package able to name the struct can write. Where a method needs what `internal/runtime` declares,
   as a stream's read does, failing with an `*APIError` its state's package cannot name, the struct
   holds a function its builder gave it. A group's sub-client is declared so in its own unit, `type

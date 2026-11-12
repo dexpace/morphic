@@ -27,7 +27,8 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and each response content's [example set](#one-set-of-examples) for canned responses, synthesizing
   none of its own, so with `Synthesize` off its streams and page walks hold only values the document
-  declares, sending the whole `Envelope.Body` where a response is enveloped, `Others` to answer as
+  declares, bar the links and totals a walk states of itself, sending the whole `Envelope.Body`
+  where a response is enveloped, `Others` to answer as
   each declared response does, the error taxonomy to simulate declared failures, the declared
   `Closed` of a union or an enum to say whether a request may carry a variant or a value the
   document does not list, `TypePlan.Composed` to read a body narrowing a union ([what a mock
@@ -618,19 +619,24 @@ the API rightly.
 - **How each is framed.** `sse` writes one event per frame, closed by a blank line, its data as one
   `data:` line per line it holds, its lines split at each CR, LF and CRLF as a reader splits them
   (WHATWG HTML §9.2.5), so a value holding a line feed arrives whole and one holding a carriage
-  return arrives with a line feed in its place, which an event stream cannot carry; under
-  `FrameMembers` the element's `event`, `id` and `retry` are those fields and its `data` the data,
-  one with no `data` writing an empty `data:` line, since a reader dispatches no event without one
-  (§9.2.6), and otherwise the data is the element's encoding, or its text where its root is
-  `string`. `json_lines` writes each frame's encoding and a line feed, a text frame holding line
-  breaks arriving as one frame per line, as the wire divides it. `json_seq` writes a record
-  separator, the encoding and a line feed (RFC 7464). `multipart` writes a part per frame, typed as
-  the side's `ItemEncoding` says and otherwise by its element's codec, under a boundary derived from
-  the parts' bytes and lengthened until no part holds it. `bytes` sends the content's value as the
-  body, a file having no frames. `protocol` frames are another protocol's own, and the mock covers
-  `http` alone, so it routes `HTTP[0]`, as an HTTP SDK lowers, and an operation with no HTTP binding
-  has no route there and draws `emitters/mock/unsupported-binding` ([bindings](plan/bindings.md)),
-  never an answer its SDK would not read.
+  return arrives with a line feed in its place, which an event stream cannot carry. Each field is
+  written with one space after its colon, which a reader strips, so a line starting with a space
+  keeps it. Under `FrameMembers` the element's `event`, `id` and `retry` are those fields and its
+  `data` the data, one with no `data` writing an empty `data:` line, since a reader dispatches no
+  event without one (§9.2.6), and an element whose `event`, `id` or `retry` holds a CR or an LF,
+  which would end that field and forge the next, is not sent, as no server can send it; otherwise
+  the data is the element's encoding, or its text where its root is `string`. `json_lines` writes
+  each frame's encoding and a line feed, its reader ending a line at an LF alone
+  ([streaming](operations/streaming.md#what-a-target-generates)), so a text frame arrives as one
+  frame per line it holds, a CR before an LF dropped, a lone CR kept, and a blank line none, the
+  mock writing no frame that is empty. `json_seq` writes a record separator, the encoding and a line
+  feed (RFC 7464). `multipart` writes a part per frame, typed as the side's `ItemEncoding` says and
+  otherwise by its element's codec, under a boundary derived from the parts' bytes and lengthened
+  until no part holds it. `bytes` sends the content's value as the body, a file having no frames.
+  `protocol` frames are another protocol's own, and the mock covers `http` alone, so it routes
+  `HTTP[0]`, as an HTTP SDK lowers, and an operation with no HTTP binding has no route there and
+  draws a warning `emitters/mock/unsupported-binding`, the code every target draws for it
+  ([bindings](plan/bindings.md)), never an answer its SDK would not read.
 - **A side the client writes.** The mock reads it as the SDK writes it: by its `Framing`, each frame
   validated against `Element` as a body is, until the body ends or a frame whose data is its
   `Terminator` arrives, after which a frame is refused; a `bytes` side is read to its end; and one
@@ -638,28 +644,42 @@ the API rightly.
   would refuse it. It then answers as for any call, as `Return` reads, a server answering once it
   has read the request. It refuses at once a frame that fails validation, or the body past the bound
   below, the frame that bound cuts refused as too large (413), never as one that does not decode.
-- **Both sides.** A `bidi` operation's sides run at once: the mock writes its own as a server stream
-  and reads the client's as above beside it, neither waiting on the other, and its response ends
-  once its own side is written, whether or not the client's has ended, the mock reading no frame
-  after that, since its frames depend on none of the request's (RFC 9113 §8.1 lets a server end so).
-  A frame refused before then ends the exchange by a reset, since its status is sent. Ending only
-  once both sides have was weighed and refused: a caller that reads the response to its end before
-  it ends its own side waits on a mock waiting on it, which over Go's `net/http`, on both versions,
-  stalled until the idle bound. Writing a frame for each frame read was refused too: no IR fact
-  pairs one side's frames with the other's, and a caller that reads before it writes would wait on a
-  mock waiting on it. So was reading the client's side to its end before writing, which stalls a
-  caller that writes only after it reads. Over HTTP/1.1 the mock needs a full-duplex response, which
-  Go's `http.ResponseController.EnableFullDuplex` gives, its read of the client's side stopped
-  before the handler returns, since `net/http` refuses a body read after it; HTTP/2 is full duplex
-  as it stands. A caller reads before its side ends only over a transport that delivers a response
-  while its request is still open: Go's `net/http` client does on both versions, and the JDK's
-  `HttpClient` 25 does on neither, so on it only a caller that writes first can run.
+- **Both sides.** A `bidi` operation's sides run at once, neither waiting on the other: the mock
+  writes its own as a server stream, the same bytes whatever the client sends, since its frames
+  depend on none of the request's, and beside it reads the client's side and discards it, validating
+  no frame. Its response then ends as each version lets a server end one while the request is open.
+  Over HTTP/1.1 it states its length, a full-duplex response (Go's
+  `http.ResponseController.EnableFullDuplex`) whose handler returns only once the client's side has
+  ended, so the connection never closes on bytes the mock has not read, which would reset it and
+  lose a response its caller has not yet read. Over HTTP/2, which the mock serves on both its
+  listeners ([its options](#the-mocks-options)), the response ends once written, the read stopped
+  before the handler returns and the stream reset with `NO_ERROR`, which asks the client to stop
+  sending (RFC 9113 §8.1). Measured with Go 1.27.3's client, 20 runs of each caller and of sides up
+  to 8 MiB on each version, and Ktor 3.2.3's CIO engine over HTTP/1.1, 10 of each, every caller read
+  the mock's side whole on every run, where returning before the client's side ended over HTTP/1.1,
+  as a server stream does, lost it for a Go caller that wrote 1.6 MiB first in 6 of 20 runs and
+  failed its read in 8 more. Validating the client's frames was weighed and refused: a refusal after
+  the status could only cut the response at a point timing chooses, one request giving 1, 2 or 3
+  frames over 40 runs. Waiting for the client's side over HTTP/2 as well was refused too: there the
+  response ends only as the handler returns, so a caller that reads it to its end before ending its
+  own side would wait on a mock waiting on it. So was writing a frame for each frame read, since no
+  IR fact pairs one side's frames with the other's, and reading the client's side to its end before
+  writing, which stalls a caller that writes only after it reads. A caller reads before its side
+  ends only over a transport that delivers a response while its request is still open: Go's
+  `net/http` client does on both versions and Ktor's CIO engine on HTTP/1.1, the one it speaks,
+  while the JDK's `HttpClient` 25, under Ktor's Java engine, does on neither, so on it only a caller
+  that writes first can run. A caller's send after the mock's side has ended may fail at its own
+  transport, as Go's does on both versions, which T-66 does not count against the mock.
 - **What a caller controls.** Nothing in a request lengthens a stream: its frames are the declared
   examples or `MaxItems`, each value within `plan.MaxExampleValues`. A side the client writes is
   read to `MaxRequestBytes` in all and refused past it, and an exchange in which no byte of it moves
   for `IdleTimeout`, a caller that stops reading or one that never ends a side the mock reads to its
   end, is ended: over HTTP/2 its stream is reset and the connection, which other requests share,
-  kept. Both are [options of the mock](#the-mocks-options).
+  kept. On both versions the read stops before the handler returns, since a read's deadline set
+  after it dereferenced nil in Go's HTTP/2 server. A `bidi` side past the bound is refused by
+  closing the connection over HTTP/1.1, so a caller that wrote that much before reading may lose the
+  mock's side, as 11 of 20 runs writing 20 MiB against a bound of 16 MiB did, its exchange failing
+  either way. Both are [options of the mock](#the-mocks-options).
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) 13 operations stream. 8 the client reads: 6
 offer `json_lines` text beside JSON, 2 of them declaring a three-line example, one elects it for its
@@ -686,51 +706,66 @@ test running beside it would move the count, and a request's page would turn on 
   the walk's last item, save where the mock mints the walk's end (below), or none. A limit below 1
   that the input admits sizes a page as no limit does, since a page of no items would end every walk
   at once and state no page count. Under `cursor` and `token` the position is the start where the
-  request sends no continuation, else the one its continuation names: the mock mints one for each
-  position, distinct values valid against `CursorOut`'s type and `CursorIn`'s, built as a
-  `uniqueItems` list's items are, the example's own first, cutting the walk where its type holds too
-  few, or with `Synthesize` off where the values its set declares run out, and refuses one it did
+  request sends no continuation, else the one its continuation names: the mock mints distinct values
+  valid against `CursorOut`'s type and `CursorIn`'s, built as a `uniqueItems` list's items are, the
+  example's own first, the k-th naming the start of the walk's page k+1 at the request's size, so
+  one value serves a walk of two pages at any size, or of one where the walk's end is minted
+  (below), which takes a value too; where its type holds too few values, or with `Synthesize` off
+  its set declares too few, the walk ends after the last page they reach. It refuses a value it did
   not mint. Under `offset` it is the offset sent, 0 where none is; under `page` the number sent less
-  `Page.FirstPage`, times the page's size, the first page where none is sent, and a number below
-  `FirstPage` that the input admits gets a page holding none, as one past the end does, since it
-  names no position of the walk. Under `next_link` and `link_header` the link names it: the
-  request's own URL with one query parameter of the mock's, `mock_page` prefixed with `_` until no
-  input an operation at that path declares is bound under its name, its value naming the operation
-  and the position, a value naming none of the walk refused; an input binding every name, as an
-  exploded map does, holds no entry the mock reads as its own. The mock answers a `GET` carrying it
-  as that page whatever the method of the operation that wrote it, since a pager follows a link with
-  one ([what a pager sends next](operations/pagination.md#what-a-pager-sends-next)).
+  `Page.FirstPage`, times the page's size, the first page where none is sent. Each is read and
+  computed at full precision, as a pager's are ([the numbers a walk reads and
+  sends](operations/pagination.md#the-numbers-a-walk-reads-and-sends)), so a number whose position
+  passes the walk's end gets a page holding none however large it is, as does one naming no position
+  of the walk: a number below `FirstPage` or an offset below 0 that the input admits, or one holding
+  a fraction. Under `next_link` and `link_header` the link names it: the request's own URL with one
+  query parameter of the mock's, `mock_page` prefixed with `_` until no input an operation at that
+  path declares is bound under its name, its value naming the operation, the position and the page's
+  size, which a limit sent in the body would otherwise lose, a value naming none of the walk
+  refused; an input binding every name, as an exploded map does, holds no entry the mock reads as
+  its own. The mock answers a `GET` carrying it as that page whatever the method of the operation
+  that wrote it, since a pager follows a link with one ([what a pager sends
+  next](operations/pagination.md#what-a-pager-sends-next)).
 - **What a page says.** Each page but the last carries the continuation of the position after its
   last item, where the strategy reads one, at the place `CursorOut` reads it or in the `Link`
   header; every page states the walk's items where `TotalCount` reads them and its pages at the
   request's size where `TotalPages` does; and the rest of each is the response's example, shown as
   any is. The last carries no continuation: its member absent where optional, else null where
-  nullable; else, for a link, the URL its own request was sent to, the target written as it arrived,
-  which a pager takes as none however the caller spelt its query ([where a page walk
-  ends](operations/pagination.md#where-a-page-walk-ends)); else the empty value where its type
-  admits one, and otherwise a value the mock did not mint, either refused when sent back. Where a
-  cursor or token is required and not nullable, `Stop` lists `empty` or `short`, and neither
-  `no_next` over a type admitting the empty value nor `total` with a total to read ends the walk on
-  the page holding its last item, the mock mints one more position, the walk's end: that page
-  carries its continuation, and the page asking for it holds none, which `empty` ends, and `short`
-  where the request sent a limit. A walk whose cursor or token is required and not nullable
+  nullable; else the empty value where `no_next` is listed and its type admits one. Where the
+  continuation is required and not nullable and neither of those nor `total` with a total to read
+  ends the walk on the page holding its last item, the mock mints one more position, the walk's end:
+  that page carries its continuation, and the page asking for it, the end page, holds none, which
+  `empty` ends, and `short` where the request sent a limit. The end page carries, where `Stop` is
+  empty, the continuation its own request sent, a link the URL it was sent to, the target written as
+  it arrived, so the repeat ends the walk however the caller spelt its query ([where a page walk
+  ends](operations/pagination.md#where-a-page-walk-ends)), and otherwise a value the mock did not
+  mint, refused when sent back. A repeat, an empty link among them, ends a walk only under an empty
+  `Stop`, so the mock writes one only where that or `no_next` ends the walk, never where a pager
+  would fetch the page again until its bound. A walk whose continuation is required and not nullable
   therefore ends on a refusal where no listed condition ends it first, and such an operation draws a
-  warning `emitters/mock/page-walk-refused`, once, unless `Stop` lists `empty`, `no_next` over a
-  type admitting the empty value, or `total` with a total to read. Leaving the member out all the
-  same was weighed and refused: the SDK would fail to decode the last page and lose its items.
+  warning `emitters/mock/page-walk-refused`, once, unless `Stop` is empty or lists `empty`,
+  `no_next` over a type admitting the empty value, or `total` with a total to read. Leaving the
+  member out all the same was weighed and refused: the SDK would fail to decode the last page and
+  lose its items.
 - **Why every walk ends.** Each continuation the mock writes names a position past the page's last
-  item, so none repeats the one its request sent, which a pager would take as none, a page holding
-  none is the last, and the walk is finite, so a pager sending [its next
+  item, so none repeats the one its request sent but the walk's end under an empty `Stop`, a page
+  holding none is the last, and the walk is finite, so a pager sending [its next
   request](operations/pagination.md#what-a-pager-sends-next) reads each item once, in order, in at
-  most one request more than the walk has items. A page but the last is full, so `short` ends
-  nothing early; `total` is reached on the last data page, `no_next` holds on it, and `empty` holds
-  on the page past the end, where a walk under `offset` or `page` ends whatever `Stop` lists.
+  most one request more than the walk has items, and one more again where it ends on a refusal. A
+  page but the last is full, so `short` ends nothing early; `total` is reached on the last data
+  page, `no_next` holds on it, and `empty` holds on the page past the end, where a walk under
+  `offset` or `page` ends whatever `Stop` lists. Run over each strategy, each set of `Stop`
+  conditions, a continuation optional, nullable and required, each total, both first pages, a `GET`
+  and a `POST` operation, `n` of 1 to 3, one, two or unbounded declared cursor values and seven
+  limits, 70,560 walks, a pager following these rules read each item once and ended within that
+  bound, refused only where the warning was drawn; a link whose value named no size lost items in
+  1,824 of them.
 - **What a caller controls.** A limit sizes only its own page, which never holds more than the walk:
   a limit of a billion gets one page of the `2n` items, short and so the last, so a response's size
   is bounded by the document's example and never by the request. An offset or a page number past the
-  end, or a number below the first page, gets a page holding none, and a continuation the mock did
-  not mint a refusal. A limit, an offset or a number its input's constraints refuse is refused as
-  any invalid input is.
+  end, however large, or one naming no position, gets a page holding none, and a continuation the
+  mock did not mint a refusal. A limit, an offset or a number its input's constraints refuse is
+  refused as any invalid input is.
 
 On the golden spec (spec @bc6fad24, morphic @fa253fe19) no operation has `Pagination`, since no
 compiler infers it yet (#989). By the names of their query parameters, its `GET`s take `page` in
@@ -744,13 +779,21 @@ under `no_next` and the end position under `empty`. T-67 holds this section.
 ## The mock's options
 
 The mock target's options ([target options](contract/options.md)) are what bounds the work a request
-can make it do, and these are all of them, with their defaults at its first version:
+can make it do, and these are all of them, with their defaults at its first version. A zero or
+negative number or duration is the strictest value of its option, never one that turns its bound
+off: a body of no bytes admitted, an exchange or a send ended at once, no send in flight; and an
+empty address listens on none.
 
 ```go
 type Options struct {
     MaxRequestBytes int64    // 16 MiB: a request body read in all, a streamed side or any other;
                              // past it the request is refused (413) and read no further
-    IdleTimeout     Duration // 30s: an exchange in which no byte of it moves is ended
+    IdleTimeout     Duration // 30s: an exchange in which no byte of it moves is ended, and a
+                             // connection whose request's head takes longer or that idles longer
+    Address         string   // "127.0.0.1:0": where the API listens, HTTP/1.1 and HTTP/2 with
+                             // prior knowledge (RFC 9113 §3.3)
+    TLSAddress      string   // "127.0.0.1:0": where the API listens over TLS, HTTP/2 and HTTP/1.1
+                             // by ALPN, under a certificate the mock makes when it starts
     ControlAddress  string   // "127.0.0.1:0": where the control route listens, apart from the API
     SendTo          []string // "127.0.0.0/8", "::1/128": the addresses a webhook or a callback
                              // may be sent to; empty sends none
@@ -760,21 +803,41 @@ type Options struct {
 ```
 
 The control route ([operations the API sends](operations/inbound.md#the-mock-server-and-the-docs))
-listens at `ControlAddress`, apart from the API's listener, which the mock states when it starts
-beside the API's address: a route on the API's listener would have to miss every declared route, and
-a template whose first segment is a variable, such as `/{tenant}/items`, matches any path a prefix
-could choose. A `POST` to `/webhooks/` and a webhook's `WebhookName`, percent-encoded, sends that
-webhook to the URL its body's text names, and a name the document lacks is refused (404).
+listens at `ControlAddress`, apart from the API's listeners, which the mock states when it starts
+beside the API's addresses and its certificate, as PEM: a route on the API's listener would have to
+miss every declared route, and a template whose first segment is a variable, such as
+`/{tenant}/items`, matches any path a prefix could choose. A `POST` to `/webhooks/` and a webhook's
+`WebhookName`, percent-encoded, sends that webhook to the URL its body's text names, and a name the
+document lacks is refused (404).
+
+The TLS listener is how a transport that offers HTTP/2 only by ALPN reaches HTTP/2: the JDK's
+`HttpClient` 25, asked for HTTP/2 over cleartext, sent an upgrade the mock does not take and spoke
+HTTP/1.1, saying nothing, and over the TLS listener negotiated HTTP/2, while Ktor's CIO engine
+speaks HTTP/1.1 alone. So a test trusting the certificate the mock states asserts the version its
+transport negotiated, and one that fell back to HTTP/1.1 fails rather than passing as the HTTP/2
+case.
+
+Two costs are left to the server the mock runs in. The number of connections is the operating
+system's to bound, as the mock serves a test's own process, on loopback by default. A reader taking
+a byte within each `IdleTimeout` keeps its exchange open as long as the response lasts, which costs
+the mock one connection and its buffers for a response the document's examples bound. A connection
+holding no request, or part of one, is closed after `IdleTimeout`, the bound on a request's head and
+on a connection idle between requests: 200 such connections were all closed within 5 times it, and
+with neither bound all stayed open.
 
 A webhook or a callback is sent only to an `http` or `https` URL whose host resolves to an address
-`SendTo` lists, checked on the connection the mock dials, so a name resolving elsewhere by then is
-refused too. Any other is left unsent and logged, the request naming it answered all the same: a
-callback's URL comes from the request the mock answers, so without the list a request could make the
-mock call an address of its caller's choosing, and loopback serves a test's receiver, which runs
-beside it. A send that finds `MaxSends` in flight is left unsent and logged, never queued, so a
-burst of requests costs at most that many connections at once, where with no such bound 200 requests
-naming one loopback URL drew 200 sends at once. Each send gives up past `SendTimeout`, follows no
-redirect and reads its answer's status alone. T-66, T-67 and T-71 hold these bounds.
+`SendTo` lists, checked on the connection the mock dials, through no proxy, so a name resolving
+elsewhere by then is refused too: with a proxy from the environment, the connection dialled was the
+proxy's, on loopback, and the proxy sent a `POST` to a host outside the list. Any other is left
+unsent and logged, as the webhook's name or the callback's operation and expression, the URL as an
+event shows one ([what an event holds](contract/runtime-policy.md#what-an-event-holds)) and the
+bound that refused it, the request naming it answered all the same: a callback's URL comes from the
+request the mock answers, so without the list a request could make the mock call an address of its
+caller's choosing, and loopback serves a test's receiver, which runs beside it. A send that finds
+`MaxSends` in flight is left unsent and logged, never queued, so a burst of requests costs at most
+that many connections at once, where with no such bound 200 requests naming one loopback URL drew
+200 sends at once. Each send gives up past `SendTimeout`, follows no redirect and reads its answer's
+status alone. T-66, T-67 and T-71 hold these bounds.
 
 ## Documentation extensions
 

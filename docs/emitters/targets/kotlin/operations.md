@@ -9,6 +9,19 @@ default Ktor follows one only for a `GET` or a `HEAD`, so it would return a 307 
 callers are not a goal of the JVM target at M3: its surface is Kotlin's. Pagination, streaming,
 long-running operations and auth lower as the [lowering table](lowering.md) says.
 
+## Streams
+
+A stream method returns a `Flow` of the elements received, and takes `onHeaders: (H) -> Unit = {}`,
+`H` a class named for the method, `TailMetricsStreamHeaders`, declared even with no property, which
+each collection calls with the response's declared headers once the response's head has arrived and
+before the first element ([streaming](../../operations/streaming.md#what-a-target-generates)). A
+`Flow` sends its request when it is collected, so the headers belong to one collection, and a value
+the method returned before collection would have none to hold; a block-scoped stream, `suspend fun
+<R> tailMetricsStream(block: suspend (Stream) -> R): R`, would hold them too, but drops the `Flow`
+every other stream and page returns. Measured with Kotlin 2.4.0 and Ktor 3.2.3's CIO engine, a
+caller compiled apart from the SDK read both headers in its callback half a second before a server
+holding its first frame back sent it. T-24 holds this section.
+
 ## Timeouts
 
 The runtime times each attempt, and each read or write of a body it does not buffer, with

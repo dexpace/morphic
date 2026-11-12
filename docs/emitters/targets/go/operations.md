@@ -26,11 +26,18 @@ The IR, the plan and what every target generates are in
 The IR, the plan and what every target generates are in [streaming](../../operations/streaming.md).
 
 `TailMetrics` has two methods: `func (c *Client) TailMetrics(ctx) (*MetricsPage, error)` and `func
-(c *Client) TailMetricsStream(ctx) (*runtime.Stream[Metrics], error)` — no request type, since the
-operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]` is the runtime's:
-`Recv() (T, error)` returns each element and then `io.EOF`, and `Close` releases the response, which
-a caller that stops early must do. A `Recv` that gets no byte for `Timeout.Idle` fails with a
-timeout ([runtime policy](../../contract/runtime-policy.md#what-a-layer-writes)): `net/http` gives a
+(c *Client) TailMetricsStream(ctx) (*runtime.Stream[Metrics, TailMetricsStreamHeaders], error)` — no
+request type, since the operation has no input ([request shaping](../../refine/requests.md)).
+`Stream[T, H]` is the runtime's: `Recv() (T, error)` returns each element and then `io.EOF`, `Close`
+releases the response, which a caller that stops early must do, and `Header() (H, error)` returns
+the response's declared headers
+([streaming](../../operations/streaming.md#what-a-target-generates)), `H` a struct named for the
+method and declared even with no field. A server stream's method returns once the response's head
+has arrived, so `Header` returns at once; on a stream the client writes it waits for the head, and
+fails as `Recv` would where the response is a failure. Measured with Go 1.27.3, a caller in another
+module, through the method of a group's unit, read both headers of a server holding its first frame
+back until they were read. A `Recv` that gets no byte for `Timeout.Idle` fails with a timeout
+([runtime policy](../../contract/runtime-policy.md#what-a-layer-writes)): `net/http` gives a
 response's body no read deadline, so the stream and a `RawBody` read through a wrapper that cancels
 the request when one read waits past the bound, and a stream the caller writes times each write the
 same way. Measured with Go 1.27.3 and a bound of 300ms, a reader of a stream held open after one
@@ -42,11 +49,12 @@ returned at 300ms, and without the bound had not after 1.5s. What `T` is follows
   ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
   variant whose `Variant.Event.Terminal` is true, so an event union needs nothing of its own beyond
   that.
-- no `Element` is `Stream[string]`, each frame's text, unread.
+- no `Element` is `Stream[string, H]`, each frame's text, unread.
 - a `bytes` side has no frames and no `Stream`: `Recv` lowers as a file does, to `*RawBody` ([return
   shapes](returns.md)), and `Send` to an `io.Reader` field of the request type.
 
-A client stream gives `Send(T)` and a `CloseAndRecv` that returns what `Return` reads.
+A client stream gives `Send(T)` and a `CloseAndRecv` that returns what `Return` reads. T-24 holds
+this section.
 
 Printer emits the methods and the element's declarations. The stream *runtime* is `stream.go.tmpl`,
 and one template per framing the document uses.

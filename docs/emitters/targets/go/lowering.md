@@ -31,7 +31,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |
 | `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct, a tag carried as a number compared by value ([unions](../../refine/unions.md#discriminators)), + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy |
-| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; no frame for an `Initial` over HTTP; direction from core, framing from plan |
+| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T, H].Recv()`/`Send()` over an element of any kind, `string` where frames go unread, and `Header()` returning `H`, the response's declared headers in a struct named for the method; a `bytes` side as a file; terminal ends; no frame for an `Initial` over HTTP, its response members read through `Header()`; direction from core, framing from plan |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy |
 | `OneWay` | fire-and-forget method, no response binding |
 | `HTTPBinding.Inbound` ([operations the API sends](../../operations/inbound.md)) | no client method; a `Receiver` beside the client, built from a `ReceiverConfig`, with a `Parse<Operation>(*http.Request)` method each, the config's `Verify` handed the whole request and what it stands in for and its `Unauthenticated` admitting an operation declaring no security, its request type in the `read` projection, and a type per declared response with `WriteTo(http.ResponseWriter)` ([operations](operations.md#operations-the-api-sends)) |
@@ -61,6 +61,6 @@ lowers to in Go.
 | `LowerOpenEnums` | closed → typed consts; open → consts+`Unknown(raw)`; flags → bitset; each over the value type's row, or the wire text where it has no constants; no members → the closed form, its decoder and its encoder refusing every value |
 | `ExtractInterfaces` | Go interfaces / client interfaces for testability |
 | `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`, sending [each next request](../../operations/pagination.md#what-a-pager-sends-next) from `PagePlan`; pacing left to policy |
-| `LowerStreaming` | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends |
+| `LowerStreaming` | a method per shape the operation offers; `Stream[T, H]` with `Recv()`/`Send()` over an element of any kind and `Header()` over the declared headers' struct; a `bytes` side lowered as a file; terminal ends |
 | `LowerLRO` | poller type + `Poll()/PollUntilDone()` returning the final type, paced and bounded by `Policy.Polling` |
 | `PlaceDeclarations` | a package per unit, and each declaration in the file its words name, those whose file names come out alike sharing one ([file names](naming.md#file-names)) |
