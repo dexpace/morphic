@@ -28,6 +28,9 @@ type Policy struct {
                                        // the members its schema requires (below)
     Examples        ExamplePolicy      // default both on, depth 3, 2 items: what may be made where
                                        // no example is declared (../docs-and-mock.md)
+    FirstPage       *int               // default 1: a page walk's first page where its page input
+                                       // declares no default or minimum; nil guesses none
+                                       // (../operations/pagination.md)
 }
 
 type ExamplePolicy struct {

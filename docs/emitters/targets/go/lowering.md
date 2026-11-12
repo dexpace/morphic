@@ -59,6 +59,6 @@ lowers to in Go.
 | `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories + a `MarshalJSONTo` writing each variant's tag |
 | `LowerOpenEnums` | closed → typed consts; open → consts+`Unknown(raw)`; flags → bitset; each over the value type's row, or the wire text where it has no constants |
 | `ExtractInterfaces` | Go interfaces / client interfaces for testability |
-| `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy |
+| `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`, sending [each next request](../../operations/pagination.md#what-a-pager-sends-next) from `PagePlan`; pacing left to policy |
 | `LowerStreaming` | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends |
 | `LowerLRO` | poller type + `Poll()/PollUntilDone()` returning the final type |

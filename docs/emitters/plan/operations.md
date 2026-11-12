@@ -33,6 +33,8 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
     LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
+    FirstPage  *ir.Value              // under page: the first page's number; nil under any other
+                                      // strategy (../operations/pagination.md)
     TotalCount *ir.PropPath           // the items in all, which "total" reads
     TotalPages *ir.PropPath           // the pages in all, which "total" reads
     Stop       []ir.PageStop          // the source's stop rules; empty = none stated, none guessed
