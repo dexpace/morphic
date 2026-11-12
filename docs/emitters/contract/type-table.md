@@ -207,8 +207,10 @@ value as its primitive's default row does unless the target's lowering table say
   `sun, 06 nov 1994 08:49:37 gmt` is no date: the day name for its spelling alone, never compared
   with the date, and an rfc850-date's two-digit year as the latest year ending in those digits that
   leaves the date no more than 50 years after the reader's clock, 2105 for `05` read in 2099, so
-  that reading alone depends on when it is made. Whether a date is more than 50 years after is
-  decided on its fields, its year less 50 and then its month, day and time against the clock's in
+  that reading alone depends on when it is made, and a date that year does not hold is none, as
+  `29-Feb-00` read in 2060, whose year is then 2100, since the year 2000 that holds it lies outside
+  the hundred years the rule reads. Whether a date is more than 50 years after is decided on its
+  fields, its year less 50 and then its month, day and time against the clock's in
   GMT, never by adding years to the clock, which Go's `AddDate` and the JDK's `plusYears` do
   differently on 29 February (Go 1.27, JDK 25). The reader takes the clock's instant as an argument,
   which the codec fills from the system clock, so a test reads at an instant it names. On the golden

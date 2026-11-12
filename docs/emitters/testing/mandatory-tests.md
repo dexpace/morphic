@@ -738,56 +738,72 @@ throughout these documents.
     list member, a `spaceDelimited` parameter of one string, a `pipeDelimited` list that explodes, a
     cookie of a list of objects, and a form field and a multipart part of an object that declare no
     encoding are each a list of pairs of strings in the SDK; a header list of objects, a path
-    parameter of a list of objects and a `text/plain` request body of an object are each a string;
-    and each is reported as `emitters/plan/unarranged-value`. The pairs `deep[a][b]` and `x`,
-    `ids[]` and `1`, `ids[]` and `2`, and `search` and
-    `[{"field":"value","op":"in","value":["evil.com","bad.org"]}]` are sent as four parameters in
-    that order, each name percent-encoded as a parameter's name is and each value as a string's text
-    is, whatever the binding's name, `Style` and `Explode`, as four fields of a form body and as
-    four parts of a multipart one, none with a `Content-Type` of its own; the string is sent as its
-    header's value, in its segment and as the body's UTF-8 octets. A pair with an empty name, one
-    naming another parameter of the operation, and a required input holding no pair each fail before
-    anything is sent. A multipart part of a string that declares no encoding is its text with no
-    `Content-Type` of its own, and one of a list of strings a part for each element. The mock server
-    and an inbound request's reader give back the pairs sent, in order, and the string sent, for the
-    values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a pair named for a declared
-    parameter left to that parameter. A `text/plain` response declaring an object returns its text
-    as a string, the mock answers it with no body and a warning `emitters/mock/example-missing`, and
-    an inbound operation declaring a `text/plain` request content of an object beside an
-    `application/json` one reports the content and reads a request sent as `text/plain` as the
-    string it held. The same parameter declaring `content` as `application/json` is typed as its
-    list and sends that JSON text, a `string | list of string` parameter keeps both arrangements, an
-    `any` parameter holding a list fails before anything is sent, a `text/plain` content of an
-    object beside an `application/json` one the ranking elects draws no diagnostic, and a declared
-    example of such a parameter is refused as `emitters/plan/example-refused`, none being
-    synthesized in its place ([values as text](../refine/text.md#a-value-no-style-arranges)).
+    parameter of a list of objects, a `host` label of an object and a `text/plain` request body of
+    an object are each a string; and each is reported as `emitters/plan/unarranged-value` and marked
+    in `ParamBind.Text`, `ResponsePlan.Text` or `OpPlan.RequestText`, where no other position is.
+    The pairs `deep[a][b]` and `x` of an input `deep`, `ids[]` and `1` and `ids[]` and `2` of `ids`,
+    `a` and `1` and `b[c]` and `2` of an exploded object declaring members `a` and `b`, and `search`
+    and `[{"field":"value","op":"in","value":["evil.com","bad.org"]}]` of `search` are sent as
+    parameters in that order, each name percent-encoded as a parameter's name is and each value as a
+    string's text is, whatever the binding's `Style` and `Explode`, and as fields of a form body and
+    parts of a multipart one, none with a `Content-Type` of its own; the string is sent as its
+    header's value, in its segment, in its label and as the body's UTF-8 octets. A pair with an
+    empty name, `filter` for `filters`, one naming another parameter of the operation, `name.exact`
+    for `name` where the query declares both, `k` for `y` where exploded objects `x` and `y` each
+    declare `k`, and a required input holding no pair each fail before anything is sent, while an
+    input exploding a map of lists sends `k1[x]` and `zz`. A multipart part of a string that
+    declares no encoding is its text with no `Content-Type` of its own, one of a list of strings a
+    part for each element, and one of a list of strings declaring `text/plain`, or of objects
+    declaring `application/json`, a list too, a part of that type for each element; a `deepObject`
+    object of leaves whose `Explode` is false is arranged, sent as
+    `color%5BR%5D=100&color%5BG%5D=200`. The mock server and an inbound request's reader give back
+    each input's pairs, in order, `search` and `searchBranches` sharing one query each their own,
+    and the string sent, for the values `a&b=c`, `a+b c`, `100%`, `é` and an empty string too, a
+    pair named for a declared parameter left to that parameter and one no input owns to none. A
+    `text/plain` response declaring an object, and a response header of a list of objects, each
+    return their text as a string, the mock answers the first with no body and a warning
+    `emitters/mock/example-missing`, and an inbound operation declaring a `text/plain` request
+    content of an object beside an `application/json` one reports the content and reads a request
+    sent as `text/plain` as the string it held. The same parameter declaring `content` as
+    `application/json` is typed as its list and sends that JSON text, a `string | list of string`
+    parameter keeps both arrangements, an `any` parameter holding a list fails before anything is
+    sent, a `text/plain` content of an object beside an `application/json` one the ranking elects
+    draws no diagnostic, and a declared example of such a parameter is refused as
+    `emitters/plan/example-refused`, none being synthesized in its place ([values as
+    text](../refine/text.md#a-value-no-style-arranges)).
 49. **T-49 · A date in a header** — on every target, a response header declared `datetime_offset`
     with no encoding reads `2023-10-21T07:28:00Z`, `Sun, 06 Nov 1994 08:49:37 GMT`, `Sunday,
     06-Nov-94 08:49:37 GMT`, `Sun Nov  6 08:49:37 1994` and `Wed Nov 16 08:49:37 1994` each as its
-    instant at a zero offset,
-    reads `Wed, 21 Oct 2023 07:28:00 GMT`, whose day name is not its date's, and leaves its field
-    unset with `RawHeader` holding the text for `Wed, 21 Oct 2023 07:28:60 GMT`, `Wed, 31 Feb 2023
-    07:28:00 GMT`, `sun, 06 nov 1994 08:49:37 gmt`, a date ending `UTC` and a day name alone
-    (T-26). The row's reader, given 2026-11-12T00:00:00Z as its clock, reads `Thursday, 12-Nov-76
-    00:00:00 GMT` as 2076 and the same date one second later as 1976; given 2028-02-29T12:00:00Z,
-    `Wednesday, 01-Mar-78 00:00:00 GMT` as 1978 and `Monday, 28-Feb-78 18:00:00 GMT` as 2078; and
-    given 2099-06-01T00:00:00Z, `Thursday, 01-Jan-05 00:00:00 GMT` as 2105. A header list of such
-    dates sent as `Sun, 06 Nov 1994 08:49:37 GMT, Sunday, 06-Nov-94 08:49:37 GMT, Sun Nov  6
-    08:49:37 1994, 1994-11-06T08:49:37Z`, on one line and on four, reads as four elements,
-    and one holding an empty element reads without it. The mock server reads a request header the
-    same way, a `datetime_offset` header an SDK or the mock writes is RFC 3339 text, and a `date`,
-    a `time` and a `datetime` header read no HTTP-date ([values as
-    text](../refine/text.md#reading-a-text)).
+    instant at a zero offset, reads `Wed, 21 Oct 2023 07:28:00 GMT`, whose day name is not its
+    date's, and leaves its field unset with `RawHeader` holding the text for `Wed, 21 Oct 2023
+    07:28:60 GMT`, `Wed, 31 Feb 2023 07:28:00 GMT`, `sun, 06 nov 1994 08:49:37 gmt`, a date ending
+    `UTC` and a day name alone (T-26). The row's reader, given 2026-11-12T00:00:00Z as its clock,
+    reads `Thursday, 12-Nov-76 00:00:00 GMT` as 2076 and the same date one second later as 1976;
+    given 2028-02-29T12:00:00Z, `Wednesday, 01-Mar-78 00:00:00 GMT` as 1978 and `Monday, 28-Feb-78
+    18:00:00 GMT` as 2078; given 2099-06-01T00:00:00Z, `Thursday, 01-Jan-05 00:00:00 GMT` as
+    2105; and given 2060-01-01T00:00:00Z, `Tuesday, 29-Feb-00 00:00:00 GMT` as no date, its year
+    2100 holding no 29 February. A header list of such dates sent as `Sun, 06 Nov 1994 08:49:37 GMT,
+    Sunday, 06-Nov-94 08:49:37 GMT, Sun Nov  6 08:49:37 1994, 1994-11-06T08:49:37Z`, on one line and
+    on four, reads as four elements, and one holding an empty element reads without it. An object
+    header of a `datetime_offset` member `when` and `string` members `day` and `Sun`, `when` holding
+    `Sun, 06 Nov 1994 08:49:37 GMT` and `day` and `Sun` each `Sun`, reads each member as sent,
+    exploded and not. The mock server reads a request header the same way, a `datetime_offset`
+    header an SDK or the mock writes is RFC 3339 text, the declared example `Wed, 21 Oct 2023
+    07:28:00 GMT` of such a header is `emitters/plan/example-refused`, and a `date`, a `time` and a
+    `datetime` header read no HTTP-date ([values as text](../refine/text.md#reading-a-text)).
 50. **T-50 · A path pattern** — on every target, under T-12's interception, a path parameter whose
     binding's `PathPattern` is `shelves/*/books/*` or `**` sends `shelves/s1/books/b2` with its
     slashes, `a:b%41?c` as `a%3Ab%2541%3Fc`, `a b/é` as `a%20b/%C3%A9` and `a//b` as written, with
     `AllowReserved` set or unset, and fails before anything is sent for `a/../b`, a null and an
     empty string; one whose pattern is `*` sends `a/b` as `a%2Fb`. One whose pattern is `**` in the
     template `/prefix/{label}/suffix` sends `foo/suffix/bar` as written, and the mock reads
-    `/prefix/foo/suffix/bar/suffix` back to it. The mock server reads each text back as sent, and
-    reads a path another client sent as `a%2Fb/c` or as `a%2fb/c` as that text, its triple kept.
-    Each such binding draws an info `emitters/<target>/unchecked-constraint`, and none drops its
-    escaping with the check ([values as text](../refine/text.md#escaping)).
+    `/prefix/foo/suffix/bar/suffix` back to it; the mock reads `/v1/shelves/s1/books/authors/a/x`,
+    sent in `/v1/{parent=shelves/*}/books/{name=authors/*/x}`, back to `shelves/s1` and
+    `authors/a/x`; and `p` and `q/x/r` under `AllowReserved` in `/{a}/x/{b}` fail before anything is
+    sent. The mock server reads each text back as sent, and reads a path another client sent as
+    `a%2Fb/c` or as `a%2fb/c` as that text, its triple kept. Each such binding draws an info
+    `emitters/<target>/unchecked-constraint`, and none drops its escaping with the check ([values as
+    text](../refine/text.md#escaping)).
 51. **T-51 · A row keyed by an encoding** — each target's built-in table has, at every options
     version, a row for every key the type table lists for an encoding. On every target, `bytes` `fb
     ff` under `base64url` is written `-_8=` in a body and in a header and `-_8%3D` in a path, and
@@ -795,14 +811,15 @@ throughout these documents.
     `-_8=` broken by a line feed after its second character do not parse; a `datetime_offset` under
     `http-date` at `2020-02-29T23:59:59.999+02:00` is written `Sat, 29 Feb 2020 21:59:59 GMT` in a
     header and as a body's string, reads back at a zero offset, reads `Sunday, 06-Nov-94 08:49:37
-    GMT` and `Sun Nov 6 08:49:37 1994` as `1994-11-06T08:49:37Z`, and at `9999-12-31T23:59:59-01:00`
-    fails before anything is sent; and `base64`, `rfc3339` and `iso8601` write what their
-    primitives' rows do. A `bytes` scalar under an encoding no row names whose `WireType` is
-    `string`, and a `datetime_offset` under one with no `WireType`, are each a string in the SDK
-    that is sent as given, with a warning `emitters/<target>/unmapped-encoding`; a `datetime_offset`
-    under `unixTimestamp` whose `WireType` is `int64` is an `int64`; and a `string` under `email`
-    stays a string with an info ([the type
-    table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
+    GMT` and `Sun Nov  6 08:49:37 1994` as `1994-11-06T08:49:37Z`, and at
+    `9999-12-31T23:59:59-01:00` fails before anything is sent; `base64`, `rfc3339` and `iso8601`
+    write what their primitives' rows do; and a property whose own `Encoding` is `base64url`, typed
+    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `bytes` scalar under an encoding no
+    row names whose `WireType` is `string`, and a `datetime_offset` under one with no `WireType`,
+    are each a string in the SDK that is sent as given, with a warning
+    `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
+    `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
+    ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two

@@ -39,8 +39,9 @@ type ParamBind struct {
     PathPattern string       // HTTPParamBinding.PathPattern: a pattern of several segments is
                              // escaped by its own rule (../refine/text.md#escaping)
     Text     bool            // no Style arranges a value of the param's type, so the input is its
-                             // caller's text: a string in a path or a header, pairs of strings
-                             // elsewhere (../refine/text.md#a-value-no-style-arranges)
+                             // caller's text: a string in a path, a host label or a header, pairs
+                             // of strings in a query or a cookie
+                             // (../refine/text.md#a-value-no-style-arranges)
     ContentType string       // a content-style param's media type; "" = serialized by Style
     BodyPath []ir.PropID     // body_property: where in the body model the param lands
 }

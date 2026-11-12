@@ -436,9 +436,11 @@ member and operation:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
   one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
   since no value of it can be checked, shown, filled from or sent; each checked against its type and
-  constraints, a member's being those of every declaration its flattening takes or overrides, as a
-  synthesized value's are (below), with visibility set aside, since the shape it is shown through
-  settles that: a value no shape could make valid, such as one its enum does not list, is refused,
+  constraints, a header's as the value it is and never through the readings a header's text admits
+  ([values as text](refine/text.md#reading-a-text)), a member's being those of every declaration its
+  flattening takes or overrides, as a synthesized value's are (below), with visibility set aside,
+  since the shape it is shown through settles that: a value no shape could make valid, such as one
+  its enum does not list, is refused,
   an enum the document leaves open (`Enum.Closed` false) admitting a value it does not list. Shown
   through a shape, an example drops the members that shape does not hold, keeping a key no member
   declares that the model's catch-all admits, checked against the catch-all's type, and takes, for

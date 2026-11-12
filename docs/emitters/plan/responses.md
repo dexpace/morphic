@@ -14,6 +14,16 @@ type ResponsePlan struct {
     Envelope *EnvelopeRead // how an enveloped body is read; nil = the body decodes into
                            // Type (below)
     Headers  []ir.Header   // the headers the response declares, each whole (below)
+    Text     TextPlan      // what of Content and Headers holds a value no style arranges
+}
+
+// TextPlan is what of one content, and of a response's headers, holds a value no style arranges,
+// which its reader gets and its writer is given as text
+// (../refine/text.md#a-value-no-style-arranges).
+type TextPlan struct {
+    Content bool           // the content itself: a text/plain one whose type is no leaf
+    Props   []ir.PropID    // its fields and parts, in TypePlan.Flattened's order, then a
+                           // response's headers, in Headers' order
 }
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
@@ -90,7 +100,8 @@ in a second channel. The first rule that applies decides:
    `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
    paginated operation's `Return.Type` is one page, from which `Page` takes the items. A
    `text/plain` content whose type is no leaf has no text to decode, so its `Type` is `string`, the
-   body as it arrived ([values as text](../refine/text.md#a-value-no-style-arranges)).
+   body as it arrived, and `Text.Content` is set ([values as
+   text](../refine/text.md#a-value-no-style-arranges)).
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
@@ -157,7 +168,8 @@ reader gets. One that reaches an `OtherResponse` holds the member at `Value` in 
 `Return`'s are the primary response's, and each entry of `Others` and `Errors` holds its own. A
 success and a failure then read alike: the raw headers are on the value, and the declared ones typed
 beside its body ([failures](../operations/errors.md), [return shapes](../operations/returns.md)).
-Each header's text is read as [values as text](../refine/text.md#reading-a-text) says.
+Each header's text is read as [values as text](../refine/text.md#reading-a-text) says, and one
+`Text.Props` names, whose type no style arranges, is a string holding the text as it arrived.
 
 ## Other responses
 

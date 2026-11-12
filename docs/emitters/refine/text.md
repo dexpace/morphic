@@ -53,7 +53,9 @@ its own is a catch-all the same way: an entry naming a parameter another binding
 it, and its reader holds every parameter its location carries, as Smithy's protocol tests have a
 client and a server treat its query map. A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
-media type's serialization of the value instead, so as JSON a string keeps its quotes.
+media type's serialization of the value instead, so as JSON a string keeps its quotes. A field or
+part under `PartEncoding.Multi` is one for each element of its list, each carrying its element as
+the rules here carry a value, as OpenAPI applies an Encoding Object to each item (§4.14.5.1).
 
 ## Null and empty
 
@@ -117,9 +119,9 @@ lowerings](../../compilers/planned-lowerings.md)) and never to `AllowReserved`, 
 `%41` and the `?` that Smithy encodes. `AllowReserved` beside such a pattern changes nothing, since
 the pattern's format gives the rule, and what `AllowReserved` says of an empty segment and this
 section of a dot segment hold for it as for any path parameter. A pattern of one segment, `*` or a
-literal, is written as a binding with none is. A reader takes the longest run of segments the
-template leaves the parameter ([below](#reading-a-text)), which needs no reading of the pattern, and
-decodes each triple but `%2F` and `%2f`, which it keeps as the three characters they are, as
+literal, is written as a binding with none is. A reader takes the segments the pattern names, a
+`**` the run the rest of the template leaves it ([below](#reading-a-text)), and decodes each triple
+but `%2F` and `%2f`, which it keeps as the three characters they are, as
 google.api.http has a server do, so every text written reads back and a `%2F` another client sent is
 never taken for a separator. A `PathPattern` is carried to a refiner as `ParamBind.PathPattern`
 ([bindings](../plan/bindings.md)). No emitter checks a value against its pattern before it is sent,
@@ -140,7 +142,10 @@ A path parameter whose text holds the literal its template sets after it in the 
 before anything is sent too, and a reader ends the parameter's text where that literal first follows
 it, so every text sent reads back into its parts: at the revisions above, the golden spec's
 `{event_t}.{event_n}` binds two `number`s, and `1.5` and `3` would send `1.5.3`, which reads as `1`
-and `5.3`.
+and `5.3`. So does a call whose path would read back as other texts where its template holds two
+runs of no fixed length, under `AllowReserved` or a `**`, which neither google.api.http, allowing
+one `**` and that one last, nor Smithy, allowing one greedy label, declares: `{a}/x/{b}` under
+`AllowReserved` would send `p` and `q/x/r` as a path that reads as `p/x/q` and `r`.
 
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
 (§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
@@ -173,9 +178,11 @@ operations](../../ir/http-binding.md#inbound-operations)). A list's or an object
 its `Style` and `Explode` arrange it before each part is percent-decoded, so a `%2C` stays in its
 element (Appendix C.2). A path parameter's text is what its expression in the template matches, read
 from the path cut at its unencoded `/`s before anything is percent-decoded, so a `%2F` stays in its
-segment: within one segment, ending where a literal after it there first follows, or under
-`AllowReserved`, or a `PathPattern` of several segments, across the longest run of segments the
-template leaves it, as Smithy matches a greedy label. A text is percent-decoded as its location's
+segment: within one segment, ending where a literal after it there first follows, across the
+segments its `PathPattern` names where that names several and no `**`, or, under `AllowReserved` or
+a pattern holding `**`, across the longest run the rest of the template leaves it, as Smithy matches
+a greedy label: so `/v1/{parent=shelves/*}/books/{name=authors/*/x}` reads both back, where a
+longest run for each would leave `name` one segment. A text is percent-decoded as its location's
 rules say (Appendix E.5): a `+` as a space in a query or a form body, which OpenAPI has parse as
 WHATWG URL does (§4.12.4), as itself in a path, and a header's and a `cookie`-style cookie's not at
 all (§4.12.2.2). A parameter a query or a cookie repeats where its `Style` and `Explode` write it
@@ -202,7 +209,7 @@ and an `any` holds a text as the JSON string it is, since a text carries no JSON
 A text its codec does not read is a value that does not parse, and a response header's leaves its
 field unset and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the
 revisions above, the golden spec declares one `Last-Modified` header `date-time` and gives an
-HTTP-date as its example, which the next rule reads.
+HTTP-date as its example, which the next rule reads in a response and `Build` refuses as an example.
 
 A header's text read as a `datetime_offset` that no encoding spells is read by that row and, where
 the row does not read it, as an HTTP-date, as the `{datetime_offset, "http-date"}` row reads one
@@ -218,7 +225,12 @@ RFC 3339 text its document declares, though RFC 9110 has a server ignore an `If-
 an `If-Unmodified-Since` that is no HTTP-date (§13.1.3, §13.1.4), which only a compiler lowering
 those fields under `http-date` changes; the golden spec's one `If-Modified-Since` is a `string`
 (spec @bc6fad24, morphic @fa253fe19). A `date`, a `time` and a `datetime` read none, since an
-HTTP-date names an instant and they hold none.
+HTTP-date names an instant and they hold none. A declared example is a value, not a text, so `Build`
+checks a header's as it checks a body's, by its type's reading of a JSON value and never by this one
+([docs and mocks](../docs-and-mock.md#one-set-of-examples)): the golden spec's `Wed, 21 Oct 2023
+07:28:00 GMT` is refused as `emitters/plan/example-refused` and the header takes its type's set,
+since each consumer of `Plan.Examples`, the mock writing the header among them, reads a value so,
+and docs showing the declared text would show an HTTP-date that no SDK and no mock writes.
 
 A header list whose elements read an HTTP-date, by that rule or under `http-date`, is split at its
 commas as any list is, and then a part that is a day name alone, `Sun` or `Sunday`, takes the part
@@ -246,7 +258,10 @@ chain, and of where it is bound:
   a map of leaves, or a union each of whose variants is one of these, and OpenAPI's table gives that
   shape a text under that `Style` and `Explode` (§4.12.6): it gives a leaf none under
   `spaceDelimited`, `pipeDelimited` or `deepObject`, a list none under `deepObject`, and a list or
-  an object none where either delimited style explodes it;
+  an object none where either delimited style explodes it. `Explode` is not read under `deepObject`,
+  where OpenAPI 3.2 gives it no effect (§4.12.2.2) and 3.1 leaves undefined the `false` it defaults
+  to, which the compiler lowers for a `deepObject` setting none, so such an object is arranged as an
+  exploded one is;
 - a form field, or a multipart part that is no file (`Filename`), whose `PartEncoding` is absent or
   sets no `Style`, no `Explode` and no content type has one where its type is a leaf or a list of
   leaves: a field is written as an exploded `form` writes it, and a part is its text with no
@@ -256,7 +271,9 @@ chain, and of where it is bound:
   compiler's to lower into `ContentTypes` (#1777) and never an emitter's to assume of a document
   whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
-- a `host` label and a `text/plain` body or part have one where their type is a leaf.
+- a `host` label, a `text/plain` body, and a form field or part whose content type is `text/plain`
+  have one where their type is a leaf, and a field or part under `Multi` where its elements are, a
+  `text/plain` one for each ([above](#the-text-of-a-value)).
 
 An input with none is its caller's text, written as the API documents it. Nothing is guessed, since
 nothing in the IR says which of the spellings in use a server reads. What the caller writes depends
@@ -271,24 +288,48 @@ on what the position carries:
   a string's text is there. One string under the binding's name cannot spell what an API documents
   as `deep[a][b]=x` for a `deepObject` object holding an object, as `a=1&b[c]=2` for an exploded
   one, or as `ids[]=1&ids[]=2` for a `deepObject` list: each sends a name the binding does not have,
-  or one name twice. A pair with an empty name, or one naming another parameter, field or part its
-  location declares, fails the call before anything is sent, and an input holding no pair is an
-  empty list ([above](#null-and-empty)).
+  or one name twice. Each of those names starts with one the input owns, and a pair is sent only
+  under such a name. Every parameter, field or part of a location owns its `WireName`, one exploding
+  an object the wire names of the object's members too, each variant's of a union, and an input no
+  style arranges each name extending one of these, the name followed by `[` or `.`. A name several
+  own is the one's that owns it whole, its own name before a member's, else the one's whose name it
+  extends is the longest, and where they still tie the one's whose wire name is the smaller by
+  bytes, as [one election](../plan/responses.md#one-election) breaks a tie. A map spread over names
+  of its own, by a `Prefix` or an exploded style, gives way and owns no name, as above, save that an
+  input no style arranges exploding a map or a catch-all, whose entries name themselves, owns each
+  name nothing else there owns, ties going as before. A pair whose name its input does not own, an
+  empty one among them, fails the call before anything is sent: a caller's `filter` for the
+  `filters` of `DELETE /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs` would send a
+  request the server reads as one with no filter. An input holding no pair is an empty list
+  ([above](#null-and-empty)).
 
 Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or, in
-the order they came, every pair of the location whose name nothing else there declares. The plan
-decides it once for every target, as `ParamBind.Text` for a parameter
-([bindings](../plan/bindings.md)) and by the same test for a header, a form field, a part and a
-content, whose reader's `Type` is then `string` ([body shapes](../plan/responses.md#body-shapes)),
-and reports each as a warning `emitters/plan/unarranged-value` at its binding, its header or its
-content. A content no election picks is not reported, and no election passes over one. The test is
-the content's own, however it is chosen: an inbound request is read through the content its
-`Content-Type` names ([operations the API sends](../operations/inbound.md)), so each such content of
-its request is reported, and one that arrives is the string it held, as a response a receiver writes
-in one is the string it is given. Such an input or content has no example: a declared one holds its
-value, not its text, so it is refused as one its type refuses is ([docs and
-mocks](../docs-and-mock.md)), and none is synthesized, a text made up for it being a guess, so the
-mock answers in such a content with no body and a warning `emitters/mock/example-missing`.
+the order they came, every pair whose name the input owns by that test. So each pair reaches one
+input, as `search` and `searchBranches`, which share the query of `GET
+/accounts/{account_id}/cloudforce-one/events`, each read back their own, and one no input owns, as
+a parameter the document does not declare, reaches none. A request's reader holds no more pairs
+than the request carries, so the request's bounds are its own: a query's and a cookie's are within
+what the server bounds a request's head to, Go's `net/http` at 1 MB by default, and a form or
+multipart body's within the bound its body is read to, the mock's `MaxRequestBytes` ([docs and
+mocks](../docs-and-mock.md#the-mocks-options)) and a receiver's buffered body's ([operations the API
+sends](../operations/inbound.md#reading-the-request)), while the test compares each pair with the
+names its location owns, which the document fixes.
+
+The plan decides once for every target which positions hold such a value, and carries it at each, so
+no refiner derives it again: `ParamBind.Text` for a parameter, a request's header among them
+([bindings](../plan/bindings.md)), `ResponsePlan.Text` for a response's headers and the content it
+reads, with its fields and parts, whose reader's `Type` is then `string` ([body
+shapes](../plan/responses.md#body-shapes)), and `OpPlan.RequestText` for a request's contents
+([OpPlan](../plan/operations.md)). It reports each as a warning `emitters/plan/unarranged-value` at
+its binding, its header or its content. A content no election picks is not reported, and no
+election passes over one. Whether a content holds such a value is its own fact, however it is
+chosen: an inbound request is read through the content its `Content-Type` names ([operations the
+API sends](../operations/inbound.md)), so each such content of its request is reported, and one
+that arrives is the string it held, as a response a receiver writes in one is the string it is
+given. Such an input or content has no example: a declared one holds its value, not its text, so it
+is refused as one its type refuses is ([docs and mocks](../docs-and-mock.md)), and none is
+synthesized, a text made up for it being a guess, so the mock answers in such a content with no body
+and a warning `emitters/mock/example-missing`.
 
 A document that means JSON says so: a parameter declaring `content` with `application/json` in place
 of `schema` (§4.12.2.3), as an overlay can make it, lowers to `ContentType`, which types the input
@@ -301,7 +342,9 @@ verification](../surface-verification.md)).
 
 At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, each a query list
 under an exploded `form` whose elements are objects or lists, three such multipart parts, and no
-other parameter, header or form field. The parts are the `metadata` of `POST
+other parameter, header or form field. Two operations hold two of the parameters in one query,
+`search` beside `searchBranches` or `tagSearch`, and no name one of them or a part owns is another
+binding's. The parts are the `metadata` of `POST
 /accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
 `PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
 stay their caller's text until the compiler lowers OpenAPI's default for them (#1777), which types
@@ -403,6 +446,11 @@ table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 - **An input no style arranges as one string wherever it is bound**: sent once under its binding's
   name, it reaches a server reading one text there, as the golden spec's ten descriptions ask, and
   can spell no request whose names are not the binding's, `deep[a][b]=x` among them.
+- **A pair under any name its location declares for nothing else**: the caller's `filter` for the
+  golden spec's `filters` is sent and read as no filter, and of two such inputs in one query each
+  reader holds the other's pairs.
+- **The binding's name written by the SDK and only what follows it by the caller**: an exploded
+  object's `a=1&b[c]=2` is named by its members, never by the binding.
 - **A string for such a query input and pairs only under `deepObject` or an exploded object**: a
   server may read a list of objects under `form` as `filters[0][key]=id` too, one of the syntaxes
   OpenAPI names as in use (§4.12.7), which one string under `filters` cannot send.

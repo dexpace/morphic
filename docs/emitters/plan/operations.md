@@ -9,6 +9,10 @@ type OpPlan struct {
     Return          ResponsePlan      // how the primary response is read
     Others          []PlannedResponse // every other response the operation declares (responses.md)
     RequestContent  *ir.Content       // the request content elected; nil = no body
+    RequestText     map[string]TextPlan // by Content.MediaType as written, what of the elected
+                                      // content, and of every content of an operation the API
+                                      // sends, holds a value no style arranges (responses.md);
+                                      // a content holding none has no entry
     Errors          []PlannedError    // every failure the operation declares, ranges collapsed
                                       // (404/4XX/catch-all)
     Page            *PagePlan         // nil = not paginated
