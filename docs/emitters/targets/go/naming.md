@@ -21,8 +21,9 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
 
 Where Go names a file for a declaration, as `user.go` for `User` ([`User`](models.md#user-in-go)),
 the name is the declaration's words, joined with no separator and case-folded by the fold the engine
-compares paths by ([emit rules](../../emit/rules.md)): its canonical words, its hint's, or those its
-characters' names give
+compares paths by ([emit rules](../../emit/rules.md)): the neutral words its `Ident` starts as
+([naming](../../refine/naming.md)), or for a name with none those its characters' names give, which
+read nothing but the name and the table
 ([naming](../../refine/naming.md#a-name-with-no-words-takes-its-characters-names)). Declarations of
 one unit whose words join alike share one file, which holds them in ID order, so `Setup` and
 `SetUp`, whose words are `setup` and `set_up`, share `setup.go` and keep their names, since a Go
