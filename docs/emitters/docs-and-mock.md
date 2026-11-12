@@ -398,7 +398,14 @@ see the registry, and one with no configuration is refused as an absent configur
 engine runs a named target for its samples even when its generation writes nothing ([write /
 integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
 them, and, when the run names it too, runs it once with its artifacts, on a sliced document on the
-one snapshot such a target writes ([the contract](contract/emitter.md)). A run made for samples
+one snapshot such a target writes ([the contract](contract/emitter.md)). An SDK so written holds
+that one version, and a call spelled from another may not exist in it, so on a document stating
+versions each page shows a sample under its own snapshot's label, as the version of the SDK that
+spells the call. The label is on every version's pages, the written one's among them, since a docs
+target cannot tell which versions' SDKs are published: a pipeline running once per label publishes
+each, and a run naming a target for samples alone names no version. Showing samples on the written
+snapshot's pages alone was rejected for dropping what such a pipeline ships, and labelling only the
+others for making a docs page depend on which targets share its run. A run made for samples
 alone reports what any run of that target reports, and the engine decides as for any run whether
 that is fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs
 showing it. A target returns a sample for every operation its callers call, whatever its `Scope`,

@@ -194,9 +194,17 @@ the document, which determines it.
   without the setting is an error `engine/target-unversioned` before any run, its message naming the
   labels. It writes the snapshot at the output root, as an unsliced run does, its manifest a
   `Manifest` whose IDs, which every snapshot shares, carry the names it shipped when the label
-  changes, and it is run on every other snapshot only for its samples, which writes nothing ([docs
-  and mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names
-  that `Document.Versions` lacks is an error `engine/snapshot-unknown` before any run. The setting
+  changes, and it is run on every other snapshot only for its samples, which writes nothing and
+  which a docs page shows under that snapshot's label ([docs and
+  mocks](../docs-and-mock.md#samples-come-from-the-sdk-emitters)). A label the setting names that a
+  document stating versions lacks is an error `engine/snapshot-unknown` before any run. On a
+  document stating none the setting selects nothing: the run writes the one snapshot, `""`, and
+  reports an info `engine/version-unused`. So a pipeline names its label before the revision at
+  which the document first states versions, and that revision changes no setting and, the manifest's
+  IDs being every snapshot's, no shipped name; refused there, no value would be right on both sides
+  of the revision, a set one failing before it and an unset one after. A pipeline that set none
+  fails at that revision with `engine/target-unversioned`, which names the labels to choose from.
+  The setting
   is the run's, not each target's, so an SDK and the mock server its wire conformance runs against
   read one version (T-69 holds this). Writing a unit for each snapshot under the one module path,
   Gradle coordinate or framework was rejected: a Kotlin Multiplatform framework gives every unit one
@@ -207,8 +215,8 @@ the document, which determines it.
   version, which no IR field states, an `api-version` being an ordinary parameter of each operation.
   Refusing every sliced document would leave a versioned API with no SDK. A run wanting several
   versions runs once per label, each into an output root of its own. Defaulting to the last label,
-  as the newest, was rejected: the slicing settings have no neutral default (architecture.md §2.2),
-  and a document appending a preview label would move the SDK, its mock server and a CLI to it on
-  the next run, while only an SDK has a surface differ to report what that breaks. The pass is
+  as the newest, was rejected: `Document.Versions` orders the labels and says of none that an SDK
+  ships it, so a document appending a preview label would move the SDK, its mock server and a CLI to
+  it on the next run, while only an SDK has a surface differ to report what that breaks. The pass is
   designed, not built (architecture.md §2.2); until it is, no pass slices a document, and every
   run's `Snapshot` is `""`, the one label a cross-version run's `Routes` keys.

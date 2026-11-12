@@ -1085,10 +1085,16 @@ throughout these documents.
     none is `engine/target-unversioned` before any run, its message naming the three labels, and
     writes nothing, while a docs run naming one of them for samples alone is not refused; an SDK and
     its mock server in one run read one version; a label the document lacks is
-    `engine/snapshot-unknown` before any run; each such target is run on the other snapshots for its
-    samples alone, writing nothing there; and a regeneration moving the label keeps the name of
-    every entity both snapshots hold and prunes the files of one only the first held ([contract
-    rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
+    `engine/snapshot-unknown` before any run; a run naming a version on a document stating none
+    writes its one snapshot and reports `engine/version-unused`, and with the setting unchanged
+    writes that label's snapshot once the document states it, each entity both hold under its name;
+    each such target is run on the other snapshots for its samples alone, writing nothing there, and
+    the docs head each sample with its page's snapshot's label, on the written snapshot's pages and
+    the others' alike, and with none on a document stating no versions; and a regeneration moving
+    the label keeps the name of every entity both snapshots hold and prunes the files of one only
+    the first held ([contract
+    rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce),
+    [samples](../docs-and-mock.md#samples-come-from-the-sdk-emitters)).
 70. **T-70 · Deprecations** — on every target, a deprecated operation, type, property, parameter,
     enum member and union variant each carry the target's mark on every declaration they lower to,
     each method of an operation, each shape of a model and a builder's setter among them, a
