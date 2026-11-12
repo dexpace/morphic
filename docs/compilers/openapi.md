@@ -4038,12 +4038,17 @@ A link that does not lower whole is kept verbatim on its response under `openapi
   `operation.TestLinks_ASharedResponseResolvesPerOperation`,
   `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
   `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
-  `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`, `operation.TestParseExpression_ReadsTheGrammar`,
+  `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
+  `operation.TestLinksResolve_IndexesEachListOnce`,
+  `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
+  `operation.TestParseExpression_ReadsTheGrammar`,
   `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
   `operation.TestEmbedsExpression_AllocatesNothing`,
   `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 - Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
-  dropped with no record, as beside any other reference (#1321).
+  dropped with no record, as beside any other reference (#1321). A body whose media types hold
+  distinct models composing one wide model costs a link reading it their number times that width
+  (#1723).
 
 ## 12. Webhooks and callbacks
 

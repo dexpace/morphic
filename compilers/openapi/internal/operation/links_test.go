@@ -189,7 +189,7 @@ func TestLinks_EveryValueKindLowers(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, linkSpec(
 		"{operationRef: '#/paths/~1t~1{id}/get', requestBody: '$request.body', server: {url: 'https://s.example'},"+
-			" parameters: {path.id: '$response.body#/id', X-Up: '$response.header.x-h', query.id: '$url'}}",
+			" parameters: {path.id: '$response.body#/id', X-Up: '$response.header.x-H', query.id: '$url'}}",
 		"{operationId: target, parameters: {path.id: '$method', query.id: '$statusCode'}}"))
 	assert.Empty(t, severitiesOf(diags, diag.InvalidLink))
 	assert.Empty(t, severitiesOf(diags, diag.UntypedLink))
@@ -332,24 +332,56 @@ components:
 
 // TestLinks_MediaTypesDisagreeingOnAMember pins that a body read is typed only
 // when every content walks it to the same members: the value is one whichever
-// media type arrives.
+// media type arrives. A member each content's model declares on its own is a
+// different one, and so is a member one content's model lacks; one model
+// under both is read alike.
 func TestLinks_MediaTypesDisagreeingOnAMember(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
+	for _, tc := range []struct {
+		name, json, xml, says string
+	}{
+		{"a member each declares", "{type: object, properties: {id: {type: string}}}",
+			"{type: object, properties: {id: {type: string}}}", "media types hold as different members"},
+		{"a member one lacks", "{type: object, properties: {id: {type: string}}}",
+			"{type: object, properties: {name: {type: string}}}", "application/xml content holds as no chain"},
+		{"one model under both", "{$ref: '#/components/schemas/M'}", "{$ref: '#/components/schemas/M'}", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
     get:
       operationId: a
       responses:
         "200":
           description: ok
           content:
-            application/json: {schema: {type: object, properties: {id: {type: string}}}}
-            application/xml: {schema: {type: object, properties: {id: {type: string}}}}
+            application/json: {schema: `+tc.json+`}
+            application/xml: {schema: `+tc.xml+`}
           links: {Again: {operationId: a, requestBody: '$response.body#/id'}}
+components:
+  schemas:
+    M: {type: object, properties: {id: {type: string}}}
 `))
-	resp := openapitest.FindOp(t, doc, "a").Responses[0]
-	assert.Empty(t, resp.Links)
-	assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severitiesOf(diags, diag.UntypedLink))
+			resp := openapitest.FindOp(t, doc, "a").Responses[0]
+			if tc.says == "" {
+				require.Len(t, resp.Links, 1, "the contents walk alike")
+				assert.Equal(t, &ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{
+					Segments: []ir.PropID{"p/openapi/components/schemas/M/properties/id"},
+				}}, resp.Links[0].Body)
+				return
+			}
+			assert.Empty(t, resp.Links)
+			assert.Contains(t, resp.Unmodeled, "openapi:links/Again")
+			var found []string
+			for _, d := range diags {
+				if d.Code == diag.UntypedLink {
+					found = append(found, d.Message)
+				}
+			}
+			require.Len(t, found, 1)
+			assert.Contains(t, found[0], tc.says)
+		})
+	}
 }
 
 // TestLinks_LowerAlikeInEitherDeclarationOrder compiles one document with its

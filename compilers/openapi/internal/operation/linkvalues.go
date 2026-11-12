@@ -4,8 +4,6 @@
 package operation
 
 import (
-	"cmp"
-	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -15,9 +13,9 @@ import (
 )
 
 // exchange is the request and response a link reads values from: a response
-// of from, at.
+// of from, at. lk indexes what the reads name.
 type exchange struct {
-	reg  ir.TypeRegistry
+	lk   *lookups
 	from *ir.Operation
 	at   responseView
 }
@@ -103,13 +101,13 @@ func (ex exchange) read(e expression) (ir.LinkValue, *linkFailure) {
 // a parameter of from.
 func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 	if e.part == exprBody {
-		segments, failed := bodyPath(ex.reg, ex.from.Request, e.tokens, "request")
+		segments, failed := bodyPath(ex.lk, ex.from.Request, e.tokens, "request")
 		if failed != nil {
 			return ir.LinkValue{}, failed
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := boundParams(ex.from, ir.HTTPLocation(e.part), e.name)
+	found := ex.lk.bound(ex.from, ir.HTTPLocation(e.part), e.name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
 			e.part, e.name, ex.from.ID)
@@ -123,18 +121,13 @@ func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 func (ex exchange) response(e expression) (ir.LinkValue, *linkFailure) {
 	switch e.part {
 	case exprBody:
-		segments, failed := bodyPath(ex.reg, ex.at.payload, e.tokens, "response")
+		segments, failed := bodyPath(ex.lk, ex.at.payload, e.tokens, "response")
 		if failed != nil {
 			return ir.LinkValue{}, failed
 		}
 		return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: segments}}, nil
 	case exprHeader:
-		var found []ir.PropID
-		for i := range ex.at.headers {
-			if h := &ex.at.headers[i].Property; strings.EqualFold(h.EffectiveWireName(), e.name) {
-				found = append(found, h.ID)
-			}
-		}
+		found := ex.lk.header(ex.at, e.name)
 		if len(found) != 1 {
 			return ir.LinkValue{}, untyped("reads response header %q, which the response does not declare once", e.name)
 		}
@@ -147,70 +140,53 @@ func (ex exchange) response(e expression) (ir.LinkValue, *linkFailure) {
 // bodyPath returns the members tokens walk to from the root of every content
 // of p, the body of side, and none for the body whole. Each content must walk
 // to the same members: the link reads one value whichever media type arrives.
-func bodyPath(reg ir.TypeRegistry, p *ir.Payload, tokens []string, side string) ([]ir.PropID, *linkFailure) {
+// A member is one declaration, so two contents that reach the same one first
+// walk the same chain from there, and only the first step can tell them apart.
+// Each other content's model is flattened for that step, once per Resolve:
+// several media types holding distinct models that compose one wide model cost
+// that model's width each (#1723).
+func bodyPath(lk *lookups, p *ir.Payload, tokens []string, side string) ([]ir.PropID, *linkFailure) {
 	if p == nil || len(p.Contents) == 0 {
 		return nil, untyped("reads a %s body the document does not describe", side)
 	}
 	if len(tokens) == 0 {
 		return nil, nil
 	}
-	var first []ir.PropID
-	for i := range p.Contents {
+	first := &p.Contents[0]
+	segments, ok := lk.walk(first.Type.Target, tokens)
+	if !ok {
+		return nil, noChain(tokens, side, first.MediaType)
+	}
+	for i := 1; i < len(p.Contents); i++ {
 		ct := &p.Contents[i]
-		segments, ok := walkMembers(reg, ct.Type.Target, tokens)
+		member, ok := lk.member(ct.Type.Target, tokens[0])
 		if !ok {
-			return nil, untyped("reads /%s, which the %s body's %s content holds as no chain of members",
-				strings.Join(tokens, "/"), side, ct.MediaType)
+			return nil, noChain(tokens, side, ct.MediaType)
 		}
-		if i > 0 && !slices.Equal(segments, first) {
+		if member.ID != segments[0] {
 			return nil, untyped("reads /%s, which the %s body's media types hold as different members",
 				strings.Join(tokens, "/"), side)
 		}
-		first = segments
 	}
-	return first, nil
+	return segments, nil
 }
 
-// walkMembers returns the property each token names, from the model root
-// through the type of each member it reaches, and false where a step reaches
-// no model, or a model declaring no member of that name.
-func walkMembers(reg ir.TypeRegistry, root ir.TypeID, tokens []string) ([]ir.PropID, bool) {
-	segments := make([]ir.PropID, 0, len(tokens))
-	at := root
-	for _, token := range tokens {
-		if _, ok := reg[at].(*ir.Model); !ok {
-			return nil, false
-		}
-		member := memberNamed(ir.FlattenedProperties(reg, at), token)
-		if member == nil {
-			return nil, false
-		}
-		segments = append(segments, member.ID)
-		at = member.Type.Target
-	}
-	return segments, true
-}
-
-// memberNamed returns the declaration flat takes for the wire name name, nil
-// for none.
-func memberNamed(flat ir.Flattening, name string) *ir.Property {
-	for i := range flat.Properties {
-		if p := flat.Properties[i].Property; p.EffectiveWireName() == name {
-			return p
-		}
-	}
-	return nil
+// noChain is a body read whose tokens walk no chain of members from the root of
+// the content of side's body of mediaType.
+func noChain(tokens []string, side, mediaType string) *linkFailure {
+	return untyped("reads /%s, which the %s body's %s content holds as no chain of members",
+		strings.Join(tokens, "/"), side, mediaType)
 }
 
 // targetParam returns the parameter of op that a link's parameters key names:
 // `<location>.<name>`, or a name alone, which must name one parameter only.
-func targetParam(op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
+func targetParam(lk *lookups, op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
 	if location, name, ok := strings.Cut(key, "."); ok && isParamLocation(location) {
-		if found := boundParams(op, ir.HTTPLocation(location), name); len(found) == 1 {
+		if found := lk.bound(op, ir.HTTPLocation(location), name); len(found) == 1 {
 			return found[0], nil
 		}
 	}
-	found := boundParams(op, "", key)
+	found := lk.bound(op, "", key)
 	switch len(found) {
 	case 1:
 		return found[0], nil
@@ -233,28 +209,4 @@ func isParamLocation(location string) bool {
 	default:
 		return false
 	}
-}
-
-// boundParams returns the parameters op's HTTP bindings place at location
-// under the wire name name, at any location but the host for an empty one. A
-// header's name matches in any case, as HTTP compares header names.
-func boundParams(op *ir.Operation, location ir.HTTPLocation, name string) []ir.ParamID {
-	names := make(map[ir.ParamID]string, len(op.Params))
-	for i := range op.Params {
-		names[op.Params[i].ID] = op.Params[i].Name.Source
-	}
-	var found []ir.ParamID
-	for _, b := range op.Bindings.HTTP {
-		for _, pb := range b.ParamBindings {
-			if pb.Location == ir.HTTPLocationHost || location != "" && pb.Location != location {
-				continue
-			}
-			wire := cmp.Or(pb.WireName, names[pb.Param])
-			matches := wire == name || pb.Location == ir.HTTPLocationHeader && strings.EqualFold(wire, name)
-			if matches && !slices.Contains(found, pb.Param) {
-				found = append(found, pb.Param)
-			}
-		}
-	}
-	return found
 }

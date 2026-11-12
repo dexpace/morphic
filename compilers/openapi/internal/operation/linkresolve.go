@@ -25,6 +25,12 @@ func (l *Links) Resolve(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry, sr
 	if len(l.pending) == 0 {
 		return nil
 	}
+	return l.resolve(c, svc, newLookups(reg), srv)
+}
+
+// resolve is Resolve reading the registry through lk, which a test reads after
+// it to see each list indexed once.
+func (l *Links) resolve(c lowering.Ctx, svc *ir.Service, lk *lookups, srv *servers.Registry) []ir.Diagnostic {
 	ix := indexOperations(c, svc)
 	var diags []ir.Diagnostic
 	for i := range l.pending {
@@ -35,17 +41,17 @@ func (l *Links) Resolve(c lowering.Ctx, svc *ir.Service, reg ir.TypeRegistry, sr
 				"link %q sits on a response of operation %q, which the service does not hold", p.draft.name, p.from))
 			continue
 		}
-		diags = append(diags, place(ix, reg, srv, from, p)...)
+		diags = append(diags, place(ix, lk, srv, from, p)...)
 	}
 	return diags
 }
 
 // place lowers p onto the response of from it sits on, or keeps it verbatim
 // there.
-func place(ix opIndex, reg ir.TypeRegistry, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
+func place(ix opIndex, lk *lookups, srv *servers.Registry, from *ir.Operation, p *pendingLink) []ir.Diagnostic {
 	d := &p.draft
 	at := p.slot.in(from)
-	link, failed := resolveLink(ix, reg, from, at, d)
+	link, failed := resolveLink(ix, lk, from, at, d)
 	if failed != nil {
 		kept, keepDiags := d.keep(at.unmodeled)
 		format := "link %q %s"
@@ -65,27 +71,37 @@ func place(ix opIndex, reg ir.TypeRegistry, srv *servers.Registry, from *ir.Oper
 }
 
 // responseView is what resolving a link reads of the response carrying it, and
-// where the link is written.
+// where the link is written. key names the response, which lookups index its
+// headers under.
 type responseView struct {
+	key       responseKey
 	links     *[]ir.OperationLink
 	unmodeled *ir.Unmodeled
 	payload   *ir.Payload
 	headers   []ir.Header
 }
 
+// responseKey names one response of a service: the operation carrying it and
+// its slot there.
+type responseKey struct {
+	op   ir.OpID
+	slot responseSlot
+}
+
 // in returns the response s names on op. add took s as the response was
 // appended, so the response is there.
 func (s responseSlot) in(op *ir.Operation) responseView {
+	key := responseKey{op: op.ID, slot: s}
 	switch s.list {
 	case slotErrors:
 		e := &op.Errors[s.index]
-		return responseView{links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
+		return responseView{key: key, links: &e.Links, unmodeled: &e.Unmodeled, payload: e.Payload, headers: e.Headers}
 	case slotDefault:
 		r := op.Default
-		return responseView{links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
+		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	default:
 		r := &op.Responses[s.index]
-		return responseView{links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
+		return responseView{key: key, links: &r.Links, unmodeled: &r.Unmodeled, payload: r.Payload, headers: r.Headers}
 	}
 }
 
@@ -109,7 +125,7 @@ func untyped(format string, args ...any) *linkFailure {
 }
 
 // resolveLink resolves d, which a response of from carries, at.
-func resolveLink(ix opIndex, reg ir.TypeRegistry, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
+func resolveLink(ix opIndex, lk *lookups, from *ir.Operation, at responseView, d *linkDraft) (ir.OperationLink, *linkFailure) {
 	target, failed := ix.target(d)
 	if failed != nil {
 		return ir.OperationLink{}, failed
@@ -118,10 +134,10 @@ func resolveLink(ix opIndex, reg ir.TypeRegistry, from *ir.Operation, at respons
 		Name: ir.NamingFor(d.name), Operation: target.ID, Docs: d.docs,
 		Provenance: d.c.Place().At(d.ptr), Unmodeled: d.extra,
 	}
-	ex := exchange{reg: reg, from: from, at: at}
+	ex := exchange{lk: lk, from: from, at: at}
 	given := map[ir.ParamID]string{}
 	for _, dp := range d.params {
-		id, failed := targetParam(target, dp.key)
+		id, failed := targetParam(lk, target, dp.key)
 		if failed != nil {
 			return ir.OperationLink{}, failed
 		}

@@ -85,6 +85,16 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 // have built around it.
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
+	l, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
+	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	return lowered.Service, append(loadDiags, l.diags.List()...)
+}
+
+// lowerBeforeLinks runs what lowerServiceSpec does short of resolving the
+// links, which it returns pending in Lowered beside the finished registry. The
+// diagnostics it returns are load's, and l holds the rest.
+func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegistry, []ir.Diagnostic) {
+	t.Helper()
 	l, loadDiags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
 	declared, authDiags := auth.LowerSecuritySchemes(l.ctx)
@@ -94,6 +104,5 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	l.diags.AppendAll(svcDiags)
 	reg, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)
-	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
-	return lowered.Service, append(loadDiags, l.diags.List()...)
+	return l, lowered, reg, loadDiags
 }
