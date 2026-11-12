@@ -258,8 +258,8 @@ type Model struct {
 	ExtensionRanges []WireIDRange `json:"extensionRanges,omitempty"`
 	// Discriminator is set on the polymorphic base.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
-	// DiscriminatorValue is set on each subtype one tag routes to: the wire tag
-	// value every instance of it carries.
+	// DiscriminatorValue is set on each subtype one tag routes to: that wire tag
+	// value (docs/ir/models.md#discriminator).
 	DiscriminatorValue string `json:"discriminatorValue,omitempty"`
 	// InputOnly marks GraphQL input types, which have distinct identity from
 	// output types.
@@ -314,8 +314,9 @@ type Discriminator struct {
 	// Index is the 0-based tuple element carrying the tag Literal (Erlang tagged
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
-	// Mapping maps wire value to subtype; nil = infer by type name; no value is
-	// empty.
+	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
+	// it routes by type name. In a model hierarchy, each subtype's
+	// DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.

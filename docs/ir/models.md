@@ -28,8 +28,7 @@ type Model struct {
     ExtensionRanges []WireIDRange  // wire-ID ranges reserved for third-party extension fields
                                    // (protobuf `extensions 100 to 199`)
     Discriminator  *Discriminator  // set on the polymorphic base
-    DiscriminatorValue string      // set on each subtype one tag routes to: the wire tag value
-                                   // every instance of it carries
+    DiscriminatorValue string      // set on each subtype one tag routes to: that wire tag value
     InputOnly      bool            // GraphQL input types; distinct identity from output types
 }
 
@@ -63,7 +62,8 @@ type Discriminator struct {
     Index    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
-    Mapping  map[string]TypeID     // wire value → subtype; nil mapping = infer by type name
+    Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name;
+                                   // a hierarchy routes to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;
@@ -81,16 +81,17 @@ with none, names itself in the `Provenance.Inferred` of the node holding the dis
 ([provenance](./provenance.md)), as every heuristic does. `Inferred` alone says which half was
 read in: the tag itself, or only where its values route.
 
-A subtype's `DiscriminatorValue` is the tag every instance of it carries, by which its base's
-discriminator routes to it. It is empty on a model no one tag routes to: one no discriminator
-routes, as none routes a schema composing a discriminated union that does not list it, each of its
-instances carrying the tag of the variant it is, or one whose instances may carry several tags. A
-heuristic reading the tag off what the subtype admits, rather than off what the source maps or
-names, names itself in the subtype's `Provenance.Inferred`. Two subtypes may carry one tag, where
-the instances of each carry only it, as every subtype of a base pinning its tag to one value does,
-and that tag then routes to more than one. A reading that declined there, as one filling a
-`Mapping`, which keys one target per tag, must, would leave each a tag its own instances reject for
-an encoder to write.
+A subtype's `DiscriminatorValue` is the tag by which a discriminator on one of its ancestors routes
+to it: a key that discriminator's `Mapping` names it under, or else the name the source routes it
+by. It is empty on a model no one tag routes to, such as one no discriminator routes, as none routes
+a schema composing a discriminated union that does not list it, each of its instances carrying the
+tag of the variant it is. Where the subtype admits no instance carrying the name it is routed by, a
+heuristic may read the tag off the strings it admits instead, leaving the field empty where it
+admits several or none, and names itself in the subtype's `Provenance.Inferred`. Two subtypes may
+carry one tag, where the instances of each carry only it, as every subtype of a base pinning its tag
+to one value does, and that tag then routes to more than one. A reading that declined there, as one
+filling a `Mapping`, which keys one target per tag, must, would leave each a tag its own instances
+reject for an encoder to write.
 
 ## Composition
 
