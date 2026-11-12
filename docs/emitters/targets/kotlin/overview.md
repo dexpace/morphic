@@ -36,8 +36,9 @@ Codecs are generated `KSerializer`s, the counterpart of Go's
 A Kotlin [unit](../../refine/output-units.md) is a package, and also a Gradle module of its own
 unless it is the root, since kotlinc compiles a module whole and a Multiplatform framework exports
 what its modules declare ([scale](scale.md)). A group's unit is `<root>.<group>`, and each module is
-a project named for its unit, in the directory `modules/<name>` rather than at the build's root,
-where Gradle and its plugins keep names of their own, a set any plugin may add to. There, measured
+a project named for its unit, in ASCII ([naming](naming.md#reserved-names)), in the directory
+`modules/<name>` rather than at the build's root, where Gradle and its plugins keep names of their
+own, a set any plugin may add to. There, measured
 with Kotlin 2.4.0 and Gradle 9.8.2, a `clean` of the root deletes a module named `build`, sources
 and all; a case-insensitive file system such as macOS's finds one named `buildsrc` as Gradle's
 build-logic build, which then fails; one named `gradlew` fails `gradle wrapper`; and one named

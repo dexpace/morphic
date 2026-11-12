@@ -63,7 +63,7 @@ and the stability and deprecation marks follow every step declaring a value's ty
 operation lowers to, since each adds to those; placement follows every structural lowering, and
 import computation follows placement, since a file imports what its declarations reference from
 wherever those landed; the naming steps run last — casing, then reserved-word escaping, whose scopes
-reserve what a file imports ([reserved names](reserved-names.md)), then collision resolution — so
-every name, a unit's and an import's among them, is settled once, after everything that names it
-exists. Because each step is idempotent
+reserve on Go what a file imports ([reserved names](reserved-names.md)), then collision
+resolution — so every name, a unit's and an import's among them, is settled once, after everything
+that names it exists. Because each step is idempotent
 and reads only its `Ctx`, a step-trace snapshot pins the whole lowering deterministically.

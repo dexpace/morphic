@@ -295,11 +295,11 @@ a way to show one entity across API versions. Each is decided by data, never by 
   is rendered and takes no anchor, since no link names one. Anything left without one is an error
   `emitters/docs/route-missing`, and a recursive type is linked by its ID, never inlined to a depth
   and cut.
-- **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
-  an error `emitters/docs/route-collision` naming both, never a page that overwrites another and
-  never a page dropped. The check runs on the URLs the templates produce, over every route a run
-  plans, its table's and its agent documents' together, so no template can reintroduce a collision
-  the catalog did not have.
+- **Collisions are refused.** Two entities whose routes resolve to one URL, or to two that fold
+  alike ([the path fold](emit/rules.md)), are an error `emitters/docs/route-collision` naming both,
+  never a page that overwrites another and never a page dropped. The check runs on the URLs the
+  templates produce, over every route a run plans, its table's and its agent documents' together,
+  so no template can reintroduce a collision the catalog did not have.
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's

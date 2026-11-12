@@ -19,9 +19,12 @@ scope and a unit's what a unit or a top-level declaration cannot be named:
   ([Swift](../targets/kotlin/swift.md)).
 - **A type**: the members the target gives every model.
 - **A union's variants**: `Unknown`, the fallback's name ([unions](unions.md)), which a variant the
-  spec names so yields to.
-- **A function**: its receiver, its context and request parameters, every local its body binds, and
-  the package names its file imports. Whatever builds a body declares the names it binds beside it —
+  spec names so yields to, and on Kotlin each class its toolchain nests where the variants are
+  nested ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
+- **A function**: its receiver, its context and request parameters, every local its body binds,
+  every name of its unit the body writes unqualified, as its operation's row of the runtime's
+  settings, and on Go the package names its file imports. Whatever builds a body declares the names
+  it binds beside it —
   the refine step that builds it as typed nodes, or the template that renders it, whose declaration
   the template lint holds to what the rendering binds ([template
   guards](../emit/templates.md#two-guards-on-the-boilerplate-templates)) — so no list is kept apart
@@ -33,16 +36,19 @@ Each target's sets are in its naming document ([Go](../targets/go/naming.md#rese
 A spec name that meets a reserved one takes the target's escape
 ([Go](../targets/go/naming.md#the-escape), [Kotlin](../targets/kotlin/naming.md#the-escape)). Only
 spec names yield, since the target's own names are what its runtime and templates are written
-against. A declaration a caller names never yields to an import either: an import yields to it, so
-every reference a file writes begins with a name no nearer declaration takes, as each target says
+against, so an import yields to a name the target binds on every target. A declaration a caller
+names never yields to an import either: an import yields to it, so every reference a file writes
+begins with a name no nearer declaration takes, as each target says
 ([Go](../targets/go/naming.md#imports), [Kotlin](../targets/kotlin/naming.md#imports)). A Go caller
-names no parameter, so there a parameter or a local yields to an import instead. A Kotlin caller
-names one in a named argument, and a Swift caller as its label, so there an import yields to every
-declaration of its file, at any depth. That is why `ComputeImports` runs before the naming steps
+names no parameter, so there a parameter the spec names yields to an import instead, and the
+function's scope reserves what its file imports. A Kotlin caller names one in a named argument, and
+a Swift caller as its label, so there an import yields to every declaration of its file, at any
+depth, and no scope reserves an import. An import has no ID, so which of two keeps a name is each
+target's to say from what they import. That is why `ComputeImports` runs before the naming steps
 ([the refiner contract](pipeline.md)): what a file imports is fixed by where declarations landed,
 and what the file calls each import is a name like any other. Names that collide once cased are
-`Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that differ in
-letter case alone ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds
+`Ctx.Syms`'s on every target, and so, in a scope a target writes as paths, are names that fold
+alike ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds
 every scope's set, the names with no words and the names that begin with a digit to code that
 compiles, and names that fold alike to paths that do not; T-54 holds names holding a character a
 target cannot write, or beginning with one its role cannot begin with, to code that compiles and a

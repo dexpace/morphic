@@ -42,10 +42,11 @@ Per-target heuristics live here too, beside the target's other choices, rather t
 parameter-passing shape ([request shaping](../refine/requests.md)), the type-table rows that give an
 unbounded number a width ([type table](type-table.md)), and the naming tables
 ([naming](../refine/naming.md)) — the acronyms, the character names that give words to a name with
-none, and the leading words an identifier takes that would begin with what its role cannot. Which
-characters an identifier cannot hold is a table of the options version as well, but one the target's
-toolchain fixes, so no configuration replaces it, and so are the letter case and the character
-categories casing reads, a named Unicode version's and never those of the Go release that builds
-Morphic. The target-AST nodes a default shapes carry `Inferred` provenance ([target
-AST](../refine/target-ast.md)), as INV6 requires. How a failure reaches its caller is a setting here
-as well ([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).
+none, the leading words an identifier takes that would begin with what its role cannot, and the
+length cap on a name a path holds. Which characters an identifier cannot hold is a table of the
+options version as well, but one the target's toolchain fixes, so no configuration replaces it, and
+so are the letter case and the character categories casing reads, a named Unicode version's and
+never those of the Go release that builds Morphic. The target-AST nodes a default shapes carry
+`Inferred` provenance ([target AST](../refine/target-ast.md)), as INV6 requires. How a failure
+reaches its caller is a setting here as well
+([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).

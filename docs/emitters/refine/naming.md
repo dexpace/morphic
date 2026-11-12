@@ -418,13 +418,20 @@ twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type'
 words alone. T-53 holds it.
 
 The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
-110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and 251 in
-a method's inlined continuation, which kotlinc 2.4.0 named `CKt$main$$inlined$Continuation$1.class`.
-No name of the golden spec reaches it: its longest is 99 bytes as words joined, 106 with the
-`WithResponse` a method may add, and its longest union and variant joined by `$` 156, by `jq` over
-its compiled IR (`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the
-target's own code makes kotlinc add beyond that room is held by T-53, which lowers the cap in the
-options version adding it.
+110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and a
+method of 110 bytes in a client of 110 makes at most 229 in a class kotlinc 2.4.0 writes for its
+body, `<client>$<method>$1.class`, over a plain, a paged and a streamed method each handing its
+lambdas to the runtime, with the kotlinx.coroutines kotlinc ships. That leaves 28 bytes after a
+method's name, which a class kotlinc copies from an inline function's lambda does not fit: it names
+one for the function, as in `$$inlined$filterIsInstance$1$1`, 30 bytes, and failed to write it at
+the cap (`error while writing`). So a method's body hands each lambda to a function that is not
+inline, as the runtime's pager and stream are and as `flow` is, and only the runtime's unit, whose
+names are its own, calls an inline function that writes a class. No name of the golden spec
+reaches the cap: its longest is 99 bytes as words joined, 106 with the `WithResponse` a method may
+add, and its longest union and variant joined by `$` 156, by `jq` over its compiled IR
+(`cloudflare/api-schemas` @ `bc6fad24`, morphic @ `fa253fe19`). A suffix the target's own code
+makes kotlinc add beyond that room is held by T-53, which lowers the cap in the options version
+adding it.
 
 Refusing the run was not taken: a valid spec would generate nothing, where shortening costs only
 the readability of a name no reader takes in whole. Nor was a cap on the segment rather than the

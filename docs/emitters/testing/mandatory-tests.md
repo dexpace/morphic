@@ -101,28 +101,37 @@ throughout these documents.
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
     reserves, after characters alone and after names that begin with a digit, two of its types in
-    each unit and two variants of each union in names that differ in letter case alone, from each
-    other and from a name the scope reserves, one of its types in each unit after each file a
-    template writes there, and its groups after every units name, after each name a Kotlin build
-    keeps at its root ([output units](../targets/kotlin/overview.md#output-units)) and after the
-    standard-library packages its files import, and its types and groups after each Windows device
-    name in two letter cases, after names whose last word `go/build` reads as a platform's or as
+    each unit, two variants of each union and two operations of one group, a paged and a streamed
+    one among them, in names that differ in letter case alone, from each other and from a name the
+    scope reserves, one of its types in each unit after each file a template writes there and one
+    after the class kotlinc names for a `typealias`'s file (`MoneyKt` beside `Money`), and its
+    groups after every units name, a keyword and `documentation` among them, after each name a
+    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
+    after the standard-library packages its files import, after a predeclared identifier its files
+    write (`error`) and after a name the generated code binds (`ctx`), two of them `com` and `Com`,
+    whose suffix would make `com2`, and its types and groups after each Windows device name in two
+    letter cases, after names whose last word `go/build` reads as a platform's or as
     `test`, and in pairs past ASCII that fold alike (`Straße` and `Strasse`, an `é` composed and
     decomposed, `ı` and `I`), generates code that compiles on every target, no two of its paths, an
     artifact's or a class file's, folding alike, the Go file holding two such types byte-identical
     in both declaration orders, with every template's declared names held to what it binds, and on
-    Kotlin to the default-imported names it writes. On Go `go list` lists every file the target
-    writes on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
-    every file and import path is one the module proxy takes
+    Kotlin the table of default-imported classes to each name that resolves, on each platform the
+    target builds for, in a file importing nothing. On Go `go list` lists every file the target
+    writes among a package's `GoFiles`, none among the files it ignores or builds for tests alone,
+    on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so every
+    file and import path is one the module proxy takes
     ([Go](../targets/go/naming.md#file-names), [package
     directories](../targets/go/naming.md#package-directories)). On Kotlin a root project the
-    options name `shared` or `runtime` is refused, a `clean` and a `wrapper` at the build's root
-    leave every module's sources, no path the build writes, an artifact's or a class file's, has a
-    Windows device name for a segment, and the Multiplatform framework links, its header holding
-    none of what only generated code calls and giving each declaration the Swift name the naming
-    policy chose, none of them a type Swift's standard library or Foundation declares or a module's
-    name, so a Swift file that imports the framework and Foundation compiles its uses of both and
-    qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
+    options name `shared` or `runtime` is refused, a caller's file importing each unit with `*`
+    compiles its use of the classes the default imports give it, `System.currentTimeMillis()`
+    beside a type the spec names `System`, and `Error("boom")` there is still `kotlin.Error`
+    beside a type `Error` whose constructor takes a string, a `clean` and a `wrapper` at the
+    build's root leave every module's sources, no path the build writes, an artifact's or a class
+    file's, has a Windows device name for a segment, and the Multiplatform framework links, its
+    header holding none of what only generated code calls and giving each declaration the Swift
+    name the naming policy chose, none of them a type Swift's standard library or Foundation
+    declares or a module's name, so a Swift file that imports the framework and Foundation compiles
+    its uses of both and qualifies a name by either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -175,8 +184,9 @@ throughout these documents.
     compiles. Each function map is held to a literal list, and the lint refuses `call`. One worker
     and many give identical artifacts, and so do two runs under different `LC_ALL`, over a fixture
     whose sort order a collation would change. Two artifacts on one path, and two whose paths fold
-    alike, each draw the error, and a segment past 255 bytes, a Windows device name before a first
-    dot in two letter cases, a character Windows refuses and a trailing dot or space each draw
+    alike, each draw the error, and a segment of 86 three-byte characters, 258 bytes, where one of
+    85 draws nothing, a Windows device name before a first dot in two letter cases and before the
+    first of two (`aux.v1.go`), a character Windows refuses and a trailing dot or space each draw
     `artifact-path-unportable`. A template that fails the formatter draws a located error and no
     artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope` matching
     nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute path, a
@@ -777,19 +787,24 @@ throughout these documents.
     table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
-    `Strasse`, an `é` composed and decomposed and a Cherokee letter in each case, and `ı` and `I`,
-    which NTFS upper-cases alike; and on a case-insensitive APFS volume, a name per fold class of
-    each assigned character's spellings, written to one empty directory, draws no collision, where
-    the same sweep under a fold of ASCII letters alone draws some ([the path
+    `Strasse`, an `é` composed and decomposed, `q` with U+0323 then U+0307 and with the two
+    reversed, and a Cherokee letter in each case; and on a case-insensitive APFS volume, both sweeps
+    the rule names, every spelling of each assigned character behind an `a` and names of one to four
+    characters, each written to one empty directory, leave no two names of one file in two folds,
+    where the same sweeps under a fold decomposing each character alone, under `cases.Fold` with no
+    upper-casing before it and under a fold of ASCII letters alone each do ([the path
     fold](../emit/rules.md)).
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
-    characters of two, three and four bytes, generates code that compiles on every target: each
-    identifier of a role written into a path within the cap, a shortened one keeping its leading
-    words and its hash word and drawing one `name-shortened`, two that share their first 110 bytes
-    apart, among them two names with no words (twelve and thirteen `_`), two types named from hints
-    and one long type's create and patch declarations, the property's name whole, and no segment of
-    a path the build writes past 255 bytes, every class file kotlinc writes among them
+    characters of two, three and four bytes, the operation in the client of the group at the cap
+    once as each shape a method lowers to, a plain, a paged and a streamed one, with and without its
+    `WithResponse` method, generates code that compiles on every target: each identifier of a role
+    written into a path within the cap, a shortened one keeping its leading words and its hash word
+    and drawing one `name-shortened`, two that share their first 110 bytes apart, among them two
+    names with no words (twelve and thirteen `_`), two types named from hints and one long type's
+    create and patch declarations, the property's name whole, and no segment of a path the build
+    writes past 255 bytes, every class file kotlinc writes among them, none of which a method's body
+    has it name for an inline function
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
     enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
@@ -802,7 +817,8 @@ throughout these documents.
     `Field_u0301x`, `u11046`), and every import path in ASCII; on Kotlin each such identifier in
     backticks with the spec's characters (a type `Ɤx`, a property of `field_`, U+0301 and `x`), a
     collision's suffix inside them, built for the JVM, JS, Wasm and a framework, under the
-    serialization plugin, every KDoc link to one resolving; and the policy's casing of every code
+    serialization plugin, every KDoc link to one resolving, and every module published to a Maven
+    repository; and the policy's casing of every code
     point equal to a golden held to the options version, so a Go release moving its Unicode tables
     fails the suite and renames nothing. A caller in another unit, a Go package or a Kotlin module,
     and a Java caller, sets and reads each property and calls each operation by its rendered name; a
@@ -822,14 +838,19 @@ throughout these documents.
     class Kotlin imports by default (`List`) and after the union itself; an open union beside a
     model named `Unknown`; models named `Builder` and `Companion` that another model's properties
     hold; a model whose properties are named after the first segment of each package its file
-    names, the root's and `kotlin`'s among them; a spec class beside a runtime class of its name;
-    two units declaring one name and a file naming both; and an operation named after each function
-    its client's code calls, generates code that compiles on every target. A consumer in another
+    names, the root's and `kotlin`'s among them; on Go a spec type beside a runtime type of its
+    name; two units declaring one name and a file naming both; an operation named after each
+    function its client's code calls and after each member of a lambda's receiver it writes
+    (`emit`), a parameter named `it`, an enum entry, a property and a model named after what each
+    file names (`size`, `serializer`), and on Kotlin a declaration its file imports under an alias
+    named in a KDoc link, generates code that compiles on every target. A consumer in another
     module and package, and on Multiplatform a Swift caller, builds each wrapper from the type it
     wraps and each model from the types its properties name, each variant decodes as its wrapped
     type, and the client's calls against the [behavior server](behavior-server.md) do what the same
     fixture's do with each such name changed to one nothing else takes. No Kotlin file writes a
-    reference qualified by its package, and adding a variant, a model and a property renames no
+    reference qualified by its package, the rendered docs show each declaration's own name where
+    its file imports it under an alias and open its page, and adding a variant, a model and a
+    property renames no
     declaration the manifest records. On Go, a model whose fields and methods are named after each
     package its file imports compiles ([Kotlin](../targets/kotlin/naming.md#imports),
     [Go](../targets/go/naming.md#imports)).
