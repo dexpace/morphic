@@ -55,8 +55,9 @@ method's signature: a breaking SDK change caused by an additive spec change.
   its location and wire name, a header's compared without case as HTTP compares it (RFC 9110 §5.1),
   whose declaration lowers to one wire form with the others: the same root through its scalar chain
   ([scalars](../refine/scalars.md)), the same style, and the same explode, a binding's nil read as
-  its style's default (true under `form` and `cookie`, false under any other), so a declaration
-  writing that value and one leaving it unwritten are one wire form. Requiredness, constraints and
+  its style's default (true under `form` and `cookie`, false under any other, and none where the
+  style is empty), so a declaration writing that value and one leaving it unwritten are one wire
+  form. Requiredness, constraints and
   docs may differ, and each operation checks its own. A declaration of another wire form stays a
   plain input, reported once by refine, naming the operation, since a shared name does not make two
   parameters one. A `ParamKey` no operation of the service declares is reported, as a hint naming

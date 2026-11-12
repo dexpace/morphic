@@ -127,6 +127,41 @@ func TestParams_QueryStringDeclaredExplodeAloneIsKeptAndReported(t *testing.T) {
 			"/paths/~1q/get/parameters/0/explode"))
 }
 
+// TestParams_QueryStringDeclaredStyleAloneTakesNoExplode covers the half of the
+// declared-keyword rule the explode-alone case cannot see: a style written
+// without an explode beside it. The style lowers as declared and is reported,
+// and the binding states no explode, which a consumer reads as that style's
+// default, as it does at every location.
+func TestParams_QueryStringDeclaredStyleAloneTakesNoExplode(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /q:
+    get:
+      operationId: q
+      parameters:
+        - name: qs
+          in: querystring
+          style: form
+          content:
+            application/x-www-form-urlencoded:
+              schema: {type: object}
+      responses:
+        "200": {description: ok}
+`)
+	doc, diags := parseFull(t, spec)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, "parameter field style is not allowed for in=querystring; lowered as declared",
+		openapitest.DiagMessageAt(t, diags, diag.InvalidLocationKeyword, ir.SeverityWarning,
+			"/paths/~1q/get/parameters/0/style"))
+	op := openapitest.FindOp(t, doc, "q")
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+
+	qs := op.Bindings.HTTP[0].ParamBindings[0]
+	require.Equal(t, ir.HTTPLocationQuerystring, qs.Location)
+	assert.Equal(t, "form", qs.Style, "the declared style lowers as declared")
+	assert.Nil(t, qs.Explode, "the parameter writes no explode, so the binding states none")
+}
+
 // TestParams_QueryStringDeclaredAllowReservedIsKeptAndReported is the third
 // keyword 3.2 forbids at this location alongside style and explode; see
 // diag.InvalidLocationKeyword's GoDoc for why the report is a warning.

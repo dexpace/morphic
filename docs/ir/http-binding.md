@@ -47,8 +47,8 @@ type HTTPParamBinding struct {
     WireName   string
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
     Explode    *bool              // as declared; nil = the style's default: true under form and
-                                  // cookie, false under any other; querystring has no style,
-                                  // so nil there = no explode
+                                  // cookie, false under any other, and none where Style is
+                                  // empty, as at querystring
     AllowReserved bool
     AllowEmptyValue bool          // the client may send an empty value in place of omitting
                                   // the param (OpenAPI/Swagger allowEmptyValue); no effect under

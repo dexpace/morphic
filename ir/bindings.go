@@ -134,8 +134,8 @@ type HTTPParamBinding struct {
 	// deepObject | pipe/space-delimited.
 	Style string `json:"style,omitempty"`
 	// Explode is the parameter's explode, as declared; nil = the style's default:
-	// true under form and cookie, false under any other. Under querystring, which
-	// has no style, nil = no explode.
+	// true under form and cookie, false under any other, and none where Style is
+	// empty, as at querystring.
 	Explode *bool `json:"explode,omitzero"`
 	// AllowReserved permits reserved characters unescaped in the value.
 	AllowReserved bool `json:"allowReserved"`
