@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -128,7 +129,6 @@
                   {
                     "method": "DELETE",
                     "uriTemplate": "/items/{id}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items~1{id}/delete/parameters/id/path",
@@ -140,6 +140,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

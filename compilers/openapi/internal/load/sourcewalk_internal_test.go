@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	typed "github.com/dexpace/morphic/internal/decls"
 )
 
@@ -171,7 +171,7 @@ func TestLocatedWalk_StopsWhenTheReaderDoes(t *testing.T) {
 func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
 	sites := walkSites(walkSource(t.Context(), doc, sibs, MediaTypes{}))
 
 	index := func(site string) int {
@@ -207,7 +207,7 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
-	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
 	for _, stopAt := range []string{"/paths/~1b", "/paths/~1a/put"} {
 		var last string
 		for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
@@ -227,7 +227,7 @@ func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 // the process's goroutines.
 func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
 	doc := modelOf(t, siblingSpec)
-	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
+	sibs, _ := modelSiblings(t.Context(), doc, provenance.Tree{})
 	nested := "/paths/~1a/put/callbacks/cb/{$request.body#~1url}/"
 	const reads = 100
 	before := runtime.NumGoroutine()

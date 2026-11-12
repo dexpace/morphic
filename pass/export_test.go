@@ -66,6 +66,13 @@ var ValidateWith = validate
 // context.
 func Families() int { return len(families(nil, walked{}, nil)) }
 
+// NameFamilies is how many families of scopes Names reads, each after a check
+// of its context.
+func NameFamilies() int {
+	var r nameReader
+	return len(r.families())
+}
+
 // FamilyAllocs returns the allocations one run of each rule family Validate
 // runs over doc makes, in the order it runs them, as testing.AllocsPerRun
 // counts. The walk they read is taken beforehand, and so is the index they

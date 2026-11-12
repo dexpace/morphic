@@ -14,7 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -27,7 +27,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	t.Helper()
 	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), parsed.root)
+	readyForModel(t.Context(), parsed.root)
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -122,7 +122,7 @@ func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, er
 	t.Helper()
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
 		Siblings{}, MediaTypes{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
+	return resolved, passDiags(provenance.Doc{}, pass, missed), err
 }
 
 // respelled returns url with its scheme spelled scheme, which net/url respells

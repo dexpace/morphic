@@ -125,9 +125,9 @@ func draftLink(c lowering.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (
 			d.params = append(d.params, draftParam{key: key, value: value})
 		}
 	}
-	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), c.ProvenanceAt, ptr)
+	extra, diags := annotation.ExtensionsFrom(l.GetExtensions(), c.Place(), ptr)
 	d.extra = extra
-	return d, append(diags, annotation.UnknownKeysIn(&d.extra, l, c.ProvenanceAt, ptr)...)
+	return d, append(diags, annotation.UnknownKeysIn(&d.extra, l, c.Place(), ptr)...)
 }
 
 // keep records d verbatim in p, under openapi:links/<name>, reporting whether
@@ -137,5 +137,5 @@ func draftLink(c lowering.Ctx, l *soa.Link, ptr jsontext.Pointer, name string) (
 // verbatim form is reported.
 func (d *linkDraft) keep(p *ir.Unmodeled) (bool, []ir.Diagnostic) {
 	return annotation.PreserveNodeInto(p, "openapi:"+ids.Scope("links", d.name),
-		d.node, ir.ReasonNoIRHome, d.c.ProvenanceAt(d.ptr))
+		d.node, ir.ReasonNoIRHome, d.c.Place().At(d.ptr))
 }

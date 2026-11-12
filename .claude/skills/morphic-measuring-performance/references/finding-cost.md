@@ -19,29 +19,69 @@ how to measure so the number means what the claim says.
 ## Quote instructions retired, never alone and never under your own load
 `instructions-not-wall-clock`
 
-- **Rule.** For a cost claim on a loaded machine, compare instructions retired, run base and head
-  alternately, and report each side's median with its spread; quote allocations beside them, but
+- **Rule.** For a cost claim on a loaded machine, compare instructions retired in the process doing
+  the work (`references/finding-cost.md#count-stops-at-the-timed-process`), base and head run
+  alternately, and report each side's median and spread, quoting a gap only as
+  `references/finding-cost.md#count-holds-across-rounds` allows. Quote allocations beside them,
   never in their place, since an allocation-free path can cost more. Run nothing else of your own
   while measuring.
 - **Why.** Replacing `FieldByName` with an allocation-free field scan made `Verify` slower (#1133);
-  runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
-- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
-  the head, run the two alternately (`references/finding-cost.md#count-on-one-thread`) under
-  `/usr/bin/time -l` on macOS or `perf stat -e instructions:u` on Linux, and compare each side's
-  median and range. A run that exits non-zero measured a failure. With neither tool, take
-  `references/finding-cost.md#cpu-time-without-a-counter`.
+  runs alternating with the author's test runs showed a gap quiet runs did not (#1140).
+- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` at the merge base and the head, and run
+  the two alternately (`references/finding-cost.md#count-on-one-thread`) under `/usr/bin/time -l`
+  on macOS or `perf stat -e instructions:u` on Linux. A run that exits non-zero measured a failure.
+  With neither tool, take `references/finding-cost.md#cpu-time-without-a-counter`.
+
+## A `/usr/bin/time` instruction count stops at the timed process
+`count-stops-at-the-timed-process`
+
+- **Rule.** `/usr/bin/time -l` counts the timed process alone, so a command doing its work in
+  children, such as `go vet`, `go test`, golangci-lint or a script, reads as nearly free, exactly
+  and repeatably. Time the binary doing the work, as `go test -c` builds one, read each action's
+  `CmdUser` and `CmdSys` from `-debug-actiongraph=<file>`, or read `user + sys` of one command,
+  never of a shell wrapping several.
+- **Why.** A lint change cut CPU by 43% while the instruction count saw nothing, and a script
+  spending 225 CPU-seconds in its children counted its shell's 72 million instructions (#1294).
+- **Probe.** `/usr/bin/time -l <script>`: a count far below what its `user + sys` implies is the
+  shell's own.
 
 ## Count instructions on one thread with the collector off
 `count-on-one-thread`
 
 - **Rule.** Set `GOMAXPROCS=1 GOGC=off` for an instruction count over a compile: scheduling and
-  collection can move a total past the gap, whichever build they land on, and alternating does not
-  average that out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so.
-  Count each side's readings before quoting a median.
+  collection can move a total past the gap on either build, and alternating does not average that
+  out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so: its spread is
+  then about a fifth of the median on the golden spec, so a gap of a percent or two needs a smaller
+  spec. Count each side's readings before quoting a median.
 - **Why.** Two builds on one spec read +2.73%, then -2.08%; pinned, the same pair read +2.06% with
   each side's range under 1% (#1205, #1210).
 - **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>`, three alternating
-  runs a side: a range wider than the gap means the count is still noise.
+  runs a side: a range wider than the gap means the count is still noise. Its resident set is total
+  allocation (`references/finding-cost.md#resident-set-without-collector`).
+
+## A count holds across rounds and beside a control
+`count-holds-across-rounds`
+
+- **Rule.** Alternate a control beside the two builds, a second build of the base or the head with
+  an unreached change, which must read equal to its twin, and run a second round. Quote a gap only
+  where both rounds agree on its sign and size and it exceeds the control's own difference; else
+  attribute it with a CPU profile of repeated in-process compiles, reading the changed functions'
+  own lines, and say the whole-run count was not resolvable at that load.
+- **Why.** A variant compiling the input identically moved 1.4% between two rounds, more than the
+  0.4% to 1.6% gaps being read (#1333), and the golden spec's range was about 20% of its median
+  with the collector on (#1304).
+- **Probe.** The control's twins differ by less than the gap, in both rounds.
+
+## A resident set read with the collector off is total allocation
+`resident-set-without-collector`
+
+- **Rule.** With `GOGC=off` nothing is freed, so the maximum resident set `/usr/bin/time -l` prints
+  beside an instruction count is every byte the run allocated. Quote it as total allocation or not
+  at all, and read a peak in a separate run with the collector on, or as `go test -benchmem` bytes
+  where allocation is meant.
+- **Why.** A 2,000-hop parameter chain read 7.9 GB with the collector off and 51 MB with the
+  defaults, and a review took a collector-off figure for a memory regression (#1470).
+- **Probe.** The same run with and without `GOGC=off`.
 
 ## Without an instruction counter, compare CPU time and say so
 `cpu-time-without-a-counter`
@@ -52,6 +92,72 @@ how to measure so the number means what the claim says.
   clock, which load skews, and each one reads the fixtures it names.
 - **Why.** A Linux host with no `perf` left a review of a cost claim no instrument (#1162).
 - **Probe.** `command -v perf`, then each side's range from the alternated runs against the gap.
+
+## Profile a fuzz worker alone, over a window past its warm-up
+`profile-a-fuzz-worker-alone`
+
+- **Rule.** `go test` refuses `-cpuprofile` beside `-fuzz`, and a test binary given both has its
+  workers write the profile's file too. Profile a worker from an `init` in a scratch copy of the
+  target's package that, when `os.Args` holds `-test.fuzzworker`, sleeps past warm-up and runs
+  `pprof.StartCPUProfile` over a fixed window, and quote the window with the figure. Run it with
+  `-test.fuzzminimizetime=0x`, as a worker the minimization bound restarts starts its window again.
+  The whole search's CPU time is `references/finding-cost.md#cpu-time-without-a-counter`'s, over
+  the test binary.
+- **Why.** Coverage bookkeeping read 41% of `FuzzCompile`'s worker over 20 s past 15 s of warm-up,
+  and 1.8% over its first 10 s; five runs given both flags each wrote a profile pprof refused
+  (#1381, #1552).
+- **Probe.** `go tool pprof -top <profile>` prints a `Duration` of the window.
+
+## Read minimization out of a fuzz cost, and count its cut runs
+`minimization-in-a-fuzz-cost`
+
+- **Rule.** Compare CPU per execution with `-test.fuzzminimizetime=0x`. A share of time spent
+  minimizing, read from `GODEBUG=fuzzdebug=1`, adds each `minimizing took: 0s` line times the bound
+  to the lines' sum: a minimization the bound cuts logs `0s` and restarts its worker.
+- **Why.** `FuzzCanonicalWords` read 340 µs an execution with default minimization and 145 µs
+  without it, and a plain sum of the log read minimizing as 13% of worker time where the bound
+  put it near 84% (#1385, #1552).
+- **Probe.** The count of `0s` lines comes close to the worker starts past each worker's first,
+  counted by a line a scratch `init` writes when `-test.fuzzworker` starts.
+
+## Sum a share of named functions over pprof's `cum`, never `flat`
+`share-of-named-functions`
+
+- **Rule.** A share of time spent in named functions names its pprof column, and sums `cum` over
+  functions none of which calls another, read from
+  `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 <profile>`: `flat` leaves
+  out what pprof books to a callee inlined into the function.
+- **Why.** Three coverage functions of one fuzz worker summed 47.0% `flat` and 54.4% `cum`, and a
+  body quoted such a share with no column (#1381, #1592).
+- **Probe.** Each share quoted names its column, and `go tool pprof -peek '<name>' <profile>` shows
+  none of its functions calling another. Then
+  `references/finding-cost.md#share-no-module-frame-holds`.
+
+## Quote the samples no module frame holds, and attribute them by allocation
+`share-no-module-frame-holds`
+
+- **Rule.** Beside a share of named functions, quote the share of samples whose stack holds no frame
+  of the module or its dependencies, as the runtime's. Where it is large, attribute it by an
+  allocation profile of the same run (`-sample_index=alloc_space`), or by instructions retired with
+  the suspected party switched off, never by CPU samples alone.
+- **Why.** One `engine.Run` over the GitHub REST description booked 22.1% of CPU samples to the
+  parser library and 8.4% to the module alone, with 69.2% under the runtime; its allocation
+  profile put 75% of the bytes under the library (#1653).
+- **Probe.** `go tool pprof -top -nodecount=100000 -nodefraction=0 -edgefraction=0 -ignore="$(go list -m -f '{{.Path}}' all | sed 's/[.]/\\./g' | paste -sd'|' -)" <binary> <profile> | grep '^Showing'`
+  prints those samples and their share of the total.
+
+## Measure a claimed cost on an input that can show it
+`cost-measured-where-it-occurs`
+
+- **Rule.** A cost a change weighs, or claims absent, is measured on an input where it can occur,
+  named beside the figure: a "no cost" read on an input that cannot show one is unmeasured. For a
+  fuzz bound, plant a crash only a valid document reaches, behind a clock so that both bounds meet
+  it.
+- **Why.** A minimization bound cut to 1 s was weighed against a less minimal reproducer on a crash
+  a 3-byte input reaches. Planted past a clean compile, the crash's reproducer was 91 and 92 bytes
+  at a 10 s bound and 313 and 3176 at 1 s (#1290, #1385, #1608).
+- **Probe.** The figure on the named input differs between bounds or builds wherever the claimed
+  cost exists.
 
 ## Price a stage after the compile from a saved document
 `cost-of-a-later-stage`
@@ -100,6 +206,19 @@ how to measure so the number means what the claim says.
 - **Probe.** List each arm with the input that reached it, and take each arm's instructions on both
   builds (`references/finding-cost.md#instructions-not-wall-clock`).
 
+## Find where a small cost difference comes from by counting statements
+`attribute-by-statement-counts`
+
+- **Rule.** Where a profile of a few percent measures the machine, build both sides with
+  `-cover -covermode=count -coverpkg=<the module's packages>`, run one input through each, and sum
+  each block's statements times its executions per function. The counts name candidate sites; an
+  instruction count on one thread with the collector off confirms each, since a statement is no
+  instruction, and code outside `-coverpkg`, allocation and collection go uncounted.
+- **Why.** Two profiles put an unchanged `load.Load` at 3.61 s and 4.86 s, while statement counts,
+  0.01% apart over two runs of one build, named the readers whose calls grew; on another shape
+  their +14% was +3.2% in instructions (#1269).
+- **Probe.** Two runs of one build differ far less than the two builds.
+
 ## Time generated shapes, deep and wide, on main and the branch
 `deep-generated-shapes`
 
@@ -114,6 +233,18 @@ how to measure so the number means what the claim says.
   #1240).
 - **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
+
+## Drive a loop that reruns a phase through many turns
+`drive-a-settling-loop`
+
+- **Rule.** When a change reruns a phase until it settles, name what makes it turn again, build an
+  input forcing n turns, such as a chain of documents each named by an absolute URI, and count its
+  work at n and 2n. Rerun the phase's budget sweep on an input taking more than one turn, reading
+  which turn each limit cuts and what the result holds there.
+- **Why.** A binder rerun until it settled cost the square of a document chain's length, and a
+  budget cut in a later pass replaced a whole table with an empty one, both past two reviews
+  (#1227).
+- **Probe.** The work at 2n is about twice the work at n.
 
 ## Do not take main's fast failure as the baseline for a fix
 `failing-fast-is-no-baseline`

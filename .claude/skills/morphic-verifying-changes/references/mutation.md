@@ -6,15 +6,15 @@ yourself. These rules are the ways that reading still lies.
 ## Plant every temporary edit in a throwaway worktree
 `plant-in-a-throwaway-worktree`
 
-- **Rule.** Plant a mutant, instrumentation or a measurement switch in a detached worktree, never
-  in the tree you work in: `git add` new files, then
+- **Rule.** Plant a mutant, instrumentation or a measurement switch in a detached worktree, never in
+  the tree you work in: `git add` new files, then
   `git worktree add --detach <dir> $(git stash create)`, which holds uncommitted work without
-  touching the stash list. Put a file back with `git -C <dir> checkout -- <file>`, and remove the
-  worktree at the end. Run Python with `PYTHONDONTWRITEBYTECODE=1`.
-- **Why.** Restores in the working tree failed: a backup restored from the wrong copy (#591), one
-  backup shared by two files of one basename (#566), a full disk that left a mutant planted (#1141)
-  and emptied a file mid-restore (#1143), and bytecode outliving a same-size Python mutant restored
-  within its second (#1143).
+  touching the stash list. Restore with `git -C <dir> reset -q --hard && git -C <dir> clean -qfd`,
+  which undoes a `git mv` too, and remove the worktree at the end. Run Python with
+  `PYTHONDONTWRITEBYTECODE=1`.
+- **Why.** Restores in the working tree failed: a backup from the wrong copy (#591), one backup
+  shared by two same-named files (#566), a full disk (#1141, #1143), bytecode outliving a same-size
+  Python mutant (#1143), and a `git mv` plant surviving `checkout` (#1541).
 - **Probe.** `git status --short` in your own tree lists only your changes, and
   `git worktree list` no longer names the throwaway.
 
@@ -23,9 +23,13 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** `git worktree add` writes metadata into the repository. Where that is ruled out, unpack
   a copy with `git archive <head> | tar -x -C <dir>`, then `git init`, `git add -A` and a commit
-  there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare.
+  there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare. The copy holds
+  no history, so it serves a plant alone; a review reading the branch's commits takes the clone,
+  made with `git clone -n`, that
+  `.claude/skills/morphic-reviewing-prs/references/rounds.md#review-without-origin` names.
 - **Why.** Reviews improvised this, and one wrote the metadata its round had ruled out (#1233,
-  #1235, #1238).
+  #1235, #1238). In a copy, `subjects.py` read only the copy's own commit, and the merge of `main`
+  refused unrelated histories (#1537).
 - **Probe.** Plant a line in the copy: `status` names one file.
 
 ## Check the tree holds one mutant before reading its verdict
@@ -46,36 +50,169 @@ yourself. These rules are the ways that reading still lies.
 - **Rule.** A mutant is killed only where the output names a failing test (`--- FAIL: <test>`, or
   unittest's `FAIL:` or `ERROR:`) and the mutant compiled. A `[build failed]` or `[setup failed]`
   line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`, a
-  timeout), `[no tests to run]`, `Ran 0 tests` and an `ERROR` naming
-  `unittest.loader._FailedTest`, a module that did not load, are no verdict. Adjust a mutant
-  until it compiles (`_ = x` for an unused variable).
-- **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
-  (#321, #322) and as "killed" with an empty failure list (#1100).
+  `-timeout`), `[no tests to run]`, `Ran 0 tests`, an `ERROR` naming
+  `unittest.loader._FailedTest`, a module that did not load, and what
+  `references/mutation.md#run-a-limit-or-a-stray-panic-ended` names are no verdict. Adjust a mutant
+  until it compiles (`_ = x`). A test binary's flag, such as `-update`, follows the package, or `go`
+  ends its own flags there and tests `.`.
+- **Why.** Unused variables and imports turned mutants into build failures read as "not caught"
+  (#321, #322) and as "killed" with no failure listed (#1100); `-update` before the package failed
+  setup (#1555).
+
+## A run a limit or a stray panic ended is read by what it printed
+`run-a-limit-or-a-stray-panic-ended`
+
+- **Rule.** A run that exits 124 or 137, the codes `timeout` and a `KILL` give, or prints fewer
+  package lines than its packages, is no verdict: an outer limit ended it before any `FAIL`. A panic
+  with no `--- FAIL` above it, as one off the test goroutine prints, bar `-timeout`'s
+  `test timed out`, is a kill only where its stack passes through the plant, reported with its test
+  unnamed.
+- **Why.** In a scratch module, `timeout 5 go test` over a hanging test exited 124 with no `FAIL`
+  line, a panic on another goroutine printed a package `FAIL` alone (#1585), and `-timeout`'s
+  panic held in its stack a function a plant only slowed (go1.27.3).
+- **Probe.** `timeout 5 go test -count=1 ./<hanging package>; echo $?` prints 124 and no `FAIL`.
+
+## Count a table row's kill only from the row run alone
+`a-kill-in-a-row-run-alone`
+
+- **Rule.** Where a table's rows share state, run each row a mutant fails on its own before counting
+  it, as `go test -v -run '^<Test>$/^<row>$'` with the row spelt as `-v` prints it, its
+  regular-expression characters escaped and a quote written `'\''`, and see one `=== RUN` line name
+  it: a row failing only after another left state behind is fallout, not a kill. The shared state
+  is reported too (`references/tests-that-bite.md#row-owns-its-state`).
+- **Why.** A plant at `cmd/morphic/dashes.go:93` failed four rows of
+  `TestRun_SingleDashLongFlagsAreRefused`, and two passed alone, failing only on a file the first
+  row left (#1538, #1516 at 9aa24431). A pattern in double quotes expanded a row's `$ref` to nothing
+  and ran no test (#1532).
+- **Probe.** Each row counted as a kill shows its `=== RUN` line from a run alone under the plant.
+
+## A mutant run owns its cache and stops before the disk fills
+`mutant-run-owns-its-cache`
+
+- **Rule.** Point each mutant worker at a `GOCACHE` of its own, cleaned past a size, pass
+  `-vet=off` to its `go test`, and check free disk before each verdict inside the planting loop,
+  stopping under a floor. A mutant in a package others import rebuilds everything above it, and a
+  full or shared cache turns verdicts into `[build failed]`.
+- **Why.** 57 mutants grew a cache to 30 GB, leaving 250 MiB free (#1229), and 16 of 20 mutants
+  read as build failures while other work cleared the shared cache (#1333).
+- **Probe.** `df -h` and `du -sh "$GOCACHE"` before and after a batch.
+
+## Stop a plant run by each `timeout`'s own pid
+`stop-a-plant-run`
+
+- **Rule.** To stop a plant run before the next restore, signal each `timeout` in it by its own pid:
+  `timeout` moves itself and its command into a process group of their own, so a kill of the run's
+  group leaves `go test` building or testing the tree the restore is about to change. Then see the
+  session empty (`ps -o pid= -s <sid>` prints nothing) before `git reset`.
+- **Why.** A run's group killed, `timeout` and its `sleep` lived on; a kill of `timeout` itself
+  ended both (#1603).
+- **Probe.** `setsid bash -c 'timeout 25 sleep 24 & wait' &`, then a kill of that session's group:
+  `ps -o pid=,comm= -s <sid>` still lists `timeout` and `sleep`.
+
+## A kill counts only from a test that reaches the plant
+`kill-reaches-the-plant`
+
+- **Rule.** A mutant reported killed by a test that cannot reach the planted line is no verdict
+  until it reproduces, on a machine with free disk, by a test that does.
+- **Why.** A mutant in `readStability` was reported killed by a test reading no stability while the
+  disk sat near full; rerun with the disk free, a stability test killed it (#1229).
+- **Probe.** Rerun the killing test alone on the mutant and on the clean tree: it fails on the
+  first and passes on the second.
+
+## Run a planted Python file without its cached bytecode
+`python-plant-without-bytecode`
+
+- **Rule.** Run the tests of a planted Python file with `python3.14 -B`, from a copy holding no
+  `__pycache__`, beside the unplanted copy's run (`references/mutation.md#mutation-controls`).
+  CPython keeps a cached `.pyc` while the source's recorded size and modification second match, so
+  a plant the size of the last one, written within that second, is never read, and the run reports
+  the last plant's verdict.
+- **Why.** In a review of #1522, a plant that `skills_lint.py`'s tests kill read as surviving
+  until it ran again with `-B`, which writes no `.pyc` for the next plant (#1522 at 29372a248).
+- **Probe.** In an empty directory, write `X = 1`, then `X = 2`, to module `m` within one second,
+  running `python3.14 -c 'import m; print(m.X)'` after each: without `-B` both print 1, and so does
+  `-B` while the first run's `__pycache__` remains.
+
+## Plant where only the callers a check leaves out reach
+`plant-past-the-included-callers`
+
+- **Rule.** To test what a check leaves out, such as a list claimed to hold every package whose
+  code runs concurrently, plant on a branch only the excluded callers take, found by
+  `references/mutation.md#find-what-only-excluded-callers-reach`: the included set's run stays
+  green while the excluded set's reports the plant. A plant at a function's entry measures
+  its busiest caller, and is the control, not the evidence; a helper's other callers take
+  `references/mutation.md#plant-a-bypass-in-each-caller`.
+- **Why.** An increment at `pass.validate`'s entry drew 291 race reports through the engine's
+  listed tests, while the same increment on branches only `pass`'s and `irverify`'s own tests take
+  drew none from the listed packages and 14 from those two (#1380).
+- **Probe.** The included set's run exits 0, and the excluded set's reports the plant.
+
+## Plant a bypass in each caller of a helper a test holds
+`plant-a-bypass-in-each-caller`
+
+- **Rule.** For a test holding a property of a helper several callers share, list the callers
+  (`git grep -nF '<helper>(' -- <package>`), and in each the test does not run through, plant a
+  bypass doing the helper's work without the property. A test fails for each, or that caller's
+  property is unheld; a plant inside the helper holds only the callers the test runs through.
+- **Why.** A test held `forEachPayload`'s sorted range over `doc.Messages` through
+  `checkPayloadRequired` alone: `checkEncodingKeys` ranging the map itself passed every test in
+  `pass` and `engine`, while 20 runs gave its diagnostics 5 orders (#1644).
+- **Probe.** Each bypass beside the suite's result, and a run showing the bypass reaches the
+  output, as the 20 runs did.
+
+## Find what only the excluded callers reach from a coverage profile
+`find-what-only-excluded-callers-reach`
+
+- **Rule.** For `references/mutation.md#plant-past-the-included-callers`, profile the included set's
+  run over the packages it plants in, `go test -coverpkg=<those> -coverprofile=<f> <included>`,
+  and read it with `go run ./cmd/morphic-covergate <f>`, which lists each statement that run leaves
+  uncovered: as each package's own tests cover all of it, each is one only the excluded callers
+  reach; without `-coverpkg`, a package the excluded tests own is not in the profile. A candidate
+  is no result until its plant is measured both ways.
+- **Why.** On a change excluding tests from the race run, a listed statement's plant drew race
+  reports in every run of the excluded test alone and none under the exclusion, and another's drew
+  none either way (#1311, #1551).
+- **Probe.** Each candidate's plant, run with the excluded test alone and with the included set,
+  each at `references/mutation.md#kill-rate-for-a-scheduled-detector`'s count.
+
+## A plant a run's schedule decides needs a measured kill rate
+`kill-rate-for-a-scheduled-detector`
+
+- **Rule.** The race detector reports a race only when no synchronization in that run orders the two
+  accesses, so one run is no verdict, and reports the same race once per process, so each run is its
+  own `go test -count=1`. Run it at least 10 times and report the rate. A plant caught in fewer than
+  every run moves to a path more tests take, or its rate is the result.
+- **Why.** A race planted in `pass`' `checkPropIDRefs` was reported in 3 of 14 runs, one on a path
+  many `pass` tests take in 5 of 5, so a single run read either way could be wrong (#1438).
+- **Probe.** `for i in $(seq 10); do go test -race -count=1 ./<pkg> 2>&1 | grep -c 'WARNING: DATA RACE'; done`,
+  counting the runs above 0.
 
 ## Rebuild a plant set nobody kept, rather than carrying its result over
 `rebuild-lost-plants`
 
-- **Rule.** A PR body cites plants by count and class, and the script that made them is gone. When
-  a merge or a review asks for them again, rebuild a set from the conditions the change adds and run
-  it once before merge, even after a merge that touched only comments: a count carries nothing
-  over.
+- **Rule.** Where a PR body cites plants only by count and class, and the script that made them is
+  gone, rebuild a set from the conditions the change adds when a merge or a review asks for them
+  again, and run it once before merge, even after a merge that touched only comments: a count
+  carries nothing over.
 - **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
   found a check no test held, which none of them had planted (#1191, #1216).
-- **Probe.** `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt'` shows
-  whether a set survives, and the report lists each condition the diff adds beside its plant.
+- **Probe.** Run
+  `git grep -lF '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt' ':!<file the condition is in>'`
+  to show whether a set survives; the report lists each condition the diff adds beside its plant.
 
-## Rerun only the plants a merge can have changed
+## Rerun only the plants a merge or commit can have changed
 `verdict-outlives-unchanged-files`
 
-- **Rule.** A plant at hand keeps its verdict across a merge that changed neither the file it
-  mutates nor the test that killed it, with the fixtures it reads. Rerun the rest, and every plant
-  after a merge rewriting what lies between them, and name each verdict's revision in the body. A
-  set nobody kept has no verdicts (`references/mutation.md#rebuild-lost-plants`).
+- **Rule.** A plant at hand keeps its verdict across a merge or commit changing neither the file it
+  mutates, the test that killed it, the fixtures it reads nor what lies between them. Rerun the
+  rest, and name each verdict's revision in the body. A set nobody kept has no verdicts
+  (`references/mutation.md#rebuild-lost-plants`).
 - **Why.** A merge that changed no lowering left 79 plants at 100 to 170 s each, about 3.5 hours,
   where a diff left 23 (#1191, #1216). A diff of production files alone misses a merge removing the
   test that held a kill.
-- **Probe.** `git diff --stat <verdict's revision> <head> -- <mutated file> <test's file>` prints
-  nothing for each verdict carried over.
+- **Probe.** For each verdict carried over,
+  `git diff --stat <verdict's revision> <head> -- <paths>`, over those four, prints nothing, and
+  `git ls-files --error-unmatch -- <paths>` exits 0 at the head, lest a path matching nothing pass.
 
 ## Plant through an overlay only where no test reads the source
 `overlay-reaches-the-compiler-alone`
@@ -114,6 +251,18 @@ yourself. These rules are the ways that reading still lies.
   `pass/validate_payloads_test.go` passes `go test ./pass` and fails archtest. Two arms recorded
   equivalent by removal alone had results a row saw (#1233).
 
+## Show a plant fires before reading its survival
+`a-survivor-needs-a-plant-that-fires`
+
+- **Rule.** Before reading a survivor as untested or equivalent, show the plant changes what it
+  aims at: under the same condition, plant a failure any test reaching it must show, such as
+  `panic("reached")` or a `raise`, and watch a test fail of it. A plant that never fires is no
+  mutant, and its survival says nothing.
+- **Why.** A plant meant to break a parameter's content in `ownerOf` tested `kinds[i-1]`, where the
+  parameter sat at `kinds[i-2]`: it survived, and so did the same condition with a panic (#1538,
+  #1518 at beb3aa08).
+- **Probe.** Each survivor the report lists names the failing plant that fired at its condition.
+
 ## Equivalence is a claim about every input
 `equivalent-means-every-input`
 
@@ -144,6 +293,20 @@ yourself. These rules are the ways that reading still lies.
   flagged sibling first and a clean one after it, at every level the loop runs.
 - **Why.** The arm where normalisation differed had no test (#731). Four OR-accumulator mutants
   survived 100% coverage because every fixture had one sibling (#814).
+
+## Stop planting a check once each form, route and limit holds
+`plants-stop-at-a-held-grid`
+
+- **Rule.** Plants across a check's forms, routes and limits may stop once every form and route
+  has a plant a test holds, each form only one branch reads has its own, and each limit stated in
+  its comments or PR has a plant widening the check past it, one per member the limit names
+  (`references/claims.md#comment-claims-held-by-test`). A cell past that is reported unplanted with
+  its reason, not ranked.
+- **Why.** A fixture of 109 planted lines left its reviews no rule for enough, so one spent a pass
+  on plants its author called possibly contrived, while a commit titled for what its check cannot
+  see held only some of its stated limits (#1447, #1563, #1593).
+- **Probe.** The report lists each form, route and limit beside the plant holding it, and each
+  unplanted cell beside its reason.
 
 ## A guard moved to N callers needs N tests
 `split-guard-per-site`

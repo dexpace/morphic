@@ -5,7 +5,6 @@ package load
 
 import (
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,7 +25,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -40,7 +39,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuild := func() (*soa.OpenAPI, error) {
@@ -48,20 +47,20 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		return again, err
 	}
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
-		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil),
+		newSourceDocument(path, data, root, judgment{}, treeOf(t.Context(), provenance.Doc{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
-	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
+	return resolved, passDiags(provenance.Doc{}, pass, missed), err
 }
 
 // passDiags is what pass reports, and the documents missed it found
 // unprepared, a finding in another document placed at the source's root, as no
 // document is listed: nil for no pass, as a failed rebuild leaves.
-func passDiags(at func(jsontext.Pointer) ir.Provenance, pass *resolution, missed []usedDocument) []ir.Diagnostic {
+func passDiags(source provenance.Doc, pass *resolution, missed []usedDocument) []ir.Diagnostic {
 	if pass == nil {
 		return nil
 	}
-	place := sitePlacer(at, Others{})
-	return append(pass.diags(place), stillUnprepared(place, missed)...)
+	sites := places{source: source}
+	return append(pass.diags(sites), stillUnprepared(sites, missed)...)
 }
 
 // rootReferencing is a minimal source document whose one path is a reference to
@@ -323,19 +322,15 @@ func TestLoad_APhaseFailingOnceCancelledIsTheContexts(t *testing.T) {
 // resolveExternal with a rebuild that differs from the first model.
 func TestStillUnprepared(t *testing.T) {
 	t.Parallel()
-	place := func(s refSite) ir.Provenance {
-		if s.inSource() {
-			return ir.Provenance{Source: 3, Pointer: s.pointer}
-		}
-		return ir.Provenance{Source: 4, Pointer: s.pointer}
-	}
+	sites := places{source: provenance.Doc{Source: 3},
+		others: Others{list: []Other{{Index: 4}}, byName: map[string]int{"b.yaml": 0}}}
 	missed := []usedDocument{
 		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1x"}},
 		{key: "http://a/1.yaml", site: refSite{pointer: "/paths/~1y"}}, // same key: reported once
 		{key: "http://a/2.yaml", site: refSite{doc: "b.yaml", pointer: "/paths/~1z"}},
 	}
 
-	diags := stillUnprepared(place, missed)
+	diags := stillUnprepared(sites, missed)
 
 	require.Len(t, diags, 2, "one report per distinct key")
 	for _, d := range diags {
@@ -356,7 +351,7 @@ func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	return doc
@@ -732,26 +727,40 @@ func TestPreparedFor(t *testing.T) {
 	})
 }
 
-// TestHasAnchor covers both arms: a tree with no anchor anywhere, and one whose
-// only anchor is several levels deep.
-func TestHasAnchor(t *testing.T) {
+// TestUnready holds unready to what readyForModel changes: an anchor however
+// deep, a plain date, and a plain `<<` but as a key, and neither one when the
+// source quotes it or tags it outright.
+func TestUnready(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name, src string
+		want      bool
+	}{
+		{"nothing to change", "a: {b: [1, 2]}\n", false},
+		{"an anchor deep in the tree", "a: {b: [1, &x 2]}\n", true},
+		{"a plain date deep in the tree", "a: {b: [1, 2021-01-01]}\n", true},
+		{"a plain date as a key", "a: {2021-01-01: 1}\n", true},
+		{"a plain date with one-digit fields", "a: 2021-1-1\n", true},
+		{"a plain date and time", "a: 2001-12-14T21:59:43.10Z\n", true},
+		{"a plain date and time spaced apart", "a: 2001-12-14 21:59:43.10\n", true},
+		{"a date under the non-specific tag", "a: ! 2021-01-01\n", true},
+		{"a quoted date", "a: {b: [1, '2021-01-01']}\n", false},
+		{"a date tagged a timestamp outright", "a: {b: [1, !!timestamp 2021-01-01]}\n", false},
+		{"a << as a value", "a: {b: <<}\n", true},
+		{"a << as an item", "a: [1, <<]\n", true},
+		{"a << value under the non-specific tag", "a: {b: ! <<}\n", true},
+		{"a << as a merge key", "a: {<<: {b: 1}}\n", false},
+		{"a quoted << value", "a: {b: '<<'}\n", false},
+		{"a << value tagged a merge outright", "a: {b: !!merge <<}\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, err := parseTree(t.Context(), []byte(tc.src))
+			require.NoError(t, err)
 
-	t.Run("no anchor anywhere", func(t *testing.T) {
-		t.Parallel()
-		root, err := parseTree(t.Context(), []byte("a: {b: [1, 2]}\n"))
-		require.NoError(t, err)
-
-		assert.False(t, hasAnchor(t.Context(), root))
-	})
-
-	t.Run("an anchor deep in the tree", func(t *testing.T) {
-		t.Parallel()
-		root, err := parseTree(t.Context(), []byte("a: {b: [1, &x 2]}\n"))
-		require.NoError(t, err)
-
-		assert.True(t, hasAnchor(t.Context(), root))
-	})
+			assert.Equal(t, tc.want, unready(t.Context(), root))
+		})
+	}
 }
 
 // TestUnprepared covers unprepared's edge arms directly: a document this
@@ -816,8 +825,7 @@ func TestUnprepared(t *testing.T) {
 // TestChain_EndsOnNothing pins when a resolution's chain is said to end on a
 // position holding no object (GitHub #1044): it reached the position its last
 // hop names and built nothing there. A chain that holds no record, was cut, or
-// stopped at a reference reached no position, whatever its records say, and
-// only the last record's node is read.
+// stopped at a reference reached no position, whatever it says of its end.
 func TestChain_EndsOnNothing(t *testing.T) {
 	t.Parallel()
 	built := &yaml.Node{Kind: yaml.MappingNode}
@@ -829,9 +837,10 @@ func TestChain_EndsOnNothing(t *testing.T) {
 		{"no records", chain{}, false},
 		{"a cut chain", chain{cut: true, records: []record{{}}}, false},
 		{"a chain that stopped at a reference", chain{stopped: "#/components/parameters/P", records: []record{{}}}, false},
-		{"a last record that built no node", chain{records: []record{{node: built}, {}}}, true},
+		{"a cut chain with an end", chain{cut: true, records: []record{{}}, end: built}, false},
+		{"an end that built no node", chain{records: []record{{}, {}}}, true},
 		{"a single record that built no node", chain{records: []record{{}}}, true},
-		{"a last record that built a node", chain{records: []record{{}, {node: built}}}, false},
+		{"an end that built a node", chain{records: []record{{}, {}}, end: built}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

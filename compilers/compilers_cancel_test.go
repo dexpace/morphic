@@ -41,7 +41,7 @@ func TestRegistry_DetectDoesNotJudgeAnAnswerGivenOnceCancelled(t *testing.T) {
 	first := &cancellingDetect{formats: []compilers.SourceFormat{alpha}, cancel: cancel}
 	later := &stubCompiler{formats: []compilers.SourceFormat{beta}, marker: "alpha"}
 
-	det, ok, err := registryOf(t, first, later).Detect(ctx, compilers.Source{Data: []byte("alpha")}, nil)
+	det, ok, err := registryOf(t, first, later).Detect(ctx, compilers.Source{Data: []byte("alpha")}, compilers.Configuration{})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.NotErrorIs(t, err, compilers.ErrContract, "an answer given once cancelled is not judged")
@@ -61,7 +61,7 @@ func TestRegistry_DetectDoesNotJudgeADeclineGivenOnceCancelled(t *testing.T) {
 	t.Cleanup(cancel)
 	last := &cancellingDetect{formats: []compilers.SourceFormat{alpha}, cancel: cancel, declines: true}
 
-	det, ok, err := registryOf(t, last).Detect(ctx, compilers.Source{Data: []byte("alpha")}, nil)
+	det, ok, err := registryOf(t, last).Detect(ctx, compilers.Source{Data: []byte("alpha")}, compilers.Configuration{})
 
 	require.ErrorIs(t, err, context.Canceled)
 	assert.False(t, ok)

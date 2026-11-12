@@ -44,6 +44,7 @@ func TestEnumMemberForm_ClassifiesEveryValueKind(t *testing.T) {
 
 	refused := []ir.ValueKind{
 		ir.ValueNull, ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN,
 		ir.ValueKind("a kind ir does not declare"),
 	}
 	for _, kind := range refused {
@@ -118,12 +119,14 @@ func TestEnumMemberKey_IsInjectiveAcrossKinds(t *testing.T) {
 }
 
 // TestEnumMemberKey_RefusesWhatNoEnumHolds pins the kinds with no key. A list,
-// an object, a reference and a constructor are not members of an enum, so the
-// lowering degrades the whole set to a union before it asks for one.
+// an object, a reference, a constructor and a non-finite number are not
+// members of an enum, so the lowering degrades the whole set to a union before
+// it asks for one.
 func TestEnumMemberKey_RefusesWhatNoEnumHolds(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []ir.ValueKind{
 		ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN,
 		ir.ValueKind("a kind ir does not declare"),
 	} {
 		key, ok := enumMemberKey(ir.Value{Kind: kind})
@@ -164,8 +167,8 @@ func TestValueKey_IsInjectiveAcrossNesting(t *testing.T) {
 }
 
 // TestValueKey_RefusesWhatNoSourceEnumHolds pins the values with no key: a
-// reference, a constructor, anything nested in one, and a value nested past the
-// depth bound.
+// reference, a constructor, a non-finite number, anything nested in one, and a
+// value nested past the depth bound.
 func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	t.Parallel()
 	ref := ir.Value{Kind: ir.ValueRefKind}
@@ -176,6 +179,9 @@ func TestValueKey_RefusesWhatNoSourceEnumHolds(t *testing.T) {
 	for name, v := range map[string]ir.Value{
 		"a reference":           ref,
 		"a constructor":         {Kind: ir.ValueCtor},
+		"infinity":              {Kind: ir.ValueInf},
+		"negative infinity":     {Kind: ir.ValueNegInf},
+		"not a number":          {Kind: ir.ValueNaN},
 		"a kind ir lacks":       {Kind: ir.ValueKind("a kind ir does not declare")},
 		"a list holding one":    {Kind: ir.ValueList, List: []ir.Value{ref}},
 		"an object holding one": {Kind: ir.ValueObject, Object: []ir.Field{{Name: "r", Value: ref}}},

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -109,7 +110,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/old",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1old/get/parameters/legacy/query",
@@ -121,6 +121,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

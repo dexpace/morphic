@@ -14,49 +14,10 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
-
-// Locator answers where a diagnostic's subject is. Given a node it returns the
-// provenance to report the node at; given nil it returns the source alone, the
-// answer for a finding about the document rather than a position in it.
-//
-// It is a parameter rather than a source index because a node's own line and
-// column are not always the answer: a node an overlay grafted has none, and the
-// caller is the one holding the attribution that can say where it came from
-// (GitHub #476).
-type Locator func(n *yaml.Node) ir.Provenance
-
-// InSource is the Locator for a document nothing has patched: srcIndex, and the
-// node's own line and column when there is a node. A node the parser did not
-// place has neither, which is the zero Position: no position, rather than one
-// at 0:0.
-func InSource(srcIndex int) Locator {
-	return func(n *yaml.Node) ir.Provenance {
-		prov := ir.Provenance{Source: srcIndex}
-		if n != nil {
-			prov.Position = ir.Position{Line: n.Line, Column: n.Column}
-		}
-		return prov
-	}
-}
-
-// InTree is InSource for a node of the tree pointers indexes (see Pointers),
-// which also gives the node's JSON pointer there: a finding on a raw node is
-// then placed where a lowering finding at the same position is, and a reader
-// sees which declaration to edit (GitHub #803).
-//
-// The root's pointer is the empty one, which beside a position reads as none,
-// so a finding on the document's top mapping is placed by position alone.
-func InTree(srcIndex int, pointers func(*yaml.Node) (jsontext.Pointer, bool)) Locator {
-	inSource := InSource(srcIndex)
-	return func(n *yaml.Node) ir.Provenance {
-		prov := inSource(n)
-		prov.Pointer, _ = pointers(n)
-		return prov
-	}
-}
 
 // Pointers returns a node's JSON pointer in root's tree, its pairs keyed as
 // the parser keys them (nodeview.KeyOf), and whether the tree holds it. A
@@ -194,11 +155,11 @@ func pointerOf(steps map[*yaml.Node]step, n *yaml.Node) jsontext.Pointer {
 // walks, degrades to a diag.CycleScanFailed warning quoting it instead of
 // propagating — a bug in the detector must not crash the compiler on a
 // degenerate spec (GitHub #12). The compile still proceeds to the parser; only
-// the pre-parse guarantee is flagged incomplete for this source.
-func scanRecovered(locate Locator, scan func() []ir.Diagnostic) []ir.Diagnostic {
+// the pre-parse guarantee is flagged incomplete for this source, at whole.
+func scanRecovered(whole ir.Provenance, scan func() []ir.Diagnostic) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if text, panicked := diag.Catch(func() { diags = scan() }); panicked {
-		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, locate(nil),
+		return []ir.Diagnostic{diag.Newf(ir.SeverityWarning, diag.CycleScanFailed, whole,
 			"alias pre-scan aborted (%s); alias-cycle protection is incomplete for this source", text)}
 	}
 	return diags
@@ -209,18 +170,20 @@ func scanRecovered(locate Locator, scan func() []ir.Diagnostic) []ir.Diagnostic 
 // own ancestor overflows the parser's stack, and an alias bomb exhausts its
 // memory (docs/parser-library.md#alias-cycle,
 // docs/parser-library.md#alias-expansion). It serves an overlay too
-// (docs/parser-library.md#overlay-alias-clone). An incomplete scan yields a
-// diag.CycleScanFailed warning.
+// (docs/parser-library.md#overlay-alias-clone). tree places a refusal at its
+// node; an incomplete scan yields a diag.CycleScanFailed warning at whole.
 //
 // The index must cover the whole tree that will reach the parser: an alias to
 // an ancestor is visible only from the root. surplus is the alias budget;
 // yaml.v3's own alias guard never fires on a yaml.Node decode (GitHub #479).
-func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus budget.Limit) []ir.Diagnostic {
-	return scanRecovered(locate, func() []ir.Diagnostic {
-		if d, ok := anchorCycle(ctx, locate, idx); ok {
+func Aliases(ctx context.Context, tree provenance.Tree, whole ir.Provenance, idx sourceindex.Index,
+	surplus budget.Limit,
+) []ir.Diagnostic {
+	return scanRecovered(whole, func() []ir.Diagnostic {
+		if d, ok := anchorCycle(ctx, tree, idx); ok {
 			return []ir.Diagnostic{d}
 		}
-		if d, ok := aliasAmplification(ctx, locate, idx.Root(), idx.Nodes(), surplus); ok {
+		if d, ok := aliasAmplification(ctx, tree, idx.Root(), idx.Nodes(), surplus); ok {
 			return []ir.Diagnostic{d}
 		}
 		return nil
@@ -233,13 +196,13 @@ func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus
 // document's aliases: a recursive anchor makes the expanded weight infinite,
 // and having refused those is what makes the alias graph a DAG and the weigh
 // walk provably terminating.
-func anchorCycle(ctx context.Context, locate Locator, idx sourceindex.Index) (ir.Diagnostic, bool) {
+func anchorCycle(ctx context.Context, tree provenance.Tree, idx sourceindex.Index) (ir.Diagnostic, bool) {
 	cycles := idx.AnchorCycles()
 	if len(cycles) == 0 {
 		return ir.Diagnostic{}, false
 	}
 	alias := Least(ctx, idx.Root(), cycles)
-	return cyclicDiag(locate, alias,
+	return cyclicDiag(tree, alias,
 		"recursive YAML anchor %q references an ancestor node", anchorName(alias)), true
 }
 
@@ -251,8 +214,8 @@ func anchorName(alias *yaml.Node) string {
 	return alias.Value
 }
 
-// cyclicDiag builds a diag.CyclicRef error diagnostic anchored where locate
-// puts the node.
-func cyclicDiag(locate Locator, n *yaml.Node, format string, args ...any) ir.Diagnostic {
-	return diag.Newf(ir.SeverityError, diag.CyclicRef, locate(n), format, args...)
+// cyclicDiag builds a diag.CyclicRef error diagnostic anchored where tree
+// places the node.
+func cyclicDiag(tree provenance.Tree, n *yaml.Node, format string, args ...any) ir.Diagnostic {
+	return diag.Newf(ir.SeverityError, diag.CyclicRef, tree.Node(n), format, args...)
 }

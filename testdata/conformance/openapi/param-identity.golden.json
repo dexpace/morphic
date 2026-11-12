@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -106,7 +107,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/b",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1b/get/parameters/limit/query",
@@ -118,6 +118,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -177,7 +178,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/limit/query",
@@ -189,6 +189,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -283,7 +284,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/items/{id}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items~1{id}/get/parameters/id/query",
@@ -313,6 +313,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -373,7 +374,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/items/{id}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1items~1{id}/post/parameters/id/path",
@@ -385,6 +385,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

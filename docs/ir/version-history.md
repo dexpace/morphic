@@ -263,27 +263,61 @@ it sees. Changes made together in one bump are listed together under it.
   to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
   an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
   replace.
-- **0.31.0** — four changes to the type nodes, made together:
+- **0.31.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.30.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.30.0 refuses the document as another generation's.
+- **0.32.0** — `FileInfo` and `PartEncoding` gained `Inferred`, the heuristics that read a body or a
+  multipart part as a file ([payloads](./payloads.md)), held to `Filename` on a part
+  (`ir/part-encoding-inferred-not-filename`). The OpenAPI compiler reads more of the specification's
+  file idioms ([`file-bodies`](../compilers/openapi.md#file-bodies),
+  [`multipart-encoding`](../compilers/openapi.md#multipart-encoding),
+  [`item-schema`](../compilers/openapi.md#item-schema)). As declared files: a body on
+  `application/octet-stream` whose schema says no more than that it is a string, or a union of such
+  schemas and raw bytes; a schema declaring `format: binary` with no `type`; a multipart part, or
+  each element of an array part (its `prefixItems` and the `items` after them), declaring raw bytes,
+  writing no `type` from 3.1, or saying no more than that it is a string while its encoding entry
+  names `application/octet-stream` alone; a union part whose every value is one of those, read off
+  its variants, or each branch of its declaration, an array branch through its elements; and each
+  item of a multipart sequential body read so off `itemSchema` and `itemEncoding`, with an
+  `ItemEncoding` saying so where none is written. A union part with a list or tuple among its
+  variants, file or not, has `Multi`. Marked
+  `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
+  a media type the compiler's binary policy names
+  ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
+  `application/octet-stream` is no longer a file, nor is `format: binary` beside a
+  `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.
+- **0.33.0** — four changes to the type nodes, made together:
   - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
     hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
-    `oneOf` or `anyOf` is. `InputOnly` marks a union only a request carries, as `Model.InputOnly`
-    marks an input object. Both are always written. A consumer pinned to 0.30.0 refuses the document
-    for its unknown members.
+    `oneOf` or `anyOf` is, unless a promoted extension opens it, as `x-extensible-enum` does under
+    the default mapping on the union of literals a mixed enum lowers to. `InputOnly` marks a union
+    only a request carries, as `Model.InputOnly` marks an input object. Both are always written. A
+    consumer pinned to 0.32.0 refuses the document for its unknown members.
   - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
-    the value fits what was declared, so a consumer pinned to 0.30.0 that read them finds nothing.
+    the value fits what was declared, so a consumer pinned to 0.32.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
-    catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to
-    0.30.0 decoding the value as required fails on the missing member.
+    catch-all as the top type beside a closure that forbade the same keys. A `false` `allOf` branch,
+    which closes its model, takes the value too, keeping a written `additionalProperties` verbatim.
+    A consumer pinned to 0.32.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
-- **0.32.0** — three changes to the HTTP binding, made together:
+- **0.34.0** — three changes to the HTTP binding, made together:
   - `HTTPBinding.IsWebhook` became `Inbound`, a closed `webhook | callback`, empty for an operation
     the client sends, so a callback operation is marked the way a webhook is, where only a reverse
     lookup through its declaring operation's `Callbacks` showed it. `Callback` gained `Name`, the
-    callbacks-map key. A consumer pinned to 0.31.0 refuses the document for its unknown members,
+    callbacks-map key. A consumer pinned to 0.33.0 refuses the document for its unknown members,
     and finds no `isWebhook` where it read one.
   - `HTTPBinding` gained `PathDocs`, a path item's own summary and description, which the OpenAPI
     compiler had kept on each operation the item mounts under `openapi:pathItem/summary` and
@@ -291,9 +325,31 @@ it sees. Changes made together in one bump are listed together under it.
     are retired there; an item mounting no operation still keeps its pair on the nearest node.
   - An inbound operation's `Auth` now states only what it declares, inheriting no service, server
     or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
-    consumer pinned to 0.31.0 reading a webhook with no `Auth` as inheriting hands it the client's
+    consumer pinned to 0.33.0 reading a webhook with no `Auth` as inheriting hands it the client's
     credentials.
-- **0.33.0** — pagination and streaming gained the facts declared pagination and conditional
+- **0.35.0** — no shape change; three changes to what a compiled document holds, made together, each
+  reading what an `allOf` conjunct writes as the OpenAPI compiler reads it written beside the `allOf`
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue),
+  [`allof-refinement`](../compilers/openapi.md#allof-refinement)):
+  - A `minItems`, `maxItems` or true `uniqueItems` on an inline branch reaches the `Constraints` one
+    written beside the `allOf` reaches: of the `Property`, `Parameter` or alias `Scalar` holding a
+    refinement's use of its principal, or of the `List` or `Tuple` the position lowers to. The branch
+    had been kept whole under `Unmodeled`. A collection bound on a branch beside a type list lands
+    on its `List` or `Tuple` variant.
+  - An `enum` or a `const` beside an `allOf` that refines is one of its conjuncts rather than the
+    winner of the election of competing keywords, so the `allOf` is no longer kept whole under
+    `Unmodeled`: its branches fold, a `$ref` it writes lowers, and a narrower branch is what the
+    position uses. One beside an `allOf` that composes still wins it, and conjuncts sharing no value
+    there draw the warning a composition's do. A union variant written as such a value set narrowing
+    a `$ref` takes the hint the `$ref` suggests, as the same conjunction written in its branches
+    does, where it took `variant_N`, so the symbol an emitter generates from it is renamed.
+  - The `ValueType` of the `Enum` or `Literal` a refinement lowers to reads the type and format every
+    conjunct declares, where it read its own schema's alone, and a branch whose format it holds is
+    no longer kept.
+
+  A consumer pinned to 0.34.0 that read those `Unmodeled` entries no longer finds them, and refuses
+  the document as another generation's.
+- **0.36.0** — pagination and streaming gained the facts declared pagination and conditional
   streams state:
   - `ParamPath` became `InputPath`, whose `Param` is optional: nil roots the path in the request
     body, so a search endpoint's body cursor or page size is an input. `Pagination` gained
@@ -302,28 +358,34 @@ it sees. Changes made together in one bump are listed together under it.
   - `StreamDetail` gained `Terminator`, the frame data that ends a stream and is no element (an
     SSE `data: [DONE]`), and `Condition`, the request input and value that ask for a stream an
     operation sends only when asked.
-  - No compiler fills these yet. A consumer pinned to 0.32.0 refuses a document that sets one, and
+  - No compiler fills these yet. A consumer pinned to 0.35.0 refuses a document that sets one, and
     finds a body input's `param` absent where it required one.
-- **0.34.0** — three fields that could not say what a source left unstated, or who wrote it:
+- **0.37.0** — fields that could not say what a source left unstated, or who wrote it:
   - `ServerVariable.Default` became `*string`: nil states no default, and an empty string
     substitutes nothing, as an OpenAPI `default: ""` does. The OpenAPI compiler writes the empty
-    string where it had written no key, so a consumer pinned to 0.33.0 reading the absent key as
+    string where it had written no key, so a consumer pinned to 0.36.0 reading the absent key as
     no default now reads `""`.
-  - `XMLHints.Wrapped` became `*bool`, written only where declared, so a property's `false` can
-    override a type's `true` field by field ([XML hints](./constraints.md#xml-hints)). A consumer
-    pinned to 0.33.0 finds no `wrapped` member where it read `false`.
+  - A property's `XMLHints` and `Encoding` override its type's field by field, a field the property
+    leaves unset taking the type's, where the property's had replaced the type's whole
+    ([XML hints](./constraints.md#xml-hints), [encodings](./constraints.md#encodings)). So each
+    field is written only where declared: `XMLHints.Wrapped` became `*bool`, and `XMLHints` gained
+    `Attribute`, a `*bool` holding what `attribute` writes, which no longer lowers into `NodeType`.
+    A consumer pinned to 0.36.0 finds no `wrapped` member where it read `false`, no `nodeType`
+    where `attribute: true` wrote `attribute`, and, replacing a type's hints or encoding with a
+    property's whole, loses what the property left unset.
   - `Provenance` gained `WrittenBy`: an overlay's writing into the source is located at the
     source's index with the overlay as its writer, where `Source` had named the overlay at a
-    position of another document. A consumer pinned to 0.33.0 reading such a pointer against the
+    position of another document. A consumer pinned to 0.36.0 reading such a pointer against the
     overlay's file reads it at the wrong place.
-- **0.35.0** — a response's links gained a typed home ([links](./responses.md#links)):
+- **0.38.0** — a response's links gained a typed home ([links](./responses.md#links)):
   - `Response` and `ErrorCase` gained `Links`, each an `OperationLink` naming the operation it leads
     to, the value it gives each of that operation's parameters and its body, and the server it is
     called on. A `LinkValue` is a constant, the URL, method or status of the exchange, or a value of
     the request answered or of the response, as an `InputPath` or a `PropPath`.
   - An `InputPath` with neither a parameter nor a segment is the request body whole, which
-    `ir/input-path-empty` had refused; that check is gone.
+    `ir/input-path-empty` had refused; that check is gone, and `ir/input-body-absent` holds the
+    path, a link's among them, to an operation that sends a body.
   - The OpenAPI compiler lowers a link it resolves whole and keeps any other verbatim under
     `openapi:links/<name>`, with an `openapi/invalid-link` or `openapi/untyped-link` finding, where it
-    had kept the whole map under `openapi:links`. A consumer pinned to 0.34.0 refuses a document with
+    had kept the whole map under `openapi:links`. A consumer pinned to 0.37.0 refuses a document with
     a link, and finds no `openapi:links` entry where it read one.

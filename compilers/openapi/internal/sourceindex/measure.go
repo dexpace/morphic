@@ -21,9 +21,9 @@ import (
 // A `<<` merge key's value counts where it is written, a level below the
 // mapping the parser folds it into, two for a list, so the measure never
 // falls short of the parser's. An alias back into a node still being measured
-// counts 0. What it measures it keeps, for the one tree it belongs to.
+// counts 0. What it measures (shape) it keeps, for the one tree it belongs to.
 type Measure struct {
-	memo map[*yaml.Node]int
+	memo map[*yaml.Node]shape
 	// inFlight holds the nodes Of has expanded and not yet measured. A call that
 	// finishes leaves it empty, so every call shares it.
 	inFlight map[*yaml.Node]bool
@@ -43,7 +43,7 @@ func NewMeasure(maxNodes int) *Measure {
 	if maxNodes < steps/4 {
 		steps = 4 * max(maxNodes, 0)
 	}
-	return &Measure{memo: map[*yaml.Node]int{}, inFlight: map[*yaml.Node]bool{},
+	return &Measure{memo: map[*yaml.Node]shape{}, inFlight: map[*yaml.Node]bool{},
 		steps: budget.New(budget.AtMost(steps))}
 }
 
@@ -63,8 +63,13 @@ type measureFrame struct {
 // shares it, and an alias cycle ends the walk rather than looping it: one
 // below the anchor-cycle check's tracked depth, or in a tree built by hand.
 func (m *Measure) Of(ctx context.Context, n *yaml.Node) int {
+	return m.shapeOf(ctx, n).nesting
+}
+
+// shapeOf is the shape of the subtree under n, measured as Of measures it.
+func (m *Measure) shapeOf(ctx context.Context, n *yaml.Node) shape {
 	if n == nil {
-		return 0
+		return shape{}
 	}
 	stack := []*measureFrame{{n: n}}
 	for len(stack) > 0 {
@@ -84,7 +89,7 @@ func (m *Measure) Of(ctx context.Context, n *yaml.Node) int {
 			continue
 		}
 		delete(m.inFlight, top.n)
-		m.memo[top.n] = m.nestingOf(top.n)
+		m.memo[top.n] = m.measured(top.n)
 		stack = stack[:len(stack)-1]
 	}
 	return m.memo[n]
@@ -110,17 +115,78 @@ func (m *Measure) push(stack []*measureFrame, n *yaml.Node) []*measureFrame {
 	return stack
 }
 
-// nestingOf is n's nesting from what it nests over, every part of which is
-// measured already or in flight; one in flight counts 0, as does nil.
-func (m *Measure) nestingOf(n *yaml.Node) int {
+// measured is n's shape from what it nests over, every part of which is
+// measured already or in flight; one in flight counts as nothing, as does nil.
+func (m *Measure) measured(n *yaml.Node) shape {
 	if n.Kind == yaml.AliasNode {
 		return m.memo[n.Alias]
 	}
-	var tallest int
-	for _, c := range n.Content {
-		tallest = max(tallest, m.memo[c])
+	out := shape{nodes: 1}
+	for i, c := range n.Content {
+		out = out.holding(m.memo[c], edge(n, i))
 	}
-	return tallest + Level(n)
+	out.nesting += Level(n)
+	return out
+}
+
+// shape is what a subtree, its aliases expanded, is to a compile reading it:
+// how deeply it nests, how many nodes it holds, and how many bytes the JSON
+// pointers naming them from the subtree's root total, each a key or an index
+// and a '/' per level, escapes not counted. The counts saturate at math.MaxInt.
+type shape struct {
+	nesting, nodes, pointers int
+}
+
+// holding is s having taken child as one more child, under a pointer edge
+// bytes longer than its own: the child nests beside the others, and the pointer
+// to each of its nodes from s's root is edge bytes longer than from its own.
+func (s shape) holding(child shape, edge int) shape {
+	s.nesting = max(s.nesting, child.nesting)
+	s.nodes = sum(s.nodes, child.nodes)
+	s.pointers = sum(s.pointers, sum(product(child.nodes, edge), child.pointers))
+	return s
+}
+
+// edge is how many bytes a pointer grows by from n to the child at index i of
+// its Content: the key of the pair that child belongs to in a mapping, its
+// index in a sequence, each with a '/', and nothing anywhere else.
+func edge(n *yaml.Node, i int) int {
+	switch n.Kind {
+	case yaml.MappingNode:
+		if key := nodeview.Deref(n.Content[i&^1]); key != nil {
+			return len(key.Value) + 1
+		}
+		return 1
+	case yaml.SequenceNode:
+		return digits(i) + 1
+	default:
+		return 0
+	}
+}
+
+// digits is how many decimal digits i, which is not negative, is written in.
+func digits(i int) int {
+	n := 1
+	for ; i >= 10; i /= 10 {
+		n++
+	}
+	return n
+}
+
+// sum is a+b for counts that are not negative, saturating at math.MaxInt.
+func sum(a, b int) int {
+	if a > math.MaxInt-b {
+		return math.MaxInt
+	}
+	return a + b
+}
+
+// product is a*b for counts that are not negative, saturating at math.MaxInt.
+func product(a, b int) int {
+	if a != 0 && b > math.MaxInt/a {
+		return math.MaxInt
+	}
+	return a * b
 }
 
 // Level is how much n itself adds to the nesting it heads: one for a mapping

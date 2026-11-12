@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -110,10 +111,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "Multipart/Form-Data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -174,10 +175,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/submit",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "Application/X-WWW-Form-Urlencoded; charset=utf-8"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -254,10 +255,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/blob",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "Application/Octet-Stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

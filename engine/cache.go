@@ -77,11 +77,11 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 	docs compilers.DocumentReader, p plan,
 ) (*Result, error) {
 	if e.cache == nil || !cacheable(opts) {
-		return e.compile(ctx, spec, configurer(opts, docs), p)
+		return e.compile(ctx, spec, configuration(opts, docs), p)
 	}
 	key, keyErr := e.cache.runKey(spec, opts, p)
 	if keyErr != nil {
-		res, err := e.compile(ctx, spec, configurer(opts, docs), p)
+		res, err := e.compile(ctx, spec, configuration(opts, docs), p)
 		if err == nil {
 			res.CacheErr = keyErr
 		}
@@ -97,7 +97,7 @@ func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts 
 		return res, nil
 	}
 	reads := newRecorder(docs)
-	res, err := e.compile(ctx, spec, configurer(opts, reads), p)
+	res, err := e.compile(ctx, spec, configuration(opts, reads), p)
 	if err != nil {
 		return nil, err
 	}

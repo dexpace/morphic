@@ -10,8 +10,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// checkPrimKinds asserts every primitive names a kind ir declares, as does
-// every literal stating a ValueType.
+// checkPrimKinds asserts every primitive names a kind ir declares, as do every
+// enum's ValueType and every literal stating one.
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
@@ -29,26 +29,32 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		}
 		switch n := td.(type) {
 		case *ir.Primitive:
-			if !n.Prim.Valid() {
-				vs = append(vs, Violation{
-					Code:    "ir/unknown-prim-kind",
-					Message: "primitive carries undeclared kind " + strconv.Quote(string(n.Prim)),
-					Path:    typePath(id),
-				})
-			}
+			vs = append(vs, undeclaredKind(n.Prim, "primitive carries", id, "")...)
+		case *ir.Enum:
+			vs = append(vs, undeclaredKind(n.ValueType, "enum's value type is", id, ".ValueType")...)
 		case *ir.Literal:
-			if n.ValueType != "" && !n.ValueType.Valid() {
-				vs = append(vs, Violation{
-					Code:    "ir/unknown-prim-kind",
-					Message: "literal's value type is undeclared kind " + strconv.Quote(string(n.ValueType)),
-					Path:    typePath(id) + ".ValueType",
-				})
+			if n.ValueType != "" { // a null, a list or an object has no primitive
+				vs = append(vs, undeclaredKind(n.ValueType, "literal's value type is", id, ".ValueType")...)
 			}
 		default:
-			// No other node names a PrimKind this check holds; #1190 holds the rest.
+			// No other node names a PrimKind.
 		}
 	}
 	return vs
+}
+
+// undeclaredKind reports kind, said of by what, at field of the type id names,
+// unless ir declares it. It builds nothing for a declared kind, so a clean node
+// costs no allocation.
+func undeclaredKind(kind ir.PrimKind, what string, id ir.TypeID, field string) []Violation {
+	if kind.Valid() {
+		return nil
+	}
+	return []Violation{{
+		Code:    "ir/unknown-prim-kind",
+		Message: what + " undeclared kind " + strconv.Quote(string(kind)),
+		Path:    typePath(id) + field,
+	}}
 }
 
 var streamingModeType = reflect.TypeFor[ir.StreamingMode]()

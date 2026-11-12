@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/marshaller"
@@ -26,7 +27,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
@@ -186,14 +188,14 @@ func TestTargetOf(t *testing.T) {
 	stops, ok := doc.Paths.Get("/stops")
 	require.True(t, ok)
 
-	got, ok := targetOf("/site", x, nil)
+	got, ok := targetOf("/site", x, nil, newChainEnds())
 	require.True(t, ok)
 	assert.Equal(t, filepath.Join(dir, "other.yaml"), got.doc)
 	assert.False(t, got.inSource)
 	assert.Equal(t, jsontext.Pointer("/site"), got.site)
 	assert.NotNil(t, got.node)
 	assert.Equal(t, oas.PathItem, got.kind)
-	_, ok = targetOf("/site", stops, nil)
+	_, ok = targetOf("/site", stops, nil, newChainEnds())
 	assert.False(t, ok, "/stops reaches no object")
 }
 
@@ -201,11 +203,20 @@ func TestTargetOf(t *testing.T) {
 // validated, and where: one a $ref's chain reaches, at the least such $ref and
 // named by its document, in the source or not, placed in the document writing
 // that $ref, and read where it lands. One no $ref reaches, one that failed to
-// build and a boolean schema are none.
+// build and a boolean schema are none, but a value the parser read as false
+// though it is no schema is one, read as written, unless nothing is written
+// where it is or it is the rest of the tuple its site writes, which its
+// `items` judges.
 func TestBuiltTargets(t *testing.T) {
 	t.Parallel()
 	built := buildRaw(t, "{type: object}")
-	place := func(p bind.Position) ir.Provenance { return ir.Provenance{Source: int(p.Doc) + 10, Pointer: p.Pointer} }
+	five := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "5"}
+	written := map[bind.Position]*yaml.Node{
+		{Pointer: "/x-lib/E"}:                         {Kind: yaml.ScalarNode, Tag: "!!bool", Value: "true"},
+		{Pointer: "/x-lib/G"}:                         five,
+		{Pointer: "/x-lib/T/additionalItems"}:         five,
+		{Doc: 1, Pointer: "/x-lib/T/additionalItems"}: five,
+	}
 	got := builtTargets([]typed.Built{
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/A"}, Name: "spec.yaml",
 			Site: bind.Position{Pointer: "/s"}, Reached: true}, Schema: built},
@@ -216,21 +227,44 @@ func TestBuiltTargets(t *testing.T) {
 		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/C"}, Name: "other.yaml"}, Schema: built},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/D"}, Reached: true}, Err: errors.New("no")},
 		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/E"}, Reached: true}, Schema: buildRaw(t, "true")},
-	}, place, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) })
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/G"}, Site: bind.Position{Pointer: "/g"}, Reached: true},
+			Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/H"}, Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Pointer: "/x-lib/T/additionalItems"}, Site: bind.Position{Pointer: "/x-lib/T"},
+			Reached: true}, Schema: buildRaw(t, "false")},
+		{Landing: bind.Landing{At: bind.Position{Doc: 1, Pointer: "/x-lib/T/additionalItems"},
+			Site: bind.Position{Pointer: "/x-lib/T"}, Reached: true}, Schema: buildRaw(t, "false")},
+	}, func(id bind.DocID) string { return fmt.Sprintf("doc%d.yaml", id) },
+		func(p bind.Position) *yaml.Node { return written[p] })
 
-	require.Len(t, got, 3)
+	require.Len(t, got, 5)
+	assert.Equal(t, reachedTarget{site: "/g", kind: oas.Schema, node: five, inSource: true,
+		home: refSite{doc: "doc0.yaml", pointer: "/x-lib/G"}}, got[3], "a number is no schema, which the check reports")
+	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/x-lib/T/additionalItems"}, got[4].home,
+		"another document's position is no rest of the tuple its site writes")
 	assert.Equal(t, reachedTarget{site: "/s", kind: oas.Schema, node: built.GetSchema().GetRootNode(), doc: "spec.yaml",
 		inSource: true, home: refSite{doc: "doc0.yaml", pointer: "/x-lib/A"}}, got[0])
 	assert.Equal(t, jsontext.Pointer("/t"), got[1].site)
 	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/B"}, got[1].home, "read where it lands, in that document")
 	assert.Equal(t, "other.yaml", got[1].doc)
 	assert.False(t, got[1].inSource)
-	assert.Nil(t, got[1].place, "a $ref the source writes is placed as the source's")
-	assert.Equal(t, jsontext.Pointer("/u"), got[2].site)
-	require.NotNil(t, got[2].place, "a $ref only another document writes")
-	assert.Equal(t, ir.Provenance{Source: 11, Pointer: "/u"}, got[2].place("/u"), "placed in that document")
-	assert.Equal(t, "doc1.yaml", got[2].siteDoc, "and ordered by its name")
-	assert.Empty(t, got[1].siteDoc)
+	assert.Equal(t, refSite{pointer: "/t"}, got[1].at(), "a $ref the source writes is placed as the source's")
+	assert.Equal(t, refSite{doc: "doc1.yaml", pointer: "/u"}, got[2].at(),
+		"a $ref only another document writes is placed, and ordered, by that document's name")
+}
+
+// TestWrittenIn_ReadsTheNodeAtAPosition pins what writtenIn reads at a
+// position of a bound document: the node written there, an alias followed,
+// and nil where the pointer names nothing.
+func TestWrittenIn_ReadsTheNodeAtAPosition(t *testing.T) {
+	t.Parallel()
+	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\nx-a: &a 5\nx-b: *a\n")
+	table := bind.Bind(t.Context(), root, bind.Config{Self: "spec.yaml"})
+	view := nodeview.New()
+	five := writtenIn(view, table, bind.Position{Pointer: "/x-b"})
+	require.NotNil(t, five)
+	assert.Equal(t, "5", five.Value, "the alias's anchor")
+	assert.Nil(t, writtenIn(view, table, bind.Position{Pointer: "/x-c/d"}), "nothing is written there")
 }
 
 // buildRaw decodes src, YAML, as the bindings build a schema for a landing.
@@ -313,8 +347,8 @@ func TestCheckReached_APanicReadingTheWalkIsReported(t *testing.T) {
 		}
 	}
 
-	diags := checkReached(t.Context(), pointerAt(0, overlay.Origin{}), items, nil,
-		newReached(doc, Options{}, sourceTree{}, judgment{}))
+	diags := checkReached(t.Context(), places{}, items, nil,
+		newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()}))
 
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.Validation, diags[0].Code)
@@ -375,15 +409,123 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 	targets := map[objectKey]reachedTarget{
 		{node: node.Content[0], kind: oas.Parameter}: {site: "/x", kind: oas.Parameter, node: node.Content[0], doc: "other.yaml"},
 	}
-	at := pointerAt(0, overlay.Origin{})
+	sites := places{}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	stopped := newReached(doc, Options{}, sourceTree{}, judgment{})
-	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
+	stopped := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.Empty(t, stopped.checkAll(cancelled, sites, targets))
 	assert.Empty(t, stopped.spans, "no target was charged")
 
-	live := newReached(doc, Options{}, sourceTree{}, judgment{})
-	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
+	live := newReached(doc, Options{}, provenance.Tree{}, judgment{checker: oas.NewChecker()})
+	assert.NotEmpty(t, live.checkAll(t.Context(), sites, targets), "a parameter with no `in` is found wanting")
 	assert.NotEmpty(t, live.spans)
+}
+
+// chainTail is how many references chainSpec's chain T leads into its loop by.
+const chainTail = 5
+
+// chainSpec is a source whose component parameters P0 to P(n-1) each name the
+// next, P(n) being a parameter, beside a chain S0 to S(n-1) whose last names
+// nothing, chains A0 to A(n-1) and B0 ending on A(n) and B1, aliases of a
+// parameter, and a loop L0 to L(loop-1) that T0 to T(chainTail-1) lead into.
+// The loop is declared before T, so a chain leading in passes cut chains of
+// the loop that hold none of T.
+func chainSpec(n, loop int) string {
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\n" +
+		"x-p: &p {name: q, in: query, schema: {type: string}}\ncomponents:\n  parameters:\n")
+	for i := range n {
+		fmt.Fprintf(&b, "    P%d: {$ref: '#/components/parameters/P%d'}\n", i, i+1)
+		fmt.Fprintf(&b, "    S%d: {$ref: '#/components/parameters/S%d'}\n", i, i+1)
+		fmt.Fprintf(&b, "    A%d: {$ref: '#/components/parameters/A%d'}\n", i, i+1)
+	}
+	fmt.Fprintf(&b, "    P%d: {name: q, in: query, schema: {type: string}}\n    A%d: *p\n", n, n)
+	b.WriteString("    B0: {$ref: '#/components/parameters/B1'}\n    B1: *p\n")
+	for i := range loop {
+		fmt.Fprintf(&b, "    L%d: {$ref: '#/components/parameters/L%d'}\n", i, (i+1)%loop)
+	}
+	for i := range chainTail {
+		next := fmt.Sprintf("T%d", i+1)
+		if i == chainTail-1 {
+			next = "L0"
+		}
+		fmt.Fprintf(&b, "    T%d: {$ref: '#/components/parameters/%s'}\n", i, next)
+	}
+	return b.String()
+}
+
+// TestChainEnds_AnswerAsTheReferenceDoes holds chainEnds to reachedNode, the
+// reference's own reading, on chainSpec's chains, each reference asked from the
+// head of its chain down: the node of an end written as an alias is the one it
+// names, under the hops a resolution's records keep and past them. No
+// reference's records are read twice: a chain the records cut is remembered at
+// each reference it passes on to, a loop's among them where a chain leads in,
+// so the answers cost the chain's length, not its square.
+func TestChainEnds_AnswerAsTheReferenceDoes(t *testing.T) {
+	t.Parallel()
+	const n, loop = 3*maxResolutionHops + 5, maxResolutionHops + 9
+	got, _, err := Load(t.Context(), 0, openapitest.SourceOf(chainSpec(n, loop)), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	params := got.Doc.Components.Parameters
+
+	ends := newChainEnds()
+	read := map[any]int{}
+	ends.chain = func(model any) chain { read[model]++; return resolutionChain(model) }
+	var asked, found int
+	for _, chain := range []struct {
+		prefix string
+		count  int
+	}{{"P", n}, {"S", n}, {"A", n}, {"B", 1}, {"T", chainTail}, {"L", loop}} {
+		for i := range chain.count {
+			ref, ok := params.Get(fmt.Sprintf("%s%d", chain.prefix, i))
+			require.True(t, ok)
+			want, wantOK := reachedNode(ref)
+			node, ok := ends.of(ref, resolutionChain(ref))
+			assert.Same(t, want, node, "%s%d", chain.prefix, i)
+			assert.Equal(t, wantOK, ok, "%s%d", chain.prefix, i)
+			asked++
+			if ok {
+				found++
+			}
+		}
+	}
+	assert.Equal(t, 2*n+1, found, "each P, A and B reaches a parameter, and no S, T or L reaches one")
+	require.NotEmpty(t, read, "the chains are past the hops the records keep")
+	for model, times := range read {
+		assert.Equal(t, 1, times, "%v", model)
+	}
+	assert.Less(t, len(read), asked, "a chain the records end is answered from them")
+
+	head, ok := params.Get("P0")
+	require.True(t, ok)
+	clear(read)
+	fresh := newChainEnds()
+	fresh.chain = ends.chain
+	_, ok = targetOf("/site", head, nil, fresh)
+	require.True(t, ok)
+	assert.Len(t, read, n/maxResolutionHops, "a target is read through the chain ends, a cut chain at a time")
+}
+
+// TestChainEnds_AsksTheReferencePastItsBound pins links: an answer that would
+// follow more cut chains than it allows asks the reference instead, which
+// answers the same. Allowed one, the reference's own, it reads no other.
+func TestChainEnds_AsksTheReferencePastItsBound(t *testing.T) {
+	t.Parallel()
+	got, _, err := Load(t.Context(), 0, openapitest.SourceOf(chainSpec(3*maxResolutionHops, 2)), Options{})
+	require.NoError(t, err)
+	head, ok := got.Doc.Components.Parameters.Get("P0")
+	require.True(t, ok)
+
+	ends := newChainEnds()
+	ends.links = 1
+	read := 0
+	ends.chain = func(model any) chain { read++; return resolutionChain(model) }
+	want, _ := reachedNode(head)
+	node, ok := ends.of(head, resolutionChain(head))
+	assert.True(t, ok)
+	assert.Same(t, want, node)
+	assert.Zero(t, read, "no cut chain past the reference's own is read")
+	assert.Empty(t, ends.ends, "an answer asked of the reference is not remembered")
 }

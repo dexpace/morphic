@@ -14,7 +14,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -42,13 +41,24 @@ func NewRegistry() *Registry {
 	return &Registry{byID: map[ir.ServerID]ir.Server{}}
 }
 
+// Reopen returns a Registry holding a copy of held, the servers an earlier
+// Registry returned, so a lowering after it registers beside them and never
+// into the caller's map.
+func Reopen(held map[ir.ServerID]ir.Server) *Registry {
+	byID := make(map[ir.ServerID]ir.Server, len(held))
+	maps.Copy(byID, held)
+	return &Registry{byID: byID}
+}
+
 // Root registers the document's own servers and returns their IDs in source
 // order: the servers its service is sent to. A document whose servers field is
 // absent or empty is served at "/", which OpenAPI supplies in its place and
 // which is minted at ids.DefaultServer with no pointer, since nothing in the
 // source writes it (GitHub #672).
 func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
-	if declared := documentServers(c.Doc); len(declared) > 0 {
+	// The field, not GetServers, which stands in a "/" server for an empty list:
+	// the default below is minted as no declaration.
+	if declared := c.Doc.Servers; len(declared) > 0 {
 		return r.Declared(c, declared, "")
 	}
 	id := ids.DefaultServer()
@@ -56,7 +66,7 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 		ID:          id,
 		Name:        serverName(&soa.Server{URL: defaultServerURL}),
 		URLTemplate: defaultServerURL,
-		Provenance:  c.ProvenanceAt(""),
+		Provenance:  c.Place().At(""),
 	}
 	return []ir.ServerID{id}, nil
 }
@@ -112,21 +122,11 @@ func (r *Registry) Servers() map[ir.ServerID]ir.Server {
 	return maps.Clone(r.byID)
 }
 
-// documentServers returns the servers list doc writes, nil for no document. It
-// reads the field rather than GetServers, which stands in a "/" server for an
-// empty list, so Root can mint that default as no declaration.
-func documentServers(doc *soa.OpenAPI) []*soa.Server {
-	if doc == nil {
-		return nil
-	}
-	return doc.Servers
-}
-
 // lowerServer lowers one server declared at sptr as id, keeping its x-* and
 // undeclared keys on the ir.Server itself.
 func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
-	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.ProvenanceAt, sptr)
+	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.Place(), sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
 		ID:          id,
@@ -135,9 +135,9 @@ func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Po
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   vars,
 		Unmodeled:   ext,
-		Provenance:  c.ProvenanceAt(sptr),
+		Provenance:  c.Place().At(sptr),
 	}
-	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
+	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.Place(), sptr)...)
 }
 
 // serverName builds a server's neutral naming: the declared name (only OpenAPI
@@ -176,7 +176,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		vptr := sptr + ids.Ptr("variables", name)
 		// ServerVariable exposes no GetExtensions at this library version, so the
 		// field is read directly — as annotation.XMLHints already reads its own.
-		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.ProvenanceAt, vptr)
+		ext, extDiags := annotation.ExtensionsFrom(v.Extensions, c.Place(), vptr)
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
@@ -185,17 +185,18 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
 		}
-		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.ProvenanceAt, vptr)...)
+		diags = append(diags, annotation.UnknownKeysIn(&one.Unmodeled, v, c.Place(), vptr)...)
 		out = append(out, one)
 	}
 	return out, diags
 }
 
-// variableDefault is the default v writes, nil where it writes no `default`
-// key. OpenAPI requires the key, so the empty string it may hold substitutes
-// nothing, and the parser's own field cannot tell that from an absent key.
+// variableDefault is the default v writes, nil where it writes none. OpenAPI
+// requires the key, so the empty string it may hold substitutes nothing; the
+// model's field reads an absent key as that string too, and the core's Present
+// tells the two apart.
 func variableDefault(v *soa.ServerVariable) *string {
-	if nodeview.Child(v.GetRootNode(), "default") == nil {
+	if !v.GetCore().Default.Present {
 		return nil
 	}
 	return new(v.GetDefault())

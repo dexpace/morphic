@@ -8,19 +8,30 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
 // Registry is every security scheme of one compile, keyed by ID: what the
 // document's securitySchemes entries lower to, and a scheme for each name a
 // requirement uses that no entry declares. A requirement can add to it, so it is
-// not safe for concurrent use. The zero value is not usable; LowerSecuritySchemes
-// builds one.
+// not safe for concurrent use. The zero value is not usable; RegistryOf builds
+// one.
 type Registry struct {
 	byID map[ir.AuthID]ir.AuthScheme
 	// root is where a scheme no entry declares is placed: the source's, whichever
 	// document holds the requirement naming it.
 	root ir.Provenance
+}
+
+// RegistryOf returns a Registry holding a copy of declared, the schemes
+// LowerSecuritySchemes lowers, so a scheme a requirement adds reaches the
+// registry and never the caller's map. Such a scheme is placed at the root of
+// c's source.
+func RegistryOf(c lowering.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
+	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
+	maps.Copy(byID, declared)
+	return &Registry{byID: byID, root: c.Place().At("")}
 }
 
 // Schemes returns a copy of the registry, or nil when it holds nothing, so a

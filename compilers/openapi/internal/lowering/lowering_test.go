@@ -5,11 +5,9 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
-	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -24,6 +22,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -85,14 +85,11 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 			name: "the empty name is a name like any other", doc: openapitest.DocDeclaring(""),
 			declares: []string{""}, denies: []string{"User"},
 		},
-		{
-			name: "no document at all", doc: nil, denies: []string{"User", ""},
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, tc.doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+			c := lowering.New(0, &load.Document{Doc: tc.doc}, lowering.Policy{})
 			for _, n := range tc.declares {
 				assert.True(t, c.DeclaresSchema(n), "%q is declared", n)
 			}
@@ -103,16 +100,6 @@ func TestNew_DerivesTheDeclaredSchemaNames(t *testing.T) {
 	}
 }
 
-// TestDeclaresSchema_TheZeroContextDeclaresNothing pins the nil-index read. The
-// index is nil for a document with no components, so the accessor must answer
-// on a nil map rather than assume one was built.
-func TestDeclaresSchema_TheZeroContextDeclaresNothing(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.False(t, c.DeclaresSchema("User"))
-	assert.False(t, c.DeclaresSchema(""))
-}
-
 // TestNew_KeepsTheDocumentItWasGiven pins the rest of the context: the document,
 // grouping policy, source identity and index arrive unchanged, since every
 // Provenance the compile stamps is built from the last two.
@@ -121,7 +108,7 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	doc := openapitest.DocDeclaring("User")
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
 
-	c := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := lowering.New(7, &load.Document{Doc: doc, Source: src}, lowering.Policy{Grouping: lowering.GroupByPathPrefix})
 
 	assert.Same(t, doc, c.Doc, "the document is referenced, never copied")
 	assert.Equal(t, src, c.Source)
@@ -129,92 +116,45 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	assert.Equal(t, 7, c.SrcIndex)
 }
 
-// TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
-// answers false rather than panicking: the accessor reaches through the
-// document pointer, and half this file drives the type as a Ctx literal.
-func TestIs30_TheZeroContextReadsAs2020(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.False(t, c.Is30(),
-		"no document names no dialect, which falls back to 2020-12")
-}
-
-// TestIs30_FollowsTheDeclaredVersion pins which documents read as OpenAPI 3.0.
-// A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
-// turns a boolean exclusiveMinimum into a numeric bound and silences a missing
-// `items`, and the reverse warns on every 3.1 array that omits `items`.
-func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
+// TestSchemaRules_FollowsTheDeclaredVersion pins which rows a document's
+// schemas are read with: the load phase's, at the version the source declares.
+// A reading keyed on them goes wrong with them: reading 3.0 as 2020-12 turns a
+// boolean exclusiveMinimum into a numeric bound and silences a missing `items`,
+// and the reverse warns on every 3.1 array that omits `items`.
+func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		version string
-		want    bool
+		v30     bool
 	}{
-		{version: "3.0.0", want: true},
-		{version: "3.0.3", want: true},
-		{version: "3.1.0", want: false},
-		{version: "3.2.0", want: false},
-		{version: "4.0.0", want: false},
-		{version: "", want: false},
+		{version: "3.0.0", v30: true},
+		{version: "3.0.3", v30: true},
+		{version: "3.1.0"},
+		{version: "3.2.0"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.Is30())
+			c := loweringtest.Context(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
+				lowering.Policy{})
+			rules := c.SchemaRules()
+			assert.Equal(t, tc.v30, rules.Defines("nullable"))
+			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", oas.Boolean))
+			assert.Equal(t, tc.v30, rules.RequiredWhen("items", "type", "array"))
+			assert.Equal(t, !tc.v30, rules.Takes("exclusiveMinimum", oas.Number))
 		})
 	}
 }
 
 // TestReached_IsSharedByTheContextAndItsScope pins where the record of resolved
 // references lives: a context and the scope it builds hold the same one, so a
-// resolution through any copy is visible to the compiler, and a zero context,
-// which holds none, has reached nothing.
+// resolution through any copy is visible to the compiler.
 func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
 	require.NotNil(t, c.RefScope().Reached)
 	assert.Same(t, c.RefScope().Reached, c.InScope(c.RefScope()).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
-	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
-	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
-}
-
-// TestKeptOnce_ReadsADeclarationOnce holds what makes a kept entry cost what the
-// source wrote: the first reach reads and reports, a later one through any copy of
-// the context does neither, and another declaration is a read of its own.
-func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
-	t.Parallel()
-	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	reads := 0
-	keep := func(key string) func() (ir.Unmodeled, []ir.Diagnostic) {
-		return func() (ir.Unmodeled, []ir.Diagnostic) {
-			reads++
-			return ir.Unmodeled{key: {Reason: ir.ReasonDegradedLowering}}, []ir.Diagnostic{{Code: key}}
-		}
-	}
-
-	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
-	assert.Empty(t, c.InScope(c.RefScope()).Kept.Once("/a", keep("a")), "a copy shares what was read")
-	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
-
-	assert.Equal(t, 2, reads)
-	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept.Entries())))
-}
-
-// TestKeptOnce_AZeroContextKeepsNothing is the state New never leaves: with nowhere
-// to hold a read, it asks for none rather than report what nothing kept.
-func TestKeptOnce_AZeroContextKeepsNothing(t *testing.T) {
-	t.Parallel()
-	asked := false
-	diags := lowering.Ctx{}.Kept.Once("/a", func() (ir.Unmodeled, []ir.Diagnostic) {
-		asked = true
-		return nil, nil
-	})
-	assert.False(t, asked)
-	assert.Empty(t, diags)
-	assert.Nil(t, lowering.Ctx{}.Kept.Entries())
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
@@ -223,29 +163,13 @@ func TestKeptOnce_AZeroContextKeepsNothing(t *testing.T) {
 // decides whether an internal pointer names anything.
 func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	t.Parallel()
-	c := lowering.New(0, openapitest.DocDeclaring("User"), ir.SourceInfo{Path: "spec.yaml"}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := loweringtest.Context(t, openapitest.ComponentSpec("    User: {type: object}\n"), lowering.Policy{})
 
 	scope := c.RefScope()
 
 	assert.Equal(t, "spec.yaml", scope.SelfPath)
-	require.NotNil(t, scope.Declares, "a scope with no predicate would resolve nothing")
-	assert.True(t, scope.Declares("User"))
-	assert.False(t, scope.Declares("Missing"))
-}
-
-// TestRefScope_NoDocumentResolvesNoRef pins that a context with no document
-// hands over a scope with none, rather than one holding a nil pointer: that
-// passes every nil check a reader makes and then faults when a pointer is
-// navigated in it. With no load result it holds no bindings either, so no
-// schema $ref lands anywhere.
-func TestRefScope_NoDocumentResolvesNoRef(t *testing.T) {
-	t.Parallel()
-	scope := lowering.Ctx{}.RefScope()
-
-	assert.Equal(t, nil, scope.Doc, "a nil interface, not one holding a nil pointer")
-	assert.Nil(t, scope.Bindings)
-	_, ok := scope.Target(&oas3.JSONSchema[oas3.Referenceable]{})
-	assert.False(t, ok, "no bindings to say where a $ref lands")
+	assert.True(t, scope.Declares.Has("User"))
+	assert.False(t, scope.Declares.Has("Missing"))
 }
 
 // bindingsSpec declares a component schema whose $ref lands on another, for
@@ -260,11 +184,9 @@ components:
 `
 
 // TestRefScope_CarriesTheBindingsItWasGiven pins that the document's schema
-// bindings reach the scope through the context, and only through WithLoaded:
-// the context it was derived from and a zero context hold none, so no $ref
-// lands there. Every copy of the carrying context shares the one set, since they
-// are built once and never written, and a $ref lands where the load phase
-// resolved it.
+// bindings reach the scope through the context. Every copy of the context
+// shares the one set, since they are built once and never written, and a $ref
+// lands where the load phase resolved it.
 func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	t.Parallel()
 	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(bindingsSpec)}, load.Options{})
@@ -274,29 +196,20 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	alias, ok := loaded.Doc.Components.Schemas.Get("Alias")
 	require.True(t, ok)
 
-	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, loaded.Overlay)
-	assert.Nil(t, bare.Bindings(), "a context given no load result knows no binding")
-	assert.Nil(t, bare.RefScope().Bindings)
-	_, ok = bare.RefScope().Target(alias)
-	assert.False(t, ok, "so its $ref lands nowhere")
-
-	carrying := bare.WithLoaded(loaded)
+	carrying := lowering.New(0, loaded, lowering.Policy{})
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
-
-	assert.Nil(t, bare.Bindings(), "the context it was derived from still has none")
-	assert.Nil(t, lowering.Ctx{}.Bindings(), "and a zero context never had any")
 }
 
 // TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML pins that a mapping
 // target the load phase resolved reaches the scope through the context. The
 // target is an extension's value, a position the parsed model holds as raw
-// YAML, so the scope finds a schema there only if WithLoaded handed over the
-// bindings, which built one (GitHub #757). The scope asks the load phase's
+// YAML, so the scope finds a schema there only through the bindings the load
+// phase built, which built one (GitHub #757). The scope asks the load phase's
 // index, too, what a mapping a walk leaves the model for holds
 // (resolve.Scope.Holds).
 func TestRefScope_ReadsAMappingTargetTheModelHoldsAsRawYAML(t *testing.T) {
@@ -312,39 +225,91 @@ components:
 x-lib:
   Cat: {type: object}
 `
-	loaded, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
-	require.NoError(t, err)
-	require.NotNil(t, loaded)
-	pet, ok := loaded.Doc.Components.Schemas.Get("Pet")
+	c := loweringtest.Context(t, spec, lowering.Policy{})
+	pet, ok := c.Doc.Components.Schemas.Get("Pet")
 	require.True(t, ok)
 	d := pet.GetSchema().GetDiscriminator()
 	require.NotNil(t, d)
 
-	bare := lowering.New(0, loaded.Doc, loaded.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, loaded.Overlay)
-	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
-	assert.False(t, ok, "so a context without the bindings finds no target")
-
-	carrying := bare.WithLoaded(loaded)
-	at, built, ok := carrying.RefScope().MappingTarget(d, "#/x-lib/Cat")
+	at, built, ok := c.RefScope().MappingTarget(d, "#/x-lib/Cat")
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Pointer: "/x-lib/Cat"}, at)
 	require.NotNil(t, built, "the load phase built a schema there")
 	assert.Equal(t, oas3.SchemaTypeObject, built.GetSchema().GetType()[0])
-	_, _, ok = bare.RefScope().MappingTarget(d, "#/x-lib/Cat")
-	assert.False(t, ok, "the context it was derived from still finds none")
 
-	holds := carrying.RefScope().Holds
+	holds := c.RefScope().Holds
 	require.NotNil(t, holds)
-	assert.True(t, holds(loaded.Doc.GetRootNode(), "x-lib"))
-	assert.False(t, holds(loaded.Doc.GetRootNode(), "x-none"))
+	assert.True(t, holds(c.Doc.GetRootNode(), "x-lib"))
+	assert.False(t, holds(c.Doc.GetRootNode(), "x-none"))
 }
 
-// TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
-// shares: a position is read once in each scope it is read in, and a copy
-// reads what another remembered. A copy carrying other
-// bindings starts afresh, since an answer reads them, and a zero context
-// remembers nothing.
-func TestTypePosition_IsReadOncePerScope(t *testing.T) {
+// TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every
+// copy of a context, and afresh for another context, because a reading turns on
+// what that one loaded.
+func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
+	t.Parallel()
+	reads := 0
+	read := func() int {
+		reads++
+		return reads
+	}
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
+	assert.Equal(t, 1, lowering.Remembered(c.InScope(c.RefScope().InSource()), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
+	other := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	assert.Equal(t, 3, lowering.Remembered(other, "k", read), "another context remembers nothing of c's")
+}
+
+// TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer pins a key asked for two
+// types of answer: each is read once, and neither is taken for the other.
+func TestRemembered_ReadsAKeyOnceForEachTypeOfAnswer(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	reads := 0
+	number := func() int {
+		reads++
+		return 1
+	}
+	text := func() string {
+		reads++
+		return "s"
+	}
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
+	assert.Equal(t, 1, lowering.Remembered(c, "k", number))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", text))
+	assert.Equal(t, 2, reads, "each type of answer is read once")
+}
+
+// TestRemembered_KeepsWhatAReadingRemembers pins a reading that asks Remembered
+// for another key of its own types: the answer it remembered is kept beside
+// its own.
+func TestRemembered_KeepsWhatAReadingRemembers(t *testing.T) {
+	t.Parallel()
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	reads := 0
+	inner := func() int {
+		reads++
+		return 1
+	}
+	outer := func() int {
+		reads++
+		return lowering.Remembered(c, "inner", inner) + 1
+	}
+
+	assert.Equal(t, 2, lowering.Remembered(c, "outer", outer))
+	assert.Equal(t, 1, lowering.Remembered(c, "inner", inner))
+	assert.Equal(t, 2, reads, "inner was read once, within outer")
+}
+
+// TestScoped_KeysAPositionByTheScopeItIsReadIn pins the key a position is
+// remembered under: one for every copy of a context in its scope, and another
+// for another position, for another document's scope, and for the scope of a
+// chain cut short, which is no document's.
+func TestScoped_KeysAPositionByTheScopeItIsReadIn(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
@@ -353,35 +318,34 @@ func TestTypePosition_IsReadOncePerScope(t *testing.T) {
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: filepath.Join(dir, "root.yaml"),
 		Data: []byte(root)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	reads := 0
-	ask := func(c lowering.Ctx, pointer jsontext.Pointer) {
-		t.Helper()
-		at := c.TypePosition(bind.Position{Pointer: pointer}, func() bind.Position {
-			reads++
-			return bind.Position{Doc: 1, Pointer: pointer + "/there"}
-		})
-		assert.Equal(t, bind.Position{Doc: 1, Pointer: pointer + "/there"}, at)
-	}
+	c := lowering.New(0, doc, lowering.Policy{})
+	at := bind.Position{Pointer: "/x"}
 
-	ask(c, "/x")
-	ask(c.InScope(c.RefScope()), "/x")
-	assert.Equal(t, 1, reads, "a copy reads what the context remembered")
-	ask(c, "/y")
-	ask(c, "/y")
-	assert.Equal(t, 2, reads, "another position is read once too")
+	if lowering.Scoped(c, at) != lowering.Scoped(c.InScope(c.RefScope()), at) {
+		t.Error("a copy in c's scope keys the position apart from c")
+	}
+	if lowering.Scoped(c, at) == lowering.Scoped(c, bind.Position{Pointer: "/y"}) {
+		t.Error("another position shares the key")
+	}
 	ext, ok := doc.Doc.Paths.Get("/ext")
 	require.True(t, ok)
 	foreign := lowering.Within[soa.PathItem](c, ext)
 	require.True(t, foreign.RefScope().Foreign)
-	ask(foreign, "/x")
-	assert.Equal(t, 3, reads, "the position is read again in another document's scope")
-	ask(c.WithLoaded(&load.Document{}), "/x")
-	assert.Equal(t, 4, reads, "a copy carrying other bindings remembers nothing of c's")
-	ask(lowering.Ctx{}, "/x")
-	ask(lowering.Ctx{}, "/x")
-	assert.Equal(t, 6, reads, "a zero context remembers nothing")
+	if lowering.Scoped(c, at) == lowering.Scoped(foreign, at) {
+		t.Error("another document's scope shares the key")
+	}
+
+	const cycle = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n" +
+		"paths:\n  /a: {$ref: '#/paths/~1b'}\n  /b: {$ref: '#/paths/~1a'}\n"
+	inCycle := loweringtest.Context(t, cycle, lowering.Policy{})
+	a, ok := inCycle.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	cut := lowering.Within[soa.PathItem](inCycle, a)
+	require.True(t, cut.RefScope().Foreign)
+	require.Empty(t, cut.RefScope().Holder, "a cut chain is no document's")
+	if lowering.Scoped(inCycle, at) == lowering.Scoped(cut, at) {
+		t.Error("a cut chain's scope shares the key")
+	}
 }
 
 // referenceKinds is a source declaring one component of each kind the library
@@ -411,9 +375,7 @@ func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "root.yaml")
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: path, Data: []byte(referenceKinds)}, load.Options{})
 	require.NoError(t, err)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	ends := c.RefScope().Ends
+	ends := lowering.New(0, doc, lowering.Policy{}).RefScope().Ends
 	require.NotNil(t, ends)
 	cs := doc.Doc.Components
 	for kind, entries := range map[string][2]any{
@@ -438,17 +400,17 @@ func TestRefScope_EndsReadsEachReferenceKind(t *testing.T) {
 	assert.False(t, ok, "a value of no reference kind is no reference")
 }
 
-// TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
+// TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled pins the guarantee
 // GitHub #86 exists for. Provenance built by hand is how a diagnostic shipped
 // with none (#43) — and a source index written wrong misattributes a node just
 // as silently, since nothing downstream can tell a wrong one from a right one.
-func TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
+func TestPlace_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{SrcIndex: 7}
+	c := lowering.New(7, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 7, Pointer: "/components/schemas/User"},
-		c.ProvenanceAt("/components/schemas/User"))
-	assert.Equal(t, ir.Provenance{Source: 7}, c.ProvenanceAt(""),
+		c.Place().At("/components/schemas/User"))
+	assert.Equal(t, ir.Provenance{Source: 7}, c.Place().At(""),
 		"a document-level position carries the index and no pointer")
 }
 
@@ -458,7 +420,7 @@ func TestProvenanceAt_IsTheOnlyPlaceASourceIndexIsSpelled(t *testing.T) {
 // converted leaves could not be while only the accumulating form existed.
 func TestDiagAt_StampsAndHandsBack(t *testing.T) {
 	t.Parallel()
-	c := lowering.Ctx{SrcIndex: 3}
+	c := lowering.New(3, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
 
 	got := c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "/paths/~1x", "dropped %d of %d", 1, 2)
 
@@ -477,7 +439,7 @@ func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
 
-	origin, diags := overlay.Apply(t.Context(), index, 0, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	origin, diags := overlay.Apply(t.Context(), index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	require.True(t, origin.Applied())
 	return origin
@@ -494,7 +456,7 @@ func TestSources_ListsTheOverlayAfterTheSourceItPatched(t *testing.T) {
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, origin)
+	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src, Overlay: origin}, lowering.Policy{})
 
 	require.Len(t, c.Sources(), 2)
 	assert.Equal(t, src, c.Sources()[0], "the source being lowered comes first")
@@ -509,37 +471,37 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 	t.Parallel()
 	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml"}
 
-	c := lowering.New(0, openapitest.DocDeclaring(), src, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Source: src}, lowering.Policy{})
 
 	assert.Equal(t, []ir.SourceInfo{src}, c.Sources())
 }
 
-// TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced pins the one place
+// TestPlace_NamesTheOverlayForThePositionsItIntroduced pins the one place
 // a source index is spelled into a Provenance. Asking the overlay here is what
 // makes an overlay's contribution traceable without touching a lowering, so a
-// ProvenanceAt that ignored it would credit the overlay's work to the file on
-// disk at every site at once. The position is the source's either way.
-func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
+// Place that ignored it would credit the overlay's work to the file on disk at
+// every site at once. The position is the source's either way.
+func TestPlace_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	t.Parallel()
 	origin := appliedOverlay(t, 1, "info: {title: T}\n",
 		"overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"+
 			"  - target: $.info\n    update: {description: d}\n")
 
-	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, origin)
+	c := lowering.New(0, &load.Document{Doc: openapitest.DocDeclaring(), Overlay: origin}, lowering.Policy{})
 
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
-		c.ProvenanceAt("/info/description"), "the overlay wrote this position of the source")
+		c.Place().At("/info/description"), "the overlay wrote this position of the source")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
-		c.ProvenanceAt("/info/title"), "and left this one alone")
+		c.Place().At("/info/title"), "and left this one alone")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
 }
 
-// TestWithLoaded_CarriesTheSiblingsOnACopy holds where a lowering reads the
-// fields beside a path item's $ref: from the load phase's model, carried on the
-// copy WithLoaded returns, while the context it was made from holds none.
-func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
+// TestSiblings_ReadsTheLoadPhasesModel holds where a lowering reads the fields
+// beside a path item's $ref: from the load phase's model, which the context
+// carries.
+func TestSiblings_ReadsTheLoadPhasesModel(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /a:
     $ref: '#/paths/~1b'
@@ -550,27 +512,21 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	carrying := base.WithLoaded(doc)
+	c := lowering.New(0, doc, lowering.Policy{})
 	rp, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 
-	sib, ok := carrying.Siblings().Of(rp)
-	require.True(t, ok, "the copy reads the load phase's model")
+	sib, ok := c.Siblings().Of(rp)
+	require.True(t, ok, "the context reads the load phase's model")
 	assert.NotNil(t, sib.Item.Put(), "the operation beside the $ref is modelled")
 	assert.Equal(t, jsontext.Pointer("/paths/~1a"), sib.Pointer)
-	assert.False(t, carrying.Siblings().Unread(rp), "a source use site is read")
-
-	_, ok = base.Siblings().Of(rp)
-	assert.False(t, ok, "the context it was made from is unchanged")
+	assert.False(t, c.Siblings().Unread(rp), "a source use site is read")
 }
 
-// TestWithLoaded_CarriesTheMediaTypeUsesOnACopy holds where a lowering reads
-// the model of a content entry written as a $ref: from the load phase's, on the
-// copy WithLoaded returns, while the context it was made from knows the entry
-// is one and holds no model of it.
-func TestWithLoaded_CarriesTheMediaTypeUsesOnACopy(t *testing.T) {
+// TestMediaTypeUse_ReadsTheLoadPhasesModel holds where a lowering reads the
+// model of a content entry written as a $ref: from the load phase's, which the
+// context carries.
+func TestMediaTypeUse_ReadsTheLoadPhasesModel(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
@@ -587,60 +543,33 @@ components:
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	carrying := base.WithLoaded(doc)
+	c := lowering.New(0, doc, lowering.Policy{})
 	item, ok := doc.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	response, ok := item.GetObject().Get().GetResponses().Get("200")
 	require.True(t, ok)
 	content := response.GetObject().GetContent()
 
-	use, isUse := carrying.MediaTypeUse(content.GetOrZero("application/json"))
+	use, isUse := c.MediaTypeUse(content.GetOrZero("application/json"))
 	require.True(t, isUse)
-	assert.True(t, use.IsReference(), "the copy reads the load phase's model")
-	_, isUse = carrying.MediaTypeUse(content.GetOrZero("text/plain"))
+	require.NotNil(t, use)
+	assert.True(t, use.IsReference(), "the context reads the load phase's model")
+	_, isUse = c.MediaTypeUse(content.GetOrZero("text/plain"))
 	assert.False(t, isUse, "an entry written inline is no use")
-
-	use, isUse = base.MediaTypeUse(content.GetOrZero("application/json"))
-	assert.True(t, isUse)
-	assert.Nil(t, use, "the context it was made from holds no model")
-}
-
-// TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex pins that a context carrying
-// the load phase's results reads the raw YAML a walk leaves the model for
-// through an index, where the one it was made from asks the library, which
-// scans a mapping on every read (GitHub #778).
-func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
-	t.Parallel()
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(openapitest.ComponentSpec("    A: {type: string}\n"))}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-
-	assert.Nil(t, base.RefScope().Holds)
-	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
 // TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites are
-// the table's for the document c reads, every one of them counted, and that a
-// context given no bindings finds none and reads as whole.
+// the table's for the document c reads, every one of them counted.
 func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	c := lowering.New(0, doc, lowering.Policy{})
 
 	sites, whole := c.DynamicAnchorSites("m")
 	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}, {Pointer: "/components/schemas/B"}}, sites)
-	assert.True(t, whole)
-
-	sites, whole = lowering.Ctx{}.DynamicAnchorSites("m")
-	assert.Empty(t, sites)
 	assert.True(t, whole)
 }
 
@@ -649,11 +578,12 @@ func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 // another document's content at the source's places nothing.
 func TestPosition_PlacesWhatADocumentHolds(t *testing.T) {
 	t.Parallel()
-	p, placed := lowering.Ctx{}.Position("/a")
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{})
+	p, placed := c.Position("/a")
 	assert.True(t, placed)
 	assert.Equal(t, bind.Position{Pointer: "/a"}, p)
 
-	_, placed = lowering.Ctx{}.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"}).Position("/a")
+	_, placed = c.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"}).Position("/a")
 	assert.False(t, placed)
 }
 
@@ -663,7 +593,7 @@ func TestNew_CarriesTheLimits(t *testing.T) {
 	t.Parallel()
 	limits := lowering.Limits{MaxEnumMembers: budget.AtMost(12)}
 
-	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, lowering.GroupByTags, limits, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	c := loweringtest.Context(t, bindingsSpec, lowering.Policy{Grouping: lowering.GroupByTags, Limits: limits})
 
 	assert.Equal(t, limits, c.Limits)
 }

@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -165,7 +166,10 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/merged",
-                    "sharedRoute": false,
+                    "pathDocs": {
+                      "summary": "Shared summary",
+                      "description": "Shared description"
+                    },
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1merged/get/parameters/q/query",
@@ -177,11 +181,8 @@
                         "allowEmptyValue": true
                       }
                     ],
-                    "checksumRequired": false,
-                    "pathDocs": {
-                      "summary": "Shared summary",
-                      "description": "Shared description"
-                    }
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -283,15 +284,15 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/merged",
-                    "sharedRoute": false,
-                    "requestContentTypes": [
-                      "multipart/form-data"
-                    ],
-                    "checksumRequired": false,
                     "pathDocs": {
                       "summary": "Shared summary",
                       "description": "Shared description"
-                    }
+                    },
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },

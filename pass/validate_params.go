@@ -15,10 +15,11 @@ import (
 var paramIDType = reflect.TypeFor[ir.ParamID]()
 
 // checkParams holds every reference an operation makes to a parameter — its
-// HTTP bindings, its pagination inputs, its idempotency token and what its
-// links read of the request — to the parameters it declares, and each link's
-// parameters to the operation it leads to. refs holds what the one walk of the
-// document declared, which the dangling check resolves against too.
+// HTTP bindings, its pagination inputs, the inputs selecting a stream, its
+// idempotency token and what its links read of the request — to the
+// parameters it declares, and each link's parameters to the operation it leads
+// to. refs holds what the one walk of the document declared, which the
+// dangling check resolves against too.
 func checkParams(doc *ir.Document, refs *ir.IDReferences) []ir.Diagnostic {
 	diags := append(checkParamBindings(doc, refs), checkParamReferences(doc, refs)...)
 	return append(diags, checkLinkTargets(doc, refs)...)

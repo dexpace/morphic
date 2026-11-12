@@ -39,8 +39,9 @@ paths:
       responses: {"200": {description: ok}}
 `
 
-// loadBeside loads besideSpec and returns it with the scope lowering reads it
-// in, with and without the load phase's models.
+// loadBeside loads besideSpec and returns it with two scopes over it: one
+// without the load phase's models, and one with Beside, which every scope
+// lowering reads in holds.
 func loadBeside(t *testing.T) (*load.Document, resolve.Scope, resolve.Scope) {
 	t.Helper()
 	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(besideSpec)},

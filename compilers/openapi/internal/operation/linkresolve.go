@@ -116,7 +116,7 @@ func resolveLink(ix opIndex, reg ir.TypeRegistry, from *ir.Operation, at respons
 	}
 	link := ir.OperationLink{
 		Name: compile.NamingFor(d.name), Operation: target.ID, Docs: d.docs,
-		Provenance: d.c.ProvenanceAt(d.ptr), Unmodeled: d.extra,
+		Provenance: d.c.Place().At(d.ptr), Unmodeled: d.extra,
 	}
 	ex := exchange{reg: reg, from: from, at: at}
 	given := map[ir.ParamID]string{}
@@ -158,7 +158,7 @@ type opIndex struct {
 // provenance names c's source.
 func indexOperations(c lowering.Ctx, svc *ir.Service) opIndex {
 	ix := opIndex{byID: map[ir.OpID]*ir.Operation{}, byName: map[string][]*ir.Operation{}, byDecl: map[jsontext.Pointer][]*ir.Operation{}}
-	source := c.ProvenanceAt("").Source
+	source := c.Place().Source
 	type level struct {
 		groups []ir.OperationGroup
 		depth  int

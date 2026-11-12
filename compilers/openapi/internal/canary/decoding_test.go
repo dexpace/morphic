@@ -21,6 +21,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
+	"github.com/speakeasy-api/openapi/marshaller"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -510,13 +511,16 @@ func scalarAt(t *testing.T, source any, pointer string) string {
 // unmodeledKeywords pins unmodeled-keywords: the schema model has no field for
 // $dynamicRef, $dynamicAnchor, $comment, $vocabulary or dependentRequired, and
 // records each, like any key it does not know, by name alone; the value stays
-// in the raw node.
+// in the raw node, and Schema.IsEqual, comparing the model, does not see it.
 func unmodeledKeywords(t *testing.T) {
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
 		"A: {$dynamicAnchor: n, $comment: c, $dynamicRef: '#n', $vocabulary: {}, dependentRequired: {}, "+
-			"unknownKeyword: u, type: object}")))
+			"unknownKeyword: u, type: object}",
+		"B: {type: object}")))
 	require.NoError(t, err)
 	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	b, ok := doc.Components.Schemas.Get("B")
 	require.True(t, ok)
 
 	unmodeled := []string{"DynamicRef", "DynamicAnchor", "Comment", "Vocabulary", "DependentRequired"}
@@ -527,6 +531,48 @@ func unmodeledKeywords(t *testing.T) {
 		[]string{"$dynamicAnchor", "$comment", "$dynamicRef", "$vocabulary", "dependentRequired", "unknownKeyword"},
 		a.GetSchema().GetCore().GetUnknownProperties(), revisit(t, result{}))
 	assert.Equal(t, "#n", scalarAt(t, a.GetSchema().GetRootNode(), "/$dynamicRef"), revisit(t, result{}))
+	assert.True(t, a.GetSchema().IsEqual(b.GetSchema()), "IsEqual reads the model alone: %s", revisit(t, result{}))
+}
+
+// failureBeneathItself pins failure-beneath-itself: a schema holding a keyword
+// that fails to decode beneath one of its own name, an items list inside an
+// items, one below it through properties, or a number inside a not, decodes as
+// the boolean false schema, its node still the mapping written. Decoded on its
+// own, the mapping is the schema written, and of a chain only the next schema
+// down is false again.
+func failureBeneathItself(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
+		"A: {type: array, items: {type: array, items: [{type: string}]}}",
+		"B: {type: array, items: {properties: {p: {items: [{}]}}}}",
+		"C: {type: array, items: {type: array, items: {type: array, items: [{}]}}}",
+		"N: {not: {required: [a], not: 5}}",
+		"P: {properties: {p: {type: array, items: [{}]}}}")))
+	require.NoError(t, err)
+	get := func(name string) *oas3.Schema {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		return js.GetSchema()
+	}
+	for name, js := range map[string]*oas3.JSONSchema[oas3.Referenceable]{
+		"items above a list": get("A").GetItems(), "items above properties": get("B").GetItems(),
+		"a chain": get("C").GetItems(), "a not": get("N").GetNot(),
+	} {
+		node := js.GetCore().GetRootNode()
+		assert.True(t, js.IsBool(), revisit(t, result{report: name + " decodes as no boolean"}))
+		assert.Equal(t, yaml.MappingNode, node.Kind, revisit(t, result{report: name + "'s node is no mapping"}))
+		again := &oas3.JSONSchema[oas3.Referenceable]{}
+		_, err := marshaller.UnmarshalNode(t.Context(), "", node, again)
+		require.NoError(t, err, name)
+		assert.False(t, again.IsBool(), revisit(t, result{report: name + " decoded on its own is a boolean"}))
+		if name == "a chain" {
+			next := again.GetSchema().GetItems()
+			assert.True(t, next.IsBool(), revisit(t, result{report: "the next schema of a chain is no boolean"}))
+			assert.Equal(t, yaml.MappingNode, next.GetCore().GetRootNode().Kind)
+		}
+	}
+	p, ok := get("P").GetProperties().Get("p")
+	require.True(t, ok)
+	assert.False(t, p.IsBool(), revisit(t, result{report: "a property above a list decodes as a boolean"}))
 }
 
 // nullSchemaIsFalse pins null-schema-is-false: a null written where a schema
@@ -666,6 +712,7 @@ func nonScalarKey(t *testing.T) {
 func undecodedScalar(t *testing.T) {
 	for written, text := range map[string]string{
 		"2021-01-01":    "2021-01-01",
+		"<<":            "<<",
 		"!!binary aGk=": "aGk=",
 		"!local tagged": "tagged",
 	} {

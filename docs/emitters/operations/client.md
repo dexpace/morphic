@@ -10,24 +10,25 @@ operation whose `Servers` names a server of its own.
   ([servers](../../ir/servers.md)). The client's default is the first of them a client can reach
   (below). The IR states both, so the plan copies neither ([plan or
   refine](../plan/plan-or-refine.md)).
-- **refine.** The client takes three settings beside its runtime policy: which declared server to
-  use, the default unless the caller names another; a value for each of that server's variables, its
-  `Default` unless the caller gives one, and one of its `Enum` when it has one, each value of which
-  is a constant the caller can name; and a base URL, which replaces the server's URL entirely, for a
-  proxy, a test server or a deployment the document does not list
-  ([Go](../targets/go/operations.md#the-client),
+- **refine.** The client takes these settings beside its runtime policy and its [client
+  settings](#client-settings): which declared server to use, the default unless the caller names
+  another; a value for each of that server's variables, its `Default` unless the caller gives one,
+  and one of its `Enum` when it has one, each value of which is a constant the caller can name; and
+  a base URL, which replaces the server's URL entirely, for a proxy, a test server or a deployment
+  the document does not list ([Go](../targets/go/operations.md#the-client),
   [Kotlin](../targets/kotlin/operations.md#the-client)). A value outside a variable's `Enum` is
-  refused when the client is built, never sent. An empty `Default` substitutes nothing, the one
-  reading OpenAPI admits, since it requires a default; telling an empty default from none, which
-  AsyncAPI allows, is #883's.
+  refused when the client is built, never sent, and so is a variable with no `Default`, which
+  AsyncAPI allows, that the caller gives no value. An empty `Default` substitutes nothing, as
+  OpenAPI's `default: ""` does.
 - **A server a client cannot reach.** A server whose URL, its variables at their defaults, has no
   scheme and host — the `/` OpenAPI supplies for a document that declares no server, which records
   no pointer ([servers](../../ir/servers.md)), among them — cannot be the default: the document's
-  location, which OpenAPI resolves a relative URL against, is not something an SDK knows. The
-  default is the first server that has both, so a relative server listed first passes the default to
-  the next. A client refuses to be built while the server it would use has neither and no base URL
-  replaces it, as when a caller names a relative server, and refine reports a client none of whose
-  servers has both once, as an info `emitters/<target>/no-default-server`.
+  location, which OpenAPI resolves a relative URL against, is not something an SDK knows. Nor can a
+  server with a variable that has no `Default`, whose URL has no value until a caller gives one. The
+  default is the first server neither excludes, so a relative server listed first passes the default
+  to the next. A client refuses to be built while the server it would use has no scheme and host and
+  no base URL replaces it, as when a caller names a relative server, and refine reports a client
+  none of whose servers can be the default once, as an info `emitters/<target>/no-default-server`.
 - **An operation's own servers.** An operation whose `Servers` names any is sent to those in place
   of its service's, by the same rules: to the first of them a client can reach, each variable at its
   `Default`. The caller's choice of server and of variable values is a choice among the service's
@@ -50,22 +51,27 @@ every operation of a scope takes a parameter changes as the API grows, so a sett
 would come and go with operations, and each change would move the parameter into or out of every
 method's signature: a breaking SDK change caused by an additive spec change.
 
-- **What a setting fills.** A `ParamKey` fills, in every operation, the parameter at its location
-  and wire name whose declaration lowers to one wire form with the others: the same root through
-  its scalar chain ([scalars](../refine/scalars.md)), and the same style and explode. Requiredness,
-  constraints and docs may differ, and each operation checks its own. A declaration of another wire
-  form stays a plain input, reported once by refine, naming the operation, since a shared name does
-  not make two parameters one.
+- **What a setting fills.** A `ParamKey` fills, in every operation of the service, the parameter at
+  its location and wire name, a header's compared without case as HTTP compares it (RFC 9110 §5.1),
+  whose declaration lowers to one wire form with the others: the same root through its scalar chain
+  ([scalars](../refine/scalars.md)), and the same style and explode. Requiredness, constraints and
+  docs may differ, and each operation checks its own. A declaration of another wire form stays a
+  plain input, reported once by refine, naming the operation, since a shared name does not make two
+  parameters one. A `ParamKey` no operation of the service declares is reported, as a hint naming
+  no entity is ([shaping hints](../contract/shaping-hints.md)).
 - **How a call reads it.** The client takes the setting when it is built, a call may give its own,
   and a call with neither for a required parameter is refused unsent, the error naming it. A
   parameter a setting fills is not positional but an optional field of the operation's request type
   ([request shaping](../refine/requests.md)), so a call can still name another account.
-- **Candidates.** The plan reports, as an info `emitters/plan/client-param-candidate`, each
-  `ParamKey` that every operation of some group with more than one operation takes in one wire
-  form, with the number of operations in the document taking it so, so an SDK's author can name
-  it. On the golden spec (spec @319dc756, morphic @b206dc99), `account_id` in the path is taken by
-  2,660 of 3,763 operations, each a string under one of 16 sets of constraints, and `zone_id` by
-  698. One shared component parameter was weighed as the test instead and finds a parameter every
+- **Candidates.** The plan reports, in one info `emitters/plan/client-param-candidates`, each
+  `ParamKey` that every operation of some group with more than one operation takes in one wire form,
+  with the number of operations in the document taking it so, most first, so an SDK's author can
+  name one. It lists one a hint already names too, since the plan reads no hints ([plan or
+  refine](../plan/plan-or-refine.md)). One info per candidate was weighed and drew 82 on the golden
+  spec (spec @319dc756, morphic @b206dc99), 56 of them shared by one group alone and 29 left
+  optional by some operation, such as `limit`. Ranked by use, the list leads with `account_id` in
+  the path, taken by 2,660 of 3,763 operations, each a string under one of 16 sets of constraints,
+  and `zone_id`, taken by 698, well ahead of the paging parameter after them, `per_page`, taken
+  by 186. One shared component parameter was weighed as the test instead and finds a parameter every
   operation of a group shares in 52 of the 515 groups with more than one operation, against 465 by
   location and name: the spec declares its parameters inline.
-

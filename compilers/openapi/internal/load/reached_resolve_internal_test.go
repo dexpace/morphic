@@ -560,6 +560,56 @@ paths:
 	assert.Equal(t, diag.Validation+"/validation-allowed-values", diags[0].Code)
 }
 
+// TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere pins where a finding
+// about a reached object is placed when the $ref reaching it is written in
+// another document: in that document's own Document.Sources entry, at the
+// $ref, never at the same pointer of the source. In each row the source
+// reaches an object of b.yaml first, and a $ref a.yaml writes then reaches
+// one inside it, crossing b.yaml's budget: a schema's $ref, which the binding
+// reads, and a reference object, which the resolver does.
+func TestResolve_AFindingAtAnotherDocumentsRefIsPlacedThere(t *testing.T) {
+	t.Parallel()
+	object := func(fields int) string {
+		props := make([]string, fields)
+		for i := range props {
+			props[i] = fmt.Sprintf("p%d: {type: string}", i+1)
+		}
+		return "{type: object, properties: {" + strings.Join(props, ", ") + "}}"
+	}
+	for name, tc := range map[string]struct {
+		paths, a, b string
+		at          jsontext.Pointer
+	}{
+		"a schema's $ref": {
+			paths: "  /a: {get: {parameters: [{$ref: \"./a.yaml#/components/parameters/W\"}], responses: {\"200\": {description: ok}}}}\n" +
+				"  /b: {get: {parameters: [{$ref: \"./b.yaml#/components/parameters/Y\"}], responses: {\"200\": {description: ok}}}}\n",
+			a:  "components:\n  parameters:\n    W: {name: w, in: query, schema: {$ref: \"./b.yaml#/components/parameters/Y/schema\"}}\n",
+			b:  "components:\n  parameters:\n    Y: {name: p, in: query, schema: " + object(10) + "}\n",
+			at: "/components/parameters/W/schema",
+		},
+		"a reference object": {
+			paths: "  /a: {$ref: \"./a.yaml#/paths/~1a\"}\n  /b: {$ref: \"./b.yaml#/components/pathItems/PI\"}\n",
+			a: "paths:\n  /a: {get: {parameters: [{$ref: \"./b.yaml#/components/pathItems/PI/get/parameters/0\"}], " +
+				"responses: {\"200\": {description: ok}}}}\n",
+			b: "components:\n  pathItems:\n    PI: {get: {parameters: [{name: p, in: query, schema: " + object(7) + "}], " +
+				"responses: {\"200\": {description: ok}}}}\n",
+			at: "/paths/~1a/get/parameters/0",
+		},
+	} {
+		dir := externalDir(t, map[string]string{"a.yaml": tc.a, "b.yaml": tc.b})
+		root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" + tc.paths
+
+		got, diags := loadExternal(t, dir, root, Options{MaxSourceNodes: budget.AtMost(60), MaxAliasSurplus: budget.AtMost(1)})
+
+		a, ok := got.Others.Named(filepath.Join(dir, "a.yaml"))
+		require.True(t, ok, "%s: a.yaml is read beside the source", name)
+		require.NotZero(t, a.Index, name)
+		require.Len(t, diags, 1, "%s: %+v", name, diags)
+		assert.Equal(t, diag.BudgetExceeded, diags[0].Code, name)
+		assert.Equal(t, ir.Provenance{Source: a.Index, Pointer: tc.at}, diags[0].Provenance, name)
+	}
+}
+
 // v32OtherFixture and v32RootFixture are a 3.2 root reaching two external
 // schemas, one writing a keyword only 3.2 defines (Pet's defaultMapping) and
 // one with a defect (Broken: {type: 42}).
@@ -1124,7 +1174,8 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // operations checked. An object
 // reached both itself and inside another reached object draws each warning
 // once. A 3.2 document draws none; another document's object is held to the
-// source's version (GitHub #839), each warning placed at its pointer there.
+// version it declares, or the source's where it declares none, each warning
+// placed at its pointer there.
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1183,13 +1234,20 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		})
 	}
 
-	t.Run("another document's object is held to the source's version", func(t *testing.T) {
+	const root31 = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n"
+	t.Run("another document declaring no version is held to the source's", func(t *testing.T) {
 		t.Parallel()
 		dir := externalDir(t, map[string]string{"other.yaml": pet})
-		_, diags := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
-			"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n", Options{})
+		_, diags := loadExternal(t, dir, root31, Options{})
 		assert.Empty(t, cmp.Diff([]string{"/x-lib/Pet/discriminator/defaultMapping" + later}, diagLines(diags)), "%+v", diags)
 		require.Len(t, diags, 1)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "placed in other.yaml's entry")
+	})
+	t.Run("another document's object is held to the version it declares", func(t *testing.T) {
+		t.Parallel()
+		dir := externalDir(t, map[string]string{"other.yaml": "openapi: 3.2.0\ninfo: {title: O, version: \"1\"}\n" + pet})
+		_, diags := loadExternal(t, dir, root31, Options{})
+		assert.Empty(t, diags, "3.2 added defaultMapping")
 	})
 }

@@ -29,23 +29,28 @@ import (
 // branches are flattened first. Inline branches contribute their properties,
 // with provenance into their source branch.
 //
-// Value constraints written beside the allOf (minProperties, ...) are read as
-// lowerModel reads a plain object's, so they land on the same field, not
-// Unmodeled (GitHub #407). A composition that leaves only a catch-all is a map,
-// as a plain object's is (objectNode).
+// Value constraints written beside the allOf (minProperties, ...), or on a branch
+// that folds, are read as lowerModel reads a plain object's, so they land on the
+// same field, not Unmodeled (GitHub #407). A composition that leaves only a
+// catch-all is a map, as a plain object's is (objectNode).
 func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
-		idx := propIndex(c, ts, m)
-		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
-		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
+		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
+		diags = append(diags, diagDisjointConjuncts(c, comp, composedShape)...)
+		if allOfDecides(c, s) {
+			v := voicingOf(c, s)
+			comp.speaks, comp.rebased = v.speaks, v.rebased
+		}
+		fields := newModelFields(c, ts, m)
+		diags = append(diags, fillAllOf(c, ts, depth, m, fields, comp)...)
+		diags = append(diags, fillModelProperties(c, ts, depth, fields, s, pointer)...)
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
-		diags = append(diags, applyFalseBranches(c, m, comp)...)
+		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
 		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
 		diags = append(diags, discDiags...)
 		if d != nil {
@@ -156,7 +161,20 @@ func stackPath(buf []int, stack []allOfFrame) []int {
 type allOfComposition struct {
 	pointer  jsontext.Pointer
 	branches []allOfBranch
+	// disjoint names what each conjunct states where the schema draws the
+	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
+	// is nil otherwise (readAllOf).
+	disjoint []string
+	// speaks marks each branch that folds at the position (voicesAmong), and
+	// rebased each whose folding keywords write a relative $ref it reads against
+	// another base, so it does not. They are nil for a composition distributed
+	// across a union, whose variants each keep every branch.
+	speaks  []bool
+	rebased []bool
 }
+
+// branchSpeaks reports whether the branch at index i folds at the position.
+func (a allOfComposition) branchSpeaks(i int) bool { return a.speaks != nil && a.speaks[i] }
 
 // allOfBranches returns the branches of s's allOf as walkAllOf yields them, each
 // with the pointer it was written at, under the schema written at pointer. allOf
@@ -223,7 +241,12 @@ func FlattenedAllOf(s *oas3.Schema) []FlatBranch {
 // and its path from the composed schema. The path's tokens are `allOf` and
 // decimal indices, so trimming the prefix is exact.
 func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
-	return "openapi:" + strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
+	return "openapi:" + a.branchPath(bptr)
+}
+
+// branchPath is the path of the allOf branch at bptr from the composed schema.
+func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+	return strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
 }
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
@@ -258,23 +281,24 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 
 // fillAllOf classifies and lowers the branches of comp into m (GitHub #599).
 //
-// An inline branch merges in place: only its `properties` and `required`
-// (requireMembers) merge, the rest staying verbatim beside the model
-// (preserveUnmergedBranch, GitHub #123). Merging more would need a precedence
-// rule between branches.
+// An inline branch merges in place: its `properties` and `required`
+// (requireMembers) merge, what it writes for the position folds there
+// (voicesAmong), and the rest stays verbatim beside the model
+// (preserveUnmergedBranch, GitHub #123).
 //
 // A $ref branch owns a node: keywords beside its $ref, if any, go on an alias
 // that homeDeclaration hoists there, and the composition points at it (GitHub
 // #143). The census every $ref site runs keeps what the alias cannot model,
 // except `required` (compositionCensusHandled); a co-declared oneOf/anyOf is kept
 // too (GitHub #406).
-func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *merge.PropIndex, comp allOfComposition) []ir.Diagnostic {
+func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
-			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, e, comp.branchKey(e.pointer))...)
+			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
+			diags = append(diags, preserveUnmergedBranch(c, m, comp, i)...)
 			continue
 		}
 		diags = append(diags, fillRefBranch(c, ts, m, e, hasBase && i == base)...)
@@ -315,7 +339,8 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 
 // applyFalseBranches closes m for each boolean `false` allOf branch and keeps
 // the branch verbatim under Unmodeled. It runs after fillAdditional, whose
-// result it overrides.
+// result it overrides, the catch-all included
+// (docs/compilers/openapi.md#allof-false-branch).
 //
 // A `false` branch admits nothing, so m must not stay open; the rule
 // docs/compilers/openapi.md#whole-schema-fallbacks closes a bare `false` schema
@@ -323,7 +348,7 @@ func fillRefBranch(c lowering.Ctx, ts *compile.Types, m *ir.Model, e allOfBranch
 // would trade one silent loss for another. The verbatim branch tells this from
 // a plain `additionalProperties: false`; a diagnostic does not, being no part
 // of the document. A `true` branch constrains nothing and is skipped.
-func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir.Diagnostic {
+func applyFalseBranches(c lowering.Ctx, m *ir.Model, s *oas3.Schema, comp allOfComposition) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for _, e := range comp.branches {
 		if !annotation.IsFalseSchema(e.schema) {
@@ -331,40 +356,56 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 		}
 		m.Additional = ir.AdditionalClosed
 		annotation.PreserveInto(&m.Unmodeled, comp.branchKey(e.pointer),
-			ir.RawValue("false"), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+			ir.RawValue("false"), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.FalseSchema, e.pointer,
 			"boolean false allOf branch matches nothing, so the composition matches nothing; "+
 				"composed model closed and the branch kept verbatim under Unmodeled"))
 	}
+
+	if m.Additional == ir.AdditionalClosed && m.AdditionalProps != nil && m.AdditionalProps.Value != nil {
+		_, keptDiags := annotation.PreserveSchemaKeyword(&m.Unmodeled, s, "additionalProperties",
+			ir.ReasonDegradedLowering, comp.pointer, c.Place())
+		diags = append(diags, keptDiags...)
+	}
+	forbidRest(m)
 	return diags
 }
 
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when it declares more than the merge consumes, under
 // ReasonDegradedLowering and located at the branch
-// (docs/compilers/openapi.md#allof-inline-residue). key names the entry, so
+// (docs/compilers/openapi.md#allof-inline-residue). comp keys the entry, so
 // sibling branches never overwrite one another. A flattened branch's allOf is
 // consumed: allOfBranches replaced it by its own entries.
 //
 // A boolean branch has no keywords to leave a residue; applyFalseBranches
 // handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
-// an alias over the target.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key string) []ir.Diagnostic {
+// an alias over the target. What the branch writes for the position folds there
+// where comp says it speaks.
+func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, i int) []ir.Diagnostic {
+	e := comp.branches[i]
 	bs := e.schema.GetSchema()
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
-	residue := unmergedBranchKeys(bs, e.wrapper)
+	speaks := comp.branchSpeaks(i)
+	residue := unmergedBranchKeys(bs, func(keyword string) bool {
+		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: true}))
+	})
 	if len(residue) == 0 {
 		return nil
 	}
-	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, key,
-		bs.GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
+	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
+		bs.GetRootNode(), ir.ReasonDegradedLowering, c.Place().At(e.pointer))
 	if !kept {
 		return keptDiags
 	}
-	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e))
+	unfolded := ""
+	if comp.speaks != nil {
+		unfolded = unfoldedWhy(c, speaks, comp.rebased[i], bs, residue)
+	}
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, unfolded, len(comp.disjoint) > 0))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -372,19 +413,23 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key stri
 // apart. The caller records it.
 //
 // A branch declaring a type that cannot be an object is a warning rather than
-// info: the composed node is an ir.Model, which asserts the value *is* an object,
-// so the IR contradicts the branch — `allOf: [{type: string, maxLength: 3}]`
-// lowers to an empty model. Any other residue only narrows a model the IR
-// describes correctly, the under-constrained case
-// (docs/compilers/openapi.md#allof-inline-residue).
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch) ir.Diagnostic {
-	if branchExcludesObject(bs) {
+// info: the composed ir.Model asserts the value *is* an object, which the branch
+// contradicts. Any other residue only narrows a model the IR describes correctly,
+// the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
+// unfolded says why the branch did not fold (unfoldedWhy), if that is the
+// reason. disjoint says the schema reports its conjuncts share no value, so this
+// reports residue alone.
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, unfolded string, disjoint bool) ir.Diagnostic {
+	if branchExcludesObject(bs) && !disjoint {
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {
 			msg += ", and its own allOf, nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) + ", was not flattened"
 		}
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
+	}
+	if unfolded != "" && !e.capped {
+		return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unfolded)
 	}
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unmergedWhy(residue, e))
 }
@@ -398,42 +443,42 @@ func keptKeywords(residue []string, e allOfBranch) []string {
 	return slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
 }
 
-// unmergedWhy words why a branch with residue is kept. A flattened branch's
-// nested allOf composes too. A capped one is kept for its depth, not for allOf
-// being a keyword the merge declines, so allOf is left out of the keywords it
-// lists.
+// unmergedWhy words why a branch with residue is kept: what merges and folds is
+// gone from residue, which is the rest. A flattened branch's nested allOf composes
+// too. A capped one is kept for its depth, not for allOf being a keyword the merge
+// declines, so allOf is left out of the keywords it lists.
 func unmergedWhy(residue []string, e allOfBranch) string {
 	const keptTail = " is kept verbatim under Unmodeled"
 	switch {
 	case e.wrapper:
-		return "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (" +
+		return "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
 		rest := keptKeywords(residue, e)
 		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) +
-			", so its own allOf was not flattened; only its properties and required list compose, and the branch"
+			", so its own allOf was not flattened, and the branch"
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"
 		}
 		return why + keptTail
 	default:
-		return "inline allOf branch is merged in place, so only its properties and required list compose; the branch (" +
+		return "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	}
 }
 
-// unmergedBranchKeys returns the keywords the branch declares that the merge does
-// not consume, in the order the parser's model holds them.
+// unmergedBranchKeys returns the keywords the branch declares that consumes does
+// not claim, in the order the parser's model holds them.
 //
 // The keys come off the branch's own raw mapping rather than from a list of
 // keywords worth preserving, which is what keeps this from rotting: a keyword a
 // later dialect adds counts as unconsumed the moment a source writes it, with
 // nobody to remember it here.
-func unmergedBranchKeys(bs *oas3.Schema, flattened bool) []string {
+func unmergedBranchKeys(bs *oas3.Schema, consumes func(key string) bool) []string {
 	declared := rawMappingKeys(bs.GetRootNode())
 	out := make([]string, 0, len(declared))
 	for _, key := range declared {
-		if mergeConsumes(bs, key, flattened) || annotation.WritesKeywordLeftOut(bs, key) {
+		if consumes(key) || annotation.WritesKeywordLeftOut(bs, key) {
 			continue
 		}
 		out = append(out, key)

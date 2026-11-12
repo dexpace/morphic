@@ -230,6 +230,80 @@ func TestCompile_OverlayAppliesBeforeLowering(t *testing.T) {
 	assert.Equal(t, []string{"name", "tag"}, names(after), "and the overlay adds the second")
 }
 
+// TestCompile_OverlayWorkAnAliasMountsStaysTheSources pins where attribution
+// falls back. It records what the overlay wrote at the anchor it wrote it
+// under, so a position an alias or a `<<` merge key mounts that content at is
+// one it never recorded, and names no writer: under-attributed rather than
+// misattributed (provenance.Attribution.WriterAt).
+func TestCompile_OverlayWorkAnAliasMountsStaysTheSources(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: &a {type: object, properties: {old: {type: string}}}
+    B: *a
+    C: {type: object, allOf: [{<<: *a}]}
+`
+	const patch = `overlay: 1.0.0
+info: {title: O, version: "1"}
+actions:
+  - target: $.components.schemas.A.properties
+    update: {added: {type: integer}}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)}}})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "compile refused: %+v", diags)
+
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/A/properties/added", WrittenBy: 1},
+		propertyProvenance(t, doc, "A", "added"), "the overlay wrote the anchor's own position")
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/B/properties/added"},
+		propertyProvenance(t, doc, "B", "added"), "an alias mounts it where attribution never looked")
+	assert.Equal(t, ir.Provenance{Pointer: "/components/schemas/C/allOf/0/properties/added"},
+		propertyProvenance(t, doc, "C", "added"), "and so does a merge key")
+}
+
+// TestCompile_OverlayIsCreditedWithAFieldItRedeclares pins where an allOf fold
+// places what it reports: at the declaration it reports at, naming the overlay
+// that wrote it, as any finding at a pointer is placed. The fold runs once
+// every lowering has returned, apart from the walk, so it is told where its
+// model's positions are placed rather than asking the walk.
+func TestCompile_OverlayIsCreditedWithAFieldItRedeclares(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    X:
+      allOf:
+        - properties: {p: {type: string}}
+        - properties: {q: {type: string}}
+`
+	const patch = `overlay: 1.0.0
+info: {title: O, version: "1"}
+actions:
+  - target: $.components.schemas.X.allOf[1].properties
+    update: {p: {type: integer}}
+`
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Overlay: &openapi.Overlay{Path: "patch.yaml", Data: []byte(patch)}}})
+	require.NoError(t, err)
+
+	var got []ir.Provenance
+	for _, d := range diags {
+		if d.Code == diag.ConflictingRedecl {
+			got = append(got, d.Provenance)
+		}
+	}
+	assert.Equal(t, []ir.Provenance{{Pointer: "/components/schemas/X/allOf/1/properties/p", WrittenBy: 1}}, got,
+		"the conflict is reported at the declaration the overlay wrote")
+}
+
 // TestCompile_OverlayIsRecordedAsASource pins the third acceptance criterion.
 // A position the overlay introduced names the overlay as its Provenance.Source,
 // the positions beside it still name the spec, and both indexes address a real
@@ -355,8 +429,8 @@ components:
 `
 
 // addBirthProperty overlays a property of another primitive kind, date, onto
-// Widget, at a position whose own Provenance.Source is the overlay's index (1)
-// rather than the spec's (0). No position the spec declares reaches that kind.
+// Widget, at a position whose own Provenance names the overlay (1) as its
+// WrittenBy. No position the spec declares reaches that kind.
 const addBirthProperty = `overlay: 1.0.0
 info: {title: Patch, version: "1"}
 actions:

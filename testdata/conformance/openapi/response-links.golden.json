@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -434,7 +435,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/orders",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1orders/post/parameters/X-Request-Id/header",
@@ -449,6 +449,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -543,7 +544,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/orders/{orderId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
@@ -573,6 +573,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -645,7 +646,6 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/orders/{orderId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1orders~1{orderId}/put/parameters/orderId/path",
@@ -660,6 +660,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -749,7 +750,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/audit",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1audit/post/parameters/status/query",
@@ -773,6 +773,7 @@
                     "requestContentTypes": [
                       "text/plain"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

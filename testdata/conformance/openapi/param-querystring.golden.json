@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -107,7 +108,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports/get/parameters/criteria/querystring",
@@ -118,6 +118,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -178,7 +179,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports/summary",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports~1summary/get/parameters/status/query",
@@ -190,6 +190,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -250,7 +251,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/reports/raw",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1reports~1raw/get/parameters/criteria/querystring",
@@ -262,6 +262,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

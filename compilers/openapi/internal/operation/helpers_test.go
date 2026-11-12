@@ -16,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
@@ -95,20 +94,17 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 	require.NotNil(t, loadedDoc)
 
 	types := compile.NewTypes()
-	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
+	c := lowering.New(0, loadedDoc, lowering.Policy{Grouping: grouping})
 	report(schema.LowerComponentSchemas(t.Context(), c, types))
 
-	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
+	declared, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
-	srv := servers.NewRegistry()
-	var links operation.Links
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, srv, schemes, &links)
+	lowered, svcDiags := operation.LowerService(t.Context(), c, types, declared)
 	report(svcDiags)
 	reg, finished := types.Finish(t.Context())
 	report(finished)
-	report(links.Resolve(c, &svc, reg, srv))
-	return svc, loadDiags
+	report(lowered.Links.Resolve(c, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	return lowered.Service, loadDiags
 }
 
 // errorFindings spells each error in diags as its code and pointer, in the order

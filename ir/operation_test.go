@@ -4,6 +4,8 @@
 package ir_test
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 
@@ -134,6 +136,27 @@ func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
 	t.Parallel()
 	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
 		assert.False(t, mode.Valid(), "%q", mode)
+	}
+}
+
+// TestPageStop_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list. A condition added without teaching Valid fails here, not
+// as a spurious ir/unknown-page-stop on a document that states it correctly.
+func TestPageStop_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "PageStop")
+	require.NotEmpty(t, declared, "the ir sources must declare PageStop constants")
+	for _, c := range declared {
+		assert.True(t, ir.PageStop(c.Value).Valid(), "declared condition %q must be Valid", c.Value)
+	}
+}
+
+// TestPageStop_UnknownIsInvalid pins the other direction: Valid rejects a
+// condition no const declares, the empty one and another casing among them.
+func TestPageStop_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, stop := range []ir.PageStop{"", "Empty", "no-next", "never"} {
+		assert.False(t, stop.Valid(), "%q", stop)
 	}
 }
 
@@ -345,7 +368,9 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a","allowReserved":false}`)
+	var members map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal([]byte(got), &members))
+	assert.JSONEq(t, `{"multi":true,"filename":false,"style":"a","allowReserved":false}`, string(members["itemEncoding"]))
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,
@@ -471,6 +496,11 @@ func TestStreamDetail_JSONContract(t *testing.T) {
 		Events:         &ir.TypeRef{Target: "t/events", Nullable: true},
 		Initial:        &ir.TypeRef{Target: "t/initial"},
 		RequiresLength: true,
+		Terminator:     new("[DONE]"),
+		Condition: &ir.StreamCondition{
+			Input: ir.InputPath{Segments: []ir.PropID{"p/stream"}},
+			Value: ir.Value{Kind: ir.ValueBool, Bool: true},
+		},
 	})
 }
 
@@ -517,6 +547,8 @@ func TestPagination_JSONContract(t *testing.T) {
 		FirstLink:   &ir.PropPath{Segments: []ir.PropID{"p/firstLink"}},
 		LastLink:    &ir.PropPath{Segments: []ir.PropID{"p/lastLink"}},
 		TotalCount:  &ir.PropPath{Segments: []ir.PropID{"p/totalCount"}},
+		TotalPages:  &ir.PropPath{Segments: []ir.PropID{"p/totalPages"}},
+		Stop:        []ir.PageStop{ir.PageStopNoNext, ir.PageStopShort},
 	})
 }
 

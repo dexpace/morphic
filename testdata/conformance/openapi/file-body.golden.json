@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -123,10 +124,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/blob",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]
@@ -203,10 +204,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/documented",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

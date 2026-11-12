@@ -4,18 +4,21 @@ What an IR change meets that `docs/ir` does not say: other branches claiming the
 hand lists that must name a new field, guarantees a type held without stating them, and what the
 verifier and codecs must reach.
 
-## Take the next version when another PR claims yours
+## The PR merging second takes the next version
 `version-collisions`
 
-- **Rule.** Two open PRs that bump `IRVersion` from one base claim one version: the constant
-  merges silently, and only the `generations` row and the version-history entry conflict. The
-  PR merging second keeps `main`'s row and entry, moves the constant to the next version, and
-  appends its own under it.
-- **Why.** #1065 and #1066 both set 0.18.0, and the constant merged with no conflict; #734 and #735
-  both bumped to 0.10.0 and conflicted only in the history.
-- **Probe.** List the open PRs that set a version, or whose diff failed:
-  `for n in $(gh pr list --state open --limit 1000 --json number --jq '.[].number'); do d=$(gh pr diff $n) || echo "$n: diff unread"; grep -q '^+const IRVersion' <<<"$d" && echo $n; done`.
-  After the merge, `go test ./ir -run TestIRVersion` prints the row to append.
+- **Rule.** A branch bumping `IRVersion` takes the version after its base's, whatever other open
+  PRs claim, and the PR merging second keeps `main`'s row and entry, moves the constant to the next
+  version and appends its own under it. Any of the constant, the `generations` row and the
+  version-history entry can merge silently, so check for a repeated version after each merge
+  moving one.
+- **Why.** #1065 and #1066 both set 0.18.0 and the constant merged with no conflict; #734 and #735
+  conflicted only in the history; and two setting 0.30.0 conflicted in the constant, their rows and
+  entries merging clean, doubled (#1378).
+- **Probe.** After the merge, `grep -o 'version: "[0-9.]*"' ir/irversion_test.go | sort | uniq -d`
+  prints only 0.3.0 and 0.4.0, repeated by design, and
+  `grep -oE '^- \*\*[0-9]+\.[0-9]+\.[0-9]+\*\*' docs/ir/version-history.md | sort | uniq -d` prints
+  nothing.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`
@@ -53,9 +56,22 @@ verifier and codecs must reach.
 - **Why.** `appendTypeIDs` reads an operation by reflection, so such a position becomes a GraphQL
   root and the check on field arguments goes silent on its type, which classifying the position
   does not show (#1223).
-- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the readers.
-  Add a struct holding a `TypeID` to `ir.Docs`, keep it out of the oracle in `ir/edges_test.go`, and
-  watch `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fail until `appendTypeIDs` skips the struct.
+- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the code readers
+  (documents: `references/ir-lessons.md#reference-lists-in-documents`).
+  Add a struct holding a `TypeID` to `ir.Docs`, leave it out of `ir/edges_test.go`'s oracle, and
+  `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fails until `appendTypeIDs` skips the struct.
+
+## A new TypeID position is read in the documents listing references
+`reference-lists-in-documents`
+
+- **Rule.** Check a new `TypeID` position against each list of references a design document gives,
+  as well as the readers in code: a reader the documents specify and no code implements has no line
+  for a grep to find and no test to redden.
+- **Why.** `docs/emitters/refine/decorators.md` listed what an aliased type's collapse rewrites
+  without the new `DocRef.Type`, so a span naming a decorator pointed at a type with no
+  declaration, past the PR's sweep of the code readers (#1219).
+- **Probe.** `git grep -nE 'each reference|every reference|mapping or default' -- docs/emitters docs/ir`
+  finds the lists, each read for the new position.
 
 ## Find every list a new ID class must join
 `new-id-class`
@@ -127,8 +143,21 @@ verifier and codecs must reach.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
-- **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
-  body. Then take `references/ir-lessons.md#widened-field-consumers`.
+- **Probe.** `git grep -nF -e '<field>' -e '<old value>' -- docs`, and list each statement read in
+  the PR body. Then take `references/ir-lessons.md#widened-field-consumers`.
+
+## A verdict landing on another node changes no meaning
+`verdict-on-another-node`
+
+- **Rule.** A lowering that changes which node a field names, mints nodes of a kind the IR already
+  declares, or adds an ID namespace changes no key's meaning, IDs being opaque to consumers
+  (`docs/ir/identity.md`), and bumps nothing. A value a consumer switches on, as a primitive, a
+  mode or a media type, is `references/ir-lessons.md#widened-field-values`'s, and bumps.
+- **Why.** The redeclared-field merge added the `composed` namespace and minted composed models
+  (#1181), then nodes holding two declarations' bounds (#1307), each without a bump, while the
+  skill's values bullet read as asking a bump for each (#1657).
+- **Probe.** `git show <merge> --stat -- ir/document.go docs/ir/version-history.md` lists neither
+  file for #1181's `20017d99b` or #1307's `7cf3f95fc`.
 
 ## Ask each consumer of a widened field what it did with the old value
 `widened-field-consumers`
@@ -139,28 +168,80 @@ verifier and codecs must reach.
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
 - **Probe.** List in the PR body each consumer asked, and its answer.
 
-## Check a design rule against everything in its document it governs
+## Check a design rule against every input it reads
 `design-rule-over-its-document`
 
-- **Rule.** When a change to the IR or emitter design states a general rule, a placement
-  argument or a step order, list every field, input or step in the document it applies to and
-  check each; check a step order against what each step reads that a later step can still change.
-- **Why.** A rule giving derived facts no plan field stood beside a plan field copying one, a
-  placement argued for one per-target table and not its twin, and an import step ran before the
-  steps renaming what it imports (#1019).
-- **Probe.** `grep -n` the document for each field, input and step the rule names, and for their
-  neighbours.
+- **Rule.** When an IR or emitter design states a rule, placement argument or step order, list
+  its inputs from their declarations: each field of every IR type it reads, every `TypeKind` and
+  enumeration value those fields reach, each kind's `docs/ir` page, and each sibling section of
+  its document, cited, not restated
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
+  Say whether each changes the answer, compiling a minimal spec for one the golden spec lacks.
+  Check a step order by `references/ir-lessons.md#step-order-both-ways`.
+- **Why.** A placement covered one per-target table and not its twin, an import step preceded the
+  steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
+  kind documents and restated sections (#1402).
+- **Probe.** `go doc -all ./ir <Type>` and
+  `awk '/^\040{0,3}(\140{3}|~{3})/{c=!c}!c&&/^#/{print FNR": "$0}' <document>`; an input
+  with no stated effect is unchecked.
+
+## Check a step order against what later steps change and declare
+`step-order-both-ways`
+
+- **Rule.** Check a step order both ways: what each step reads that a later one changes, and what
+  each adds to that a later one declares. A step adding to a declaration runs after the step
+  declaring it.
+- **Why.** An import step preceded the steps renaming what it imports (#1019). At 4cb221a80,
+  `docs/emitters/refine/steps.md` placed `LowerRedaction` before `BuildRequestShaping`, whose
+  request types it gives a redacting form, and `MarkStability` before the steps declaring the
+  methods it marks; reading only what each step reads passed both (#1630).
+- **Probe.** List the order with
+  `awk -F'|' '/^\| \140/{print NR": "$2}' docs/emitters/refine/steps.md`, and beside each step
+  what it reads and adds to, against the steps after it, as the ordering paragraph of
+  `docs/emitters/refine/pipeline.md` argues each placement.
+
+## Prototype a specified mechanism against every requirement on its layer
+`prototype-against-every-requirement`
+
+- **Rule.** Prototype a mechanism a design document specifies on the target's own library, against
+  every requirement the emitter documents put on the layer it runs in, not only the property it is
+  for, and name each requirement's result in the document.
+- **Why.** Three decode mechanisms in turn passed a prototype of their cost and failed a sibling
+  document's requirement: builders could not reach a variant in another output unit, a second
+  `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
+  caller's own `Json` (#1329); a `must|never|only` grep missed #1340's "every error message"
+  (#1631).
+- **Probe.** With `<layer>` each entry of `ls docs/emitters` the mechanism runs in,
+  `grep -rnwE 'must|never|only|every|each|all|always' docs/emitters/README.md docs/emitters/contract docs/emitters/testing docs/emitters/<layer> docs/emitters/targets/<target>`
+  lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
+  unmet.
+
+## Shape a declaration from what an additive change leaves alone
+`declaration-reads-its-definition`
+
+- **Rule.** A plan fact that shapes a declaration, such as a closed sum against a struct of
+  pointers, reads what adding a member, a variant or an operation leaves as it was, such as the
+  type's value type and row, never one member's value or the operations reaching it. Where it
+  must read a fact such a change moves, the document names that fact and the break it causes the
+  declaration's callers.
+- **Why.** A fix to #1329's member rule read which way a union travels, so a new operation would
+  flip its form; an enum lowered as text once a member passed `int64` would turn
+  `type Code int64` into `type Code string` (#1334).
+- **Probe.** Add a member, a variant and an operation to a fixture: the declaration's form holds,
+  or the document names its break.
 
 ## Count what a design assumes about real input before choosing it
 `measure-the-premise`
 
 - **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
-  about real input it rests on, then count it on the golden spec and the corpus. A program
-  running the proposed rules shows only that they are total, since it assumes that fact; a worked
-  example, chosen because it fits, shows nothing.
+  about real input it rests on, then count it on the golden spec and the corpus, through `ir`'s
+  own derivations
+  (`.claude/skills/morphic-reviewing-prs/references/design.md#program-from-the-document`).
+  A program running the proposed rules shows only that they are total, since it assumes that fact;
+  a worked example, chosen because it fits, shows nothing.
 - **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
-  failure. Most operations with several error bodies used one type for all, so status told failures
-  apart, which nobody counted until a reviewer's question led there (#1167).
+  failure, yet most operations with several error bodies used one type for all, status telling
+  failures apart, uncounted until a reviewer asked (#1167).
 - **Probe.** For each decision in the PR body, name its premise and the command that could
   have falsified it. A decision with neither is unproved.
 
@@ -204,16 +285,39 @@ verifier and codecs must reach.
 ## Witness each character class a text predicate decides
 `character-predicate-witness-per-class`
 
-- **Rule.** A predicate over text (cased, blank, invisible) must be tested against the producer's
-  exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable,
-  Zs, caseless letters), not a hand-picked sample. A change that redefines one rechecks it at each
-  call site, since two rules sharing it can ask different questions.
+- **Rule.** A predicate over text (cased, blank, invisible) is tested against the producer's exact
+  transformation, with a witness per general category each set it claims spans, never a sample:
+  white space's Zs, Zl, Zp and Cc, default-ignorable's Cf, Mn, Lo and Cn, and caseless letters.
+  Redefining one rechecks it at each call site, as two rules sharing it can ask different questions.
 - **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
   filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
   case-boundary rule was applied to both, and the second went unverified until a mutation sweep
-  (#189).
-- **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each, at each call site.
+  (#189). `isInvisible`'s tests passed with its white space narrowed to Zs (#1584).
+- **Probe.** Assert its verdict on each witness and producer output at each call site, taking
+  `references/ir-lessons.md#witness-past-the-bmp` and
+  `references/ir-lessons.md#sweep-a-published-property` where they apply.
+
+## Witness past the BMP each term whose set reaches there
+`witness-past-the-bmp`
+
+- **Rule.** Each term of a text predicate whose set reaches past the Basic Multilingual Plane, such
+  as `unicode.Cf` or `unicode.Other_Default_Ignorable_Code_Point`, has a committed witness above
+  U+FFFF that it alone decides. A row an earlier term answers first, such as an exclusion or
+  `unicode.Variation_Selector`, witnesses nothing of a later one.
+- **Why.** `isInvisible`'s tests passed with its `Cf` term, and separately its
+  `Other_Default_Ignorable_Code_Point` term, held below U+10000, and still did with a row per class
+  and per range bound, as its rows past the BMP reached earlier terms (#1621).
+- **Probe.** Narrow each such term alone with `&& r < 0x10000`: a committed row reddens.
+
+## Sweep a predicate over every code point where Unicode publishes its property
+`sweep-a-published-property`
+
+- **Rule.** A predicate claiming a property Unicode publishes, such as default-ignorable or white
+  space, is swept by a throwaway test over every code point against the UCD files for
+  `unicode.Version`, beside its witnesses, and each range bound it holds has a witness on each side.
+- **Why.** A fix for #832 had a witness per class in `isInvisible`, yet moving a range's lower
+  bound from U+FFF9 to U+FFF8 reddened no test (#832).
+- **Probe.** The sweep prints no code point where the predicate and the UCD files differ.
 
 ## Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms
 `json-decoder-fixed-point`

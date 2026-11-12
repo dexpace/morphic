@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -192,7 +193,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/x",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1x/get/parameters/p/query",
@@ -215,6 +215,7 @@
                         "contentType": "application/json"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

@@ -11,6 +11,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -27,6 +28,12 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 		return nil, nil, nil
 	}
 	return combine(s, "contains", "minContains", "maxContains")
+}
+
+// ExamplesRaw combines example and examples into one raw JSON object, and names
+// the keywords it combines: Set.Examples holds the two as one list.
+func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+	return combine(s, "example", "examples")
 }
 
 // UnevaluatedRaw combines a non-false unevaluatedProperties and any
@@ -123,10 +130,11 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
-// IR does not model, keeping each verbatim and announcing it.
+// IR does not model, keeping each verbatim and announcing it, `dependencies`
+// among them where dependencies says the schema's dialect defines it.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dependencies bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -135,7 +143,7 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	// contains, unevaluated — go through keep, because no single keyword names
 	// those.
 	keepKeyword := func(keyword string) {
-		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, locate)...)
+		diags = append(diags, PreserveValidationOnlyKeyword(&p, s, keyword, pointer, doc)...)
 	}
 	// keep takes the conversion's error alongside its payload so an entry that
 	// could not be converted is reported rather than passed on as an absent one —
@@ -149,12 +157,12 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 		for _, keyword := range combined {
 			from = append(from, pointer+ids.Ptr(keyword))
 		}
-		entry := locate(pointer, from...)
+		entry := doc.At(pointer, from...)
 		if err != nil {
 			diags = append(diags, unpreservableDiag(key, entry, err))
 			return
 		}
-		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, locate(pointer), label)...)
+		diags = append(diags, preserveValidationOnlyInto(&p, key, raw, entry, doc.At(pointer), label)...)
 	}
 
 	if Written(s.GetNot()) {
@@ -172,6 +180,11 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) 
 	// silently dropped where its sibling dependentSchemas was kept. Its raw node
 	// is the only reading, and an absent one keeps nothing.
 	keepKeyword("dependentRequired")
+	if dependencies {
+		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
+		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
+		keepKeyword("dependencies")
+	}
 	if Written(s.GetPropertyNames()) {
 		keepKeyword("propertyNames")
 	}

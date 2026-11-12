@@ -62,13 +62,19 @@ counting as a server side: `server`, or `bidi` beside a `Send`. A `StreamSide` h
   `data` decodes into `Element`, and an `Element` whose root is `string` takes it as it arrived,
   since `data` is text.
 
-**A terminator is no frame.** A side's `Terminator` is compared with each frame's data, the whole
-data verbatim: a frame matching it ends the stream as the connection closing does, and is not
-decoded into `Element`, so a sentinel such as `[DONE]` never reaches a caller as an event that
-failed to decode.
+**A terminator is no frame.** On a side the client reads, each frame's data is compared with the
+side's `Terminator`, the whole data verbatim: a frame matching it ends the stream as the connection
+closing does, and is not decoded into `Element`, so a sentinel such as `[DONE]` never reaches a
+caller as an event that failed to decode. On a side the client writes, the client sends it as the
+last frame once the caller closes the stream. A `bytes` side has no frames to compare or send, so
+the plan reports its `Terminator` once as a warning `emitters/plan/terminator-unframed`, and the
+stream ends with its connection.
 
 **A stream sent only when asked is two calls.** A side whose `Condition` is set streams only when
-its input holds the condition's value; otherwise the response is the operation's non-streaming
-content. A target offers the two as two methods of one operation, one returning the response and one
-the stream, each setting the input itself, so a caller never passes the selector and never receives
-a stream it did not ask for. The method names are the target's ([naming](../refine/naming.md)).
+its input holds the condition's value; otherwise that side carries the operation's non-streaming
+content. A target offers the two as two methods of one operation. The stream's method sets the input
+to the condition's value, whatever the caller's request holds there. The method for that content
+never sends the value: it sends a boolean input as its other value, and any other as the caller's
+request holds it, refusing the condition's value unsent. So neither method asks for what it cannot
+return, and a side with no other content has the stream's method alone. The method names are the
+target's ([naming](../refine/naming.md)).

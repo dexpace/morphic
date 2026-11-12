@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -249,9 +250,18 @@
               "bindings": {
                 "http": [
                   {
+                    "unmodeled": {
+                      "openapi:callbacks/onEvent/x-mark": {
+                        "reason": "vendor_extension",
+                        "value": "XCALLBACK",
+                        "provenance": {
+                          "source": 0,
+                          "pointer": "/paths/~1widgets/get/callbacks/onEvent/x-mark"
+                        }
+                      }
+                    },
                     "method": "GET",
                     "uriTemplate": "/widgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1widgets/get/parameters/shape/query",
@@ -263,7 +273,6 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
                     "callbacks": [
                       {
                         "name": "onEvent",
@@ -273,16 +282,8 @@
                         ]
                       }
                     ],
-                    "unmodeled": {
-                      "openapi:callbacks/onEvent/x-mark": {
-                        "reason": "vendor_extension",
-                        "value": "XCALLBACK",
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1widgets/get/callbacks/onEvent/x-mark"
-                        }
-                      }
-                    }
+                    "sharedRoute": false,
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -357,9 +358,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/u}",
+                    "inbound": "callback",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "inbound": "callback"
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -507,7 +508,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/widgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1widgets/post/parameters/shape/query",
@@ -522,6 +522,7 @@
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false
                   }
                 ]

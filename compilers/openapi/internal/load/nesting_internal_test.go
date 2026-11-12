@@ -4,6 +4,7 @@
 package load
 
 import (
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
@@ -18,7 +19,9 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
+	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -110,6 +113,44 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 	// bound is MaxNesting-8 levels below that value.
 	want := "/components/schemas/A/properties/p/properties/q/x-deep" + strings.Repeat("/k", scan.MaxNesting-8)
 	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer)
+	assert.NotContains(t, d.Message, "once the overlay applies", "a refusal at a node the overlay grafted is placed at it")
+}
+
+// TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay pins where a
+// refusal of the whole patched tree is placed: a source of 30 levels under
+// 10,000-byte keys passes the pointer bound alone, and an overlay of 3,000
+// short entries passes it too, but grafted at the bottom of the source's spine
+// they total past it. The overlay caused it, so the refusal is at the overlay,
+// and says it reads the tree the overlay leaves, which the overlay's own
+// document does not write.
+func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T) {
+	t.Parallel()
+	var source strings.Builder
+	source.WriteString(minimal31 + "components:\n  schemas:\n    A:\n")
+	indent := 6
+	for i := range 30 {
+		// A key this long is written explicitly: an implicit one is held to 1,024 characters.
+		fmt.Fprintf(&source, "%[1]stype: object\n%[1]sproperties:\n%[1]s  ? %[2]s%[3]d\n%[1]s  :\n",
+			strings.Repeat(" ", indent), strings.Repeat("p", 10_000), i%10)
+		indent += 4
+	}
+	fmt.Fprintf(&source, "%[1]stype: object\n%[1]sx-leaf: {}\n", strings.Repeat(" ", indent))
+	var update strings.Builder
+	for i := range 3000 {
+		fmt.Fprintf(&update, "      k%d: v\n", i)
+	}
+	alone, _, err := Load(t.Context(), 0, openapitest.SourceOf(source.String()), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, alone, "the source passes the bound alone")
+
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(source.String()),
+		overlayOptions("  - target: $..['x-leaf']\n    update:\n"+update.String()))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.PointerAmplification })
+	require.GreaterOrEqual(t, i, 0, "the grafted tree is refused on its pointers: %v", diags)
+	assert.Equal(t, ir.Provenance{Source: 1}, diags[i].Provenance, "the overlay grafted what passes the bound")
+	assert.True(t, strings.HasSuffix(diags[i].Message, ", once the overlay applies"), diags[i].Message)
 }
 
 // TestExternal_AdmitRefusesANestingPastTheBound pins that a document an
@@ -134,7 +175,7 @@ func placedRefusals(t *testing.T, src string) []ir.Diagnostic {
 	t.Helper()
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
-	return refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{})
+	return refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{})
 }
 
 // TestRefusals_NamesTheLeastTaggedMapping pins the tagged-mapping refusal's
@@ -162,7 +203,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{MaxAliasSurplus: budget.AtMost(1)})
+	diags := refusals(t.Context(), treeOf(t.Context(), provenance.Doc{}, &root), ir.Provenance{}, &root, Options{MaxAliasSurplus: budget.AtMost(1)})
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {
@@ -170,4 +211,36 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	}
 	slices.Sort(codes)
 	assert.Equal(t, []string{diag.BudgetExceeded, diag.SourceTooDeep, diag.TaggedMapping}, codes)
+}
+
+// TestRefusals_PlaceAWholeDocumentFindingAtWhole pins that a finding about the
+// tree as a whole is placed at whole, never where the tree places no node: the
+// overlay's re-run of these refusals passes the overlay there
+// (patchedRefusals). One row's index stops early, and the other's alias scan
+// faults, which no tree Load builds can make it do.
+func TestRefusals_PlaceAWholeDocumentFindingAtWhole(t *testing.T) {
+	t.Parallel()
+	whole := ir.Provenance{Source: 6}
+	faulting := func(*yaml.Node) (jsontext.Pointer, bool) { panic("pointers fault") }
+	for name, tc := range map[string]struct {
+		src      string
+		pointers func(*yaml.Node) (jsontext.Pointer, bool)
+		opts     Options
+		code     string
+	}{
+		"an index that stops early": {src: "a: 1\n", opts: Options{
+			buildIndex: func(ctx context.Context, root *yaml.Node) sourceindex.Index { return sourceindex.Build(ctx, root, 1) },
+		}, code: diag.SourceTooLarge},
+		"an alias scan that faults": {src: "a: &x [*x]\n", pointers: faulting, code: diag.CycleScanFailed},
+	} {
+		var root yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte(tc.src), &root), name)
+		tree := provenance.Tree{Doc: provenance.Doc{Source: 2}, Pointers: tc.pointers}
+
+		diags := refusals(t.Context(), tree, whole, &root, tc.opts)
+
+		require.Len(t, diags, 1, "%s: %+v", name, diags)
+		assert.Equal(t, tc.code, diags[0].Code, name)
+		assert.Equal(t, whole, diags[0].Provenance, name)
+	}
 }

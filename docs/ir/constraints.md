@@ -68,6 +68,15 @@ from the JSON-implied one. This is typed, not an extension, because multiple for
 and emitters must act on it. Hints attach at both levels: `TypeCommon.XML` (root element
 name/namespace of the shape itself) and `Property.XML`, overriding the type's field by field, as
 an encoding does: a field the property sets replaces the type's, and one it leaves unset takes it.
+So each field keeps what its source declared, a declared `false` included, and nothing a compiler
+writes stands for a value the source left unstated.
+
+`NodeType` and `Attribute` spell one fact, the node's kind: `NodeType` as OpenAPI 3.2 names it, and
+`Attribute` as a flag says it, OpenAPI's `attribute` or Smithy's `xmlAttribute`, the field a format
+writing only the flag fills. They override as one, so a property setting either replaces the type's
+kind, and a level setting both is read by `NodeType`. Folding the flag into `NodeType` would have
+left a declared `attribute: false` nothing to be: it is not `element` on an array, where 3.2's
+`element` means wrapped, and an unset `NodeType` would take the type's.
 
 ```go
 type XMLHints struct {
@@ -76,6 +85,8 @@ type XMLHints struct {
     Prefix    string
     NodeType  string   // "" | "element" | "attribute" | "text" | "cdata" | "none"
                        // (OpenAPI 3.2 nodeType; "text" covers Smithy httpPayload text)
+    Attribute *bool    // the node is an attribute, not an element; nil = unstated, so a
+                       // property's false overrides a type's true
     Wrapped   *bool    // list items wrapped in a container element; nil = unstated, so a
                        // property's false overrides a type's true
 }

@@ -87,10 +87,10 @@ func TestResolveExternal_RecoversAChainedHop(t *testing.T) {
 	assert.Equal(t, int32(1), reqB.Load(), "b.yaml is fetched exactly once; the second pass fetches nothing new")
 }
 
-// TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt pins the anyAnchored
-// gate: a respelled URL whose document carries no anchor at all has nothing the
-// resolver's own parse could have skipped, so the second pass — and the rebuild
-// it would cost — never runs.
+// TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt pins the anyUnready
+// gate: a respelled URL whose document carries no anchor and no plain date has
+// nothing the resolver's own parse could have misread, so the second pass — and
+// the rebuild it would cost — never runs.
 func TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt(t *testing.T) {
 	t.Parallel()
 	const plain = "openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\n" +
@@ -98,7 +98,7 @@ func TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt(t *testing.T) {
 	srv, requests := countingServer(t, plain)
 	url := "HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/ext.yaml"
 	rebuild := func() (*soa.OpenAPI, error) {
-		t.Fatal("rebuild must not be called: the respelled document carries no anchor to recover")
+		t.Fatal("rebuild must not be called: the respelled document carries nothing to recover")
 		return nil, nil // unreachable: t.Fatal stops this goroutine first
 	}
 
@@ -112,6 +112,30 @@ func TestResolveExternal_AnAnchorlessRespellingIsNotRebuilt(t *testing.T) {
 	require.NotNil(t, get)
 	assert.Equal(t, "getX", get.GetOperationID())
 	assert.Equal(t, int32(1), requests.Load())
+}
+
+// TestResolveExternal_RecoversAPlainDateBehindARespelledURL pins that a
+// document the resolver parsed itself is rebuilt for a plain date as for an
+// anchor: its parse tags the date a timestamp, which the model reads as no
+// string (docs/parser-library.md#undecoded-scalar), so the operation would lose
+// its ID with nothing reported.
+func TestResolveExternal_RecoversAPlainDateBehindARespelledURL(t *testing.T) {
+	t.Parallel()
+	const dated = "openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\n" +
+		"paths:\n  /x:\n    get: {operationId: 2021-01-01, responses: {\"200\": {description: ok}}}\n"
+	srv, requests := countingServer(t, dated)
+	url := "HTTP://" + strings.TrimPrefix(srv.URL, "http://") + "/ext.yaml"
+
+	doc, diags, err := resolveSpec(t, rootReferencing(url), "root.yaml")
+
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	ref, ok := doc.Paths.Get("/x")
+	require.True(t, ok)
+	get := ref.GetObject().Get()
+	require.NotNil(t, get)
+	assert.Equal(t, "2021-01-01", get.GetOperationID())
+	assert.Equal(t, int32(1), requests.Load(), "the second pass fetches nothing")
 }
 
 // TestResolveExternal_TheSecondPassSendsNoRequestTheFirstMade pins that the

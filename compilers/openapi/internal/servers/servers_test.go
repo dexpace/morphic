@@ -14,10 +14,9 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
@@ -218,7 +217,8 @@ func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(lowering.Ctx{}, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
 
 	assert.Empty(t, diags)
 	assert.Equal(t, []ir.ServerID{"server/openapi/paths/~1a/servers/1"}, got)
@@ -227,13 +227,14 @@ func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 }
 
 // TestRegistry_DeclaredEveryEntryNilIsNil pins, for a list, the guard auth's
-// TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins for the schemes:
+// TestLowerSecuritySchemes_NoComponentsAtAll pins for the schemes:
 // when no entry survives, the list names nothing and the registry stays unset
 // rather than becoming an empty map the source never declared.
 func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(lowering.Ctx{}, []*soa.Server{nil, nil}, "")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{nil, nil}, "")
 	assert.Nil(t, got)
 	assert.Empty(t, diags)
 	assert.Nil(t, reg.Servers())
@@ -246,7 +247,8 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 		sequencedmap.NewElem("keep", &soa.ServerVariable{}),
 	)
 	reg := servers.NewRegistry()
-	got, diags := reg.Declared(lowering.Ctx{}, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
+	c := loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{})
+	got, diags := reg.Declared(c, []*soa.Server{{URL: "https://x", Variables: vars}}, "")
 	assert.Empty(t, diags)
 	require.Len(t, got, 1)
 	srv := reg.Servers()[got[0]]
@@ -346,18 +348,14 @@ paths: {}
 // registered and reports nothing, without lowering the declaration again.
 func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 	t.Parallel()
-	loaded, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
+	c := loweringtest.Context(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /a:
     servers: [{url: https://a.example, bogus: 1}]
     get: {responses: {"200": {description: ok}}}
-`), load.Options{})
-	require.NoError(t, err)
-	c := lowering.New(0, loaded.Doc, loaded.Source, lowering.GroupByTags, lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
-		overlay.Origin{}).WithLoaded(loaded)
-	item, ok := loaded.Doc.GetPaths().Get("/a")
+`, lowering.Policy{Grouping: lowering.GroupByTags})
+	item, ok := c.Doc.GetPaths().Get("/a")
 	require.True(t, ok)
 	list := item.GetObject().GetServers()
 	require.Len(t, list, 1)
@@ -371,23 +369,12 @@ paths:
 	assert.Len(t, reg.Servers(), 1)
 }
 
-// TestRegistry_RootServesNoDocumentAtTheRoot pins Root on a context holding no
-// document, which every getter the walk reads answers for as empty: the default
-// stands in, as for a document writing no servers.
-func TestRegistry_RootServesNoDocumentAtTheRoot(t *testing.T) {
-	t.Parallel()
-	reg := servers.NewRegistry()
-	got, diags := reg.Root(lowering.Ctx{})
-	assert.Empty(t, diags)
-	assert.Equal(t, []ir.ServerID{"server/default"}, got)
-}
-
 // TestRegistry_ServersHandsOverACopy pins that the map Servers returns is the
 // caller's: writing to it changes nothing a later call returns.
 func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
-	got, diags := reg.Root(lowering.Ctx{})
+	got, diags := reg.Root(loweringtest.Context(t, openapitest.EmptySpec, lowering.Policy{}))
 	require.Empty(t, diags)
 	require.Equal(t, []ir.ServerID{"server/default"}, got)
 	first := reg.Servers()
@@ -398,8 +385,8 @@ func TestRegistry_ServersHandsOverACopy(t *testing.T) {
 // TestServerVariables_AnEmptyDefaultIsNotNone pins that a variable's default is
 // kept apart from its absence: `default: ""` substitutes nothing, and is the
 // empty string, while a variable writing no default, which OpenAPI requires,
-// has none. The parser holds both as an empty string, so only the node tells
-// them apart.
+// has none. The parser's model reads both as an empty string, so its core's
+// record of the key is what tells them apart.
 func TestServerVariables_AnEmptyDefaultIsNotNone(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, `openapi: 3.1.0

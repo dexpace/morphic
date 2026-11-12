@@ -6,6 +6,7 @@
     ],
     "e": [
       "anon",
+      "composed",
       "openapi"
     ],
     "g": [
@@ -74,6 +75,125 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner/properties/address/properties/street"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -113,6 +233,319 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListsOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Recording",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/MapThenModel/allOf/0/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapsOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
+      },
+      "value": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/openapi/components/schemas/Recording",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion/allOf/1/properties/data"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "meeting"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Meeting",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "recording"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Recording",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/address/properties/street"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address",
+      "name": {
+        "hint": "address"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street",
+          "name": {
+            "source": "street",
+            "canonical": "street"
+          },
+          "wireName": "street",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/1/properties/owner/properties/address/properties/street"
           }
         }
       ],
@@ -170,7 +603,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/RefIntoBranch/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "ref_into_branch"
       },
       "anonymous": true,
       "docs": {},
@@ -216,7 +649,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/RefIntoBranch/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "ref_into_branch"
       },
       "anonymous": true,
       "docs": {},
@@ -262,7 +695,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/SharedFirst/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "shared_first"
       },
       "anonymous": true,
       "docs": {},
@@ -308,7 +741,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/SharedLast/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "shared_last"
       },
       "anonymous": true,
       "docs": {},
@@ -365,6 +798,146 @@
         "source": 0,
         "pointer": "/components/schemas/TitledAndModel/allOf/0/properties/data"
       },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/TuplesOfModels/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner/properties/name"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoCopies/allOf/1/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/1/properties/owner/properties/name"
+          }
+        }
+      ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -459,6 +1032,46 @@
       ],
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel/allOf/0/properties/data"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "meeting"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Meeting",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "recording"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Recording",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
       "inputOnly": false
     },
     "t/composed/components/schemas/ConstrainedAliasAndModel/allOf/1/properties/data": {
@@ -589,6 +1202,177 @@
         },
         {
           "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data"
+      },
+      "elem": {
+        "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data/items",
+      "name": {
+        "hint": "data_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels/allOf/1/properties/data/items"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MapThenModel/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/MapThenModel/allOf/0/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data": {
+      "kind": "map",
+      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data"
+      },
+      "value": {
+        "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties",
+      "name": {
+        "hint": "data_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels/allOf/1/properties/data/additionalProperties"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/ModelThenMap/allOf/1/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/ModelThenUnion/allOf/1/properties/data",
           "nullable": false
         }
       ],
@@ -793,6 +1577,111 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasFirst/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasLast/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data": {
+      "kind": "tuple",
+      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data"
+      },
+      "elems": [
+        {
+          "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0",
+      "name": {
+        "hint": "data_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels/allOf/1/properties/data/prefixItems/0"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
       "kind": "model",
       "id": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
@@ -840,6 +1729,33 @@
         },
         {
           "target": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel/allOf/1/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/UnionThenModel/allOf/0/properties/data",
           "nullable": false
         }
       ],
@@ -911,6 +1827,27 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/Anything": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Anything",
+      "name": {
+        "source": "Anything",
+        "canonical": "anything"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Admits every value."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Anything"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/AtLeastTwoMembers": {
       "kind": "scalar",
@@ -1143,6 +2080,53 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/ConstrainedAliasAndModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/CopyThenOwner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/CopyThenOwner",
+      "name": {
+        "source": "CopyThenOwner",
+        "canonical": "copy_then_owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/CopyThenOwner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/CopyThenOwner/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/CopyThenOwner/allOf/0/properties/owner"
           }
         }
       ],
@@ -1499,6 +2483,147 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/ListsOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ListsOfModels",
+      "name": {
+        "source": "ListsOfModels",
+        "canonical": "lists_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ListsOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ListsOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ListsOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ListsOfModels/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MapThenModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/MapThenModel",
+      "name": {
+        "source": "MapThenModel",
+        "canonical": "map_then_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapThenModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MapThenModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/MapThenModel/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MapThenModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/MapsOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/MapsOfModels",
+      "name": {
+        "source": "MapsOfModels",
+        "canonical": "maps_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MapsOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/MapsOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/MapsOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/MapsOfModels/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Meeting": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Meeting",
@@ -1566,6 +2691,221 @@
         "target": "t/openapi/components/schemas/Meeting",
         "nullable": false
       }
+    },
+    "t/openapi/components/schemas/ModelThenMap": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ModelThenMap",
+      "name": {
+        "source": "ModelThenMap",
+        "canonical": "model_then_map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenMap"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ModelThenMap/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ModelThenMap/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ModelThenMap/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/ModelThenUnion": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ModelThenUnion",
+      "name": {
+        "source": "ModelThenUnion",
+        "canonical": "model_then_union"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ModelThenUnion"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ModelThenUnion/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/ModelThenUnion/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ModelThenUnion/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Owner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/name",
+          "name": {
+            "source": "name",
+            "canonical": "name"
+          },
+          "wireName": "name",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/name"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/address",
+          "name": {
+            "source": "address",
+            "canonical": "address"
+          },
+          "wireName": "address",
+          "type": {
+            "target": "t/anon/components/schemas/Owner/properties/address",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/address"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/OwnerThenCopy": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OwnerThenCopy",
+      "name": {
+        "source": "OwnerThenCopy",
+        "canonical": "owner_then_copy"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnerThenCopy"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OwnerThenCopy/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OwnerThenCopy/allOf/0/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Pet": {
       "kind": "model",
@@ -1947,6 +3287,151 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/TopAliasFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopAliasFirst",
+      "name": {
+        "source": "TopAliasFirst",
+        "canonical": "top_alias_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopAliasFirst/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TopAliasFirst/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Admits every value."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopAliasFirst/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TopAliasLast": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TopAliasLast",
+      "name": {
+        "source": "TopAliasLast",
+        "canonical": "top_alias_last"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TopAliasLast"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TopAliasLast/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TopAliasLast/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "Admits every value."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TopAliasLast/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TuplesOfModels": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TuplesOfModels",
+      "name": {
+        "source": "TuplesOfModels",
+        "canonical": "tuples_of_models"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TuplesOfModels"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TuplesOfModels/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TuplesOfModels/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TuplesOfModels/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoComponents": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoComponents",
@@ -1994,6 +3479,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/TwoCopies": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TwoCopies",
+      "name": {
+        "source": "TwoCopies",
+        "canonical": "two_copies"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoCopies"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoCopies/allOf/0/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/anon/components/schemas/TwoCopies/allOf/0/properties/owner",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoCopies/allOf/0/properties/owner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoInline": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoInline",
@@ -2034,6 +3566,53 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/TwoInline/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/UnionThenModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/UnionThenModel",
+      "name": {
+        "source": "UnionThenModel",
+        "canonical": "union_then_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/UnionThenModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/UnionThenModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/UnionThenModel/allOf/1/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/UnionThenModel/allOf/0/properties/data"
           }
         }
       ],
@@ -2106,7 +3685,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "96504111f506cb923e44bcd0c76cc4a635b06a785677c73cfcd1a52005d51156"
+      "hash": "a9d2ef465ae9ce52e0d34a19b2cbf3fe4b51b216faa3292a6949323d21937938"
     }
   ]
 }

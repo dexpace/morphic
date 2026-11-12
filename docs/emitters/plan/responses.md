@@ -18,12 +18,13 @@ type ResponsePlan struct {
 
 // EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
 type EnvelopeRead struct {
-    Name    string        // the Envelope that matched
-    Body    ir.TypeRef    // what the body decodes into: the elected content's type
-    Value   *ir.PropPath  // where Type sits inside Body; nil on a pager's page, read whole
-    Flag    *ir.PropPath  // the member saying whether the call succeeded; nil = none
-    Fails   *ir.Value     // the Flag value meaning it failed
-    Failure *ir.TypeRef   // what a failing body decodes into; nil = the target's untyped JSON
+    Name     string        // the Envelope that matched
+    Body     ir.TypeRef    // what the body decodes into: the elected content's type
+    Value    *ir.PropPath  // where Type sits inside Body; nil = Type is Body, read whole
+    Flag     *ir.PropPath  // the member saying whether the call succeeded; nil = none
+    Succeeds []ir.Value    // the Flag values meaning it succeeded
+    Failures []ir.TypeRef  // what a failing body may decode into: the first whose flag admits
+                           // the value read (below); none admitting it = the target's untyped JSON
 }
 
 // BodyShape is how a body reaches its reader, a small closed enum:
@@ -73,9 +74,9 @@ in a second channel. The first rule that applies decides:
    decodes it.
 3. **`stream`** — the elected content streams ([streams](streams.md)): frames are read one at a
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
-4. **`value`** — otherwise: the elected content's codec decodes the body into `Type`, whatever its
-   kind — a model, a list, a map, a union, an enum, a scalar, `any`. A paginated operation's
-   `Return.Type` is one page, from which `Page` takes the items.
+4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets
+   `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
+   paginated operation's `Return.Type` is one page, from which `Page` takes the items.
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
@@ -90,26 +91,50 @@ end in a default; [Return shapes](../operations/returns.md) traces each through 
 ## Envelopes
 
 A `value` body that one of `plan.Policy.Envelopes` matches ([plan policy](policy.md#envelopes)) is
-read through it, and `Envelope` records how, marked `Inferred` with the envelope's name:
+read through it, and `Envelope` records how, marked `Inferred` as the policy says. Only a body
+the client receives is matched: the response a webhook or a callback answers with is the SDK's to
+send, and no envelope wraps it, what an SDK generates for one being #1415's. A matched body is read
+as follows:
 
 - **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
   `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
-  result: Zone}`. The rest of the envelope stays reachable through the response
-  ([return shapes](../operations/returns.md)). A paginated operation's page is read whole, as any
-  page is: `Value` is nil, `Type` stays the page, and its items are where `Pagination.Items` says.
+  result: Zone}`. `Type` is nullable where a member on the path is nullable or optional, which
+  `TypePlan.Required` decides over every declaration of it, since the body may then hold no value
+  ([optionality](../refine/models.md#optionality--nullability--presence-inv8)): on the golden spec,
+  1,418 of the 2,665 enveloped bodies leave `result` optional or nullable, deletions among them, and
+  an overlay that requires it is how a caller says the API always sends it. The rest of the envelope
+  stays reachable through the response ([return shapes](../operations/returns.md)).
+- **A page or a monitor, whole.** The paths the IR states into a body start at the whole body, so
+  a paginated operation's page is read whole, as any page is: `Value` is nil, `Type` stays the page,
+  and its items are where `Page.ItemPath` says. A poller likewise reads each body whole, its poll's
+  as `LRO.PollType`, and finds the result where its `LROPlan` says. Either still reads the flag. So
+  an envelope records no page information: a pager's own paths reach it in the whole page, and where
+  those come from on OpenAPI is #989's.
 - **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
-  body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
-  whose flag holds `Fails` is a failure despite its 2xx status, and decodes into `Failure`: the
-  `Type` of the first entry of `Errors` whose body the same envelope matches, or the target's
-  untyped JSON where none does. It is never decoded as `Body`, since an API whose success envelope
-  declares `success: true` alone sends a failure no success type admits
-  ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
-  the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only
-  one such type.
-- **Only a success.** A failure is read whole, so an entry of `Errors` has no `Envelope`, and a
-  body that does not match is read as it would be with no envelope configured.
+  body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)), and
+  compares it with `Succeeds` as [plan policy](policy.md#envelopes) says. A body whose flag holds a
+  value `Succeeds` does not list is a failure whatever its status says, and decodes into the first
+  of `Failures` whose flag admits the value read, or the target's untyped JSON where none does
+  ([failures](../operations/errors.md#every-failure-has-one-place)). `Failures` are, in their order,
+  the `Type`s of the entries of `Errors` whose body, read through `TypePlan.Alias`, is a model
+  declaring the member `Flag` names with a flag that admits a failing value, one neither null nor
+  listed in `Succeeds`. Such a body need not match the envelope: a failure is never unwrapped, and
+  an API's failure envelope may lack the member `Value` names, as the golden spec's shared failure
+  model lacks `result`. Choosing by the value read types each failure a flag tells apart, as JSend's
+  `fail` and `error` are, and never tries a type whose flag admits only success, as an error body
+  reusing the success envelope declares in 6 golden operations. Its errors are then read where that
+  type declares them, so the envelope records no path to them. On the golden spec, 2,547 of the
+  2,665 enveloped operations declare a failure whose `success` admits `false`, 170 of them several,
+  86 differing in shape, of which a body takes the first; the other 118 read theirs as untyped JSON.
+- **A flag that says nothing.** A flag absent or null says nothing, so the body is a success, as it
+  would be with no envelope: the flag overrides what the response says only when it speaks. 62 of
+  the golden spec's 2,665 enveloped bodies do not require `success`.
+- **Only a success.** A failure is never unwrapped, so an entry of `Errors` has no `Envelope`, and
+  a body that does not match is read as it would be with no envelope configured.
 
-An entry of `Others` is read by the same rules, so `AsReturn` compares the types its reader gets.
+An entry of `Others` is read by the same rules as `Return`, so `AsReturn` compares the types its
+reader gets. One that reaches an `OtherResponse` holds the member at `Value` in `Body`, and
+`RawBody` holds the envelope as it arrived.
 
 ## Headers
 
@@ -123,21 +148,22 @@ shapes](../operations/returns.md)).
 
 `Others` holds every entry of `Operation.Responses` but the primary, and entries that agree on
 everything but `Conditions` collapse into one. A declared response is one the API said it may send,
-so it is never a failure, whatever its status: it has no `Fault`, no kind and no retry. Each is read
-by the rules above, and what a method does with it follows from how that reading compares with
-`Return` ([return shapes](../operations/returns.md)):
+so its status never makes it a failure: it has no `Fault`, no kind and no retry, though an
+envelope's flag may report a failure in its body ([envelopes](#envelopes)). Each is read by the
+rules above, and what a method does with it follows from how that reading compares with `Return`
+([return shapes](../operations/returns.md)):
 
-1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias` for a `value`
-   and the same `Element` for a `stream`. `AsReturn` is set, and the method returns it as it returns
-   the primary.
+1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias`, its `Nullable`
+   aside, for a `value` and the same `Element` for a `stream`. `AsReturn` is set, and the method
+   returns it as it returns the primary, in the nullable form where either `Type` is nullable.
 2. **It has no body, beside a `Return` that has one**: a `204` or a `304` beside a `200`. The method
    has nothing to return, so the caller gets no value and no error: a return takes the target's
    nullable form ([optionality](../refine/models.md#optionality--nullability--presence-inv8)), and a
    pager or a stream ends, as an empty one does.
 3. **It has a body the method cannot return**: a `202` of another type beside a `201`, or any body
-   beside a `void` `Return`. It is read whole, as a failure is, so a content that streams is `raw`,
-   and it reaches the caller as the runtime's `OtherResponse`, apart from every failure. Nothing
-   decodes it as `Return.Type`.
+   beside a `void` `Return`. It is never read frame by frame, as a failure is not, so a content
+   that streams is `raw`, and it reaches the caller as the runtime's `OtherResponse`, apart from
+   every failure. Nothing decodes it as `Return.Type`.
 
 A stream method reads `Recv` in `Return`'s place, and a poller takes each response of its start as
 its `LROPlan` says ([long-running operations](../operations/long-running.md)).

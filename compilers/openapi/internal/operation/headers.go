@@ -24,7 +24,7 @@ import (
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func lowerHeaders(c lowering.Ctx, ts *compile.Types, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Header, []ir.Diagnostic) {
+func lowerHeaders(c lowering.Ctx, w walk, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Header, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
 		return nil, nil
 	}
@@ -36,7 +36,7 @@ func lowerHeaders(c lowering.Ctx, ts *compile.Types, headers *sequencedmap.Map[s
 		if h == nil {
 			continue
 		}
-		lowered, headerDiags := lowerHeader(c, dc, ts, h, name, hptr, hdecl)
+		lowered, headerDiags := lowerHeader(c, dc, w, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
@@ -76,14 +76,14 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // hold, as declared: undeclared, each stays unset rather than being written as
 // the default. Written beside content, where they have no effect, they lower
 // unreported, as a parameter's do (GitHub #887).
-func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
-	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
+func lowerHeader(c, dc lowering.Ctx, w walk, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
+	elected, diags := electTypeSpelling(dc, w, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
 	// The schema is named after the key the header is declared under, never
 	// this mount's, and lowered in its declaration's document (dc), so every
 	// response mounting one header builds the same nodes beneath it, in
 	// whichever order they lower (GitHub #433).
-	headerType, headerDiags := schema.CarriedRef(elected.ctx, ts, schema.TopLevelDepth, elected.js, elected.pointer)
+	headerType, headerDiags := schema.CarriedRef(elected.ctx, w.types, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
@@ -91,7 +91,7 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 		WireName:   name,
 		Type:       headerType,
 		Required:   h.GetRequired(),
-		Provenance: c.ProvenanceAt(hptr),
+		Provenance: c.Place().At(hptr),
 		Unmodeled:  elected.unmodeled,
 	}
 	if elected.mediaType != "" {
@@ -101,9 +101,10 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(elected.ctx, ts, &p, elected.js, elected.pointer)...)
+	diags = append(diags, schema.FillPropertyDetail(elected.ctx, w.types, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	diags = append(diags, schema.PromoteUse(dc, elected.js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+	diags = append(diags, schema.PromoteUse(dc, schema.KeysLentTo(dc, w.types, elected.js, p.Type, elected.pointer), p.Unmodeled,
+		&p.Deprecation, &p.Secret, &p.Provenance)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {
 		lowered.Style = string(*h.Style)
@@ -126,8 +127,8 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	if ex := positionExamples(own, media); len(ex) > 0 {
 		p.Examples = ex
 	}
-	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.ProvenanceAt, hdecl)
+	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.Place(), hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
+	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.Place(), hdecl)...)
 }

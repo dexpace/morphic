@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info: {title: UnionRestatedBranches, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Branches that write only `required` declare no shape, so the union is
+    # validation logic beside one Model.
+    RenderBare:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf: [{required: [html]}, {required: [url]}]
+    # Branches that repeat the type their property already has declare no shape
+    # either, so this lowers exactly as RenderBare does.
+    Render:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf:
+        - {required: [html], properties: {html: {type: string}}}
+        - {required: [url], properties: {url: {type: string}}}
+    # A branch may also repeat the body's own type and write less of a property
+    # than the body does, so anyOf lowers like the bare form too.
+    RenderDocumented:
+      type: object
+      properties:
+        html: {type: string, description: The page to render.}
+        url: {type: string, format: uri}
+      anyOf:
+        - {type: object, required: [html], properties: {html: {type: string}}}
+        - {type: object, required: [url], properties: {url: {type: string}}}
+    # A `not` narrows as `required` does and declares no shape, so branches that
+    # also repeat the body and rule each other's property out lower like the
+    # bare form too.
+    RenderExclusive:
+      type: object
+      properties:
+        html: {type: string, description: The page to render.}
+        url: {type: string, description: The address to fetch.}
+      oneOf:
+        - required: [url]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [html], type: object, properties: {html: {type: string}}}
+        - required: [html]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [url], type: object, properties: {url: {type: string}}}
+    # A const says more than the type beside it, so these branches pick
+    # variants and the union degrades as any inline branch does.
+    RenderTagged:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf:
+        - {properties: {kind: {type: string, const: html}}}
+        - {properties: {kind: {type: string, const: url}}}
+    # Narrowing and documenting keywords declare no shape beside the body's
+    # type, as they declare none in a bare branch.
+    RenderBounded:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf:
+        - {type: object, required: [html], minProperties: 1, $comment: the page}
+        - {type: object, required: [url], deprecated: true, x-note: the address}
+    # A property may also repeat a description its declaration writes.
+    RenderDescribed:
+      type: object
+      properties:
+        html: {type: string, format: uri, description: The page to render.}
+        url: {type: string}
+      oneOf:
+        - {required: [html], properties: {html: {type: string, description: The page to render.}}}
+        - {required: [url], properties: {url: {type: string}}}
+    RenderBase:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+    # A property the body composes through allOf is repeated as one it declares
+    # itself is, so this lowers as RenderBare does, with its Base.
+    RenderComposed:
+      allOf: [{$ref: '#/components/schemas/RenderBase'}]
+      oneOf:
+        - {required: [html], properties: {html: {type: string}}}
+        - {required: [url], properties: {url: {type: string}}}
+    # A branch writing items names an element type, which is shape, so the
+    # union degrades, here beside a body that is no model.
+    RenderSizes:
+      type: array
+      oneOf: [{items: {type: string}}, {items: {type: integer}}]
+    # A property may repeat what two of the body's declarations say together,
+    # and a property it nests what the body declares of that.
+    RenderJoint:
+      type: object
+      properties:
+        kind: {type: string}
+        url: {type: object, properties: {href: {type: string, minLength: 1}}}
+      allOf: [{properties: {kind: {enum: [page, link]}}}]
+      oneOf:
+        - {required: [kind], properties: {kind: {type: string, enum: [page, link]}}}
+        - {required: [url], properties: {url: {type: object, properties: {href: {type: string}}}}}
+    RenderLinks: {type: array, items: {type: string}}
+    # A branch may restate a property through an allOf, here conjoining the
+    # declaration's own $ref with bounds on it and its element, which narrow.
+    RenderConjoined:
+      type: object
+      properties: {html: {type: string}, links: {$ref: '#/components/schemas/RenderLinks'}}
+      anyOf:
+        - {required: [html]}
+        - required: [links]
+          properties:
+            links: {allOf: [{$ref: '#/components/schemas/RenderLinks'}, {type: array, minItems: 1, items: {minLength: 1}}]}
