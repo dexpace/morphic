@@ -86,7 +86,7 @@ for an inbound operation, and a `Stream` on one is a warning
 a receiver reading frames.
 
 `Inbound` is the HTTP binding's alone. An AsyncAPI `receive` operation is a message the client
-receives, a messaging target's through `MsgView` ([bindings](../plan/bindings.md)); a GraphQL
+receives, a messaging target's through its `Message` ([bindings](../plan/bindings.md)); a GraphQL
 subscription is a call the client starts; an OTP binding names a process the client calls. None is a
 request the API sends to a URL, so the receiver reads HTTP bindings alone. T-71 holds this section.
 

@@ -396,9 +396,10 @@ the rule.
 Each root the [usage table](../../ir/derived-facts.md#usage) lists takes a shape. Its filter is the
 one the operation names for its view, `ParameterVisibility` for the request and
 `ReturnTypeVisibility` for the response, and otherwise follows the side the table puts the root on.
-What the client reads takes `read`. What it writes takes its HTTP method's lifecycles: `query` for
-`GET` and `HEAD`, `create` for `POST`, `create` and `update` for `PUT`, `update` for `PATCH`,
-`delete` for `DELETE`, and `create` and `update` for any other method or protocol. So the request of
+What the client reads takes `read`. What it writes takes the lifecycles of its HTTP method, its
+primary mapping's ([bindings](bindings.md)): `query` for `GET` and `HEAD`, `create` for `POST`,
+`create` and `update` for `PUT`, `update` for `PATCH`, `delete` for `DELETE`, and `create` and
+`update` for any other method and for an operation with no HTTP mapping. So the request of
 a webhook or a callback, which the API starts, takes `read`, and a message takes the side its
 binding's direction gives it. A `PATCH` body's shape is a patch shape where [its binding or its
 media type](#what-a-patch-relaxes) says so. A `readOnly` member, visible in `read`, `delete` and

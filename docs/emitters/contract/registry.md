@@ -31,9 +31,12 @@ wants one built from it anyway says so with the `none` threshold.
 ## Capabilities
 
 `Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
-it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
-advisory metadata, not a second decision channel; it never changes what `Generate` emits from the
-input it is handed.
+it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is a
+declaration of what the target does, constant for the target, and no second input: `Generate` stays
+a function of what it is handed. The engine reads it to decide what it hands a target and when, and
+the one rule that reads it inside a run, which binding a target lowers, reads the target's own
+`Protocols` and `RPCSystems` ([bindings](../plan/bindings.md)), so what a target declares it covers
+and what it lowers are one list.
 
 ```go
 type Capabilities struct {

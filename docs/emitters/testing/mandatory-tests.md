@@ -1059,17 +1059,24 @@ throughout these documents.
     or writes its last link rebuilt from the query it parsed fails it ([a page walk on the
     mock](../docs-and-mock.md#a-page-walk-on-the-mock)).
 68. **T-68 · Bindings a target covers** — a plan binding of each `OpBindings` field carries that
-    field's `Protocol` and its binding, a GraphQL and an OTP one as the IR types it and not as
-    `RawConfig`, an RPC binding of every `System` `rpc` with the system in `RPC.System`; `All` holds
-    the HTTP bindings in their order, then the RPC, message, GraphQL and OTP ones, whatever order
-    the source declared them in; an operation bound as a gRPC method and two HTTP transcodings of it
-    lowers through the first transcoding on a target listing `http` alone and on one listing `http`
-    and `rpc` with `grpc`, its path parameters in that template's order and its server stream framed
-    by its content, the mock routing that one transcoding, and through gRPC on one listing `rpc`
-    with `grpc` alone, its stream framed as gRPC; a JSON-RPC method on the last draws
-    `emitters/<target>/unsupported-binding` and generates no method; the registry refuses `rpc`
-    without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol outside the vocabulary
-    ([bindings](../plan/bindings.md), [capabilities](../contract/registry.md#capabilities)).
+    field's `Protocol` and its binding by reference, a message binding's `Unmodeled` reached through
+    it, a GraphQL and an OTP one as the IR types it and not as `RawConfig`, an RPC binding of every
+    `System` `rpc` with the system in `RPC.System`; `All` holds the RPC binding, then the HTTP
+    bindings in their order, then the message, GraphQL and OTP ones, whatever order the source
+    declared them in; a `ParamBind` carries its binding's `ParamPath`, a transcoding's `{book.name}`
+    sending that member of its parameter and one naming none the whole parameter; an operation bound
+    as a gRPC method and two HTTP transcodings of it lowers through the first transcoding on a
+    target listing `http` alone, its path parameters in that template's order and its server stream
+    framed by its content, the mock routing that one transcoding, and through gRPC on one listing
+    `rpc` with `grpc`, with `http` or without, its stream framed as gRPC; on a target listing both,
+    every method of a service two of whose four methods are transcoded lowers through gRPC, and an
+    operation with no RPC binding through HTTP; a method returning a message whose first transcoding
+    is a `HEAD` sets `NoBody` on that binding alone, and returns no value on a target listing `http`
+    alone and the message on one lowering it through gRPC; a JSON-RPC method on a target listing
+    `rpc` with `grpc` alone draws `emitters/<target>/unsupported-binding` and generates no method;
+    the registry refuses `rpc` without `RPCSystems`, `RPCSystems` without `rpc`, and a protocol
+    outside the vocabulary ([bindings](../plan/bindings.md),
+    [capabilities](../contract/registry.md#capabilities)).
 69. **T-69 · One snapshot for a target without `CrossVersion`** — on a document sliced into three
     versions, the Go, Kotlin and mock-server targets each write the snapshot `RunOptions.Version`
     names at the output root, its `Snapshot` that label, the first and the last alike; a run naming

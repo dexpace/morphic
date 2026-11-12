@@ -619,7 +619,7 @@ the API rightly.
   the side's `ItemEncoding` says and otherwise by its element's codec, under a boundary derived from
   the parts' bytes and lengthened until no part holds it. `bytes` sends the content's value as the
   body, a file having no frames. `protocol` frames are another protocol's own, and the mock covers
-  `http` alone, so it routes the binding an HTTP SDK lowers, and an operation with no HTTP binding
+  `http` alone, so it routes `HTTP[0]`, as an HTTP SDK lowers, and an operation with no HTTP binding
   has no route there and draws `emitters/mock/unsupported-binding` ([bindings](plan/bindings.md)),
   never an answer its SDK would not read.
 - **A side the client writes.** The mock reads it as the SDK writes it: by its `Framing`, each frame

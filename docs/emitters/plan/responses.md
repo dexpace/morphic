@@ -76,10 +76,11 @@ already has a lowering ([step list](../refine/steps.md)), so a shape per kind wo
 in a second channel. The first rule that applies decides:
 
 1. **`void`** — nothing is read: the operation has no primary response ([plan policy](policy.md)),
-   the response carries no content, or the method of `HTTP[0]`, the binding every target covering
-   `http` lowers ([bindings](bindings.md)), is `HEAD`, whose response has no body (RFC 9110 §9.3.2).
-   An operation with no primary response returns only an error, and "Which entry answers" below says
-   which statuses raise one.
+   or the response carries no content. A binding can leave a response no body too, as an HTTP `HEAD`
+   does, which is that binding's `NoBody` and no `Shape`, since another binding of the operation
+   may carry one: a target lowering such a binding reads every response as `void`
+   ([bindings](bindings.md)). An operation with no primary response returns only an error, and
+   "Which entry answers" below says which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the
    body reaches the caller unread, a byte stream beside the media type it arrived as, and nothing
    decodes it.

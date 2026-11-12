@@ -15,8 +15,8 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   since the compiler marks the content a file (`Content.File`). **refine.** The method returns the
   runtime's `RawBody`, holding the response's bytes and the media type it arrived as. Nothing
   decodes or buffers the body, so a large download streams.
-- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`. **refine.** The
-  method returns no value.
+- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`, or for a `HEAD`
+  its binding's `NoBody` ([bindings](../plan/bindings.md)). **refine.** The method returns no value.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
   to `Operation.Default`, classed neither way ([responses](../../ir/responses.md)), and the default
   `PrimaryResponse` takes it for the primary response, marked `Inferred` ([plan
