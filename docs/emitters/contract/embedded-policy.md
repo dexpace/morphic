@@ -49,9 +49,25 @@ where it has several, the key is misplaced. A key a mapping names on any other n
 `emitters/embed/misplaced`. So does a key the document holds for one of several objects, such as a
 tag's under `openapi:tags/<n>/`: it describes that object rather than the document, and configures
 nothing until the IR carries it where the object lowers (#1221). Where two keys set one field of one
-node, an operation's own key beats its path item's, and any other pair is an error
-`emitters/embed/conflict` that sets the field from neither, since which to take is no fact the
-document states. An operation's own key and its path item's both set the operation's entry, so a
+node, an operation's own key beats its path item's, two whose values decode to one value set it
+together, and any other pair is an error `emitters/embed/conflict` that sets the field from neither,
+since which to take is no fact the document states. Two generators' keys for one fact often sit on
+one operation and agree: of the golden spec's operations carrying both `x-stability` and
+`x-fern-availability`, which no field reads, 229 of 291 spell one tier alike and 60 differ (spec
+@bc6fad24, morphic @fa253fe19), so agreeing keys are no conflict to report.
+
+A key that sets nothing beats no other key: each of a conflicting pair, one whose value draws the
+warning below, and one the reader refuses ([the mapping](#the-mapping-is-a-configuration)). So where
+an operation's own keys conflict, its path item's key sets the field, and where its path item's
+conflict, its own key does; where no key of the operation's entry sets it, the field takes the
+layer's document-wide value, and without one the layers below. A contradiction in a configuration's
+layer resolves alike: one naming a status in both retry lists for one scope gives way to the scope
+below ([layers](runtime-policy.md#layers-and-operations)). Skipping the path item's key as well,
+since each conflicting key overrides it, was rejected: the document-wide value is overridden just as
+much, and a `policy.Layer` cannot say that an operation takes none of its own layer's document-wide
+value, so the embedded layer would treat a contradiction as no other layer does. No reading gives
+the value a generator reading only its own key would, which is why the conflict is an error. T-33
+holds each case. An operation's own key and its path item's both set the operation's entry, so a
 status one names in a retry list and the other in the other list would be one scope's status named
 twice; it stays only in the operation's list instead, as it would in a list set higher
 ([retries](runtime-policy.md#the-canonical-vocabulary)).
@@ -65,8 +81,7 @@ it, never by the words a document places it under, and an attempt count of 0 may
 generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
 the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
-so it neither beats another key nor conflicts with one, and a path item's key sets a field its
-operation's own key could not.
+so it neither beats another key nor conflicts with one (above).
 
 ## The mapping is a configuration
 

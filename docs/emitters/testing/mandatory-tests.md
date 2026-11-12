@@ -264,9 +264,12 @@ throughout these documents.
     that operation and that parameter's hint, a `hint` key at an OpenAPI document's root configures
     its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
     an operation's own key beats its path item's for one field, and for a status their retry lists
-    both name, and two other keys setting one field set it from neither; a key on a node it cannot
-    configure, a tag's key the document holds, a value of the wrong shape or outside its field's
-    vocabulary or range, a group named by words rather than its ID, a conflict and a key the
+    both name, two keys of one node decoding to one value set it with no report, and two other keys
+    setting one field set it from neither, an operation's conflicting keys leaving its path item's
+    key to set it and a path item's conflicting keys its operation's own key or the layer's
+    document-wide value, under every order of the keys and of the mapping's entries; a key on a node
+    it cannot configure, a tag's key the document holds, a value of the wrong shape or outside its
+    field's vocabulary or range, a group named by words rather than its ID, a conflict and a key the
     document holds under a reason the reader refuses are each reported under their codes, the entry
     staying in `Unmodeled` and an operation's key whose value is invalid, or which the reader
     refuses, leaving its path item's to set the field; and the default mapping, which is empty,
