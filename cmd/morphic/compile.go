@@ -33,10 +33,11 @@ stderr. Output to stdout is indented for reading; a file written with --output
 is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the type
-node interned there, the coordinates interned beneath it, and the diagnostics
-stamped at it — instead of writing the document. The coordinate is a JSON
-Pointer, so '' is the whole document. It writes no file, so it cannot be
-combined with --output.
+node the document holds there, the coordinates beneath it that hold one, and
+the diagnostics stamped at it — instead of writing the document. A pass may
+replace or remove a node the compiler made, which --disable-pass shows. The
+coordinate is a JSON Pointer, so '' is the whole document. It writes no file,
+so it cannot be combined with --output.
 
 --disable-pass turns off one IR pass by name, and may be repeated. A name no
 pass carries is refused (exit 2) with the names that exist. --skip-validate is

@@ -2570,9 +2570,10 @@ The union stays where an `Enum` could not say all it does: a branch naming a com
 its own that an `Enum` member is not; a value two branches hold, which a `oneOf` rejects and whose
 two branches may say two things of it; values typed by two primitives; a nullable branch; a
 construct a branch keeps verbatim for any reason but being a vendor extension, such as a constraint
-its `Literal` has no home for, which narrows the branch and would not narrow a member; one fact two
-places say of one value; and a fact a branch of several values says of them all. A union of
-numbers, or of values of several kinds, is outside this rule and stays a union.
+its `Literal` has no home for, which narrows the branch and would not narrow a member; a branch
+whose `Provenance.Inferred` names a heuristic, whose mark no member could carry; one fact two places
+say of one value; and a fact a branch of several values says of them all. A union of numbers, or of
+values of several kinds, is outside this rule and stays a union.
 
 - Cases: `string-const-union`
 - Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
