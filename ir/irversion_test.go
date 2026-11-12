@@ -111,7 +111,11 @@ var generations = []generation{
 	{version: "0.43.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a schema composing a discriminated union that does not list it has no DiscriminatorValue, and a union beside it distributes; one a policy reads admitting only other tags than its name carries the one it admits, or none, its Provenance.Inferred naming discriminator-inference"},
-	{version: "0.44.0", format: 1, shape: "371d8ded3a52ab677a8318b202ab570ce495fb8c335b703477b00643a473275a",
+	{version: "0.44.0", format: 1, shape: "b1509f418184621848a051945a46afcde0b6bd0eec1204415b49004f1c49204b",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.45.0", format: 1, shape: "2a615baaea3131a2dd2cbc51d5228ae75ed7f8a76eb4f6b35cc37f730a69d43b",
+		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
+	{version: "0.46.0", format: 1, shape: "2a615baaea3131a2dd2cbc51d5228ae75ed7f8a76eb4f6b35cc37f730a69d43b",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a parameter binding's Explode is as declared, nil where the parameter writes none, where it held its style's default"},
 }

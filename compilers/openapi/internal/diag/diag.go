@@ -36,6 +36,18 @@ const (
 	// after which what was named is gone, so accepting this finding accepts no
 	// lost reference with it.
 	UnresolvedSecurityScheme = "openapi/unresolved-security-scheme"
+	// InvalidLink reports a link, at the link, whose target, a parameter it
+	// names or a value it reads names nothing the document declares, names it
+	// ambiguously or breaks the runtime-expression grammar. The link is kept
+	// verbatim (docs/compilers/openapi.md#links). A warning, as a broken rule
+	// the validator finds is: nothing is lost, and the rest of the document
+	// stands.
+	InvalidLink = "openapi/invalid-link"
+	// UntypedLink reports a link, at the link, that reads a value no
+	// ir.LinkValue spells, such as an operation of another document or a member
+	// reached through an array index, and is kept verbatim. An info: the
+	// document is sound, and the IR has no field for what it says.
+	UntypedLink = "openapi/untyped-link"
 	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
 	// before the parser library overflows its stack on it
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never

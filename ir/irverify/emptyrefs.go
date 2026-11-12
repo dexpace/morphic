@@ -73,6 +73,19 @@ var idPositions = map[string]idRule{
 
 	"Idempotency.TokenParam": idOptional,
 	"Discriminator.Default":  idOptional,
+	// Every field of an EntityRef but the one of its entity's class is empty:
+	// checkEntityRefs holds a ref to exactly one.
+	"EntityRef.Type":         idOptional,
+	"EntityRef.Operation":    idOptional,
+	"EntityRef.Channel":      idOptional,
+	"EntityRef.Message":      idOptional,
+	"EntityRef.Auth":         idOptional,
+	"EntityRef.Service":      idOptional,
+	"EntityRef.Group":        idOptional,
+	"EntityRef.Property":     idOptional,
+	"EntityRef.Param":        idOptional,
+	"EntityRef.Member":       idOptional,
+	"EntityRef.Server":       idOptional,
 	"Discriminator.Property": idLocator,
 
 	"Callback.Operations":          idRequired,
@@ -87,6 +100,9 @@ var idPositions = map[string]idRule{
 	"HTTPParamBinding.ParamPath":   idRequired,
 	"LongRunning.FinalOperation":   idRequired,
 	"LongRunning.PollingOperation": idRequired,
+	"LinkParam.Param":              idRequired,
+	"OperationLink.Operation":      idRequired,
+	"OperationLink.Server":         idRequired,
 	"MessageBinding.Channel":       idRequired,
 	"MessageBinding.Messages":      idRequired,
 	"OTPBinding.Process":           idRequired,

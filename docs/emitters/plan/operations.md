@@ -30,7 +30,7 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Strategy   ir.PageStrategy
     ItemType   *ir.TypeRef            // element type items resolve to, unwrapped from the envelope
     ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
-    CursorIn   *ir.InputPath          // a parameter, or a member of the request body
+    CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
     LimitIn    *ir.InputPath          // the page-size input, which a short page is measured by
     TotalCount *ir.PropPath           // the items in all, which "total" reads

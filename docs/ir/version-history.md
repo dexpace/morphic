@@ -447,11 +447,28 @@ it sees. Changes made together in one bump are listed together under it.
   pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
   there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
   instead.
-- **0.44.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
+- **0.44.0** — a response's links gained a typed home ([links](./responses.md#links)):
+  - `Response` and `ErrorCase` gained `Links`, each an `OperationLink` naming the operation it leads
+    to, the value it gives each of that operation's parameters and its body, and the server it is
+    called on. A `LinkValue` is a constant, the URL, method or status of the exchange, or a value of
+    the request answered or of the response, as an `InputPath` or a `PropPath`.
+  - An `InputPath` with neither a parameter nor a segment is the request body whole, which
+    `ir/input-path-empty` had refused; that check is gone, and `ir/input-body-absent` holds the
+    path, a link's among them, to an operation that sends a body.
+  - The OpenAPI compiler lowers a link it resolves whole and keeps any other verbatim under
+    `openapi:links/<name>`, with an `openapi/invalid-link` or `openapi/untyped-link` finding, where it
+    had kept the whole map under `openapi:links`. A consumer pinned to 0.43.0 refuses a document with
+    a link, and finds no `openapi:links` entry where it read one.
+- **0.45.0** — `Deprecation` gained `ReplacedBy`, what the source says to use instead, each an
+  `EntityRef`: a new value naming one entity by its ID, in the field of its class
+  ([replacements](./annotations.md#replacements)). The OpenAPI compiler fills it only through a
+  promotion mapping naming the `deprecation.replacedBy` target, which no default does. A consumer
+  pinned to 0.44.0 refuses a document whose deprecation names a replacement.
+- **0.46.0** — no shape change. The OpenAPI compiler lowers a parameter's `explode` as declared
   ([`parameters`](../compilers/openapi.md#parameters)): an `HTTPParamBinding.Explode` is nil where
   the parameter writes none, where it had held its style's default, true under `form` and `cookie`
   and false under any other. `Style` still holds the location's default where none is written. A
-  consumer pinned to 0.43.0 that read `Explode` as always present no longer finds the key on such a
+  consumer pinned to 0.45.0 that read `Explode` as always present no longer finds the key on such a
   binding, and must read its absence as the style's default, as it already does for a response
   header's `Explode`, where it would otherwise read it as false and send a `form` parameter
   unexploded.

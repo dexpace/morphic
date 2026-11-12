@@ -47,7 +47,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | [services](./services.md) | `Service`, `OperationGroup`, `ResourceInfo` |
 | [operations](./operations.md) | `Operation`, `Parameter` |
 | [payloads](./payloads.md) | `Payload`, `Content`, `PartEncoding`, `FileInfo` |
-| [responses](./responses.md) | `Response`, `Header`, `ErrorCase`, and how a status is classed |
+| [responses](./responses.md) | `Response`, `Header`, `ErrorCase`, `OperationLink`, and how a status is classed |
 | [interaction-patterns](./interaction-patterns.md) | `Pagination`, `LongRunning`, streaming |
 | [auth](./auth.md) | `AuthScheme`, `OAuthFlow`, `AuthRequirement` |
 | [servers](./servers.md) | `Server`, the registry and the scopes that name it |

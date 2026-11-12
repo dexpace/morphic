@@ -25,6 +25,7 @@ member 0 0 CtorValue.args
 member 0 0 CtorValue.name
 member 0 0 CtorValue.scalar
 member 0 0 Deprecation.removalVersion
+member 0 0 Deprecation.replacedBy
 member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
@@ -35,6 +36,17 @@ member 0 0 Docs.refs
 member 0 0 Document.channels
 member 0 0 Document.messages
 member 0 0 Document.versions
+member 0 0 EntityRef.auth
+member 0 0 EntityRef.channel
+member 0 0 EntityRef.group
+member 0 0 EntityRef.member
+member 0 0 EntityRef.message
+member 0 0 EntityRef.operation
+member 0 0 EntityRef.param
+member 0 0 EntityRef.property
+member 0 0 EntityRef.server
+member 0 0 EntityRef.service
+member 0 0 EntityRef.type
 member 0 0 Enum.fallbackMember
 member 0 0 Enum.flags
 member 0 0 EnumMember.availability
@@ -76,8 +88,6 @@ member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
 member 0 0 Idempotency.kind
 member 0 0 Idempotency.tokenParam
-member 0 0 InputPath.param
-member 0 0 InputPath.segments
 member 0 0 List.encoding
 member 0 0 LongRunning.finalOperation
 member 0 0 LongRunning.finalStateVia
@@ -150,9 +160,7 @@ member 0 0 Pagination.totalCount
 member 0 0 Pagination.totalPages
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
-member 0 0 PropPath.in
 member 0 0 PropPath.root
-member 0 0 PropPath.segments
 member 0 0 Property.args
 member 0 0 Property.availability
 member 0 0 Property.clientOptional

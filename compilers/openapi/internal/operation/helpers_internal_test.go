@@ -16,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -45,10 +46,10 @@ func lowererOver(ctx lowering.Ctx) *lowerer {
 }
 
 // serviceWalk stands in for the walk LowerService hands the lowerings beneath it:
-// l's registry, and a kept set of its own. It holds no operationId claims, servers
-// or schemes: no lowering a test here hands it to reads them.
+// l's registry, and a kept set and links of its own. It holds no operationId
+// claims, servers or schemes: no lowering a test here hands it to reads them.
 func (l *lowerer) serviceWalk() walk {
-	return walk{types: l.types, kept: newKeptOnce()}
+	return walk{types: l.types, kept: newKeptOnce(), links: &Links{}}
 }
 
 // loweredFor loads src and returns the fixture over it with nothing lowered
@@ -75,13 +76,24 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
-// it — component schemas, then security schemes — before the walk itself. It
-// drives LowerService directly rather than the compiler, which is what lets a
-// test in this package hold an unexported lowering to what the walk did with it.
+// it — component schemas, then security schemes — before the walk itself, and
+// the link resolution after it. It drives LowerService directly rather than the
+// compiler, which is what lets a test in this package hold an unexported
+// lowering to what the walk did with it.
 //
 // It returns the service alone: nothing here asks what the compiler would
 // have built around it.
 func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
+	l, lowered, reg, loadDiags := lowerBeforeLinks(t, src)
+	l.diags.AppendAll(lowered.Links.Resolve(l.ctx, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
+	return lowered.Service, append(loadDiags, l.diags.List()...)
+}
+
+// lowerBeforeLinks runs what lowerServiceSpec does short of resolving the
+// links, which it returns pending in Lowered beside the finished registry. The
+// diagnostics it returns are load's, and l holds the rest.
+func lowerBeforeLinks(t *testing.T, src string) (*lowerer, Lowered, ir.TypeRegistry, []ir.Diagnostic) {
 	t.Helper()
 	l, loadDiags := loweredFor(t, src)
 	l.diags.AppendAll(schema.LowerComponentSchemas(t.Context(), l.ctx, l.types))
@@ -90,7 +102,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 
 	lowered, svcDiags := LowerService(t.Context(), l.ctx, l.types, declared)
 	l.diags.AppendAll(svcDiags)
-	_, finished := l.types.Finish(t.Context())
+	reg, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)
-	return lowered.Service, append(loadDiags, l.diags.List()...)
+	return l, lowered, reg, loadDiags
 }

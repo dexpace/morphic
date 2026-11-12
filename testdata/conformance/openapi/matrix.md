@@ -159,12 +159,16 @@ witnessing it.
 
 - Witnesses: `callbacks`
 
+### `operation-links`
+
+- Witnesses: `response-links`
+
 ### `pagination`
 
-- Uncovered: OpenAPI states it only through links and x-*, and this compiler keeps both verbatim
-  rather than reading either into ir.Pagination — response-links pins that they survive. Invariant
-  6 puts the inference in a pass rather than in the compiler, so this retires when such a pass lands
-  and a spec can read ir.Pagination back
+- Uncovered: OpenAPI states it only through links and x-*, and this compiler lowers a link as a link
+  and keeps x-* verbatim, reading neither into ir.Pagination — response-links and extensions-x pin
+  both. Invariant 6 puts the inference in a pass rather than in the compiler, so this retires when
+  such a pass lands and a spec can read ir.Pagination back
 
 ### `long-running-operations`
 

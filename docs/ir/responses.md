@@ -8,6 +8,7 @@ type Response struct {
     Conditions ResponseConditions // HTTP status codes/ranges; empty for RPC single-response
     Payload    *Payload           // nil = no body
     Headers    []Header           // response metadata fields
+    Links      []OperationLink    // the requests the response leads to, in source order
     StatusCodeProp *PropPath      // output member populated from the runtime HTTP status line
                                   // (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
                                   // the member is suppressed from the body
@@ -31,6 +32,7 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
     Conditions ResponseConditions
     Payload    *Payload           // nil = no body; its contents' types may be of any kind
     Headers    []Header           // error metadata fields (Retry-After, rate-limit family)
+    Links      []OperationLink    // as on Response
     Fault      string             // "" | "client" | "server" — protocol-neutral fault classification
                                   // (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives
                                   // exception hierarchies and default status synthesis
@@ -42,7 +44,64 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
     Inferred   Inferred           // the heuristics that read a fact out of Unmodeled
                                   // ([promotion](./unmodeled.md#promotion))
 }
+
+type OperationLink struct {      // how a response leads to another request
+    Name       Naming
+    Operation  OpID               // the operation it leads to
+    Params     []LinkParam        // values for Operation's parameters, each once, in source order
+    Body       *LinkValue         // the value of Operation's request body; nil = none
+    Server     *ServerID          // the server Operation is called on; nil = its own
+    Docs       Docs
+    Provenance Provenance
+    Unmodeled  Unmodeled
+}
+
+type LinkParam struct { Param ParamID; Value LinkValue } // Param is one of Operation's
+
+type LinkValue struct {          // Kind says which one field is set
+    Kind     LinkValueKind        // constant | request | response | url | method | status
+    Constant *Value               // constant: the value the link states
+    Request  *InputPath           // request: a parameter or the body of the request answered
+    Response *PropPath            // response: a header or the body of this response; Root nil
+}
 ```
+
+## Links
+
+A link says how a response leads to another request: which operation a caller can call next, and
+where each value that request needs comes from, so a docs target can say "follow with `getOrder`,
+passing the `id` this response returns" and an SDK can offer the follow call. It sits on the
+`Response`, the `ErrorCase` or the `Default` whose exchange it continues, since its values are read
+from that exchange, and an error response can lead somewhere as a success can.
+
+**A value is resolved to what it reads, not kept as an expression.** A value read from the request
+is an `InputPath`, the parameter of the operation answered or the request body and members within
+it, and one read from the response a `PropPath` into its body, or `In: "header"` and the header's
+ID. That is the IR's spelling of a value of an exchange wherever one is read, as pagination reads
+its cursor ([interaction patterns](./interaction-patterns.md#pagination)), and it names members by
+ID, so a renamed property renames nothing here (invariant 3). An `InputPath` with neither a
+parameter nor a segment is the request body whole, and a `PropPath` with no segment the response
+body whole. The two alternatives were rejected. Keeping OpenAPI's runtime expression as text would
+have every consumer reimplement that grammar and resolve it against the types, which is a
+compiler's work done once per emitter (invariant 1). A structured expression with a JSON pointer
+would still name each member by its wire name, where an ID names the member itself.
+
+**A link lowers whole or not at all.** A link whose target, parameters or values a compiler cannot
+resolve to this shape is kept verbatim instead, so a consumer reading `Params` reads every value
+the source states, and none that it guessed. `pass/validate` holds each `LinkParam.Param` to the
+link's `Operation` and each request value to the operation answered
+(`pass/param-binding-mismatch`), and `irverify` holds a value's field to its kind
+(`ir/link-value-missing-payload`, `ir/link-value-stray-payload`, `ir/unknown-link-value-kind`).
+
+**A link has no ID**, as a response has none: nothing in the IR refers to one, and its name
+presents it. `LinkValue` is a kind beside the one field it selects, as `Value` is, rather than a
+sealed sum: it is a value of the exchange, and the kinds that carry no payload (`url`, `method`,
+`status`) would be empty structs.
+
+**A reference from a member to a resource is not a link.** Smithy's `@references` trait and
+Protobuf's `google.api.resource_reference` say a member holds a resource's identifier, which leads
+to that resource's operations by its lifecycle rather than to one operation by name, so their home
+is the resource the `resource-hierarchy` row plans, not this shape.
 
 ## Design notes
 
