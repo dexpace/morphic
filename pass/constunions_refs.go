@@ -17,6 +17,13 @@ var _ ir.Visitor = (*typeRefs)(nil)
 // a type's own ID by.
 var typeDefType = reflect.TypeFor[ir.TypeDef]()
 
+// memberIDType and memberType are the reflect.Types of ir.EnumMemberID, a
+// reference to an Enum's member, and of ir.EnumMember, whose own ID declares it.
+var (
+	memberIDType = reflect.TypeFor[ir.EnumMemberID]()
+	memberType   = reflect.TypeFor[ir.EnumMember]()
+)
+
 // unreferenced returns those of ids, in order, that nothing in doc references,
 // and ctx's error once ctx is done. A walk the depth cap cut short read too
 // little to show any unreferenced, so it returns none.
@@ -28,11 +35,12 @@ func unreferenced(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk w
 	return slices.DeleteFunc(slices.Clone(ids), func(id ir.TypeID) bool { return refs[id] > 0 }), nil
 }
 
-// countRefs returns how many references doc makes to each of ids, in one walk
+// countRefs returns how many references doc makes to each of ids, a reference
+// to one of an Enum's members counting as one to the Enum, in one walk
 // through walk, and false where the depth cap cut the walk short, which read
 // too little for a count to be one. It returns ctx's error once ctx is done.
 func countRefs(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk walkFunc) (map[ir.TypeID]int, bool, error) {
-	r := refsTo(ids)
+	r := refsTo(doc.Types, ids)
 	truncated, err := walk(ctx, doc, ir.DocumentPath, r)
 	if err != nil {
 		return nil, false, err
@@ -40,25 +48,35 @@ func countRefs(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk walk
 	return r.refs, !truncated, nil
 }
 
-// refsTo returns the typeRefs of ids, which no walk has shown a value.
-func refsTo(ids []ir.TypeID) *typeRefs {
+// refsTo returns the typeRefs of ids, which no walk has shown a value, holding
+// the members of those of ids that types keys as Enums.
+func refsTo(types ir.TypeRegistry, ids []ir.TypeID) *typeRefs {
 	r := &typeRefs{
 		watched: make(map[ir.TypeID]bool, len(ids)),
+		members: map[ir.EnumMemberID]ir.TypeID{},
 		refs:    map[ir.TypeID]int{},
 		keys:    map[ir.TypeID]int{},
 		carries: map[reflect.Type]bool{},
 	}
 	for _, id := range ids {
 		r.watched[id] = true
+		if enum, isEnum := types[id].(*ir.Enum); isEnum && enum != nil {
+			for _, m := range enum.Members {
+				r.members[m.ID] = id
+			}
+		}
 	}
 	return r
 }
 
 // typeRefs counts the references a walk reaches to each watched type: its
 // TypeID anywhere but the registry's key and the type's own ID, which declare
-// it. It is shown only what can hold a TypeID.
+// it, and the ID of one of its members anywhere but the member's own ID. It is
+// shown only what can hold a TypeID or a member's ID.
 type typeRefs struct {
 	watched map[ir.TypeID]bool
+	// members maps the ID of each member of a watched Enum to the Enum.
+	members map[ir.EnumMemberID]ir.TypeID
 	// refs counts the references to each watched type.
 	refs map[ir.TypeID]int
 	// keys counts the map keys spelling each watched type. The registry keys
@@ -72,12 +90,33 @@ type typeRefs struct {
 }
 
 // Visit counts a reference v makes to a watched type, and asks for what v
-// holds where it can hold a TypeID.
+// holds where it can hold a TypeID or a member's ID.
 func (r *typeRefs) Visit(v reflect.Value, at ir.WalkPath) bool {
-	if v.Type() != typeIDType {
+	switch v.Type() {
+	case typeIDType:
+		r.countType(ir.TypeID(v.String()), at)
+	case memberIDType:
+		r.countMember(ir.EnumMemberID(v.String()), at)
+	default:
 		return r.canCarry(v.Type())
 	}
-	id := ir.TypeID(v.String())
+	return false
+}
+
+// countMember counts id, a member's ID met at at, as a reference to the Enum
+// holding it, where that is watched and at is not the member's own ID.
+func (r *typeRefs) countMember(id ir.EnumMemberID, at ir.WalkPath) {
+	if owner, name, ok := at.Field(); ok && name == "ID" && owner == memberType {
+		return
+	}
+	if enum, watched := r.members[id]; watched {
+		r.refs[enum]++
+	}
+}
+
+// countType counts id, a TypeID met at at, as a reference to the type where it
+// is watched.
+func (r *typeRefs) countType(id ir.TypeID, at ir.WalkPath) {
 	switch {
 	case !r.watched[id]:
 	case at.IsMapKey():
@@ -89,7 +128,6 @@ func (r *typeRefs) Visit(v reflect.Value, at ir.WalkPath) bool {
 	default:
 		r.refs[id]++
 	}
-	return false
 }
 
 // ownID reports whether at is a type's own ID, which declares it.
@@ -98,8 +136,9 @@ func ownID(at ir.WalkPath) bool {
 	return ok && name == "ID" && reflect.PointerTo(owner).Implements(typeDefType)
 }
 
-// canCarry reports whether a value of type t can hold a TypeID, at any depth,
-// read the first time t is met. An interface can hold anything.
+// canCarry reports whether a value of type t can hold a TypeID or a member's
+// ID, at any depth, read the first time t is met. An interface can hold
+// anything.
 func (r *typeRefs) canCarry(t reflect.Type) bool {
 	if known, read := r.carries[t]; read {
 		return known
@@ -124,12 +163,12 @@ func (r *typeRefs) canCarry(t reflect.Type) bool {
 	return carries
 }
 
-// holds reports whether t is a TypeID or an interface, which can be one, and
-// otherwise returns the types a value of t directly holds.
+// holds reports whether t is a TypeID, a member's ID or an interface, which can
+// be one, and otherwise returns the types a value of t directly holds.
 func holds(t reflect.Type) (bool, []reflect.Type) {
 	switch t.Kind() {
 	case reflect.String:
-		return t == typeIDType, nil
+		return t == typeIDType || t == memberIDType, nil
 	case reflect.Interface:
 		return true, nil
 	case reflect.Pointer, reflect.Slice, reflect.Array:

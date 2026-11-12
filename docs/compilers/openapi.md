@@ -2632,11 +2632,12 @@ values move into the union's `Enum` in branch order, so a union naming one in tu
 any length, is rewritten in one run and its members built once. Each member is identified and named
 as the same value in an `enum` is ([`enum-const`](#enum-const)), in branch order, and holds what its
 branch says of its value: its docs, deprecation, availability, examples and kept constructs. A
-branch's type nothing else references goes with the union.
+branch's type nothing else references, one of its members included, goes with the union.
 
 The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
 its own that an `Enum` member is not; a branch holding several values that any other node also
-names, a property, a union, a doc reference or a map's key among them, which the `Enum` would copy
+names, a property, a union, a doc reference, a reference to one of its members, such as a
+deprecation's replacement, or a map's key among them, which the `Enum` would copy
 into each union naming it, so that a document can make the IR grow with the square of its size, or
 that says anything of all its values, such as docs, a deprecation, an availability, examples or a
 vendor extension, which no one member could say; a value two branches hold, which a `oneOf`

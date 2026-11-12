@@ -170,15 +170,21 @@ func MembersUnder(root ir.TypeID, vals ...string) ([]ir.EnumMember, bool) {
 // TypeReads is how many Go types a walk of doc for the references to ids
 // reads for whether a value of them can hold a TypeID.
 func TypeReads(doc *ir.Document, ids ...ir.TypeID) int {
-	r := refsTo(ids)
+	r := refsTo(doc.Types, ids)
 	ir.WalkValues(doc, ir.DocumentPath, r)
 	return r.typesRead
+}
+
+// CanCarry reports whether a walk for references shows a value of type t its
+// fields, because it can hold a TypeID or a member's ID.
+func CanCarry(t reflect.Type) bool {
+	return refsTo(nil, nil).canCarry(t)
 }
 
 // TypeRefVisits is how many values a walk of doc for the references to ids
 // shows its visitor, which pruning holds to what can hold a TypeID.
 func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
-	r, n := refsTo(ids), 0
+	r, n := refsTo(doc.Types, ids), 0
 	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
 		n++
 		return r.Visit(v, at)

@@ -6,6 +6,7 @@ package pass_test
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -15,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/internal/ctxtest"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
+	"github.com/dexpace/morphic/ir/irverify"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -349,7 +351,7 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 			several(green)
 			types["t/x/M"] = &ir.Model{ID: "t/x/M", Docs: ir.Docs{Refs: []ir.DocRef{{Type: green.ID}}}}
 		}},
-		{"a branch of several values another map's key names", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, types ir.TypeRegistry) {
+		{"a branch of several values an example's value reference names", func(_ *ir.Union, _ *ir.Literal, green *ir.Enum, types ir.TypeRegistry) {
 			several(green)
 			types["t/x/M"] = &ir.Model{ID: "t/x/M", Examples: []ir.Example{{Value: &ir.Value{
 				Kind: ir.ValueRefKind, Ref: &ir.ValueRef{Type: green.ID, Member: "blue"}}}}}
@@ -446,6 +448,37 @@ func TestConstUnions_KeepsAUnionAnEnumCannotSay(t *testing.T) {
 	}
 }
 
+// TestConstUnions_KeepsABranchOfSeveralValuesARenameKeys pins that a service's
+// rename of a branch of several values, which keys a map by its ID, is a
+// reference to it: the union naming it stays, and the type the rename names.
+func TestConstUnions_KeepsABranchOfSeveralValuesARenameKeys(t *testing.T) {
+	t.Parallel()
+	doc := constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"), pinned("t/x/U/1", "green", "blue"))
+	doc.Services = []ir.Service{{ID: "s/x", Renames: map[ir.TypeID]ir.Naming{"t/x/U/1": named("Colors")}}}
+
+	assert.Same(t, doc, collapsed(t, doc), "the union is kept, and the document with it")
+	assert.Contains(t, doc.Types, ir.TypeID("t/x/U/1"))
+}
+
+// TestConstUnions_KeepsAUnionNamingABranchUnionThatSaysDocs pins that a branch
+// of several values that is a union saying docs of them all is not taken: the
+// branch becomes an Enum of its own values, docs and all, and the union naming
+// it stays, as it does where the branch is an Enum.
+func TestConstUnions_KeepsAUnionNamingABranchUnionThatSaysDocs(t *testing.T) {
+	t.Parallel()
+	branch := anonymousUnion("t/x/U/1", "t/x/U/1/0", "t/x/U/1/1")
+	branch.Docs = ir.Docs{Description: "Both."}
+	doc := constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"), branch,
+		lit("t/x/U/1/0", "green"), lit("t/x/U/1/1", "blue"))
+
+	out := collapsed(t, doc)
+
+	assert.Equal(t, ir.KindUnion, out.Types["t/x/U"].Kind(), "the union naming the branch stays")
+	enum, ok := out.Types["t/x/U/1"].(*ir.Enum)
+	require.True(t, ok, "the branch is the Enum of its values")
+	assert.Equal(t, ir.Docs{Description: "Both."}, enum.Docs)
+}
+
 // TestConstUnions_KeepsAUnionWhoseMembersHaveNoNamespace pins the union a
 // document declaring no member namespace for its own keeps: an Enum's members
 // would take IDs in a namespace nobody declared, which the edit refuses, so the
@@ -510,6 +543,40 @@ func TestConstUnions_RemovesOnlyTheBranchesNothingElseReferences(t *testing.T) {
 	}
 }
 
+// TestConstUnions_KeepsABranchWhoseMemberIsNamed pins that a replacement
+// naming a member of a branch counts as a reference to the branch: a branch of
+// several values it names is not taken, and one of a single value is not
+// removed, so the member it names is still there to resolve.
+func TestConstUnions_KeepsABranchWhoseMemberIsNamed(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		values []string
+		stays  bool
+	}{
+		{"a branch of one value", []string{"a"}, false},
+		{"a branch of several values", []string{"a", "b"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			branch := pinned("t/x/U/0", tt.values...)
+			replaced := &ir.Model{ID: "t/x/M", Name: named("M"),
+				Deprecation: &ir.Deprecation{ReplacedBy: []ir.EntityRef{{Member: branch.Members[0].ID}}}}
+			doc := constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), branch, lit("t/x/U/1", "red"), replaced)
+			// The fixture declares no service or source, which irverify reports of
+			// it before the pass as after, so what the pass adds is what is read.
+			before := irverify.Verify(doc)
+
+			out := collapsed(t, doc)
+
+			assert.Equal(t, before, irverify.Verify(out), "the replacement still names a member")
+			assert.Contains(t, out.Types, ir.TypeID("t/x/U/0"), "the branch holding the member stays")
+			assert.Equal(t, tt.stays, out.Types["t/x/U"].Kind() == ir.KindUnion, "the union stays where its branch does")
+		})
+	}
+}
+
 // TestConstUnions_WalksOnlyWhatCanNameAType holds the walk for references to
 // what can hold a TypeID: a model whose property also carries provenance, kept
 // constructs, a constraint and a name in every channel shows it no more values
@@ -534,6 +601,16 @@ func TestConstUnions_WalksOnlyWhatCanNameAType(t *testing.T) {
 	carrying := model()
 	carrying.Docs.Refs = []ir.DocRef{{Type: "t/x/U/0"}}
 	assert.Greater(t, pass.TypeRefVisits(withTypes(carrying), "t/x/U/0"), bare, "the walk passed over a doc ref")
+}
+
+// TestConstUnions_WalksWhatCanNameAMember holds the walk for references to what
+// can hold a member's ID as well as a TypeID: a type holding a member's ID and
+// nothing else is shown, where one holding no ID is not. Every type of the IR
+// that holds one also holds a TypeID today, so no document tells the two apart.
+func TestConstUnions_WalksWhatCanNameAMember(t *testing.T) {
+	t.Parallel()
+	assert.True(t, pass.CanCarry(reflect.TypeFor[struct{ Member []ir.EnumMemberID }]()), "a member's ID is not shown")
+	assert.False(t, pass.CanCarry(reflect.TypeFor[struct{ Name string }]()), "a type holding no ID is shown")
 }
 
 // TestConstUnions_ReadsEachGoTypeOnce pins what the walk's pruning costs:
@@ -719,10 +796,12 @@ func TestConstUnions_ReturnsItsInputOnceItsContextIsDone(t *testing.T) {
 	}
 }
 
-// TestConstUnions_WalksOnlyWhereItCounts pins the walks a run makes: none for a
-// document with no union to rewrite, the one that finds the branches nothing
-// references for consts, and one more to count the references to a branch of
-// several values only where a union names one, rewritten or not.
+// TestConstUnions_WalksOnlyWhereItCounts pins the walks a run makes: the one
+// that finds the branches nothing references for consts, and one more to count
+// the references to a branch of several values, made wherever a union keyed at
+// its own ID names an anonymous union, of any variants, or an anonymous Enum of
+// several members, whether or not a union takes it. A document where no union
+// reads as an Enum and none names such a type is not walked.
 func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -738,13 +817,15 @@ func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 			lit("t/x/U/0/0", "red")), 2},
 		{"a branch of several values", constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"),
 			pinned("t/x/U/1", "green", "blue")), 2},
+		{"a union naming an anonymous union of models", constDoc(union("t/x/U", "t/x/U/0"),
+			anonymousUnion("t/x/U/0", "t/x/U/0/0", "t/x/U/0/1"), &ir.Model{ID: "t/x/U/0/0"}, &ir.Model{ID: "t/x/U/0/1"}), 1},
 		{"a union of several values", constDoc(union("t/x/U", "t/x/U/0"), anonymousUnion("t/x/U/0", "t/x/U/0/0", "t/x/U/0/1"),
 			lit("t/x/U/0/0", "red"), lit("t/x/U/0/1", "blue")), 2},
 		{"a branch of several values no union takes", constDoc(union("t/x/U", "t/x/B"), union("t/x/V", "t/x/B"),
 			pinned("t/x/B", "red", "blue")), 1},
 		{"an enum of several values no union names", constDoc(union("t/x/U", "t/x/U/0"), lit("t/x/U/0", "red"),
 			pinned("t/x/E", "green", "blue")), 1},
-		{"a named enum of several values", constDoc(union("t/x/U", "t/x/B"), named3(pinned("t/x/B", "red", "blue"))), 0},
+		{"a named enum of several values", constDoc(union("t/x/U", "t/x/B"), namedEnum(pinned("t/x/B", "red", "blue"))), 0},
 		{"a union off its key", offKey(constDoc(union("t/x/U", "t/x/B"), anonymousUnion("t/x/B", "t/x/B/0"),
 			lit("t/x/B/0", "red"))), 0},
 	} {
@@ -752,8 +833,8 @@ func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 	}
 }
 
-// named3 is e as a named type, which a union cannot take the values of.
-func named3(e *ir.Enum) *ir.Enum {
+// namedEnum is e as a named type, which a union cannot take the values of.
+func namedEnum(e *ir.Enum) *ir.Enum {
 	e.Anonymous, e.Name = false, named("B")
 	return e
 }

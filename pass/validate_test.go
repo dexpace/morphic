@@ -232,8 +232,8 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 // cannot see: a check that walked the document itself would not go through the
 // walk validate is handed. Of the reflection walks ir offers, the package may
 // name ir.WalkValuesContext only in Validate, which hands it on, and in
-// ConstUnions' Run, which hands it on to count the references in documents of
-// const-unions' own, which validate is never handed, and ir.WalkValues only in
+// ConstUnions' Run, which hands it on to const-unions' own walks, counting the
+// references to the branches it may take or remove, and ir.WalkValues only in
 // appendTypeIDs, which walks one GraphQL operation rather than the document.
 func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()

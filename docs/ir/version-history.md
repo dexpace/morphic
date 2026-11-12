@@ -471,6 +471,6 @@ it sees. Changes made together in one bump are listed together under it.
   at the union's own ID, in branch order, and the branch type is removed, whether the union held
   one such branch or a chain of them
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A branch another node also
-  names, or that says anything of all its values, keeps the union. A consumer pinned to 0.45.0 that
-  read such a position as a `Union` finds an `Enum` there, and no longer finds the branch type its
-  variant named.
+  names, a replacement naming one of its members included, or that says anything of all its values,
+  keeps the union. A consumer pinned to 0.45.0 that read such a position as a `Union` finds an
+  `Enum` there, and no longer finds the branch type its variant named.

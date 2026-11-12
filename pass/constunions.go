@@ -76,8 +76,10 @@ func runConstUnions(ctx context.Context, doc *ir.Document, walk walkFunc) (*ir.D
 
 // soleBranches returns the types that only one reference names, among those a
 // union could take as a branch of several values, which a count of the
-// references to them tells. A document with none of them is not walked, and one
-// the depth cap cut short has none, as no count of it is one.
+// references to them tells. A document is walked for the count where a union
+// keyed at its own ID names an anonymous union, of any variants, or an
+// anonymous Enum of several members, whether or not that union becomes an Enum,
+// and one the depth cap cut short has none, as no count of it is one.
 func soleBranches(ctx context.Context, doc *ir.Document, walk walkFunc) (map[ir.TypeID]bool, error) {
 	ids := branchCandidates(doc)
 	if len(ids) == 0 {
