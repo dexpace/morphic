@@ -51,28 +51,36 @@ media type's serialization of the value instead, so as JSON a string keeps its q
 
 ## Null and empty
 
-A null has no text. OpenAPI's style examples read it as RFC 6570's undefined (§4.12.6), so a query,
-header, cookie or form input holding null is written as an absent one is, and an optional nullable
-input's null and its absence send one request. An empty list or object is undefined too
-(RFC 6570 §2.3), and a null member of a list or an object is left out of it, since the expansion
-appends only defined members (RFC 6570, Appendix A). A path parameter has no absent form: one
-holding null, or whose expansion leaves its segment empty, as an empty string's does under `simple`,
-would send a path naming another resource, and an empty last segment one a server ignoring a
-trailing slash routes to the collection above it. On the golden spec
-(spec @bc6fad24, morphic @ea70eba79), 23 `DELETE`s of an item sit under a `DELETE` of their
+A null has no text. OpenAPI calls one RFC 6570's undefined (§4.12.6), which RFC 6570's expansion
+leaves out (§3.2.1), as OpenAPI's own example of an undefined value does (Appendix C.4.3), so a
+query, header, cookie or form input holding null is written as an absent one is, and an optional
+nullable input's null and its absence send one request. OpenAPI's style table spells an undefined
+value as RFC 6570 spells an empty string, `color=` under `form` and `;color` under `matrix`, which
+would send a null as `""` is sent. An empty list or object is undefined too (RFC 6570 §2.3), and a
+null member of a list or an object is left out of it, since the expansion appends only defined
+members (RFC 6570, Appendix A).
+
+A path parameter has no absent form: one holding null, or whose expansion leaves its segment empty,
+as an empty string's does under `simple`, would send a path naming another resource, and an empty
+last segment one a server ignoring a trailing slash routes to the collection above it. On the golden
+spec (spec @bc6fad24, morphic @ea70eba79), 23 `DELETE`s of an item sit under a `DELETE` of their
 collection, as `DELETE /accounts/{account_id}/cloudforce-one/rules/{id}` sits under one its summary
 calls "Delete all rules". So such a call fails before anything is sent, as one does whose `host`
 binding's label holds null or an empty text, or fills a host that is no RFC 3986 host, which
-Smithy's endpoint rules require of a client. Under `AllowReserved` a slash in the text is its
-binding's own, so an empty segment one leaves beside a segment that is not, as in `a//b` and
-`photos/`, is sent as it is, while a text of slashes alone names no segment of its own and fails as
-an empty one does.
+Smithy's endpoint rules require of a client. So does one whose required query, header, cookie or
+form input holds null, or a list or an object with no member left: written as absent, it would leave
+out what the document requires, as an empty `id` would send `DELETE /zones/{zone_id}/filters` with
+no `id` at all, one of the golden spec's 11 required query lists. Under `AllowReserved` a slash in
+the text is its binding's own, so an empty segment one leaves beside a segment that is not, as in
+`a//b` and `photos/`, is sent as it is, while a text of slashes alone names no segment of its own
+and fails as an empty one does.
 
-A query input or a form field that arrives empty, as `page=` does, reads as an absent one where its
-binding sets `AllowEmptyValue`, under which a client may send an empty value in place of leaving the
-input out ([HTTP bindings](../../ir/http-binding.md)), and otherwise as the empty text it is, which
-a string reads and an integer does not. At the revisions above, the golden spec sets
-`AllowEmptyValue` on 11 query bindings.
+A query input or a form field that arrives empty, as `page=` does, is present and holds no value
+where its binding sets `AllowEmptyValue`, under which a client may send an empty value in place of
+leaving the input out ([HTTP bindings](../../ir/http-binding.md)), so it meets a required input's
+presence and leaves its value unset. Otherwise it holds the empty text it is, which a string reads
+and an integer does not. At the revisions above, the golden spec sets `AllowEmptyValue` on 11 query
+bindings.
 
 ## Escaping
 

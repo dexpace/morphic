@@ -592,21 +592,21 @@ throughout these documents.
     map's fields in their keys' order, the map's entry giving way to a field another binding writes,
     a string under `ContentType` `application/json` with its quotes, a `text/plain` body as its
     UTF-8 octets with no byte-order mark, and a value class and an `enum class` entry as their wire
-    forms, never their `toString()`. A null query input and an empty list are each sent as an absent
-    one, a null member of a list is left out, and a path parameter or a `host` label holding null or
-    an empty string, a path parameter holding `..`, or `/` alone under `AllowReserved`, a header
-    holding a CR LF, a `\u0001`, an `é` or a trailing space, a header list holding an empty string,
-    a header `Prefix` map holding keys `A` and `a`, a `text/plain` request whose media type names
-    `charset=iso-8859-1`, a NaN, a year past 9999, an offset with seconds and a `decimal`
-    `1E+999999999` each fail before anything is sent, as a NaN, a year past 9999 and an offset with
-    seconds in a body do. The mock server reads each such request back to the values sent, a header
-    `Prefix` map's keys in lower case, as an SDK reads an inbound request's parameters, and either
-    reads a query's `a+b` as `a b`, a `page=` as no `page` where `AllowEmptyValue` is set, and an
-    `any` path parameter's `abc` as the JSON string `"abc"`. A response header of each primitive
-    reads `+00:00`, a fraction of each length, one finer than its type's precision cut to it, an
-    upper-case `uuid`, a list sent on two lines and one holding an empty element without it, a
-    `Set-Cookie` list of two lines whose values hold commas as two elements, a `string` header sent
-    as `no-cache, no-store` keeps its space, a `text/plain` body reads `42` after a byte-order mark
-    and does not decode under `charset=iso-8859-1`, and a leap second leaves its field unset with
-    `RawHeader` holding the text (T-26) ([the type
-    table](../contract/type-table.md#what-a-built-in-row-writes)).
+    forms, never their `toString()`. An optional query input holding null or an empty list is sent
+    as an absent one, a null member of a list is left out, and a path parameter or a `host` label
+    holding null or an empty string, a path parameter holding `..`, or `/` alone under
+    `AllowReserved`, a required query list holding no member, a header holding a CR LF, a `\u0001`,
+    an `é` or a trailing space, a header list holding an empty string, a header `Prefix` map holding
+    keys `A` and `a`, a `text/plain` request whose media type names `charset=iso-8859-1`, a NaN, a
+    year past 9999, an offset with seconds and a `decimal` `1E+999999999` each fail before anything
+    is sent, as a NaN, a year past 9999 and an offset with seconds in a body do. The mock server
+    reads each such request back to the values sent, a header `Prefix` map's keys in lower case, as
+    an SDK reads an inbound request's parameters, and either reads a query's `a+b` as `a b`, a
+    `page=` as no `page` where `AllowEmptyValue` is set, and an `any` path parameter's `abc` as the
+    JSON string `"abc"`. A response header of each primitive reads `+00:00`, a fraction of each
+    length, one finer than its type's precision cut to it, an upper-case `uuid`, a list sent on two
+    lines and one holding an empty element without it, a `Set-Cookie` list of two lines whose values
+    hold commas as two elements, a `string` header sent as `no-cache, no-store` keeps its space, a
+    `text/plain` body reads `42` after a byte-order mark and does not decode under
+    `charset=iso-8859-1`, and a leap second leaves its field unset with `RawHeader` holding the text
+    (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
