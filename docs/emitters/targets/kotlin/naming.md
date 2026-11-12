@@ -49,10 +49,25 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     Objective-C and Swift name, so no JVM name moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
-A unit's package segment is its words in lowercase, joined with no separator (`useraccounts`), as
-Go's package names are. So two units whose words break differently render alike and collide ([output
-units](../../refine/output-units.md)), and no two differ in letter case alone, which a
-case-insensitive file system would make one directory.
+A unit's names and a union's variants are compared case-folded
+([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)), since the JVM
+writes each class to a class file of its name, a nested one's joined to its outer's by `$`, and a
+case-insensitive file system makes two that differ in letter case alone one file. With classes
+`Setup` and `SetUp` in a package `p`, Kotlin 2.4.0 wrote one `p/Setup.class`, and with variants
+`Card` and `CARD` of a sealed interface `Payment` one `p/Payment$Card.class`; each program built
+without a diagnostic and failed to load the class it had lost (`NoClassDefFoundError:
+p/Payment$Card (wrong name: p/Payment$CARD)`). So one of each pair takes a suffix, as one of two
+names that render alike does, and a source file named for its class is held apart with it. An
+inclusive union's variants are properties, not classes, and compare folded all the same, so a union
+whose kind a revision changes keeps the comparison its variants' names shipped under. A model's
+properties are no class, so they keep names apart by case.
+
+A group's package segment is its words in lowercase, joined with no separator (`useraccounts`), as
+Go's package names are, and a partition's is the name the options give it. So two groups whose
+words break differently render alike and collide ([output units](../../refine/output-units.md)), and
+no two units differ in letter case alone, which a case-insensitive file system would make one
+directory: two partitions' names that do are an options error, and a group whose name differs from a
+partition's in letter case alone yields to it.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
 takes the escape below, which kotlinc accepts in a `package` and an `import` alike: every hard

@@ -17,6 +17,23 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   `Unknown` beside a field per variant ([unions](unions.md#an-inclusive-union)), and each field
   yields to them.
 
+## File names
+
+Where Go names a file for a declaration, as `user.go` for `User` ([`User`](models.md#user-in-go)),
+the name is the declaration's identifier case-folded, by the fold the engine compares paths by
+([emit rules](../../emit/rules.md)). Declarations whose identifiers differ in letter case alone,
+`Setup` and `SetUp`, share one file, `setup.go`, and keep their names, since a Go file holds any
+number of declarations and Go tells identifiers apart by case. So of Go's scopes only the units'
+compares names case-folded, each unit being a directory
+([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)): renaming
+`SetUp` would cost a Go caller the spec's name for nothing a Go build needs. The name is not the
+identifier's words in snake case, since the `go` command builds a file whose name ends in `_test.go`
+only for the package's tests, and one ending in `_` and a `GOOS` or `GOARCH` value only for that
+platform: with Go 1.27.3 on darwin/arm64, a package declaring `UserTest` in `user_test.go` and
+`ServerLinux` in `server_linux.go` failed where it used them (`undefined: UserTest`). A file name
+that is a Windows device name is #1492's, and one a runtime template's file also takes turns on the
+unit the runtime lands in, #1489's to decide.
+
 ## The escape
 
 Go's casing lifts exported names clear of its keywords, so only locals and parameters can meet one

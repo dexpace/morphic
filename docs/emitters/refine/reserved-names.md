@@ -33,5 +33,7 @@ each target says ([Go](../targets/go/naming.md#imports),
 and no caller depends on its name. That is why `ComputeImports` runs before the naming steps ([the
 refiner contract](pipeline.md)): what a file imports is fixed by where declarations landed, and what
 the file calls each import is a name like any other. Names that collide once cased are `Ctx.Syms`'s
-on every target ([naming](naming.md)). T-19 holds every scope's set, the names with no words and the
-names that begin with a digit to code that compiles.
+on every target, and so, in a scope a target writes as paths, are names that differ in letter case
+alone ([naming](naming.md#collisions-and-the-names-a-generation-shipped)). T-19 holds every scope's
+set, the names with no words and the names that begin with a digit to code that compiles, and names
+that differ in letter case alone to paths that do not fold alike.

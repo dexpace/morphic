@@ -50,9 +50,9 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   it strict, and a strict caller would reach a model the spec leaves open. A catch-all
   (`AdditionalProps`) is the struct's one embedded fallback, a `map[string]T` tagged
   `json:",embed"`, which receives the undeclared members whatever the options say.
-- **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` in the root
-  unit ([output units](../../refine/output-units.md)). Manifest records `User.ID → "User"` and
-  `User.ID#create → "UserCreate"`.
+- **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` ([file
+  names](naming.md#file-names)) in the root unit ([output units](../../refine/output-units.md)).
+  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
 
 ## Recursive references
 

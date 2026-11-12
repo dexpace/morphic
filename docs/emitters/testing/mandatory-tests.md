@@ -69,18 +69,21 @@ throughout these documents.
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
-    in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
-    compile, the types those operations reach in the shared unit; and every partition error and
-    warning of [output units](../refine/output-units.md) has a fixture that draws it.
+    render alike, or as a name the units' scope reserves, or as a partition's but for letter case,
+    get distinct units; a union with a variant in another unit compiles; two groups whose operations
+    `AlsoMount` puts in each other's client compile, the types those operations reach in the shared
+    unit; and every partition error and warning of [output units](../refine/output-units.md) has a
+    fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
     its properties, parameters, path parameters, enum members and the variants of a closed and of an
     inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
-    reserves, after characters alone and after names that begin with a digit, and its groups after
-    the standard-library packages its files import, after every units name and after each name a
-    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
-    generates code that compiles on every target, with every template's declared names held to what
-    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
+    reserves, after characters alone and after names that begin with a digit, two of its types in
+    each unit and two variants of each union in names that differ in letter case alone, and
+    its groups after every units name, after each name a Kotlin build keeps at its root ([output
+    units](../targets/kotlin/overview.md#output-units)) and after the standard-library packages its
+    files import, generates code that compiles on every target, no two of its paths, an artifact's
+    or a class file's, folding alike, with every template's declared names held to what it binds,
+    and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
     `wrapper` at the build's root leave every module's sources, no path the build writes, an
     artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
     framework links, its header giving each declaration the Swift name the naming policy chose, none
