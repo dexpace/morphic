@@ -17,7 +17,8 @@ import (
 )
 
 // lowerCallbacks lowers each callback expression's path-item operations as
-// Operations registered in the parent's group, and binds them to the parent via
+// Operations registered in the parent's group, whatever their own tags or
+// grouping extension state (GitHub #1082), and binds them to the parent via
 // HTTPBinding.Callbacks keyed by the runtime expression
 // (docs/ir/http-binding.md). parent.mount roots callback operation identity, so
 // two parents sharing one $ref'd callback keep distinct callback operations;

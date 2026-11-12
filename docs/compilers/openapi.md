@@ -3509,8 +3509,9 @@ under tags, whatever its key states.
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
   `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
 - Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
-  asks of its tags; and whether each path a `groups` list names gets a group, so a remount can name
-  one no operation is filed under (#1726).
+  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
+  such as one a `groups` list names after the first or one another extension names as an alias
+  (#1726).
 
 ## 9. Parameters
 

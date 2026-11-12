@@ -72,7 +72,9 @@ const (
 	// ListsAreGroups reads a list as several paths, each a group the operation
 	// belongs to, as x-speakeasy-group writes them. The operation is filed under
 	// the first; placing it under the rest is a remount a consumer reads from the
-	// extension, which stays kept.
+	// extension, which stays kept. No group is minted for those paths, so a
+	// remount names one only where another operation is filed under it
+	// (GitHub #1726).
 	ListsAreGroups ExtensionLists = "groups"
 )
 
