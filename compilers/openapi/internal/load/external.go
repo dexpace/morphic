@@ -509,7 +509,7 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 // is done: the YAML parse reads the bytes through ctx (contextReader). Bytes
 // that are one JSON text are read by readJSON. Bytes holding no document parse
 // to an empty tree, as yaml.Unmarshal parses them. The resolver parses a
-// document itself on a cache miss, as YAML alone (#NEW-RESOLVER-JSON).
+// document itself on a cache miss, as YAML alone (#1767).
 func parseTree(ctx context.Context, data []byte) (*yaml.Node, error) {
 	if root, read, err := readJSON(ctx, data); read || err != nil {
 		return root, err

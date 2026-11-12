@@ -191,12 +191,12 @@ func TestReadJSON_AContextDoneByTheEndOfTheReadIsCtxsError(t *testing.T) {
 }
 
 // TestResolveExternal_AJSONDocumentBehindARespelledURLIsStillRefused pins the
-// limit docs/compilers/openapi.md#yaml-decoding states in its Status
-// (#NEW-RESOLVER-JSON): a URL net/url respells misses the prepared tree the
-// resolver looks a document up by, so the resolver parses it itself, as YAML
-// alone, and a reference to a JSON document that parser refuses is unresolved,
-// where the URL spelled as net/url keeps it reads. When the limit is lifted,
-// the respelled rows turn to the canonical row's outcome.
+// limit docs/compilers/openapi.md#yaml-decoding states in its Status (#1767): a
+// URL net/url respells misses the prepared tree the resolver looks a document
+// up by, so the resolver parses it itself, as YAML alone, and a reference to a
+// JSON document that parser refuses is unresolved, where the URL spelled as
+// net/url keeps it reads. When the limit is lifted, the respelled rows turn to
+// the canonical row's outcome.
 func TestResolveExternal_AJSONDocumentBehindARespelledURLIsStillRefused(t *testing.T) {
 	t.Parallel()
 	ext := `{"openapi":"3.1.0","info":{"title":"O","version":"1"},"paths":{"/x":{"get":` +

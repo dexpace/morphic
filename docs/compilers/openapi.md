@@ -148,10 +148,10 @@ scalar under any other tag keeps it.
 - Status: partly built: a JSON text is read as JSON where the compiler parses it, not where the
   resolver parses a document itself, as it does for a URL that net/url respells, an upper-case
   scheme among them: a reference to a JSON document the YAML parser refuses is then unresolved
-  (#NEW-RESOLVER-JSON). The order oracle in `internal/harness` parses a source as YAML to permute
-  it, and silently skips one only the JSON reader reads (#NEW-ORDER-JSON). A scalar or a sequence
-  under a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string
-  or a list it reads as left out (#1368).
+  (#1767). The order oracle in `internal/harness` parses a source as YAML to permute it, and
+  silently skips one only the JSON reader reads (#1768). A scalar or a sequence under a tag outside
+  YAML's JSON schema ruleset is not reported, and where the model reads a string or a list it reads
+  as left out (#1368).
 
 ### `source-budgets`
 
