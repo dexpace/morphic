@@ -36,11 +36,16 @@ and `Explode` say in OpenAPI's terms (§4.12.3, Appendix C): a model's members i
 `TypePlan.Flattened` holds them, each under its `WireName`, or the name `WireNameByFormat` gives it
 for a form body's media type, and a map's entries in the order of their keys' texts, compared by
 UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a list of objects or of
-lists sends, which OpenAPI leaves undefined, is #1731's. A `Prefix` binding writes each entry of its
-map, in that order, as a field of its own, named by the prefix followed by the entry's key, its
-value the entry's text, and an entry naming a field another binding writes gives way to it, as
-Smithy's rules have a client do. An empty prefix, Smithy's catch-all for every header or query
-parameter, has no spelling yet (#1748). A parameter whose `ContentType` names a media type
+lists sends, which OpenAPI leaves undefined, is #1731's. A member holding its style's own delimiter
+where expansion writes it as it writes the delimiter, a `.` under an exploded `label`, a space under
+`spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a `deepObject` key, reads back as that
+delimiter, which OpenAPI leaves to an escaping of the API's own (Appendix E.6). A `Prefix` binding
+writes each entry of its map, in that order, as a field of its own, named by the prefix followed by
+the entry's key, its value the entry's text, and an entry naming a field another binding writes, in
+any case for a header, gives way to it, as Smithy's rules have a client do. Two entries naming one
+header field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would hold
+one of them. An empty prefix, Smithy's catch-all for every header or query parameter, has no
+spelling yet (#1748). A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
 media type's serialization of the value instead, so as JSON a string keeps its quotes.
 
@@ -68,13 +73,14 @@ reads `%20` as a space, while the `+` a form encoder writes, as Go's `url.Values
 plus under RFC 3986's rules (Appendix E). `AllowReserved` passes through, as RFC 6570's reserved
 expansion does, each percent-encoded triple and each of RFC 3986's reserved characters, bar those a
 URL cannot hold there: a `#`, `[` or `]` in a path or a query, and a `?` in a path, is still
-encoded. RFC 3986 ends a path at a `?` and a query at a `#` (§3), so a path holding `a?b` would
-reach `a`, and admits a `[` or `]` in neither, which the JDK's `URI` refuses in a path while Go and
-`fetch` send it. A `/` still passes in a path, though OpenAPI forbids one unescaped in a path
-parameter's value (§4.8.2), as gRPC's multi-segment variables and Smithy's greedy labels pass it,
-and as the golden spec's three R2 `object_key` parameters ask at the revisions above. What a
-`PathPattern` binding's text sends, which gRPC percent-encodes but for a `/` and RFC 3986's
-unreserved characters, is #1755's.
+encoded, and a `&`, `=`, `+` or `,` it passes is read for what it means where it lands, as OpenAPI
+has a caller encode one meant as data (§4.12.4). RFC 3986 ends a path at a `?` and a query at a `#`
+(§3), so a path holding `a?b` would reach `a`, and admits a `[` or `]` in neither, which the JDK's
+`URI` refuses in a path while Go and `fetch` send it. A `/` still passes in a path, though OpenAPI
+forbids one unescaped in a path parameter's value (§4.8.2), as gRPC's multi-segment variables and
+Smithy's greedy labels pass it, and as the golden spec's three R2 `object_key` parameters ask at the
+revisions above. What a `PathPattern` binding's text sends, which gRPC percent-encodes but for a `/`
+and RFC 3986's unreserved characters, is #1755's.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -93,19 +99,33 @@ text's ends, and they disagree past ASCII: Go sends `é` as its UTF-8 octets and
 `fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the `€` Go sends
 (Go 1.27, Node 26, JDK 25).
 
+A `text/plain` body or part is its text's UTF-8 octets, with no byte-order mark, and is read as
+UTF-8 with one leading mark dropped, as RFC 3629 §6 suggests and WHATWG's UTF-8 decode does. One
+whose content type names a charset other than UTF-8 or US-ASCII, or whose octets are no UTF-8, does
+not decode ([responses](../plan/responses.md#a-body-that-does-not-decode)), and a request whose
+binding's media type names another fails before anything is sent. For a Latin-1 `é`, on the same
+versions, Go's body holds a byte that is no UTF-8, `fetch`'s `text()` gives U+FFFD and the JDK's
+`ofString` gives `é`, and Go and the JDK keep a leading mark that `fetch` drops, so a body of `42`
+after one would parse on one target alone.
+
 ## Reading a text
 
-Whatever reads a text reads it by the same rule backwards: an SDK reading a response header, the
-mock server reading a request ([docs and mocks](../docs-and-mock.md)), and an SDK reading a request
-the API sends it ([inbound operations](../../ir/http-binding.md#inbound-operations)). A text is
-percent-decoded as its location's rules say (Appendix E.5), a header's and a `cookie`-style cookie's
-not at all (§4.12.2.2), and a list's or an object's is split as its `Style` and `Explode` arrange
-it. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, and
-only a list's or an object's split drops anything, the whitespace beside a comma and an empty
-element (§5.6.1), so a string header keeps its own whitespace. A `Prefix` binding's map holds every
-field whose name starts with the prefix and that no other binding reads, a header's in any case
-(RFC 9110 §5.1), keyed by the rest of the name. A response's headers hold no such binding yet
-(#1745).
+Whatever reads a text reads it by the same rule backwards: an SDK reading a response's header or
+`text/plain` body, the mock server reading a request ([docs and mocks](../docs-and-mock.md)), and an
+SDK reading a request the API sends it ([inbound
+operations](../../ir/http-binding.md#inbound-operations)). A list's or an object's text is split as
+its `Style` and `Explode` arrange it before each part is percent-decoded, so a `%2C` stays in its
+element (Appendix C.2), and a text is percent-decoded as its location's rules say (Appendix E.5): a
+`+` as a space in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as
+itself in a path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A header's
+text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, bar `Set-Cookie`'s,
+each of whose lines is one element since its values hold commas (§4.21.3), and only a list's or an
+object's split drops anything, the whitespace beside a comma and an empty element (§5.6.1), so a
+string header keeps its own whitespace. A `Prefix` binding's map holds every field whose name starts
+with the prefix and that no other binding reads, a header's in any case (RFC 9110 §5.1), keyed by
+the rest of the name in lower case, as HTTP/2 carries every field name (RFC 9113 §8.2) and as
+`X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, the JDK's as `X-meta-foo` and Node's as
+`x-meta-foo`. A response's headers hold no such binding yet (#1745).
 
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
@@ -157,3 +177,8 @@ which keys its row as any encoding does: an emitter never reads which format a d
 - **A dot segment percent-encoded**: WHATWG URL reads `%2e` as `.`, so `fetch` still removes it.
 - **A header's text trimmed**, as each target's HTTP library trims it: two texts differing only in
   the whitespace at their ends would send one.
+- **A `Prefix` header map keyed as each server reports a name**: one header would key `Foo` on Go
+  and `foo` on Node and the JDK, and HTTP/2 keeps no case to report.
+- **A `text/plain` body read by the charset it names, or as UTF-8 whatever it names**: the targets
+  decode different sets of charsets, and the second reads a Latin-1 `é` as U+FFFD with nothing
+  failing.
