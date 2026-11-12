@@ -502,6 +502,30 @@ func populatedHeader() ir.Header {
 	return ir.Header{Property: populatedProperty(), Style: "simple", Explode: new(true)}
 }
 
+// populatedOperationLink returns an OperationLink with every field non-zero,
+// its values spanning a constant, a response header, the request URL and a
+// member of a request parameter.
+func populatedOperationLink() ir.OperationLink {
+	return ir.OperationLink{
+		Name:      populatedNaming(),
+		Operation: "op/next",
+		Params: []ir.LinkParam{
+			{Param: "param/next/id", Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: new(populatedValue())}},
+			{Param: "param/next/etag", Value: ir.LinkValue{
+				Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{"p/etag"}},
+			}},
+			{Param: "param/next/from", Value: ir.LinkValue{Kind: ir.LinkURL}},
+		},
+		Body: &ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{
+			Param: new(ir.ParamID("param/op/filter")), Segments: []ir.PropID{"p/filter/id"},
+		}},
+		Server:     new(ir.ServerID("server/next")),
+		Docs:       populatedDocs(),
+		Provenance: populatedProvenance(),
+		Unmodeled:  populatedUnmodeled(),
+	}
+}
+
 // eventPayloadLeftZero is the field populatedProperty leaves zero, and why.
 func eventPayloadLeftZero() zeroField {
 	return zeroField{"EventPayload", "mutually exclusive with EventHeader, which the fixture sets; " +

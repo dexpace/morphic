@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -81,7 +82,8 @@ func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 }
 
 // walkService loads src and runs the phases beneath the service walk, then the
-// walk itself under grouping, handing report each phase's diagnostics in turn.
+// walk itself under grouping and the link resolution after it, handing report
+// each phase's diagnostics in turn.
 // It returns the service and the load's diagnostics.
 func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 	report func([]ir.Diagnostic),
@@ -99,8 +101,9 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 	report(schemeDiags)
 	lowered, svcDiags := operation.LowerService(t.Context(), c, types, declared)
 	report(svcDiags)
-	_, finished := types.Finish(t.Context())
+	reg, finished := types.Finish(t.Context())
 	report(finished)
+	report(lowered.Links.Resolve(c, &lowered.Service, reg, servers.Reopen(lowered.Servers)))
 	return lowered.Service, loadDiags
 }
 

@@ -570,9 +570,9 @@ func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 
 // assertUnreferencedComponents pins GitHub #616: every component entry no
 // lowering followed a reference to is kept verbatim on the document, under the
-// section and name it was declared with, a link a lowered response names among
-// them, while the entry the paths do name lowers as it always did. No matrix
-// row: the case is a preservation claim.
+// section and name it was declared with, while the entries the paths do name,
+// a response and the link it names, lower as they always did. No matrix row:
+// the case is a preservation claim.
 func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, section := range []string{
 		"responses", "parameters", "examples", "requestBodies",
@@ -587,12 +587,14 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 	}
 	assert.NotContains(t, doc.Unmodeled, "openapi:components/responses/Used",
 		"an entry a reference reaches is lowered, not also kept verbatim")
-	assert.Contains(t, doc.Unmodeled, "openapi:components/links/Next",
-		"a link the lowered response's links map names is kept: nothing follows that reference")
+	assert.NotContains(t, doc.Unmodeled, "openapi:components/links/Next",
+		"a link the lowered response's links map names is followed, so it lowers rather than being kept")
 
 	op, ok := opByName(doc, "getA")
 	require.True(t, ok)
 	require.Len(t, op.Responses, 1)
 	assert.Equal(t, "reached from the paths", op.Responses[0].Docs.Description)
+	require.Len(t, op.Responses[0].Links, 1, "the link the response names lowers onto it")
+	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 }

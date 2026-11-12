@@ -26,6 +26,18 @@ var interactionPath = map[reflect.Type]bool{
 	reflect.TypeFor[*ir.StreamDetail]():    true,
 	reflect.TypeFor[*ir.StreamCondition](): true,
 	reflect.TypeFor[ir.StreamCondition]():  true,
+	// A link's request value reads the request of the operation answered.
+	reflect.TypeFor[[]ir.Response]():      true,
+	reflect.TypeFor[ir.Response]():        true,
+	reflect.TypeFor[*ir.Response]():       true,
+	reflect.TypeFor[[]ir.ErrorCase]():     true,
+	reflect.TypeFor[ir.ErrorCase]():       true,
+	reflect.TypeFor[[]ir.OperationLink](): true,
+	reflect.TypeFor[ir.OperationLink]():   true,
+	reflect.TypeFor[[]ir.LinkParam]():     true,
+	reflect.TypeFor[ir.LinkParam]():       true,
+	reflect.TypeFor[ir.LinkValue]():       true,
+	reflect.TypeFor[*ir.LinkValue]():      true,
 }
 
 // checkInteractions asserts what starts and ends a page walk or a stream
@@ -74,28 +86,18 @@ func checkInteractions(*ir.Document) walkCheck {
 }
 
 // appendInputViolation reports in, where the walk reached it, when it names no
-// value of the request. With no parameter it roots in the request body, so it
-// needs a member of it (ir/input-path-empty) and an operation that sends one
-// (ir/input-body-absent).
+// value of the request. With no parameter it roots in the request body, the
+// body whole when it names no member either, so it needs an operation that
+// sends one (ir/input-body-absent).
 func appendInputViolation(vs []Violation, in ir.InputPath, bodyless bool, at ir.WalkPath) []Violation {
-	switch {
-	case in.Param != nil:
-		return vs
-	case len(in.Segments) == 0:
-		return append(vs, Violation{
-			Code:    "ir/input-path-empty",
-			Message: "input path names neither a parameter nor a member of the request body",
-			Path:    at.String(),
-		})
-	case bodyless:
-		return append(vs, Violation{
-			Code:    "ir/input-body-absent",
-			Message: "input path names a member of the request body, and the operation sends none",
-			Path:    at.String(),
-		})
-	default:
+	if in.Param != nil || !bodyless {
 		return vs
 	}
+	return append(vs, Violation{
+		Code:    "ir/input-body-absent",
+		Message: "input path reads the request body, and the operation sends none",
+		Path:    at.String(),
+	})
 }
 
 // appendTerminatorViolation reports an empty terminator of the stream at owner:

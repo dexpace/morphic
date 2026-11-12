@@ -81,6 +81,19 @@ func streamConditionCarrierDoc(v ir.Value) *ir.Document {
 	return doc
 }
 
+// linkConstantCarrierDoc gives the operation a response whose link passes v to
+// the operation's own parameter.
+func linkConstantCarrierDoc(v ir.Value) *ir.Document {
+	doc := parameterCarrierDoc(ir.Value{Kind: ir.ValueNull})
+	op := &doc.Services[0].Groups[0].Operations[0]
+	op.Params[0].ID, op.Params[0].Default = "param/x/Get/q", nil
+	op.Responses = []ir.Response{{Links: []ir.OperationLink{{
+		Name: named("again"), Operation: op.ID,
+		Params: []ir.LinkParam{{Param: op.Params[0].ID, Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &v}}},
+	}}}}
+	return doc
+}
+
 // otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
 // under one service and one group and reached through Document.Services rather
 // than Document.Types, where a walk scoped to Types would never reach it.
@@ -187,6 +200,10 @@ func valueCarrierCases() []valueCarrierCase {
 		{
 			carrier: "StreamCondition.Value", doc: streamConditionCarrierDoc,
 			path: "doc.Services[0].Groups[0].Operations[0].ResponseStream.Condition.Value",
+		},
+		{
+			carrier: "LinkValue.Constant", doc: linkConstantCarrierDoc,
+			path: "doc.Services[0].Groups[0].Operations[0].Responses[0].Links[0].Params[0].Value.Constant",
 		},
 	}
 }

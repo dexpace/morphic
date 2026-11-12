@@ -64,6 +64,37 @@
                 "canonical": "create_order"
               },
               "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1orders/post/parameters/X-Request-Id/header",
+                  "name": {
+                    "source": "X-Request-Id",
+                    "canonical": "x_request_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders/post/parameters/0"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/openapi/components/schemas/OrderInput",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
               "responses": [
                 {
                   "name": {
@@ -77,23 +108,230 @@
                       }
                     ]
                   },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Order",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1orders/post/responses/201/headers/Location",
+                      "name": {
+                        "source": "Location",
+                        "canonical": "location"
+                      },
+                      "wireName": "Location",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/headers/Location"
+                      }
+                    }
+                  ],
+                  "links": [
+                    {
+                      "name": {
+                        "source": "GetOrder",
+                        "canonical": "get_order"
+                      },
+                      "operation": "op/openapi/paths/~1orders~1{orderId}/get",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
+                          "value": {
+                            "kind": "response",
+                            "response": {
+                              "segments": [
+                                "p/openapi/components/schemas/Order/properties/id"
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/verbose/query",
+                          "value": {
+                            "kind": "constant",
+                            "constant": {
+                              "kind": "bool",
+                              "bool": true
+                            }
+                          }
+                        },
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/X-Request-Id/header",
+                          "value": {
+                            "kind": "request",
+                            "request": {
+                              "param": "param/openapi/paths/~1orders/post/parameters/X-Request-Id/header"
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {
+                        "description": "The order just created."
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/links/GetOrder"
+                      },
+                      "unmodeled": {
+                        "openapi:x-follow": {
+                          "reason": "vendor_extension",
+                          "value": "auto",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1orders/post/responses/201/links/GetOrder/x-follow"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "name": {
+                        "source": "ByLocation",
+                        "canonical": "by_location"
+                      },
+                      "operation": "op/openapi/paths/~1orders~1{orderId}/get",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
+                          "value": {
+                            "kind": "response",
+                            "response": {
+                              "in": "header",
+                              "segments": [
+                                "p/openapi/paths/~1orders/post/responses/201/headers/Location"
+                              ]
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/components/links/ByLocation"
+                      }
+                    },
+                    {
+                      "name": {
+                        "source": "Replace",
+                        "canonical": "replace"
+                      },
+                      "operation": "op/openapi/paths/~1orders~1{orderId}/put",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/put/parameters/orderId/path",
+                          "value": {
+                            "kind": "response",
+                            "response": {
+                              "segments": [
+                                "p/openapi/components/schemas/Order/properties/id"
+                              ]
+                            }
+                          }
+                        }
+                      ],
+                      "body": {
+                        "kind": "request",
+                        "request": {}
+                      },
+                      "server": "server/openapi/paths/~1orders/post/responses/201/links/Replace/server",
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/links/Replace"
+                      }
+                    },
+                    {
+                      "name": {
+                        "source": "ByCustomer",
+                        "canonical": "by_customer"
+                      },
+                      "operation": "op/openapi/paths/~1orders~1{orderId}/get",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
+                          "value": {
+                            "kind": "request",
+                            "request": {
+                              "segments": [
+                                "p/openapi/components/schemas/OrderInput/properties/customer",
+                                "p/openapi/components/schemas/Customer/properties/id"
+                              ]
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/links/ByCustomer"
+                      }
+                    },
+                    {
+                      "name": {
+                        "source": "Audit",
+                        "canonical": "audit"
+                      },
+                      "operation": "op/openapi/paths/~1audit/post",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1audit/post/parameters/status/query",
+                          "value": {
+                            "kind": "status"
+                          }
+                        },
+                        {
+                          "param": "param/openapi/paths/~1audit/post/parameters/method/query",
+                          "value": {
+                            "kind": "method"
+                          }
+                        }
+                      ],
+                      "body": {
+                        "kind": "url"
+                      },
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/201/links/Audit"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "created"
                   },
                   "unmodeled": {
-                    "openapi:links": {
+                    "openapi:links/ByTag": {
                       "reason": "no_ir_home",
                       "value": {
-                        "GetOrder": {
-                          "operationId": "getOrder",
-                          "parameters": {
-                            "orderId": "$response.body#/id"
-                          }
+                        "operationId": "getOrder",
+                        "parameters": {
+                          "orderId": "$response.body#/tags/0"
                         }
                       },
                       "provenance": {
                         "source": 0,
-                        "pointer": "/paths/~1orders/post/responses/201/links"
+                        "pointer": "/paths/~1orders/post/responses/201/links/ByTag"
                       }
                     }
                   }
@@ -112,29 +350,84 @@
                       }
                     ]
                   },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Conflict",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "links": [
+                    {
+                      "name": {
+                        "source": "GetConflicting",
+                        "canonical": "get_conflicting"
+                      },
+                      "operation": "op/openapi/paths/~1orders~1{orderId}/get",
+                      "params": [
+                        {
+                          "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/orderId/path",
+                          "value": {
+                            "kind": "response",
+                            "response": {
+                              "segments": [
+                                "p/openapi/components/schemas/Conflict/properties/existingId"
+                              ]
+                            }
+                          }
+                        }
+                      ],
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1orders/post/responses/409/links/GetConflicting"
+                      }
+                    }
+                  ],
                   "fault": "client",
                   "docs": {
                     "description": "conflict"
-                  },
-                  "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "GetConflicting": {
-                          "operationId": "getOrder",
-                          "parameters": {
-                            "orderId": "$response.body#/existingId"
-                          }
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1orders/post/responses/409/links"
-                      }
-                    }
                   }
                 }
               ],
+              "default": {
+                "name": {
+                  "hint": "default"
+                },
+                "conditions": {
+                  "statusCodes": [
+                    {
+                      "from": 0,
+                      "to": 0
+                    }
+                  ]
+                },
+                "links": [
+                  {
+                    "name": {
+                      "source": "Retry",
+                      "canonical": "retry"
+                    },
+                    "operation": "op/openapi/paths/~1orders/post",
+                    "body": {
+                      "kind": "request",
+                      "request": {}
+                    },
+                    "docs": {},
+                    "provenance": {
+                      "source": 0,
+                      "pointer": "/paths/~1orders/post/responses/default/links/Retry"
+                    }
+                  }
+                ],
+                "docs": {
+                  "description": "unexpected"
+                }
+              },
               "oneWay": false,
               "idempotency": {},
               "bindings": {
@@ -142,6 +435,20 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/orders",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1orders/post/parameters/X-Request-Id/header",
+                        "location": "header",
+                        "wireName": "X-Request-Id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
                     "sharedRoute": false,
                     "checksumRequired": false
                   }
@@ -175,6 +482,40 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1orders~1{orderId}/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1orders~1{orderId}/get/parameters/verbose/query",
+                  "name": {
+                    "source": "verbose",
+                    "canonical": "verbose"
+                  },
+                  "type": {
+                    "target": "t/prim/bool",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders~1{orderId}/get/parameters/1"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1orders~1{orderId}/get/parameters/X-Request-Id/header",
+                  "name": {
+                    "source": "X-Request-Id",
+                    "canonical": "x_request_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders~1{orderId}/get/parameters/2"
                   }
                 }
               ],
@@ -212,6 +553,24 @@
                         "explode": false,
                         "allowReserved": false,
                         "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/verbose/query",
+                        "location": "query",
+                        "wireName": "verbose",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1orders~1{orderId}/get/parameters/X-Request-Id/header",
+                        "location": "header",
+                        "wireName": "X-Request-Id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "sharedRoute": false,
@@ -222,6 +581,206 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1orders~1{orderId}/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1orders~1{orderId}/put",
+              "name": {
+                "source": "replaceOrder",
+                "canonical": "replace_order"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1orders~1{orderId}/put/parameters/orderId/path",
+                  "name": {
+                    "source": "orderId",
+                    "canonical": "order_id"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1orders~1{orderId}/put/parameters/0"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/openapi/components/schemas/OrderInput",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/orders/{orderId}",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1orders~1{orderId}/put/parameters/orderId/path",
+                        "location": "path",
+                        "wireName": "orderId",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1orders~1{orderId}/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1audit/post",
+              "name": {
+                "source": "audit",
+                "canonical": "audit"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1audit/post/parameters/status/query",
+                  "name": {
+                    "source": "status",
+                    "canonical": "status"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1audit/post/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1audit/post/parameters/method/query",
+                  "name": {
+                    "source": "method",
+                    "canonical": "method"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1audit/post/parameters/1"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "text/plain",
+                    "type": {
+                      "target": "t/prim/string",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "recorded"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/audit",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1audit/post/parameters/status/query",
+                        "location": "query",
+                        "wireName": "status",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1audit/post/parameters/method/query",
+                        "location": "query",
+                        "wireName": "method",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "text/plain"
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1audit/post"
               }
             }
           ]
@@ -236,6 +795,263 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Order/properties/tags": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Order/properties/tags",
+      "name": {
+        "hint": "tags"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Order/properties/tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Conflict": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Conflict",
+      "name": {
+        "source": "Conflict",
+        "canonical": "conflict"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Conflict"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Conflict/properties/existingId",
+          "name": {
+            "source": "existingId",
+            "canonical": "existing_id"
+          },
+          "wireName": "existingId",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Conflict/properties/existingId"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Customer": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Customer",
+      "name": {
+        "source": "Customer",
+        "canonical": "customer"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Customer"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Customer/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Customer/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Order": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Order",
+      "name": {
+        "source": "Order",
+        "canonical": "order"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Order"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Order/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Order/properties/id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Order/properties/tags",
+          "name": {
+            "source": "tags",
+            "canonical": "tags"
+          },
+          "wireName": "tags",
+          "type": {
+            "target": "t/anon/components/schemas/Order/properties/tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Order/properties/tags"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/OrderInput": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OrderInput",
+      "name": {
+        "source": "OrderInput",
+        "canonical": "order_input"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OrderInput"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/OrderInput/properties/customer",
+          "name": {
+            "source": "customer",
+            "canonical": "customer"
+          },
+          "wireName": "customer",
+          "type": {
+            "target": "t/openapi/components/schemas/Customer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OrderInput/properties/customer"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -260,13 +1076,36 @@
       "provenance": {
         "source": 0
       }
+    },
+    "server/openapi/paths/~1orders/post/responses/201/links/Replace/server": {
+      "id": "server/openapi/paths/~1orders/post/responses/201/links/Replace/server",
+      "name": {
+        "hint": "https_write_example_com"
+      },
+      "urlTemplate": "https://write.example.com",
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/responses/201/links/Replace/server"
+      }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/untyped-link",
+      "message": "link \"ByTag\" reads /tags/0, which the response body's application/json content holds as no chain of members; it is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1orders/post/responses/201/links/ByTag"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "response-links.yaml",
-      "hash": "15ba7e8058c2731f060d6d93c0a9ec22aa2731add81e5a1a19372d16f72b169f"
+      "hash": "3a3c32c83b979b15d998a2f160de5f9ff30dd6718d7d90c0c70b9d62debec1c6"
     }
   ]
 }

@@ -59,7 +59,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 			name: "response links",
 			spec: openapitest.PathsSpec("  /x:\n    get:\n      responses:\n        \"200\":\n" +
 				"          description: ok\n          links: {l: {operationId: g, x-t: " + unpreservableValue + "}}\n"),
-			at: "/paths/~1x/get/responses/200/links",
+			at: "/paths/~1x/get/responses/200/links/l",
 		},
 		{
 			name: "residue keyword on a declaration",
@@ -230,7 +230,7 @@ paths:
       responses:
         "204":
           description: ok
-          links: {self: {operationId: p}}
+          links: {self: {operationId: p, requestBody: '$response.body#/id'}}
 `
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -247,11 +247,11 @@ paths:
 			seen[entry.Reason] = true
 		}
 	}
-	// The no_ir_home witness is the response's links, which ir.Response holds
-	// no field for (docs/compilers/openapi.md#links). It replaced a parameter's
-	// allowEmptyValue when the HTTP binding gained that field, so this reason
-	// rides on a lowering that still has no typed home rather than on one that
-	// just grew one.
+	// The no_ir_home witness is a link reading a member of a body the 204 does
+	// not describe, which no ir.LinkValue spells (docs/compilers/openapi.md#links).
+	// It replaced the response's links map when ir.Response gained a field for
+	// links, as that replaced a parameter's allowEmptyValue when the HTTP binding
+	// gained its field, so this reason rides on what still has no typed home.
 	responses := openapitest.FirstOp(t, svc).Responses
 	require.Len(t, responses, 1, "the operation must own the response writing links")
 	for _, entry := range responses[0].Unmodeled {

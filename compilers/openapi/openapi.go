@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -195,7 +196,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	lowered, svcDiags := operation.LowerService(ctx, c, ts, declared)
 	out.Auth = lowered.Auth
 	out.Services = []ir.Service{lowered.Service}
-	out.Servers = lowered.Servers
 	out.TagDefs = lowered.TagDefs
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: a coordinate a
@@ -211,6 +211,12 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 		return nil, acc.List(), err
 	}
 	out.Types = reg
+	// A link names operations and members anywhere in the service, so it is
+	// resolved once both are whole; a server it names registers then too, so
+	// the servers are read after it.
+	srv := servers.Reopen(lowered.Servers)
+	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
+	out.Servers = srv.Servers()
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version

@@ -142,32 +142,31 @@ instead; each is read no further than the byte budget. The member budget of an e
 [`enum-const`](#enum-const)'s.
 
 `MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
-and size the budgets above leave free. A declaration a `$ref` names, a schema or a link aside,
-lowers again at each `$ref` naming it, so each such `$ref` is charged what the declarations its
-chain names weigh: the one it ends at, and each component alias it passes through, whose fields
-beside its own `$ref` lower at every use too
-([`reference-object-siblings`](#reference-object-siblings),
+and size the budgets above leave free. A declaration a `$ref` names, a schema aside, lowers again at
+each `$ref` naming it, so each such `$ref` is charged what the declarations its chain names weigh:
+the one it ends at, and each component alias it passes through, whose fields beside its own `$ref`
+lower at every use too ([`reference-object-siblings`](#reference-object-siblings),
 [`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
 YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
 holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
 schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
-copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
-link's is kept as written, so neither is charged. A path item's operations copy what the item
-declares itself. Its fixed methods bound those copies, and OpenAPI 3.2's `additionalOperations` does
-not, so each operation that field declares is charged too, the first among them, which charges an
-item the same in any order of its entries: an inline parameter of the item that it takes, weighed in
-the document writing it as a `$ref`'s declaration is, the entries it keeps of the item, a byte for
-each byte of their keywords and raw values and one between, the item's summary and description its
-`PathDocs` holds ([`path-item-docs`](#path-item-docs)), a byte for each byte of their keywords and
-text and one between, and the IDs of the item's servers where it names none of its own
-([`path-item-servers`](#path-item-servers)). Past the budget no `$ref` lowers, nor such an
-operation, and the compile is refused as one `openapi/budget-exceeded` error at the source and no
-position in it, compiling to no Document, beside what the load phase found and nothing the lowering
-did: which copy crossed the budget, and so what lowered before it, follows the walk's order. With no
-Document to list the documents `$ref`s read, what the load phase found in one of them is left out
-too.
+copy, a link's among them, since each response naming one lowers its own. A schema's `$ref` names
+one registry entry ([`schema-registry`](#schema-registry)), so it is not charged. A path item's
+operations copy what the item declares itself. Its fixed methods bound those copies, and OpenAPI
+3.2's `additionalOperations` does not, so each operation that field declares is charged too, the
+first among them, which charges an item the same in any order of its entries: an inline parameter of
+the item that it takes, weighed in the document writing it as a `$ref`'s declaration is, the entries
+it keeps of the item, a byte for each byte of their keywords and raw values and one between, the
+item's summary and description its `PathDocs` holds ([`path-item-docs`](#path-item-docs)), a byte
+for each byte of their keywords and text and one between, and the IDs of the item's servers where it
+names none of its own ([`path-item-servers`](#path-item-servers)). Past the budget no `$ref` lowers,
+nor such an operation, and the compile is refused as one `openapi/budget-exceeded` error at the
+source and no position in it, compiling to no Document, beside what the load phase found and nothing
+the lowering did: which copy crossed the budget, and so what lowered before it, follows the walk's
+order. With no Document to list the documents `$ref`s read, what the load phase found in one of them
+is left out too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`, `openapi/pointer-amplification`
@@ -847,20 +846,20 @@ kept.
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
 chain lands on, and the retention runs after every other lowering and keeps what that record lacks.
-A `$ref` written where nothing follows it — in a response's verbatim `links` map, under an `x-`
-extension, inside an example's literal value, inside an entry that is itself not lowered — carries
-nothing of its target into the IR, so the target is kept; and a reference spelled another way than
+A `$ref` written where nothing follows it — under an `x-` extension, inside an example's literal
+value, inside an entry that is itself not lowered — carries nothing of its target into the IR, so
+the target is kept; and a reference spelled another way than
 its target's key, percent-encoded or naming this document by its file, still reaches the entry it
 resolves to, so that entry is not kept beside its lowering. Deciding this from the `$ref` strings
 instead would answer both questions by a reading of its own, and wrongly: it drops the first kind of
 target in silence and gives the second two homes. The record is written by lowerings that never read
 it, so it cannot change their answers or depend on their order.
 
-`no_ir_home` rather than a boundary, and no diagnostic, are the links precedent generalized: the gap
-is one the IR can close by finding a use for the entry, so a promotion pass should read it, and a
-document that declares a component is not making a mistake a warning could name. `Reason` is where
-that decision lives ([unmodeled](../ir/unmodeled.md#reasons)), which is what keeps a
-promotion pass from mistaking one for an oversight.
+`no_ir_home` rather than a boundary, and no diagnostic: the gap is one the IR can close by finding a
+use for the entry, so a promotion pass should read it, and a document that declares a component is
+not making a mistake a warning could name. `Reason` is where that decision lives
+([unmodeled](../ir/unmodeled.md#reasons)), which is what keeps a promotion pass from mistaking one
+for an oversight.
 
 - Cases: `unreferenced-components`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`
@@ -1051,8 +1050,9 @@ A Reference Object's own siblings are the annotations of the use site. OpenAPI l
 writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use* of
 the referenced object rather than the object. Where the IR has a docs field at the position — a
 parameter, a response or error case, a header, an example, a request body, a security scheme, a
-body's media type — both are read off the entry and folded over the declaration's docs field by
-field, a sibling the entry writes winning and one it omits leaving the declaration's value standing.
+body's media type, a link — both are read off the entry and folded over the declaration's docs field
+by field, a sibling the entry writes winning and one it omits leaving the declaration's value
+standing.
 A parameter's or header's content entry has no docs field of its own, so what the fold takes there
 is kept verbatim under `no_ir_home`, each from the position writing it, with an info
 `openapi/degraded-construct`; one an alias of the chain writes in another document, which this
@@ -1073,7 +1073,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
-  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
+  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`,
+  `operation.TestLinks_UseSiteDocsFoldOverTheDeclaration`
 - Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
   no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
   declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
@@ -3990,13 +3991,63 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
 
 ### `links`
 
-A response's `links` are kept verbatim under `openapi:links` (`no_ir_home`), with no diagnostic, on
-the `Response` and the `ErrorCase` alike: the two are lowerings of one Response Object, so a
-construct kept on only the success one would make a declaration survive or vanish on nothing but its
-status code. The gap is one the IR can close, so a promotion pass may read the entry later.
+A response's `links` lower to `Links` on the `Response`, the `ErrorCase` or the `Default` that
+carries them, in source order ([links](../ir/responses.md#links)): the three are lowerings of one
+Response Object, so a construct kept on only one would make a declaration survive or vanish on its
+status code alone. A link is resolved once every operation has lowered and the type registry is
+whole, since it may name an operation declared after it and a member of a type the registry builds
+last. Each `$ref` in the map is followed, so the `components/links` entry it names lowers there and
+is not also kept on the document ([`unreferenced-components`](#unreferenced-components)), and the
+`summary` and `description` beside it fold over the link's docs
+([`reference-object-siblings`](#reference-object-siblings)).
+
+1. Its target is the operation its `operationId` names, or the one its `operationRef` points to
+   in this document: the operation mounted at that position, else the one declared there when it is
+   mounted once.
+2. Each `parameters` key names a parameter of the target: as `<in>.<name>`, or as a name alone that
+   one parameter carries, a header's matched in any case. Each parameter is given one value.
+3. Each value, and the `requestBody`, is a constant, or a runtime expression written whole. `$url`,
+   `$method` and `$statusCode` lower to their kinds; `$request.<path|query|header>.<name>` to the
+   parameter the operation answered binds there; `$response.header.<name>` to the one header the
+   response declares under that name in any case; and a `body` reference to the body whole, or to
+   the chain of members its pointer walks from the root of every content of that body, which every
+   content must walk alike.
+4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
+   keys stay on it.
+
+A link that does not lower whole is kept verbatim on its response under `openapi:links/<name>`
+(`no_ir_home`), as it resolved, with a finding at its entry in the links map:
+
+1. An `openapi/invalid-link` warning when it names its operation both ways or neither, or by an
+   `operationRef` that is no JSON pointer, or its target, a parameter it names or a value it reads
+   names nothing the document declares or names it more than once, or a value breaks the
+   runtime-expression grammar or reads a response's query or path.
+2. An `openapi/untyped-link` info when the link is sound but reads what no link value spells: an
+   operation of another document or one mounted more than once, a request value no parameter of the
+   operation answered binds, a header the response does not declare once, a body the document does
+   not describe, a member reached through an array index, a map, a union or any type but a model,
+   members the contents of a body disagree on, a string an expression is substituted into, whether
+   the expression keeps the grammar or not and whether the string is the value or sits within a
+   list or an object the value holds, or a constant the IR has no value for.
 
 - Cases: `response-links`
-- Status: not built: no IR field holds a link yet (#669).
+- Codes: `openapi/invalid-link`, `openapi/untyped-link`
+- Tests: `operation.TestLinks_AFindingKeepsTheLinkWhole`, `operation.TestLinks_ResolvedFormsLower`,
+  `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
+  `operation.TestLinks_ASharedResponseResolvesPerOperation`,
+  `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
+  `operation.TestLinks_AHeaderTwoCasesDeclareIsNeither`,
+  `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`,
+  `operation.TestLinksResolve_IndexesEachListOnce`,
+  `operation.TestLinksResolve_AllocatesLinearInWhatItReads`,
+  `operation.TestParseExpression_ReadsTheGrammar`,
+  `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
+  `operation.TestEmbedsExpression_AllocatesNothing`,
+  `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
+- Status: partly built: a key beside a link's `$ref` other than `summary` and `description` is
+  dropped with no record, as beside any other reference (#1321). A body whose media types hold
+  distinct models composing one wide model costs a link reading it their number times that width
+  (#1723).
 
 ## 12. Webhooks and callbacks
 
@@ -4184,9 +4235,9 @@ service, `openapi:paths/x-*`; on each operation, the path item's `openapi:pathIt
 `openapi:itemEncoding/x-*`; on a schema's node, `openapi:xml/x-*`, `openapi:discriminator/x-*` and
 `openapi:externalDocs/x-*`; and on a security scheme, `openapi:flows/x-*`. `<part>` and `<name>` are
 escaped as RFC 6901 tokens, so a name the document chooses stays one segment
-([unmodeled](../ir/unmodeled.md#keys)). A Link Object's own extensions ride inside the
-verbatim `links` entry rather than taking a key beside it, and a path item that mounts no operation
-keeps its own under `openapi:pathItem/<item pointer>/x-*`
+([unmodeled](../ir/unmodeled.md#keys)). A Link Object lowers to a link that holds its own, and one
+kept verbatim keeps them inside its `openapi:links/<name>` entry ([`links`](#links)); a path item
+that mounts no operation keeps its own under `openapi:pathItem/<item pointer>/x-*`
 ([`path-item-servers`](#path-item-servers)). An extension whose value converts to no JSON reaches
 the IR in no form, reported as an `openapi/degraded-construct` warning at the object holding it.
 

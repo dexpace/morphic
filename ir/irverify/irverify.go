@@ -170,6 +170,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkWebhookRoutes,
 		checkCallbacks,
 		checkInteractions,
+		checkLinkValues,
 	}
 }
 

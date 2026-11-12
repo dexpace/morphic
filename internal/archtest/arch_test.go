@@ -368,9 +368,10 @@ var rules = map[string][]string{
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
-	// requirements it reads and nodeview for the raw nodes behind the model, and
-	// nothing above itself — the compiler assembles the document from what this
-	// returns rather than the other way round.
+	// requirements it reads, nodeview for the raw nodes behind the model and
+	// value for the constants a link passes, and nothing above itself — the
+	// compiler assembles the document from what this returns rather than the
+	// other way round.
 	"compilers/openapi/internal/operation": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/auth",
@@ -382,6 +383,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
 		module + "/compilers/openapi/internal/servers",
+		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},
 	// What a document says about itself: its info, and what the objects around
 	// it write that lowers to no node of its own. It runs after both walks and

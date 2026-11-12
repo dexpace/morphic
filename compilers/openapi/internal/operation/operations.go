@@ -22,13 +22,14 @@ import (
 // LowerService lowers one document's service, its operations grouped per the
 // configured strategy (docs/ir/services.md), and its declared tags. It returns
 // them beside every server it registers, every scheme in declared with each
-// unresolved one a requirement names, and the Document's kept entries.
+// unresolved one a requirement names, the Document's kept entries and its
+// links.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
-// the two loops between path items and returns the groups filled so far; the
+// both loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
-// rather than assembling a Document out of them.
+// rather than assembling a Document from them.
 func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declared map[ir.AuthID]ir.AuthScheme) (Lowered, []ir.Diagnostic) {
 	reg := servers.NewRegistry()
 	schemes := auth.RegistryOf(c, declared)
@@ -54,7 +55,10 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
-	w := walk{types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes, kept: newKeptOnce()}
+	w := walk{
+		types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes,
+		kept: newKeptOnce(), links: &Links{},
+	}
 	diags = append(diags, lowerPaths(ctx, c, w, groups, &svc)...)
 	diags = append(diags, lowerWebhooks(ctx, c, w, groups, &svc)...)
 	// After both walks: whether an operationId is unique is a question about
@@ -67,32 +71,37 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, declar
 		Servers: reg.Servers(),
 		Auth:    schemes.Schemes(),
 		Kept:    w.kept.entries,
+		Links:   *w.links,
 	}, diags
 }
 
 // Lowered is what LowerService builds from one document. Each field is the
-// Document field of its name, bar Service, the one entry of Services, and Kept,
-// entries for the Document's Unmodeled.
+// Document field of its name, bar Service, the one entry of Services, Kept,
+// entries for the Document's Unmodeled, and Links, which Links.Resolve lowers
+// onto Service once the type registry is whole.
 type Lowered struct {
 	Service ir.Service
 	TagDefs []ir.TagDef
 	Servers map[ir.ServerID]ir.Server
 	Auth    map[ir.AuthID]ir.AuthScheme
 	Kept    ir.Unmodeled
+	Links   Links
 }
 
 // walk is what lowering a service's operations accumulates across all of them,
 // whichever route mounts each: the type registry, the operationId claims judged
 // once every operation has lowered, the server registry a path item's and an
 // operation's servers go into, the scheme registry a requirement's names go
-// into, and what the walk keeps for the Document. One is built per service and
-// handed down by value, since each field is the shared accumulator itself.
+// into, what the walk keeps for the Document, and the links resolved once the
+// service is whole. One is built per service and handed down by value, since
+// each field is the shared accumulator itself.
 type walk struct {
 	types   *compile.Types
 	claims  *operationIDClaims
 	servers *servers.Registry
 	schemes *auth.Registry
 	kept    *keptOnce
+	links   *Links
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is

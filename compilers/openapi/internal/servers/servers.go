@@ -41,6 +41,15 @@ func NewRegistry() *Registry {
 	return &Registry{byID: map[ir.ServerID]ir.Server{}}
 }
 
+// Reopen returns a Registry holding a copy of held, the servers an earlier
+// Registry returned, so a lowering after it registers beside them and never
+// into the caller's map.
+func Reopen(held map[ir.ServerID]ir.Server) *Registry {
+	byID := make(map[ir.ServerID]ir.Server, len(held))
+	maps.Copy(byID, held)
+	return &Registry{byID: byID}
+}
+
 // Root registers the document's own servers and returns their IDs in source
 // order: the servers its service is sent to. A document whose servers field is
 // absent or empty is served at "/", which OpenAPI supplies in its place and
@@ -81,20 +90,27 @@ func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.P
 		if s == nil {
 			continue
 		}
-		at := owner + ids.Ptr("servers", strconv.Itoa(i))
-		id := c.IDs().Server(at)
+		id, serverDiags := r.At(c, s, owner+ids.Ptr("servers", strconv.Itoa(i)))
 		out = append(out, id)
-		if _, held := r.byID[id]; held {
-			continue
-		}
-		one, serverDiags := lowerServer(c, s, id, at)
-		r.byID[id] = one
 		diags = append(diags, serverDiags...)
 	}
 	if len(out) == 0 {
 		return nil, diags
 	}
 	return out, diags
+}
+
+// At registers the server s declared at at and returns its ID, lowering it
+// the first time any mount reaches it. c is the context of the document
+// declaring it, as for Declared. A Link Object's server is one no list holds.
+func (r *Registry) At(c lowering.Ctx, s *soa.Server, at jsontext.Pointer) (ir.ServerID, []ir.Diagnostic) {
+	id := c.IDs().Server(at)
+	if _, held := r.byID[id]; held {
+		return id, nil
+	}
+	one, diags := lowerServer(c, s, id, at)
+	r.byID[id] = one
+	return id, diags
 }
 
 // Servers returns a copy of the registry, or nil when nothing was registered,

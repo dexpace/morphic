@@ -100,11 +100,13 @@ func TestLowerResponses_NoResponses(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	op := &ir.Operation{}
-	diags := lowerResponses(l.ctx, l.serviceWalk(), op, &soa.Operation{}, "/op")
+	w := l.serviceWalk()
+	diags := lowerResponses(l.ctx, w, op, &soa.Operation{}, "/op")
 	assert.Nil(t, op.Responses)
 	assert.Nil(t, op.Errors)
 	assert.Nil(t, op.Default)
 	assert.Empty(t, diags)
+	assert.Empty(t, w.links.pending, "no response drafts a link")
 }
 
 // TestFaultFor_ClassifiesAtTheClassBoundaries pins where one HTTP class ends and

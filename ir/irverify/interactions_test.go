@@ -12,49 +12,71 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// TestVerify_AnInputPathNamesARequestValue pins ir/input-path-empty and
-// ir/input-body-absent at every carrier of an input path: a pagination input and
-// a stream's condition each name a parameter, or a member of a body the
-// operation sends, and one naming neither, or a member of a body it does not
-// send, is reported at the path itself.
+// TestVerify_AnInputPathNamesARequestValue pins ir/input-body-absent at every
+// carrier of an input path: a pagination input, a stream's condition and a
+// link's value each name a parameter, or the body the operation sends or a
+// member of it, and one reading the body of an operation sending none is
+// reported at the path itself.
 func TestVerify_AnInputPathNamesARequestValue(t *testing.T) {
 	t.Parallel()
 	const op = "doc.Services[0].Groups[0].Operations[0]"
 	param := ir.ParamID("param/x/S/op/cursor")
 	body := ir.InputPath{Segments: []ir.PropID{"p/x/Body/cursor"}}
+	// Each value holds a path of its own: the walk enters a pointer once.
+	link := func(v ir.InputPath) []ir.OperationLink {
+		inParam, inBody := v, v
+		return []ir.OperationLink{{
+			Operation: "op/x/S/op",
+			Params:    []ir.LinkParam{{Value: ir.LinkValue{Kind: ir.LinkRequest, Request: &inParam}}},
+			Body:      &ir.LinkValue{Kind: ir.LinkRequest, Request: &inBody},
+		}}
+	}
 	for _, tc := range []struct {
-		name            string
-		edit            func(*ir.Operation)
-		empty, bodyless []string
+		name     string
+		edit     func(*ir.Operation)
+		bodyless []string
 	}{
 		{"a parameter", func(o *ir.Operation) {
 			o.Pagination = &ir.Pagination{InputCursor: &ir.InputPath{Param: &param}}
-		}, nil, nil},
-		{"a member of the body sent", func(o *ir.Operation) {
+			o.Default = &ir.Response{Links: link(ir.InputPath{Param: &param})}
+		}, nil},
+		{"the body sent and a member of it", func(o *ir.Operation) {
 			o.Request = &ir.Payload{}
-			o.Pagination = &ir.Pagination{InputCursor: &body}
+			o.Pagination = &ir.Pagination{InputCursor: &body, InputLimit: &ir.InputPath{}}
 			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
-		}, nil, nil},
+			o.Responses = []ir.Response{{Links: link(ir.InputPath{})}}
+			o.Errors = []ir.ErrorCase{{Links: link(body)}}
+		}, nil},
 		{"a member of no body, as a cursor", func(o *ir.Operation) {
 			o.Pagination = &ir.Pagination{InputCursor: &body}
-		}, nil, []string{op + ".Pagination.InputCursor"}},
+		}, []string{op + ".Pagination.InputCursor"}},
 		{"a member of no body, as a stream's condition", func(o *ir.Operation) {
 			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: body}}
-		}, nil, []string{op + ".ResponseStream.Condition.Input"}},
-		{"neither, as a cursor", func(o *ir.Operation) {
+		}, []string{op + ".ResponseStream.Condition.Input"}},
+		{"no body whole, as a limit", func(o *ir.Operation) {
 			o.Pagination = &ir.Pagination{InputLimit: &ir.InputPath{}}
-		}, []string{op + ".Pagination.InputLimit"}, nil},
-		{"neither, as a stream's condition", func(o *ir.Operation) {
+		}, []string{op + ".Pagination.InputLimit"}},
+		{"no body whole, as a stream's condition", func(o *ir.Operation) {
 			o.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Value: ir.Value{Kind: ir.ValueBool, Bool: true}}}
-		}, []string{op + ".ResponseStream.Condition.Input"}, nil},
+		}, []string{op + ".ResponseStream.Condition.Input"}},
+		{"no body, as a link's values", func(o *ir.Operation) {
+			o.Responses = []ir.Response{{Links: link(body)}}
+			o.Errors = []ir.ErrorCase{{Links: link(ir.InputPath{})}}
+			o.Default = &ir.Response{Links: link(body)}
+		}, []string{
+			op + ".Default.Links[0].Body.Request",
+			op + ".Default.Links[0].Params[0].Value.Request",
+			op + ".Errors[0].Links[0].Body.Request",
+			op + ".Errors[0].Links[0].Params[0].Value.Request",
+			op + ".Responses[0].Links[0].Body.Request",
+			op + ".Responses[0].Links[0].Params[0].Value.Request",
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			o := ir.Operation{ID: "op/x/S/op"}
 			tc.edit(&o)
-			vs := irverify.Verify(opDoc(o))
-			assert.Equal(t, tc.empty, violationPaths(vs, "ir/input-path-empty"))
-			assert.Equal(t, tc.bodyless, violationPaths(vs, "ir/input-body-absent"))
+			assert.Equal(t, tc.bodyless, violationPaths(irverify.Verify(opDoc(o)), "ir/input-body-absent"))
 		})
 	}
 }

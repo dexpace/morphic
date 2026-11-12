@@ -216,6 +216,7 @@ type ErrorCase struct
 	"fault" string omitempty
 	"headers" []Header omitempty
 	"inferred" Inferred omitempty
+	"links" []OperationLink omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"retryable" *bool omitzero
@@ -345,6 +346,24 @@ type License struct
 type Link struct
 	"description" string omitempty
 	"url" string omitempty
+
+type LinkParam struct
+	"param" ParamID
+	"value" LinkValue
+
+type LinkValue struct
+	"constant" *Value omitzero
+	"kind" LinkValueKind
+	"request" *InputPath omitzero
+	"response" *PropPath omitzero
+
+type LinkValueKind string
+	const "constant"
+	const "method"
+	const "request"
+	const "response"
+	const "status"
+	const "url"
 
 type List struct
 	embed TypeCommon
@@ -500,6 +519,16 @@ type OperationGroup struct
 	"operations" []Operation omitempty
 	"resource" *ResourceInfo omitzero
 	"stability" Stability omitempty
+	"unmodeled" Unmodeled omitempty
+
+type OperationLink struct
+	"body" *LinkValue omitzero
+	"docs" Docs
+	"name" Naming
+	"operation" OpID
+	"params" []LinkParam omitempty
+	"provenance" Provenance
+	"server" *ServerID omitzero
 	"unmodeled" Unmodeled omitempty
 
 type PageStop string
@@ -692,6 +721,7 @@ type Response struct
 	"conditions" ResponseConditions
 	"docs" Docs
 	"headers" []Header omitempty
+	"links" []OperationLink omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"statusCodeProp" *PropPath omitzero

@@ -447,3 +447,15 @@ it sees. Changes made together in one bump are listed together under it.
   pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
   there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
   instead.
+- **0.44.0** — a response's links gained a typed home ([links](./responses.md#links)):
+  - `Response` and `ErrorCase` gained `Links`, each an `OperationLink` naming the operation it leads
+    to, the value it gives each of that operation's parameters and its body, and the server it is
+    called on. A `LinkValue` is a constant, the URL, method or status of the exchange, or a value of
+    the request answered or of the response, as an `InputPath` or a `PropPath`.
+  - An `InputPath` with neither a parameter nor a segment is the request body whole, which
+    `ir/input-path-empty` had refused; that check is gone, and `ir/input-body-absent` holds the
+    path, a link's among them, to an operation that sends a body.
+  - The OpenAPI compiler lowers a link it resolves whole and keeps any other verbatim under
+    `openapi:links/<name>`, with an `openapi/invalid-link` or `openapi/untyped-link` finding, where it
+    had kept the whole map under `openapi:links`. A consumer pinned to 0.43.0 refuses a document with
+    a link, and finds no `openapi:links` entry where it read one.

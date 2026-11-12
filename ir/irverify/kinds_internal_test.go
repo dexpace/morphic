@@ -31,7 +31,7 @@ func TestOperationPath_ListsEveryCarrier(t *testing.T) {
 		"Operation":       1,
 		"OperationGroup":  2,
 		"Service":         1,
-		"InputPath":       3,
+		"InputPath":       4,
 		"Pagination":      1,
 		"StreamDetail":    2,
 		"StreamCondition": 1,
