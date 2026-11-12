@@ -67,7 +67,9 @@ type DiscrimFacts struct {          // Mapping/Default resolved to TypeIDs, neve
     Locator  DiscrimLocator         // property | property_name | index
     WireKey  string                 // wire name of the tag property ("" when Locator == index)
     Index    *int                   // positional tag element (Erlang tagged tuples); nil otherwise
-    Mapping  map[string]ir.TypeID   // wire tag value → variant ID
+    Mapping  map[string]ir.TypeID   // wire tag value → variant ID: every route, those a union's nil
+                                    // Mapping leaves to its variants' type names written out
+                                    // (../refine/unions.md#the-tag-a-variants-value-carries)
     Default  ir.TypeID              // variant for absent/unrecognized tag; "" = none
     Envelope string                 // "" = inline tag | "object" = {kind,value} wrapper
     EnvelopeValueName string        // wire name of the envelope value property (Envelope=="object")

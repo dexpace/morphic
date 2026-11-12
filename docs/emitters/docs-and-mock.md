@@ -390,7 +390,10 @@ member and operation:
   serves a create shape, a patch body's may leave out a required member, and, with `Assemble` on,
   every required member's set holding a value and no `Strict` union left ambiguous by the shape, no
   shape is left without one. `Build` refuses a union value several variants admit where the union is
-  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and `Shown` shows
+  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
+  discriminated union that the variant its tag routes to does not admit, whichever other variant
+  does, since decoding reads it by its tag
+  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows
   such a value elsewhere through all of them, keeping each member one of them holds in the shape,
   since an inclusive value may be several variants at once. A shape can make a value two variants of
   a `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
@@ -479,8 +482,17 @@ member and operation:
   it adds no constraint to it, and is otherwise synthesized as that union. So
   `rulesets_ResponseRule`'s value is one of its union's rules carrying the five members it requires,
   its `action`, which the model redeclares as a plain string, taking the value the variant's own
-  declaration pins, the tag routing to that variant. Which tag a value of a variant pinning none
-  carries is #1735's to settle.
+  declaration pins, the tag routing to that variant. A value synthesized as a variant of a
+  discriminated union, whatever unions lie between, holds at the tag's member one of that variant's
+  own tags ([unions](refine/unions.md#the-tag-a-variants-value-carries)): the first of them in the
+  member's own set where its declarations pin one, and otherwise the first in the byte order of
+  their texts, as a value of the member's type, and `plan.Shown` fills a tag a shape requires and
+  an example lacks the same way. A variant with no own tag takes the first value of its member's
+  set that routes to no variant, and has no example where the member is required and its set holds
+  none, which is reported as `emitters/plan/example-unsynthesized`. So a synthesized
+  `nsc_Interconnect` carries `direct` or `gcp_partner` as its `type`, which its variants leave a
+  plain string, and a value of either variant of `infra_ServiceConfig`, whose shared base lists
+  both tags, the one routing to it.
 - **Stable.** Each choice the synthesizer makes, such as which enum member, which variant or which
   entry of a model narrowing a union, is seeded from the entity's [correlation
   key](../ir/derived-facts.md#correlation-keys), or from its ID where no key identifies it, save on

@@ -27,7 +27,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Visibility` sets | N structs from `ModelShape`; PATCH → optional |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable ([recursive references](models.md#recursive-references)) |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories |
+| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories + a `MarshalJSONTo` writing each variant's tag ([unions](unions.md#discriminators)) |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy |
 | `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; direction from core, framing from plan |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy |
@@ -54,7 +54,7 @@ lowers to in Go.
 | `LowerOptionality` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer ([recursive references](models.md#recursive-references)) |
 | `LowerConstraints` | field-level `validate` tags + a refine-built `Validate()` method structure |
 | `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one; on an inclusive union, a struct with a pointer per variant |
-| `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories |
+| `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories + a `MarshalJSONTo` writing each variant's tag |
 | `LowerOpenEnums` | closed → typed consts; open → consts+`Unknown(raw)`; flags → bitset; each over the value type's row, or the wire text where it has no constants |
 | `ExtractInterfaces` | Go interfaces / client interfaces for testability |
 | `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy |

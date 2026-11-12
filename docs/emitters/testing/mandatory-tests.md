@@ -589,6 +589,19 @@ throughout these documents.
     over a long composition and one over unions nested deep, each beside one leaf, which `Build`
     reports as `emitters/plan/composed-limit`, each draw a diagnostic and degrade
     ([inheritance](../refine/models.md#inheritance)).
+63. **T-63 · The tag a variant's value carries** — on every target, a discriminated union whose
+    variants leave the tag a plain string encodes a variant built with that member unset, or set to
+    another variant's tag, with the one tag routing to it, and decodes the result as that variant; a
+    variant two tags route to writes the one its value holds and refuses, with a coded error, a
+    value holding neither; a variant pinning its tag as a number is routed by that number's text; a
+    variant that is a union carries the outer union's tag in the object its value is, added where
+    that object has no such member; and a variant no tag routes to decodes by recognition, after
+    `Default`, and refuses to encode a value carrying another variant's tag. Every example the plan
+    synthesizes for a variant, and every member `plan.Shown` fills, carries one of that variant's
+    own tags and decodes as the variant it was made from, one whose member's set lists another
+    variant's tag first among them, and a declared example that the variant its tag routes to does
+    not admit is `emitters/plan/example-refused`
+    ([unions](../refine/unions.md#the-tag-a-variants-value-carries)).
 65. **T-65 · A declaration no operation moves** — adding to a fixture an operation that returns an
     enum, a union, a polymorphic base and a model narrowing a union until then only sent, and
     removing the one operation returning others, changes no declaration on any target: each is

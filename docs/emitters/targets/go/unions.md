@@ -103,6 +103,16 @@ pins for itself ([`User`](models.md#user-in-go)). `ir/json.go` is the worked exa
 `(*TypeRegistry).UnmarshalJSONFrom` buffers each entry, `stringMember` finds the `kind` tag by token
 scan, and `decodeTypeDef` decodes the concrete kind under the decoder's options.
 
+`MarshalJSONTo` writes a variant's tag as [the shared
+rule](../../refine/unions.md#the-tag-a-variants-value-carries) says. Where a variant with one own
+tag is a struct declaring the member and its wrapper holds it by value, the method sets the field on
+its copy and writes that straight to the encoder. For any other variant with one, a union, a struct
+its wrapper holds through a pointer, which a copy would write through to the caller's value, or one
+declaring no such member, it encodes the variant under `enc.Options()` and writes the object out
+again with the tag at its member, or first where the object has none, reading it once and decoding
+nothing beneath it. A variant with several own tags, or with none, is written as it stands once its
+tag is checked.
+
 ## `Payment` in Go
 
 The IR and the plan are in [unions](../../refine/unions.md#a-discriminated-union).

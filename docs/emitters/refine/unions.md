@@ -196,10 +196,12 @@ The designs this was weighed against:
 
 All four wire shapes decode in one order: the variant the tag or the key names, or the one
 recognition finds; then `Discriminator.Default`, for a tag it does not name or no tag at all; then,
-on an `Open` union ([plan policy](../plan/policy.md)), the fallback; and otherwise a coded decode
-error. A tag that names a variant whose body fails to decode is an error either way: the variant is
-known, and the value does not match it. The fallback is one more variant, `Unknown`, holding the
-value as the target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
+on a discriminated union, the one recognition finds among the variants no tag routes to
+([below](#the-tag-a-variants-value-carries)); then, on an `Open` union ([plan
+policy](../plan/policy.md)), the fallback; and otherwise a coded decode error. A tag that names a
+variant whose body fails to decode is an error either way: the variant is known, and the value does
+not match it. The fallback is one more variant, `Unknown`, holding the value as the target's untyped
+JSON value ([Go](../targets/go/unions.md#the-fallback),
 [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its
 members in order and each number's text intact. It has no factory, since only a response produces
 one, and one a caller sends back goes out as it came. A closed union declares none.
@@ -215,6 +217,64 @@ native vs wrapper is the refiner's. A tag that selects no variant takes the orde
 
 A discriminator's tag is the wire string the mapping names, a numeric-looking one included
 (`"10016"`): a target compares it as a string and never parses it as a number.
+
+## The tag a variant's value carries
+
+A value of a variant has to decode as that variant, so the tag it carries is one the discriminator
+routes there. A tag routes to a variant where `Discrim.Mapping` names the variant under it, compared
+as the wire text above. The plan writes a union's routes out: the entries of the IR's `Mapping`, or,
+where the IR leaves it nil, each variant under the source name of its type, the name OpenAPI's
+implicit mapping routes by, which an anonymous variant lacks
+([discriminator](../../ir/models.md#discriminator)). What a mapping naming some variants implies for
+the others is #1702's to decide, and until then such a variant has the routes the IR states, none.
+
+A variant's own tags are the tags routing to it that its tag member admits: every declaration of the
+member in the variant's flattening, the one it takes and those it overrides, admits the value of the
+member's type whose wire text is the tag, a string's characters or a number's literal. So a variant
+pinning `code` to the number `10016` owns the tag `10016`, and one whose base lists `http` and `tcp`
+owns only the one of them that routes to it. A variant declaring no such member admits every tag. A
+variant that is a union, or a model narrowing one, is read through: a value of it is a value of one
+of its variants, which owns the tags of the outer variant its own member admits. The member is the
+property the discriminator names, or the tuple element at its `Index`. Where the tag sits outside
+the variant's value, in an `Envelope` or as the one key of a key-tagged union, no declaration admits
+or refuses it, so every tag routing to a variant is its own, a key-tagged variant's being its wire
+name. A polymorphic base routes a subtype by its `DiscriminatorValue` as well as by its `Mapping`
+([discriminator](../../ir/models.md#discriminator)), and the subtype owns each of those its member
+admits.
+
+- **Encoding.** A variant with one own tag writes it at the tag's member, whatever the value holds
+  there, and adds the member where the variant declares none: the variant fixes its tag, so a caller
+  need not set it, and a value built with the member unset does not go out with a tag nothing
+  routes. A variant with several, as an alias in the mapping gives one, writes the tag its value
+  holds, and a value holding none of them is a coded encode error, never a pick among them; in an
+  envelope, where no member says which, it writes the first in the byte order of their texts, as the
+  compiler elects a subtype's `DiscriminatorValue`. A variant with none, one `Default` names or one
+  no tag routes to, writes its value as held, and a value whose tag routes to another variant is a
+  coded encode error, since decoding would hand it to that one. So an encoded value decodes back to
+  the variant that wrote it. A factory takes the variant's value and sets nothing.
+- **Examples.** A value the plan synthesizes for a variant, and a member `plan.Shown` fills, takes
+  the tag by the same rule ([one set of examples](../docs-and-mock.md#one-set-of-examples)), and a
+  declared example is checked as decoding reads it, by the variant its tag routes to.
+
+A variant no tag routes to is still a variant some value takes, so decoding finds it by recognition,
+as an untagged union finds a variant ([above](#variant-identity-and-recognition)), among the
+variants no tag routes to and after `Default` ([a value no variant
+recognizes](#a-value-no-variant-recognizes)). Without that step no value would decode as it: on the
+golden spec (spec @bc6fad24, morphic @fa253fe19), 5 of the 145 unions a property name routes declare
+no mapping over two inline variants, the `calculations` of the `workers-observability` query bodies,
+each variant pinning `operator` to several values, so the IR routes nothing to either. Of the 586
+routes of the other 140, 575 lead to a variant that pins the tag, 34 of them as a number, 10 to one
+leaving the member a plain string, as `nsc_Interconnect`'s two do, and one to a union. Two variants,
+those of `infra_ServiceConfig`, admit both `http` and `tcp` through a base they share, and 5
+variants own several tags, 50 between them.
+
+Writing the tag a value holds, as an encoder that only copies the member does, was the rule this
+replaces: a `nsc_Interconnect` variant built with `type` unset went out as `"type": ""`, which no
+route reads, and one synthesized from the member's own set carried a string routing nowhere, or, for
+`infra_ServiceConfig`, the other variant's tag. Electing one tag among several, the first in byte
+order as the compiler elects a subtype's `DiscriminatorValue`, would serve an example but not the
+encoder of a value whose member says which, which would send a tag the caller did not choose. T-63
+holds the rule.
 
 ## A discriminated union
 
