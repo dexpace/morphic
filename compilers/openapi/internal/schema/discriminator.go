@@ -350,7 +350,8 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 type subtypeTag struct {
 	// value is the tag, "" being one (docs/ir/models.md).
 	value string
-	// routed reports that a discriminator routes to the subtype, by value.
+	// routed reports that a discriminator routes to the subtype, value being
+	// the tag it routes by.
 	routed bool
 	// byName is the discriminator routing it by its component name, OpenAPI's
 	// implicit mapping, nil where a mapping key tags it or none routes to it.
