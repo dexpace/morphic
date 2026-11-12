@@ -369,7 +369,7 @@ Built, and in the default list:
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
 - **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
-  of one scope whose names any target may render alike, which it can then tell apart only by ID, as
+  of one scope whose names a target may render alike, which it can then tell apart only by ID, as
   a warning, and a name with no word character, which a target names from its characters,
   as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
   it runs after every transform, before `validate`, which stays last.
