@@ -662,6 +662,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
   `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
+  `e2e.TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
@@ -720,6 +721,7 @@ of its own is reported as an `openapi/cycle-scan-failed` warning, and the compil
   `e2e.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
   `e2e.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
   `e2e.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
@@ -2291,8 +2293,9 @@ In each, whatever structural body the schema declares is lowered — `properties
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
 `openapi/degraded-construct` at the schema naming which applied; in case 3 the broken
-reference is reported as well, as an `openapi/unresolved-ref` error. Case 1's body-less sibling
-leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
+reference is reported as well, as an `openapi/unresolved-ref` error, or, on a loop the compiler
+reads, by the loop's one `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)). Case 1's
+body-less sibling leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
 [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
 sibling's are both reported. A `null` branch in this shape is **not** lifted to `Nullable`: the
 union it belongs to is no longer structural, so lifting one branch out of it would assert something
@@ -2407,6 +2410,8 @@ as one whose branches declare shape.
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
   `schema.TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
+  `schema.TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
