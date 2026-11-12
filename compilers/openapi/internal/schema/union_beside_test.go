@@ -445,6 +445,51 @@ func TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype(t *testing.T) {
 	assert.Contains(t, hamster.Unmodeled, "openapi:oneOf")
 }
 
+// TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf pins a union beside
+// the allOf of a component composing a schema whose discriminator is written
+// beside a union that does not list it (docs/compilers/openapi.md#union-beside-structure):
+// no route names the component (docs/compilers/openapi.md#discriminator-value),
+// so the union distributes over its composition, its variants untagged, where
+// one the union lists stays a tagged subtype keeping its union. Each is read in
+// both declaration orders.
+func TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf(t *testing.T) {
+	t.Parallel()
+	const sizes = "      oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]\n"
+	const rest = "    Small: {type: object, properties: {size: {type: integer}}}\n" +
+		"    Big: {type: object, properties: {weight: {type: integer}}}\n" +
+		"    Stored:\n      allOf: [{$ref: '#/components/schemas/Rule'}, {properties: {id: {type: string}}}]\n" + sizes
+	for name, tc := range map[string]struct {
+		base   string
+		listed bool // whether the union Rule's discriminator is written beside lists Listed
+	}{
+		"beside a union": {"    Rule:\n      discriminator: {propertyName: action}\n" +
+			"      oneOf: [{$ref: '#/components/schemas/Block'}, {$ref: '#/components/schemas/Log'}]\n" + pinnedRules, false},
+		"beside a hierarchy's union": {"    Rule:\n      type: object\n      properties: {action: {type: string}}\n" +
+			"      discriminator: {propertyName: action}\n      oneOf: [{$ref: '#/components/schemas/Listed'}]\n" +
+			"    Listed:\n      allOf: [{$ref: '#/components/schemas/Rule'}, {properties: {note: {type: string}}}]\n" + sizes, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, doc := range taggedOrders(t, tc.base, rest) {
+				u, ok := typeByName(doc, "Stored").(*ir.Union)
+				require.True(t, ok, "Stored distributes; got %T", typeByName(doc, "Stored"))
+				for _, v := range variantModels(t, doc, "Stored") {
+					assert.Equal(t, componentID("Rule"), v.Base.Target, "each variant composes Rule")
+					assert.Empty(t, v.DiscriminatorValue, "and no variant is tagged")
+				}
+				assert.Len(t, u.Variants, 2)
+				if !tc.listed {
+					continue
+				}
+				listed, ok := typeByName(doc, "Listed").(*ir.Model)
+				require.True(t, ok, "Listed stays a model; got %T", typeByName(doc, "Listed"))
+				assert.Equal(t, "Listed", listed.DiscriminatorValue, "a component the union lists is routed by name")
+				assert.Contains(t, listed.Unmodeled, "openapi:oneOf", "and keeps its union")
+			}
+		})
+	}
+}
+
 // TestOneOf_CoDeclaredTypeReadsNullableByItsDialect pins the null a `type`
 // beside a union is compared with (docs/compilers/openapi.md#union-beside-structure):
 // a `nullable: true` beside it adds null where the dialect defines the keyword,

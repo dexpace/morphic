@@ -492,8 +492,10 @@ const (
 	// InferredDiscriminator reports a mapping the discriminator-inference
 	// policy reads off the tag values a union's variants pin, where the
 	// discriminator declares none and the component names OpenAPI's implicit
-	// mapping routes by are not those values, at the discriminator. The union
-	// is marked Inferred (docs/compilers/openapi.md#discriminator-inference).
+	// mapping routes by are not those values, at the discriminator; and a
+	// subtype's tag it reads off the values the subtype admits, where they rule
+	// out the name it is routed by, at the subtype. The node is marked Inferred
+	// (docs/compilers/openapi.md#discriminator-inference).
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"

@@ -345,40 +345,88 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 	return "", false
 }
 
+// subtypeTag is the wire tag an allOf subtype carries in its hierarchy, as
+// subtypeDiscriminatorValue reads it.
+type subtypeTag struct {
+	// value is the tag, "" being one (docs/ir/models.md).
+	value string
+	// routed reports that a discriminator routes to the subtype, value being
+	// the tag it routes by.
+	routed bool
+	// byName is the discriminator routing it by its component name, OpenAPI's
+	// implicit mapping, nil where a mapping key tags it or none routes to it.
+	byName *oas3.Discriminator
+}
+
 // subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
-// its hierarchy, false where none routes to it, "" being a tag
-// (docs/ir/models.md): the mapping key naming the subtype, else its schema name
-// as declared, not as its escaped pointer token spells it (GitHub #505). An
-// inline subtype has no name, so only a mapping entry tags it (GitHub #517).
+// its hierarchy: the mapping key naming the subtype, else its schema name as
+// declared, not as its escaped pointer token spells it (GitHub #505), where a
+// discriminator routes to it by name (routesByName). An inline subtype has no
+// name, so only a mapping entry tags it (GitHub #517).
 //
 // Every discriminated ancestor is asked, as an intermediate may declare none
 // (GitHub #305). Of several mapping keys for the subtype the smallest in byte
 // order is elected, a mapping being unordered (GitHub #410); the base's
 // Discriminator keeps them all, and an info diagnostic reports it.
-func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (string, bool, []ir.Diagnostic) {
-	ds := ancestorDiscriminators(c.Bindings(), s)
-	if len(ds) == 0 {
-		return "", false, nil
-	}
-	for _, d := range ds {
-		tags := mappingTagsFor(c, d, id)
+func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) (subtypeTag, []ir.Diagnostic) {
+	ancestors := discriminatedAncestors(c.Bindings(), s)
+	for _, a := range ancestors {
+		tags := mappingTagsFor(c, a.GetDiscriminator(), id)
 		if len(tags) == 0 {
 			continue
 		}
+		tag := subtypeTag{value: tags[0], routed: true}
 		if len(tags) == 1 {
-			return tags[0], true, nil
+			return tag, nil
 		}
-		return tags[0], true, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		return tag, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 			"the discriminator mapping names this schema under %d keys (%s); "+
 				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
 			len(tags), strings.Join(tags, ", "))}
 	}
 	// Read the state, not only the name: a top-level entry of another kind, such
 	// as components/x-shared/Cat, has none to read (GitHub #572).
-	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
-		return name, true, nil
+	name, state := ids.ComponentSchema(pointer)
+	if state != ids.NamedComponent {
+		return subtypeTag{}, nil
 	}
-	return "", false, nil
+	for _, a := range ancestors {
+		if routesByName(c, a, s) {
+			return subtypeTag{value: name, routed: true, byName: a.GetDiscriminator()}, nil
+		}
+	}
+	return subtypeTag{}, nil
+}
+
+// listedBy keys the schemas the union a schema writes lists (routesByName).
+type listedBy struct {
+	schema *oas3.Schema
+}
+
+// routesByName reports whether the discriminator the ancestor a declares routes
+// the component schema s by its name, OpenAPI's implicit mapping. One beside no
+// oneOf or anyOf routes every schema composing a through allOf. One beside
+// either routes the schemas its union lists, every possible one listed there
+// (docs/compilers/openapi.md#discriminator-value): those a $ref branch of the
+// union unionBranches elects ends on, as discriminatedAncestors reads a $ref,
+// read once a run, as every subtype of a asks. Any other schema composing a
+// narrows that union, each instance carrying its variant's tag; whether it
+// lowers as that union narrowed is open (#1716).
+func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
+	branches, _, _ := unionBranches(a)
+	if len(branches) == 0 {
+		return true
+	}
+	listed := lowering.Remembered(c, listedBy{a}, func() map[*oas3.Schema]bool {
+		set := make(map[*oas3.Schema]bool, len(branches))
+		for _, b := range branches {
+			if target := refBranchTarget(c.Bindings(), b); target != nil {
+				set[target] = true
+			}
+		}
+		return set
+	})
+	return listed[s]
 }
 
 // mappingTagsFor returns every key d's mapping spells for the type id, sorted
@@ -407,23 +455,23 @@ func mappingTagsFor(c lowering.Ctx, d *oas3.Discriminator, id ir.TypeID) []strin
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels
-// ancestorDiscriminators climbs (styleguide bounded-everything rule). The visited
+// discriminatedAncestors climbs (styleguide bounded-everything rule). The visited
 // set below is what makes the walk terminate; this is the explicit limit, set far
 // beyond any hierarchy a source document plausibly declares.
 const maxDiscriminatorAncestorDepth = 256
 
-// ancestorDiscriminators returns the discriminators declared on s's composition
-// ancestors, nearest first: the resolved targets of s's own $ref branches in
-// source order, then theirs, level by level. Nearest means fewest hops, which
-// decides between two ancestors whose mappings name the same subtype.
+// discriminatedAncestors returns s's composition ancestors declaring a
+// discriminator, nearest first: the resolved targets of s's own $ref branches
+// in source order, then theirs, level by level. Nearest means fewest hops,
+// which decides between two ancestors whose mappings name the same subtype.
 //
 // The visited set bounds the work; the depth cap bounds only the levels. A
 // schema reached by several branches would be walked once per path, so the
 // frontier multiplies by the fan-out each level (2^level for a chain of
 // diamonds). TestAllOf_DiscriminatorValueCyclicComposition (cyclic) and
 // TestCompile_SharedCompositionAncestorsDoNotAmplify (acyclic) pin it.
-func ancestorDiscriminators(refs *typed.Bindings, s *oas3.Schema) []*oas3.Discriminator {
-	var out []*oas3.Discriminator
+func discriminatedAncestors(refs *typed.Bindings, s *oas3.Schema) []*oas3.Schema {
+	var out []*oas3.Schema
 	visited := make(map[*oas3.Schema]bool)
 	// s is visited before the walk starts, so a composition cycle cannot bring it
 	// back as one of its own ancestors. Without this a schema in a cycle that
@@ -437,8 +485,8 @@ func ancestorDiscriminators(refs *typed.Bindings, s *oas3.Schema) []*oas3.Discri
 			next = append(next, unvisitedRefTargets(refs, cur, visited)...)
 		}
 		for _, target := range next {
-			if d := target.GetDiscriminator(); d != nil {
-				out = append(out, d)
+			if target.GetDiscriminator() != nil {
+				out = append(out, target)
 			}
 		}
 		level = next
@@ -456,7 +504,7 @@ type composedByOf struct {
 // discriminator routes to a subtype of s: s is then the base of a hierarchy,
 // which a union of its subtypes would no longer be
 // (docs/compilers/openapi.md#union-beside-structure). Such a branch finds s's
-// discriminator among its ancestors' (ancestorDiscriminators). A schema
+// discriminator among its ancestors' (discriminatedAncestors). A schema
 // declaring no discriminator routes to nothing. Every reader of the position
 // asks, so it is read once a run.
 func branchesComposeBody(c lowering.Ctx, s *oas3.Schema) bool {
@@ -471,7 +519,8 @@ func branchesComposeBody(c lowering.Ctx, s *oas3.Schema) bool {
 			if isRefBranch(b) {
 				target = refBranchTarget(c.Bindings(), b)
 			}
-			return target != nil && slices.Contains(ancestorDiscriminators(c.Bindings(), target), d)
+			return target != nil && slices.ContainsFunc(discriminatedAncestors(c.Bindings(), target),
+				func(a *oas3.Schema) bool { return a.GetDiscriminator() == d })
 		})
 	})
 }

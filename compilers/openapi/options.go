@@ -103,13 +103,15 @@ const NullableWideningHeuristic = lowering.NullableWideningHeuristic
 
 // DiscriminatorInference is the discriminator-inference policy: whether a
 // union's tag is read off the value each variant pins its tag property to,
-// where the document declares no mapping or no discriminator. It is another
+// where the document declares no mapping or no discriminator, and a subtype's
+// off the values it admits, where it is routed by name. It is another
 // injectable-policy seam (architecture principle 6), and is named here rather
 // than restated for the reason GroupingStrategy is.
 type DiscriminatorInference = lowering.DiscriminatorInference
 
 // DiscriminatorInferenceHeuristic is the name a union's Provenance.Inferred
-// carries where the discriminator-inference policy filled its discriminator.
+// carries where the discriminator-inference policy filled its discriminator,
+// and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
@@ -150,9 +152,9 @@ type Options struct {
 	NullableWidening NullableWidening `json:"nullableWidening"`
 	// DiscriminatorInference selects whether a union's tag is read off the
 	// value each variant pins its tag property to, where the document declares
-	// no mapping or no discriminator, what it fills marked as inferred. The zero
-	// value is on; a caller who wants only what the document declares disables
-	// it.
+	// no mapping or no discriminator, and a subtype's routed by name off the
+	// values it admits, what it reads marked as inferred. The zero value is on;
+	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)

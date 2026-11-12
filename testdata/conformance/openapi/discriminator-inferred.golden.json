@@ -58,6 +58,25 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/Circle/allOf/1/properties/kind": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Circle/allOf/1/properties/kind"
+      },
+      "value": {
+        "kind": "string",
+        "str": "circle"
+      },
+      "valueType": "string"
+    },
     "t/anon/components/schemas/Coded/oneOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/Coded/oneOf/0",
@@ -584,6 +603,86 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Circle": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Circle",
+      "name": {
+        "source": "Circle",
+        "canonical": "circle"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Circle",
+        "inferred": "discriminator-inference"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/Circle/allOf/1/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Circle/allOf/1/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Circle/allOf/1/properties/radius",
+          "name": {
+            "source": "radius",
+            "canonical": "radius"
+          },
+          "wireName": "radius",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Circle/allOf/1/properties/radius"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Shape",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "circle",
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Coded": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Coded",
@@ -806,6 +905,57 @@
       "exclusive": true,
       "wireTagged": false,
       "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Shape": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Shape",
+      "name": {
+        "source": "Shape",
+        "canonical": "shape"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shape"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Shape/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Shape/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Shape/properties/kind",
+        "inferred": false
+      },
       "inputOnly": false
     },
     "t/openapi/components/schemas/Styled": {
@@ -1061,6 +1211,18 @@
       },
       "prim": "integer"
     },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -1114,13 +1276,22 @@
         "source": 0,
         "pointer": "/components/schemas/Styled/discriminator"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/inferred-discriminator",
+      "message": "the discriminator routes this schema by its name, \"Circle\", a tag its \"kind\" rejects, admitting only \"circle\"; it carries \"circle\" instead, marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Circle"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "discriminator-inferred.yaml",
-      "hash": "940f090d78d3dfa3d2b5d7107939deb2f401ff3a4a5143626cade8596ccc7182"
+      "hash": "745eccdc30d46731e31beff7c22122e723236d00d21f90cbde12f1f8805f03c7"
     }
   ]
 }

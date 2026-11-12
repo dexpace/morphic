@@ -472,6 +472,12 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
 	assert.Equal(t, componentID("Cat"), pet.Discriminator.Mapping["cat"])
 	assert.Equal(t, componentID("Dog"), pet.Discriminator.Mapping["dog"])
+
+	stored, ok := doc.Types[componentID("StoredPet")].(*ir.Model)
+	require.True(t, ok, "a schema composing the union is a model")
+	require.NotNil(t, stored.Base)
+	assert.Equal(t, componentID("Pet"), stored.Base.Target)
+	assert.Empty(t, stored.DiscriminatorValue, "the union routes only what it lists, which is not it")
 }
 
 // assertAnyOfDiscriminated pins that the tag mode and Exclusive are independent
@@ -791,8 +797,14 @@ func assertDiscriminatorInferred(t *testing.T, doc *ir.Document, diags []ir.Diag
 		assert.False(t, u.WireTagged, name)
 		assert.Empty(t, u.Provenance.Inferred, name)
 	}
-	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
-		"only the declared discriminators' mappings are reported")
+	circle, ok := doc.Types[componentID("Circle")].(*ir.Model)
+	require.True(t, ok, "Circle is a subtype of Shape")
+	assert.Equal(t, "circle", circle.DiscriminatorValue, "it carries the tag it pins, not its name")
+	assert.Equal(t, openapi.DiscriminatorInferenceHeuristic, circle.Provenance.Inferred)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredDiscriminator, ir.SeverityInfo,
+		"/components/schemas/Circle"), `it carries "circle" instead`)
+	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo),
+		"only the declared discriminators' readings are reported")
 }
 
 // unionNamed returns the union the component name lowers to.
