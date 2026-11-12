@@ -146,26 +146,26 @@ func TestAllOf_AUnionItNamesComposesAsWritten(t *testing.T) {
 			for _, doc := range taggedOrders(t, c.union, c.rest) {
 				s, ok := typeByName(doc, "Stored").(*ir.Model)
 				require.True(t, ok, "Stored lowers to a model; got %T", typeByName(doc, "Stored"))
-				require.NotNil(t, s.Base)
-				assert.Equal(t, componentID(c.base), s.Base.Target)
-				var mixins []ir.TypeID
-				for _, m := range s.Mixins {
-					mixins = append(mixins, m.Target)
-				}
-				var want []ir.TypeID
+				assert.Equal(t, &ir.TypeRef{Target: componentID(c.base)}, s.Base)
+				var mixins []ir.TypeRef
 				for _, m := range c.mixins {
-					want = append(want, componentID(m))
+					mixins = append(mixins, ir.TypeRef{Target: componentID(m)})
 				}
-				assert.Equal(t, want, mixins)
-				require.Len(t, s.Properties, 1)
-				assert.Equal(t, "id", s.Properties[0].Name.Source)
+				assert.Equal(t, mixins, s.Mixins)
+				var props []string
+				for _, p := range s.Properties {
+					props = append(props, p.Name.Source)
+				}
+				assert.Equal(t, []string{"id"}, props, "Stored declares its own members alone")
 
 				u, ok := typeByName(doc, "Rule").(*ir.Union)
 				require.True(t, ok, "Rule lowers to a union; got %T", typeByName(doc, "Rule"))
 				assert.Equal(t, c.discriminated, u.Discriminator != nil)
-				require.Len(t, u.Variants, 2)
-				assert.Equal(t, componentID("Block"), u.Variants[0].Type.Target)
-				assert.Equal(t, componentID("Log"), u.Variants[1].Type.Target)
+				var variants []ir.TypeID
+				for _, v := range u.Variants {
+					variants = append(variants, v.Type.Target)
+				}
+				assert.Equal(t, []ir.TypeID{componentID("Block"), componentID("Log")}, variants)
 				for id := range doc.Types {
 					assert.NotContains(t, string(id), "t/composed/", "nothing is distributed")
 				}
