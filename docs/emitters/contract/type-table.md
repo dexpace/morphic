@@ -102,13 +102,13 @@ units](../refine/output-units.md#the-runtimes-unit)).
 
 A built-in row for an integer kind, `integer` and `int8` to `uint64`, reads a JSON number by its
 value, in whatever spelling: `1`, `1.0`, `1e0` and `10e-1` are one value, and `-0` is zero. It
-refuses, with a decode error, a number whose value has a fraction (`1.5`, `1e-400`), one outside
-the row's range (`256` for a `uint8`, `9223372036854775808` and `1e400` for an `int64`) and
-anything that is no number, a string of digits among them, which only a declared encoding reads. It
-writes plain digits. A declaration over such a row reads the same way, as an enum over one already
-compares its members ([a member on the wire](../refine/enums.md#a-member-on-the-wire)), and so does
-every text position, a parameter, a header and a form field, in an SDK and in a mock: `120.0` in a
-`Retry-After` typed `integer` is 120.
+refuses, with a decode error, a number whose value has a fraction (`1.5`, `1e-400`), one outside the
+row's range (`256` for a `uint8`, `9223372036854775808` and `1e400` for an `int64`) and anything
+that is no number, a string of digits among them, which only a declared encoding reads. It writes
+plain digits. A declaration over such a row reads the same way, as an enum over one already compares
+its members ([a member on the wire](../refine/enums.md#a-member-on-the-wire)), and so does every
+text position, a parameter, a header and a form field, in an SDK and in a mock ([values as
+text](../refine/text.md#reading-a-text)): `120.0` in a `Retry-After` typed `integer` is 120.
 
 A JSON number is its value and not its digits, which is how JSON Schema counts `1.0` an integer and
 how the plan already compares values when it separates a union's variants

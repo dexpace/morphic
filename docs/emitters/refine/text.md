@@ -186,7 +186,8 @@ name (RFC 9113 §8.2) and as `X-Meta-fOO` reaches Go's server as `X-Meta-Foo`, t
 Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
 a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
 type holds ([type table](../contract/type-table.md#what-a-built-in-row-writes)), and a number as its
-row reads one in a body, whose integral spellings, `1.0` for an integer, #1451 decides. A union's
+row reads one in a body, an integer by its value in whatever spelling, `1.0` among them ([type
+table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)). A union's
 text is read as [unions](unions.md#a-value-several-variants-admit) reads a value text carries, which
 its variants' JSON kinds never separate, so `123` is admitted by both variants of a
 `string | integer`, and an `any` holds a text as the JSON string it is, since a text carries no JSON

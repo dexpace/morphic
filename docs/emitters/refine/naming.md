@@ -116,19 +116,19 @@ fail a run on a valid spec. Such a pair draws `pass/name-collision` where the `n
 words joined, and elsewhere only where the two share their neutral words
 ([naming](../../ir/naming.md#names-one-scope-shares)).
 
-A target renders more than a name's words, so two names whose words differ can still render alike
-in one scope: an acronym or a source spelling upper-cases more of a word than its first character
-([the source spelling](#the-source-spelling-for-letter-case-only)), upper-casing gives two letters
-one capital, as it does `ı` and `i` and each of the 22 letters Go 1.27.3 upper-cases to another's
+A target renders more than a name's words, so two names whose words differ can still render alike in
+one scope: an acronym or a source spelling upper-cases more of a word than its first character ([the
+source spelling](#the-source-spelling-for-letter-case-only)), upper-casing gives two letters one
+capital, as it does `ı` and `i` and each of the 22 letters Go 1.27.3 upper-cases to another's
 capital, and a leading word or a character's name adds words (below). The `names` pass compares
-words, so it reports such a pair only where it compares them joined. `Ctx.Syms` reports each name
-it gives a suffix because another holds its rendered identifier, where the two names' neutral names
+words, so it reports such a pair only where it compares them joined. `Ctx.Syms` reports each name it
+gives a suffix because another holds its rendered identifier, where the two names' neutral names
 differ, or, for two with no words, their spellings do, as a warning `emitters/naming/collision`
 naming both entities, the identifier both rendered to and the one each was given, so a scope of `n`
-names draws fewer than `n` ([T-39](../testing/mandatory-tests.md)). So a target keeps names of different words apart or
-says where it did not, under every table a configuration gives it. In a scope the pass compares
-joined, both can report one pair: the pass's warning says the two may meet on some target, and this
-one that they met on this target, and which took the suffix.
+names draws fewer than `n` ([T-39](../testing/mandatory-tests.md)). So a target keeps names of
+different words apart or says where it did not, under every table a configuration gives it. In a
+scope the pass compares joined, both can report one pair: the pass's warning says the two may meet
+on some target, and this one that they met on this target, and which took the suffix.
 
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's

@@ -73,9 +73,9 @@ throughout these documents.
     classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
-    row under its key whole; an encoding with no row is typed as its value travels and reported
-    once (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a Go
-    `Codec` is an options error; and two rows that spell one name for two packages generate code
+    row under its key whole; an encoding with no row is typed as its value travels and reported once
+    (T-51); a row naming an import `Imports` does not bind, an `Imports` key it does not use, or a
+    Go `Codec` is an options error; and two rows that spell one name for two packages generate code
     that compiles in a file using both ([type table](../contract/type-table.md)).
 18. **T-18 · Placement** — adding a type no operation reaches, an operation that reaches no existing
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
@@ -373,12 +373,12 @@ throughout these documents.
     suffix, a letter beside a digit taking no `_`, as a schema `10_gbps_to_100_gbps` renders
     `Type10GbpsTo100Gbps`, and on Multiplatform the entries of `1.0` and `10` export to Swift as
     `value1_0` and `value10`, while of `V12` and `v12`, one name, the second takes its suffix after
-    `_` (Go's `V12_2`); names of different words that render alike, `iOSVersion` beside
-    `IOSVersion` under a policy reading spellings, `user_id` beside `user_i_d` under an acronym
-    `ID`, `ıd` beside `id` and a property `1000` beside one spelled `field_1000`, each draw one
+    `_` (Go's `V12_2`); names of different words that render alike, `iOSVersion` beside `IOSVersion`
+    under a policy reading spellings, `user_id` beside `user_i_d` under an acronym `ID`, `ıd` beside
+    `id` and a property `1000` beside one spelled `field_1000`, each draw one
     `emitters/naming/collision` on a target rendering them alike, naming both and what each was
-    given, two of one neutral name drawing none; and on Multiplatform a type added in another unit, its ID sorting first,
-    leaves an incumbent's Objective-C name as it shipped
+    given, two of one neutral name drawing none; and on Multiplatform a type added in another unit,
+    its ID sorting first, leaves an incumbent's Objective-C name as it shipped
     ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped),
     [breaks](../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)).
 40. **T-40 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
@@ -709,17 +709,18 @@ throughout these documents.
     back as sent, and reads a path another client sent as `a%2Fb/c` as the text `a%2Fb/c` ([values
     as text](../refine/text.md#escaping)).
 51. **T-51 · A row keyed by an encoding** — each target's built-in table has, at every options
-    version, a row for every key the type table lists for an encoding. On every target, `bytes`
-    `fb ff` under `base64url` is written `-_8=` in a body and in a header and `-_8%3D` in a path,
-    and reads back from `-_8=` and from `-_8`, while `+/8=` does not parse; a `datetime_offset` under `http-date` at `2020-02-29T23:59:59.999+02:00` is written
-    `Sat, 29 Feb 2020 21:59:59 GMT` in a header and as a body's string, reads back at a zero
-    offset, and at `9999-12-31T23:59:59-01:00` fails before anything is sent; and `base64`,
-    `rfc3339` and `iso8601` write what their primitives' rows do. A `bytes` scalar under an
-    encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
-    `WireType`, are each a string in the SDK that is sent as given, with a warning
-    `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
-    `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
-    ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
+    version, a row for every key the type table lists for an encoding. On every target, `bytes` `fb
+    ff` under `base64url` is written `-_8=` in a body and in a header and `-_8%3D` in a path, and
+    reads back from `-_8=` and from `-_8`, while `+/8=` does not parse; a `datetime_offset` under
+    `http-date` at `2020-02-29T23:59:59.999+02:00` is written `Sat, 29 Feb 2020 21:59:59 GMT` in a
+    header and as a body's string, reads back at a zero offset, and at `9999-12-31T23:59:59-01:00`
+    fails before anything is sent; and `base64`, `rfc3339` and `iso8601` write what their
+    primitives' rows do. A `bytes` scalar under an encoding no row names whose `WireType` is
+    `string`, and a `datetime_offset` under one with no `WireType`, are each a string in the SDK
+    that is sent as given, with a warning `emitters/<target>/unmapped-encoding`; a `datetime_offset`
+    under `unixTimestamp` whose `WireType` is `int64` is an `int64`; and a `string` under `email`
+    stays a string with an info ([the type
+    table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 52. **T-52 · The path fold** — the fold joins each pair of a table holding what APFS makes one path,
     `Setup` and `SetUp`, `ſetup` and `setup`, a Kelvin sign and `K`, `σς` and `σσ`, `Straße` and
     `Strasse`, an `é` composed and decomposed and a Cherokee letter in each case, and `ı` and `I`,
@@ -735,20 +736,20 @@ throughout these documents.
     apart, the property's name whole, and no segment of a path the build writes past 255 bytes,
     every class file kotlinc writes among them
     ([naming](../refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
-54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation,
-    an enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's
-    lexer does not know, U+0870 and past the BMP U+10570, and with names whose first letter Go does
-    not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, generates code that
-    compiles on every target, each character a role cannot hold written by its name and every Go
-    import path in ASCII, and a caller in another unit, a Go package or a Kotlin module, sets and
-    reads each property and calls each operation by its rendered name; a name holding U+2E2F links
-    into a Multiplatform framework whose header clang compiles, and a Swift file importing the
-    framework reaches each declaration by the Swift name the policy chose, past ASCII its
-    Objective-C name, as `ProbeA日本` for a class `A日本` in a framework `Probe`, or an explicit name
-    in ASCII where it takes one, as enum entries `A_日本` and `A日本` are `aU65e5u672c` and `a日本`
-    in both declaration orders
+54. **T-54 · Names past ASCII** — a fixture naming a type, a property, a parameter, an operation, an
+    enum member and a group with a decomposed `café`, with `नाम`, with a letter Kotlin 2.4.0's lexer
+    does not know, U+0870 and past the BMP U+10570, and with names whose first letter Go does not
+    export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, generates code that compiles on
+    every target, each character a role cannot hold written by its name and every Go import path in
+    ASCII, and a caller in another unit, a Go package or a Kotlin module, sets and reads each
+    property and calls each operation by its rendered name; a name holding U+2E2F links into a
+    Multiplatform framework whose header clang compiles, and a Swift file importing the framework
+    reaches each declaration by the Swift name the policy chose, past ASCII its Objective-C name, as
+    `ProbeA日本` for a class `A日本` in a framework `Probe`, or an explicit name in ASCII where it takes
+    one, as enum entries `A_日本` and `A日本` are `aU65e5u672c` and `a日本` in both declaration orders
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
-    [leading words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
+    [leading
+    words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
     [Swift](../targets/kotlin/swift.md)).
 55. **T-55 · References resolve** — a fixture holding, in the root and in a group's unit, a union
     whose variants are named after the types they wrap, one in another unit among them, after a
@@ -801,9 +802,9 @@ throughout these documents.
     `application/merge-patch+json`, spelled in any letter case and with a parameter, is a patch
     shape whose members are optional and whose `Inferred` marks `Patch`, the members of a model it
     holds relaxed and a list's elements not; a binding whose `PatchImplicitOptionality` points at
-    `true` relaxes an `application/json` body unmarked, and one pointing at `false` relaxes no
-    merge patch; turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a
-    `POST` sent as a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes)).
+    `true` relaxes an `application/json` body unmarked, and one pointing at `false` relaxes no merge
+    patch; turning `plan.Policy.MergePatch` off removes the patch shape and its mark; and a `POST`
+    sent as a merge patch relaxes nothing ([TypePlan](../plan/types.md#what-a-patch-relaxes)).
 60. **T-60 · The declaration a shape takes** — a model with a `readOnly` and a `writeOnly` member,
     read by one operation and written by a `POST`, a `PUT`, a `PATCH` and a merge patch, is declared
     as `User`, `UserCreate`, `UserCreateUpdate`, `UserUpdate` and `UserUpdatePatch` on every target,
