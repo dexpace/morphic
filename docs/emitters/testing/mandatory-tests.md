@@ -824,8 +824,9 @@ throughout these documents.
     (T-26) ([the type table](../contract/type-table.md#what-a-built-in-row-writes)).
 73. **T-73 · A value no style arranges** — on every target, under T-12's interception, a query
     parameter whose list holds objects, one whose list holds lists, a `deepObject` parameter with a
-    list member, a `spaceDelimited` parameter of one string, a header list of objects and a
-    `text/plain` request body of an object are each a string in the SDK, reported as
+    list member, a `spaceDelimited` parameter of one string, a header list of objects, a form field
+    of an object that declares no encoding and a `text/plain` request body of an object are each a
+    string in the SDK, reported as
     `emitters/plan/unarranged-value`, and the string
     `[{"field":"value","op":"in","value":["evil.com","bad.org"]}]` is sent once under the
     parameter's name, percent-encoded as a string's text is, whatever its `Explode`, and as the

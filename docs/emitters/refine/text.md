@@ -227,7 +227,8 @@ values are a list of strings and an associative array of them (§2.3), and OpenA
 else a text (§4.12.6, §4.12.7). A leaf is a type whose value travels as one string, number or
 boolean: a primitive, `any` and the `Any` type among them, an enum, a literal, an `External`, a
 scalar over one of these, and a union of them. So whether an input has an arrangement is a fact of
-its type, read through `TypePlan.Alias` and its scalar chain, and of where it is bound:
+its type, the member's its `ParamPath` names where it names one, read through `TypePlan.Alias` and
+its scalar chain, and of where it is bound:
 
 - under a `Style`, a parameter's, a header's or a form field's, it has one where its type is a leaf,
   a list or a tuple of leaves, a model whose `TypePlan.Flattened` members and catch-all are leaves,
@@ -235,6 +236,9 @@ its type, read through `TypePlan.Alias` and its scalar chain, and of where it is
   shape a text under that `Style` and `Explode` (§4.12.6): it gives a leaf none under
   `spaceDelimited`, `pipeDelimited` or `deepObject`, a list none under `deepObject`, and a list or
   an object none where either delimited style explodes it;
+- a form field whose `PartEncoding` sets no `Style`, no `Explode` and no content type has one where
+  its type is a leaf or a list of leaves, which `form` writes as OpenAPI's default for such a field
+  does: an object's default there is a media type (§4.15.1), which the IR does not carry;
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label and a `text/plain` body or part have one where their type is a leaf.
 
