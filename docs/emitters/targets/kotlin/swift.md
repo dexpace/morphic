@@ -10,7 +10,7 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   an explicit Objective-C and Swift name from the [naming policy](../../refine/naming.md)
   (`@ObjCName`), so the Swift name is the policy's choice rather than the exporter's. That name is
   the Kotlin name with the escape's trailing underscore ([the escape](naming.md#the-escape)),
-  `zone_`, and for a method family the role's leading word before it ([leading
+  `zone_`, and for a method family the Kotlin name behind its role's leading word ([leading
   words](../../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word)),
   `callCopy()` and an entry `valueCopy`: Objective-C reads a family from how a selector begins, so
   an underscore leaves the name in it, and Kotlin/Native 2.4.0 exported a method given `copy_` as
@@ -51,11 +51,12 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `NSObject`'s. Comparing a property with every name of the table instead would rename `version`, a
   class method's name alone, and `value`, the first piece of `valueForKey:`, which a Swift caller
   read as written. Naming only what the export itself renames, `description` and `hash`, as this
-  rule once did, left the rest. On the golden spec the rule gives 782 properties an explicit name,
-  742 `description`, 14 `className`, 9 `class`, 9 `hash`, 5 `zone`, 2 `self` and 1 `copy`, and 80
-  enum entries, 20 `load`, 19 `copy` and 12 `zone` among them, and no operation's method, while its
-  847 properties `value` and 98 `version` keep their names (spec @bc6fad24, morphic @fa253fe19, each
-  name its words in camel case). T-19 holds it.
+  rule once did, left the rest. On the golden spec the rule gives 782 properties of its models an
+  explicit name, 742 `description`, 14 `className`, 9 `class`, 9 `hash`, 5 `zone`, 2 `self` and 1
+  `copy`, and 80 enum entries, 20 `load`, 19 `copy` and 12 `zone` among them, and no operation's
+  method, while its 847 properties `value` and 98 `version` keep their names; 10 of its parameters
+  are named `description` or `hash`, and take one wherever a request type holds them as a property
+  (spec @bc6fad24, morphic @fa253fe19, each name its words in camel case). T-19 holds it.
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
   letter case cannot mark
   ([naming](../../refine/naming.md#a-break-letter-case-cannot-mark-takes-an-underscore)): measured

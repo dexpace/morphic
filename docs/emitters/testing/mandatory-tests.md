@@ -144,8 +144,8 @@ throughout these documents.
     `zone`, `hash`, `self`, `load` and `copy` among them, a method of one parameter after each of
     its one-parameter selectors (`responds(toSelector:)`), and a method and an entry after a name of
     each method family: the header builds a module, a Swift caller reads each property's own value,
-    calls each method and reaches each entry by the name the policy chose, none of them one the
-    export renamed, a property `value` and one `version` keep their names, `hash`, `copy()` and
+    calls each method and reaches each entry by the name the policy chose, which is the name the
+    header gives it, a property `value` and one `version` keep their names, `hash`, `copy()` and
     `responds(to:)` on a model still answer as `NSObject`'s, and the table equals the selectors read
     from the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
