@@ -2621,24 +2621,32 @@ union is a closed set of strings in another spelling. The compiler lowers it as 
 ([`union`](#union)), each branch to its `Literal` or `Enum` holding what the branch says of its
 value, and the engine's `const-unions` pass, not the compiler, normalizes it to the closed `Enum` of
 those values at the union's own ID, so an emitter meets one shape however the document wrote the
-set. A branch that is such a union is read as the `Enum` it becomes, in the same run, so no second
-run finds one. Each member is identified and named as the same value in an `enum` is
-([`enum-const`](#enum-const)), in branch order, and holds what its branch says of its value: its
-docs, deprecation, availability, examples and kept constructs. A branch's type nothing else
-references goes with the union.
+set. A branch that is such a union of one value is read as the `Enum` it becomes, in the same run,
+so no second run finds one. A branch holding several values, an anonymous closed `Enum` of strings or
+such a union, is taken whole where the union's variant is the only reference to it and neither the
+branch nor the variant says anything of all its values, which a member could not say of one: its
+values move into the union's `Enum` in branch order, so a union naming one in turn, down a chain of
+any length, is rewritten in one run and its members built once. Each member is identified and named
+as the same value in an `enum` is ([`enum-const`](#enum-const)), in branch order, and holds what its
+branch says of its value: its docs, deprecation, availability, examples and kept constructs. A
+branch's type nothing else references goes with the union.
 
 The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
-its own that an `Enum` member is not; a branch holding several values, a set of its own that the
-`Enum` would copy into each union naming it, which a document can make grow with the square of its
-size; a value two branches hold, which a `oneOf` rejects and whose two branches may say two things
-of it; values typed by two primitives; a nullable branch; a construct a branch keeps verbatim for
-any reason but being a vendor extension, such as a constraint its `Literal` has no home for, which
-narrows the branch and would not narrow a member; a branch whose `Provenance.Inferred` names a
-heuristic, whose mark no member could carry; and one fact two places say of one value. A union of
-numbers, or of values of several kinds, is outside this rule and stays a union.
+its own that an `Enum` member is not; a branch holding several values that any other node also
+names, a property, a union, a doc reference or a map's key among them, which the `Enum` would copy
+into each union naming it, so that a document can make the IR grow with the square of its size, or
+that says anything of all its values, such as docs, a deprecation, an availability, examples or a
+vendor extension, which no one member could say; a value two branches hold, which a `oneOf`
+rejects and whose two branches may say two things of it; values typed by two primitives; a nullable
+branch; a construct a branch keeps verbatim for any reason but being a vendor extension, such as a
+constraint its `Literal` has no home for, which narrows the branch and would not narrow a member; a
+branch whose `Provenance.Inferred` names a heuristic, whose mark no member could carry; and one fact
+two places say of one value. A union of numbers, or of values of several kinds, is outside this rule
+and stays a union.
 
 - Cases: `string-const-union`
-- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
+- Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`,
+  `e2e.TestStringConstUnion_TakesAChainOfDefsInOneRun`
 
 ### `enum-const`
 

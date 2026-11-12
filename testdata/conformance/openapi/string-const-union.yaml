@@ -15,8 +15,8 @@ components:
       anyOf:
         - {type: string, enum: [low], description: Low.}
         - {type: string, enum: [high]}
-    # A branch holding several values is a set of its own, which the enum of
-    # the union's values would copy, so the union stays.
+    # A branch holding several values that only this union names moves into the
+    # union's enum, in one run, and its type goes.
     Tier:
       oneOf:
         - {const: free}
@@ -27,6 +27,21 @@ components:
       oneOf:
         - oneOf: [{const: up}]
         - {const: down}
+    # A branch of several values another union names too is a set the enum of
+    # each would copy, so both unions stay.
+    Shared:
+      anyOf:
+        - {type: string, enum: [x, y]}
+        - {const: z}
+    Reuse:
+      oneOf:
+        - $ref: '#/components/schemas/Shared/anyOf/0'
+        - {const: w}
+    # A branch of several values that says something of them all, which no one
+    # member could say, keeps the union.
+    Described:
+      anyOf:
+        - {type: string, enum: [p, q], description: Both.}
     # A branch naming a component is a type of its own, so the union stays.
     Shade:
       oneOf:

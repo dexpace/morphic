@@ -447,3 +447,13 @@ it sees. Changes made together in one bump are listed together under it.
   pinned to 0.42.0 that wrote or routed such a subtype's tag by its name no longer finds the name
   there, and one that read a union kept verbatim beside such a schema finds the schema a `Union`
   instead.
+- **0.44.0** — no shape change. The `const-unions` pass also rewrites a closed union of strings a
+  variant of which names a branch of several values, an anonymous closed `Enum` or a union of
+  strings in turn, where that variant is the only reference to the branch and neither says anything
+  of all its values, such as docs or a deprecation: the branch's values move into the closed `Enum`
+  at the union's own ID, in branch order, and the branch type is removed, whether the union held
+  one such branch or a chain of them
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A branch another node also
+  names, or that says anything of all its values, keeps the union. A consumer pinned to 0.43.0 that
+  read such a position as a `Union` finds an `Enum` there, and no longer finds the branch type its
+  variant named.

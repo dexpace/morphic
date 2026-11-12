@@ -21,11 +21,12 @@ import (
 
 // TestStringConstUnion_NormalizesToItsEnumSpelling holds the union of string
 // values the compiler keeps to the Enum pass.ConstUnions makes of it
-// (docs/compilers/openapi.md#string-const-union): for consts, one-member enums
-// and a union of one value, the one the same values written as an enum lower
-// to, member for member, each holding what its branch says of its value. No
-// branch type is left behind, and a union whose branch holds several values,
-// names a component or keeps a constraint stays.
+// (docs/compilers/openapi.md#string-const-union): for consts, one-member enums,
+// a union of one value and a branch of several values only the union names, the
+// one the same values written as an enum lower to, member for member, each
+// holding what its branch says of its value. No branch type is left behind, and
+// a union whose branch of several values another union names or says something
+// of all of, or that names a component or keeps a constraint, stays.
 func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseCorpus(t, "string-const-union")
@@ -35,12 +36,14 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
     Color: {type: string, enum: [red, green]}
     Level: {type: string, enum: [low, high]}
     Direction: {type: string, enum: [up, down]}
+    Tier: {type: string, enum: [free, pro, enterprise]}
 `))
 
 	said := map[string][]ir.EnumMember{
 		"Color":     {{Docs: ir.Docs{Summary: "Red", Description: "The colour red."}}, {Deprecation: &ir.Deprecation{}}},
 		"Level":     {{Docs: ir.Docs{Description: "Low."}}, {}},
 		"Direction": {{}, {}},
+		"Tier":      {{}, {}, {}},
 	}
 	for name, facts := range said {
 		enum, ok := got.Types[componentID(name)].(*ir.Enum)
@@ -58,13 +61,46 @@ func TestStringConstUnion_NormalizesToItsEnumSpelling(t *testing.T) {
 			"%s keeps the union's provenance", name)
 	}
 
-	for _, kept := range []string{"Tier", "Shade", "Pinned"} {
+	for _, kept := range []string{"Shade", "Pinned", "Shared", "Reuse", "Described"} {
 		assert.Same(t, doc.Types[componentID(kept)], got.Types[componentID(kept)], "%s stays", kept)
 	}
 	for id := range got.Types {
-		for _, name := range []string{"Color", "Level", "Direction"} {
+		for _, name := range []string{"Color", "Level", "Direction", "Tier"} {
 			assert.False(t, strings.HasPrefix(string(id), string(componentID(name))+"/"),
 				"%s's branch type %s is left behind", name, id)
 		}
 	}
+}
+
+// TestStringConstUnion_TakesAChainOfDefsInOneRun pins a chain of unions each
+// naming the next through $defs, as a document writes one: every link is taken
+// in the one run, the first holding every value in order and none of the others
+// left, and a second run finds nothing to do.
+func TestStringConstUnion_TakesAChainOfDefsInOneRun(t *testing.T) {
+	t.Parallel()
+	doc := compileComponentSpec(t, openapitest.ComponentSpec(`
+    Root:
+      $defs:
+        X0: {oneOf: [{$ref: '#/components/schemas/Root/$defs/X1'}, {const: a0}]}
+        X1: {oneOf: [{$ref: '#/components/schemas/Root/$defs/X2'}, {const: a1}]}
+        X2: {oneOf: [{const: a2}, {const: a3}]}
+      oneOf:
+        - $ref: '#/components/schemas/Root/$defs/X0'
+        - {const: r}
+`))
+	got, diags := pass.ConstUnions{}.Run(t.Context(), doc)
+	require.Empty(t, diags)
+
+	root, ok := got.Types[componentID("Root")].(*ir.Enum)
+	require.True(t, ok, "Root is an enum")
+	values := make([]string, 0, len(root.Members))
+	for _, m := range root.Members {
+		values = append(values, m.Value.Str)
+	}
+	assert.Equal(t, []string{"a2", "a3", "a1", "a0", "r"}, values)
+	assert.Len(t, got.Types, 1, "no link of the chain is left behind")
+
+	again, diags := pass.ConstUnions{}.Run(t.Context(), got)
+	require.Empty(t, diags)
+	assert.Same(t, got, again)
 }

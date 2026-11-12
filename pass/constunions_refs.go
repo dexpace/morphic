@@ -20,20 +20,31 @@ var typeDefType = reflect.TypeFor[ir.TypeDef]()
 // unreferenced returns those of ids, in order, that nothing in doc references,
 // and ctx's error once ctx is done. A walk the depth cap cut short read too
 // little to show any unreferenced, so it returns none.
-func unreferenced(ctx context.Context, doc *ir.Document, ids []ir.TypeID) ([]ir.TypeID, error) {
-	r := refsTo(ids)
-	truncated, err := ir.WalkValuesContext(ctx, doc, ir.DocumentPath, r)
-	if err != nil || truncated {
+func unreferenced(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk walkFunc) ([]ir.TypeID, error) {
+	refs, complete, err := countRefs(ctx, doc, ids, walk)
+	if err != nil || !complete {
 		return nil, err
 	}
-	return slices.DeleteFunc(slices.Clone(ids), func(id ir.TypeID) bool { return r.reached[id] }), nil
+	return slices.DeleteFunc(slices.Clone(ids), func(id ir.TypeID) bool { return refs[id] > 0 }), nil
+}
+
+// countRefs returns how many references doc makes to each of ids, in one walk
+// through walk, and false where the depth cap cut the walk short, which read
+// too little for a count to be one. It returns ctx's error once ctx is done.
+func countRefs(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk walkFunc) (map[ir.TypeID]int, bool, error) {
+	r := refsTo(ids)
+	truncated, err := walk(ctx, doc, ir.DocumentPath, r)
+	if err != nil {
+		return nil, false, err
+	}
+	return r.refs, !truncated, nil
 }
 
 // refsTo returns the typeRefs of ids, which no walk has shown a value.
 func refsTo(ids []ir.TypeID) *typeRefs {
 	r := &typeRefs{
 		watched: make(map[ir.TypeID]bool, len(ids)),
-		reached: map[ir.TypeID]bool{},
+		refs:    map[ir.TypeID]int{},
 		keys:    map[ir.TypeID]int{},
 		carries: map[reflect.Type]bool{},
 	}
@@ -43,11 +54,13 @@ func refsTo(ids []ir.TypeID) *typeRefs {
 	return r
 }
 
-// typeRefs finds which of the watched types a walk reaches a reference to: its
+// typeRefs counts the references a walk reaches to each watched type: its
 // TypeID anywhere but the registry's key and the type's own ID, which declare
 // it. It is shown only what can hold a TypeID.
 type typeRefs struct {
-	watched, reached map[ir.TypeID]bool
+	watched map[ir.TypeID]bool
+	// refs counts the references to each watched type.
+	refs map[ir.TypeID]int
 	// keys counts the map keys spelling each watched type. The registry keys
 	// each type once, so a second key is another map's: a reference.
 	keys map[ir.TypeID]int
@@ -58,7 +71,7 @@ type typeRefs struct {
 	typesRead int
 }
 
-// Visit records a reference v makes to a watched type, and asks for what v
+// Visit counts a reference v makes to a watched type, and asks for what v
 // holds where it can hold a TypeID.
 func (r *typeRefs) Visit(v reflect.Value, at ir.WalkPath) bool {
 	if v.Type() != typeIDType {
@@ -69,10 +82,12 @@ func (r *typeRefs) Visit(v reflect.Value, at ir.WalkPath) bool {
 	case !r.watched[id]:
 	case at.IsMapKey():
 		r.keys[id]++
-		r.reached[id] = r.reached[id] || r.keys[id] > 1
+		if r.keys[id] > 1 {
+			r.refs[id]++
+		}
 	case ownID(at):
 	default:
-		r.reached[id] = true
+		r.refs[id]++
 	}
 	return false
 }

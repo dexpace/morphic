@@ -100,6 +100,51 @@
       },
       "valueType": "string"
     },
+    "t/anon/components/schemas/Described/anyOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Described/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "Both."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/anyOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Described/anyOf/0/s:p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "value": {
+            "kind": "string",
+            "str": "p"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Described/anyOf/0/s:q",
+          "name": {
+            "source": "q",
+            "canonical": "q"
+          },
+          "value": {
+            "kind": "string",
+            "str": "q"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/anon/components/schemas/Direction/oneOf/0": {
       "kind": "union",
       "id": "t/anon/components/schemas/Direction/oneOf/0",
@@ -280,6 +325,25 @@
       },
       "valueType": "string"
     },
+    "t/anon/components/schemas/Reuse/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Reuse/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Reuse/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "w"
+      },
+      "valueType": "string"
+    },
     "t/anon/components/schemas/Shade/oneOf/0": {
       "kind": "literal",
       "id": "t/anon/components/schemas/Shade/oneOf/0",
@@ -296,6 +360,68 @@
       "value": {
         "kind": "string",
         "str": "dark"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Shared/anyOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Shared/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/anyOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Shared/anyOf/0/s:x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "value": {
+            "kind": "string",
+            "str": "x"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Shared/anyOf/0/s:y",
+          "name": {
+            "source": "y",
+            "canonical": "y"
+          },
+          "value": {
+            "kind": "string",
+            "str": "y"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Shared/anyOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Shared/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared/anyOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "z"
       },
       "valueType": "string"
     },
@@ -398,6 +524,37 @@
         }
       ],
       "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Described": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Described",
+      "name": {
+        "source": "Described",
+        "canonical": "described"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Described/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
       "wireTagged": false,
       "closed": true,
       "inputOnly": false
@@ -545,6 +702,47 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Reuse": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Reuse",
+      "name": {
+        "source": "Reuse",
+        "canonical": "reuse"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Reuse"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shared/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Reuse/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Shade": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Shade",
@@ -582,6 +780,47 @@
         }
       ],
       "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Shared": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Shared",
+      "name": {
+        "source": "Shared",
+        "canonical": "shared"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Shared"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shared/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Shared/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
       "wireTagged": false,
       "closed": true,
       "inputOnly": false
@@ -656,7 +895,7 @@
     {
       "format": "openapi@3.1",
       "path": "string-const-union.yaml",
-      "hash": "6fa394a822a599bf63d6d4354a93c3bd755e91c959d726ed785deff25cd47dfa"
+      "hash": "31ba2efd561ff57915113788676fb8dad2ab9863048b2ce9b1c324e8d59782d0"
     }
   ]
 }

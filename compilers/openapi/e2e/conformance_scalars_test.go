@@ -53,7 +53,7 @@ func assertStringConstUnion(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.NotNil(t, green.Deprecation, "a branch's deprecation stays on its literal")
 
-	for _, name := range []string{"Level", "Tier", "Direction", "Shade", "Pinned"} {
+	for _, name := range []string{"Level", "Tier", "Direction", "Shade", "Pinned", "Shared", "Reuse", "Described"} {
 		_, ok := doc.Types[componentID(name)].(*ir.Union)
 		assert.True(t, ok, "%s lowers to a union", name)
 	}

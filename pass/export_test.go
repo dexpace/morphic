@@ -121,7 +121,51 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 
 // UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
 // them, which reading each once holds to how many doc has.
-func UnionReads(doc *ir.Document) int { return readingOf(doc).reads }
+func UnionReads(doc *ir.Document) int { return readingOf(doc, nil).reads }
+
+// ConstWalks is how many walks of doc one run of pass.ConstUnions makes, its
+// count of the references to a branch and its search for the branches nothing
+// references among them.
+func ConstWalks(tb testing.TB, doc *ir.Document) int {
+	tb.Helper()
+	walks := 0
+	out, _ := runConstUnions(tb.Context(), doc, func(ctx context.Context, root any, path string, vs ...ir.Visitor) (bool, error) {
+		walks++
+		return ir.WalkValuesContext(ctx, root, path, vs...)
+	})
+	require.NotNil(tb, out)
+	return walks
+}
+
+// ConstBuilt is how many members pass.ConstUnions builds for the Enums it makes
+// of the unions in doc, which building each once holds to how many they hold.
+func ConstBuilt(tb testing.TB, doc *ir.Document) int {
+	tb.Helper()
+	sole, err := soleBranches(tb.Context(), doc, ir.WalkValuesContext)
+	require.NoError(tb, err)
+	return constEnums(doc, sole).built
+}
+
+// ConstMoved is how many keys pass.ConstUnions adds to a set of the values it
+// checks distinct in reading the unions in doc, which taking over the largest
+// set a union names holds to how many values they hold, each once.
+func ConstMoved(tb testing.TB, doc *ir.Document) int {
+	tb.Helper()
+	sole, err := soleBranches(tb.Context(), doc, ir.WalkValuesContext)
+	require.NoError(tb, err)
+	return readingOf(doc, sole).moved
+}
+
+// MembersUnder returns the members of the Enum root becomes where it holds the
+// string values, one part each, and whether each has an ID under root.
+func MembersUnder(root ir.TypeID, vals ...string) ([]ir.EnumMember, bool) {
+	v := &values{count: len(vals)}
+	for _, s := range vals {
+		key, _ := ir.EnumMemberKey(ir.Value{Kind: ir.ValueString, Str: s})
+		v.parts = append(v.parts, part{key: key, member: ir.EnumMember{Value: ir.Value{Kind: ir.ValueString, Str: s}}})
+	}
+	return v.members(root)
+}
 
 // TypeReads is how many Go types a walk of doc for the references to ids
 // reads for whether a value of them can hold a TypeID.
