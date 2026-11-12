@@ -52,8 +52,8 @@ which holds no declaration of the spec's ([the runtime's
 unit](../../refine/output-units.md#the-runtimes-unit)). The template writing each operation's row of
 the runtime's settings renders in the operation's unit instead ([runtime
 policy](../../contract/runtime-policy.md#delivery)), so its file joins two words with an underscore,
-`operation_settings.go`, which no declaration's file name holds, and which the `go` command builds
-for every platform, its last word being neither `test` nor a `GOOS` or `GOARCH` value.
+which no declaration's file name holds: `operation_settings.go`, which the `go` command builds for
+every platform, its last word being neither `test` nor a `GOOS` or `GOARCH` value.
 
 ## The escape
 

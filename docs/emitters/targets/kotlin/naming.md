@@ -69,7 +69,7 @@ case-insensitive file system makes two that differ in letter case alone one file
 without a diagnostic and failed to load the class it had lost (`NoClassDefFoundError: p/Payment$Card
 (wrong name: p/Payment$CARD)`). So one of each pair takes a suffix, as one of two names that render
 alike does, and a source file named for its class is held apart with it. A template writing a file
-in a unit, as the one holding each operation's row of the runtime's settings does ([runtime
+in a unit, as the one writing each operation's row of the runtime's settings does ([runtime
 policy](../../contract/runtime-policy.md#delivery)), names it for a name it declares there, which
 the unit reserves, so no spec class's file meets it. An inclusive union's variants are properties,
 not classes, and compare folded all the same, so a union whose kind a revision changes keeps the
