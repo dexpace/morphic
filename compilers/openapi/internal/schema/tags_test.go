@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -220,6 +221,35 @@ func TestDiscriminatorInference_DisabledReadsNothing(t *testing.T) {
 	assert.Equal(t, "Sub", sub.DiscriminatorValue)
 	assert.Empty(t, sub.Provenance.Inferred)
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InferredDiscriminator, ir.SeverityInfo))
+}
+
+// TestDiscriminatorInference_JoinsTheMarksANodeCarries pins that the policy's
+// mark joins the marks other heuristics left on the node it reads in, rather
+// than replacing them: a union whose mapping it fills, one whose discriminator
+// it reads in, and a subtype whose tag it reads, each deprecated by an
+// extension the promotion policy reads.
+func TestDiscriminatorInference_JoinsTheMarksANodeCarries(t *testing.T) {
+	t.Parallel()
+	const deprecated = "      x-stability: deprecated\n"
+	const variants = "[{$ref: '#/components/schemas/Json'}, {$ref: '#/components/schemas/Text'}]\n"
+	union := "    U:\n" + deprecated + "      discriminator: {propertyName: type}\n      oneOf: " + variants
+	rest := taggedVariants + "    V:\n" + deprecated + "      anyOf: " + variants +
+		"    Base: {type: object, properties: {type: {type: string}}, discriminator: {propertyName: type}}\n" +
+		"    Sub:\n" + deprecated + "      allOf: [{$ref: '#/components/schemas/Base'}, {properties: {type: {const: sub}}}]\n"
+	want := ir.JoinInferred(lowering.ExtensionPromotionHeuristic, openapi.DiscriminatorInferenceHeuristic)
+	for _, doc := range taggedOrders(t, union, rest) {
+		assert.Equal(t, mappingOf(map[string]string{"json": "Json", "text": "Text"}), taggedUnion(t, doc).Discriminator.Mapping)
+		assert.Equal(t, want, taggedUnion(t, doc).Provenance.Inferred)
+		v, ok := typeByName(doc, "V").(*ir.Union)
+		require.True(t, ok, "V lowers to a union; got %T", typeByName(doc, "V"))
+		require.NotNil(t, v.Discriminator)
+		assert.True(t, v.Discriminator.Inferred, "V's discriminator is read in")
+		assert.Equal(t, want, v.Provenance.Inferred)
+		sub, ok := typeByName(doc, "Sub").(*ir.Model)
+		require.True(t, ok, "Sub lowers to a model; got %T", typeByName(doc, "Sub"))
+		assert.Equal(t, "sub", sub.DiscriminatorValue)
+		assert.Equal(t, want, sub.Provenance.Inferred)
+	}
 }
 
 // TestDiscriminatorInference_ReadsADistributedUnion pins that the reading

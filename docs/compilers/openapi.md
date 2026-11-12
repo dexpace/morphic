@@ -2606,7 +2606,8 @@ first. Two unions and a subtype meet it:
   `schema.TestPinnedMember_ReadsEveryDeclaration`,
   `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
   `schema.TestSubtypeTagReading_ReportsWhatItCannotSettle`,
-  `schema.TestTypeStrings_ReadsAClosedSetOfStrings`
+  `schema.TestTypeStrings_ReadsAClosedSetOfStrings`,
+  `schema.TestDiscriminatorInference_JoinsTheMarksANodeCarries`
 - Status: partly built: what a union a subtype composes admits is not read, so a name only it rules
   out stands (#1712).
 

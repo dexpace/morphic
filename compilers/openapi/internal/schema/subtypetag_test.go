@@ -130,11 +130,11 @@ func petSubtype(name, props string) string {
 // reading of a subtype a discriminator routes by its name
 // (docs/compilers/openapi.md#discriminator-inference): the strings it admits
 // for the tag, every declaration of the member met, may rule the name out. One
-// admitted string is then its tag, several or none leave it untagged, either
-// marked inferred and reported at it. A name admitted, a tag property no
-// declaration bounds to strings, or a mapping key stands as it is, and so does
-// a name only a union the subtype composes rules out, which is not read. Two
-// subtypes each admitting one string carry it both.
+// is then its tag, several or none leave it untagged, either marked inferred
+// and reported at it. A name admitted, a member bounding no strings, a mapping
+// key, or a name only a composed union rules out, which is not read, stands.
+// The member read is the routing ancestor's, not a nearer one's. Two subtypes
+// admitting one string carry it both.
 func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 	t.Parallel()
 	str := petBase("{type: string}")
@@ -171,6 +171,11 @@ func TestDiscriminatorInference_ReadsTheTagASubtypeAdmits(t *testing.T) {
 		{"a mapping key", "    Pet:\n      type: object\n      properties: {kind: {type: string}}\n" +
 			"      discriminator: {propertyName: kind, mapping: {kitty: '#/components/schemas/Cat'}}\n",
 			petSubtype("Cat", "{kind: {const: cat}}"), map[string]string{"Cat": "kitty"}, ""},
+		{"a farther ancestor's tag", str + "    Rule:\n      allOf: [{$ref: '#/components/schemas/Pet'}]\n" +
+			"      discriminator: {propertyName: action}\n" +
+			"      oneOf: [{$ref: '#/components/schemas/Block'}, {$ref: '#/components/schemas/Log'}]\n",
+			pinnedRules + "    Cat: {allOf: [{$ref: '#/components/schemas/Rule'}, {properties: {kind: {const: cat}}}]}\n",
+			map[string]string{"Cat": "cat"}, `only "cat"`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
