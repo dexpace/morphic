@@ -92,8 +92,9 @@ named for a spec entity: each operation's row of its settings, though a template
 in the operation's unit (above), and its failure kinds are the configuration's
 ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). So a runtime name meets a spec
 name only in a file importing both, where Go writes it qualified
-([Go](../targets/go/naming.md#imports)), and Kotlin, which cannot always, reserves it in every unit
-([Kotlin](../targets/kotlin/naming.md#reserved-names)). Each
+([Go](../targets/go/naming.md#imports)) and Kotlin imports one under a name of its own
+([Kotlin](../targets/kotlin/naming.md#imports)); Kotlin reserves it in every unit all the same, for
+a caller importing both by `*` ([Kotlin](../targets/kotlin/naming.md#reserved-names)). Each
 target's document says what that unit is in its build ([Go](../targets/go/overview.md#output-units),
 [Kotlin](../targets/kotlin/overview.md#output-units)).
 

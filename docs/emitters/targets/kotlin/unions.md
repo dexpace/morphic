@@ -7,7 +7,10 @@ so it needs no struct.
 
 Kotlin's variant classes are the same wrapper as [Go's](../go/unions.md), for the same reason
 ([lowering table](lowering.md)), and each one's `toString` shows a variant the union redacts as
-`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)).
+`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)). A wrapper takes its
+variant's name, most often the name of the type it wraps, so the union's file imports that type
+under a name of its own, `class Dog(val value: Dog2) : Pet`, as it does each declaration a class it
+nests would hide ([imports](naming.md#imports)).
 
 ## The fallback
 

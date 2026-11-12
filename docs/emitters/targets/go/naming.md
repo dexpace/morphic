@@ -68,4 +68,10 @@ there: a keyword (`type`, `default`), a predeclared identifier a parameter would
 Go's exported names cannot meet its lowercase package names, and where two packages one Go file
 imports share a name — the standard library's `time` and a group unit named `time`, the standard
 library's `runtime` and the runtime's unit, or two rows' `decimal` — one takes a name of its own
-in that file.
+in that file. A parameter or a local can hide one, `time.Second` failing beside a parameter `time`
+(`time.Second undefined (type string has no field or method Second)`), so it takes the escape
+above, and nothing else a Go file declares takes a name its references begin with: Go nests no
+type, a struct field or a method is named only through its value (`u.Time`, `u.JSON()`), and an
+exported name meets no package's and no predeclared identifier, all of which are lowercase. With Go
+1.27.3, a struct with fields `Time`, `JSON`, `time` and `json` and a method `Json` built beside
+imports of `time` and `encoding/json`, and its methods reached both packages. T-60 holds it.

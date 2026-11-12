@@ -23,11 +23,11 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
     `Transport`, and the opt-in annotations `AlphaApi` and `BetaApi`
     ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
-    `OffsetDateTime`. A file naming one beside a spec class of its name would write it qualified
-    ([imports](#imports)), which fails in an expression where a member shadows the package's first
-    segment: in a class with a property `com`, `com.acme.runtime.Duration(1)` failed ("unresolved
-    reference 'acme'"). Once #1496 settles that, these names need no reserving outside the
-    Objective-C namespace below.
+    `OffsetDateTime`. A file naming one beside a spec class of its name imports one under a name of
+    its own ([imports](#imports)), so no generated file needs these reserved, while a caller's
+    does: with Kotlin 2.4.0, a file importing a unit and the runtime's with `*` found a class both
+    declared ambiguous where it named it ("overload resolution ambiguity between candidates"), so a
+    spec class named `Response` would cost each such caller an explicit import.
   - Each name Kotlin's default imports give that a refine step, or a template rendering beside the
     spec's names, can write, such as `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and
     `Result`, since a top-level declaration shadows a default import for its whole package: with a
@@ -108,5 +108,68 @@ would not set apart, takes a trailing underscore.
 
 ## Imports
 
-Where a Kotlin file refers to a declaration with the simple name of a class it would import, it
-writes that class qualified rather than importing it.
+Every reference a Kotlin file writes begins with a name the file gives at its top level: one of its
+own top-level declarations, or the name it imports a declaration under. A nested class is reached
+through its outermost class (`Pet.Dog`) and a member through its receiver (`this.other`), so neither
+depends on what a scope between them declares. A top-level name is what a nearer scope can take:
+inside a class, a class it nests hides every declaration of that name, its package's, an import's
+and a default import's alike, and in an expression a package's first segment binds as any name does,
+so writing a declaration qualified only moves the question to the segment. Measured with Kotlin
+2.4.0 on the JVM: a variant `Pet.Dog(val value: Dog)` held itself and refused a model `Dog`
+("argument type mismatch: actual type is 'Dog', but 'Pet.Dog' was expected"); a variant `Pet.List`
+made a sibling's `List<String>` fail ("no type arguments expected"); a variant `Pet.Pet` took the
+union's own name from every wrapper's supertype; the `Companion` the serialization plugin gives a
+`@Serializable` class, declared or not, took a model `Companion` in its body; in a class with a
+property `com`, `com.acme.runtime.Duration(1)` failed ("unresolved reference 'acme'"), where the
+type `com.acme.runtime.Duration` resolved; and in a client with an operation `error(message:
+String)`, another method's `error("boom")` called the operation and threw nothing. A class
+implementing an interface does not see the interface's nested classes, while one extending a class
+sees the superclass's, so what a class inherits counts as its own.
+
+So the names a file gives at its top level differ from one another and from every name a nested
+scope of the file declares or inherits: a class nested at any depth, the plugin's `Companion`, a
+member, an enum entry, a type parameter, a parameter and a local. A declaration the file names
+whose name one of them takes is imported under a name of its own, which the collision rule gives it
+as it gives any name that yields
+([collisions](../../refine/naming.md#collisions-and-the-names-a-generation-shipped)):
+`import com.acme.shared.Dog as Dog2` beside a variant `Dog`, `import kotlin.collections.List as
+List2` beside a variant `List`, `import kotlin.error as error2` beside an operation `error`, and
+`import com.acme.users.Pet as Pet2` in the file declaring a union `Pet` with a variant `Pet`. The
+declaration's own name then resolves nowhere in that file: with `import p.Dog as DogValue`,
+`Dog("x")` there was an unresolved reference, though `p` declares `Dog`, so every reference to it in
+the file goes through the alias. No declaration of the file yields to an import, since a caller
+writes its classes and members by name, and its parameters too, in a named argument and as a Swift
+argument label. Nothing is written qualified by its package.
+
+An alias is its file's alone. The class files and the framework's header name each class by its own
+name: Kotlin/Native 2.4.0 wrote `ProbeDog *value` for a wrapper holding a `Dog2`. With wrappers,
+models and a model's builder written this way across two modules, a consumer in a third module and
+another package built each wrapper from the type it wraps and a model from the models its properties
+name, the same sources built for JS, and a Swift caller built `PetDog(value: Dog(name: "rex"))`.
+Removing any one alias, or writing its declaration qualified, failed a build, though the one a
+wrapper `Pet.List` took for a model `List` only in the consumer: without it the SDK built, its
+wrapper holding itself. So the rule renames no declaration, and what
+an additive change brings into a file moves at most which of its imports take an alias, which no
+caller sees. On the golden spec (@bc6fad24, morphic @fa253fe19), 2,398 of the 3,136 variants of its
+1,003 unions write their own wrapper's name in their value's type, in 837 unions, so those files
+import 2,398 declarations under an alias; 1,372 of those variants wrap an anonymous type whose hint
+is the variant's, each class counted as its words join in PascalCase. One variant is named as its
+union, no model holds a type named `Builder` or `Companion`, and the 3 properties named `org` and
+the 3 named `app` keep their names under a root that begins with either. T-60 holds it.
+
+Four other designs were weighed, and each fails an input:
+
+- **Writing the declaration qualified**, as this section once did for a name an import shares,
+  resolves in a type but fails in an expression wherever a value named as the package's first
+  segment is in scope, as in a model's body above. Kotlin has no form qualified from the root, as
+  C#'s `global::` is, which no scope could take.
+- **Renaming the nested class** where code inside it names a declaration of its name renames 2,398
+  variants on the golden spec, each the name a caller writes (`Pet.Dog(...)`), and a variant the
+  spec adds whose type names an existing variant's name renames that variant.
+- **Reserving each package's first segment** in every scope that writes one renames a property or a
+  parameter, which a caller names, for a fact elsewhere in its file.
+- **Nesting nothing**, every wrapper and builder at the top level as `PetDog` and `UserBuilder`, as
+  Go's are, still leaves the plugin's `Companion` nested in every model, so the rule above is needed
+  all the same. It drops the nesting a Kotlin caller writes, and puts each wrapper among its unit's
+  names, where 293 of the golden spec's would fold as a type in one unit does, so a wrapper's name,
+  which a caller writes, would turn on the rest of its unit.

@@ -691,3 +691,19 @@ throughout these documents.
     ([characters](../refine/naming.md#a-character-a-target-cannot-write-is-written-by-its-name),
     [leading words](../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word),
     [Swift](../targets/kotlin/swift.md)).
+60. **T-60 · References resolve** — a fixture holding, in the root and in a group's unit, a union
+    whose variants are named after the types they wrap, one in another unit among them, after a
+    class Kotlin imports by default (`List`) and after the union itself; an open union beside a
+    model named `Unknown`; models named `Builder` and `Companion` that another model's properties
+    hold; a model whose properties are named after the first segment of each package its file
+    names, the root's and `kotlin`'s among them; a spec class beside a runtime class of its name;
+    two units declaring one name and a file naming both; and an operation named after each function
+    its client's code calls, generates code that compiles on every target. A consumer in another
+    module and package, and on Multiplatform a Swift caller, builds each wrapper from the type it
+    wraps and each model from the types its properties name, each variant decodes as its wrapped
+    type, and the client's calls against the [behavior server](behavior-server.md) do what the same
+    fixture's do with each such name changed to one nothing else takes. No Kotlin file writes a
+    reference qualified by its package, and adding a variant, a model and a property renames no
+    declaration the manifest records. On Go, a model whose fields and methods are named after each
+    package its file imports compiles ([Kotlin](../targets/kotlin/naming.md#imports),
+    [Go](../targets/go/naming.md#imports)).
