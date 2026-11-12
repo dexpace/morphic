@@ -53,17 +53,20 @@ media type's serialization of the value instead, so as JSON a string keeps its q
 
 A null has no text. OpenAPI's style examples read it as RFC 6570's undefined (§4.12.6), so a query,
 header, cookie or form input holding null is written as an absent one is, and an optional nullable
-input's null and its absence send one request. An empty list or object is undefined too (RFC 6570
-§2.3), and a null member of a list or an object is left out of it, since the expansion appends only
-defined members (RFC 6570, Appendix A). A path parameter has no absent form: one holding
-null, or whose expansion leaves its segment empty, as an empty string's does under `simple`, would
-send a path naming another resource, and an empty last segment one a server ignoring a trailing
-slash routes to the collection above it. On the golden spec (spec @bc6fad24, morphic @ea70eba79),
-23 `DELETE`s of an item sit under a `DELETE` of their collection, as
-`DELETE /accounts/{account_id}/cloudforce-one/rules/{id}` sits under one its summary calls "Delete
-all rules". So such a call fails before anything is sent, as one does whose `host` binding's label
-holds null or an empty text, or fills a host that is no RFC 3986 host, which Smithy's endpoint rules
-require of a client.
+input's null and its absence send one request. An empty list or object is undefined too
+(RFC 6570 §2.3), and a null member of a list or an object is left out of it, since the expansion
+appends only defined members (RFC 6570, Appendix A). A path parameter has no absent form: one
+holding null, or whose expansion leaves its segment empty, as an empty string's does under `simple`,
+would send a path naming another resource, and an empty last segment one a server ignoring a
+trailing slash routes to the collection above it. On the golden spec
+(spec @bc6fad24, morphic @ea70eba79), 23 `DELETE`s of an item sit under a `DELETE` of their
+collection, as `DELETE /accounts/{account_id}/cloudforce-one/rules/{id}` sits under one its summary
+calls "Delete all rules". So such a call fails before anything is sent, as one does whose `host`
+binding's label holds null or an empty text, or fills a host that is no RFC 3986 host, which
+Smithy's endpoint rules require of a client. Under `AllowReserved` a slash in the text is its
+binding's own, so an empty segment one leaves beside a segment that is not, as in `a//b` and
+`photos/`, is sent as it is, while a text of slashes alone names no segment of its own and fails as
+an empty one does.
 
 A query input or a form field that arrives empty, as `page=` does, reads as an absent one where its
 binding sets `AllowEmptyValue`, under which a client may send an empty value in place of leaving the
@@ -194,6 +197,8 @@ which keys its row as any encoding does: an emitter never reads which format a d
   holding `a?b` to `a`, and the second encodes the percent-encoded triples OpenAPI has a caller
   write before reserved expansion (§4.12.4), sending a key written `100%25` as `100%2525`.
 - **A dot segment percent-encoded**: WHATWG URL reads `%2e` as `.`, so `fetch` still removes it.
+- **Refusing a segment an `AllowReserved` slash leaves empty**: a path-like key ending in `/` would
+  be unreachable, where a dot segment is refused because the client itself rewrites it.
 - **A header's text trimmed**, as each target's HTTP library trims it: two texts differing only in
   the whitespace at their ends would send one.
 - **A `Prefix` header map keyed as each server reports a name**: one header would key `Foo` on Go
