@@ -5,19 +5,28 @@ parameter, an operation, an enum member, a union variant, an auth scheme or a ch
 declaration the entity lowers to carries it in the mechanism its language's tools read: every method
 an operation lowers to, its `WithResponse` method, a pager and each method `AlsoMount` gives it
 among them, every shape a model projects, the field a property or parameter becomes in each shape or
-request type holding it, an enum's constant, a variant's wrapper. `MarkDeprecation` adds it once the
-declarations exist ([step list](steps.md)). Nothing deprecated changes what is sent or read, so the
-mock server reads none of it.
+request type holding it, the setter a builder gives that field, an enum's constant, a variant's
+wrapper. `MarkDeprecation` adds it once the declarations exist ([step list](steps.md)). Nothing
+deprecated changes what is sent or read, so the mock server reads none of it.
 
 A mark counts only where the target's tools show it at a use in another output unit, the caller's.
 Where a target's mechanism marks a declaration partly or not at all, its document says so and puts
 the text where the caller reads it instead: Kotlin 2.4.0 shows no use in another module of an enum
 entry's `@Deprecated`, on the JVM or on Native ([Kotlin](../targets/kotlin/lowering.md)), and the
 Swift export marks a class on its initializers alone and an enum entry nowhere
-([Swift](../targets/kotlin/swift.md)). No target marks a parameter, so a path parameter passed
-positionally ([request shaping](requests.md)), which is no field, has its text in its method's
-documentation of it: a Go doc comment has no place on a parameter, and Kotlin 2.4.0 refuses
-`@Deprecated` on one, `this annotation is not applicable to target 'value parameter'`.
+([Swift](../targets/kotlin/swift.md)).
+
+A member is used where a caller builds its holder as well as where one selects it, and there the
+first targets show the mark only in part. Go builds a request type or a model as a keyed literal,
+and gopls v0.24.0 reports `r.Expand` but not the key of `GetOrderRequest{Expand: "x"}`, which
+staticcheck's `SA1019` reports (golangci-lint 2.14.0). Kotlin builds one through its builder, whose
+setter carries the mark and draws the warning from another module, while a required member is a
+parameter of the builder's constructor and of the factory. No target marks a parameter: a Go doc
+comment has no place on one, and Kotlin 2.4.0 refuses `@Deprecated` there, `this annotation is not
+applicable to target 'value parameter'`. So the holder's documentation names, with its text, each
+deprecated member a caller can set unmarked, every deprecated field of a Go struct and each required
+one of a Kotlin class, as a method's documentation does a path parameter passed positionally
+([request shaping](requests.md)), which is no field. T-70 holds it.
 
 ## The text
 
