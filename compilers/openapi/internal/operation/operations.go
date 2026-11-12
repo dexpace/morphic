@@ -134,9 +134,13 @@ type opContext struct {
 	key           string
 	inbound       ir.HTTPInbound
 	withCallbacks bool
-	inferred      ir.Inferred
-	params        []sourcedParam
-	ptrs          opPointers
+	// groups is what a path's route files each operation it mounts in, which
+	// decides the operation's grouping marker, inferred; nil on a route filing
+	// none, whose inferred is the route's own.
+	groups   *serviceGroups
+	inferred ir.Inferred
+	params   []sourcedParam
+	ptrs     opPointers
 }
 
 // keyFields places key in the binding field its route selects. A webhook's

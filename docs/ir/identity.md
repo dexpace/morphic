@@ -123,10 +123,11 @@ messages (AsyncAPI reuses one named message across channels, operations, and rep
 An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
 Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
 that forms the group therefore mints its ID, in a namespace named for the rule — the OpenAPI
-compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`, and the two singletons
-`g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a Smithy
-resource, a protobuf service) takes the declaration's own coordinate as the path, as it does for
-any other entity. Either way the ID is unique across the whole document, nested groups and every
+compiler's are `g/tags/<tag name>`, `g/path-prefix/<first segment>`,
+`g/extension/<segment>/<segment>…` for the group path a vendor extension states, and the two
+singletons `g/default` and `g/webhooks`. A format that declares its groups (a TypeSpec interface, a
+Smithy resource, a protobuf service) takes the declaration's own coordinate as the path, as it does
+for any other entity. Either way the ID is unique across the whole document, nested groups and every
 service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
 `ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
 of it, so two groups that render the same words stay two entities, and what an emitter does about

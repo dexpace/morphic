@@ -25,6 +25,9 @@ declaration out of the root unit. Both are off by default, and the first that ap
    - a key with a `#fragment` is an options error, since a partition is a whole document;
    - a key mapping to a name the units' scope reserves, such as `shared`, is an options error, since
      a name the options give a unit never yields ([reserved names](reserved-names.md));
+   - two keys mapping to names that differ in letter case alone, such as `Billing` and `billing`,
+     are an options error, since neither yields and a file system that ignores case would make their
+     units one directory;
    - a key naming the entry document, `Sources[0]`, or an overlay is an error diagnostic: the root
      unit is the options' to name already, and an overlay's declarations are its document's;
    - a key naming no source of the document is a warning, since it partitions nothing;
@@ -62,17 +65,19 @@ root, and a partition's unit is the name its key maps to. The units' names are a
 ([reserved names](reserved-names.md)): a group named `shared` or `runtime`, or `internal` in Go,
 meets a reserved name, and two groups whose names render
 alike — tags `Webhooks` and `webhooks`, both the Go package `webhooks` — collide, and are told apart
-by group ID as any collision is. A name the options give a unit never yields. A declaration a target
-derives from another lands in that one's unit — a visibility shape
-([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
-wrappers and fallback in the union's, an operation's request and headers types and its row of the
-runtime's settings ([runtime policy](../contract/runtime-policy.md#delivery)) in the operation's —
-and a unit is a namespace of its own, so two declarations collide only within one ([reserved
-names](reserved-names.md)), save in the Objective-C names a Kotlin Multiplatform framework gives
-them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A wrapper, or an inclusive
-union's field, imports a variant another unit holds, which is how a union reaches into the shared
-unit. A service-wide error's headers type lands where a type all its groups reach does. T-18 holds
-placement to these rules.
+by group ID as any collision is. A unit is a directory on Go and on Kotlin, so the scope compares
+its names case-folded ([collisions](naming.md#collisions-and-the-names-a-generation-shipped)), and a
+group whose name differs from a partition's in letter case alone yields to it. A name the options
+give a unit never yields. A declaration a target derives from another lands in that one's unit — a
+visibility shape ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a
+union's interface, wrappers and fallback in the union's, an operation's request and headers types
+and its row of the runtime's settings ([runtime policy](../contract/runtime-policy.md#delivery)) in
+the operation's — and a unit is a namespace of its own, so two declarations collide only within one
+([reserved names](reserved-names.md)), save in the Objective-C names a Kotlin Multiplatform
+framework gives them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A wrapper, or
+an inclusive union's field, imports a variant another unit holds, which is how a union reaches into
+the shared unit. A service-wide error's headers type lands where a type all its groups reach does.
+T-18 holds placement to these rules.
 
 ## The runtime's unit
 

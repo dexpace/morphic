@@ -86,6 +86,25 @@ keys](../../ir/derived-facts.md#correlation-keys)).
    reserve: a suffix can make a reserved name, as `com2` is a Windows device name Kotlin's units
    reserve ([Kotlin](../targets/kotlin/naming.md#reserved-names)).
 
+In a scope whose names a target writes as paths, a directory's, a file's or a JVM class file's, two
+names that differ in letter case alone collide too. A file system that ignores case, as macOS's and
+Windows' do by default, makes them one path: on macOS, Kotlin 2.4.0 wrote classes `Setup` and
+`SetUp` of one package to a single `p/Setup.class`, and the program then failed to load it
+(`NoClassDefFoundError: p/Setup (wrong name: p/SetUp)`). Such a scope compares names case-folded, by
+the fold the engine compares artifact paths by ([emit rules](../emit/rules.md)), in both rules: a
+name held, shipped or reserved there meets every name that folds as it does, and a suffix is chosen
+against them so. This holds for a reserved name that is no path too, such as a name Kotlin imports
+by default, since one comparison per scope is the simpler rule and errs toward a suffix rather than
+a lost file. A target compares each scope one way whatever the spec says, so two symbols rule 1
+keeps were apart under the comparison they shipped under. The units' scope is one ([output
+units](output-units.md)), and each target names its others
+([Go](../targets/go/naming.md#file-names), [Kotlin](../targets/kotlin/naming.md#reserved-names),
+[docs](../docs-and-mock.md#routes-and-links)). A target that can write two such names to one path,
+as Go writes two declarations to one file, compares that scope's names as they are. The engine's
+refusal of two paths that fold alike is the backstop rather than the rule, since a refusal would
+fail a run on a valid spec. Such a pair draws no `pass/name-collision`, which compares neutral names
+exactly (#1742).
+
 A name a target resolves in a second scope is an entry of its own, keyed as a symbol derived from
 the entity is ([write / integrate](../write-integrate.md)): on Multiplatform, a declaration's
 Objective-C name, resolved in the namespace every unit shares ([Swift](../targets/kotlin/swift.md)),

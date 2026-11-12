@@ -11,8 +11,10 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   options). The spans [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to
   intra-doc links via the *same* IR-ID lookup the Go emitter uses for doc comments, so a link
   follows what its target renders as. Examples use the schema arm (`Value/Headers`) vs the operation
-  arm (`Input/Output/Error`) correctly. A union or enum `TypePlan.Open` marks is documented as one
-  that may hold a variant or value the document does not list, one inclusive in a shape as one whose
+  arm (`Input/Output/Error`) correctly. A union, a model narrowing one ([what the docs
+  render](#what-the-docs-render)) or an enum `TypePlan.Open` marks is documented as one that may
+  hold a variant or value the document does not list, a union inclusive in a shape, or a model
+  narrowing it there, as one whose
   value may be several variants at once, and every `PlannedError` and `PlannedResponse` as the body
   and headers it declares. An enveloped response is documented as the `Type` a method returns and
   the `Envelope.Body` the wire carries, and an example of it as both: the member at `Value` of the
@@ -92,8 +94,37 @@ anonymous model's table where that version gives the model no page of its own, a
 model names the shape it shows, so an operation's patch body links to the patch table, never to one
 marking required what the patch relaxes. An anonymous model another composes in place is no table of
 its own: its members are rows of the composing model's table, anchored there, so no member is
-anchored twice. What the table of a model narrowing a union shows of the members its union's
-variants add, which its flattening does not hold, is #1719's to settle.
+anchored twice.
+
+A model narrowing a union is rendered as the union it narrows, as the SDK targets declare it
+([inheritance](refine/models.md#inheritance)): a table for each entry of its `TypePlan.Composed`, by
+the rules above with the entry's `Flattened`, `Required`, `Undeclared` and `Shapes` in place of the
+model's, so each lists every member an instance of that shape carries, as the entry's flattening
+takes it ([TypePlan](plan/types.md#a-model-narrowing-a-union)). A table names the variants its
+entry's `Over` lists, each linked where it is rendered, and the tags routing to it where its unions
+are discriminated, its anchor named from the model, that `Over` and its shape, and the model is
+documented as its union is (above). A member is anchored where the model declaring it is rendered,
+one the model declares in the first of its tables that holds it, in `Composed`'s order and then
+`Shapes`', and one a variant declares where that variant is rendered, which the table links as a
+subtype's links an inherited member; the rule for a member no table of its declaring model holds
+reads these tables as the model's. An anonymous union no reference but the model's composition
+reaches is rendered by those tables alone, so an anonymous variant of it no other reference reaches
+is composed in place, no table of its own, named unlinked since no route reaches it, its members
+anchored in the first of the model's tables holding them. A value of the model is redacted at each
+member the `Redacted` of any entry admitting it lists, an inclusive value being several of them at
+once ([a value several variants admit](refine/unions.md#a-value-several-variants-admit)), and whole
+where a variant such an entry's `Over` lists is sensitive, as a union's variant is. A model adding
+nothing to its union, which the SDK targets alias, has no table: it is shown as the union it stands
+for, linked, on its page or, where it has none, where it is referenced. One the plan composes no
+entry for otherwise, which they degrade, lists its flattening's members and names its union, linked.
+
+One table of the model's own members headed by its union, linked, would be shorter: 107 rows for the
+golden spec's 23 such models, where a table for each entry holds 1,671 in one shape (spec @bc6fad24,
+morphic @ea70eba79). But in 16 of them the model redeclares a member a variant declares too.
+`rulesets_ResponseRule` requires `id`, `action`, `enabled`, `expression` and `ref`, which each of
+its union's 21 variants leaves optional, so a reader joining its table with a variant's would find
+the variant's declaration where an instance takes the model's, and no page would show a shape the
+SDK declares.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -207,7 +238,8 @@ a way to show one entity across API versions. Each is decided by data, never by 
   `webhooks`, which slugs spelt as the source spells them would part by case alone.
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
-  another's page an anchor there, and every `PropID` a model declares an anchor where that model is
+  another's page an anchor there, every table of a model narrowing a union an anchor where the model
+  is rendered, and every `PropID` a model declares an anchor where that model is
   rendered (above), save one no table holds, such as a write-only member of a model only responses
   reach, which is rendered nowhere, a decorator answering with its `Alias`'s. A `Property` no model
   declares, a header or a resource's identifier or state (`ResourceInfo`), is a row where its holder
@@ -348,8 +380,9 @@ member and operation:
   leaves open (`Enum.Closed` false) admitting a value it does not list. Shown through a shape, an
   example drops the members that shape does not hold, keeping a key no member declares that the
   model's catch-all admits, checked against the catch-all's type, and takes, for each member the
-  shape requires and the example lacks, that member's own first value, an `Undeclared` name's from
-  its catch-all type's set, which marks what is shown `Inferred` and labels it generated, its
+  shape requires and the example lacks, the value a synthesized model gives that member (below), an
+  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and
+  labels it generated, its
   declared members kept as written; with `Assemble` off it fills nothing, and an example missing a
   member the shape requires gives way as one it cannot complete does. So a response-form example
   serves a create shape, a patch body's may leave out a required member, and, with `Assemble` on,
@@ -359,7 +392,11 @@ member and operation:
   such a value elsewhere through all of them, keeping each member one of them holds in the shape,
   since an inclusive value may be several variants at once. A shape can make a value two variants of
   a `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
-  admission again in the shape it shows and is false there, as for a member it cannot fill.
+  admission again in the shape it shows and is false there, as for a member it cannot fill. A model
+  narrowing a union is checked and shown as that union, the entries of its `TypePlan.Composed` its
+  variants, each in its entry's shape and filled from what that entry requires there, strict and
+  inclusive where the union is ([TypePlan](plan/types.md#a-model-narrowing-a-union)), so a value no
+  entry admits is refused, and a model adding nothing to its union as that union.
   `plan.Shown` does this, the one projection every consumer reads an example through, reading
   `Assemble` from `Plan.Policy.Examples`, and returns false for an example it cannot complete, a
   required member's set being empty, so the consumer takes the set's next one; with none left the
@@ -406,13 +443,20 @@ member and operation:
   the API holds a value to them: a synthesized value failing one is left out and reported, and a
   declared one failing one is refused, as the golden spec's 34 types carrying one require, marked
   `Inferred` and labelled generated. A model synthesized holds, for each member, an `Undeclared`
-  name among them, the first value of that member's own set, and a list or map, for its k-th item or
+  name among them, the first value of that member's own set, and then of the set of each declaration
+  its flattening overrides, in the order the walk reads them, that every declaration of the member
+  admits, else the first of its own set, as the declaration a flattening takes governs where its
+  declarations admit no value in common ([the flattening](../ir/models.md#the-flattening)): each of
+  the golden spec's 355 error bodies composing a success shape and then a failure schema keeps the
+  failure's `success: false`, which the success shape's `true` admits no value in common with (spec
+  @bc6fad24, morphic @ea70eba79). A list or map holds, for its k-th item or
   entry, the k-th, its set's values taken in turn and, once they run out, synthesized values seeded
   by index, so items differ where `uniqueItems` or a map's keys require it, a map's keys being
   distinct values of its key type; a `uniqueItems` list holds no more items than distinct values
   exist, and one left below its minimum is unsynthesizable. Each such value is a declared one whole,
   or a synthesized one cut to the depth the bound leaves, so a property's value is the same alone
-  and inside its model wherever the bound leaves it whole, and an optional recursive member ends.
+  and inside its model wherever the bound leaves it whole and no other declaration of it refuses it,
+  and an optional recursive member ends.
   The bounds cut only what validity leaves optional ([plan policy](plan/policy.md)): an optional
   member more than `MaxDepth` models deep, and the entries of a list or map past the larger of
   `MaxItems` and its minimum, or past its minimum alone once it lies deeper than `MaxDepth` or on a
@@ -427,11 +471,19 @@ member and operation:
   required cycle no value ends, or one holding more values than `plan.MaxExampleValues`, a fixed
   limit the plan package states, 10,000, which bounds what a hostile schema can make one example
   cost, is reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted
-  invalid. How a model narrowing a union is synthesized is #1719's to settle.
-- **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
-  seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
-  ID where no key identifies it, save on a recurrence of its type along the value or deeper than
-  `MaxDepth`, where it takes the first variant or member, in source order, from which a value ends.
+  invalid. A model narrowing a union is synthesized as a value of one entry of its
+  `TypePlan.Composed`, chosen as a union's variant is (below), holding what that entry's flattening
+  holds as a model's value does, and a model adding nothing to its union takes the union's set where
+  it adds no constraint to it, and is otherwise synthesized as that union. So
+  `rulesets_ResponseRule`'s value is one of its union's rules carrying the five members it requires,
+  its `action`, which the model redeclares as a plain string, taking the value the variant's own
+  declaration pins, the tag routing to that variant. Which tag a value of a variant pinning none
+  carries is #1735's to settle.
+- **Stable.** Each choice the synthesizer makes, such as which enum member, which variant or which
+  entry of a model narrowing a union, is seeded from the entity's [correlation
+  key](../ir/derived-facts.md#correlation-keys), or from its ID where no key identifies it, save on
+  a recurrence of its type along the value or deeper than `MaxDepth`, where it takes the first
+  variant, entry or member, in source order, from which a value ends.
   So a required recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches
   itself through a variant requiring a non-empty list of it. So a value is the same in either
   declaration order, and on every regeneration until the entity's schema, its key, or its ID where
@@ -476,9 +528,9 @@ depends on it. What it needs is almost all IR and plan facts:
 | A confirmation before a destructive call | the `Destructive` hint, which no method implies |
 | Streamed output for a list | `OpPlan.Page` |
 | Choices and defaults on a flag | `Enum`, `Parameter.Default`, `Property.Default` |
-| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all |
-| Flags that exclude or require each other | the branches of a request body's `Union` |
-| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)) |
+| Body fields as flags, with the path to put each back | the request `Payload`'s model, by `PropID`, and each `TypePlan.Undeclared` name, typed as its catch-all, and for a model narrowing a union, the `PropID`s its `TypePlan.Composed` entries hold |
+| Flags that exclude or require each other | the branches of a request body's `Union`, or the entries of a body narrowing one |
+| A flag whose value is never echoed | `TypePlan.Redacted`, `TypePlan.Sensitive`, `Parameter.Secret` ([redaction](refine/redaction.md#a-redacted-value)), and for a body narrowing a union each `PropID` the `Redacted` of one of its `TypePlan.Composed` entries lists |
 | A command's help naming its tier and what it means, and an `alpha` command run only with a flag acknowledging it | `OpPlan.Stability` ([stability](operations/stability.md)) |
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
