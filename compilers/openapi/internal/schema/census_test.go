@@ -274,12 +274,14 @@ func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 
 // TestHeldDiscriminator_IsNotKeptTwice pins the census's control: a union or a
 // model that routes by its discriminator holds it, so nothing is kept verbatim
-// and nothing is reported.
+// and nothing is reported. A model needs no type to hold one: properties alone
+// make it.
 func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(cat + dog +
 		"    U: {oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}], discriminator: {propertyName: kind}}\n" +
-		"    Base: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
+		"    Base: {type: object, properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n" +
+		"    Untyped: {properties: {kind: {type: string}}, discriminator: {propertyName: kind}}\n")
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Empty(t, validated(t, doc))
@@ -287,9 +289,11 @@ func TestHeldDiscriminator_IsNotKeptTwice(t *testing.T) {
 	u, ok := typeByName(doc, "U").(*ir.Union)
 	require.True(t, ok)
 	assert.NotNil(t, u.Discriminator)
-	base, ok := typeByName(doc, "Base").(*ir.Model)
-	require.True(t, ok)
-	assert.NotNil(t, base.Discriminator)
+	for _, name := range []string{"Base", "Untyped"} {
+		m, ok := typeByName(doc, name).(*ir.Model)
+		require.True(t, ok, name)
+		assert.NotNil(t, m.Discriminator, name)
+	}
 	assert.NotContains(t, marshalForTest(t, doc), "openapi:discriminator")
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo), "%+v", diags)
 }
