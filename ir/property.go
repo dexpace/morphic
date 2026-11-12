@@ -63,7 +63,8 @@ type Property struct {
 	ID PropID `json:"id"`
 	// Name is the property's naming.
 	Name Naming `json:"name"`
-	// WireName is the serialized name; defaults to Name.Source.
+	// WireName is the serialized name; defaults to Name.Source. A Header under
+	// a Prefix has none, as it names no field of its own.
 	WireName string `json:"wireName,omitempty"`
 	// WireNameByFormat carries per-media-type overrides (TypeSpec @encodedName
 	// json/xml).
@@ -138,7 +139,9 @@ type Property struct {
 // EffectiveWireName returns the name p travels under on the wire: its
 // WireName, or its source name where it sets none (docs/ir/properties.md). It
 // is what tells one member of a model from another, across composition too
-// (docs/ir/models.md#the-flattening).
+// (docs/ir/models.md#the-flattening). A Header under a Prefix travels under no
+// one name, so for one it names none of its fields
+// (docs/ir/responses.md#prefix-headers).
 func (p *Property) EffectiveWireName() string {
 	if p.WireName != "" {
 		return p.WireName

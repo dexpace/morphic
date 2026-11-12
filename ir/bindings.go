@@ -151,7 +151,8 @@ type HTTPParamBinding struct {
 	// Prefix spreads a map-typed param as prefixed wire entries: prefixed headers
 	// (Smithy @httpPrefixHeaders) or catch-all query maps (@httpQueryParams with
 	// Prefix ""). An empty Prefix also means a binding of one field, so neither
-	// catch-all has a spelling yet (GitHub #1748).
+	// @httpQueryParams nor @httpPrefixHeaders("") has a spelling yet (GitHub
+	// #1748).
 	Prefix string `json:"prefix,omitempty"`
 	// ContentType serializes the param as a media type (OpenAPI content-style
 	// params).
