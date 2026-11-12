@@ -94,10 +94,10 @@ may name a type of the SDK's runtime, which the target imports from wherever it 
 
 ## What a built-in row writes
 
-A built-in row's codec writes each value in one spelling, in a body and as text alike ([values as
-text](../refine/text.md)), and reads every spelling its format admits of a value its type holds, so
-two targets send one request for a call and read alike every response its format admits. A
-string-spelled kind's spellings:
+A built-in row's codec writes each string-spelled value in one spelling, in a body and as text alike
+([values as text](../refine/text.md)), and reads every spelling its format admits of a value its
+type holds, so two targets' requests for a call hold one text at each position and values JSON
+compares equal in a body. A string-spelled kind's spellings:
 
 | Kind | Writes | Reads besides |
 |---|---|---|
@@ -112,8 +112,11 @@ string-spelled kind's spellings:
 
 `T` and `Z` are upper case in the format these rows write and read, as RFC 3339 §5.6 lets a
 specification require, so a row need not read them lower case. `bool` and `string` write their JSON
-values, `any` the JSON it holds, and a numeric kind a JSON number of its value, which text carries
-in plain notation ([values as text](../refine/text.md#the-text-of-a-value)). A fraction finer than
-its type's precision is cut rather than refused, as Go's `time.Time` reads one, while a value its
-type cannot hold at all, such as a leap second, is one the row refuses, and a text its format does
-not admit one it may refuse or read as its codec does.
+values, `any` the JSON it holds, and a numeric kind a JSON number of its value in a body, which JSON
+reads by value in any spelling, and plain notation as text ([values as
+text](../refine/text.md#the-text-of-a-value)). A value its format cannot spell, a year outside 0000
+to 9999 or an offset with seconds, is one the row refuses to write, in a body as in text, so the
+call fails before anything is sent. A fraction finer than its type's precision is cut rather than
+refused, as Go's `time.Time` reads one, while a value its type cannot hold at all, such as a leap
+second, is one the row refuses to read, and a text its format does not admit one it may refuse or
+read as its codec does.

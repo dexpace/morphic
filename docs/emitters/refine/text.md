@@ -1,13 +1,14 @@
 # Values as text
 
-A JSON body carries a value as JSON. Every other position carries it as text: a path segment, a
-query, header or cookie value, an `application/x-www-form-urlencoded` field, and a
-`multipart/form-data` part whose content type is `text/plain`. OpenAPI says how `style` and
-`explode` arrange texts, but leaves how a number, a boolean or a date becomes one to each
-implementation (OpenAPI 3.2, Appendix B), and the targets' own conversions disagree: the JVM's
+Over HTTP, a body whose media type is JSON carries a value as JSON, while a path segment, a query,
+header or cookie value, a `text/plain` body, an `application/x-www-form-urlencoded` field and a
+`multipart/form-data` part whose content type is `text/plain` carry it as text. OpenAPI says how
+`style` and `explode` arrange texts, but leaves how a number, a boolean or a date becomes one to
+each implementation (OpenAPI 3.2, Appendix B), and the targets' own conversions disagree: the JVM's
 `OffsetDateTime.toString()` writes `2020-01-01T00:00Z`, which RFC 3339 does not admit, and its
-`Double.toString()` writes `1.0` and `1.0E21` where Go's json/v2 writes `1` and `1e+21` (JDK 25,
-Go 1.27). So one rule decides a value's text, both ways, on every target.
+`Double.toString()` writes `1.0` and `1.0E21` where Go's json/v2 writes `1` and `1e+21` (JDK 25, Go
+1.27). So one rule decides a value's text, both ways, on every target. A message's headers and an
+RPC's metadata are their own protocols' to spell ([open question 4](../open-questions.md)).
 
 ## The text of a value
 
@@ -30,11 +31,14 @@ more than 6,177 characters to its significant digits, the most a `decimal128` ad
 arbitrary-precision value's exponent passes: `1E+999999999`, twelve characters in a body, would be a
 billion digits.
 
-An array or an object is arranged from its elements' and its members' texts as the binding's
-`Style` and `Explode` say in OpenAPI's terms (§4.12.3, Appendix C), each member under its wire
-name. What a list of objects or of lists sends, which OpenAPI leaves undefined, is #1731's. A
-`Prefix` binding writes each entry of its map as a field of its own, named by the prefix followed by
-the entry's key, its value the entry's text. A parameter whose `ContentType` names a media type
+An array or an object is arranged from its elements' and its members' texts as the binding's `Style`
+and `Explode` say in OpenAPI's terms (§4.12.3, Appendix C): a model's members in the order
+`TypePlan.Flattened` holds them, each under its `WireName`, or the name `WireNameByFormat` gives it
+for a form body's media type, and a map's entries in the order of their keys' texts, compared by
+UTF-8 bytes, so a Go map's unordered iteration never reaches a request. What a list of objects or of
+lists sends, which OpenAPI leaves undefined, is #1731's. A `Prefix` binding writes each entry of its
+map, in that order, as a field of its own, named by the prefix followed by the entry's key, its
+value the entry's text. A parameter whose `ContentType` names a media type
 ([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
 media type's serialization of the value instead, so as JSON a string keeps its quotes.
 
@@ -61,29 +65,34 @@ expansion for its style encodes it, `AllowReserved` passing RFC 3986's reserved 
 and a space always as `%20`. Every decoder those rules name reads `%20` as a space, while the `+` a
 form encoder writes, as Go's `url.Values` does, reads as a plus under RFC 3986's rules (Appendix E).
 A header's text, and a cookie's under the `cookie` style, is sent as it is, never percent-encoded
-(§4.12.2.2). One holding a character no field value may carry (RFC 9110 §5.5: CR, LF or NUL), or
-named by a `Prefix` key that is no field name (§5.1), fails the call before anything is sent, never
-trimmed or escaped, since a CR LF in it would begin a header of its own.
+(§4.12.2.2), and OpenAPI leaves escaping it to the caller (Appendix D). One holding a control
+character other than a tab, which no field value may carry (RFC 9110 §5.5), or a character past
+ASCII, or named by a `Prefix` key that is no field name (§5.1), fails the call before anything is
+sent, never trimmed or escaped. A CR LF in it would begin a header of its own, and the HTTP
+libraries the targets can run on disagree past ASCII: Go sends `é` as its UTF-8 octets and
+JavaScript's `fetch` as one ISO-8859-1 octet, while `fetch` and the JDK's `HttpClient` refuse the
+`€` Go sends (Go 1.27, Node 26, JDK 25).
 
 ## Reading a text
 
 Whatever reads a text reads it by the same rule backwards: an SDK reading a response header, the
 mock server reading a request ([docs and mocks](../docs-and-mock.md)), and an SDK reading a request
 the API sends it ([inbound operations](../../ir/http-binding.md#inbound-operations)). A text is
-percent-decoded as its location's rules say (Appendix E.5), a header's and a `cookie`-style
-cookie's not at all (§4.12.2.2), and split as its `Style` and `Explode` arrange a list or an object.
-A header's text is every line it arrived on, joined with a comma as RFC 9110 §5.3 joins them, the
-whitespace beside each comma dropped (§5.6.1).
+percent-decoded as its location's rules say (Appendix E.5), a header's and a `cookie`-style cookie's
+not at all (§4.12.2.2), and a list's or an object's is split as its `Style` and `Explode` arrange
+it. A header's text is every line it arrived on, joined with `, ` as RFC 9110 §5.3 joins them, and
+only a split drops the whitespace beside a comma (§5.6.1), so a string header keeps its own. A
+`Prefix` binding's map holds every field whose name starts with the prefix, a header's in any case
+(RFC 9110 §5.1), keyed by the rest of the name.
 
-Each text is read as the wire form it spells, through its row's codec as a body's value is, so a
-text and a body read a spelling alike. A built-in row reads every spelling its format admits of a
-value its type holds ([type table](../contract/type-table.md#what-a-built-in-row-writes)), and a
-number as its row reads one in a body, whose integral spellings, `1.0` for an integer, #1451
-decides. A text its row does not read is a value that does not parse, and a response header's leaves
-its field unset and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the
-revisions above, the golden spec declares one `Last-Modified` header `date-time` and gives an
-HTTP-date as its example, so that field stays unset; whether such a header reads an HTTP-date is
-#1732's.
+Each text is read as the wire form it spells, through its codec as a body's value is, so a text and
+a body read a spelling alike. A built-in row reads every spelling its format admits of a value its
+type holds ([type table](../contract/type-table.md#what-a-built-in-row-writes)), and a number as its
+row reads one in a body, whose integral spellings, `1.0` for an integer, #1451 decides. A text its
+codec does not read is a value that does not parse, and a response header's leaves its field unset
+and `RawHeader` holding what arrived ([T-26](../testing/mandatory-tests.md)). At the revisions
+above, the golden spec declares one `Last-Modified` header `date-time` and gives an HTTP-date as its
+example, so that field stays unset; whether such a header reads an HTTP-date is #1732's.
 
 ## Other formats
 
@@ -114,3 +123,9 @@ which keys its row as any encoding does: an emitter never reads which format a d
 - **Refusing every text outside a format alike**: it would take Go's `uuid.UUID` row away, whose
   parser reads a UUID in braces or with no hyphens, for agreement only on what a server should not
   send.
+- **A header's text past ASCII sent as its UTF-8 octets**, as passing a value through unchanged
+  would read: RFC 9110 has a recipient treat such octets as opaque and recalls that HTTP once read
+  them as ISO-8859-1 (§5.5), as `fetch` still writes `é`, so a server need not read what was meant,
+  and `fetch` and the JDK's `HttpClient` refuse `€` outright.
+- **A map's entries in the map's own order**: a Go map has none, so one call would send them in a
+  different order on each run.
