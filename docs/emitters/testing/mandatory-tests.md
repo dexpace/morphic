@@ -549,16 +549,19 @@ throughout these documents.
     model's `allOf` and the compiler distributes it; so do an undiscriminated union as a `Base`, a
     union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
     base's discriminator, and a union the model reaches through a model it composes. A variant's
-    `readOnly` member is in no create or patch shape of the model's. Read by a client under
-    `OpenUnions`, such a model keeps a variant its union does not list, and one whose variant holds
-    the model compiles, the union breaking the cycle. Each target declares one variant for each
-    entry of the model's `TypePlan.Composed` and no other, entries sharing the start of their `Over`
-    nested as a union of them, and a model composing its union through an alias scalar, as a 3.1
-    `$ref` beside a `description` hoists, narrows it as one naming the union does. A model its union
-    lists is that variant, a model the union's sum holds. A model adding nothing to its union
-    aliases it, and one narrowing two unions, one whose union has a variant composing it or reaches
-    itself through its variants, one over a key-tagged, enveloped or index-tagged union, and one
-    whose entries, with what their walks read, would pass `plan.MaxComposedSize`, among them one
-    holding few members over a long composition, which `Build` reports as
-    `emitters/plan/composed-limit`, each draw a diagnostic and degrade
-    ([inheritance](../refine/models.md#inheritance)).
+    `readOnly` member is in no create or patch shape of the model's, and each variant composed
+    there requires what its entry's `Required` lists and redacts what its entry's `Redacted` lists,
+    so each of `rulesets_ResponseRule`'s variants requires the five members the model requires
+    beside those its union's variant does, and a member only one of the union's variants redacts is
+    redacted in the variant composed over it alone. Read by a client under `OpenUnions`, such a
+    model keeps a variant its union does not list, and one whose variant holds the model compiles,
+    the union breaking the cycle. Each target declares one variant for each entry of the model's
+    `TypePlan.Composed` and no other, entries sharing the start of their `Over` nested as a union of
+    them, and a model composing its union through an alias scalar, as a 3.1 `$ref` beside a
+    `description` hoists, narrows it as one naming the union does. A model its union lists is that
+    variant, a model the union's sum holds. A model adding nothing to its union aliases it, and one
+    narrowing two unions, one whose union has a variant composing it or reaches itself through its
+    variants, one over a key-tagged, enveloped or index-tagged union, and one whose entries, with
+    what their walks read, would pass `plan.MaxComposedSize`, among them one holding few members
+    over a long composition, which `Build` reports as `emitters/plan/composed-limit`, each draw a
+    diagnostic and degrade ([inheritance](../refine/models.md#inheritance)).
