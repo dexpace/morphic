@@ -570,7 +570,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "x-fern-sdk-group-name names no group path, a string of at most 16 segments separated by dots or a list of them; the operation is grouped as if it were absent",
+      "message": "extension \"x-fern-sdk-group-name\" names no group path of at most 16 segments, written as text whose dots separate them or as a list of such text, so the operation is grouped as if it were absent",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1legacy/get/x-fern-sdk-group-name"

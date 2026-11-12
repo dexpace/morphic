@@ -108,8 +108,8 @@ func extensionLevels(c lowering.Ctx, src *soa.Operation, decl jsontext.Pointer) 
 	path, ok := ext.Path(entry.Value)
 	if !ok {
 		return nil, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, decl+ids.Ptr(ext.Key),
-			"%s names no group path, a string of at most %d segments separated by dots or a list of them; "+
-				"the operation is grouped as if it were absent", ext.Key, lowering.MaxGroupPathDepth)}
+			"extension %q names no group path of at most %d segments, written as text whose dots separate them "+
+				"or as a list of such text, so the operation is grouped as if it were absent", ext.Key, lowering.MaxGroupPathDepth)}
 	}
 	if len(path) == 0 {
 		return nil, nil
