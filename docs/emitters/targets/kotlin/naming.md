@@ -41,11 +41,17 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     operation's unit ([runtime policy](../../contract/runtime-policy.md#delivery)).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
-  - The class kotlinc compiles a file's top-level functions and properties into, the file's name
-    followed by `Kt` (`UserKt` for `User.kt`), for each file of the unit that holds one: a class
-    `UserKt` beside a top-level function or property in `User.kt` failed the JVM build ("Duplicate
-    JVM class name 'p/UserKt' generated from: UserKt, UserKt"), and beside a function the framework
-    exported the file's class as `UserKt_`.
+  - Every name ending in `Kt`, in any letter case, the form of the class kotlinc compiles a file's
+    top-level declarations but its classes and objects into, a typealias among them: the file's name
+    followed by `Kt`, `TimestampKt` for `Timestamp.kt`. A class `TimestampKt` beside a typealias in
+    `Timestamp.kt` failed the JVM build ("duplicate JVM class name 'p/TimestampKt' generated from:
+    TimestampKt, TimestampKt"), as one beside a top-level function or property did, and a class
+    `TimestampKT` built without a diagnostic, sharing one class file with the file's class on a
+    case-insensitive file system, so a module compiled against the output failed ("unresolved
+    reference 'Timestamp'"). Beside a function in `User.kt` the framework exported the file's class
+    as `UserKt_`. The escape and a numeric suffix leave the form, as `TimestampKt_` and
+    `TimestampKt2` built beside the typealias, while the set of each file's class alone would grow
+    with the spec's declarations, and adding a `Timestamp` would then move a shipped `TimestampKt`.
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
     runtime's among them, in every unit, bar `AlphaApi` and `BetaApi`, annotation classes
@@ -57,10 +63,11 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
-    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name
-    whose first word is `Kotlin`, the word the export puts before the Swift name of each class of
-    its own and of each standard-library class the framework reaches (`KotlinInt`,
-    `KotlinThrowable`), a set the spec's first enum grows by `KotlinEnum`, so that adding a
+    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; every name the
+    export declares for a class of its own or a public class of the standard library, `Kotlin`
+    before the class's name joined to its outer's (`KotlinInt`, `KotlinThrowable`,
+    `KotlinEnumCompanion`), all of them rather than only those the framework reaches, which a
+    declaration the spec adds can grow, another table of the options version, so that adding a
     declaration moves no Swift name; and the framework's own name, `Swift` and `Foundation`, which a
     caller writes to qualify a name (`Probe.Client`). A module a caller imports by choice, such as
     SwiftUI, reserves nothing, since a file importing it and the framework qualifies a name the two
