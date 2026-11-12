@@ -112,16 +112,25 @@ A `PathPattern` binding whose pattern names more than one segment, one holding a
 writes its text as google.api.http has a client write such a variable (`google/api/http.proto`,
 "Path template syntax"): every character percent-encoded but a `/` and RFC 3986's unreserved ones
 (§2.3), a `%` among them, so a triple in the value is encoded again and `a:b%41?c` travels as
-`a%3Ab%2541%3Fc`, each `/` cutting a segment. `AllowReserved` beside such a pattern changes nothing,
+`a%3Ab%2541%3Fc`, each `/` cutting a segment. Smithy writes a greedy label by the same rule
+(`httpLabel`, "Serialization rules"), so one is planned to lower to a pattern of `**` ([planned
+lowerings](../../compilers/planned-lowerings.md)) and never to `AllowReserved`, which passes the
+`%41` and the `?` that Smithy encodes. `AllowReserved` beside such a pattern changes nothing,
 since the pattern's format gives the rule, and what `AllowReserved` says of an empty segment and
 this section of a dot segment hold for it as for any path parameter. A pattern of one segment, `*`
-or a literal, is written as a binding with none is. A reader takes the text its pattern matches in
-the path, cut at the unencoded `/`s, and decodes each triple but `%2F` and `%2f`, which it keeps as
+or a literal, is written as a binding with none is. A reader takes the longest run of segments the
+template leaves the parameter ([below](#reading-a-text)), which needs no reading of the pattern,
+and decodes each triple but `%2F` and `%2f`, which it keeps as
 the three characters they are, as google.api.http has a server do, so every text written reads back
 and a `%2F` another client sent is never taken for a separator. A `PathPattern` is carried to a
-refiner as `ParamBind.PathPattern` ([bindings](../plan/bindings.md)), and whether a value matches
-its pattern is not checked before it is sent ([HTTP bindings](../../ir/http-binding.md)). T-50 holds
-it.
+refiner as `ParamBind.PathPattern` ([bindings](../plan/bindings.md)). No emitter checks a value
+against its pattern before it is sent, which the server still does, and each reports the binding as
+an info `emitters/<target>/unchecked-constraint`. That check is all an emitter drops: the IR
+has one that cannot validate a pattern drop it with a diagnostic ([HTTP
+bindings](../../ir/http-binding.md)), and a pattern dropped whole would send `a/b` as `a%2Fb`, one
+segment where the pattern names two, so the value is still escaped by this rule. The IR's comment on
+the field says the template uses reserved expansion, which this rule departs from and
+#TBD-pathpattern corrects. T-50 holds it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -166,7 +175,8 @@ its `Style` and `Explode` arrange it before each part is percent-decoded, so a `
 element (Appendix C.2). A path parameter's text is what its expression in the template matches, read
 from the path cut at its unencoded `/`s before anything is percent-decoded, so a `%2F` stays in its
 segment: within one segment, ending where a literal after it there first follows, or under
-`AllowReserved` across the longest run of segments the template leaves it, as Smithy matches a
+`AllowReserved`, or a `PathPattern` of several segments,
+across the longest run of segments the template leaves it, as Smithy matches a
 greedy label. A text is percent-decoded as its location's rules say (Appendix E.5): a `+` as a space
 in a query or a form body, which OpenAPI has parse as WHATWG URL does (§4.12.4), as itself in a
 path, and a header's and a `cookie`-style cookie's not at all (§4.12.2.2). A parameter a query or a
@@ -200,7 +210,10 @@ A header's text read as a `datetime_offset` that no encoding spells is read by t
 the row does not read it, as an HTTP-date, as the `{datetime_offset, "http-date"}` row reads one
 ([type table](../contract/type-table.md#a-row-keyed-by-an-encoding)): the instant it names, at a
 zero offset. The two never read one text, since an RFC 3339 `date-time` opens with a digit and an
-HTTP-date with a letter, so a text gains a value only where it had none. RFC 9110 spells every date
+HTTP-date with a letter, so a text gains a value only where it had none. That makes it a reading
+and no inference of the kind INV6 keeps in policy: it states no fact about the API, changes no
+declaration and no request, and gives no text the declared format reads another value. RFC 9110
+spells every date
 its own fields carry so, `Last-Modified` among them (§8.8.2), and encourages a recipient to be
 robust in parsing a timestamp (§5.6.7). Nothing but that reading changes: the field's type stays the
 document's, and a `datetime_offset` header an SDK or the mock writes is the RFC 3339 text its
@@ -237,24 +250,48 @@ its scalar chain, and of where it is bound:
   shape a text under that `Style` and `Explode` (§4.12.6): it gives a leaf none under
   `spaceDelimited`, `pipeDelimited` or `deepObject`, a list none under `deepObject`, and a list or
   an object none where either delimited style explodes it;
-- a form field whose `PartEncoding` sets no `Style`, no `Explode` and no content type has one where
-  its type is a leaf or a list of leaves, which `form` writes as OpenAPI's default for such a field
-  does: an object's default there is a media type (§4.15.1), which the IR does not carry;
+- a form field, or a multipart part that is no file (`Filename`), whose `PartEncoding` is absent
+  or sets no `Style`, no `Explode` and no content type has one where its type is a leaf or a list
+  of leaves: a field is written as an exploded `form` writes it, and a part is its text with no
+  `Content-Type` of its own, which RFC 7578 reads as `text/plain` (§4.4), each element of a list a
+  part of that name (`Multi`). An object there has none. OpenAPI gives one a default media type,
+  `application/json` (§4.15.1), but the default is OpenAPI's and no other format's, so it is the
+  compiler's to lower into `ContentTypes` (#TBD-part-content-type) and never an emitter's to assume
+  of a document whose format it does not read (INV1);
 - a `Prefix` binding, and a header whose `Prefix` is set, has one where its type is a map of leaves;
 - a `host` label and a `text/plain` body or part have one where their type is a leaf.
 
-An input with none is its text: the SDK types it a string, which the caller writes as the API
-documents it, and sends it as a string's text is sent, once under its binding's name whatever its
-`Explode` says, as its header's value, or as the body's octets. Whatever reads one reads the string
-that arrived, so a mock checks nothing of what it holds, and one a query repeats does not parse, as
-any text written once. Nothing is guessed, since nothing in the IR says which of the spellings in
-use a server reads. The plan decides it once for every target, as `ParamBind.Text` for a parameter
-([bindings](../plan/bindings.md)) and by the same test for a header, a form field and an elected
+An input with none is its caller's text, written as the API documents it. Nothing is guessed, since
+nothing in the IR says which of the spellings in use a server reads. What the caller writes depends
+on what the position carries:
+
+- a path parameter, a `host` label, a header and a `text/plain` body carry one text, so the SDK
+  types the input a string and sends it as a string's text is sent, in its segment or its label, as
+  its header's value or as the body's octets;
+- a query, a cookie, a form body and a multipart body carry named texts, so the SDK types the input
+  a list of pairs of strings, a name and a value, and sends each as a parameter, a cookie, a field
+  or a part of its own, in the caller's order, its name written as a parameter's is and its value
+  as a string's text is there. One string under the binding's name cannot spell what an API
+  documents as `deep[a][b]=x` for a `deepObject` object holding an object, as `a=1&b[c]=2` for an
+  exploded one, or as `ids[]=1&ids[]=2` for a `deepObject` list: each sends a name the binding does
+  not have, or one name twice. A pair with an empty name, or one naming another parameter, field or
+  part its location declares, fails the call before anything is sent, and an input holding no pair
+  is an empty list ([above](#null-and-empty)).
+
+Whatever reads one reads what arrived, so a mock checks nothing of what it holds: the string, or,
+in the order they came, every pair of the location whose name nothing else there declares. The plan
+decides it once for every target, as `ParamBind.Text` for a parameter
+([bindings](../plan/bindings.md)) and by the same test for a header, a form field, a part and a
 content, whose reader's `Type` is then `string` ([body shapes](../plan/responses.md#body-shapes)),
 and reports each as a warning `emitters/plan/unarranged-value` at its binding, its header or its
-content. A content no election picks is not reported, and no election passes over one. A declared
-example of such an input holds its value, not its text, so it is refused as one its type refuses is
-([docs and mocks](../docs-and-mock.md)).
+content. A content no election picks is not reported, and no election passes over one. The test is
+the content's own, however it is chosen: an inbound request is read through the content its
+`Content-Type` names ([operations the API sends](../operations/inbound.md)), so each such content
+of its request is reported, and one that arrives is the string it held, as a response a receiver
+writes in one is the string it is given. Such an input or content has no example: a declared one
+holds its value, not its text, so it is refused as one its type refuses is ([docs and
+mocks](../docs-and-mock.md)), and none is synthesized, a text made up for it being a guess, so the
+mock answers in such a content with no body and a warning `emitters/mock/example-missing`.
 
 A document that means JSON says so: a parameter declaring `content` with `application/json` in
 place of `schema` (§4.12.2.3), as an overlay can make it, lowers to `ContentType`, which types the
@@ -266,9 +303,14 @@ turns its input from typed to text, a break the surface differ reports ([surface
 verification](../surface-verification.md)).
 
 At spec @bc6fad24, morphic @fa253fe19, the golden spec has 12 such parameters, each a query list
-under an exploded `form` whose elements are objects or lists, and no other parameter, header or form
-field. The descriptions of ten call theirs JSON, one array in one parameter, as in
-`search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's string
+under an exploded `form` whose elements are objects or lists, three such multipart parts, and no
+other parameter, header or form field. The parts are the `metadata` of `POST
+/accounts/{account_id}/images/v1`, of `POST /accounts/{account_id}/images/v2/direct_upload` and of
+`PUT /zones/{zone_id}/snippets/{snippet_name}`, each an object no Encoding Object names, and they
+stay their caller's text until the compiler lowers OpenAPI's default for them
+(#TBD-part-content-type), which types each as its object and sends it as JSON. The descriptions of
+ten of the parameters call theirs JSON, one array in one parameter, as in
+`search=[{"field":"value","op":"in","value":["evil.com","bad.org"]}]`, which a caller's one pair
 sends and an overlay declaring `content` types. The other two, the `filters` of `GET` and `DELETE
 /accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs`, say nothing of their text, and a
 `DELETE` whose filter the server did not read would delete as one given none. It has two such
@@ -281,6 +323,8 @@ the rule.
 A compiler lowers the text a format's binding gives a position by default, as Smithy and TypeSpec
 give a timestamp in a header an HTTP-date, as an `Encoding` at that position, a header's own or that
 of a scalar hoisted to type a parameter ([planned lowerings](../../compilers/planned-lowerings.md)),
+under the name the IR documents for it and not the format's own, `http-date` for TypeSpec's
+`rfc7231` as for Smithy's `http-date`,
 which keys its row as any encoding does: an emitter never reads which format a document came from
 (INV1). An encoding with no row of its own types the value as the wire carries it, never in its
 primitive's spelling ([type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
@@ -355,5 +399,16 @@ primitive's spelling ([type table](../contract/type-table.md#a-row-keyed-by-an-e
 - **Each target's own HTTP-date reader**: at Go 1.27 and JDK 25, the JDK's `RFC_1123_DATE_TIME`
   refuses the golden spec's example, whose day name is not its date's, and writes `6 Nov` with one
   digit, and Go's `http.ParseTime` reads an rfc850-date's year `70` as 1970 at any date.
-- **A `PathPattern` text under RFC 6570's reserved expansion**, as the IR's field once described
-  it: `a:b%41?c` would travel as written and read as `a:bA` with a query of `c`.
+- **A `PathPattern` text under RFC 6570's reserved expansion**, as the IR's comment on the field
+  describes it (#TBD-pathpattern): `a:b%41?c` would travel as written and read as `a:bA` with a
+  query of `c`.
+- **A Smithy greedy label under `AllowReserved`**: it passes a triple and the reserved characters,
+  so `a%41?c` would travel as written where Smithy sends `a%2541%3Fc`.
+- **An input no style arranges as one string wherever it is bound**: sent once under its binding's
+  name, it reaches a server reading one text there, as the golden spec's ten descriptions ask, and
+  can spell no request whose names are not the binding's, `deep[a][b]=x` among them.
+- **A string for such a query input and pairs only under `deepObject` or an exploded object**: a
+  server may read a list of objects under `form` as `filters[0][key]=id` too, one of the syntaxes
+  OpenAPI names as in use (§4.12.7), which one string under `filters` cannot send.
+- **An object-valued part with no content type sent as JSON**: right for OpenAPI and a guess for a
+  format whose default is another, which an emitter cannot tell apart.

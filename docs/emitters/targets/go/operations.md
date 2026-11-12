@@ -2,7 +2,9 @@
 
 ## The request type
 
-Go's request type ([request shaping](../../refine/requests.md)) is a `<Operation>Params` struct.
+Go's request type ([request shaping](../../refine/requests.md)) is a `<Operation>Params` struct. An
+input no style arranges ([values as text](../../refine/text.md#a-value-no-style-arranges)) is a
+`string` field, or a `[][2]string` of names and values where its position carries pairs.
 
 ## Pagination
 

@@ -12,7 +12,10 @@ long-running operations and auth lower as the [lowering table](lowering.md) says
 ## The request type
 
 Kotlin's request type ([request shaping](../../refine/requests.md)) is a class built like a
-[model](models.md).
+[model](models.md). An input no style arranges ([values as
+text](../../refine/text.md#a-value-no-style-arranges)) is a `String` property, or a
+`List<Pair<String, String>>` of names and values where its position carries pairs, which Swift sees
+as an array of `KotlinPair` whose `first` and `second` are optionals (Kotlin/Native 2.4.0).
 
 ## The client
 

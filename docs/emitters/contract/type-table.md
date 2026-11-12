@@ -192,14 +192,28 @@ value as its primitive's default row does unless the target's lowering table say
   path or a query the `=` is percent-encoded as any text's is ([values as
   text](../refine/text.md#escaping)). The targets' own decoders disagree here: Go's
   `base64.URLEncoding` refuses an unpadded text that the JDK's `Base64.getUrlDecoder` and this row
-  read (Go 1.27, JDK 25).
+  read (Go 1.27, JDK 25). The row reads nothing else: a text holding a character outside the
+  alphabet, a line break among them, which RFC 4648 has a decoder reject (§3.3), or pad bits that
+  are not zero, which no conforming encoder writes (§3.5), as `-_9=` beside `-_8=`, does not parse.
+  The decoders disagree on both: Go's `URLEncoding` reads each, the JDK's the second alone, and
+  Kotlin's `Base64.UrlSafe` neither (Go 1.27, JDK 25, Kotlin 2.4.0). Go's reader for this row is the
+  runtime's own already, so refusing them costs it a check, where the `bytes` row's reading of the
+  same two stays its codec's ([above](#what-a-built-in-row-writes)): Go's json/v2 reads `+/9=` into
+  a `[]byte` and refuses a line break.
 - **`http-date`.** The row writes the instant in GMT with the fraction of its second cut, since the
   format holds neither an offset nor a fraction and a caller's clock reading has both, so two values
   of one instant write one text and read back at a zero offset. An instant whose year in GMT is
   outside 0000 to 9999 is one it refuses to write. It reads the three forms RFC 9110 has a recipient
-  accept: the day name for its spelling alone, never compared with the date, and an rfc850-date's
-  two-digit year in the reader's century, or the one before where that would be more than 50 years
-  ahead of the reader's clock, so that reading alone depends on when it is made. On the golden spec
+  accept, each name in the case RFC 9110 writes it, an HTTP-date being case sensitive (§5.6.7), so
+  `sun, 06 nov 1994 08:49:37 gmt` is no date: the day name for its spelling alone, never compared
+  with the date, and an rfc850-date's two-digit year as the latest year ending in those digits that
+  leaves the date no more than 50 years after the reader's clock, 2105 for `05` read in 2099, so
+  that reading alone depends on when it is made. Whether a date is more than 50 years after is
+  decided on its fields, its year less 50 and then its month, day and time against the clock's in
+  GMT, never by adding years to the clock, which Go's `AddDate` and the JDK's `plusYears` do
+  differently on 29 February (Go 1.27, JDK 25). The reader takes the clock's instant as an argument,
+  which the codec fills from the system clock, so a test reads at an instant it names.
+  On the golden spec
   (spec @bc6fad24), the example of the `Last-Modified` header declared `date-time`, `Wed, 21 Oct
   2023 07:28:00 GMT`, names a Saturday. The targets' own readers disagree on each point: the JDK's
   `RFC_1123_DATE_TIME` refuses that example and writes the sixth as `6 Nov`, which is no
