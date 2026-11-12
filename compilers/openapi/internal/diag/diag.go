@@ -213,7 +213,7 @@ const (
 	// the top type), or dropped — an annotation like a default or example, or
 	// the fields beside a path item $ref the load phase's walk does not reach. A
 	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, lowering.GroupingExtension).
+	// read into no field or group (lowering.Promoter, operation.extensionLevels).
 	// It marks the lossy lowerings the compiler reports, not a guarantee that
 	// every one is.
 	DegradedConstruct = "openapi/degraded-construct"

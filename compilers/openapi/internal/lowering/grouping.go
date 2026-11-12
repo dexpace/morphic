@@ -95,11 +95,11 @@ const groupPathSeparator = "."
 const MaxGroupPathDepth = 16
 
 // Path reads the group path raw states, an extension's value as Unmodeled keeps
-// it, outermost segment first. Empty text, an empty list and null state none,
-// and false is a misfit: any other value, or a path holding an empty segment,
-// which no group is named by, or deeper than MaxGroupPathDepth. A list is a
-// misfit if any entry is, read as ListsAreGroups or not, since the value is
-// the document's whole statement.
+// it, outermost segment first. Empty text, an empty list and null state none.
+// It returns false for a misfit: any other value, or a path holding an empty
+// segment, which no group is named by, or one deeper than MaxGroupPathDepth. A
+// list is a misfit if any entry is, read as ListsAreGroups or not, since the
+// value is the document's whole statement.
 func (g GroupingExtension) Path(raw ir.RawValue) ([]string, bool) {
 	entries, ok := listedText(raw)
 	if !ok {
