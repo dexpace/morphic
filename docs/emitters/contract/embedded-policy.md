@@ -53,8 +53,8 @@ node, an operation's own key beats its path item's, two whose values decode to o
 together, and any other pair is an error `emitters/embed/conflict` that sets the field from neither,
 since which to take is no fact the document states. Two generators' keys for one fact often sit on
 one operation and agree: of the golden spec's operations carrying both `x-stability` and
-`x-fern-availability`, which no field reads, 229 of 291 spell one tier alike and 60 differ (spec
-@bc6fad24, morphic @fa253fe19), so agreeing keys are no conflict to report.
+`x-fern-availability`, which no field reads, 229 of 291 spell one tier alike and 60 name different
+tiers (spec @bc6fad24, morphic @fa253fe19), so agreeing keys are no conflict to report.
 
 A key that sets nothing beats no other key: each of a conflicting pair, one whose value draws the
 warning below, and one the reader refuses ([the mapping](#the-mapping-is-a-configuration)). So where

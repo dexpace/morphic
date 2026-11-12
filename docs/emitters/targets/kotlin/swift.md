@@ -82,4 +82,10 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)`, which
   covers every class of the tree ([failures](errors.md)) and a response its method cannot return
   ([return shapes](returns.md)), and a Swift caller receives an `NSError` holding the exception, and
-  reads its `failure` or `response`.
+  reads its `failure` or `response`. A receiver's parse method carries
+  `@Throws(InboundException::class)` for the same reason
+  ([operations](operations.md#operations-the-api-sends)).
+- `@Deprecated` reaches Swift as `__attribute__((deprecated("…")))` holding its message alone, so a
+  Swift caller is shown the message as written and no `ReplaceWith`, which is why the message names
+  each replacement in plain text ([deprecations](../../refine/deprecation.md)). A `@RequiresOptIn`
+  annotation does not reach Swift at all ([stability](operations.md#stability)).
