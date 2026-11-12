@@ -26,11 +26,12 @@ Each `ReplacedBy` entry, in order, is named through the declaration its entity l
 reference by ID that the printer resolves once `ResolveCollisions` has run, as it resolves a
 [`Docs.Refs`](../../ir/annotations.md#references-in-prose) span, so the name is the one the
 replacement renders as wherever it lands. An operation names its method in the group it is placed
-in, after any `Remount`, an inbound one its receiver's parse method, a type its declaration, a property or parameter its field, a member its constant, a
-variant its wrapper, a group its sub-client and a service its client. A replacement in another unit
-is named by a reference the target can resolve from there, which each target's document spells. A
-docs target links the replacement's page through the route plan, by its ID, and names one no route
-reaches as text, as it does a span ([routes and links](../docs-and-mock.md#routes-and-links)).
+in, after any `Remount`, an inbound one its receiver's parse method, a type its declaration, a
+property or parameter its field, a member its constant, a variant its wrapper, a group its
+sub-client and a service its client. A replacement in another unit is named by a reference the
+target can resolve from there, which each target's document spells. A docs target links the
+replacement's page through the route plan, by its ID, and names one no route reaches as text, as it
+does a span ([routes and links](../docs-and-mock.md#routes-and-links)).
 
 - **No declaration.** An entity the target declares nothing for, such as a channel on an HTTP
   target, an operation it covers no binding of ([bindings](../plan/bindings.md)) or a server or
