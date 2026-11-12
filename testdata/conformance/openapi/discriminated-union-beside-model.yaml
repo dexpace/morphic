@@ -95,10 +95,9 @@ components:
       type: object
       properties:
         caw: {type: string}
-    # A multi-typed body lowers to a union with one variant per type, and its
-    # object variant holds the discriminator. No schema can name that variant,
-    # so Car is no subtype of it: the discriminator is kept verbatim on Vehicle,
-    # beside the union.
+    # A multi-typed body lowers to a union with one variant per type. No schema
+    # can name its object variant, so Car is no subtype of it, and the variant
+    # holds no discriminator: it is kept verbatim on Vehicle, beside the union.
     Vehicle:
       type: [object, string]
       properties:

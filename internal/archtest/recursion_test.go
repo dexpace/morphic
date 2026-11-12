@@ -95,9 +95,11 @@ var schemaRecursion = []string{
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerElected", "lowerModel",
-	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
+	"lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef", "referencedVariants",
-	"resolveAt", "resolveBeaten", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
+	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes", "resolveMappingTarget",
+	"resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",
 }
 

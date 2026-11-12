@@ -19,7 +19,8 @@ witnessing it.
 ### `inheritance`
 
 - Witnesses: `allof-inheritance`, `discriminator-inheritance`, `discriminator-inline-subtype`,
-  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`
+  `discriminator-transitive`, `discriminated-union-beside-model`, `required-members`,
+  `type-array-discriminator`
 
 ### `tagged-unions`
 
