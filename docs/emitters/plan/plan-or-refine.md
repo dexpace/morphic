@@ -31,7 +31,7 @@ of the artifact that uses it — how an untagged union's variant is recognized o
 The procedure decided every existing field:
 
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
-   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union, on a model composing
+   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union, on a model narrowing
    one and on an enum, `Strict`, `Effects`, which a binding sets where the IR states nothing,
    `Examples`, synthesized where none is declared, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,

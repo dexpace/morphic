@@ -521,9 +521,12 @@ throughout these documents.
     composed over it, the model's property beside the variant's members, and encodes it back byte
     for byte, each tag and the default routing as they do where the same union is written beside the
     model's `allOf` and the compiler distributes it; so do an undiscriminated union as a `Base`, a
-    union one of whose variants is a union, and a union a subtype composes as a `Mixin`, under its
-    base's discriminator. Read by a client under `OpenUnions`, such a model keeps a variant its
-    union does not list, and one whose variant holds the model compiles, the union breaking the
-    cycle. A model adding nothing to its union aliases it, and one composing two unions, one whose
-    union has a variant composing it, and one over a key-tagged, enveloped or index-tagged union
-    each draw a diagnostic and degrade ([inheritance](../refine/models.md#inheritance)).
+    union one of whose variants is a union, a union a subtype composes as a `Mixin`, under its
+    base's discriminator, and a union the model reaches through a model it composes. A variant's
+    `readOnly` member is in no create or patch shape of the model's. Read by a client under
+    `OpenUnions`, such a model keeps a variant its union does not list, and one whose variant holds
+    the model compiles, the union breaking the cycle. A model its union lists is that variant, a
+    model the union's sum holds. A model adding nothing to its union aliases it, and one narrowing
+    two unions, one whose union has a variant composing it or reaches itself through its variants,
+    and one over a key-tagged, enveloped or index-tagged union each draw a diagnostic and degrade
+    ([inheritance](../refine/models.md#inheritance)).

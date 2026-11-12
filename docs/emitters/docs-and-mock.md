@@ -91,7 +91,8 @@ anonymous model's table where that version gives the model no page of its own, a
 model names the shape it shows, so an operation's patch body links to the patch table, never to one
 marking required what the patch relaxes. An anonymous model another composes in place is no table of
 its own: its members are rows of the composing model's table, anchored there, so no member is
-anchored twice.
+anchored twice. What the table of a model narrowing a union shows of the members its union's
+variants add, which its flattening does not hold, is #1719's to settle.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -425,7 +426,7 @@ member and operation:
   required cycle no value ends, or one holding more values than `plan.MaxExampleValues`, a fixed
   limit the plan package states, 10,000, which bounds what a hostile schema can make one example
   cost, is reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted
-  invalid.
+  invalid. How a model narrowing a union is synthesized is #1719's to settle.
 - **Stable.** Each choice the synthesizer makes, such as which enum member or which variant, is
   seeded from the entity's [correlation key](../ir/derived-facts.md#correlation-keys), or from its
   ID where no key identifies it, save on a recurrence of its type along the value or deeper than

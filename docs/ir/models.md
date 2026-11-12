@@ -357,7 +357,9 @@ variant it names, and no tag names `Stored`, which carries no `DiscriminatorValu
 ([discriminator](#discriminator)). An emitter whose target has no intersection type lowers the
 `Model` as the union it narrows, at its refiner
 ([inheritance](../emitters/refine/models.md#inheritance)), whether or not the union routes by a tag:
-invariant 2 places a lowering to what a target can express there.
+invariant 2 places a lowering to what a target can express there. A `Model` the union lists, as
+`Cat` is listed where `Pet: {oneOf: [Cat, Dog]}` and `Cat: {allOf: [Pet, …]}`, narrows nothing,
+each of its instances being that variant.
 
 Distributing it in the compiler instead, as a union written beside the `allOf` is distributed
 [above](#composition-beside-a-union), would hand every consumer a node for each shape an instance

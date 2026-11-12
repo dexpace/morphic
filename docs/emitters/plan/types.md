@@ -16,7 +16,7 @@ type TypePlan struct {
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
-    Open       bool                 // a union, polymorphic base, model composing a union or enum
+    Open       bool                 // a union, polymorphic base, model narrowing a union or enum
                                     // keeps a value no variant or member recognizes rather than
                                     // refusing it (policy.md, ../refine/unions.md,
                                     // ../refine/enums.md)
@@ -226,7 +226,9 @@ coincide, every model it reaches holding and requiring the same members in both,
 declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)), so they take one
 answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
 every member but those `Visibility.None` hides, requires only the required members no filter can
-leave out, and `TypePlan.Inclusive` decides it.
+leave out, and `TypePlan.Inclusive` decides it. A shape reaching a model reaches each union it
+narrows, too, every value of the model being one of that union's variants
+([inheritance](../refine/models.md#inheritance)).
 
 ## A model with lifecycle visibility
 
