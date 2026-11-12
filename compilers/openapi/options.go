@@ -161,9 +161,9 @@ type Options struct {
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
 	// GroupingExtension is what GroupByExtension reads, set as text by the
 	// options grouping-key, grouping-lists and grouping-fallback, and refused
-	// with any other strategy. Its zero value takes DefaultGroupingExtension,
-	// and a Key is refused without its Lists, or Lists without their Key, since
-	// conventions disagree on a list. Fallback defaults to GroupByTags.
+	// with any other strategy. Naming neither Key nor Lists reads
+	// DefaultGroupingExtension's, and naming one without the other is refused,
+	// since conventions disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
 	// StreamingMedia selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares

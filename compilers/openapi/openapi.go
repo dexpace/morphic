@@ -75,8 +75,9 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	if err != nil {
 		return nil, nil, err
 	}
-	// Here and not in optionsFrom, which detection reads its byte budget
-	// through: a grouping it cannot honour is no reason to read past that.
+	// Here and not in optionsFrom: detection reads its byte budget through
+	// optionsFrom, taking the default one on an error, so a grouping the compile
+	// cannot honour would have it read past the caller's.
 	if err := formatOpts.checkGrouping(); err != nil {
 		return nil, nil, err
 	}
