@@ -28,7 +28,8 @@ type Model struct {
     ExtensionRanges []WireIDRange  // wire-ID ranges reserved for third-party extension fields
                                    // (protobuf `extensions 100 to 199`)
     Discriminator  *Discriminator  // set on the polymorphic base
-    DiscriminatorValue string      // set on each subtype: its wire tag value
+    DiscriminatorValue string      // set on each subtype one tag routes to: the wire tag value
+                                   // every instance of it carries
     InputOnly      bool            // GraphQL input types; distinct identity from output types
 }
 

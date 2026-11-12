@@ -258,7 +258,8 @@ type Model struct {
 	ExtensionRanges []WireIDRange `json:"extensionRanges,omitempty"`
 	// Discriminator is set on the polymorphic base.
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
-	// DiscriminatorValue is set on each subtype: its wire tag value.
+	// DiscriminatorValue is set on each subtype one tag routes to: the wire tag
+	// value every instance of it carries.
 	DiscriminatorValue string `json:"discriminatorValue,omitempty"`
 	// InputOnly marks GraphQL input types, which have distinct identity from
 	// output types.
