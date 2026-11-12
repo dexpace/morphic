@@ -500,7 +500,7 @@ const sortedProtocolBindingsJSON = `"bindings":{"a-proto":{"k":3},"b-proto":{"k"
 
 // populatedHeader returns a Header with every field non-zero.
 func populatedHeader() ir.Header {
-	return ir.Header{Property: populatedProperty(), Style: "simple", Explode: new(true)}
+	return ir.Header{Property: populatedProperty(), Style: "simple", Explode: new(true), Prefix: new("X-Meta-")}
 }
 
 // populatedOperationLink returns an OperationLink with every field non-zero,

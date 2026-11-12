@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 func TestCompile_WrongFormatOptions(t *testing.T) {
@@ -44,7 +45,10 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 
 	got, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{
-			"grouping":                "path-prefix",
+			"grouping":                "extension",
+			"grouping-key":            "x-speakeasy-group",
+			"grouping-lists":          "groups",
+			"grouping-fallback":       "path-prefix",
 			"allow-external-refs":     "true",
 			"overlay":                 "patch.yaml",
 			"overlay-lax":             "true",
@@ -66,7 +70,10 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 
 	opts, ok := got.(openapi.Options)
 	require.True(t, ok, "the decoded value must be this compiler's own options type")
-	assert.Equal(t, openapi.GroupByPathPrefix, opts.Grouping)
+	assert.Equal(t, openapi.GroupByExtension, opts.Grouping)
+	assert.Equal(t, openapi.GroupingExtension{
+		Key: "x-speakeasy-group", Lists: openapi.ListsAreGroups, Fallback: openapi.GroupByPathPrefix,
+	}, opts.GroupingExtension)
 	assert.True(t, opts.AllowExternalRefs)
 	require.NotNil(t, opts.Overlay)
 	assert.Equal(t, "patch.yaml", opts.Overlay.Path)
@@ -124,7 +131,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
-				`discriminator-inference, grouping, ` +
+				`discriminator-inference, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
 				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
 				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
 				`streaming-media)`},
@@ -135,7 +142,35 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		{"empty budget", map[string]string{"max-external-documents": ""},
 			`"max-external-documents": want an integer`},
 		{"unknown grouping", map[string]string{"grouping": "alphabetical"},
-			`want "tags" or "path-prefix", got "alphabetical"`},
+			`want "tags", "path-prefix" or "extension", got "alphabetical"`},
+		// A grouping extension is read by one strategy alone, so naming one beside
+		// another is a mistake about which grouping is in force.
+		{"a grouping key with no strategy", map[string]string{"grouping-key": "x-group", "grouping-lists": "segments"},
+			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+		{"a grouping fallback beside tags", map[string]string{"grouping": "tags", "grouping-fallback": "tags"},
+			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+		// Conventions disagree on what a list means, so neither half of the pair
+		// is taken from the default's.
+		{"a grouping key with no list reading", map[string]string{"grouping": "extension", "grouping-key": "x-group"},
+			`option "grouping-lists": want "segments" or "groups" beside "grouping-key", ` +
+				`as conventions disagree on what a list means, got ""`},
+		{"a list reading with no key", map[string]string{"grouping": "extension", "grouping-lists": "groups"},
+			`option "grouping-key": want an extension name starting "x-", got ""`},
+		{"a grouping key naming no extension", map[string]string{
+			"grouping": "extension", "grouping-key": "group", "grouping-lists": "segments",
+		}, `option "grouping-key": want an extension name starting "x-", got "group"`},
+		{"an unknown list reading", map[string]string{
+			"grouping": "extension", "grouping-key": "x-group", "grouping-lists": "paths",
+		}, `want "segments" or "groups" beside "grouping-key", as conventions disagree on what a list means, got "paths"`},
+		{"a fallback that reads the extension again", map[string]string{"grouping": "extension", "grouping-fallback": "extension"},
+			`option "grouping-fallback": want "tags" or "path-prefix", got "extension"`},
+		// An empty value would take a default the caller did not ask for.
+		{"an empty grouping key", map[string]string{"grouping": "extension", "grouping-key": ""},
+			`option "grouping-key": want a value, got an empty one`},
+		{"an empty list reading", map[string]string{"grouping": "extension", "grouping-lists": ""},
+			`option "grouping-lists": want a value, got an empty one`},
+		{"an empty fallback", map[string]string{"grouping": "extension", "grouping-fallback": ""},
+			`option "grouping-fallback": want a value, got an empty one`},
 		// An entry that could match nothing is refused: the list replaces the
 		// default, so a typo would turn the inference off for every media type.
 		{"empty streaming list", map[string]string{"streaming-media": ""},
@@ -241,6 +276,76 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 	require.NotNil(t, doc)
 	assert.Equal(t, "a", doc.Services[0].Groups[0].Name.Source,
 		"the decoded option must reach the lowering, not merely parse")
+}
+
+// TestCompile_GroupingExtensionDefaultsAndRefusals pins the Go caller's side of
+// the grouping extension: a zero GroupingExtension takes the default key and
+// its list reading, a fallback the caller names stays beside them, and one the
+// compile cannot read as asked is refused as the text spelling of it is.
+func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    get: {operationId: a, x-fern-sdk-group-name: [zero-trust, devices], responses: {\"200\": {description: ok}}}\n" +
+		"  /b:\n    get: {operationId: b, tags: [bees], responses: {\"200\": {description: ok}}}\n"
+	// filed compiles spec under opts and returns each operation's group, by its
+	// operationId; the deepest group the spec nests is two levels down.
+	filed := func(opts openapi.Options) (map[string]string, error) {
+		doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
+			compilers.Options{FormatOptions: opts})
+		if err != nil {
+			return nil, err
+		}
+		require.NotNil(t, doc)
+		out := map[string]string{}
+		for _, top := range doc.Services[0].Groups {
+			for _, g := range append([]ir.OperationGroup{top}, top.Groups...) {
+				for _, op := range g.Operations {
+					out[op.Name.Source] = string(g.ID)
+				}
+			}
+		}
+		return out, nil
+	}
+
+	got, err := filed(openapi.Options{Grouping: openapi.GroupByExtension})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/tags/bees"}, got,
+		"the default key, its list read as one path, and an operation stating none grouped by tags")
+	got, err = filed(openapi.Options{
+		Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: openapi.GroupByPathPrefix},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"a": "g/extension/zero-trust/devices", "b": "g/path-prefix/b"}, got,
+		"the default key beside the fallback the caller names")
+
+	for name, tc := range map[string]struct {
+		opts    openapi.Options
+		wantErr string
+	}{
+		"beside tags": {
+			openapi.Options{GroupingExtension: openapi.DefaultGroupingExtension()},
+			`apply only with "grouping" set to "extension"`,
+		},
+		"a key alone": {
+			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Key: "x-a"}},
+			`option "grouping-lists"`,
+		},
+		"a fallback naming no strategy": {
+			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: "first"}},
+			`option "grouping-fallback"`,
+		},
+	} {
+		_, err := filed(tc.opts)
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), tc.wantErr, name)
+	}
+}
+
+// TestDefaultGroupingExtension_IsWhatTheLoweringApplies pins the exported
+// extension to the one a compile reads when Options names none.
+func TestDefaultGroupingExtension_IsWhatTheLoweringApplies(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, lowering.DefaultGroupingExtension(), openapi.DefaultGroupingExtension())
 }
 
 // TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies pins the exported

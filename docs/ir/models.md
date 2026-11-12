@@ -192,7 +192,12 @@ declares and the composition entries that name no model. Its rules:
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
-  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below).
+  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below). A consumer
+  lowering a union there as the one the model narrows ([below](#a-union-a-composition-names))
+  flattens each shape an instance takes by this walk too, reading a variant where the walk meets the
+  union ([TypePlan](../emitters/plan/types.md#a-model-narrowing-a-union)), so the variant's members
+  are laid out and overridden as any conjunct's are; `FlattenedProperties` takes no variant yet
+  (#1734).
 - *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
   reads the model's own ([TypePlan](../emitters/plan/types.md)), so a conjunct closing its property
   set is the consumer's to weigh. A property marked `Flatten` is one member like any other, the

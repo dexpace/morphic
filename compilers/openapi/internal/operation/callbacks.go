@@ -17,7 +17,8 @@ import (
 )
 
 // lowerCallbacks lowers each callback expression's path-item operations as
-// Operations registered in the parent's group, and binds them to the parent via
+// Operations registered in the parent's group, whatever their own tags or
+// grouping extension state (GitHub #1082), and binds them to the parent via
 // HTTPBinding.Callbacks keyed by the runtime expression
 // (docs/ir/http-binding.md). parent.mount roots callback operation identity, so
 // two parents sharing one $ref'd callback keep distinct callback operations;
@@ -113,8 +114,8 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceG
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {
 				// A hint, not a source name: no document declares this group. The
 				// compiler synthesizes it to hold webhook operations, exactly as
-				// groupFor synthesizes the "default" group, and Naming.Source is the
-				// spelling the source used (GitHub #184).
+				// serviceGroups.filingBy synthesizes the "default" group, and
+				// Naming.Source is the spelling the source used (GitHub #184).
 				return ir.OperationGroup{Name: compile.NamingHint("webhooks")}
 			})
 			grp.Operations = append(grp.Operations, m.op)

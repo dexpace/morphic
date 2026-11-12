@@ -464,7 +464,13 @@ it sees. Changes made together in one bump are listed together under it.
   ([replacements](./annotations.md#replacements)). The OpenAPI compiler fills it only through a
   promotion mapping naming the `deprecation.replacedBy` target, which no default does. A consumer
   pinned to 0.44.0 refuses a document whose deprecation names a replacement.
-- **0.46.0** — no shape change. The `const-unions` pass also rewrites a closed union of strings a
+- **0.46.0** — `Header` gained `Prefix`, which makes a response's, an error's or a part's header a
+  map of every field under the prefix, the empty prefix taking every field, as Smithy's
+  `@httpPrefixHeaders` binds one on an output or an error ([prefix
+  headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
+  wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
+  fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape change. The `const-unions` pass also rewrites a closed union of strings a
   variant of which names a branch of several values, an anonymous closed `Enum` or a union of
   strings in turn, where that variant is the only reference to the branch and neither says anything
   of all its values, such as docs or a deprecation: the branch's values move into the closed `Enum`
@@ -472,5 +478,5 @@ it sees. Changes made together in one bump are listed together under it.
   one such branch or a chain of them
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A branch another node also
   names, a replacement naming one of its members included, or that says anything of all its values,
-  keeps the union. A consumer pinned to 0.45.0 that read such a position as a `Union` finds an
+  keeps the union. A consumer pinned to 0.46.0 that read such a position as a `Union` finds an
   `Enum` there, and no longer finds the branch type its variant named.

@@ -26,7 +26,11 @@ T-25 gives each a test.
 - **One artifact per path.** The engine refuses a run in which two artifacts of a target share a
   path, as an error `engine/duplicate-artifact-path` naming both `Origins`, before it writes any.
   Paths are compared case-folded, since a file system that ignores case keeps only one of `Foo.go`
-  and `foo.go`.
+  and `foo.go`. The refusal is a backstop: a target holds the names it writes as paths apart by the
+  same fold, or writes two that fold alike to one path
+  ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)), so two spec
+  names that differ in letter case alone never reach it. Which fold that is beyond ASCII, where
+  macOS's file system makes one path of names a simple case fold keeps apart, is #1729's.
 - **Formatter failures.** A formatter that fails is the located, hard diagnostic of the [format
   pass](templates.md#two-guards-on-the-boilerplate-templates), and its artifact is not written:
   `Format` has no path that returns its input. No artifact reads the build that made it — a

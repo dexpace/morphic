@@ -277,6 +277,145 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
+// allOf or union branch on a loop the compiler reads from being reported
+// twice: removing the gate in fillRefBranch, diagUnresolvedBranches or
+// refTypeRef adds an unresolved-ref beside the cyclic-ref. Where load
+// reports the loop at the branch, its least member, withoutRereported drops that
+// error, so each gate, and fillRefBranch's two routes through a distributed
+// union, has a row whose loop runs through L, which sorts first. A loop past
+// the merge bound goes unread (#1570). A union beside structural
+// keywords reaches diagUnresolvedBranches only as case 3 of
+// docs/compilers/openapi.md#union-beside-structure, which the why field checks.
+func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
+	t.Parallel()
+	const namesNoReferent = "a branch's $ref names no referent this compilation resolves"
+	type report struct {
+		Code     string
+		Severity ir.Severity
+		Pointer  string
+	}
+	tests := []struct {
+		name  string
+		body  string
+		why   string
+		diags []report
+	}{
+		{"allOf branches", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/Y/allOf/1'
+        - $ref: '#/components/schemas/Y/allOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Y/allOf/0"}}},
+		{"union branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/Z/oneOf/1'
+        - $ref: '#/components/schemas/Z/oneOf/0'
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"anyOf branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      anyOf:
+        - $ref: '#/components/schemas/Z/anyOf/1'
+        - $ref: '#/components/schemas/Z/anyOf/0'
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"union branches with no keyword beside them", `    Z:
+      oneOf:
+        - $ref: '#/components/schemas/Z/oneOf/1'
+        - $ref: '#/components/schemas/Z/oneOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"}}},
+		{"anyOf branches with no keyword beside them", `    Z:
+      anyOf:
+        - $ref: '#/components/schemas/Z/anyOf/1'
+        - $ref: '#/components/schemas/Z/anyOf/0'
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/anyOf/0"}}},
+		{"allOf branch on a loop through a component", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/L'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
+		{"union branch beside structural keywords on a loop through a component", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - $ref: '#/components/schemas/A'
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+`, namesNoReferent, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+		{"allOf branch beside a distributed union on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+      oneOf:
+        - $ref: '#/components/schemas/A'
+        - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
+		}},
+		{"allOf branch beside a distributed union on a sibling branch on a loop through a component", `    Y:
+      type: object
+      properties:
+        id: {type: string}
+      allOf:
+        - $ref: '#/components/schemas/L'
+        - oneOf:
+            - $ref: '#/components/schemas/A'
+            - $ref: '#/components/schemas/B'
+    L: {$ref: '#/components/schemas/Y/allOf/0'}
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`, "", []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"},
+			{diag.CompositionLowering, ir.SeverityInfo, "/components/schemas/Y"},
+		}},
+		{"union branch with no keyword beside it on a loop through a component", `    Z:
+      oneOf:
+        - $ref: '#/components/schemas/L'
+        - {type: string}
+    L: {$ref: '#/components/schemas/Z/oneOf/0'}
+`, "", []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/L"}}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "branches.yaml", Data: []byte(openapitest.ComponentSpec(tc.body))}}, compilers.Options{})
+			require.NoError(t, err, "a loop is a spec problem, not a Go error")
+			require.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
+
+			got := make([]report, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
+			}
+			assert.Equal(t, tc.diags, got, "the whole report, in order; got %+v", diags)
+			if tc.why != "" {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"),
+					tc.why, "the union reaches its gate only as this case")
+			}
+		})
+	}
+}
+
 // TestCompile_ALoopThroughAnotherDocumentIsReportedOnce pins a loop of schema
 // $refs that another document's content closes, with external references on:
 // one wholly in that document (GitHub #547), one closing through it and back

@@ -662,6 +662,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
   `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
+  `e2e.TestReferenceEnds_ABranchTheBinderCannotPlaceIsReportedAtIt`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
   `bind.TestBind_TakesNoDefinitionPastAReadTheMergeBoundStopped`,
@@ -720,6 +721,7 @@ of its own is reported as an `openapi/cycle-scan-failed` warning, and the compil
   `e2e.TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders`,
   `e2e.TestCompile_AliasCycleIsRefused`, `load.TestLoad_ADegenerateCycleLoadsAndIsReportedOnce`,
   `e2e.TestCompile_ALoopThroughAnotherDocumentIsReportedOnce`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `load.TestBindingDiags_NamesALoopsMembersByTheirDocument`,
   `bind.TestBind_ReportsALoopOutsideTheSourceAtItsLeastMember`,
   `bind.TestBind_ReportsALoopOfDefinitionsAtItsLeastMember`,
@@ -2291,8 +2293,9 @@ In each, whatever structural body the schema declares is lowered — `properties
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
 `Unmodeled["openapi:oneOf"]` / `["openapi:anyOf"]` (`degraded_lowering`), reported as an info
 `openapi/degraded-construct` at the schema naming which applied; in case 3 the broken
-reference is reported as well, as an `openapi/unresolved-ref` error. Case 1's body-less sibling
-leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
+reference is reported as well, as an `openapi/unresolved-ref` error, or, on a loop the compiler
+reads, by the loop's one `openapi/cyclic-ref` ([`reference-cycles`](#reference-cycles)). Case 1's
+body-less sibling leaves nothing to build: it reduces to `any`, and the sibling itself is kept by
 [`shape-applicator`](#shape-applicator) rather than dropped, so the union's diagnostic and the
 sibling's are both reported. A `null` branch in this shape is **not** lifted to `Nullable`: the
 union it belongs to is no longer structural, so lifting one branch out of it would assert something
@@ -2407,6 +2410,8 @@ as one whose branches declare shape.
   `schema.TestAllOf_AUnionBranchDistributesAsBesideTheAllOf`,
   `schema.TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
+  `schema.TestOneOf_CoDeclaredBranchAfterASkippedOneIsReported`,
+  `e2e.TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop`,
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
@@ -3468,8 +3473,59 @@ that declares no parents groups exactly as it would were parents never read.
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
-- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738). Open:
-  grouping operations by a vendor extension (#582).
+- Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+
+### `extension-groups`
+
+Under the `extension` grouping strategy (`Options.Grouping`), an operation's groups are read from a
+vendor extension stating a *group path*, the nested sub-client an SDK generator files it under: a
+group for each segment, each nested in the group its prefix names. OpenAPI gives an `x-` key no
+meaning, so the reading is policy (invariant 6), never the default: an operation it files lists
+`group-extension` in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched
+([`vendor-extensions`](#vendor-extensions)). `Options.GroupingExtension` names the key, by default
+`x-fern-sdk-group-name`, read on the operation alone, where the conventions write it: a key its path
+item writes is not read for the item's operations. A string is one path, its segments separated by
+dots, so `zero-trust.devices.policies` nests three groups. Conventions disagree on a list: one
+writes the segments of a single path, as `x-fern-sdk-group-name` does, another several paths, each a
+group the operation belongs to, as `x-speakeasy-group` does. So a list's reading is named beside the
+key, `segments` or `groups`, and is never taken from another key's: a key named without one is
+refused, as is one without the key. Under `segments` each entry adds its own segments; under
+`groups` the operation is filed under the first entry's path, and placing it under the others is a
+remount an emitter's plan reads from the kept extension, so no group is minted for them.
+
+A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
+([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
+key, so a configuration can name a group, and a group nests in the one its prefix names whichever
+operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
+it; group and sibling order are first-seen from the operations, as under tags.
+
+An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
+`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
+So is one whose value names no path: one that is neither text nor a list of text, or whose path has
+an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
+whole, so under `groups` an entry after the first that names no path is enough. That bound is over
+twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
+spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
+reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
+whichever document declares it, so a path item two paths `$ref` is reported once. A value that does
+not serialize is reported where any extension's is ([`vendor-extensions`](#vendor-extensions)), and
+not again. A webhook's operation stays in the webhook group and a callback's in its parent's, as
+under tags, whatever its key states.
+
+- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestGrouping_ByExtensionNestsAGroupPerSegment`,
+  `operation.TestGrouping_ByExtensionReportsAValueStatingNoPath`,
+  `operation.TestGrouping_ByExtensionFallsBackToPathPrefix`,
+  `operation.TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst`,
+  `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
+  `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
+  `lowering.TestGroupingExtension_PathReadsEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
+  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
+- Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
+  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
+  such as one a `groups` list names after the first or one another extension names as an alias
+  (#1726).
 
 ## 9. Parameters
 

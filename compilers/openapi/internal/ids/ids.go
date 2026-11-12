@@ -72,13 +72,17 @@ const (
 // group: a Tag Object is metadata about a name, and an operation may tag itself
 // with a name no Tag Object declares. The grouping rule mints the group, so each
 // rule takes a namespace of its own (docs/ir/identity.md), distinct from
-// OpenAPISpace, which addresses source coordinates. The first two are named for
-// the strategy that forms the group, the last two for the one group they hold.
+// OpenAPISpace, which addresses source coordinates. The first three are named
+// for the strategy that forms the group, the last two for the one group they
+// hold.
 const (
 	// TagGroupSpace holds the groups formed by operation tag, keyed by tag name.
 	TagGroupSpace compile.Space = "tags"
 	// PathPrefixGroupSpace holds the groups formed by first path segment.
 	PathPrefixGroupSpace compile.Space = "path-prefix"
+	// ExtensionGroupSpace holds the groups formed by the group path a vendor
+	// extension states, keyed by the path.
+	ExtensionGroupSpace compile.Space = "extension"
 	// DefaultGroupSpace names the one group holding untagged operations.
 	DefaultGroupSpace compile.Space = "default"
 	// WebhookGroupSpace names the one group holding webhook operations.
@@ -104,6 +108,14 @@ func PathPrefixGroup(segment string) ir.GroupID {
 	return compile.GroupID(PathPrefixGroupSpace, string(Ptr(segment)))
 }
 
+// ExtensionGroup returns the stable ID of the group a vendor extension's group
+// path names, outermost segment first. It is keyed by the path alone, not by the
+// extension stating it, so a configuration can name the group, and the group a
+// path nests in is its prefix's.
+func ExtensionGroup(path []string) ir.GroupID {
+	return compile.GroupID(ExtensionGroupSpace, string(Ptr(path...)))
+}
+
 // DefaultGroup returns the stable ID of the group holding untagged operations.
 func DefaultGroup() ir.GroupID { return compile.GroupID(DefaultGroupSpace, "") }
 
@@ -122,7 +134,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
 		ir.IDKindAuth:       {OpenAPISpace, compile.UnresolvedSpace},
 		ir.IDKindService:    {OpenAPISpace},
-		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
+		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, ExtensionGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
 		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindServer:     {OpenAPISpace, DefaultServerSpace},
