@@ -116,7 +116,7 @@ Who runs a round's angles, and how a delegated reader is briefed, housed and aud
   carrying whole reads goes to two parallel readers, each in its own directory. One takes what
   moved, the PR body, whose claims it checks against the diff, and each other cell the round
   carries. The other takes the whole reads, the closing issues with their comments, read as
-  `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#closing-issue-read-whole` says,
+  `.claude/skills/morphic-shipping-prs/references/closing-issues.md#closing-issue-read-whole` says,
   tracker searches and evidence outside the repository, without reviewing the diff. The main session
   merges both reports and disproves each finding. A round of the diff and body alone keeps one
   reader; neither half splits by file (`references/readers.md#no-split-by-file`).
