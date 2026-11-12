@@ -26,6 +26,7 @@ type Policy struct {
     Pagination  Pacing       // the wait between an auto-pager's pages, and how many a walk fetches
     Polling     Polling      // the wait between a poller's polls, and how many a wait makes
     Guards      RequestGuard // option names refused as parameters
+    Nesting     Nesting      // how deep a JSON value may nest
 }
 
 type Retry struct {
@@ -134,6 +135,13 @@ type Polling struct {
 type RequestGuard struct {
     Keys []string            // names a parameter map may not hold, each a client option's and
                              // 1 to 64 bytes of visible ASCII; default none; 64 at most
+}
+
+type Nesting struct {
+    MaxDepth int             // the objects and arrays, one inside another, of a JSON text the
+                             // runtime reads or writes; default 64; 1 to 10000; 0 is outside
+                             // the range, as any other value is; a target that cannot hold to
+                             // a value reports it, and none reads to another depth (below)
 }
 
 type Duration int64          // milliseconds; in JSON digits and a unit, "ms", "s" or "m": "500ms"
@@ -485,6 +493,24 @@ shape there is ([embedded policy](embedded-policy.md#what-a-key-configures)), si
 something the field does not hold. The engine resolves the layers once for each emitter, since each
 brings its own top layer, and reports a diagnostic the embedded and project layers alone draw once
 for the run, as the plan's are reported.
+
+## How deep a value nests
+
+`Nesting.MaxDepth` is the depth to which every target reads a JSON text, a response's body, an
+error's and a stream's frame, and writes a request's
+([models](../refine/models.md#how-deep-a-value-nests)). Its default is what each first target was
+shown to decode, encode, print, hash and compare on a small stack of its platform: a goroutine's,
+which grows, 256 KB on the JVM, and on Kotlin/Native the 512 KB an Apple platform gives a thread
+([Go](../targets/go/models.md#nesting), [Kotlin](../targets/kotlin/models.md#nesting)). The range
+ends at 10,000, which json/v2 fixes. An operation's value bounds its own request and responses, and
+what belongs to no operation, a value printed, hashed or compared, is bounded by the largest value
+any operation resolves to.
+
+A target reports a value it cannot hold to as [a setting that cannot
+apply](#a-setting-that-cannot-apply) and generates no reader for another depth in its place. Go and
+Kotlin/JVM hold to every value of the range. Kotlin Multiplatform holds to none above 64:
+Kotlin/Native ends the process on a stack overflow, with nothing to catch, so a depth is honored
+there only where a stack was shown to take it. T-63 holds it.
 
 ## Precedence — declared IR facts win (hard rule)
 

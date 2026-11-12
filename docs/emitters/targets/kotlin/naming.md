@@ -75,7 +75,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   Kotlin 2.4.0, a variant `Companion` of a `@Serializable` union failed ("conflicting
   declarations"), and a variant `DefaultImpls` of one declaring a method with a body failed
   ("duplicate JVM class name 'p/Pet$DefaultImpls'").
-- **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
+- **A type**: `equals`, `hashCode`, `toString`, `Builder`, `Companion` and `jsonDepth`, the depth a
+  value records ([nesting](models.md#nesting)).
 
 The names a unit declares, a union's variants and the methods an operation lowers to on a client or
 a receiver are compared by the path fold ([emit rules](../../emit/rules.md),

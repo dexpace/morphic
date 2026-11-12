@@ -71,11 +71,30 @@ call stopped with `cannot use … as shared.UserCreate value` (Go 1.27.3). T-60 
 
 ## Nesting
 
-json/v2 refuses a value nested past 10,000 levels, decoding and encoding
-(`jsontext: exceeded max depth`), and no option moves that bound, so it is Go's [limit](
-../../refine/models.md#how-deep-a-value-nests) and the SDK adds no check of its own. A value at the
-bound decoded in 3 ms on a goroutine's stack, which grows as it needs (Go 1.27.3). Encoding refuses
-a value that holds itself, through a pointer, a slice or a map, with `encountered a cycle`.
+json/v2 refuses a value nested past 10,000 levels, decoding and encoding (`jsontext: exceeded max
+depth`), and no option moves that bound, which is where the range of [the
+limit](../../refine/models.md#how-deep-a-value-nests) ends. Below it the runtime counts for itself:
+before it decodes a text and after it encodes one it scans the bytes once, counting the objects and
+arrays open outside a string, and refuses one nested past `MaxDepth`, a response as a body that does
+not decode and a request with an error, nothing sent. The scan took 1.6 ms on a 1.1 MB body that
+json/v2 decoded in 6.7 ms, and a value at json/v2's bound decoded in 3 ms on a goroutine's stack,
+which grows as it needs (Go 1.27.3, darwin/arm64). A count kept in each model's `UnmarshalJSONFrom`
+would miss an `any` position, which json/v2 decodes with no code of the SDK's.
+
+A caller can build a value that holds itself, through a pointer, a slice or a map. Encoding refuses
+it (`encountered a cycle`). Printing must not follow it: Go ends the process on a stack overflow
+(`fatal error: stack overflow`), which no `recover` stops, and a `String` calling each nested
+value's `String` did so on a model whose pointer led back to it. So each model, union struct,
+wrapper and positional struct declares `Format(fmt.State, rune)`, which `fmt` asks before `String`
+and for every verb, and renders its members itself, calling a nested value's `Format` with a state
+that carries the level; at `MaxDepth` levels it writes `...` and returns. `String` and `GoString`
+print through it and `LogValue` returns its text, so all three end. Measured so, a value holding
+itself through a pointer, a slice and a map each printed 64 levels and stopped, as did one held from
+another unit, and `%d`, `%x` and `%q` showed a redacted member as `%v` does. The state is a type of
+the module's own under `internal/`, which no caller can name, and `Format` is a name no member takes
+([reserved names](naming.md#reserved-names)), as `String` is: 20 properties of the golden spec are
+named `format` (spec @bc6fad24). Go generates no hash and no comparison of a model: `==` compares a
+pointer by identity and is not defined over a slice or a map. T-63 holds these.
 
 ## Recursive references
 

@@ -24,7 +24,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   `Response` and `Stream` among them, are its own unit's, which holds no spec name ([the runtime's
   unit](../../refine/output-units.md#the-runtimes-unit)), and code elsewhere writes them qualified,
   `runtime.APIError`, so they meet no spec name.
-- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `String`,
+- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate`, the redacting `Format`, `String`,
   `GoString` and `LogValue`, and the field holding the catch-all ([`User`](models.md#user-in-go)).
   The struct Go gives a closed union declares those codecs and redacting forms, `Validate` and
   `Value` ([unions](unions.md)), and a wrapper all of them but `Validate`; no spec name lands in

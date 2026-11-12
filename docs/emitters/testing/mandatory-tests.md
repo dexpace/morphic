@@ -936,11 +936,14 @@ throughout these documents.
     decoded by the client and by a caller's own decoder call, reads `1`, `1.0`, `1e0`, `10e-1` and
     `1E+2` as their values and `-0` and `-0.0` as zero, an unsigned kind among them; refuses `1.5`,
     `15e-1`, `1e-400`, the string `"1"`, the first value past each kind's range in plain digits and
-    in exponent form, and a negative number into an unsigned kind; refuses `1e1000000000` and reads
-    a literal a megabyte long that names 1, each within a time bound a literal's expansion would
-    pass; writes plain digits; reads a parameter's and a header's text by the same table, in an SDK
-    and in a mock; and leaves a caller's own decoder for an integer type its precedence at any
-    depth ([type table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
+    in exponent form, and a negative number into an unsigned kind; reads each kind's least and
+    greatest value and 9007199254740993, in plain digits and in exponent form, to that exact value,
+    which no reader passing through a float does, and `0e99999999999999999999` as zero; refuses
+    `1e1000000000` and reads a literal a megabyte long that names 1, each within a time bound a
+    literal's expansion would pass; writes plain digits; reads a parameter's and a header's text by
+    the same table, in an SDK and in a mock; and leaves a caller's own decoder for an integer type
+    its precedence at any depth ([type
+    table](../contract/type-table.md#an-integer-row-reads-a-number-by-its-value)).
 62. **T-62 · Bytes compare by content** — on both Kotlin targets and from a Swift caller, two values
     decoded from the same `bytes` text are equal and hash alike as themselves, in a scalar's
     declaration over `bytes`, as a model's member, as a list's element, as a map's value and key and
@@ -948,14 +951,22 @@ throughout these documents.
     the array a value was built from, or the one it hands out, changes neither the value nor its
     hash; and a `bytes` member still writes and reads its row's base64
     ([Kotlin](../targets/kotlin/types.md#bytes)).
-63. **T-63 · Nesting** — on every target, through the client, a response body, an error's body and
-    a stream's frame nested one level past the target's limit, through a recursive model's member,
-    through its list, and through an `any` position, each reach the caller as a body that does not
-    decode, the status and the bytes kept, on a thread with the smallest stack the target supports,
-    and never as a crash or a stack overflow; a body at the limit decodes, and the value then
-    encodes, prints, hashes and compares on that thread; an opening bracket inside a string counts
-    for nothing; and Go's encoder refuses a value a caller nests past its limit and one that holds
-    itself ([models](../refine/models.md#how-deep-a-value-nests)).
+63. **T-63 · Nesting** — on every target, through the client, a response body, an error's body and a
+    stream's frame nested one level past `MaxDepth`, at its default and at a value a configuration
+    sets for one operation, through a recursive model's member, through its list, and through an
+    `any` position, each reach the caller as a body that does not decode, the status and the bytes
+    kept, on a thread with the smallest stack its target names, 256 KB on the JVM and 512 KB on
+    Kotlin/Native, and never as a crash or a stack overflow; a body at the limit decodes, and the
+    value then encodes, prints, hashes and compares on that thread; an opening bracket inside a
+    string counts for nothing, a string ending in an escaped backslash among them, the value after
+    it nested past the limit still refused; a value a caller builds past the limit is refused by the
+    client's encoder, nothing sent, and prints, hashes and compares without recursing into it, on
+    Kotlin/Native on a 64 KB stack; in Go a value holding itself through a pointer, a slice and a
+    map is refused by the encoder and printed by `String`, `GoString`, `LogValue` and every `fmt`
+    verb to the limit and no further; a Kotlin model built from a list its caller then changes keeps
+    its members and its hash; and a `MaxDepth` a target cannot hold to, one above 64 on
+    Multiplatform, is reported and none is read to another depth
+    ([models](../refine/models.md#how-deep-a-value-nests)).
 64. **T-64 · The runtime's surface** — on every target, a caller's program built outside the SDK,
     as another Go module, another Gradle build and a Swift file against the framework, compiles
     while it uses the client, a sub-client's method, the failure value, a stream and an event, and
