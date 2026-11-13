@@ -252,14 +252,17 @@ func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileRe
 
 // admitsNoBytes reports whether branch, one of a union's, admits no value but
 // null, or none at all, read through the $refs it starts: a false schema, or a
-// type null writing nothing else a reader of a file looks at.
+// schema of null alone in any spelling (schema.NullAlone) writing nothing else
+// a reader of a file looks at, the enum or const saying its null aside.
 func admitsNoBytes(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if annotation.IsFalseSchema(refEnd(c.Bindings(), branch)) {
 		return true
 	}
 	s := schemaOf(c.Bindings(), branch)
-	return s != nil && slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
-		writesOnlyOpenKeywords(c, s, false /* unions */)
+	return s != nil && schema.NullAlone(c, s) && writesOnly(s, func(key string) bool {
+		key = schema.TwinKeyword(c, s, key)
+		return openKeyword(key, false /* unions */) || key == "enum" || key == "const"
+	})
 }
 
 // withoutNull returns types with null removed, a copy so the schema's own
