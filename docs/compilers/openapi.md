@@ -258,7 +258,8 @@ the overlay is applied and no position names it as a writer, as with no overlay,
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, the rules that bind fields together, and the defaults of
+each, the empty string held to a syntax as any text is, so `''` breaks an email's or an absolute
+URI's and not a URI reference's, which fields each minor requires, the rules that bind fields together, and the defaults of
 fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
 cannot state is written as code beside it, such as a path template against its path parameters, a
 server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
@@ -325,6 +326,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `oas.TestCheck_RulesAnotherPackageOwnsAreNotApplied`,
   `oas.TestCheck_AnAnchorIsANameJSONSchemaAdmits`,
   `oas.TestCheck_KeywordsHoldWhatJSONSchemaRequires`, `oas.TestCheckFormat_AKeyIsAString`,
+  `oas.TestCheck_TheEmptyStringIsJudgedByItsFormat`,
   `oas.TestTable_EveryRowCitesTheSpecification`, `load.TestJudgeSource_PlacesEachFindingAtItsNode`,
   `load.TestJudgeSource_RefusesTheAnchorsNoReferenceCanName`,
   `load.TestLoad_WhatAnAliasMountsIsReportedOnce`,
