@@ -101,10 +101,10 @@ compiler is planned to follow is [`planned-lowerings.md`](../compilers/planned-l
    reading a value the schema does not define, such as an unknown member, a type with no kind or a
    number where a string goes, or an absent or foreign `irVersion` ([ir-version](./ir-version.md)).
    Every other invariant is `irverify`'s: a document breaking one, such as an `IDSpaces` kind
-   declared with no namespace, encodes and decodes as it is, bar a nil type (`ir/nil-type`), which
-   encodes as `null` and so reads back as a type with no kind. Refusing more in the codec would be
-   a second reader of each invariant to keep in step with `irverify`, and a document breaking one
-   could no longer be written out to see what broke.
+   declared with no namespace, encodes and decodes as it is, bar a structure holding itself, above,
+   and a nil type (`ir/nil-type`), which encodes as `null` and so reads back as a type with no kind.
+   Refusing more in the codec would be a second reader of each invariant to keep in step with
+   `irverify`, and a document breaking one could no longer be written out to see what broke.
 6. **Provenance everywhere.** Every node records where it came from and whether it was declared
    or inferred.
 
