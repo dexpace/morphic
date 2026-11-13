@@ -101,8 +101,9 @@ func check(ctx context.Context, spec string, data []byte) Result {
 	// Before the spec's own errors: a document breaking the invariants is a
 	// compiler's or a pass's bug whatever the spec says, and the run returns it.
 	// Only a refusal, an error and no document, has nothing to hold. The run's
-	// verification does not reach the findings the engine writes onto the
-	// document after its last stage (#1121), so this hold stays beside it.
+	// verification holds each stage's document and findings (#1121); this hold
+	// is Check's own, of whatever compile returns, no document beside no error
+	// included.
 	first, failed := ir.FirstError(diags)
 	if doc != nil || !failed {
 		if vs := irverify.Verify(doc); len(vs) > 0 {
