@@ -199,11 +199,11 @@ func TestInferWalks_LeavesWhatItCannotSettle(t *testing.T) {
 	}
 }
 
-// TestInferWalks_ReadsEveryResponse holds a page to every content of every success
-// response, a pager reading whichever arrives: two holding the page at
+// TestInferWalks_ReadsEveryResponse holds a page to every content of every
+// success response, a pager reading whichever arrives: two holding the page at
 // different members settle none, and no success response, or none with a body,
-// leaves nothing to read. One with no body ends a walk, and the default
-// response is no success, so neither is read.
+// leaves nothing to read. One with no body ends a walk, the default response is
+// no success, and a content that streams is no page, so none of them is read.
 func TestInferWalks_ReadsEveryResponse(t *testing.T) {
 	t.Parallel()
 	head := `openapi: 3.1.0
@@ -293,6 +293,43 @@ components:
 		op, doc, diags := listOp(t, src, openapi.Options{})
 		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
 		assert.Empty(t, undecided(diags))
+	})
+
+	// A content that streams is a sequence of frames and no page, so it is not
+	// read: beside the page, in either order, or as a response's only body.
+	jsonPage := `application/json: {schema: ` + body(`result: `+stringList) + `}`
+	stream := `text/event-stream: {schema: ` + body(`items: `+stringList) + `}`
+	for name, responses := range map[string]string{
+		"a content that streams after the page": `        "200":
+          description: ok
+          content:
+            ` + jsonPage + `
+            ` + stream + `
+`,
+		"a content that streams before the page": `        "200":
+          description: ok
+          content:
+            ` + stream + `
+            ` + jsonPage + `
+`,
+		"a response that only streams beside the page": `        "200": {description: ok, content: {` + jsonPage + `}}
+        "201": {description: created, content: {` + stream + `}}
+`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			op, doc, diags := listOp(t, head+responses, openapi.Options{})
+			assert.Equal(t, "page cursor=page limit=- items=/result next=- count=- pages=- stop=[]", describe(doc, op))
+			assert.Empty(t, undecided(diags))
+		})
+	}
+	t.Run("a response that only streams, which holds no page", func(t *testing.T) {
+		t.Parallel()
+		op, doc, diags := listOp(t, head+`        "200": {description: ok, content: {`+stream+`}}
+`, openapi.Options{})
+		assert.Equal(t, "-", describe(doc, op))
+		assert.Equal(t, []string{"no pagination is inferred: no success response has a body to read a page from"},
+			undecided(diags))
 	})
 
 	t.Run("two responses holding one body", func(t *testing.T) {

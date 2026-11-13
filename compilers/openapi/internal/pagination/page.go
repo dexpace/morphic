@@ -83,9 +83,11 @@ func (p page) equal(q page) bool {
 // sending in reads. Every content of every one must hold it at the same
 // members, since a pager reads whichever arrives; one with no body, a 204 or a
 // 304, holds none, as a pager ends at it as at an empty page
-// (docs/emitters/plan/responses.md#other-responses). why says otherwise what
-// stops it: of several bodies holding no page, the least of their reasons, so
-// the finding reads the same whatever order the responses and contents take.
+// (docs/emitters/plan/responses.md#other-responses), and a content that
+// streams is no page (docs/ir/payloads.md#a-content-that-streams). why says
+// otherwise what stops it: of several bodies holding no page, the least of
+// their reasons, so the finding reads the same whatever order the responses
+// and contents take.
 func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	if len(op.Responses) == 0 {
 		return page{}, "the operation declares no success response to read a page from"
@@ -103,6 +105,9 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 		}
 		for j := range p.Contents {
 			ct := &p.Contents[j]
+			if ct.Stream != nil {
+				continue
+			}
 			key.body = ct.Type.Target
 			if pg := r.page(key); pg.why != "" {
 				whys = append(whys, fmt.Sprintf("the %s response body %s", ct.MediaType, pg.why))

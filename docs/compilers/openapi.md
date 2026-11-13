@@ -5455,7 +5455,9 @@ its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one 
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. One with
    no body, such as a `204` or a `304`, holds none and is not read, as a pager ends at it as at an
-   empty page ([other responses](../emitters/plan/responses.md#other-responses)). A path starts at
+   empty page ([other responses](../emitters/plan/responses.md#other-responses)), and a content that
+   streams ([payloads](../ir/payloads.md#a-content-that-streams)) is a sequence of frames and no
+   page, so it is not read either. A path starts at
    the body whole. A list body holds the items whole, an `Items` with no segment, and no next
    cursor. A model's members are read across its composition (`ir.FlattenedProperties`), each
    as the declaration the flattening takes, which is the type a page decodes it as, and its items
