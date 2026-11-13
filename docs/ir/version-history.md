@@ -592,7 +592,11 @@ it sees. Changes made together in one bump are listed together under it.
     `Enum` with no member, so a union of one such branch and one other is now a nullable reference
     to the other, and a union of more has one variant fewer, while one written beside a structural
     body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
-    pinned to 0.53.0 finds no variant where it read one admitting `null` alone.
+    pinned to 0.53.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
+    `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
+    and dropped what it wrote beside its type, so such a consumer also finds a variant where it
+    read none.
   - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
     new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
     compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
