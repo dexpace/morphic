@@ -381,7 +381,7 @@ func implicitRoutes(c lowering.Ctx, s *oas3.Schema) []implicitRoute {
 	branches, _, _ := unionBranches(s)
 	routes := make([]implicitRoute, 0, len(branches))
 	for _, b := range branches {
-		if isNullSchema(b) {
+		if nullBranch(c, b) {
 			continue
 		}
 		name, id, ok := componentNamed(scope, b)

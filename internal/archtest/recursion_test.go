@@ -100,7 +100,7 @@ var schemaRecursion = []string{
 	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTypeVariant", "lowerTyped",
 	"lowerUnion",
 	"lowerUntyped", "outcomeKeeps.record", "outcomeKeeps.recordOn", "patternProps",
-	"preserveNullOnlyUnion", "preserveUnhomedKeywords", "preserveVariantsUnhomed",
+	"preserveUnhomedKeywords", "preserveVariantsUnhomed",
 	"recordUnhomedAt", "recordUnhomedKeywords", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveBeaten", "resolveDiscriminatorRoutes",
 	"resolvePointer", "resolveSchemaRef", "routeEntry",
@@ -446,7 +446,7 @@ func visited(index map[string]int, n string) bool {
 
 // TestLoweringCallGraph_RecordsAHandoffAsAnEdge holds the graph to the fix for
 // GitHub #210. Reading call position alone described these three functions as
-// depending on nothing, while each decides which lowering runs by naming it.
+// depending on nothing, while each decides by a function it hands on by name.
 //
 // It asserts the edges rather than the cycles because none of them closes one
 // today: a dependency the graph cannot see is unheld whether or not it currently
@@ -456,9 +456,9 @@ func TestLoweringCallGraph_RecordsAHandoffAsAnEdge(t *testing.T) {
 	graph := loweringCallGraph(t)
 
 	handoffs := map[string]string{
-		"classifyBranchSet": "isNullSchema",
-		"setsDeclareShape":  "branchDeclaresShape",
-		"oneOfAnyOfHasNull": "isNullSchema",
+		"enumNullVerdict":         "isNullValue",
+		"setsDeclareShape":        "branchDeclaresShape",
+		"preserveVariantsUnhomed": "constraintsHome",
 	}
 	for from, to := range handoffs {
 		require.Contains(t, graph, from, "the graph no longer holds %q", from)

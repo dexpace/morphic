@@ -163,7 +163,7 @@ func indexBranches(c lowering.Ctx, u unionAt, variants []ir.Variant) *branchInde
 		// A non-null branch lacking its variant is a compiler bug
 		// spellImplicitRoutes reports; it routes nothing here.
 		i := len(x.pointers)
-		if isNullSchema(b) || i == len(variants) {
+		if nullBranch(c, b) || i == len(variants) {
 			continue
 		}
 		vptr := u.at + ids.Ptr(key, strconv.Itoa(n))

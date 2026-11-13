@@ -255,16 +255,14 @@ components:
 	assert.Equal(t, "cat_yaml", pet.Variants[1].Name.Hint, "the wrapped branch is named for its $ref")
 }
 
-// TestOneOfAnyOf_NullOnlyLowersToNullableAny covers a oneOf/anyOf whose every
-// branch is a bare `type: null` schema (GitHub #416). nullUnionCollapse has no
-// non-null branch to collapse a set like this onto, so without a guard for the
-// shape, buildUnion's null-branch strip leaves nothing behind it and interns a
-// Union with no variants — the empty value space irverify's
-// ir/union-no-variants rule rejects. This position instead lowers the way a
-// bare `{type: null}` schema at it would: the shared `any` primitive with
-// Nullable set, with the combinator that produced it kept verbatim under
-// Unmodeled since it has no shape a Scalar's fields could hold.
-func TestOneOfAnyOf_NullOnlyLowersToNullableAny(t *testing.T) {
+// TestOneOfAnyOf_NullOnlyLowersAsNullAlone covers a oneOf/anyOf whose every
+// branch admits null alone, in any spelling. No branch is a variant, so a Union
+// would have none, the empty value space irverify's ir/union-no-variants
+// rejects (GitHub #416). The set admits what a schema of null alone admits, so
+// it lowers to the node `{type: "null"}` does, an Enum with no member, behind a
+// nullable reference, the combinator kept verbatim on it
+// (docs/compilers/openapi.md#union-null-only).
+func TestOneOfAnyOf_NullOnlyLowersAsNullAlone(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    AnyOfNull:
       anyOf: [{type: "null"}]
@@ -272,6 +270,14 @@ func TestOneOfAnyOf_NullOnlyLowersToNullableAny(t *testing.T) {
       oneOf: [{type: "null"}]
     AnyOfTwoNull:
       anyOf: [{type: "null"}, {type: "null"}]
+    OtherSpellings:
+      oneOf: [{enum: [null]}, {const: null}]
+    Nil: {type: "null"}
+    Holder:
+      type: object
+      properties:
+        anyOfNull: {$ref: '#/components/schemas/AnyOfNull'}
+        nil: {$ref: '#/components/schemas/Nil'}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -280,16 +286,25 @@ func TestOneOfAnyOf_NullOnlyLowersToNullableAny(t *testing.T) {
 		{"AnyOfNull", "openapi:anyOf"},
 		{"OneOfNull", "openapi:oneOf"},
 		{"AnyOfTwoNull", "openapi:anyOf"},
+		{"OtherSpellings", "openapi:oneOf"},
+		{"Nil", ""},
 	} {
-		s, ok := doc.Types[componentID(tc.name)].(*ir.Scalar)
-		require.True(t, ok, "%s lowers to a scalar over any, the same node a bare "+
-			"`{type: null}` schema at this position would", tc.name)
-		require.NotNil(t, s.Base)
-		assert.Equal(t, ir.TypeID("t/prim/any"), s.Base.Target)
-		assert.True(t, s.Base.Nullable, "%s: the null-only branch set lifts onto the reference", tc.name)
-		entry, ok := s.Unmodeled[tc.key]
-		require.True(t, ok, "%s: the union is kept verbatim beside the approximation", tc.name)
+		e, ok := doc.Types[componentID(tc.name)].(*ir.Enum)
+		require.True(t, ok, "%s lowers to an Enum, the node a schema of null alone lowers to, got %T",
+			tc.name, doc.Types[componentID(tc.name)])
+		assert.Empty(t, e.Members, "%s holds no value but the null its references admit", tc.name)
+		assert.True(t, e.Closed)
+		assert.Equal(t, ir.PrimAny, e.ValueType)
+		if tc.key == "" {
+			assert.Empty(t, e.Unmodeled, "%s keeps nothing", tc.name)
+			continue
+		}
+		entry, ok := e.Unmodeled[tc.key]
+		require.True(t, ok, "%s: the union is kept verbatim on the node", tc.name)
 		assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
+	}
+	for _, wire := range []string{"anyOfNull", "nil"} {
+		assert.True(t, propertyOf(t, doc, "Holder", wire).Type.Nullable, "%s admits the null", wire)
 	}
 	for id, def := range doc.Types {
 		_, isUnion := def.(*ir.Union)

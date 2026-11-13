@@ -31,7 +31,8 @@ components:
     Narrowed:
       type: string
       enum: [a, null]
-    # A branch admitting null alone beside a $ref.
+    # A branch admitting null alone beside a $ref: the union's null, so the
+    # union collapses to a nullable reference to Mixed.
     OrNull:
       oneOf:
         - {$ref: '#/components/schemas/Mixed'}

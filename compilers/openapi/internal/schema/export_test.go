@@ -59,10 +59,16 @@ func LowererOver(ctx lowering.Ctx) *Lowerer {
 // plus the load diagnostics, so a test can drive one entry point at a time.
 func LoweredFor(t *testing.T, src string) (*Lowerer, []ir.Diagnostic) {
 	t.Helper()
+	return LoweredWith(t, src, lowering.Policy{Grouping: lowering.GroupByTags})
+}
+
+// LoweredWith is LoweredFor under policy.
+func LoweredWith(t *testing.T, src string, policy lowering.Policy) (*Lowerer, []ir.Diagnostic) {
+	t.Helper()
 	loadedDoc, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc, "load returned no document: %+v", diags)
-	return LowererOver(lowering.New(0, loadedDoc, lowering.Policy{Grouping: lowering.GroupByTags})), diags
+	return LowererOver(lowering.New(0, loadedDoc, policy)), diags
 }
 
 // LowerSpec loads src and lowers its component schemas, returning the document
