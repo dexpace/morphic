@@ -5,6 +5,7 @@ package pagination
 
 import (
 	"fmt"
+	"net/http"
 	"slices"
 	"strconv"
 	"strings"
@@ -70,6 +71,10 @@ func inbound(op *ir.Operation) bool {
 	return slices.ContainsFunc(op.Bindings.HTTP, func(b ir.HTTPBinding) bool { return b.Inbound != "" })
 }
 
+// methodQuery is the QUERY method OpenAPI 3.2 binds a query operation to,
+// which net/http names no constant for.
+const methodQuery = "QUERY"
+
 // unsafeMethod returns the method of op's first HTTP binding that a walk
 // cannot send again for each page: any but GET and QUERY, the methods asking
 // for no change on the server. A walk resends its operation, so a POST taking a
@@ -77,7 +82,7 @@ func inbound(op *ir.Operation) bool {
 // once per page.
 func unsafeMethod(op *ir.Operation) (string, bool) {
 	for _, b := range op.Bindings.HTTP {
-		if b.Method != "GET" && b.Method != "QUERY" {
+		if b.Method != http.MethodGet && b.Method != methodQuery {
 			return b.Method, true
 		}
 	}
