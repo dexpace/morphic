@@ -209,41 +209,39 @@ func TestAliasedNode_ReadsAChainUpToItsBound(t *testing.T) {
 		_, isList := r.view(reg[next], "").(*ir.List)
 
 		assert.Equal(t, tc.read, isList, tc.name)
-		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L", 0) == relANarrower, "%s: standsFor reads as far", tc.name)
+		assert.Equal(t, tc.read, r.standsFor(reg[next], "t/L") == relANarrower, "%s: standsFor reads as far", tc.name)
 	}
 }
 
 // TestStandsFor_ReadsOnlyAnAliasChain pins which types an alias stands for: each
 // node its chain names, within it, but through a link admitting null, which
-// adds null to it alone (the first alias's docs carried at depth 0) or more;
-// and nothing for a node that is no alias, a chain naming nothing the registry
-// holds, or a type the chain does not name.
+// adds null to it alone or more, docs counted; and nothing for a node that is
+// no alias, a chain naming nothing the registry holds, or a type the chain does
+// not name.
 func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 	t.Parallel()
 	reg := nullableAliases(viewRegistry())
 	r := registry{resolve: stubResolve(reg)}
 	for _, tc := range []struct {
-		td    ir.TypeID
-		id    ir.TypeID
-		depth int
-		want  relation
+		td   ir.TypeID
+		id   ir.TypeID
+		want relation
 	}{
-		{"t/L-max-docs", "t/L-max", 1, relANarrower},
-		{"t/L-max-docs", "t/L", 1, relANarrower},
-		{"t/L-max", "t/L-max-docs", 0, relUnrelated},
-		{"t/L", "t/L", 0, relUnrelated},
-		{"t/gone", "t/L", 0, relUnrelated},
-		{"t/S", "t/prim/string", 0, relANarrower},
-		{"t/L-null", "t/L", 1, relBNarrower},
-		{"t/L-null-docs", "t/L", 0, relBNarrower},
-		{"t/L-null-docs", "t/L", 1, relUnrelated},
-		{"t/L-null-max", "t/L", 0, relUnrelated},
-		{"t/L-over-null", "t/L", 0, relBNarrower},
-		{"t/L-over-null", "t/L", 1, relUnrelated},
-		{"t/L-over-null", "t/L-null", 1, relANarrower},
-		{"t/L-over-null-docs", "t/L", 0, relUnrelated},
+		{"t/L-max-docs", "t/L-max", relANarrower},
+		{"t/L-max-docs", "t/L", relANarrower},
+		{"t/L-max", "t/L-max-docs", relUnrelated},
+		{"t/L", "t/L", relUnrelated},
+		{"t/gone", "t/L", relUnrelated},
+		{"t/S", "t/prim/string", relANarrower},
+		{"t/L-null", "t/L", relBNarrower},
+		{"t/L-null-docs", "t/L", relUnrelated},
+		{"t/L-null-max", "t/L", relUnrelated},
+		{"t/L-over-null", "t/L", relUnrelated},
+		{"t/L-over-null", "t/L-null", relANarrower},
+		{"t/L-over-null-docs", "t/L", relUnrelated},
+		{"t/L-over-null-bare", "t/L", relBNarrower},
 	} {
-		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id, tc.depth), "%s for %s at %d", tc.td, tc.id, tc.depth)
+		assert.Equal(t, tc.want, r.standsFor(reg[tc.td], tc.id), "%s for %s", tc.td, tc.id)
 	}
 	assert.True(t, r.nullThroughChain(reg["t/L-over-null"]), "a link past the first admits null")
 	assert.False(t, r.nullThroughChain(reg["t/L-max-docs"]))
@@ -252,8 +250,8 @@ func TestStandsFor_ReadsOnlyAnAliasChain(t *testing.T) {
 }
 
 // nullableAliases adds to reg aliases of t/L whose chains admit null: one adding
-// null alone, one adding docs, one adding a bound, and one over each of the
-// first two.
+// null alone, one adding docs, one adding a bound, and over the first two, one
+// holding docs and one holding nothing.
 func nullableAliases(reg map[ir.TypeID]ir.TypeDef) map[ir.TypeID]ir.TypeDef {
 	nullable := func(id ir.TypeID, c ir.TypeCommon, bounds *ir.Constraints) {
 		c.ID = id
@@ -265,5 +263,6 @@ func nullableAliases(reg map[ir.TypeID]ir.TypeDef) map[ir.TypeID]ir.TypeDef {
 	reg["t/L-over-null"] = &ir.Scalar{ID: "t/L-over-null", Base: &ir.TypeRef{Target: "t/L-null"},
 		Docs: ir.Docs{Description: "over"}}
 	reg["t/L-over-null-docs"] = &ir.Scalar{ID: "t/L-over-null-docs", Base: &ir.TypeRef{Target: "t/L-null-docs"}}
+	reg["t/L-over-null-bare"] = &ir.Scalar{ID: "t/L-over-null-bare", Base: &ir.TypeRef{Target: "t/L-null"}}
 	return reg
 }

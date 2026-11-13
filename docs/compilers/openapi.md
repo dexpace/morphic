@@ -1633,9 +1633,8 @@ member, since a `$ref` to a sibling position adds width at no cost in document s
 two are unrelated and compose, which loses nothing.
 An alias is narrower than the type it stands for, whatever its kind: a reference to it reads all
 that type says, and it may say more. One whose chain admits null, as `{anyOf: [E, {type: null}]}`
-does, is not, since `E` refuses null: where the chain adds nothing else, `E` is narrower, and the
-field holds `E` (as a field's own type the first alias may hold what a reference carries down), and
-otherwise the two are judged as below. Against any other type, an alias whose chain ends in an enum,
+does, is not, since `E` refuses null: where the chain adds nothing else, docs included, `E` is
+narrower and the field holds it, and otherwise the two are judged as below. Against any other type, an alias whose chain ends in an enum,
 a `const`, a `Scalar`, a list, a map or a tuple is judged, and a node it meets built, as that node
 holding the bounds the chain and the node say together and each detail the nearest of them sets,
 documentation field by field, as a reference to the alias reads it
@@ -2058,7 +2057,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
   (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
   keeping the first, though they share values, since the IR has no value type for what both admit;
-  a model and the wrapper it flattens that fold different sets only because the model stops at the
+  an alias adding docs to the null it adds is not read as adding null alone, though a reference
+  carries an alias's docs to its use, since a use site whose `$ref` chain runs on past the alias
+  takes the docs where the chain ends instead (#1029); a model and the wrapper it flattens that fold different sets only because the model stops at the
   flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
   names both.
 

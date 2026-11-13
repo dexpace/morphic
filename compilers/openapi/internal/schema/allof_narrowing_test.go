@@ -878,9 +878,9 @@ func TestAllOf_AnAliasMeetsAsTheNodeItStandsFor(t *testing.T) {
 // alias adds to the node it stands for: docs read field by field down its
 // chain; a bound on an open enum, which no node of its kind holds, judged as
 // written; one alias of the top type within the other; and null alone, so the
-// node it stands for is within it, while one holding null beside a node it
-// would be within overlaps it. A field keeping a type the other refuses
-// reports it and keeps that one verbatim.
+// node it stands for is within it, while one adding docs too, or holding null
+// beside a node it would be within, overlaps it. A field keeping a type the
+// other refuses reports it and keeps that one verbatim.
 func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 	t.Parallel()
 	const components = `    E1: {type: string, enum: [a, b, c], description: e1}
@@ -894,6 +894,7 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
     Top: {}
     TopA: {$ref: '#/components/schemas/Top', description: d}
     NAny: {anyOf: [{$ref: '#/components/schemas/E1'}, {type: 'null'}]}
+    DN: {$ref: '#/components/schemas/NAny', description: dn}
     M: {type: object, properties: {a: {type: string}}}
     MN: {anyOf: [{$ref: '#/components/schemas/M'}, {type: 'null'}]}
     L: {type: array, items: {type: string}}
@@ -915,6 +916,7 @@ func TestAllOf_AnAliasIsJudgedByWhatItAdds(t *testing.T) {
 		{alias: "MN", other: "M", want: componentID("M")},
 		{alias: "LN", other: "L", want: componentID("L")},
 		{alias: "NAny", other: "E3", kept: true},
+		{alias: "DN", other: "E1", kept: true},
 	} {
 		for _, order := range [][2]string{{ref(tc.alias), ref(tc.other)}, {ref(tc.other), ref(tc.alias)}} {
 			doc, diags := settledSpec(t, components, order[0], order[1])

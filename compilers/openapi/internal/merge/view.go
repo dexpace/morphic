@@ -214,21 +214,21 @@ func viewOf(end ir.TypeDef, chain []*ir.Scalar, bounds *ir.Constraints) (ir.Type
 	}
 }
 
-// standsFor relates td, at depth, to the type id names where td is an alias
-// whose chain reaches id: a reference to td reads all id says, and td may say
-// more, so td is within it (relANarrower), unless a link admits null, which id
-// lacks. Such a chain whose every alias says nothing else (aliasSaysNothing, the
-// first as topAt reads it) adds only null, so id is within td (relBNarrower);
-// any other is relUnrelated, for the view to judge, as is a td whose chain does
-// not reach id.
-func (r registry) standsFor(td ir.TypeDef, id ir.TypeID, depth int) relation {
-	carried, null, says := depth == 0, false, false
+// standsFor relates td to the type id names where td is an alias whose chain
+// reaches id: a reference to td reads all id says, and td may say more, so td is
+// within it (relANarrower), unless a link admits null, which id lacks. Such a
+// chain whose every alias says nothing else (aliasSaysNothing), docs included,
+// adds only null, so id is within td (relBNarrower). Any other is relUnrelated,
+// for the view to judge, as is a td whose chain does not reach id. Docs count,
+// as a use site may not carry them (GitHub #1029).
+func (r registry) standsFor(td ir.TypeDef, id ir.TypeID) relation {
+	null, says := false, false
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
 		if !alias || s.Base == nil {
 			return relUnrelated
 		}
-		null, says = null || s.Base.Nullable, says || !aliasSaysNothing(s, carried)
+		null, says = null || s.Base.Nullable, says || !aliasSaysNothing(s, false)
 		if s.Base.Target == id {
 			return addsNull(null, says)
 		}
@@ -236,7 +236,7 @@ func (r registry) standsFor(td ir.TypeDef, id ir.TypeID, depth int) relation {
 		if !ok {
 			return relUnrelated
 		}
-		td, carried = next, false
+		td = next
 	}
 	return relUnrelated
 }
