@@ -941,6 +941,7 @@ func TestDiscriminatorMapping_ReportsAValueNamingNothingOnce(t *testing.T) {
 		}, reported(diags), "reversed %t", reversed)
 		assert.Equal(t, map[string]ir.TypeID{"c": componentID("Cat")}, discriminatorOf(t, doc, componentID("Pets")).Mapping)
 		assert.Empty(t, discriminatorOf(t, doc, componentID("Pets")).Default)
+		assert.Empty(t, validated(t, doc), "what is left routes to a variant")
 	}
 }
 

@@ -357,6 +357,7 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 				}
 				slices.Sort(want)
 				assert.Equal(t, want, unresolved, "a value naming nothing is reported once at each site")
+				assert.Empty(t, validated(t, doc), "no node holds a route")
 			}
 		})
 	}
