@@ -277,10 +277,11 @@ them admits, recognition holding a value only in a variant that admits it. Witho
 value would decode as one: on the golden spec (spec @bc6fad24, morphic @fa253fe19), 5 of the 145
 unions a property name routes declare no mapping over two inline variants, the `calculations` of the
 `workers-observability` query bodies, each variant pinning `operator` to several values, so the IR
-routed nothing to either, as it still does with the discriminator-inference policy off. Of the 586 routes of the other 140, 575 lead to a variant that pins the
-tag, 34 of them as a number, 10 to one leaving the member a plain string, as `nsc_Interconnect`'s
-two do, and one to a union. Two variants, those of `infra_ServiceConfig`, admit both `http` and
-`tcp` through a base they share, and 5 variants own several tags, 50 between them.
+routed nothing to either, as it still does with the discriminator-inference policy off. Of the 586
+routes of the other 140, 575 lead to a variant that pins the tag, 34 of them as a number, 10 to one
+leaving the member a plain string, as `nsc_Interconnect`'s two do, and one to a union. Two variants,
+those of `infra_ServiceConfig`, admit both `http` and `tcp` through a base they share, and 5
+variants own several tags, 50 between them.
 
 Writing the tag a value holds, as an encoder that only copies the member does, was the rule this
 replaces: a `nsc_Interconnect` variant built with `type` unset went out as `"type": ""`, which no

@@ -481,7 +481,7 @@ it sees. Changes made together in one bump are listed together under it.
   its tag to several strings no other variant admits maps each to it, in a declared discriminator's
   `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
   `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
-  what it declares. A consumer pinned to 0.46.0 that routed a variant a mapping left out by its type's
-  name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by component
-  names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on a subtype
-  whose composed union rules its name out.
+  what it declares. A consumer pinned to 0.46.0 that routed a variant a mapping left out by its
+  type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
+  component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
+  a subtype whose composed union rules its name out.

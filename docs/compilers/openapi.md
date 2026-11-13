@@ -2484,22 +2484,22 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
-`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI routes a variant no
-`mapping` entry routes by the name of the component its `$ref` branch names, its implicit mapping,
-and the IR routes by a variant type's name only where a union's `Mapping` is nil
+`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
+routes a variant no `mapping` entry routes by the name of the component its `$ref` branch names, its
+implicit mapping, and the IR routes by a variant type's name only where a union's `Mapping` is nil
 ([models](../ir/models.md#discriminator)). So a union's `Mapping` holds that route, the name keying
 its variant, wherever a nil one would not say it: where the `mapping` holds an entry, or where a
 variant's type is not the component its branch names, as an alias for a keyword beside the `$ref` is
-not, nor a variant composed over its branch ([`union-beside-structure`](#union-beside-structure)).
-A name two branches name, or one an entry spells already, keys nothing more, and an inline variant
-has none. A variant an entry routes is not routed by its name too, as OpenAPI's own example maps
-`dog` to `Dog` "rather than the default (implicit) value of Dog"; one the `defaultMapping` names
-still is. With no `mapping`, and every variant the component its branch names, the `Mapping` is nil
-and a union routes each variant by the name of its type, unless
+not, nor a variant composed over its branch ([`union-beside-structure`](#union-beside-structure)). A
+name two branches name, or one an entry spells already, keys nothing more, and an inline variant has
+none. A variant an entry routes is not routed by its name too, as OpenAPI's own example maps `dog`
+to `Dog` "rather than the default (implicit) value of Dog"; one the `defaultMapping` names still is.
+With no `mapping`, and each variant whose branch names a component that component itself, the
+`Mapping` is nil and a union routes each variant by the name of its type, unless
 [`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
-mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the entry,
-which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag —
-takes the smallest in byte order as its `DiscriminatorValue`
+mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the
+entry, which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag
+— takes the smallest in byte order as its `DiscriminatorValue`
 ([`discriminator-value`](#discriminator-value)), since the field holds one and a mapping's key order
 is not a property of the document, with every key kept in the base's `Mapping` and the election
 reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
@@ -2621,10 +2621,11 @@ run, however many unions and subtypes ask. Two unions and a subtype meet it:
 3. A subtype a discriminator routes by its name ([`discriminator-value`](#discriminator-value))
    carries that name, which validation rejects where the subtype admits only other strings for the
    `propertyName`, read as an object, null being no tag. Where that rules the name out, the subtype
-   carries the one string it admits, or, admitting several or none, no tag, since none routes to
-   it; its `Provenance.Inferred` names `discriminator-inference`, and an info
+   carries the one string it admits, or, admitting several or none, no tag, since none routes to it;
+   its `Provenance.Inferred` names `discriminator-inference`, and an info
    `openapi/inferred-discriminator` at it names what it admits. Each subtype is read alone, so two
-   admitting one string both carry it, as their instances do ([models](../ir/models.md#discriminator)).
+   admitting one string both carry it, as their instances do
+   ([models](../ir/models.md#discriminator)).
 
 - Cases: `discriminator-inferred`
 - Codes: `openapi/inferred-discriminator`
