@@ -142,7 +142,7 @@ var generations = []generation{
 	{version: "0.55.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "a count past 64 bits reaches no Constraints field and is kept verbatim under its keyword, and an inline allOf branch whose bound states no value folds"},
-	{version: "0.55.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+	{version: "0.56.0", format: 1, shape: "0b2f5e45e4be29c67a153976848af676bc99d9f21d9e41a91b7abfd167ae026b",
 		names:   "c81be0f2b36405f2d981ea6c635ea75c4154521622c148c008ae2e7f345264b2",
 		meaning: "a value bound reaches Constraints only beside a type it applies to, and a type array's bounds, format and content vocabulary land on the variant whose type takes them"},
 }
