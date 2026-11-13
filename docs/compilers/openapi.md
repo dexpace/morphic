@@ -2056,9 +2056,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
 - Status: partly built: a structure stating no instance type that refuses some kinds only through
   a `oneOf`, `anyOf`, `not` or `if` reads as stating its type, so it conflicts with a kind it admits
-  (#1671); a model and the wrapper it flattens that fold different sets only because the model
-  stops at the flattening depth are refused as `compile/registry-refused`, not told apart, since
-  one declaration names both.
+  (#1671); two enums of value types neither within the other (`int32` against `uint32`) overlap,
+  keeping the first, though they share values, since the IR has no value type for what both admit;
+  a model and the wrapper it flattens that fold different sets only because the model stops at the
+  flattening depth are refused as `compile/registry-refused`, not told apart, since one declaration
+  names both.
 
 ### `allof-required`
 

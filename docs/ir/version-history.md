@@ -479,6 +479,11 @@ it sees. Changes made together in one bump are listed together under it.
   bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
   one the load phase refuses, parts no other branch, so it folds where nothing else parts it
   ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
-  under its keyword rather than under `openapi:allOf/<n>`. A consumer pinned to 0.46.0 that read
-  such a count's field finds none there, and one reading such a branch under `openapi:allOf/<n>`
-  finds its keywords at the position instead.
+  under its keyword rather than under `openapi:allOf/<n>`. A field several `allOf` conjuncts
+  declare ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)) now
+  holds two enums' shared values of the narrower value type, where it kept the first enum of
+  different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
+  or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
+  null to a type beside it gives that type. A consumer pinned to 0.46.0 that read such a count's
+  field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
+  the position instead, and one reading such a field may find a node minted for it.
