@@ -315,10 +315,9 @@ const endOfText = "\x00"
 // the model it was resolving as that model then held it, in a reason or in a
 // whole value it could not use, which no model restore reaches.
 //
-// A spelling is put back only where it is the whole of a quoted string, or
-// the last word of the message, never a part of a longer reference. One the
-// source writes itself is left alone, so where a source spells a reference
-// both ways, the library's text may quote the "%2B" one.
+// A spelling is put back only as the whole of a quoted string or the last word
+// of the message, never as part of a longer reference. One the source writes
+// itself is left alone, so the library's text may quote the "%2B" one.
 func (e *escapes) asWritten(diags []ir.Diagnostic) []ir.Diagnostic {
 	r := e.respellings()
 	if r == nil {
