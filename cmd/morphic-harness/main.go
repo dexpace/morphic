@@ -22,7 +22,8 @@ func main() {
 }
 
 // run sweeps every path argument through the harness oracles, writes the
-// combined report to stdout, and returns the process exit code: 0 when every
+// combined report to stdout, then the summary of what each oracle asked of
+// the specs and declined, and returns the process exit code: 0 when every
 // checked spec is OutcomeOK, 1 when any spec fails an oracle, 2 on a usage or
 // filesystem error. It exists so tests can drive the CLI without a subprocess;
 // only main calls os.Exit.
@@ -43,6 +44,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 
 	emitf(stdout, "%s", harness.Report(all))
+	if len(all) > 0 {
+		emitf(stdout, "\n%s", harness.Summary(all))
+	}
 	return exitCode(all)
 }
 
@@ -68,5 +72,7 @@ compiler claims, to compile, as a format it names, or as its own and broken,
 excluding *.golden.* snapshots and dot-directories.
 Every spec is swept through the Morphic oracles (no panic, IR invariants, no
 error diagnostic, JSON round-trip, determinism, pass idempotence,
-order-invariance). Exit status is 0 when every spec passes, 1 when any spec
-fails an oracle, 2 on a usage or filesystem error.`
+order-invariance), an error stopping none of them. Each finding is a line,
+and a summary after them counts, per oracle, the specs it asked its question
+of and those it declined, by reason. Exit status is 0 when every spec passes,
+1 when any spec fails an oracle, 2 on a usage or filesystem error.`
