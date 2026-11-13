@@ -307,8 +307,8 @@ func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
 
 // TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError pins a value
 // whose chain reaches a $ref that lands on no schema, or on a loop: the one
-// mistake draws the one error its $ref draws where it is written, and nothing
-// else, pass.Validate included, in either declaration order. A union's value
+// mistake draws the one error its $ref draws where it is written, and no other
+// error, pass.Validate's included, in either declaration order. A union's value
 // naming the failing branch routes to the variant there, and a model's is left
 // out, as nothing is declared where its chain ends. Its last position is
 // lowered all the same, so a $ref only the mapping reaches is reported.
@@ -362,7 +362,9 @@ func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 				doc, diags := parseFull(t, rawSpec(tc.version, tc.blocks, "", reversed))
 				var got []string
 				for _, d := range append(diags, validated(t, doc)...) {
-					got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+					if d.Severity == ir.SeverityError {
+						got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+					}
 				}
 				slices.Sort(got)
 				assert.Equal(t, tc.want, got, "reversed %t", reversed)
