@@ -156,9 +156,10 @@ func lowerPathItem(c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Servic
 }
 
 // keepFragment keeps on op's HTTP binding the fragment the key at ptr carries,
-// which its URI template leaves out, verbatim and without its "#".
+// which its URI template leaves out, verbatim and without its "#". It is text
+// whatever it spells, as a quoted scalar is, so "123" stays no number.
 func keepFragment(c lowering.Ctx, op *ir.Operation, ptr jsontext.Pointer, fragment string) []ir.Diagnostic {
-	text := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: fragment}
+	text := &yaml.Node{Kind: yaml.ScalarNode, Style: yaml.DoubleQuotedStyle, Value: fragment}
 	_, diags := annotation.PreserveNodeInto(&op.Bindings.HTTP[0].Unmodeled, annotation.EntryKey("", "fragment"), text,
 		ir.ReasonDegradedLowering, c.Place().At(ptr))
 	return diags

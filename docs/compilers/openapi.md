@@ -4203,7 +4203,9 @@ listed on its binding and filed in the same group, the deeper operations after t
 them, down to an operation nested in four callbacks. Past that bound, which stops a callback naming
 itself through a `$ref` from lowering without end, the deepest operation's `callbacks` are kept
 verbatim on its HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as
-an `openapi/degraded-construct` warning at that `callbacks` map. A key is a runtime expression, by
+an `openapi/degraded-construct` warning at that `callbacks` map. Each level's `$ref`s are charged as
+any are ([`source-budgets`](#source-budgets)), so one naming its callback several times over, whose
+copies multiply at each level, is refused once they pass the budget. A key is a runtime expression, by
 the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own example
 does, or a constant URL, which embeds none; one that is none of them is reported as an
 `openapi/validation` error, of the class `validation-invalid-format`, at the key
@@ -4214,6 +4216,7 @@ does, or a constant URL, which embeds none; one that is none of them is reported
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
   `operation.TestCallbacks_DeclaredOnACallbackLower`,
   `operation.TestCallbacks_ACallbackNamingItselfStopsAtTheBound`,
+  `openapi.TestCompile_ACallbackNamingItselfIsChargedAtEachLevel`,
   `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 

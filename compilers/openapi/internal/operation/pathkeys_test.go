@@ -127,7 +127,7 @@ func TestPathKeys_RulesAreNotVersionGated(t *testing.T) {
 // TestPathKeys_FragmentIsLeftOutOfTheTemplate pins a key carrying a fragment:
 // the URI template is the key up to the "#", which the warning names whole,
 // nothing in the fragment judged, while what precedes it is read as any path
-// is. The binding keeps the fragment.
+// is. The binding keeps the fragment as text, whatever it spells.
 func TestPathKeys_FragmentIsLeftOutOfTheTemplate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -135,6 +135,10 @@ func TestPathKeys_FragmentIsLeftOutOfTheTemplate(t *testing.T) {
 	}{
 		{key: "/a#frag", template: "/a", fragment: "frag", defects: `carries the fragment "#frag", which no request sends`},
 		{key: "/a#", template: "/a", fragment: "", defects: `carries the fragment "#", which no request sends`},
+		// Text a plain scalar would read as a number, a boolean or null stays text.
+		{key: "/a#123", template: "/a", fragment: "123", defects: `carries the fragment "#123", which no request sends`},
+		{key: "/a#true", template: "/a", fragment: "true", defects: `carries the fragment "#true", which no request sends`},
+		{key: "/a#null", template: "/a", fragment: "null", defects: `carries the fragment "#null", which no request sends`},
 		{
 			key: "/a#b c?x//{id}{id}{", template: "/a", fragment: "b c?x//{id}{id}{",
 			defects: `carries the fragment "#b c?x//{id}{id}{", which no request sends`,
