@@ -203,8 +203,9 @@ components:
 // $ref (docs/compilers/openapi.md#discriminator): nothing in the value tells
 // the variants apart, so it routes to the first in branch order, with an info
 // at its entry naming both branches, for a oneOf and an anyOf, whichever
-// branch comes first, whichever key the mapping writes first and in either
-// declaration order, and the document validates.
+// branch comes first, past null branches written in any spelling, whichever
+// key the mapping writes first and in either declaration order, and the
+// document validates.
 func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testing.T) {
 	t.Parallel()
 	const (
@@ -223,6 +224,8 @@ func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testi
 		{"red written first in the mapping", "oneOf", green + ", " + red + ", " + banana, redFirst, 0, 1},
 		{"the red branch first", "oneOf", red + ", " + green + ", " + banana, greenFirst, 0, 1},
 		{"another branch first", "oneOf", banana + ", " + green + ", " + red, greenFirst, 1, 2},
+		{"null branches between", "oneOf", "{const: null}, " + green + ", {enum: [null]}, " + red + ", " + banana,
+			greenFirst, 1, 3},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
