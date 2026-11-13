@@ -158,7 +158,7 @@ func TestConstraints_ABoundIsReadWhereItsTypeTakesIt(t *testing.T) {
 				taken := slices.Contains(takers, tc.typ)
 				for _, site := range sitesOf(t, doc) {
 					assert.Equal(t, taken, site.holds(keyword), site.pointer)
-					infos := degradedAt(diags, site.pointer)
+					infos := diagsAtPointer(diags, diag.DegradedConstruct, site.pointer)
 					if taken {
 						assert.Zero(t, site.keeps(keyword), site.pointer)
 						assert.Empty(t, infos, site.pointer)
@@ -186,7 +186,7 @@ func TestConstraints_SeveralBoundsATypeCannotTakeDrawOneReport(t *testing.T) {
 			assert.False(t, site.holds(keyword), site.pointer)
 			assert.Equal(t, 1, site.keeps(keyword), site.pointer)
 		}
-		infos := degradedAt(diags, site.pointer)
+		infos := diagsAtPointer(diags, diag.DegradedConstruct, site.pointer)
 		require.Len(t, infos, 1, site.pointer)
 		assert.Contains(t, infos[0].Message, "no home for maxLength, minProperties, minimum")
 	}
@@ -225,7 +225,7 @@ func TestConstraints_APositionOfNullAloneReadsNoBound(t *testing.T) {
 				assert.False(t, site.holds(keyword), "%s %s %s", schema, site.pointer, keyword)
 				assert.Equal(t, 1, site.keeps(keyword), "%s %s %s", schema, site.pointer, keyword)
 			}
-			assert.Len(t, degradedAt(diags, site.pointer), 1, "%s %s", schema, site.pointer)
+			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, site.pointer), 1, "%s %s", schema, site.pointer)
 		}
 		assert.Len(t, diags, 4, schema)
 	}

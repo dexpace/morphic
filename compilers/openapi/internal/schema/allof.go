@@ -15,7 +15,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -32,8 +31,9 @@ import (
 // Value constraints written beside the allOf (minProperties, ...), or on a branch
 // that folds, are read as lowerModel reads a plain object's, so they land on the
 // same field, not Unmodeled (GitHub #407). A composition that leaves only a
-// catch-all is a map, as a plain object's is (objectNode).
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// catch-all is a map, as a plain object's is (objectNode). Where discriminated is
+// false, a union the model composes took s's discriminator (lowerSubtypeUnion).
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer, declaredInstanceTypes(s))
@@ -47,9 +47,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
-		d, discDiags := lowerDiscriminator(c, ts, s, m, nil, pointer)
-		diags = append(diags, discDiags...)
-		if d != nil {
+		if discriminated {
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
+			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
 		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
@@ -168,10 +168,10 @@ type allOfComposition struct {
 	// position lowers (allOfDecides).
 	speaks  []bool
 	rebased []bool
-	// distributes is the pointer of the branch whose union the position
-	// distributes across its variants (branchUnion), whose merge consumes it,
+	// conjoins is the pointer of the branch whose union the position lowers,
+	// distributing it across its variants (branchUnion), whose merge consumes it,
 	// and empty where no branch's is.
-	distributes jsontext.Pointer
+	conjoins jsontext.Pointer
 	// bounds is the kinds whose value bounds the node composing the branches
 	// reads, those of the types the schema declares (readAllOf), so a branch's
 	// bound folds where they take it.
@@ -198,10 +198,11 @@ func allOfBranches(s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 
 // readAllOf is allOfBranches of the schema written at pointer, with what its
 // conjuncts jointly admit read and, where the allOf is what the position lowers,
-// which branches fold there (voicingOf), for a lowering that composes it. That
-// gate is positionVoices', so a branch gives up a keyword only where a reader
-// of the position takes it up; both composers pass it, and the report of an
-// allOf the election passed over does not.
+// which branches fold there (voicingOf) and which writes the union the position
+// lowers (branchUnion), for a lowering that composes it. That gate is
+// positionVoices', so a branch gives up a keyword only where a reader of the
+// position takes it up; both composers pass it, and the report of an allOf the
+// election passed over does not.
 func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfComposition {
 	comp := allOfBranches(s, pointer)
 	comp.disjoint = disjointConjuncts(c, s, comp)
@@ -209,6 +210,9 @@ func readAllOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) allOfCo
 	if allOfDecides(c, s) {
 		v := voicingOf(c, s)
 		comp.speaks, comp.rebased = v.speaks, v.rebased
+	}
+	if u, _, ok := branchUnion(c, s, pointer); ok {
+		comp.conjoins = u.at
 	}
 	return comp
 }
@@ -316,7 +320,7 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
+	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
@@ -412,10 +416,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return nil // boolean branch; applyFalseBranches handles it.
 	}
 	speaks := comp.branchSpeaks(i)
-	distributed := comp.distributes != "" && e.pointer == comp.distributes
+	conjoined := comp.conjoins != "" && e.pointer == comp.conjoins
 	residue := unmergedBranchKeys(bs, func(keyword string) bool {
 		return mergeConsumes(bs, keyword, e.wrapper) || (speaks && folds(c, bs, keyword, boundHomes{value: comp.bounds})) ||
-			(distributed && declaresUnionKeyword(keyword))
+			(conjoined && conjoinedKeyword(keyword))
 	})
 	if len(residue) == 0 {
 		return nil
@@ -530,9 +534,12 @@ func mergeConsumes(bs *oas3.Schema, key string, flattened bool) bool {
 	}
 }
 
-// declaresUnionKeyword reports whether keyword is oneOf or anyOf.
-func declaresUnionKeyword(keyword string) bool {
-	return keyword == "oneOf" || keyword == "anyOf"
+// conjoinedKeyword reports whether keyword is one a branch whose union the
+// position lowers gives up to that union: its oneOf or anyOf, and the
+// discriminator it writes, which is the union's where the position lowers it
+// (findBranchUnion).
+func conjoinedKeyword(keyword string) bool {
+	return keyword == "oneOf" || keyword == "anyOf" || keyword == "discriminator"
 }
 
 // declaresObjectOnly reports whether the branch's declared type is exactly
@@ -575,20 +582,33 @@ func rawMappingKeys(root *yaml.Node) []string {
 
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins). refs says where each branch's $ref ends.
-func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) (int, bool) {
+// Mixins): of several, the first whose $ref lands on a schema taking part in a
+// discriminator hierarchy (inHierarchy).
+func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
 		if isRefBranch(e.schema) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
-	return merge.SelectBase(refIdxs, func(i int) bool { return refTargetHasDiscriminator(refs, branches[i].schema) })
+	return merge.SelectBase(refIdxs, func(i int) bool {
+		target := refBranchTarget(c.Bindings(), branches[i].schema)
+		return target != nil && inHierarchy(c, target)
+	})
 }
 
-// refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
-// that carries a discriminator (it anchors a polymorphic hierarchy).
-func refTargetHasDiscriminator(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	target := refBranchTarget(refs, b)
-	return target != nil && target.GetDiscriminator() != nil
+// inHierarchyOf keys what inHierarchy read of one schema.
+type inHierarchyOf struct {
+	schema *oas3.Schema
+}
+
+// inHierarchy reports whether s takes part in a discriminator hierarchy: it
+// declares a discriminator, or composes through allOf, at any depth, a schema
+// that does, the ancestors whose routes tag it (discriminatedAncestors). It
+// reads the source, so no lowering order decides it, and every composition
+// naming s asks, so it is read once a run.
+func inHierarchy(c lowering.Ctx, s *oas3.Schema) bool {
+	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
+		return s.GetDiscriminator() != nil || len(discriminatedAncestors(c.Bindings(), s)) > 0
+	})
 }

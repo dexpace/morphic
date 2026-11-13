@@ -68,10 +68,7 @@ func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 			refs = append(refs, k)
 		}
 	}
-	base, hasBase := SelectBase(refs, func(k int) bool {
-		m, ok := cs[k].node.(*ir.Model)
-		return ok && m.Discriminator != nil
-	})
+	base, hasBase := SelectBase(refs, func(k int) bool { return inHierarchy(b.f.g.Reg, cs[k].node) })
 	composed := &ir.Model{}
 	for k, c := range cs {
 		ref := ir.TypeRef{Target: c.ref.Target}
@@ -85,19 +82,65 @@ func (b *builder) compose(cs []conjunct, pointer jsontext.Pointer) ir.TypeID {
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given
-// refs, the entries written as a $ref: the only one, or else the first whose
-// target carries a discriminator, and false where none qualifies, which leaves
-// them all Mixins (docs/compilers/openapi.md#allof-classification).
-func SelectBase(refs []int, discriminated func(i int) bool) (int, bool) {
+// refs, the entries written as a $ref: the only one, or else the first, in
+// declaration order, whose target takes part in a discriminator hierarchy, and
+// false where none does, which leaves them all Mixins
+// (docs/compilers/openapi.md#allof-classification).
+func SelectBase(refs []int, takesPart func(i int) bool) (int, bool) {
 	if len(refs) == 1 {
 		return refs[0], true
 	}
 	for _, i := range refs {
-		if discriminated(i) {
+		if takesPart(i) {
 			return i, true
 		}
 	}
 	return 0, false
+}
+
+// inHierarchy reports whether node takes part in a discriminator hierarchy: a
+// Model or Union holding a discriminator its source declares, or a Model one of
+// whose supertypes does at any depth (ir.Supertypes), as a composition the
+// source writes elects its Base. A visited set ends the walk on a cyclic
+// hierarchy. A member lowering to a Union that holds no discriminator reads as
+// none here, though the election over the source counts it (GitHub #1901).
+func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
+	doc := &ir.Document{Types: reg}
+	seen := map[ir.TypeID]bool{}
+	queue := []ir.TypeDef{node}
+	for len(queue) > 0 {
+		td := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		if !ir.IsNilTypeDef(td) && declaresDiscriminator(td) {
+			return true
+		}
+		m, ok := td.(*ir.Model)
+		if !ok || m == nil || seen[m.ID] {
+			continue
+		}
+		seen[m.ID] = true
+		for _, id := range ir.Supertypes(doc, m.ID) {
+			queue = append(queue, reg[id])
+		}
+	}
+	return false
+}
+
+// declaresDiscriminator reports whether td, which is not nil, holds a
+// discriminator its source declares: a Model's, or a Union's, as a union written
+// with structure holds the one written with it. One a policy inferred is no
+// source's, so it makes no hierarchy, as the election over the source reads none.
+func declaresDiscriminator(td ir.TypeDef) bool {
+	var d *ir.Discriminator
+	switch n := td.(type) {
+	case *ir.Model:
+		d = n.Discriminator
+	case *ir.Union:
+		d = n.Discriminator
+	default:
+		return false
+	}
+	return d != nil && !d.Inferred
 }
 
 // composable returns the node ref names, directly or through aliases, where

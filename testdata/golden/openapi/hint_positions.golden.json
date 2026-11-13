@@ -3572,6 +3572,62 @@
         "nullable": false
       }
     },
+    "t/anon/components/schemas/Positions/properties/routed": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/routed",
+      "name": {
+        "hint": "routed"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Kennel",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Positions/properties/routed/oneOf",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "routed",
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/routedBranch": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/routedBranch",
+      "name": {
+        "hint": "routed_branch"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Kennel",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "routedBranch",
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Positions/properties/titledList": {
       "kind": "list",
       "id": "t/anon/components/schemas/Positions/properties/titledList",
@@ -5942,6 +5998,86 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/Positions/properties/routed/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Positions/properties/routed/oneOf",
+      "name": {
+        "hint": "routed_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "pet"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Pet",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "owner"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf": {
+      "kind": "union",
+      "id": "t/composed/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf",
+      "name": {
+        "hint": "routed_branch_one_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch/allOf/1/oneOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "pet"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Pet",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "owner"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Owner",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/***": {
       "kind": "model",
       "id": "t/openapi/components/schemas/***",
@@ -5984,6 +6120,61 @@
       ],
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Kennel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Kennel",
+      "name": {
+        "source": "Kennel",
+        "canonical": "kennel"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Kennel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Kennel/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Kennel/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Kennel/properties/kind",
+        "mapping": {
+          "routed": "t/anon/components/schemas/Positions/properties/routed",
+          "routedBranch": "t/anon/components/schemas/Positions/properties/routedBranch"
+        },
+        "inferred": false
+      },
       "inputOnly": false
     },
     "t/openapi/components/schemas/Keyed": {
@@ -6753,6 +6944,60 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/Positions/properties/routed",
+          "name": {
+            "source": "routed",
+            "canonical": "routed"
+          },
+          "wireName": "routed",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/routed",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/routed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/routedBranch",
+          "name": {
+            "source": "routedBranch",
+            "canonical": "routed_branch"
+          },
+          "wireName": "routedBranch",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/routedBranch",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/routedBranch"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/Positions/properties/multiTyped",
           "name": {
             "source": "multiTyped",
@@ -7392,7 +7637,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 317,
+          "line": 336,
           "column": 7
         }
       }
@@ -7405,7 +7650,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 321,
+          "line": 340,
           "column": 7
         }
       }
@@ -7418,7 +7663,7 @@
         "source": 0,
         "pointer": "/components/mediaTypes/",
         "position": {
-          "line": 371,
+          "line": 390,
           "column": 7
         }
       }
@@ -7439,6 +7684,24 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Positions/properties/distributed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf co-declared with a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/composition-lowering",
+      "message": "oneOf/anyOf written on an allOf branch of a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/routedBranch"
       }
     },
     {
@@ -7500,7 +7763,7 @@
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "5d71804a01a9c9eb0dc7a46e00b464b93d409420197fb3337e7abef4fe0ec9dc"
+      "hash": "a1c5634e6e9a8fc9d174f872950e504755d62225859e68c968785dc96637ae4d"
     }
   ]
 }

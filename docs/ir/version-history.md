@@ -632,7 +632,22 @@ it sees. Changes made together in one bump are listed together under it.
   - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
     new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
     compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
-- **0.57.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
+- **0.57.0** — no shape change. In the OpenAPI compiler, a `oneOf` or `anyOf` beside an `allOf` is
+  one of its conjuncts ([`allof-refinement`](../compilers/openapi.md#allof-refinement)), so an
+  `allOf` no conjunct makes an object refines with a union beside it, where it composed a `Model` or
+  a union of `Model`s. A union on an `allOf` branch lowers with the discriminator written on the
+  branch or beside the `allOf`, and below a discriminated base at a position no route names, where it
+  was kept whole under `openapi:allOf/<n>`. A subtype a discriminator routes to composes a union
+  written beside or on its `allOf` as a `Mixin` naming a `Union` minted for it, whose hint the
+  compiler composes ([models](./models.md#composition-beside-a-union)), where the union was kept
+  under `openapi:oneOf`, `openapi:anyOf` or `openapi:allOf/<n>`. A `$ref` entry to a schema composing
+  a discriminated one at any depth is the `Base`
+  ([`allof-classification`](../compilers/openapi.md#allof-classification)), and so is a type a field
+  is redeclared as that holds a declared discriminator on a `Model` or a `Union`, or composes one
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)). A consumer
+  pinned to 0.56.0 finds those keys gone at those positions, a refined node, a `Union` or a `Mixin` where it
+  read a `Model` keeping them, and a `Base` where it read a `Mixin`.
+- **0.58.0** — no shape change. The OpenAPI compiler writes a value bound to `Constraints` only
   where a type the schema declares takes it, as JSON Schema applies each to instances of one kind:
   `minimum`, `maximum`, their exclusive forms and `multipleOf` beside `integer` or `number`,
   `minLength`, `maxLength` and `pattern` beside `string`, and `minProperties` and `maxProperties`
@@ -647,6 +662,6 @@ it sees. Changes made together in one bump are listed together under it.
   bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
   the type list folds onto that variant, and one on a branch declaring a type it does not apply to
   stays with that branch ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)).
-  A consumer pinned to 0.56.0 that read a numeric bound on a string, a bound on the carrier of a
+  A consumer pinned to 0.57.0 that read a numeric bound on a string, a bound on the carrier of a
   type array, or a variant's encoding taken from a format another listed type pairs with finds it
   under `openapi:<keyword>`, on the variant it applies to, or not at all.

@@ -92,7 +92,7 @@ func TestLower_TupleRest(t *testing.T) {
 			}
 			assert.Equal(t, tc.consts, tup.Constraints, "the instance's bounds reach Tuple.Constraints")
 			assert.Equal(t, tc.kept, unmodeledKeys(tup.Unmodeled))
-			assert.Empty(t, degradedAt(diags, "/components/schemas/Tup"),
+			assert.Empty(t, diagsAtPointer(diags, diag.DegradedConstruct, "/components/schemas/Tup"),
 				"a modeled rest is no degradation")
 		})
 	}

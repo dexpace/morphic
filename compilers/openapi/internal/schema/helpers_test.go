@@ -277,12 +277,12 @@ func keywordCensusSpec(schemas string) string {
 		"    BaseObj: {type: object, properties: {a: {type: string}}}\n" + schemas)
 }
 
-// degradedAt returns the openapi/degraded-construct diagnostics in diags whose
+// diagsAtPointer returns the diagnostics in diags with the exact code whose
 // provenance is pointer.
-func degradedAt(diags []ir.Diagnostic, pointer string) []ir.Diagnostic {
+func diagsAtPointer(diags []ir.Diagnostic, code, pointer string) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == jsontext.Pointer(pointer) {
+		if d.Code == code && d.Provenance.Pointer == jsontext.Pointer(pointer) {
 			out = append(out, d)
 		}
 	}

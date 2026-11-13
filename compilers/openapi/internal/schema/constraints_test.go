@@ -126,7 +126,7 @@ func TestExclusiveModifier_WithNoBoundIsKeptOnTheCarrierThatReadIt(t *testing.T)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.JSONEq(t, "true", string(entry.Value))
 			assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer, "located at the keyword itself")
-			assert.Len(t, degradedAt(diags, tc.carrier), 1,
+			assert.Len(t, diagsAtPointer(diags, diag.DegradedConstruct, tc.carrier), 1,
 				"and reported once, at the schema that read it: %+v", diags)
 		})
 	}
