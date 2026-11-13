@@ -206,12 +206,13 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
-(`resolve.Locate`, `resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
-owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
-mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
-yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
-view, and claims a broken document by OpenAPI's discriminating keys. Identity classifies a location
-as the library's resolver does. A compiler parsing through the same library is the evidence that
+(`resolve.Locate`, `resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`,
+because what each owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986
+alone. The view reads a mapping as the library's unmarshaller does, its `<<` merges and repeated
+keys included, which yaml.v3's own decoder reads differently. Sniffing reads the parse the compile
+lowers, through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
+classifies a location as the library's resolver does, and where that resolver reads a reference
+otherwise than RFC 3986, the load phase respells what it is handed so the two agree. A compiler parsing through the same library is the evidence that
 would move the view or identity, and one wanting the byte probe for a key of its own would move
 that probe; any other needs a reading that agrees with its own parser, since a shared reading would
 disagree with it as detection disagreed with the compile before it read through the view. What does
