@@ -216,7 +216,8 @@ exactly, and a reason:
 ```
 
 - `severity` rates the code's findings at `error`, `warning` or `info`, which is what `--fail-on`
-  and `--show` then read; a finding reported at an unknown severity still fails the run.
+  and `--show` then read. A finding a stage reported at a severity the IR does not declare still
+  ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
 - `accept: true` accepts the findings, which then fail the run at no `--fail-on`, `info` included,
   and are counted rather than written. A rule accepting findings names their place, so it accepts
   findings someone has looked at rather than whatever the code reports next.
@@ -256,7 +257,7 @@ warnings and then `morphic: ...`, and one that exits `2` after it, stopped or it
 adds that line after the report.
 
 ```json
-{"version": 1, "failed": true,
+{"version": 1, "failed": false,
  "sources": [{"format": "openapi@3.1", "path": "openapi.yaml", "hash": "…"}],
  "findings": [{"diagnostic": {"severity": "error", "code": "openapi/unresolved-security-scheme",
                               "message": "…", "provenance": {"source": 0, "pointer": "/security/0/key"}},
