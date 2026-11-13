@@ -161,20 +161,19 @@ func bracketed(name string) string {
 }
 
 // startsNumber reports whether a number literal starts at i of s: a digit, or
-// a minus before one, that no name character precedes. A number's own dot,
-// as in 1.5, is then read with it, never as a member name's.
+// a minus before one. A number's own dot, as in 1.5, is then read with it,
+// never as a member name's. A member name's digits are read with the name
+// after its dot, so any other digit is a number's, an exponent's included.
 func startsNumber(s string, i int) bool {
-	if i > 0 && isNameChar(s[i-1]) {
-		return false
-	}
 	if s[i] == '-' {
 		i++
 	}
 	return i < len(s) && s[i] >= '0' && s[i] <= '9'
 }
 
-// numberEnd returns the index past the number literal starting at i of s: an
-// optional minus, digits, a fraction and an exponent, as RFC 9535 writes one.
+// numberEnd returns the index past the integer and fraction of the number
+// literal starting at i of s. An exponent needs no reading of its own: it
+// holds no dot a member name could follow.
 func numberEnd(s string, i int) int {
 	digits := func(i int) int {
 		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
@@ -188,15 +187,6 @@ func numberEnd(s string, i int) int {
 	i = digits(i)
 	if i+1 < len(s) && s[i] == '.' && s[i+1] >= '0' && s[i+1] <= '9' {
 		i = digits(i + 1)
-	}
-	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
-		j := i + 1
-		if j < len(s) && (s[j] == '+' || s[j] == '-') {
-			j++
-		}
-		if j < len(s) && s[j] >= '0' && s[j] <= '9' {
-			i = digits(j)
-		}
 	}
 	return i
 }
