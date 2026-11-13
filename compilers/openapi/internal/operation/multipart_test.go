@@ -1591,9 +1591,9 @@ func TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder(t *testing.T) {
 	const comps = "components:\n  schemas:\n" +
 		"    A: {type: object, properties: {file: {description: any bytes}, tags: {type: string}}}\n" +
 		"    B: {type: object, properties: {file: {type: string}, tags: {type: array, items: {type: string}}}}\n"
-	compile := func(t *testing.T, schema string) (ir.Content, []ir.Diagnostic) {
+	compile := func(t *testing.T, body string) (ir.Content, []ir.Diagnostic) {
 		t.Helper()
-		_, svc, diags := compileService(t, formDoc("", multipartForm, schema, "{tags: {headers: {X-A: {schema: {type: string}}}}}", comps))
+		_, svc, diags := compileService(t, formDoc("", multipartForm, body, "{tags: {headers: {X-A: {schema: {type: string}}}}}", comps))
 		openapitest.RequireNoErrorDiags(t, diags)
 		return formContent(t, svc, false), diags
 	}
