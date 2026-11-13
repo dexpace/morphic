@@ -5000,33 +5000,37 @@ how operations are arranged rather than filling a fact a node holds.
 5. **Placement and order.** A fact read once the document is whole is read in a package named for
    the fact or for the convention, which imports only `ir` and the compiler's `diag` and
    `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
-   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, then
-   the audits of what the policies read, so an inference sees what every promotion filled. A reading
-   a node needs while it lowers, as nullable widening's ([`nullable`](#nullable)), or while the
-   registry settles, as discriminator inference's, is made there instead.
+   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, so an
+   inference sees what every promotion filled. The audits of what the policies read come last, once
+   the document's own keys are merged in as well. A reading a node needs while it lowers, as
+   nullable widening's ([`nullable`](#nullable)), or while the registry settles, as discriminator
+   inference's, is made there instead.
 
 - Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
   `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
   `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
-- Status: partly built: the promotion has no text option (#658), and nothing audits what the
-  policies read (#657); no policy fills `Pagination` (#989); and the streaming and binary policies
-  mark `streaming-media-type` and `binary-media-type`, which their options `streaming-inference`
-  and `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name
-  for the reading rather than the fact (#1847).
+- Status: partly built: `Pagination` is filled by a promotion alone
+  ([`extension-pagination`](#extension-pagination)), as no inference reads one (#989), and that
+  promotion is read in `operation`, whose reader of runtime expressions it shares with the links,
+  rather than in a package of its own (#1905); and the streaming and binary policies mark
+  `streaming-media-type` and `binary-media-type`, which their options `streaming-inference` and
+  `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name for the
+  reading rather than the fact (#1847).
 
 ### `extension-promotion`
 
-A vendor extension the promotion policy maps to a typed field is read into that field as well as
-kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps). The
-policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping and its
-`Disabled` turns it off. A target reads a list of sources, each an extension key and, where the
-key's value is an object holding several facts, the member of it to read. The list is the
-precedence: the first source stating a value fills the field, and a later one stating another is
-reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
-and a key with no members to read is reported the same way, once however many sources read it. The
-node keeping the extension lists the marker `extension-promotion` in its `Provenance.Inferred`, as
-does a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled` untouched.
+A vendor extension the promotion policy, `Options.Promotions` and the text option
+`extension-promotion` ([`policies`](#policies)), maps to a typed field is read into that field as
+well as kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps).
+Its `Targets` replace the default mapping. A target reads a list of sources, each an extension key
+and, where the key's value is an object holding several facts, the member of it to read. The list
+is the precedence among the sources: the first source stating a value fills the field, and a later
+one stating another is reported as an info `openapi/degraded-construct` at its own key. An absent
+member states nothing, and a key with no members to read is reported the same way, once however many
+sources read it. The node keeping the extension is marked as [`policies`](#policies) marks a
+promotion, as is a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled`
+untouched.
 
 A source of a target stating that something is so, a deprecation, an open enum or union, a redaction
 or a part of a page walk, may list the values that state it. Each is compared with a string's text,
@@ -5046,10 +5050,10 @@ A policy that would read less than it says is refused when the compile starts, a
 diagnostic, since the mistake is the caller's and not the document's: a target outside the
 vocabulary, a source whose key does not start `x-`, a list of values for a target reading a text, a
 name or a tier, an owned prefix that is not `x-` followed by the start of a name, and targets or
-prefixes beside `Disabled`. A caller holding only text sets the policy with the options
-`extension-promotion`, a boolean turning it off, `promotion-targets`, the mapping as the JSON
-object `Targets` encodes as, and `promotion-prefixes`, the owned prefixes separated by commas. The
-`extension-promotion` marker each node lists is the record of what a run promoted.
+prefixes beside `Disabled`. Beside the switch, a caller holding only text sets the mapping with the
+option `promotion-targets`, the JSON object `Targets` encodes as, and the owned prefixes with
+`promotion-prefixes`, separated by commas. The `extension-promotion` marker each node lists is the
+record of what a run promoted.
 
 The policy may own extension name prefixes, `Prefixes`, none by default. An extension under one
 that the compiler reads no key of is reported as a warning `openapi/unread-extension` where it is
@@ -5299,19 +5303,17 @@ one source lists is reported by none of the others, even where only a source rea
 of the walk lists it. A convention may read an operation's `true` as the walk the document's root
 states; no source reads the root, so that `true` is reported as the others are.
 
-A pagination is read in one order of precedence, stated here for every reading of one: a keyword the
-document writes, then a promoted extension, then an inference
-([`pagination-policy`](#pagination-policy)). The document has spoken of an operation's pagination
-wherever a keyword or a key the policy maps to a pagination target is written, whatever its value,
-and no later reading fills a pagination it spoke of. OpenAPI writes no pagination keyword, so here
-that is each key a source of a pagination target names, written where this rule reads that source:
-on the operation for an expression, and for a mark on a parameter, a member of a body, a success
-response's header or the type one of them names, however many operations reach it. A value filling a
-pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
-speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
-the set a step inferring a pagination reads in place of their extensions, and marks no node for a
-pagination it does not fill. A key written anywhere else, such as on an error response or a mark on
-the operation itself, is read by no source, so it speaks of nothing.
+A pagination is read in the precedence [`policies`](#policies) gives, so no inference
+([`pagination-policy`](#pagination-policy)) fills one the document spoke of. OpenAPI writes no
+pagination keyword, so the document has spoken of an operation's pagination wherever it writes a key
+a source of a pagination target names, where this rule reads that source: on the operation for an
+expression, and for a mark on a parameter, a member of a body, a success response's header or the
+type one of them names, however many operations reach it. A value filling a pagination, one
+resolving to nothing or refused, `false`, and one stating nothing a source can read speak alike.
+`PromotePagination` returns the operations it reads that so speak, by ID, as the set a step
+inferring a pagination reads in place of their extensions, and marks no node for a pagination it
+does not fill. A key written anywhere else, such as on an error response or a mark on the operation
+itself, is read by no source, so it speaks of nothing.
 
 - Cases: `extension-pagination`
 - Codes: `openapi/degraded-construct`
@@ -5338,7 +5340,8 @@ Pagination is set only by an injectable policy, and what it sets is marked `Infe
 the compiler reads no pagination out of a document's parameter or response names by itself. A
 pagination an extension declares is the document's own statement of the walk, so a policy inferring
 one reads no operation holding one, nor one whose extensions speak of one without filling it, by the
-precedence [`extension-pagination`](#extension-pagination) states.
+precedence [`policies`](#policies) gives, the extensions speaking where
+[`extension-pagination`](#extension-pagination) says.
 
 - Status: not built: no policy infers pagination yet, so the compiler sets a `Pagination` only
   where an extension declares one ([`extension-pagination`](#extension-pagination)) (#989).
