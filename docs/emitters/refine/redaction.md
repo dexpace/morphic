@@ -105,11 +105,10 @@ the document spells:
 - a transport's failure, a refused connection's, a TLS handshake's and a name lookup's among them,
   and an `Authenticator`'s: the method, the URL as shown ([what an event
   holds](../contract/runtime-policy.md#what-an-event-holds)) and the types in the chain;
-- a URL that does not parse or has no [shown
-  origin](../contract/runtime-policy.md#what-an-event-holds), a base URL the caller gave, a
-  redirect's `Location`, a link to the next page or a place to poll: the setting or the member it
-  came from, never its text. Such a redirect is returned as the response, and such a link or place
-  fails the walk or the wait;
+- a base URL the caller gave that does not parse, and a redirect's `Location`, a link to the next
+  page or a place to poll that is not followed ([runtime
+  policy](../contract/runtime-policy.md#the-canonical-vocabulary)): the setting or the member it
+  came from, never its text;
 - a receiver's verification failure ([inbound](../operations/inbound.md)): the scheme, or the user's
   check, that refused, and nothing the request carried;
 - a client refused when built: the setting, never its value.

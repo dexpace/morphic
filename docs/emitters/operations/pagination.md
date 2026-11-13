@@ -48,7 +48,8 @@ caller set it, so a filter and a limit hold across the walk:
   52 none, 7 of these only a minimum, 0 in three; 5 of the 254 are strings. Two `POST`s take one
   too, each defaulting to 1.
 - **`next_link` and `link_header`**: a `GET` of the link, whatever the operation's method, resolved
-  against the URL of the page that gave it (RFC 3986 §5), which carries the inputs itself, so no
+  against the URL of the page that gave it as a redirect's `Location` is ([runtime
+  policy](../contract/runtime-policy.md#the-canonical-vocabulary)). The link carries the inputs itself, so no
   body is sent and each header input the caller set is sent again, since a link carries none. It is
   sent with credentials only where a redirect to it would carry them ([runtime
   policy](../contract/runtime-policy.md)), since the server chose where it points.

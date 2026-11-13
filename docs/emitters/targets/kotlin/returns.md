@@ -25,7 +25,7 @@ class's `toString`, which prints neither, and each exception's message is the st
 
 ## `OtherResponse`
 
-Kotlin throws an exception that carries an `OtherResponse`, outside [the tree of
+Kotlin throws an exception that carries an `OtherResponse`, an `SdkException` outside [the tree of
 failures](errors.md), so `catch (e: ApiException)` still takes failures alone:
 
 ```kotlin
@@ -34,5 +34,5 @@ class OtherResponse(val statusCode: Int, rawHeaders: Headers, rawBody: ByteArray
                     // rawHeaders() and rawBody(), as ApiFailure declares them
 
 class OtherResponseException(val response: OtherResponse) :
-    Exception("status ${response.statusCode} is not what this method returns")
+    SdkException("status ${response.statusCode} is not what this method returns")
 ```

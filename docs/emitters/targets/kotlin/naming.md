@@ -21,7 +21,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     client's members, which its groups' properties and its operations' methods take ([the
     client](operations.md#the-client)), and in every unit what the runtime's templates declare,
     though the runtime's own unit holds no spec name ([the runtime's
-    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `ApiException` and the
+    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `SdkException`, `RefusedException`, `ApiException` and the
     exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`,
     `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
     `Transport`, `TransportRequest`, `TransportResponse`, `TransportException`, `DecodeException`,

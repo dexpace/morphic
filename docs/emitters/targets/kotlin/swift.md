@@ -222,12 +222,13 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   reading no header passes an empty one ([streams](operations.md#streams)).
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
   `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
-  `@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)`, which
-  covers every class of the tree ([failures](errors.md)) and a response its method cannot return
-  ([return shapes](returns.md)), and a Swift caller receives an `NSError` holding the exception, and
-  reads its `failure` or `response`. A receiver's parse method carries
-  `@Throws(InboundException::class)` for the same reason
-  ([operations](operations.md#operations-the-api-sends)).
+  `@Throws(SdkException::class, CancellationException::class)`, the root of every exception the
+  runtime throws at a caller ([failures](errors.md#how-a-failure-reaches-its-caller)), and a Swift
+  caller receives an `NSError` holding the exception, and reads its `failure` or `response`. The
+  builder's `build()`, `withOptions`, a `Duration`'s `parse` and `toMilliseconds` ([the
+  client](operations.md#the-client)) and a receiver's parse method
+  ([operations](operations.md#operations-the-api-sends)) carry `@Throws(SdkException::class)` for
+  the same reason.
 - `@Deprecated` reaches Swift as `__attribute__((deprecated("…")))` holding its message alone, so a
   Swift caller is shown the message as written and no `ReplaceWith`, which is why the message names
   each replacement in plain text ([deprecations](../../refine/deprecation.md)). Kotlin/Native 2.4.0

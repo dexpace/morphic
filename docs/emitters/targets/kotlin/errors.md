@@ -16,7 +16,10 @@ class ApiFailure(val statusCode: Int, rawHeaders: Headers, rawBody: ByteArray,
     fun rawBody(): ByteArray = b
 }
 
-open class ApiException(val failure: ApiFailure) : Exception("status ${failure.statusCode}")
+open class SdkException(message: String, cause: Throwable? = null) : Exception(message, cause)
+class RefusedException(val name: String) : SdkException("$name refused")  // what was refused
+
+open class ApiException(val failure: ApiFailure) : SdkException("status ${failure.statusCode}")
 open class ClientException(failure: ApiFailure) : ApiException(failure)
 open class ServerException(failure: ApiFailure) : ApiException(failure)
 class NotFoundException(failure: ApiFailure) : ClientException(failure)   // one per kind
@@ -24,6 +27,20 @@ class NotFoundException(failure: ApiFailure) : ClientException(failure)   // one
 fun <B : Any> ApiException.body(type: KClass<B>): B? = type.safeCast(failure.body)
 fun <H : Any> ApiException.headers(type: KClass<H>): H? = type.safeCast(failure.headers)
 ```
+
+Every exception the runtime throws at a caller is an `SdkException`: the tree of failures,
+`OtherResponseException` ([return shapes](returns.md#otherresponse)), `TransportException` and
+`DecodeException` ([below](#a-transports-failure)), a timeout's, a receiver's `InboundException`
+([operations](operations.md#operations-the-api-sends)), and `RefusedException` for what the runtime
+refuses unsent, a client when it is built among it, which names the setting, the member or the
+input refused and never a value. So one class in a `@Throws` covers them, and one the runtime gains
+later, where a list of classes leaves each it does not name ending a Swift caller's process
+([Swift](swift.md)): under `@Throws(ApiException::class, OtherResponseException::class,
+CancellationException::class)` a refused connection and a body that did not decode each ended a
+Swift caller's process, as a receiver's decode failure did under `@Throws(InboundException::class)`,
+and under the root the caller caught each, and a client refused by `build()` and by `withOptions`
+(Kotlin/Native 2.4.0). A caller's own cancelling is no failure of the runtime's and passes through
+as the `CancellationException` it is. T-65 holds it.
 
 `ApiFailure` is no data class and an `ApiException`'s message is its status, so the `toString` of
 each names its class and, for the exception, the status, as Go's `Error` does, and nothing else that
@@ -78,9 +95,9 @@ first 32 and no more, as Go's `Causes` ([Go](../go/errors.md#a-transports-failur
 
 ```kotlin
 class TransportException(val method: String, val url: String,   // the URL as shown
-                         cause: LibraryCause?) : Exception("$method $url", cause)
+                         cause: LibraryCause?) : SdkException("$method $url", cause)
 class DecodeException(val type: String,                         // the type read or written
-                      cause: LibraryCause?) : Exception("body does not decode as $type", cause)
+                      cause: LibraryCause?) : SdkException("body does not decode as $type", cause)
 class LibraryCause internal constructor(className: String,     // the message: the class's name
                                         cause: LibraryCause?) : Exception(className, cause)
 ```
@@ -107,5 +124,5 @@ caller who must serialize a failure serializes what it reads of it. T-65 holds t
 
 ## A failure's place
 
-A failure's class is its kind's where the kind nests under its `Fault`, else its fault's, else the
-root's.
+A failure's class is its kind's where the kind nests under its `Fault`, else its fault's, else
+`ApiException`.

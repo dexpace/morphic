@@ -41,7 +41,7 @@ throughout these documents.
    with no unit and one in a unit the record lacks, a ratio with a fourth fraction digit, a sign or
    an exponent, `-0` among them, a `Template` holding a `{` or a `}` outside its two placeholders, a
    `Guards.Keys` entry that is empty or holds a space, a header's or a variable's name of 65 bytes,
-   one of 64 being taken, a variable's name holding `É`, a header member naming, each in another
+   one of 64 being taken, a variable's name holding `É` or the digit `٣`, a header member naming, each in another
    letter case than written here, each field RFC 9110 §18.4 registers, `Authorization`, `Trailer`
    and `Content-Length` among them, `Transfer-Encoding`, `Cookie`, `Set-Cookie`, `Keep-Alive` or
    `Proxy-Connection`, or the field the other names, a list naming an entry twice or holding more
@@ -444,10 +444,10 @@ throughout these documents.
     policy](../contract/runtime-policy.md#what-a-layer-writes)), set on a client, changes what every
     operation does, one an operation's own layer sets included, set on a client `WithOptions`
     derives changes that client's calls alone, as a transport given there does, and outside its
-    range, or as a duration of 1500µs, refuses the client; on Multiplatform a Swift caller sets each
-    duration and backoff as the runtime's `Duration`, the client reading 60000 ms for a
-    `requestTimeout` of 60 s, reads an event's `wait` as the wait made, and catches the refusal of a
-    month and of 1500µs, which a setter over `kotlin.time.Duration` or a `build()` with no `@Throws`
+    range, or as a duration of 1500µs, refuses the client; on Multiplatform a Swift caller naming no member of the runtime's `Duration` but `ofMilliseconds`, `parse` and `toMilliseconds` sets each
+    duration and backoff, the client reading 60000 ms for a
+    `requestTimeout` parsed from `PT60S`, reads an event's `wait` as the wait made, and catches, as a `RefusedException` naming the setting, the refusal of
+    `P1M` and of `PT0.0015S` at `build()` and of a `maxPages` of 0 at `withOptions`, which a setter over `kotlin.time.Duration` or a `build()` with no `@Throws`
     fails.
 38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
     `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
@@ -1233,16 +1233,9 @@ throughout these documents.
     `componentN` hand on, and not in the messages of a failure's chain, which holds no error or
     exception of a library's on either target, a call past `Timeout.Request` and a stream past
     `Timeout.Idle` among the failures, and lists 32 links of a library's chain of 18 nested
-    `errors.Join(e, e)` in Go and of two exceptions each the other's cause in Kotlin, while Go's
+    `errors.Join(e, e)`, `e` one error wrapping another, in Go and of two exceptions each the other's cause in Kotlin, while Go's
     refused one still matches `syscall.ECONNREFUSED` under `errors.Is` and Kotlin's chain on the JVM
-    holds a frame of the library's. Each event's `URL` is the URL as shown, one text on every
-    target: a redirect's is the shown origin and the marker, a `Location` to another host keeping an
-    explicit `:443`, one to the request's origin, under the server whose host holds the variable,
-    showing the request's `{name}`, whether it is `?`-relative, `/`-relative, `//`-relative or
-    absolute with `:443` and another letter case, and one whose scheme is `ftp` or a megabyte of
-    letters, whose host is 256 bytes or holds a byte outside visible ASCII, a `%`, a `\`, a user or
-    an IPv6 zone, or whose port is 0, 65536, `+443`, digits past ASCII or a megabyte of zeros before
-    `80`, the marker alone and not followed, which a target showing what its URL library parsed
+    holds a frame of the library's. On Multiplatform a Swift caller catches the refused connection, the body that does not decode, the call past `Timeout.Request`, a client `build()` refuses and one `withOptions` does, and a receiver's body that does not decode, each an `NSError` holding an `SdkException`, where a `@Throws` naming the failures' classes and not their root ends its process. Each event's `URL` is the URL as shown, and one a response supplied shows what was requested: the behavior server records the host and the headers each request arrives with, and a redirect's `URL` is the origin its next request arrived at and the marker, for a `Location` to another host written in upper case with `:443`, shown in lower case with no port, to a host holding `_`, to the request's host at port 8443 and at `:0443` under the server whose host holds the variable, showing the request's `{name}`, as a `?`-relative and a `/`-relative one do, and to that host with a final `.` and to another holding the variable's value, shown as they are; one whose host is 256 bytes, a megabyte or an IPv6 address with a zone shows the marker alone and is requested still; one whose scheme is `ftp` or that holds a user is returned as the response; no such `URL` is longer than 280 bytes; and no request arriving at another origin holds a credential, the base URL's user or password or the first request's query, after each of those and after a next link of `//host/x` and of ` https://host/x`, a space before it, whichever origin the target's library resolves it to, which a target showing a response's text, comparing hosts and not ports, or resolving against the request's whole URL
     fails; a server variable is `{name}`, a base URL's path the marker, and what a redacted
     parameter expanded to in the path the marker; an `end` event's `Cause` is a type's name; a hook
     is handed the context its caller gave the method for a call's first event and what it returned

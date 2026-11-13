@@ -71,18 +71,18 @@ policy](../../contract/runtime-policy.md#what-a-layer-writes)) are setters too, 
 `autoPageDelay`, `maxPages`, `pollBackoff` and `maxPolls`, a duration the runtime's `Duration`, the
 class a `duration` value lowers to ([lowering](lowering.md)), and a backoff the runtime's
 `Backoff(initial: Duration, multiplier: Int, max: Duration, jitter: Int)`, its ratios in
-thousandths; an event's `wait` and `elapsed` are a `Duration` too. A setter reads a day as 24 hours,
-as `kotlin.time` reads ISO 8601's, and a year or a month, which has no fixed length, refuses the
-client as a value outside its range does. `kotlin.time.Duration` was weighed and is a value class,
+thousandths; an event's `wait` and `elapsed` are a `Duration` too. A caller builds one with `Duration.ofMilliseconds(ms: Long)` or with `Duration.parse(text: String)`, which reads the text a `duration` value decodes from ([type table](../../contract/type-table.md)), and reads one with `toMilliseconds(): Long`, a day 24 hours,
+as `kotlin.time` reads ISO 8601's; `parse` of any other text and `toMilliseconds` of one holding a year, a month, neither of a fixed length, or a part of a millisecond throw a `RefusedException` ([failures](errors.md#how-a-failure-reaches-its-caller)). A setter reads its duration the same way, and one with no such reading refuses the
+client, as a value outside its range does. `kotlin.time.Duration` was weighed and is a value class,
 which the export gives no declaration ([no value class](swift.md#no-value-class)): Kotlin/Native
 2.4.0 exported a setter over it as one over an `int64_t` of its private bits, and a Swift caller's
 `requestTimeout(d: 60_000_000_000)`, 60 s in nanoseconds, reached Kotlin as 30 s. A `Long` of
 milliseconds is declared, and is the bare number that [states no
 unit](../../contract/runtime-policy.md#what-a-layer-writes). Over the runtime's `Duration`, a Swift
-caller set each duration and backoff and read an event's `wait`, and the client read the
-milliseconds it was given. The builder's `build()` and `withOptions`, which refuse a client by
-throwing, carry `@Throws`, without which the refusal ends a Swift caller's process
-([Swift](swift.md)). `client.withOptions { maxPages(100) }` builds a client holding the client's
+caller written from these members alone set each duration and backoff and read an event's `wait`, and the client read the
+milliseconds it was given. The builder's `build()` and `withOptions` refuse a client by
+throwing a `RefusedException` naming the setting, and carry `@Throws(SdkException::class)`, without which the refusal ends a Swift caller's process
+([Swift](swift.md)): that caller caught `P1M`, `PT0.0015S` and `PT61M` refused as `requestTimeout` at `build()`, and a `maxPages` of 0 at `withOptions`. `client.withOptions { maxPages(100) }` builds a client holding the client's
 settings with those replaced, sending through its `Transport`, or the one a `transport(t)` in the
 block gives, and counting its calls in the client's `Event.Call`; its name is reserved among the
 client's members ([naming](naming.md#reserved-names)).
@@ -102,8 +102,8 @@ the scheme, null for an alternative naming none, and the scopes that use require
 ByteArray, peerCertificates: List<ByteArray>)`, the target its path and query as received and each
 certificate its DER bytes, the client's first and none where the server exposes none, since Kotlin
 has no request type every server hands over, and a JVM certificate type would not reach Swift; it
-returns the request type, throwing the runtime's `InboundException` on a refused check and a decode
-failure apart from it.
+returns the request type, throwing the runtime's `InboundException` on a refused check and a
+`DecodeException` on a body that does not decode.
 
 The caller's server reads the body, so it holds the body to the bound, which the receiver states as
 `maxBodyBytes`, the largest of its operations' bounds: the server reads one byte past it and no
@@ -116,7 +116,7 @@ make (`suspend function 'suspend fun receive(): ByteArray' can only be called fr
 another suspend function`), and Kotlin/Native 2.4.0 exports a suspending one as
 `KotlinSuspendFunction1`, which no Swift closure is.
 
-Each parse method carries `@Throws(InboundException::class)`: without it Kotlin/Native 2.4.0 exports
+Each parse method carries `@Throws(SdkException::class)`, the root of both ([failures](errors.md#how-a-failure-reaches-its-caller)): without it Kotlin/Native 2.4.0 exports
 the method with no `error:` parameter, and a refusal terminates a Swift caller's process, while with
 it Swift calls `try receiver.parseZoneCreated(request:)` and catches the refusal, as a Swift caller
 of the framework did, building the receiver with every parameter, since Swift sees no default, and

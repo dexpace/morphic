@@ -60,5 +60,5 @@ any method but `GET` and `HEAD` into a `GET`, and strips only `Authorization`, `
 and the cookie and proxy authentication headers, and only for a host outside the first one's domain,
 so an API key in a header of its own crosses origins. The transport template sets `CheckRedirect` to
 return `http.ErrUseLastResponse` and follows each redirect as [runtime
-policy](../../contract/runtime-policy.md#the-canonical-vocabulary) says. The template lint reads
+policy](../../contract/runtime-policy.md#the-canonical-vocabulary) says. A `Location` that `url.Parse` refuses never reaches the template: `net/http` 1.27.3 parses it before it asks `CheckRedirect` and failed the call there, the response gone, so on Go that redirect is a transport's failure. The template lint reads
 what a rendering binds as `go/parser` reads it.
