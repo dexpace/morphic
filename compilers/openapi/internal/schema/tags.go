@@ -41,27 +41,9 @@ func deferUnionTags(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.Typ
 	tags := unionTags{c: c, id: id, pointer: pointer}
 	if d != nil {
 		tags.at = pointer + ids.Ptr("discriminator")
-		tags.implicit = implicitTags(c, s)
+		tags.implicit = implicitRoutes(c, s)
 	}
 	ts.Defer(tags)
-}
-
-// implicitTags returns, per variant of the union s writes, the tag OpenAPI's
-// implicit mapping routes it by, the name of the component its $ref branch
-// names, and "" for a variant it cannot route: one written inline, or a $ref
-// to any other position. A null branch has no variant.
-func implicitTags(c lowering.Ctx, s *oas3.Schema) []string {
-	scope := c.RefScope()
-	branches, _, _ := unionBranches(s)
-	tags := make([]string, 0, len(branches))
-	for _, b := range branches {
-		if isNullSchema(b) {
-			continue
-		}
-		name, _, _ := componentNamed(scope, b)
-		tags = append(tags, name)
-	}
-	return tags
 }
 
 // unionTags settles the tag of the union id under the discriminator-inference
@@ -74,7 +56,7 @@ type unionTags struct {
 	id       ir.TypeID
 	pointer  jsontext.Pointer // where the union is written
 	at       jsontext.Pointer // the discriminator's, "" for none
-	implicit []string         // implicitTags, per variant; nil for no discriminator
+	implicit []implicitRoute  // per variant; nil for no discriminator
 }
 
 // Settle reads the union's tags, and writes them where the policy reads one.
@@ -126,9 +108,9 @@ func (t unionTags) mapDeclared(reg ir.TypeRegistry, u *ir.Union) []ir.Diagnostic
 
 // routedByName reports whether the implicit mapping routes each variant by all
 // it admits: the name of the component it names, and nothing else.
-func routedByName(tags [][]string, implicit []string) bool {
+func routedByName(tags [][]string, implicit []implicitRoute) bool {
 	for i, set := range tags {
-		if implicit[i] == "" || len(set) != 1 || set[0] != implicit[i] {
+		if !implicit[i].routesExactly(set) {
 			return false
 		}
 	}
@@ -239,11 +221,11 @@ func tagMapping(tags [][]string, variants []ir.Variant) map[string]ir.TypeID {
 // disagreements names the first maxReportedTags variants the implicit mapping
 // does not route by all they admit (routedByName), with a few of what each
 // admits, and how many more there are.
-func disagreements(tags [][]string, implicit []string) string {
+func disagreements(tags [][]string, implicit []implicitRoute) string {
 	var named []string
 	var more int
 	for i, set := range tags {
-		if implicit[i] != "" && len(set) == 1 && set[0] == implicit[i] {
+		if implicit[i].routesExactly(set) {
 			continue
 		}
 		if len(named) == maxReportedTags {
@@ -251,8 +233,8 @@ func disagreements(tags [][]string, implicit []string) string {
 			continue
 		}
 		route := "names none"
-		if implicit[i] != "" {
-			route = "routes by " + strconv.Quote(implicit[i])
+		if implicit[i].named {
+			route = "routes by " + strconv.Quote(implicit[i].name)
 		}
 		named = append(named, fewQuoted(set)+" where it "+route)
 	}

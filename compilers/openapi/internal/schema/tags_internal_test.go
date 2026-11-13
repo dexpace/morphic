@@ -57,12 +57,12 @@ func TestUnionTags_ReadsOnlyWhatItWasDeferredFor(t *testing.T) {
 	for name, tc := range map[string]struct {
 		union    *ir.Union
 		at       jsontext.Pointer
-		implicit []string
+		implicit []implicitRoute
 		bug      bool
 	}{
-		"declared, none held": {&ir.Union{ID: "t/u", Variants: variants, Closed: true}, "/d", []string{"A", "B"}, true},
+		"declared, none held": {&ir.Union{ID: "t/u", Variants: variants, Closed: true}, "/d", []implicitRoute{{name: "A", named: true}, {name: "B", named: true}}, true},
 		"declared, miscounted": {&ir.Union{ID: "t/u", Variants: variants, Closed: true,
-			Discriminator: &ir.Discriminator{PropertyName: "kind"}}, "/d", []string{"A"}, true},
+			Discriminator: &ir.Discriminator{PropertyName: "kind"}}, "/d", []implicitRoute{{name: "A", named: true}}, true},
 		"undeclared, tagged": {&ir.Union{ID: "t/u", Variants: variants, Closed: true, WireTagged: true,
 			Discriminator: &ir.Discriminator{PropertyName: "other"}}, "", nil, true},
 		"undeclared, open": {&ir.Union{ID: "t/u", Variants: variants}, "", nil, false},

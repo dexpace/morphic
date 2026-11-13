@@ -73,7 +73,7 @@ func (t subtypeTagReading) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 }
 
 // admittedList names the first maxReportedTags of the sorted tags, and how
-// many more there are, or says none is tagSet.
+// many more there are, or says none is admitted.
 func admittedList(tags []string) string {
 	if len(tags) == 0 {
 		return "no string"
