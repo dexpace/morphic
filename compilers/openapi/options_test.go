@@ -144,11 +144,9 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 // TestSwitchOptions_NameEveryPolicy holds the switches to Options itself: each
 // field whose type has a Disabled, a policy's, is turned on and off by exactly
 // one option, so a policy added without a name to switch it by fails here
-// rather than staying out of a text caller's reach. Promotions waits for the
-// text its mapping takes, which its switch is to come with (#658).
+// rather than staying out of a text caller's reach.
 func TestSwitchOptions_NameEveryPolicy(t *testing.T) {
 	t.Parallel()
-	unswitched := map[string]bool{"Promotions": true}
 	var o openapi.Options
 	fields := map[*bool]string{}
 	for name, field := range openapi.SwitchOptions(&o) {
@@ -159,7 +157,7 @@ func TestSwitchOptions_NameEveryPolicy(t *testing.T) {
 	opts := reflect.ValueOf(&o).Elem()
 	policies := 0
 	for i := range opts.NumField() {
-		if opts.Field(i).Kind() != reflect.Struct || unswitched[opts.Type().Field(i).Name] {
+		if opts.Field(i).Kind() != reflect.Struct {
 			continue
 		}
 		disabled := opts.Field(i).FieldByName("Disabled")

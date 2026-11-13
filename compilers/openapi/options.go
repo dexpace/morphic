@@ -529,19 +529,18 @@ func (o Options) checkGrouping() error {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping           = "grouping"
-	optGroupingKey        = "grouping-key"
-	optGroupingLists      = "grouping-lists"
-	optGroupingAliases    = "grouping-aliases"
-	optGroupingFallback   = "grouping-fallback"
-	optAllowExternalRefs  = "allow-external-refs"
-	optOverlay            = "overlay"
-	optOverlayLax         = "overlay-lax"
-	optStreamingMedia     = "streaming-media"
-	optBinaryMedia        = "binary-media"
-	optExtensionPromotion = "extension-promotion"
-	optPromotionTargets   = "promotion-targets"
-	optPromotionPrefixes  = "promotion-prefixes"
+	optGrouping          = "grouping"
+	optGroupingKey       = "grouping-key"
+	optGroupingLists     = "grouping-lists"
+	optGroupingAliases   = "grouping-aliases"
+	optGroupingFallback  = "grouping-fallback"
+	optAllowExternalRefs = "allow-external-refs"
+	optOverlay           = "overlay"
+	optOverlayLax        = "overlay-lax"
+	optStreamingMedia    = "streaming-media"
+	optBinaryMedia       = "binary-media"
+	optPromotionTargets  = "promotion-targets"
+	optPromotionPrefixes = "promotion-prefixes"
 )
 
 // switchOptions maps the name of each policy in o that text turns on or off to
@@ -552,15 +551,16 @@ const (
 // (#1847), and the title-names policy's, which leaves none.
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
-		string(DiscriminatorInferenceHeuristic): &o.DiscriminatorInference.Disabled,
-		string(IdempotencyInferenceHeuristic):   &o.IdempotencyInference.Disabled,
-		string(SecretInferenceHeuristic):        &o.SecretInference.Disabled,
-		string(HTTPDateInferenceHeuristic):      &o.HTTPDateInference.Disabled,
-		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
-		"streaming-inference":                   &o.StreamingMedia.Disabled,
-		"binary-inference":                      &o.BinaryMedia.Disabled,
-		"title-names":                           &o.TitleNames.Disabled,
+		string(NullableWideningHeuristic):            &o.NullableWidening.Disabled,
+		string(DiscriminatorInferenceHeuristic):      &o.DiscriminatorInference.Disabled,
+		string(IdempotencyInferenceHeuristic):        &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):             &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):           &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):        &o.ReplacementInference.Disabled,
+		string(lowering.ExtensionPromotionHeuristic): &o.Promotions.Disabled,
+		"streaming-inference":                        &o.StreamingMedia.Disabled,
+		"binary-inference":                           &o.BinaryMedia.Disabled,
+		"title-names":                                &o.TitleNames.Disabled,
 	}
 }
 
@@ -583,8 +583,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
-		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optExtensionPromotion, optPromotionTargets,
-		optPromotionPrefixes,
+		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optPromotionTargets, optPromotionPrefixes,
 	}
 	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
@@ -646,11 +645,6 @@ func (d *optionDecode) set(key, value string) error {
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
 	case optBinaryMedia:
 		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
-	case optExtensionPromotion:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.Promotions.Disabled = !on
-		return err
 	case optPromotionTargets:
 		return decodePromotionTargets(&d.opts.Promotions.Targets, value)
 	case optPromotionPrefixes:
@@ -700,7 +694,7 @@ func (d *optionDecode) finish() (Options, error) {
 	}
 	if err := d.opts.Promotions.Check(); err != nil {
 		return Options{}, fmt.Errorf("openapi: options %q, %q and %q: %w",
-			optExtensionPromotion, optPromotionTargets, optPromotionPrefixes, err)
+			lowering.ExtensionPromotionHeuristic, optPromotionTargets, optPromotionPrefixes, err)
 	}
 	if d.overlayPath == "" {
 		if d.laxSet {
@@ -750,7 +744,7 @@ func decodePromotionTargets(out *map[ExtensionTarget][]ExtensionSource, value st
 	}
 	if len(targets) == 0 {
 		return fmt.Errorf("openapi: option %q: want a target, got none; %q turns promotion off",
-			optPromotionTargets, optExtensionPromotion)
+			optPromotionTargets, lowering.ExtensionPromotionHeuristic)
 	}
 	*out = targets
 	return nil
