@@ -66,7 +66,9 @@ engine hands it in `compilers.Options.Reader`, in the compile, under the compile
 budgets: decoding options reads nothing. The compiler says how far a read may go, as a directory it
 must stay inside, and the reader enforces it, symbolic links included: the OpenAPI compiler keeps
 every read inside the spec's directory, following relative references alone, unless
-`allow-external-refs` lifts that.
+`allow-external-refs` lifts that. A reader of files may also say where a directory lies, its links
+resolved (`compilers.DirectoryLocator`), so a compile names one file reached through two spellings
+of its directory as one document.
 
 Contract, abridged from `compilers.Compiler`, whose doc comments state each method's duties:
 
@@ -208,18 +210,20 @@ caught: the one duty no walk of a single document can check.
 
 **What stays in the OpenAPI compiler.** Three of its pieces read as if any format could use them:
 the YAML view (`internal/nodeview`), version sniffing (`internal/detect`) and document identity
-(`resolve.SameDocument`, `resolve.IsURL`). None moves into `compilers/compile`, because what each
-owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986. The view reads a
-mapping as the library's unmarshaller does, its `<<` merges and repeated keys included, which
-yaml.v3's own decoder reads differently. Sniffing reads the parse the compile lowers, through that
-view, and claims a broken document by OpenAPI's discriminating keys. Identity classifies a location
-as the library's resolver does. A compiler parsing through the same library is the evidence that
-would move the view or identity, and one wanting the byte probe for a key of its own would move
-that probe; any other needs a reading that agrees with its own parser, since a shared reading would
-disagree with it as detection disagreed with the compile before it read through the view. What does
-cross formats is a duty rather than code, a recognition naming the version the compile reads, and
-`Detection.Compile` holds every compiler to it. The one piece every compiler spelled alike, the
-digest a source table records, is `ir.SourceHash`.
+(`resolve.Locate`, `resolve.Places`, `resolve.IsURL`). None moves into `compilers/compile`,
+because what each owes is agreement with the OpenAPI parser library, not with YAML or RFC 3986
+alone. The view reads a mapping as the library's unmarshaller does, its `<<` merges and repeated
+keys included, which yaml.v3's own decoder reads differently. Sniffing reads the parse the compile
+lowers, through that view, and claims a broken document by OpenAPI's discriminating keys. Identity
+classifies a location as the library's resolver does, and where that resolver reads a reference
+otherwise than RFC 3986, the load phase respells what it is handed so the two agree. A compiler
+parsing through the same library is the evidence that would move the view or identity, and one
+wanting the byte probe for a key of its own would move that probe; any other needs a reading that
+agrees with its own parser, since a shared reading would disagree with it as detection disagreed
+with the compile before it read through the view. What does cross formats is a duty rather than
+code, a recognition naming the version the compile reads, and `Detection.Compile` holds every
+compiler to it. The one piece every compiler spelled alike, the digest a source table records, is
+`ir.SourceHash`.
 
 Compilers are registered in a registry keyed by the formats they report, and detection belongs to
 them too: the registry asks each compiler in registration order whether it recognizes a source, and
@@ -521,25 +525,27 @@ a run's output is the same whether it hit, which is what the corpus test in `eng
 and a stamp would make it differ from build to build.
 
 **What a key covers.** A key is derived before anything runs, from the build, `IRVersion`, the
-working directory, the spec's path and bytes, the passes the run leaves on, in order, and the
-textual compiler settings. Each is there because the document depends on it. The path is written
-into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
-path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
-directories (#1297). The build is the identity of the code, compilers and passes included:
-`cache.BuildID` hashes the image the process runs, since a module version names neither a dirty tree
-nor the toolchain. A path names that image only until a build is installed over it, and a run that
-named the installed build would keep what the old one compiled under the new one's key, where it
-would answer the new build. So on Linux the image is read through `/proc/self/exe`, which serves the
-file the process started from whatever has since replaced its path. Elsewhere, macOS among them, the
-executable's path is read, and a build installed as a run starts, before that read, is the one
-named (#1318). The threshold and the triage rules are not covered, as a hit rates its findings and
-judges the verdict afresh, and neither is the format, which follows from the bytes and which finding
-is what a hit skips.
+spec's path, where it lies and its bytes, the passes the run leaves on, in order, and the textual
+compiler settings. Each is there because the document depends on it. The path is written into
+`Sources`. Where the spec lies, its `compilers.Source.Location`, is what its references are read
+against, so it reaches the IDs of what the documents they name declare. The working directory is
+not covered: it reaches the document only through where the spec lies and through the documents a
+run reads, which an entry lists (below). The build is the identity of the code, compilers and
+passes included: `cache.BuildID` hashes the image the process runs, since a module version names
+neither a dirty tree nor the toolchain. A path names that image only until a build is installed
+over it, and a run that named the installed build would keep what the old one compiled under the
+new one's key, where it would answer the new build. So on Linux the image is read through
+`/proc/self/exe`, which serves the file the process started from whatever has since replaced its
+path. Elsewhere, macOS among them, the executable's path is read, and a build installed as a run
+starts, before that read, is the one named (#1318). The threshold and the triage rules are not
+covered, as a hit rates its findings and judges the verdict afresh, and neither is the format, which
+follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
-back, and a hit makes the same reads through the run's own reader first: one document with other
-bytes, or one no longer there, is a miss. A run where a read failed stores nothing, because the
+back, and each directory the reader placed with where (`compilers.DirectoryLocator`), and a hit makes
+the same reads and placements through the run's own reader first: one document with other bytes,
+one no longer there, or a directory a link now places elsewhere, is a miss. A run where a read failed stores nothing, because the
 missing document could appear later and the entry would have nothing to compare it with. So a hit
 costs those reads, a remote document's fetch among them, and a key holds one entry, so documents
 that alternate between two states compile each time.

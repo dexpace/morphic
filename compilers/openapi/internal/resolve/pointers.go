@@ -65,5 +65,5 @@ func (s Scope) namesSelf(ref references.Reference) bool {
 		return true
 	}
 	doc, ok := documentOf(ref, base)
-	return ok && SameDocument(s.SelfPath, doc)
+	return ok && s.Places.SameDocument(s.SelfPath, doc)
 }
