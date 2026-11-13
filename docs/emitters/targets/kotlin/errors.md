@@ -35,13 +35,12 @@ Every exception the runtime throws at a caller is an `SdkException`: the tree of
 refuses unsent, a client when it is built among it, which names the setting, the member or the input
 refused and never a value. So one class in a `@Throws` covers them, and one the runtime gains later,
 where a list of classes leaves each it does not name ending a Swift caller's process
-([Swift](swift.md)): under
-`@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)` a
-refused connection and a body that did not decode each ended a Swift caller's process, as a
-receiver's decode failure did under `@Throws(InboundException::class)`, and under the root the
-caller caught each, and a client refused by `build()` and by `withOptions` (Kotlin/Native 2.4.0). A
-caller's own cancelling is no failure of the runtime's and passes through as the
-`CancellationException` it is. T-65 holds it.
+([Swift](swift.md)): under `@Throws(ApiException::class, OtherResponseException::class,
+CancellationException::class)` a refused connection and a body that did not decode each ended a
+Swift caller's process, as a receiver's decode failure did under `@Throws(InboundException::class)`,
+and under the root the caller caught each, and a client refused by `build()` and by `withOptions`
+(Kotlin/Native 2.4.0). A caller's own cancelling is no failure of the runtime's and passes through
+as the `CancellationException` it is. T-65 holds it.
 
 `ApiFailure` is no data class and an `ApiException`'s message is its status, so the `toString` of
 each names its class and, for the exception, the status, as Go's `Error` does, and nothing else that

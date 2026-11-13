@@ -1253,15 +1253,15 @@ throughout these documents.
     address with a zone shows the marker alone and is requested still; one whose scheme is `ftp` or
     that holds a user is returned as the response; no such `URL` is longer than 280 bytes; and no
     request arriving at another origin holds a credential, the base URL's user or password or the
-    first request's query, after each of those and after a next link of `//host/x` and of
-    ` https://host/x`, a space before it, whichever origin the target's library resolves it to,
-    which a target showing a response's text, comparing hosts and not ports, or resolving against
-    the request's whole URL fails; a server variable is `{name}`, a base URL's path the marker, and
-    what a redacted parameter expanded to in the path the marker; an `end` event's `Cause` is a
-    type's name; a hook is handed the context its caller gave the method for a call's first event
-    and what it returned for each later one, a span it adds at the first `attempt` reaching a
-    `Transport` wrapper on every attempt, of two overlapping calls each its own, which a hook handed
-    the caller's context alone fails, a Go hook returning nil leaves the call in the context it was
+    first request's query, after each of those and after a next link of `//host/x` and of `
+    https://host/x`, a space before it, whichever origin the target's library resolves it to, which
+    a target showing a response's text, comparing hosts and not ports, or resolving against the
+    request's whole URL fails; a server variable is `{name}`, a base URL's path the marker, and what
+    a redacted parameter expanded to in the path the marker; an `end` event's `Cause` is a type's
+    name; a hook is handed the context its caller gave the method for a call's first event and what
+    it returned for each later one, a span it adds at the first `attempt` reaching a `Transport`
+    wrapper on every attempt, of two overlapping calls each its own, which a hook handed the
+    caller's context alone fails, a Go hook returning nil leaves the call in the context it was
     handed, and the events of two overlapping calls are told apart by `Call`, one made through a
     sub-client and one through a client `WithOptions` derives among them, which a count each derived
     client keeps fails; an `Authenticator` is handed the method, the query, the headers the builder

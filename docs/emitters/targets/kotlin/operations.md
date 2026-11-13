@@ -80,14 +80,13 @@ millisecond throw a `RefusedException` ([failures](errors.md#how-a-failure-reach
 setter reads its duration the same way, and one with no such reading refuses the client, as a value
 outside its range does. `kotlin.time.Duration` was weighed and is a value class, which the export
 gives no declaration ([no value class](swift.md#no-value-class)): Kotlin/Native 2.4.0 exported a
-setter over it as one over an `int64_t` of its private bits, and a Swift caller's
-`requestTimeout(d: 60_000_000_000)`, 60 s in nanoseconds, reached Kotlin as 30 s. A `Long` of
-milliseconds is declared, and is the bare number that [states no
-unit](../../contract/runtime-policy.md#what-a-layer-writes). Over the runtime's `Duration`, a Swift
-caller written from these members alone set each duration and backoff and read an event's `wait`,
-and the client read the milliseconds it was given. The builder's `build()` and `withOptions` refuse
-a client by throwing a `RefusedException` naming the setting, and carry
-`@Throws(SdkException::class)`, without which the refusal ends a Swift caller's process
+setter over it as one over an `int64_t` of its private bits, and a Swift caller's `requestTimeout(d:
+60_000_000_000)`, 60 s in nanoseconds, reached Kotlin as 30 s. A `Long` of milliseconds is declared,
+and is the bare number that [states no unit](../../contract/runtime-policy.md#what-a-layer-writes).
+Over the runtime's `Duration`, a Swift caller written from these members alone set each duration and
+backoff and read an event's `wait`, and the client read the milliseconds it was given. The builder's
+`build()` and `withOptions` refuse a client by throwing a `RefusedException` naming the setting, and
+carry `@Throws(SdkException::class)`, without which the refusal ends a Swift caller's process
 ([Swift](swift.md)): that caller caught `P1M`, `PT0.0015S` and `PT61M` refused as `requestTimeout`
 at `build()`, and a `maxPages` of 0 at `withOptions`. `client.withOptions { maxPages(100) }` builds
 a client holding the client's settings with those replaced, sending through its `Transport`, or the
@@ -130,13 +129,13 @@ Swift calls `try receiver.parseZoneCreated(request:)` and catches the refusal, a
 the framework did, building the receiver with every parameter, since Swift sees no default, and the
 check as a closure of the request and the `InboundCheck` returning `KotlinBoolean`, which was told
 `mutual_tls` for an operation stating `[{http_basic}, {mutual_tls}]` once the basic credentials were
-wrong, and not called when they were right, and which for
-`[{oauth2: [read], api_key}, {oauth2: [admin]}]` read `alternative` as an `Int32` and `scopes` as
-`[String]` and passed and refused the three requests Go's did
-([Go](../go/operations.md#operations-the-api-sends)); on the JVM and from Swift, a receiver given no
-key for a query `apiKey`, or no setting for an operation declaring no security, refused the request.
-A response type's `encode()` returns the runtime's `OutboundResponse(status, headers, body)`, which
-the caller's server writes. T-71 holds this section.
+wrong, and not called when they were right, and which for `[{oauth2: [read], api_key}, {oauth2:
+[admin]}]` read `alternative` as an `Int32` and `scopes` as `[String]` and passed and refused the
+three requests Go's did ([Go](../go/operations.md#operations-the-api-sends)); on the JVM and from
+Swift, a receiver given no key for a query `apiKey`, or no setting for an operation declaring no
+security, refused the request. A response type's `encode()` returns the runtime's
+`OutboundResponse(status, headers, body)`, which the caller's server writes. T-71 holds this
+section.
 
 ## Stability
 
