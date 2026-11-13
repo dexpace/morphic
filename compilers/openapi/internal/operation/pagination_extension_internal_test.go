@@ -21,7 +21,8 @@ func TestMarker_AUseOfATypeTheRegistryLacksMarksNothing(t *testing.T) {
 	t.Parallel()
 	c := newRawLowerer(&soa.OpenAPI{}).ctx
 	pg := &pager{c: c, p: c.Promoter(), lk: newLookups(ir.TypeRegistry{}), flat: map[ir.TypeID][]*ir.Property{}}
-	m := newMarker(pg, lowering.TargetPaginationItems, lowering.ExtensionSource{Key: "x-k", Values: []string{"items"}})
+	m := &marker{pg: pg, target: lowering.TargetPaginationItems,
+		src: lowering.ExtensionSource{Key: "x-k", Values: []string{"items"}}}
 	keeper, marked := m.marksUse(nil, &ir.Provenance{}, "t/gone")
 	assert.Nil(t, keeper)
 	assert.False(t, marked)
@@ -62,14 +63,14 @@ func TestMarker_DescendsOnlyIntoModelsReachingTheKey(t *testing.T) {
 	}
 
 	unkept := newPager()
-	assert.Nil(t, newMarker(unkept, lowering.TargetPaginationItems, src).search("t/root"))
+	assert.Nil(t, (&marker{pg: unkept, target: lowering.TargetPaginationItems, src: src}).search("t/root"))
 	assert.Empty(t, unkept.flat, "no member keeps the key, so no model is read")
 
 	reg["t/marked"].(*ir.Model).Properties[0].Unmodeled = ir.Unmodeled{
 		"openapi:x-k": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"purpose":"items"}`)},
 	}
 	kept := newPager()
-	m := newMarker(kept, lowering.TargetPaginationItems, src)
+	m := &marker{pg: kept, target: lowering.TargetPaginationItems, src: src}
 	reach := kept.reaching(src.Key)
 	assert.Equal(t, map[ir.TypeID]bool{"t/root": true, "t/marked": true}, reach)
 	_, next := m.descend([]step{{model: "t/root"}}, map[ir.TypeID]bool{"t/root": true}, reach)

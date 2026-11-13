@@ -22,32 +22,17 @@ type position struct {
 }
 
 // marker is one marking source of a pagination target, asked of the nodes of
-// one operation. entry is the Unmodeled key its source's key is kept under.
+// one operation.
 type marker struct {
 	pg     *pager
 	target lowering.ExtensionTarget
 	src    lowering.ExtensionSource
-	entry  string
 	diags  []ir.Diagnostic
 }
 
-// newMarker is the marker of src, a source of target, asked against pg.
-func newMarker(pg *pager, target lowering.ExtensionTarget, src lowering.ExtensionSource) *marker {
-	return &marker{pg: pg, target: target, src: src, entry: unmodeledKey(src.Key)}
-}
-
-// unmodeledKey is the Unmodeled key an extension named key is kept under.
-func unmodeledKey(key string) string {
-	return "openapi:" + key
-}
-
 // marks returns the provenance of the node keeping unmodeled when src marks
-// it. A node keeping no entry under the key, nearly every one a search meets,
-// is answered before the source's reading, which would say nothing of it.
+// it.
 func (m *marker) marks(unmodeled ir.Unmodeled, keeper *ir.Provenance) (*ir.Provenance, bool) {
-	if _, kept := unmodeled[m.entry]; !kept {
-		return keeper, false
-	}
 	st, diags := m.pg.p.PageStatement(m.target, m.src, unmodeled)
 	m.diags = append(m.diags, diags...)
 	return keeper, st.Stated
@@ -70,7 +55,7 @@ func (m *marker) marksUse(own ir.Unmodeled, keeper *ir.Provenance, of ir.TypeID)
 // markedInput resolves where src marks a value of op's request: a parameter, or
 // a member of its body.
 func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.InputPath], string, []ir.Diagnostic) {
-	m := newMarker(pg, target, src)
+	m := &marker{pg: pg, target: target, src: src}
 	var found []*ir.InputPath
 	var read []*ir.Provenance
 	for i := range op.Params {
@@ -100,7 +85,7 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 // same one. A member is held by every response declaring a body, and a header
 // by every response, as an expression's value is.
 func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
-	m := newMarker(pg, target, src)
+	m := &marker{pg: pg, target: target, src: src}
 	r := resolved[*ir.PropPath]{at: op.Provenance}
 	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
 	for i := range op.Responses {
@@ -288,42 +273,18 @@ func (pg *pager) reaching(key string) map[ir.TypeID]bool {
 	if set, read := pg.reach[key]; read {
 		return set
 	}
-	entry := unmodeledKey(key)
-	keeps := func(p *ir.Property) bool {
-		if _, ok := p.Unmodeled[entry]; ok {
-			return true
-		}
-		td := pg.lk.reg[p.Type.Target]
-		if ir.IsNilTypeDef(td) {
-			return false
-		}
-		_, ok := td.Common().Unmodeled[entry]
-		return ok
-	}
-	set := map[ir.TypeID]bool{}
 	if pg.reach == nil {
 		pg.reach = map[string]map[ir.TypeID]bool{}
 	}
+	set := map[ir.TypeID]bool{}
 	pg.reach[key] = set
+	keeps := pg.keeping("openapi:" + key)
 	if !pg.anyMember(keeps) {
 		return set
 	}
-	// Every model's members are read once to find who keeps the key and which
-	// model names which, and each keeper's namers are added after it. The set
-	// is the answer, so the registry's order is not.
-	namers := map[ir.TypeID][]ir.TypeID{}
-	var queue []ir.TypeID
-	for id := range pg.lk.reg {
-		for _, p := range pg.members(id) {
-			if keeps(p) && !set[id] {
-				set[id] = true
-				queue = append(queue, id)
-			}
-			if pg.isModel(p.Type.Target) {
-				namers[p.Type.Target] = append(namers[p.Type.Target], id)
-			}
-		}
-	}
+	// Each keeper's namers are added after it, so the set is the answer and the
+	// registry's order, which seeds the queue, is not.
+	namers, queue := pg.keepers(keeps, set)
 	for len(queue) > 0 {
 		t := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
@@ -335,6 +296,42 @@ func (pg *pager) reaching(key string) map[ir.TypeID]bool {
 		}
 	}
 	return set
+}
+
+// keeping returns whether a property, or the type it names, keeps entry in its
+// Unmodeled.
+func (pg *pager) keeping(entry string) func(*ir.Property) bool {
+	return func(p *ir.Property) bool {
+		if _, ok := p.Unmodeled[entry]; ok {
+			return true
+		}
+		td := pg.lk.reg[p.Type.Target]
+		if ir.IsNilTypeDef(td) {
+			return false
+		}
+		_, ok := td.Common().Unmodeled[entry]
+		return ok
+	}
+}
+
+// keepers reads every model's members once. It adds to set each model with a
+// member keeps answers true for, returns those models, and returns, for each
+// model, the models naming it by a member.
+func (pg *pager) keepers(keeps func(*ir.Property) bool, set map[ir.TypeID]bool) (map[ir.TypeID][]ir.TypeID, []ir.TypeID) {
+	namers := map[ir.TypeID][]ir.TypeID{}
+	var found []ir.TypeID
+	for id := range pg.lk.reg {
+		for _, p := range pg.members(id) {
+			if keeps(p) && !set[id] {
+				set[id] = true
+				found = append(found, id)
+			}
+			if pg.isModel(p.Type.Target) {
+				namers[p.Type.Target] = append(namers[p.Type.Target], id)
+			}
+		}
+	}
+	return namers, found
 }
 
 // anyMember reports whether a property some model of the registry declares
