@@ -67,7 +67,7 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 			openapi.Options{}, "", false, ""},
 		{"a format byte png", "image/png", "{schema: {type: string, format: byte}}", openapi.Options{}, "", false, ""},
 		{"an object pdf", "application/pdf", "{schema: {type: object}}", openapi.Options{}, "", false, ""},
-		{"a null png", "image/png", "{schema: {type: 'null'}}", openapi.Options{}, "", false, "t/prim/any"},
+		{"a null png", "image/png", "{schema: {type: 'null'}}", openapi.Options{}, "", false, ""},
 		{"a union of a string and raw bytes on octet-stream", "application/octet-stream",
 			"{schema: {description: A value, anyOf: [{type: string}, {type: string, format: binary}]}}",
 			openapi.Options{}, "", true, ""},

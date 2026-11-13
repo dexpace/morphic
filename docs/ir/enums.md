@@ -62,9 +62,11 @@ A **closed** Enum with **no members** is the empty value space — it admits its
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's
 `enum: []`) without a bottom `TypeKind`. Emitters render it as their uninhabited type where they
 have one (TypeScript `never`); none may widen it to the top type. A nullable reference to one admits
-`null` and nothing else, which is how an enumeration of `null` alone lowers: `null` is no member of
-any enum, since whether a position admits it is its reference's
-([type-graph](./type-graph.md#type-references)).
+`null` and nothing else, which is how a position admitting `null` alone lowers, whatever spells it:
+an enumeration of `null` alone, a constant of `null`, a type naming `null` alone (JSON Schema's
+`type: "null"`) or a union of nothing else. `null` is no member of any enum, since whether a
+position admits it is its reference's ([type-graph](./type-graph.md#type-references)), and the top
+type behind a nullable reference admits every value, not `null` alone.
 
 ## One member
 

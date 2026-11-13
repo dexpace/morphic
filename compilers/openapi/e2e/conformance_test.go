@@ -219,6 +219,7 @@ func conformanceCases() []conformanceCase {
 		{"schema-ref-siblings-30", assertSchemaRefSiblings30},
 		{"nullability-conjunction", assertNullabilityConjunction},
 		{"null-only-union", assertNullOnlyUnion},
+		{"null-alone", assertNullAlone},
 		{"defaults", assertDefaults},
 		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
 		{"constraints", assertConstraints},

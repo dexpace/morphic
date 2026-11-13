@@ -1,0 +1,22 @@
+openapi: 3.1.0
+info: {title: NullAlone, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # A schema admitting null and nothing else, in each spelling: an Enum with
+    # no member at its own position, behind a nullable reference.
+    Nil: {type: "null"}
+    Holder:
+      type: object
+      required: [onlyNull]
+      properties:
+        onlyNull: {type: "null"}
+        listed: {type: ["null"]}
+        enumNull: {enum: [null]}
+        constNull: {const: null}
+        nullUnion: {oneOf: [{type: "null"}, {type: "null"}]}
+        nil: {$ref: '#/components/schemas/Nil'}
+        # Every value and null, which is no schema of null alone: the top type.
+        anything: {anyOf: [{}, {type: "null"}]}
+        # A property set the Enum has no home for, kept verbatim beside it.
+        withProps: {type: "null", properties: {a: {type: string}}}

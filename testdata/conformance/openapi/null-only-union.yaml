@@ -12,3 +12,10 @@ components:
     BothNull:
       oneOf: [{type: "null"}]
       anyOf: [{type: "null"}]
+    Holder:
+      type: object
+      properties:
+        anyOfNull: {$ref: '#/components/schemas/AnyOfNull'}
+        oneOfNull: {$ref: '#/components/schemas/OneOfNull'}
+        anyOfTwoNull: {$ref: '#/components/schemas/AnyOfTwoNull'}
+        bothNull: {$ref: '#/components/schemas/BothNull'}

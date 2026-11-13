@@ -21,12 +21,12 @@ import (
 )
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A set of one non-null branch X
-// beside any number of bare null branches collapses to nullable X
+// beside any number of null branches collapses to nullable X
 // (docs/ir/type-graph.md#type-references); a set with no non-null branch at all
-// (every branch a bare `type: null`) has no X for that collapse to name, so it
-// lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
-// everything else becomes a Union with one Variant per non-null branch (oneOf
-// exclusive, anyOf not), never collapsing a union into optional fields.
+// has no X for that collapse to name, so it lowers as a schema of null alone
+// does instead (lowerNullOnlyUnion); everything else becomes a Union with one
+// Variant per non-null branch (oneOf exclusive, anyOf not), never collapsing a
+// union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
@@ -127,41 +127,30 @@ func oneOfAnyOfHasNull(s *oas3.Schema) bool {
 	return slices.ContainsFunc(s.GetAnyOf(), isNullSchema)
 }
 
-// lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches is a bare
-// `type: null` schema (allNullUnion). One null branch or several admit exactly
-// the value a bare `{type: null}` schema at this position admits — null alone
-// — so this position lowers the way lowerUntyped's own null-only body does:
-// the shared `any` primitive with Nullable set. The combinator that produced
-// it, and the other one too when both are declared, carries no shape a Union
-// or a Scalar's fields could hold, so it is kept verbatim under Unmodeled
-// instead of dropped (GitHub #416; docs/compilers/openapi.md#union-null-only).
+// lowerNullOnlyUnion lowers a oneOf/anyOf every one of whose branches admits
+// null alone (allNullUnion). One such branch or several admit what a schema of
+// null alone at this position admits, so the position lowers as one does
+// (lowerNullAlone), and the census a body's lowering runs keeps what the node
+// cannot hold. The combinator that produced it, and the other one too when both
+// are declared, carries no shape the node's fields could hold, so it is kept
+// verbatim under Unmodeled instead of dropped
+// (docs/compilers/openapi.md#union-null-only).
 func lowerNullOnlyUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	// inner is the shared `any` primitive: no schema pointer ever interns at
-	// its ID, so this position never already owns it. Hoist an alias
-	// unconditionally, rather than testing for a case that cannot occur, so
-	// the preserved union attaches to a node this pointer owns and not to the
-	// primitive every other unrelated position also resolves to.
-	inner := ts.PrimID(ir.PrimAny)
-	owner, diags := internAlias(c, ts, s, pointer, ir.TypeRef{Target: inner, Nullable: true})
-	return ir.TypeRef{Target: owner, Nullable: true}, append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
+	owner, diags := preserveUnhomedKeywords(c, ts, s, pointer, lowerNullAlone(c, ts, s, pointer), dispatch{})
+	diags = append(diags, preserveNullOnlyUnion(c, ts, owner, s, pointer)...)
+	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	return ref, append(diags, nullDiags...)
 }
 
-// preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the owning node's
-// Unmodeled: lowerNullOnlyUnion's node is the shared `any` primitive or an
-// alias over it, neither of which carries a branch set of its own to hold
-// them in. It also runs the census lower() runs for a body, which this arm
-// never reaches, so a discriminator written beside the branches is kept too.
-// Its report names the shared primitive as what the position lowered to, as
-// that census does for a bare `{type: null}`, not the alias keeping the
-// keywords.
+// preserveNullOnlyUnion keeps s's oneOf/anyOf verbatim under the Unmodeled of
+// the node lowerNullOnlyUnion built at id, an Enum with no member, which holds
+// no branch set of its own, and reports what it kept.
 func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
 		return diags
 	}
-	common := td.Common()
-	diags = append(diags, recordUnhomedAt(c, &common.Unmodeled, s, unhomedKeywords(s, td, nil), nodeShape(ir.KindPrimitive), pointer)...)
-	kept, keepDiags := preserveBranchSets(c, &common.Unmodeled, s, ir.ReasonDegradedLowering, pointer)
+	kept, keepDiags := preserveBranchSets(c, &td.Common().Unmodeled, s, ir.ReasonDegradedLowering, pointer)
 	diags = append(diags, keepDiags...)
 	if len(kept) == 0 {
 		return diags
@@ -170,8 +159,8 @@ func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 	// preserveUnusedCombinator, are never reached from this arm, so this is the
 	// only place either combinator gets a home.
 	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
-		"every branch admits only the null value, so this position lowered as nullable any; "+
-			"%s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
+		"every branch admits only the null value, so this position lowered as an enum with no member "+
+			"behind a nullable reference; %s kept verbatim under Unmodeled", strings.Join(kept, " and ")))
 }
 
 // preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in

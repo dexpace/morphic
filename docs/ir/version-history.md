@@ -492,3 +492,10 @@ it sees. Changes made together in one bump are listed together under it.
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
+- **0.48.0** — one change of meaning, the shape kept:
+  - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
+    reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
+    lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
+    also admits every other value, or to a `Model` where `properties` was written beside it, and a
+    `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
+    to 0.47.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.

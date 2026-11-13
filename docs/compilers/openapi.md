@@ -2161,7 +2161,8 @@ A schema whose `type` lists more than one type lowers to a `Union` with one vari
 other than `null`, in order, each lowered from the same schema as that type alone and named by it: a
 shared primitive for a scalar type, and for `object` or `array` a node hoisted at
 `<pointer>/type/<index>`. A `null` among them makes the position nullable instead
-([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
+([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable, and a list of
+`null` alone as a schema of `null` alone does ([`null-alone`](#null-alone)). The union is
 exclusive unless two listed types overlap: `integer` and `number`, the one pair of JSON types that
 do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
 reports. Two variants the types resolve to one primitive, as a width does
@@ -2220,13 +2221,18 @@ position, with an info `openapi/degraded-construct` at the position.
 
 ### `union-null-only`
 
-A `oneOf` or `anyOf` whose every branch is a bare `type: null` lowers to the same nullable `any` a
-bare `{type: null}` schema at that position lowers to. No node built for it carries a branch set, so
-the combinator, and the other one too where both are written, is kept verbatim under `openapi:oneOf`
-or `openapi:anyOf` (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema.
+A `oneOf` or `anyOf` whose every branch is a bare `type: null` admits what a schema of `null` alone
+admits, so it lowers as one does at that position, to an `Enum` with no member behind a nullable
+reference ([`null-alone`](#null-alone)). The `Enum` carries no branch set, so the combinator, and
+the other one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, and what else the
+schema writes that the `Enum` has no field for is kept by the census, as beside a schema of `null`
+alone.
 
 - Cases: `null-only-union`
 - Codes: `openapi/degraded-construct`
+- Tests: `schema.TestOneOfAnyOf_NullOnlyLowersAsNullAlone`,
+  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`
 
 ### `union-beside-structure`
 
@@ -3090,6 +3096,36 @@ of its own, since reading it so loses nothing.
   `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`,
   `e2e.TestCompile_ANullBeneathItsOwnNameLowersAsTheKeywordLeftOut`
+
+### `null-alone`
+
+A schema whose own keywords leave it no value but `null` lowers, at its own position, to a closed
+`Enum` with no member, the empty value space ([the empty enum](../ir/enums.md#the-empty-enum)),
+and the reference naming it admits `null` where the schema does ([`nullable`](#nullable)): a
+position admitting `null` and nothing else is a nullable reference to that `Enum`, and one admitting
+nothing is a reference to it that is not. Its own keywords leave it `null` alone where it writes no
+`$ref`, `allOf`, `oneOf`, `anyOf` or `$dynamicRef`, an `enum` it writes lists `null` and nothing
+else, and it writes a `const`, such an `enum`, or a `type` naming `null` and no other type, as
+`type: "null"` and `type: ["null"]` do. An `enum` and a `const` lower so by
+[`enum-const`](#enum-const). A `type` naming only `null`, with neither beside it, lowers so too,
+rather than to the top type with `null` it states nothing about: nullable `any` admits every value,
+so a consumer could not tell `{type: "null"}` from `{anyOf: [{}, {type: "null"}]}`, which it is the
+lowering of. The `Enum`'s `ValueType` is what the schema's `type` and `format` select, as an
+enumeration's is, the top type where they select none. A keyword the `Enum` has no field for, such as
+`properties`, `items`, a `format` or a bound, is kept by the census
+([`shape-applicator`](#shape-applicator)) under `openapi:<keyword>` (`degraded_lowering`), with an
+info `openapi/degraded-construct` at the schema, and the `type` draws nothing, an `Enum` with no
+member typing no value. A schema writing a `$ref`, a union or an `allOf` admits what they say as well
+as what its own keywords do, so it lowers as they decide: a `$ref` to a schema of `null` alone names
+that schema's `Enum`, nullable as the reference reads it ([`ref-use-site`](#ref-use-site)), and an
+`allOf` of one alone refines to it ([`allof-refinement`](#allof-refinement)).
+
+- Cases: `null-alone`, `enum-null-member`, `null-only-union`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestLowerNullAlone_EveryPositionNamesAnEnumWithNoMember`,
+  `schema.TestLowerNullAlone_IsToldFromTheTopType`,
+  `schema.TestLowerNullAlone_KeepsWhatTheEnumCannotHold`,
+  `schema.TestRefinement_ANullOnlyBranchIsTheNull`
 
 ## 7. Schemas: keywords beyond the shape
 

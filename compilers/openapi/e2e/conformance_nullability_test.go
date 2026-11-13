@@ -130,6 +130,41 @@ func assertEnumNullMember(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	}
 }
 
+// assertNullAlone holds every spelling of a schema admitting null and nothing
+// else to one shape: a closed Enum with no member at the position, behind a
+// nullable reference, where a schema admitting every value and null is the
+// top type (docs/compilers/openapi.md#null-alone).
+func assertNullAlone(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"onlyNull", "listed", "enumNull", "constNull", "nullUnion", "nil", "withProps"} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.True(t, p.Type.Nullable, "%s admits null", wire)
+		assert.Equal(t, wire == "onlyNull", p.Required, "%s keeps its own presence", wire)
+		e, isEnum := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, isEnum, "%s is an Enum, got %T", wire, doc.Types[p.Type.Target])
+		assert.Empty(t, e.Members, "%s admits null and nothing else", wire)
+		assert.True(t, e.Closed, wire)
+		assert.Equal(t, ir.PrimAny, e.ValueType, wire)
+	}
+	nested, found := propByWire(holder, "nil")
+	require.True(t, found)
+	assert.Equal(t, componentID("Nil"), nested.Type.Target, "a $ref names the component's own Enum")
+
+	anything, found := propByWire(holder, "anything")
+	require.True(t, found)
+	assert.Equal(t, ir.TypeRef{Target: "t/prim/any", Nullable: true}, anything.Type,
+		"every value and null is the top type, told apart from null alone")
+
+	withProps, found := propByWire(holder, "withProps")
+	require.True(t, found)
+	assertKeptRaw(t, doc.Types[withProps.Type.Target].Common().Unmodeled, "openapi:properties", `{"a":{"type":"string"}}`)
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Holder/properties/withProps"),
+		"the property set the Enum has no home for is reported once")
+}
+
 // assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed
 // among the members of a null-admitting type array. The member is normalized
 // onto the Nullable bit of every reference to the enum rather than degrading the
