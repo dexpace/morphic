@@ -74,6 +74,22 @@
                       "nullable": false
                     },
                     "encoding": {
+                      "p/openapi/components/schemas/WithData/properties/content": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
+                      "p/openapi/components/schemas/WithoutData/properties/data": {
+                        "contentTypes": [
+                          "application/json"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/file": {
                         "inferred": "binary-media-type",
                         "contentTypes": [
@@ -81,6 +97,14 @@
                         ],
                         "multi": false,
                         "filename": true,
+                        "allowReserved": false
+                      },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/allOf/0/properties/note": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
                         "allowReserved": false
                       }
                     }

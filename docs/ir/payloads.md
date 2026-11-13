@@ -33,9 +33,9 @@ type Content struct {
     Item      *TypeRef            // element shape of a sequential stream declared per media type
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
     ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding),
-                                  // or one saying only that each item is a file where a multipart
-                                  // stream of files writes none; singular like Item, because it
-                                  // governs every item alike.
+                                  // or, where a multipart stream writes none, one for its items,
+                                  // each a part: whether it is a file, and its default content
+                                  // type; singular like Item, because it governs every item alike.
                                   // Positional per-item encoding (3.2 prefixEncoding) has no form
                                   // here and stays in Unmodeled — see docs/ir/unmodeled.md
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
@@ -44,7 +44,8 @@ type Content struct {
                                   // registry; of a part several declarations name, the one the
                                   // model's flattening takes (docs/ir/models.md). A body that is a
                                   // union, as one a composition is distributed across is, has its
-                                  // variants' parts, a part keyed by the first variant declaring it
+                                  // variants' parts, through the unions nested in them, a part keyed
+                                  // by the first variant declaring it
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost
@@ -57,11 +58,16 @@ type Content struct {
 }
 
 type PartEncoding struct {
-    ContentTypes []string          // media type(s) of this part
+    ContentTypes []string          // media type(s) of this part: as the source declares them, or,
+                                   // where it declares none, the default its format gives the value
+                                   // the encoding applies to, each item of a repeated part. Empty
+                                   // where the format gives none, or where the part's Style, Explode
+                                   // or AllowReserved arranges its value and so replaces it
     Headers      []Header          // per-part headers
     Multi        bool              // part repeats, or may: an array member, or a union with a
                                    // list among its variants → repeated parts
-    Filename     bool              // part carries a filename (file part)
+    Filename     bool              // part carries a filename (file part); a part of a url-encoded
+                                   // body, which names no file, never does
     Inferred     Inferred          // "" = the source declares the part a file; else the heuristics
                                    // that read Filename in (OpenAPI's binary media types), so a
                                    // consumer taking only what was declared can set it aside. Set

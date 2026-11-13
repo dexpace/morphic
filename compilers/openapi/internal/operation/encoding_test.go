@@ -80,11 +80,9 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 // for lowers to an empty one, which is dropped from Content.Encoding — so the
 // entry has to be read before that check rather than after it, or what it did
 // declare goes with it. An entry declaring allowReserved alone is the other
-// half: that is a field, so its part is kept.
-//
-// Its own case because every other encoding fixture declares a style or a
-// contentType, which leaves the PartEncoding non-empty and routes around the
-// check entirely: moving the read below it left the whole suite green.
+// half: that is a field, so its part is kept. Each part takes no default
+// content type, q's variants' defaults differing and allowReserved replacing
+// r's, which would route around the check, as a declared one does.
 func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", `  /form:
@@ -94,7 +92,7 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
         required: true
         content:
           application/x-www-form-urlencoded:
-            schema: {type: object, properties: {q: {type: string}, r: {type: string}}}
+            schema: {type: object, properties: {q: {oneOf: [{type: string}, {type: object}]}, r: {type: string}}}
             encoding:
               q: {x-vendor: vvv}
               r: {allowReserved: true}

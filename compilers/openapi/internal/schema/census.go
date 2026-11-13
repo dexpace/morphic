@@ -349,8 +349,8 @@ func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.P
 // keywords. A node the position owns gets none, so a bound beside an Enum is
 // kept verbatim.
 //
-// A multipart body still mints encoding keys for `properties` the node lacks,
-// so pass.Validate reports ir/encoding-key-unknown-property.
+// A multipart body keys no part for `properties` the node lacks
+// (docs/compilers/openapi.md#multipart-encoding).
 func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, id ir.TypeID, d dispatch) (ir.TypeID, []ir.Diagnostic) {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {

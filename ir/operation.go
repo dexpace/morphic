@@ -178,14 +178,16 @@ type Content struct {
 	// Item is the element shape of a sequential stream declared per media type
 	// (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential.
 	Item *TypeRef `json:"item,omitzero"`
-	// ItemEncoding is the wire encoding of a sequential stream's item
-	// (3.2 itemEncoding); nil = none declared. It is singular like Item because
-	// it governs every item alike; positional per-item encoding has no form here
-	// and stays in Unmodeled.
+	// ItemEncoding is the wire encoding of a sequential stream's item (3.2
+	// itemEncoding), or, where a multipart stream declares none, its items' as
+	// parts; nil = none. It is singular like Item because it governs every item
+	// alike; positional per-item encoding has no form here and stays in
+	// Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
 	// part property's PropID: of a part several declarations name, the one the
-	// flattening of Type takes (docs/ir/models.md#the-flattening). No key is
+	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
+	// body, the first variant's declaring it, through nested unions. No key is
 	// empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
@@ -214,13 +216,15 @@ type PartEncoding struct {
 	// [Provenance].Inferred does on a node that has one; empty means the
 	// source declares the part a file. It is set only where Filename is.
 	Inferred Inferred `json:"inferred,omitempty"`
-	// ContentTypes are the media type(s) of this part.
+	// ContentTypes are the media type(s) of this part, as declared or, where the
+	// source declares none, the default its format gives (docs/ir/payloads.md).
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
 	Headers []Header `json:"headers,omitempty"`
 	// Multi reports that the part repeats (array member → repeated parts).
 	Multi bool `json:"multi"`
-	// Filename reports that the part carries a filename (file part).
+	// Filename reports that the part carries a filename (file part), which no
+	// part of a url-encoded body does.
 	Filename bool `json:"filename"`
 	// AllowReserved permits reserved characters unescaped in the part's value,
 	// as HTTPParamBinding.AllowReserved does in a parameter's.

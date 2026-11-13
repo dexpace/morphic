@@ -110,6 +110,13 @@ func (f Field) listOwnedBy(pkg string) Field {
 	return f
 }
 
+// within adds a media type under which the field takes effect at the minors
+// in s.
+func (f Field) within(mediaType string, s Span, cites ...Cite) Field {
+	f.Within = append(f.Within, Within{MediaType: mediaType, Span: s, Cites: cites})
+	return f
+}
+
 // keyword marks the field a JSON Schema keyword.
 func (f Field) keyword() Field {
 	f.Keyword = true

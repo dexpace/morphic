@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -66,7 +67,7 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 // Object's rows default that case to (lowering.EncodingRules), which from
 // OpenAPI 3.1 is application/octet-stream, and any other is no file.
 func untypedPartFile(c lowering.Ctx, least fileReading) partFile {
-	contentType, ok := lowering.EncodingRules(c).UntypedContentType()
+	contentType, ok := lowering.EncodingRules(c).ContentType(oas.DefaultUntyped)
 	if least != readsUntyped || !ok {
 		return partFile{}
 	}

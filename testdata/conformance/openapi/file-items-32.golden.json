@@ -165,6 +165,9 @@
                           "nullable": false
                         },
                         "itemEncoding": {
+                          "contentTypes": [
+                            "application/octet-stream"
+                          ],
                           "multi": true,
                           "filename": true,
                           "allowReserved": false

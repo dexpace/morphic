@@ -1361,6 +1361,15 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/unknown-encoding-key",
+      "message": "encoding entry \"page\" names no property the part's schema declares, which OpenAPI requires of an encoding key, so the entry has no effect",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/encoding/page"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "jsonSchemaDialect names the JSON Schema dialect of the document's schemas; the IR models no dialect, so it is kept verbatim under Unmodeled and read only to choose the dialect of each schema of a 3.1 or 3.2 document that names none of its own",

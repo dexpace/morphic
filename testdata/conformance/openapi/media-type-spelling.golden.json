@@ -142,6 +142,9 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1submit/post/requestBody/content/Application~1X-WWW-Form-Urlencoded; charset=utf-8/schema/properties/ids": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "multi": true,
                         "filename": false,
                         "allowReserved": false

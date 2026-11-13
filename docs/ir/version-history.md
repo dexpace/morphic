@@ -470,3 +470,12 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — A change of meaning, the shape unmoved. `PartEncoding.ContentTypes` holds the content
+  type the source format gives a part, or an item of a multipart stream, that names none of its own,
+  so a part an emitter could only guess at states one: the OpenAPI compiler lowers the Encoding
+  Object's defaults ([payloads](./payloads.md)). `Filename` is no longer set on a part of a
+  url-encoded body or on base64 text. `Content.Encoding` keys a part only a union's branch declares,
+  through the unions nested in a variant, and a multipart stream with an `itemSchema` always has an
+  `ItemEncoding`. An encoding entry keying no part, every entry of an encoding under a media type
+  that is neither multipart nor form among them, is kept whole under `openapi:encoding/<key>`. A
+  consumer pinned to 0.46.0 refuses the document.

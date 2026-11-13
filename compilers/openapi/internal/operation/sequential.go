@@ -21,8 +21,9 @@ import (
 // fillSequential lowers 3.2 sequential-media fields: itemSchema becomes the
 // element type, and itemEncoding becomes Content.ItemEncoding, with Multi set
 // because the construct describes a repeated tail by definition, and Filename
-// where each item is a file (itemFile). A multipart body of files gets an item
-// encoding saying so where it writes none, as a file part gets an entry.
+// where each item is a file (itemFile). Each item of a multipart body is a
+// part, so such a body gets an item encoding where it writes none, which takes
+// its item's default content type where it names none (itemDefault).
 //
 // That lowering only holds when no prefixEncoding accompanies it: prefixes make
 // itemEncoding govern the items *after* them rather than every item, which a
@@ -49,12 +50,18 @@ func fillSequential(c lowering.Ctx, w walk, content *ir.Content, media *soa.Medi
 		diags = append(diags, encDiags...)
 	}
 	file := itemFile(c, media.GetItemSchema(), content.MediaType, pe.ContentTypes)
-	if enc == nil && !file.file {
+	parts := isMultipart(content.MediaType) && content.Item != nil
+	if enc == nil && !file.file && !parts {
 		return diags
 	}
 	pe.Multi = true
 	pe = file.apply(pe)
 	content.ItemEncoding = &pe
+	mt := lowering.NormalizeMediaType(content.MediaType)
+	if parts && len(pe.ContentTypes) == 0 && (enc == nil || !arranged(lowering.EncodingRules(c), enc, mt)) {
+		w.types.Defer(itemDefault{c: c, encoding: content.ItemEncoding, item: *content.Item,
+			encoded: readContentEncoding(c, []*oas3.JSONSchema[oas3.Referenceable]{media.GetItemSchema()})})
+	}
 	return diags
 }
 

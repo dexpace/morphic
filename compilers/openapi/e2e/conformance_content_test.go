@@ -52,7 +52,8 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	assert.True(t, sawMulti, "array part carries Multi")
 	labels, ok := enc[ir.PropID("p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels")]
 	assert.True(t, ok, "a part of one value or a list of them has an entry")
-	assert.Equal(t, ir.PartEncoding{Multi: true}, labels, "and repeats")
+	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}, Multi: true}, labels,
+		"and repeats, each value text")
 	assertPartHeaders(t, doc, fileHeaders)
 	assertFormPartStyle(t, doc)
 	assertComposedPartEncoding(t, doc)
@@ -170,8 +171,9 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // declared files; a schemaless or string body on a binary media type is a file
 // the binary policy reads, marked so; an SVG is none. In a multipart body an
 // array of raw bytes, an array of untyped items and an untyped part whose
-// encoding names only image types are file parts, the last marked, and a
-// string naming its media type is text.
+// encoding names only image types are file parts, the last marked, each
+// octet-stream where its encoding names no content type, and a string naming
+// its media type is text.
 func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	render, ok := opByName(doc, "render")
 	require.True(t, ok)
@@ -198,26 +200,28 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	for id, pe := range requestContent(t, upload).Encoding {
 		parts[string(id)[strings.LastIndex(string(id), "/")+1:]] = pe
 	}
-	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["files"])
-	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["attachments"])
-	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["pair"])
-	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["fileOrFiles"], "one file or a list of them")
+	files := ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true}
+	assert.Equal(t, files, parts["files"])
+	assert.Equal(t, files, parts["attachments"])
+	assert.Equal(t, files, parts["pair"])
+	assert.Equal(t, files, parts["fileOrFiles"], "one file or a list of them")
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
 		Inferred: "binary-media-type"}, parts["profileImage"])
-	assert.NotContains(t, parts, "avatar", "a string part is text, whatever media type it names")
+	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"text/plain"}}, parts["avatar"],
+		"a string part is text, whatever media type it names")
 }
 
 // assertFileItems32 pins the item encoding of a multipart stream of files: raw
 // bytes and an item writing no type are files, the second with an item
-// encoding though it writes none, and a string item is a file the binary policy
-// reads, marked so.
+// encoding though it writes none, taking its item's default content type, and
+// a string item is a file the binary policy reads, marked so.
 func assertFileItems32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	for _, tc := range []struct {
 		op   string
 		want ir.PartEncoding
 	}{
 		{"listPhotos", ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Multi: true, Filename: true}},
-		{"listAttachments", ir.PartEncoding{Multi: true, Filename: true}},
+		{"listAttachments", ir.PartEncoding{ContentTypes: []string{"application/octet-stream"}, Multi: true, Filename: true}},
 		{"listThumbnails", ir.PartEncoding{ContentTypes: []string{"image/webp"}, Multi: true, Filename: true,
 			Inferred: "binary-media-type"}},
 	} {
@@ -379,12 +383,13 @@ func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 		"3.2 defines these keys, so the census must leave them alone")
 }
 
-// assertUnkeyedEncoding pins an encoding entry whose key names no part the body
-// declares: a catch-all's entry, a property only a union's branch holds, and a
+// assertUnkeyedEncoding pins an encoding entry that keys no part: a
+// catch-all's entry, a part declared beside a const no property holds, and a
 // key naming nothing, in a multipart and in a url-encoded body. Each is kept
 // whole, as written, under the content's own Unmodeled with one info at the
 // entry, and keys nothing in Content.Encoding, where the part beside it stays
-// keyed.
+// keyed; a key naming no property where no catch-all could admit it draws a
+// warning besides.
 func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const (
 		multipartPtr = "/paths/~1%s/post/requestBody/content/multipart~1form-data/encoding/"
@@ -393,13 +398,14 @@ func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	cases := []struct {
 		op, key, pointer, value string
 		keyedParts              int
+		names                   bool
 	}{
-		{"assets", "*", fmt.Sprintf(multipartPtr, "assets") + "*", `{"contentType":"*/*"}`, 0},
-		{"union", "file", fmt.Sprintf(multipartPtr, "union") + "file", `{"contentType":"image/png"}`, 0},
+		{"assets", "*", fmt.Sprintf(multipartPtr, "assets") + "*", `{"contentType":"*/*"}`, 0, false},
+		{"literal", "file", fmt.Sprintf(multipartPtr, "literal") + "file", `{"contentType":"image/png"}`, 0, false},
 		{"ghost", "ghost", fmt.Sprintf(multipartPtr, "ghost") + "ghost",
-			`{"contentType":"image/png","headers":{"X-Part-Id":{"schema":{"type":"integer"}}}}`, 1},
-		{"file", "file", fmt.Sprintf(multipartPtr, "file") + "file", `{"contentType":"image/png"}`, 0},
-		{"form", "ghost", formPtr + "ghost", `{"explode":false,"style":"form"}`, 0},
+			`{"contentType":"image/png","headers":{"X-Part-Id":{"schema":{"type":"integer"}}}}`, 1, true},
+		{"file", "file", fmt.Sprintf(multipartPtr, "file") + "file", `{"contentType":"image/png"}`, 0, true},
+		{"form", "ghost", formPtr + "ghost", `{"explode":false,"style":"form"}`, 1, true},
 	}
 	for _, tc := range cases {
 		op, ok := opByName(doc, tc.op)
@@ -420,6 +426,12 @@ func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer, "%s: located at the entry", tc.op)
 		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, tc.pointer),
 			"%s: one info at the entry", tc.op)
+		var warned []ir.Severity
+		if tc.names {
+			warned = []ir.Severity{ir.SeverityWarning}
+		}
+		assert.Equal(t, warned, diagsAt(diags, diag.UnknownEncodingKey, tc.pointer),
+			"%s: a warning where the key names no property and nothing could admit one", tc.op)
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey), "the entries' own keys are not judged")
 }

@@ -183,14 +183,32 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 
 // partNamed reports whether key names a part of a body typed target: a
 // property the type exposes, or one a variant of the union it stands for
-// exposes, as a composition distributed across a union puts the body's
-// properties on every variant (docs/ir/payloads.md).
+// exposes, through the unions nested in its variants, as a composition
+// distributed across a union puts the body's properties on every variant
+// (docs/ir/payloads.md). Each union is read once, so a union nesting itself
+// ends.
 func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
 	if facts.Exposes(target, key) {
 		return true
 	}
-	u := unionThrough(types, target)
-	return u != nil && slices.ContainsFunc(u.Variants, func(v ir.Variant) bool { return facts.Exposes(v.Type.Target, key) })
+	read := map[*ir.Union]bool{}
+	pending := []ir.TypeID{target}
+	for len(pending) > 0 {
+		next := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		u := unionThrough(types, next)
+		if u == nil || read[u] {
+			continue
+		}
+		read[u] = true
+		for _, v := range u.Variants {
+			if facts.Exposes(v.Type.Target, key) {
+				return true
+			}
+			pending = append(pending, v.Type.Target)
+		}
+	}
+	return false
 }
 
 // unionThrough returns the union target stands for, read through a chain of

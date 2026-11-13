@@ -350,6 +350,17 @@ const (
 	// A warning, as OAuth2NoFlow is: the document lowers whole, but states no
 	// way to send the body.
 	EmptyRequestContent = "openapi/empty-request-content"
+	// UnknownEncodingKey reports an encoding entry of a form body whose key
+	// names no property the body's schema declares, through $ref, allOf, oneOf
+	// and anyOf, where no catch-all admits a member it names no property for and
+	// the part walk read every position declaring one, at the entry, beside the
+	// info keeping it whole; and a key of the nested encoding a 3.2 Encoding
+	// Object writes naming none of its part's
+	// (docs/compilers/openapi.md#multipart-encoding).
+	//
+	// A warning, as InvalidStatusKey is: OpenAPI gives such an entry no effect,
+	// and the entry is kept.
+	UnknownEncodingKey = "openapi/unknown-encoding-key"
 	// ReservedHeaderName reports a header declaration OpenAPI says SHALL be
 	// ignored, because the protocol layer already owns the name. Three positions:
 	//

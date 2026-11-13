@@ -211,17 +211,62 @@ func encodingObject() Object {
 			mapOf("encoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
 			listOf("prefixEncoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
 			objectOf("itemEncoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
-			field("style", String, c(V30, "Describes how a specific property value will be serialized depending on its type.")).
-				admits(query...),
-			field("explode", Boolean, c(V30, "When this is true, property values of type `array` or `object` generate separate parameters")),
-			field("allowReserved", Boolean, c(V30, "When this is true, parameter values are serialized using reserved expansion")),
+			arranging(field("style", String, c(V30, "Describes how a specific property value will be serialized depending on its type.")).
+				admits(query...), c),
+			arranging(field("explode", Boolean, c(V30, "When this is true, property values of type `array` or `object` generate separate parameters")), c),
+			arranging(field("allowReserved", Boolean, c(V30, "When this is true, parameter values are serialized using reserved expansion")), c),
 		},
 		// The nested fields apply "in the same manner" as the Media Type Object's,
 		// whose text bars writing them together: a reading by analogy, so a
 		// warning.
-		Rules: softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
-		// 3.0's table of defaults has no row for a schema writing no type.
-		Defaults: []Default{fieldDefault("contentType", DefaultUntyped, "application/octet-stream", From(V31),
-			c(V31, "The default values for `contentType` are as follows"))},
+		Rules:    softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+		Defaults: contentTypeDefaults(c),
+	}
+}
+
+// arranging returns f, one of the Encoding Object's RFC6570-style fields, with
+// the media types under which it takes effect, replacing the contentType: a
+// form body at every minor, and a multipart/form-data body from 3.1.
+func arranging(f Field, c func(Minor, string) Cite) Field {
+	return f.
+		within("application/x-www-form-urlencoded", Always(),
+			c(V30, "This field SHALL be ignored if the request body media type is not `application/x-www-form-urlencoded`."),
+			c(V30, "The value of `contentType`, whether it is explicitly defined or has the default value, is to be ignored"),
+			c(V31, "If a value is explicitly defined, then the value of [`contentType`](#encoding-content-type) (implicit or explicit) SHALL be ignored.")).
+		within("multipart/form-data", From(V31),
+			c(V31, "This field SHALL be ignored if the request body media type is not `application/x-www-form-urlencoded` or `multipart/form-data`."),
+			c(V32, "This field SHALL be ignored if the media type is not `application/x-www-form-urlencoded` or `multipart/form-data`."))
+}
+
+// contentTypeDefaults are the contentType a part takes where its Encoding
+// Object writes none, by what the value it applies to is. 3.0's rows key a
+// string on its format and 3.1's on its contentEncoding. 3.0's table has no
+// row for a schema writing no type, and 3.0's and 3.1's none for an array
+// inside the array an encoding applies to, whose items' row is read instead.
+// Raw bytes, which every minor's lowering reads a string of format binary as,
+// take the row for raw binary.
+func contentTypeDefaults(c func(Minor, string) Cite) []Default {
+	const (
+		table = "The default values for `contentType` are as follows"
+		octet = "application/octet-stream"
+		text  = "text/plain"
+	)
+	noEffect := sectioned("Considerations for File Uploads")(V31,
+		"the `format` keyword has no effect on the content-encoding of the schema in OAS 3.1")
+	return []Default{
+		fieldDefault("contentType", DefaultUntyped, octet, From(V31), c(V31, table)),
+		fieldDefault("contentType", DefaultRawBinary, octet, Always(), c(V30, table),
+			sectioned("Example: Basic Multipart Form")(V31, "default for string with binary format is `application/octet-stream`"),
+			sectioned("Working with Binary Data")(V32, "raw binary is used where unencoded binary data is allowed")),
+		fieldDefault("contentType", DefaultByteFormat, octet, Only(V30), c(V30, table)),
+		fieldDefault("contentType", DefaultByteFormat, text, From(V31), noEffect, c(V32, table)),
+		fieldDefault("contentType", DefaultEncodedByteFormat, octet, Always(), c(V30, table), c(V31, table)),
+		fieldDefault("contentType", DefaultContentEncoded, text, Only(V30), c(V30, table)),
+		fieldDefault("contentType", DefaultContentEncoded, octet, From(V31), c(V31, table)),
+		fieldDefault("contentType", DefaultString, text, Always(), c(V30, table)),
+		fieldDefault("contentType", DefaultScalar, text, Always(), c(V30, table)),
+		fieldDefault("contentType", DefaultObject, "application/json", Always(), c(V30, table)),
+		fieldDefault("contentType", DefaultNestedArray, "application/json", From(V32),
+			c(V32, "Therefore the `array` row in this table applies only to array values inside of a top-level array when encoding by name.")),
 	}
 }

@@ -1,0 +1,65 @@
+openapi: 3.1.0
+info: {title: MultipartDefaults31, version: "1.0.0"}
+paths:
+  # Parts no Encoding Object configures take the content type OpenAPI's table
+  # of defaults gives the value each applies to, at the document's minor.
+  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                metadata: {type: object, properties: {name: {type: string}}}
+                settings: {type: object, additionalProperties: {type: integer}}
+                note: {type: string}
+                when: {type: string, format: date-time}
+                count: {type: integer}
+                ratio: {type: number}
+                enabled: {type: boolean}
+                kind: {type: string, enum: [a, b]}
+                fixed: {const: 3}
+                # Raw bytes, which every minor reads format binary as.
+                file: {type: string, format: binary}
+                # 3.1 gives format no effect on the content encoding: text.
+                token: {type: string, format: byte}
+                # contentEncoding makes the string encoded binary.
+                blob: {type: string, contentEncoding: base64}
+                # A schema writing no type is raw binary from 3.1.
+                raw: {description: anything}
+                # Each item of an array part takes its own row.
+                tags: {type: array, items: {type: string}}
+                addresses: {type: array, items: {type: object, properties: {city: {type: string}}}}
+                # Values of two rows take no default.
+                either: {oneOf: [{type: string}, {type: object}]}
+                # A value or a list of them: each value is text.
+                labels: {oneOf: [{type: string}, {type: array, items: {type: string}}]}
+                nullable: {type: [string, "null"]}
+                declared: {type: object}
+                # From 3.1 a style arranges a multipart/form-data part, so its
+                # content type is replaced, implicit or explicit.
+                arranged: {type: array, items: {type: string}}
+            encoding:
+              declared: {contentType: application/xml}
+              arranged: {style: form, explode: false}
+      responses: {"204": {description: ok}}
+  /form:
+    post:
+      operationId: form
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                address: {type: object, properties: {city: {type: string}}}
+                id: {type: string, format: uuid}
+                # A url-encoded body has no parts to carry a file name.
+                image: {type: string, format: binary}
+                ids: {type: array, items: {type: integer}}
+                filter: {type: object, properties: {q: {type: string}}}
+            encoding:
+              filter: {style: deepObject}
+      responses: {"204": {description: ok}}

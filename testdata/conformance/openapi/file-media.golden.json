@@ -240,21 +240,41 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/attachments": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
                         "multi": true,
                         "filename": true,
                         "allowReserved": false
                       },
+                      "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/avatar": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/fileOrFiles": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
                         "multi": true,
                         "filename": true,
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/files": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
                         "multi": true,
                         "filename": true,
                         "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/pair": {
+                        "contentTypes": [
+                          "application/octet-stream"
+                        ],
                         "multi": true,
                         "filename": true,
                         "allowReserved": false

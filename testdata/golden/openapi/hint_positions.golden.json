@@ -741,6 +741,9 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part": {
+                        "contentTypes": [
+                          "text/plain"
+                        ],
                         "headers": [
                           {
                             "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",

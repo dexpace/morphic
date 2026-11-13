@@ -3797,8 +3797,9 @@ as an info `openapi/degraded-construct` at it. A schema's examples are
 the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `contentType` as a
 multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
 one value where an array part is many, so an array item is no file; an item no `itemSchema`
-describes is none either. A multipart body whose items read as files gets an `ItemEncoding` saying
-so where it writes no `itemEncoding`, as a file part gets an entry. Beside a positional
+describes is none either. Each item of a multipart body an `itemSchema` describes is a part, so such
+a body gets an `ItemEncoding` where it writes no `itemEncoding`, and one naming no content type takes
+the default of its item, as a part's entry does. Beside a positional
 `prefixEncoding`, a single every-item encoding cannot state ordinals, so `itemEncoding` and
 `prefixEncoding` are both kept verbatim in the content's `Unmodeled`, under `openapi:itemEncoding`
 and `openapi:prefixEncoding` (`no_ir_home`), reported as one info `openapi/degraded-construct` at
@@ -3808,7 +3809,7 @@ document, JSON's or XML's by name or `+json` or `+xml` suffix, and which the str
 lowers all the same, with a warning `openapi/item-schema-on-document` at it. Which other media types
 repeat a structure is no closed set, so nothing else draws one.
 
-- Cases: `sequential-media`, `file-items-32`
+- Cases: `sequential-media`, `file-items-32`, `multipart-defaults-32`
 - Codes: `openapi/degraded-construct`, `openapi/item-schema-on-document`
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
@@ -3863,75 +3864,133 @@ its entries separated by commas, and refuses one that is neither a media type no
 An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content lowers to a
 `PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
-declaration of a name winning, or on a model it composes. Where several models declare the part, the
-key is the declaration the body's flattening takes
-([models](../ir/models.md#the-flattening)): a model's over one it composes, else the later
-conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. The `allOf` is read as
-[`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
-is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
-target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
-since a part reached only past it has no `Content.Encoding` key. A part is a property the schema the
-body's `$ref` chain ends on declares, or one an `allOf` branch the walk reaches does, and an entry
-whose key names none keys nothing in `Content.Encoding`: a key naming no property, the key of a
-map's or a catch-all's entry, a property only a `oneOf` or `anyOf` branch declares, a part past a
-bound, and any entry of a body declaring no property, such as one with no schema, one whose schema
-`$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Each such entry is kept
-whole, as written, under the content's `Unmodeled` at `openapi:encoding/<key>` (the key escaped as a
-JSON Pointer token) with reason `no_ir_home`, located at the entry, and reported there as an info
-`openapi/degraded-construct`. The info says that the entry matches no property read from the body's
-schema or its `allOf` branches, or, on a file body, that the body has no parts, and names no other
-cause, since the walk cannot tell a misspelt key from a catch-all's or a union branch's. A key
-naming no property and an entry of a file body are ones OpenAPI gives no effect, 3.2 saying such an
-entry "SHALL be ignored". No reason states that, so they keep `no_ir_home` rather than be dropped,
-and stay where a union branch's entry and a catch-all's leave once keyed. Nothing a kept entry
-declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
-nested encodings have no record of their own, and neither an unknown key nor a reserved header name
-in it is reported, though load still validates its fields. An entry that is no object is kept
-nowhere and draws only the `openapi/validation` error that load reports for it.
-`contentType` lowers to `ContentTypes`, split on `,`
-and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
-([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
-`explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
-the part, read once every type has lowered, and `Filename` also from the media types its encoding
-entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
-a scalar whose bases end in one of those or in no base, they are read off that type, the one the
-`allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
-tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
-a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
-re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
-variants, through the unions nested in them, each as such a type is and one of another kind as
-neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
-multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
-them. For a property of any other kind, such as an enum, literal, model or
-map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
-they are read from every declaration of the part's name: `Multi` where any is an array, or writes
-no `type` and a union with an array among its branches, `Filename` where any is a `string` with
-`format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
-it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
-elements, its `prefixItems` and the `items` after them, or a draft's list of `items` and the
-`additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting none, as is an
-array branch of a union it writes, whose other branches are read as a body's union branches are: one
-declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
-names only `application/octet-stream` or media types the binary policy names
+declaration of a name winning, on a model it composes, or on a `oneOf` or `anyOf` branch, written on
+the schema or on an `allOf` branch, which the schema lowering distributes
+([`union-beside-structure`](#union-beside-structure)). Where several models declare the part, the key is the
+declaration the body's flattening takes ([models](../ir/models.md#the-flattening)): a model's over
+one it composes, else the later conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. A body
+that is a union keys a part by the first variant declaring it, through the unions nested in its
+variants. The parts are read by a walk of the body's schema: the properties the schema its `$ref`
+chain ends on declares, then each `allOf` branch's, as
+[`allof-classification`](#allof-classification) flattens them, with the same cap, then each `oneOf`
+and `anyOf` branch's, of the schema and of each `allOf` branch. A `$ref` entry and a union branch
+are followed up to a bound of their own, and entered again only by a shorter path. A bound that cuts
+a target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
+since a part reached only past it has no `Content.Encoding` key. A union nested past a bound of its
+own in the body's type is reported so too.
+
+Each entry that keys nothing is kept whole, as written, under the content's `Unmodeled` at
+`openapi:encoding/<key>` (the key escaped as a JSON Pointer token) with reason `no_ir_home`, located
+at the entry, and reported there as an info `openapi/degraded-construct` saying why:
+
+1. A key naming no part the walk reads: no property, a map's or a catch-all's entry, a part past a
+   bound, or any entry of a body declaring no property, such as one with no schema, one whose schema
+   `$ref` does not resolve, or a file body ([`file-bodies`](#file-bodies)). Nothing such an entry
+   declares is lowered or judged: its header schemas register no type, its `x-*`, unknown keys and
+   nested encodings have no record of their own, and neither an unknown key nor a reserved header
+   name in it is reported, though load still validates its fields. Where the walk reads every
+   position of the body's schema that can declare a property, and no catch-all there admits a member
+   the schema names no property for, the key names no property, which OpenAPI requires of every key
+   (3.0.4 and 3.1.1: "The key, being the property name, MUST exist in the schema as a property"),
+   giving such an entry no effect (3.2.0: "`encoding` entries with no corresponding property SHALL be
+   ignored"); it is reported besides as a warning `openapi/unknown-encoding-key` at the entry. A
+   catch-all is an `additionalProperties` or `unevaluatedProperties` other than `false`, or a
+   `patternProperties`; the walk reads no property declared beside a `$ref`, past one resolving to
+   nothing, through a `$dynamicRef`, or under `if`, `then`, `else` or `dependentSchemas`. A key of
+   the nested `encoding` a 3.2 Encoding Object writes, which a part's record keeps verbatim
+   ([`unmodeled-dialect-fields`](#unmodeled-dialect-fields)), is held to the properties of the value
+   it applies to, an array part's items, and draws the same warning at its own entry.
+2. A key naming a part the walk reads that the type the body's schema lowered to holds no property
+   for: one declared beside a keyword lowering the body, or a union branch, to no model, as a
+   `const`, an `enum` or a scalar `type` does, where the schema lowering keeps the `properties`
+   verbatim ([`shape-applicator`](#shape-applicator)). Its fields were lowered before the type was
+   known, so its header schemas stay registered with nothing referencing them; its other records
+   are the entry kept whole, or, where the entry cannot be kept, the records its lowering made.
+3. Any entry of an `encoding` written under a media type that is neither multipart nor form, where
+   OpenAPI gives the field no effect, a file body's among them.
+
+A key naming a catch-all's member has no typed home, `*` included, by decision. OpenAPI makes an
+encoding key a property name, so `*` names the one member called `*`, and gives an entry naming no
+declared property no effect; reading `*` as every member a catch-all admits is a convention no
+version states, which a typed field would take as a guess, and a field keyed by the key as written,
+beside the `PropID`s, would type a misspelt key alike. What OpenAPI does say of the parts a
+catch-all admits, their structural flags and default content type, has no home either.
+
+`contentType` lowers to `ContentTypes`, split on `,` and trimmed with empty items dropped, and one
+naming no media type is an `openapi/validation` error ([`validation`](#validation)); `headers` to
+`Headers`, lowered as a response's are; and `style` and `explode` to `Style` and `Explode` as
+declared, nothing defaulted. A part whose entry names no content type, or that has no entry, takes
+the default OpenAPI gives it in `ContentTypes`, unless the entry writes a `style`, an `explode` or an
+`allowReserved` where it takes effect, which replaces the content type, implicit or explicit, with the
+arrangement a query parameter's value takes: in a form body at every minor, and in a
+`multipart/form-data` body from 3.1. The default is read at the document's minor off the types the
+part's declarations settled on, the ones `Multi` and `Filename` are read off: each value an Encoding
+Object applies to, which is each item of an array part, the element of a list or tuple and a union's
+members in its place, takes the row its kind names, and the part takes the one every value takes, a
+null value passing over:
+
+1. an object, a model or a map, takes `application/json`;
+2. a number, an integer, a boolean, and a string, a format's primitive among them, take
+   `text/plain`;
+3. raw bytes, which every minor's lowering reads `format: binary` as, take
+   `application/octet-stream`, as 3.0's row for `binary` and the later minors' row for raw binary,
+   which their own multipart example gives a string of format `binary`, say;
+4. a string of `format: byte` takes `application/octet-stream` in 3.0, and `text/plain` from 3.1,
+   where the format has no effect on the content encoding; one whose declarations write
+   `contentEncoding` takes `application/octet-stream`, and any other string writing it does from
+   3.1, and `text/plain` in 3.0, whose table keys a string on its format;
+5. a value whose schema writes no type, lowered to `any`, takes `application/octet-stream` from 3.1,
+   and none in 3.0, whose table has no such row;
+6. an array inside an array part takes `application/json` in 3.2, whose table gives it that row, and
+   before 3.2 the row of its items, as the table defers an array's to them.
+
+A part whose values take different defaults, or one a row gives none, such as a value of a kind no
+row names or a string whose declarations write `contentEncoding` and do not alike, takes none. Each
+item of a multipart body's `itemSchema` is a part too, and an `itemEncoding` naming no content type,
+or none written, takes its item's default, a list item being an array inside the array; such a body
+gets an `ItemEncoding` where it writes none ([`item-schema`](#item-schema)).
+
+`Multi` and `Filename` come from the part, read once every type has lowered, and `Filename` also from
+the media types its encoding entry names; no part of a url-encoded body is a file, since the body
+has no parts to carry a file name. Where the body's type has the property and its type is a list, a
+tuple, a primitive, or a scalar whose bases end in one of those or in no base, they are read off that
+type, the one the `allOf` merge settled on, of each declaration of the name a variant holds:
+`Multi` where any ends in a list or tuple, `Filename` where each ends, in a multipart body, in `bytes`
+no encoding such as `format: byte` re-encodes, or in a list or tuple every element of which does, a
+tuple's rest included where elements may follow its prefix. A union is read off its variants, through
+the unions nested in them, each as such a type is and one of another kind as neither: `Multi` where
+any is, since a part that may repeat travels as repeated parts, and, in a multipart body, `Filename`
+where every one is `bytes` no encoding re-encodes or a list or tuple of them. For a property of any
+other kind, such as an enum, literal, model or map, and for a union reaching more nested unions than
+a bound of its own, they are read from every declaration of the part's name: `Multi` where any is an
+array, or writes no `type` and a union with an array among its branches, and, in a multipart body,
+`Filename` where any is a `string` with `format: binary`. In a multipart body a part is a file too
+where every declaration of it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an
+array through each of its elements, its `prefixItems` and the `items` after them, or a draft's list
+of `items` and the `additionalItems` after them ([`tuples`](#tuples)), a rest of `false` admitting
+none, as is an array branch of a union it writes, whose other branches are read as a body's union
+branches are: one declaring raw bytes; one leaving its media type to say, where its encoding entry's
+`contentType` names only `application/octet-stream` or media types the binary policy names
 ([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type` where it names
 one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
 default content type OpenAPI makes `application/octet-stream`, a union being read so only where
 each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
-that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
-neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
-default disagrees, and an array writing no `items`, or a draft's tuple no `additionalItems`, says
-nothing of its elements past its prefix, so neither is a file. A part is entered only when its
-`PartEncoding` holds something, so a body that declares no encoding still gets entries for its array
-and file parts, and an entry declaring nothing leaves none. What an Encoding Object writes beyond
-those fields is [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where
-OpenAPI gives it no effect is reported as an `openapi/validation` warning, of the class
+that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with neither is `text/plain`,
+whatever its `contentMediaType`, which OpenAPI ignores where an encoding's default disagrees, and an
+array writing no `items`, or a draft's tuple no `additionalItems`, says nothing of its elements past
+its prefix, so neither is a file. A part is entered only when its `PartEncoding` holds something, so
+a body that declares no encoding still gets entries for its parts, and an entry declaring nothing
+for a part whose type takes no default leaves none. What an Encoding Object writes beyond those
+fields is [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI
+gives it no effect is reported as an `openapi/validation` warning, of the class
 `validation-no-effect`, at the field ([`validation`](#validation)): an `encoding` under a media type
-that is neither multipart nor form, which lowers nowhere, or before 3.2 outside a request body, and
-a 3.2 `prefixEncoding` or `itemEncoding` under one that is not multipart. A media type is read
-without its parameters and in any case.
+that is neither multipart nor form, or before 3.2 outside a request body, and a 3.2 `prefixEncoding`
+or `itemEncoding` under one that is not multipart. A media type is read without its parameters and in
+any case.
 
-- Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`
-- Codes: `openapi/degraded-construct`, `openapi/validation`
+- Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`, `multipart-defaults-30`,
+  `multipart-defaults-31`, `multipart-defaults-32`, `encoding-union-branches`, `encoding-outside-form`
+- Codes: `openapi/degraded-construct`, `openapi/unknown-encoding-key`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
@@ -3939,7 +3998,6 @@ without its parameters and in any case.
   `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
   `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
-  `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedMergedTypeComeFromEveryDeclaration`,
   `operation.TestPartEncoding_ADecidedTypeNeverFallsBack`,
   `operation.TestContent_MultipartRedeclaredPartFlagsComeFromTheSettledType`,
@@ -3961,15 +4019,25 @@ without its parameters and in any case.
   `operation.TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder`,
   `operation.TestPartEncodings_AKeptEntryNeverTakesAPartsRecord`,
   `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWholeInCallbacksAndWebhooks`,
-  `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`
-- Status: partly built: a part only a `oneOf` or `anyOf` branch declares is not keyed, its entry
-  kept whole (#1771); an entry naming one a catch-all governs has no typed home (#1770); a key
-  naming no property draws only the info (#1661); a kept entry's unknown keys and reserved header
-  names go unreported, as in the other objects kept whole (#1662); a part of a body declaring
-  `properties` beside a keyword that lowers it to no model is keyed by a property no node holds,
-  which validation then refuses (#1772); a part's own `format: byte`, and a part of a url-encoded
-  body, is marked as carrying a filename (#1214); and an encoding under a media type it does not
-  apply to is kept in no form (#1047).
+  `operation.TestPartEncodings_AnEncodingOutsideAFormIsKeptWhole`,
+  `operation.TestPartEncodings_APartTheBodysTypeHoldsNoPropertyForKeysNothing`,
+  `operation.TestPartEncodings_AUnionBranchsPartIsKeyed`,
+  `operation.TestPartMembers_AUnionBodyHasItsVariantsMembers`,
+  `operation.TestMemberHolders_StopsPastItsBound`,
+  `oas.TestEncodingRules_TakesEffectWhereTheTextSays`,
+  `operation.TestPartEncodings_ANestedKeyNamingNoPropertyIsWarnedOf`,
+  `operation.TestPartEncodings_AnEntryKeptAtSettlementThatCannotBeKeptKeepsItsRecords`,
+  `operation.TestPartEncodings_AUnionPastItsBoundIsReported`,
+  `operation.TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration`,
+  `operation.TestPartWalk_ReadsARefChainToItsBound`,
+  `operation.TestDeclaredFlags_ReadsEveryDeclaration`,
+  `operation.TestDefaultContentType_ReadsEachValueByItsRow`,
+  `operation.TestDefaultContentType_ReadsUpToItsBound`,
+  `operation.TestPartValues_ReadsEachItemOfEachDeclaration`,
+  `operation.TestReadContentEncoding_ReadsEveryDeclaration`
+- Status: partly built: a kept entry's unknown keys and reserved header names go unreported, as in
+  the other objects kept whole (#1662); which reason keeps an entry OpenAPI gives no effect is open
+  (#1791); and the parts a catch-all admits have no part encoding (#1805).
 
 ### `encoding-allow-reserved`
 

@@ -96,7 +96,10 @@ paths:
 // none. A multipart body of files with no itemEncoding gets one saying so.
 func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 	t.Parallel()
-	const marker = "binary-media-type"
+	const (
+		marker = "binary-media-type"
+		octet  = "application/octet-stream"
+	)
 	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
 	for _, tc := range []struct {
 		name, media string
@@ -106,23 +109,29 @@ func TestItemFile_ReadsTheItemAsAPartDeclarationIs(t *testing.T) {
 		{"raw bytes", "multipart/mixed: {itemSchema: {type: string, format: binary}, itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true}},
 		{"raw bytes with no itemEncoding", "multipart/mixed: {itemSchema: {type: string, format: binary}}",
-			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
 		{"an item writing no type", "multipart/mixed: {itemSchema: {}}",
-			openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
-		{"a true item", "multipart/mixed: {itemSchema: true}", openapi.Options{}, &ir.PartEncoding{Multi: true, Filename: true}},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
+		{"a true item", "multipart/mixed: {itemSchema: true}", openapi.Options{},
+			&ir.PartEncoding{ContentTypes: []string{octet}, Multi: true, Filename: true}},
 		{"a string of a binary type", "multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true, Filename: true,
 				Inferred: marker}},
 		{"a string of a binary type with the policy off",
 			"multipart/mixed: {itemSchema: {type: string}, itemEncoding: {contentType: image/png}}",
 			disabled, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
-		{"a string", "multipart/mixed: {itemSchema: {type: string}}", openapi.Options{}, nil},
+		{"a string", "multipart/mixed: {itemSchema: {type: string}}", openapi.Options{},
+			&ir.PartEncoding{ContentTypes: []string{"text/plain"}, Multi: true}},
 		{"an object", "multipart/mixed: {itemSchema: {type: object}, itemEncoding: {contentType: application/json}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true}},
 		{"an item no schema describes", "multipart/mixed: {itemEncoding: {contentType: image/png}}",
 			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"image/png"}, Multi: true}},
 		{"an array item", "multipart/mixed: {itemSchema: {type: array, items: {type: string, format: binary}}}",
-			openapi.Options{}, nil},
+			openapi.Options{}, &ir.PartEncoding{ContentTypes: []string{"application/json"}, Multi: true}},
+		{"an item arranged as a query parameter's value", "multipart/form-data: {itemSchema: {type: string}, itemEncoding: {style: form}}",
+			openapi.Options{}, &ir.PartEncoding{Style: "form", Multi: true}},
+		{"an item whose type takes no default", "multipart/mixed: {itemSchema: {oneOf: [{type: string}, {type: object}]}}",
+			openapi.Options{}, &ir.PartEncoding{Multi: true}},
 		{"raw bytes on a body that is not multipart", "application/jsonl: {itemSchema: {type: string, format: binary}}",
 			openapi.Options{}, nil},
 	} {

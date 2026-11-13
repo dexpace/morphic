@@ -20,7 +20,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -537,9 +536,8 @@ components:
 // TestCompile_NonUTF8FragmentReachesNoIdentifier is the compiler-level half of
 // the GitHub #520 fix. A fragment that decodes to bytes that are not UTF-8 must
 // never reach a PropID, since no document key can spell them and the IR cannot
-// encode one that does. Before the fix, the multipart body's encoding key was
-// derived from the raw byte the fragment decoded to, and the document could not
-// be marshalled at all.
+// encode one that does: the multipart body's part, which no property of the
+// body's type holds, keys nothing, and its entry is kept whole.
 func TestCompile_NonUTF8FragmentReachesNoIdentifier(t *testing.T) {
 	t.Parallel()
 	const src = `openapi: 3.1.0
@@ -583,12 +581,9 @@ components:
 	op := openapitest.FirstOp(t, doc.Services[0])
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
-	want := ir.PropID("p/openapi" + ids.Ptr("paths", "/upload", "post", "requestBody",
-		"content", "multipart/form-data", "schema", "properties", "file"))
-	enc := op.Request.Contents[0].Encoding
-	require.Len(t, enc, 1, "exactly one part is configured; got %v", enc)
-	_, ok := enc[want]
-	assert.True(t, ok, "the encoding key derives from the body's own local position; got %v", enc)
+	content := op.Request.Contents[0]
+	assert.Empty(t, content.Encoding, "the body's type holds no property, so no key is derived for one")
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/file", "the part's entry is kept whole instead")
 }
 
 var componentOnlyCycles = []struct{ name, data string }{

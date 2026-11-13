@@ -293,8 +293,9 @@ func TestValidate_EncodingKeyThroughCyclicAlias(t *testing.T) {
 // TestValidate_EncodingKeyThroughAUnionBody pins a body that is a union, as one
 // a composition is distributed across is: a key naming a property a variant
 // exposes, the body's own on every variant or a branch's on one, names a part,
-// read through an alias over the union too, and one no variant exposes names
-// none, nor one on an alias chain closing on itself before any union
+// read through an alias over the union and through a union nested in a variant
+// too, and one no variant exposes names none, nor one on an alias chain
+// closing on itself before any union or in a union nesting itself
 // (docs/ir/payloads.md).
 func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 	t.Parallel()
@@ -308,6 +309,8 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 		"through an alias over the union":  {"t/alias", "p/other/b", true},
 		"one no variant exposes":           {"t/u", "p/nowhere", false},
 		"an alias cycle reaching no union": {"t/loop/a", "p/nowhere", false},
+		"a nested union's variant's":       {"t/outer", "p/other/b", true},
+		"none, in a union nesting itself":  {"t/self", "p/nowhere", false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -317,6 +320,10 @@ func TestValidate_EncodingKeyThroughAUnionBody(t *testing.T) {
 			doc.Types["t/u"] = &ir.Union{ID: "t/u", Closed: true,
 				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/m"}}, {Type: ir.TypeRef{Target: "t/other"}}}}
 			doc.Types["t/alias"] = &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/u"}}
+			doc.Types["t/outer"] = &ir.Union{ID: "t/outer", Closed: true,
+				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/prim/string"}}, {Type: ir.TypeRef{Target: "t/alias"}}}}
+			doc.Types["t/self"] = &ir.Union{ID: "t/self", Closed: true,
+				Variants: []ir.Variant{{Type: ir.TypeRef{Target: "t/self"}}, {Type: ir.TypeRef{Target: "t/m"}}}}
 			doc.Types["t/loop/a"] = &ir.Scalar{ID: "t/loop/a", Base: &ir.TypeRef{Target: "t/loop/b"}}
 			doc.Types["t/loop/b"] = &ir.Scalar{ID: "t/loop/b", Base: &ir.TypeRef{Target: "t/loop/a"}}
 			c := requestContent(doc)
