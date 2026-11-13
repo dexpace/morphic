@@ -863,3 +863,40 @@ func compileOverTheNetwork(t *testing.T, doc string, hops int, param bool) ([]ir
 	require.NotNil(t, got)
 	return diags, rec.locations(), strings.TrimPrefix(srv.URL, "http://")
 }
+
+// TestCompile_AFileNamedLikeAURLIsReadAsAFile pins a relative $ref to a file
+// whose name's first segment holds a colon, written with a leading "./" as RFC
+// 3986 §4.2 writes one: it names that file, though the scheme before the colon
+// is one a reader reads, from a schema and from a parameter, with external
+// references allowed or not, the spec located by the engine or named by a
+// relative path alone. Not parallel: it changes directory.
+func TestCompile_AFileNamedLikeAURLIsReadAsAFile(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	require.NoError(t, err)
+	for name, body := range map[string]string{
+		"file:x.yaml": "F: {type: integer}\nP: {name: f, in: query, schema: {type: integer}}\n",
+		"http:h.yaml": "H: {type: boolean}\nP: {name: h, in: query, schema: {type: boolean}}\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600))
+	}
+	root := []byte("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /x:\n    get:\n" +
+		"      parameters:\n        - {$ref: './file:x.yaml#/P'}\n        - {$ref: './http:h.yaml#/P'}\n" +
+		"      responses: {\"200\": {description: ok}}\n" +
+		"components:\n  schemas:\n    F: {$ref: './file:x.yaml#/F'}\n    H: {$ref: './http:h.yaml#/H'}\n")
+	t.Chdir(dir)
+	for _, location := range []string{"", filepath.Join(dir, "root.yaml")} {
+		for _, allow := range []bool{false, true} {
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "root.yaml", Location: location, Data: root}},
+				compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+
+			assert.Empty(t, diags, "located at %q, external references allowed: %v", location, allow)
+			assert.Contains(t, doc.Types, ids.In("file:x.yaml").AnonType("/F"))
+			assert.Contains(t, doc.Types, ids.In("http:h.yaml").AnonType("/H"))
+			require.Len(t, doc.Services[0].Groups[0].Operations, 1)
+			assert.Len(t, doc.Services[0].Groups[0].Operations[0].Params, 2, "each parameter is read")
+		}
+	}
+}

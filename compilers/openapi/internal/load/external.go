@@ -333,11 +333,38 @@ func (e external) Open(name string) (fs.File, error) {
 		e.holdOpened(name)
 		return servedFile{Reader: bytes.NewReader(nil)}, nil
 	}
-	a := e.read.once(name, func() answer { return e.fetch(e.ctx, name, fileNamed(name)) })
+	a := e.readAs(e.ctx, fileNamed(name), name, fileNamed(name))
 	if a.err != nil {
 		return nil, unread{a.err}
 	}
 	return servedFile{Reader: bytes.NewReader(a.body)}, nil
+}
+
+// readAs answers the read of the document id names, asked for by the spelling
+// key at location: judged first by key's own spelling (unnamed), then as the
+// one read in the compile of that document answered it (see
+// externalReads.once), whichever of its spellings asked first, so a file a
+// $ref spells two ways is read and charged once. The tree it prepared is held
+// under key too.
+func (e external) readAs(ctx context.Context, id, key, location string) answer {
+	if e.opts.Reader == nil {
+		return answer{err: refused(key, "no reader was supplied to read it")}
+	}
+	if err := e.unnamed(key, location); err != nil {
+		return answer{err: err}
+	}
+	a := e.read.once(id, func() answer { return e.fetch(ctx, id, key, location) })
+	if a.err != nil {
+		return a
+	}
+	// Prepared under another spelling of the document, its tree is held where
+	// the resolver looks for one it read by key, as prepare holds it.
+	if tree, data, adopted := e.read.adopt(key, a.prepared); adopted {
+		e.doc.StoreExternalDocumentInCache(key, tree)
+		e.read.recordTree(key, tree, data)
+		e.holdSpellings(ctx, tree, key)
+	}
+	return a
 }
 
 // fileNamed returns the file the path name names: its dot segments removed, as
@@ -375,32 +402,34 @@ func (e external) Do(req *http.Request) (*http.Response, error) {
 		e.holdOpened(key)
 		return answer{}.response(req)
 	}
-	return e.read.once(key, func() answer {
-		return e.fetch(req.Context(), key, key)
-	}).response(req)
+	return e.readAs(req.Context(), documentID(key), key, key).response(req)
 }
 
-// fetch reads the document at location through Options.Reader, confined to
-// Options.Within as unnamed narrows it and held to the byte budget, and
-// prepares it under key.
-func (e external) fetch(ctx context.Context, key, location string) answer {
-	if e.opts.Reader == nil {
-		return answer{err: refused(key, "no reader was supplied to read it")}
+// documentID names the document a URL key, as a request spells it, reads: the
+// file a file URI names, as Open names one, or the URL itself.
+func documentID(key string) string {
+	if file, ok := refscope.FileOf(key); ok {
+		return fileNamed(file)
 	}
-	if err := e.unnamed(key, location); err != nil {
-		return answer{err: err}
-	}
+	return key
+}
+
+// fetch reads the document id names at location through Options.Reader,
+// confined to Options.Within and held to the byte budget, and prepares it
+// under key, the spelling that asked for it. A refusal names the document by
+// id, which no spelling asking first changes.
+func (e external) fetch(ctx context.Context, id, key, location string) answer {
 	data, err := e.opts.Reader.ReadDocument(ctx, compilers.DocumentRequest{
 		Location: location, Within: e.opts.Within, Limit: ReadLimit(e.opts.MaxSourceBytes),
 	})
 	if err != nil {
-		return answer{err: e.readFailure(key, err)}
+		return answer{err: readFailure(e.opts, id, err)}
 	}
-	data, err = e.prepare(ctx, key, data)
+	data, err = e.prepare(ctx, id, key, data)
 	if err != nil {
 		return answer{err: err}
 	}
-	return answer{body: data}
+	return answer{body: data, prepared: key}
 }
 
 // unnamed returns the refusal of the document under key, read at location,
@@ -463,19 +492,19 @@ func namesSource(self, uri string) bool {
 }
 
 // readFailure returns the error a reference into the document under key fails
-// with when the reader refused it: a document past the byte budget, outside
-// Options.Within or on the network a confined read never reaches is refused
-// with the reason, and any other failure is the reader's own account of it,
-// passed through.
-func (e external) readFailure(key string, err error) error {
+// with when the reader, asked under opts, refused it: a document past the byte
+// budget, outside Options.Within or on the network a confined read never
+// reaches is refused with the reason, and any other failure is the reader's
+// own account of it, passed through.
+func readFailure(opts Options, key string, err error) error {
 	switch {
 	case errors.Is(err, compilers.ErrDocumentTooLarge):
-		return refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
+		return refused(key, fmt.Sprintf("it is past the %d-byte budget", opts.MaxSourceBytes.Cap()))
 	case errors.Is(err, compilers.ErrOutsideWithin) && overNetwork(key):
 		return refused(key, "it is on the network, which a read reaches only when external references are allowed")
 	case errors.Is(err, compilers.ErrOutsideWithin):
 		return refused(key, fmt.Sprintf("it lies outside the source's directory %s, "+
-			"which a read leaves only when external references are allowed", directoryNamed(e.opts.Within)))
+			"which a read leaves only when external references are allowed", directoryNamed(opts.Within)))
 	default:
 		return err
 	}
@@ -490,20 +519,20 @@ func directoryNamed(dir string) string {
 	return strconv.Quote(dir)
 }
 
-// prepare stores the tree an external document's bytes parse to under key, once
-// the source's refusals have passed it, its $refs rewritten as the source's are
-// (see escapes), and returns the bytes, which the resolver still reads and
-// caches. It runs once per document read (see externalReads.once), and asks
-// its context last, as the resolver reads none
+// prepare stores the tree the bytes of the document id names parse to under
+// key, once the source's refusals pass it, its $refs rewritten as the
+// source's are (see escapes), and returns the bytes, which the resolver still
+// reads. It runs once per document read (see externalReads.once), and asks its
+// context last, as the resolver reads none
 // (docs/parser-library.md#resolution-unbounded).
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
 // Unparsable or empty bytes are refused as such, the parser's reason kept
 // (bind.UnparsableError, bind.ErrEmptyDocument).
-func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte, error) {
+func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]byte, error) {
 	if !e.opts.MaxSourceBytes.Admits(len(data)) {
-		return nil, refused(key, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
+		return nil, refused(id, fmt.Sprintf("it is past the %d-byte budget", e.opts.MaxSourceBytes.Cap()))
 	}
 
 	root, err := parseTree(ctx, data)
@@ -513,7 +542,7 @@ func (e external) prepare(ctx context.Context, key string, data []byte) ([]byte,
 	if bind.IsEmpty(root) {
 		return nil, bind.ErrEmptyDocument
 	}
-	if err := e.admit(ctx, key, root); err != nil {
+	if err := e.admit(ctx, id, root); err != nil {
 		return nil, err
 	}
 	readyForModel(ctx, root)

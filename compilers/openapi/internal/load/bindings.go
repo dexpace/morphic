@@ -270,9 +270,9 @@ func (e external) document(ctx context.Context, name string) (*yaml.Node, error)
 	var a answer
 	if req, err := http.NewRequestWithContext(ctx, http.MethodGet, name, nil); err == nil && refscope.IsURL(name) {
 		key := req.URL.String()
-		a = e.read.once(key, func() answer { return e.fetch(ctx, key, key) })
+		a = e.readAs(ctx, documentID(key), key, key)
 	} else {
-		a = e.read.once(name, func() answer { return e.fetch(ctx, name, fileNamed(name)) })
+		a = e.readAs(ctx, fileNamed(name), name, fileNamed(name))
 	}
 	if a.err != nil {
 		return nil, a.err

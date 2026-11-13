@@ -720,7 +720,7 @@ func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *tes
 	doc := &soa.OpenAPI{}
 	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}, budget.Unbounded()))
 
-	_, err := ext.prepare(t.Context(), "k", []byte(body))
+	_, err := ext.prepare(t.Context(), "k", "k", []byte(body))
 
 	require.NoError(t, err)
 	cached, ok := doc.GetCachedExternalDocument("k")

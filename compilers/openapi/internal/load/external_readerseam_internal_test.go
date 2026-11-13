@@ -86,7 +86,7 @@ func TestExternal_FetchWithNoReaderIsRefusedUnread(t *testing.T) {
 		ask  func(ext external) error
 		key  string
 	}{
-		{"fetch", func(ext external) error { return ext.fetch(t.Context(), "k", "loc.yaml").err }, "k"},
+		{"readAs", func(ext external) error { return ext.readAs(t.Context(), "k", "k", "loc.yaml").err }, "k"},
 		{"Open", func(ext external) error { _, err := ext.Open("loc.yaml"); return err }, "loc.yaml"},
 		{"Do", func(ext external) error { return get(ext, "http://host/doc.yaml") }, "http://host/doc.yaml"},
 	}
@@ -143,7 +143,7 @@ func TestExternal_ReadFailureMapsTheReadersSentinels(t *testing.T) {
 			opts := Options{Within: "/srv/specs", MaxSourceBytes: budget.AtMost(16)}
 			ext, doc := externalOver(t.Context(), opts, &fakeReader{err: tc.err})
 
-			got := ext.fetch(t.Context(), tc.key, tc.key).err
+			got := ext.fetch(t.Context(), tc.key, tc.key, tc.key).err
 
 			require.Error(t, got)
 			if tc.want == "" {
@@ -183,7 +183,7 @@ func TestExternal_FetchRefusesBytesPastTheBudgetAReaderReturned(t *testing.T) {
 			require.Len(t, body, tc.size)
 			ext, doc := externalOver(t.Context(), Options{MaxSourceBytes: tc.limit}, &fakeReader{data: body})
 
-			got := ext.fetch(t.Context(), "k", "k")
+			got := ext.fetch(t.Context(), "k", "k", "k")
 
 			_, cached := doc.GetCachedExternalDocument("k")
 			if tc.refuse {
@@ -213,7 +213,7 @@ func TestExternal_ReadsAskTheReaderForTheCompilesBounds(t *testing.T) {
 		want string
 	}
 	doors := []door{
-		{"fetch", func(_ *testing.T, ctx context.Context, ext external) { ext.fetch(ctx, "k", "dir/./a.yaml") }, "dir/./a.yaml"},
+		{"fetch", func(_ *testing.T, ctx context.Context, ext external) { ext.fetch(ctx, "k", "k", "dir/./a.yaml") }, "dir/./a.yaml"},
 		{"Open", func(_ *testing.T, _ context.Context, ext external) { _, _ = ext.Open("dir/../b/./a.yaml") }, "b/a.yaml"},
 		{"Do", func(t *testing.T, ctx context.Context, ext external) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://host:80/a.yaml?v=1", nil)
@@ -306,7 +306,7 @@ func TestExternal_AReadRefusesByHowItIsNamed(t *testing.T) {
 			opts := Options{Within: tc.within, Reader: fake}
 			ext := newExternal(t.Context(), &soa.OpenAPI{}, opts, newExternalReads(sourceDocument{escapes: esc}, budget.Unbounded()))
 
-			a := ext.fetch(t.Context(), tc.key, tc.key)
+			a := ext.readAs(t.Context(), tc.key, tc.key, tc.key)
 
 			if tc.want == "" {
 				require.NoError(t, a.err)

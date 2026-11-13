@@ -440,29 +440,30 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 ### `references`
 
 A `$ref` resolves within the source, as a JSON pointer. One naming another document is read through
-the reader the caller supplies (`compilers.Options.Reader`), each file or URL read once however many
-references name it, and held to the source's budgets and refusals
-([`source-budgets`](#source-budgets)), where a document past one fails each reference naming it. Its
-document part is read against the document writing it, by RFC 3986 §5.2, and the source's against
-where the source lies: the absolute path `compilers.Source.Location` names, which the engine sets
-with the symbolic links of the spec's directory resolved, or the source's `Path` where it is unset.
-The working directory is never read, so what a reference names depends on no spelling of it, nor on
-how the spec was named, and a relative path names the file an absolute one does only where the
-source lies at an absolute path. A file's part is percent-decoded, so `my%20file.yaml` names the
-file `my file.yaml`, unless decoding would read it otherwise, as an escaped separator or `#` would,
-where it is read as written; and a `file:` URI names the file at its path, as a reader reads it. Against a document fetched
-over http(s), a part naming no scheme, an absolute path and a network-path reference among them,
-names what the document's URL makes of it, on the network. A document so fetched whose `$ref` or
-`$id` names a local location, by a `file:` URI or a drive path, is refused, failing each reference
-naming it, with the value at the least pointer among those that do as the reason. The read stays
-inside the directory the source lies in, symbolic links included, and follows relative references
-alone, unless `Options.AllowExternalRefs` lets it reach any file and http(s) URLs: a `$ref` naming a
-document other than the source by a `file:` URI or by an absolute path fails unread, whatever
-another `$ref` names that document by. Each is judged by its own spelling, so what the default reads
-depends on no order references are read in. In either mode a `$ref` naming a URL whose scheme is none
-of `http`, `https` and `file` fails unread, where a reader would take it for a path; a file whose
-name holds a colon is written `./a:b.yaml`, and is read as that file. A document outside fails each
-reference naming it, and with no reader no document is read.
+the reader the caller supplies (`compilers.Options.Reader`), each file or URL read and charged once
+however many references name it, by every spelling naming that one document (below), and held to the
+source's budgets and refusals ([`source-budgets`](#source-budgets)), where a document past one fails
+each reference naming it. Its document part is read against the document writing it, by RFC 3986
+§5.2, and the source's against where the source lies: the absolute path `compilers.Source.Location`
+names, which the engine sets with the symbolic links of the spec's directory resolved, or the
+source's `Path` where it is unset. The working directory is never read, so what a reference names
+depends on no spelling of it, nor on how the spec was named, and a relative path names the file an
+absolute one does only where the source lies at an absolute path. A file's part is percent-decoded,
+so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
+escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
+path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+absolute path and a network-path reference among them, names what the document's URL makes of it, on
+the network. A document so fetched whose `$ref` or `$id` names a local location, by a `file:` URI or
+a drive path, is refused, failing each reference naming it, with the value at the least pointer
+among those that do as the reason. The read stays inside the directory the source lies in, symbolic
+links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
+reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
+or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
+by its own spelling, so what the default reads depends on no order references are read in. In either
+mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
+reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
+read as that file. A document outside fails each reference naming it, and with no reader no document
+is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
 ordered by its location: its path from the directory the source lies in, or where no relative path
@@ -652,6 +653,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
   `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`, `load.TestLocalTarget`,
   `load.TestReachesLocal_NamesTheLeastOffenderInEitherOrder`,
+  `load.TestLoad_AFileURIAndAPathAreOneDocument`, `e2e.TestCompile_AFileNamedLikeAURLIsReadAsAFile`,
   `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
   `e2e.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,

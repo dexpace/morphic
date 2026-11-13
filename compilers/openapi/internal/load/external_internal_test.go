@@ -147,7 +147,7 @@ func TestExternal_PrepareRefusesBytesThatDoNotParse(t *testing.T) {
 	doc := &soa.OpenAPI{}
 	read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-	data, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte("a: [\n"))
+	data, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", "k", []byte("a: [\n"))
 
 	var unparsable *bind.UnparsableError
 	require.ErrorAs(t, err, &unparsable)
@@ -177,7 +177,7 @@ func TestExternal_PrepareRefusesADocumentHoldingNothing(t *testing.T) {
 			doc := &soa.OpenAPI{}
 			read := newExternalReads(sourceDocument{}, budget.Unbounded())
 
-			_, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", []byte(tc.body))
+			_, err := newExternal(t.Context(), doc, Options{}, read).prepare(t.Context(), "k", "k", []byte(tc.body))
 
 			_, recorded := read.preparedFor("k")
 			if !tc.empty {
@@ -474,7 +474,7 @@ func TestNewExternal_InitializesTheCacheOnAZeroDocument(t *testing.T) {
 	e := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{}, budget.Unbounded()))
 
 	require.NotPanics(t, func() {
-		_, err := e.prepare(t.Context(), "k", []byte("a: 1\n"))
+		_, err := e.prepare(t.Context(), "k", "k", []byte("a: 1\n"))
 		require.NoError(t, err)
 	})
 	_, ok := doc.GetCachedExternalDocument("k")

@@ -100,10 +100,11 @@ func newExternalReads(self sourceDocument, documents budget.Limit) *externalRead
 }
 
 // answer is how a read was answered: the error it failed with, or the body
-// read.
+// read and the spelling the document was prepared under.
 type answer struct {
-	body []byte
-	err  error
+	body     []byte
+	err      error
+	prepared string
 }
 
 // response returns a as the client returned it: its error, or a successful
@@ -147,6 +148,19 @@ func (r *externalReads) once(key string, read func() answer) answer {
 		rd.answer = read()
 	})
 	return rd.answer
+}
+
+// adopt returns the tree and the bytes prepared under prepared, for key, another
+// spelling of one document, to be held under too, and false where key has a
+// tree already or prepared none.
+func (r *externalReads) adopt(key, prepared string) (*yaml.Node, []byte, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, held := r.trees[key]; held {
+		return nil, nil, false
+	}
+	tree, ok := r.trees[prepared]
+	return tree, r.data[prepared], ok
 }
 
 // keys returns the key of every document read so far.
