@@ -30,6 +30,18 @@ func (p Promoter) Maps(target ExtensionTarget) bool {
 	return len(p.targets[target]) > 0
 }
 
+// Writes reports whether own keeps a key the policy reads target from,
+// whatever its value says: a document writing one has spoken to the target,
+// which a reading of its names then leaves alone.
+func (p Promoter) Writes(own ir.Unmodeled, target ExtensionTarget) bool {
+	for _, src := range p.targets[target] {
+		if _, written := own[extensionKeyPrefix+src.Key]; written {
+			return true
+		}
+	}
+	return false
+}
+
 // replacementReading reads a value as the names of replacements, held as the
 // text of their list so two sources compare as firstStated compares any value,
 // a name and a list holding it alone stating one replacement.

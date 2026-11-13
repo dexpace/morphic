@@ -83,10 +83,15 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableWidening is the nullable-widening policy, and
-	// DiscriminatorInference the discriminator-inference policy. They sit
-	// before foreign so the three share a word.
+	// DiscriminatorInference the discriminator-inference policy, beside the
+	// policies of what a document's names and messages imply, read once it is
+	// whole. They sit before foreign so all of them share a word.
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -188,6 +193,10 @@ type Policy struct {
 	Promotions             ExtensionPromotions
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -212,12 +221,17 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		promoter:               newPromoter(p.Promotions),
 		NullableWidening:       p.NullableWidening,
 		DiscriminatorInference: p.DiscriminatorInference,
+		IdempotencyInference:   p.IdempotencyInference,
+		SecretInference:        p.SecretInference,
+		HTTPDateInference:      p.HTTPDateInference,
+		ReplacementInference:   p.ReplacementInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
-			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-				Bindings: doc.Bindings}, readings: map[any]any{}, settled: map[any]any{}},
+			reads: resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Holds: doc.Holds,
+				Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings},
+			readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
@@ -489,9 +503,9 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	r := c.loaded.reads
-	return resolve.Scope{Doc: c.Doc, SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign,
-		Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds, Beside: r.Beside,
-		Writes: r.Writes, Bindings: r.Bindings}
+	return resolve.Scope{Doc: c.Doc, SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas,
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds,
+		Beside: r.Beside, Writes: r.Writes, Bindings: r.Bindings}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source

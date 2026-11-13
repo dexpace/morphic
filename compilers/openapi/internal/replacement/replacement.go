@@ -4,12 +4,12 @@
 package replacement
 
 import (
+	"encoding/json/jsontext"
 	"maps"
 	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -44,11 +44,13 @@ func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// resolver is what one Resolve reads its names against. A security scheme, a
-// model's member and a header are found by scanning their list for each name,
-// so a list whose every entry names another costs its length squared: only a
-// mapping reads replacements, and 8,000 such headers and members together add
-// under half a second to a compile, which an index per list would not repay.
+// resolver is what one Resolve or Infer reads its names against. A security
+// scheme and a header are found by scanning their list for each name, so a
+// list whose every entry names another costs its length squared: only a
+// mapping reads their replacements, and 8,000 such headers add under half a
+// second to a compile, which an index per list would not repay. A model's
+// members, whose messages every compile reads, are indexed by name once
+// (memberFinder).
 type resolver struct {
 	c   lowering.Ctx
 	p   lowering.Promoter
@@ -105,7 +107,7 @@ func (r *resolver) scheme(name string) (ir.EntityRef, int) {
 
 // schema finds the schema components/schemas declares under name.
 func (r *resolver) schema(name string) (ir.EntityRef, int) {
-	id := r.c.IDs().NamedType(ids.Ptr("components", "schemas", name))
+	id := r.c.IDs().NamedType(jsontext.Pointer("/components/schemas").AppendToken(name))
 	if _, declared := r.doc.Types[id]; !declared {
 		return ir.EntityRef{}, 0
 	}
@@ -120,20 +122,34 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	if !ok {
 		return diags
 	}
-	flat := ir.FlattenedProperties(r.doc.Types, m.ID)
-	member := func(name string) (ir.EntityRef, int) {
-		for i := range flat.Properties {
-			if p := flat.Properties[i].Property; p.EffectiveWireName() == name {
-				return ir.EntityRef{Property: p.ID}, 1
-			}
-		}
-		return ir.EntityRef{}, 0
-	}
+	member := memberFinder(r.doc.Types, m.ID)
 	for i := range m.Properties {
 		p := &m.Properties[i]
 		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Property: p.ID}, "property", member)...)
 	}
 	return diags
+}
+
+// memberFinder returns what finds a member of the model id by name: one of
+// the members the model flattens to, by the name it travels under, which a
+// flattening holds one member of. They are indexed once, where a name is
+// first looked for.
+func memberFinder(types ir.TypeRegistry, id ir.TypeID) func(string) (ir.EntityRef, int) {
+	var byName map[string]ir.PropID
+	return func(name string) (ir.EntityRef, int) {
+		if byName == nil {
+			flat := ir.FlattenedProperties(types, id)
+			byName = make(map[string]ir.PropID, len(flat.Properties))
+			for i := range flat.Properties {
+				p := flat.Properties[i].Property
+				byName[p.EffectiveWireName()] = p.ID
+			}
+		}
+		if p, found := byName[name]; found {
+			return ir.EntityRef{Property: p}, 1
+		}
+		return ir.EntityRef{}, 0
+	}
 }
 
 // headers fills each header's replacements, among the headers beside it. A

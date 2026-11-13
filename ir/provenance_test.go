@@ -5,9 +5,11 @@ package ir_test
 
 import (
 	"encoding/json/v2"
+	"slices"
 	"testing"
 	"unicode/utf8"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -171,6 +173,60 @@ func TestSourceInfo_JSONEncodesSelfURI(t *testing.T) {
 			assert.Equal(t, tt.info, back, "the source survives a decode round-trip")
 		})
 	}
+}
+
+// TestSeverities_ListsEveryConstant holds the one ranked list of severities to
+// the constants this package declares, both ways. A severity declared and not
+// listed would be refused as unknown by every reader that checks or ranks one,
+// the engine's verdict among them, while a stage's own tests stayed green.
+func TestSeverities_ListsEveryConstant(t *testing.T) {
+	t.Parallel()
+	consts := declaredConstsOfType(t, "Severity")
+	require.NotEmpty(t, consts, "the ir sources must declare Severity constants")
+	declared := make([]ir.Severity, 0, len(consts))
+	for _, c := range consts {
+		declared = append(declared, ir.Severity(c.Value))
+	}
+	slices.Sort(declared)
+
+	listed := ir.Severities()
+	slices.Sort(listed)
+	assert.Empty(t, cmp.Diff(declared, listed),
+		"Severities must name every Severity constant, once each (-declared +listed)")
+}
+
+// TestSeverity_RankOrdersLeastSevereFirst pins the order a threshold compares
+// by: each severity ranks at its position in Severities, info lowest, and is
+// Valid.
+func TestSeverity_RankOrdersLeastSevereFirst(t *testing.T) {
+	t.Parallel()
+	ranked := []ir.Severity{ir.SeverityInfo, ir.SeverityWarning, ir.SeverityError}
+	assert.Empty(t, cmp.Diff(ranked, ir.Severities()))
+	for want, sev := range ranked {
+		got, ok := sev.Rank()
+		require.True(t, ok, "%s", sev)
+		assert.Equal(t, want, got, "%s", sev)
+		assert.True(t, sev.Valid(), "%s", sev)
+	}
+}
+
+// TestSeverity_UnknownIsInvalid pins the other direction: a value no constant
+// declares ranks nowhere and is not Valid, the empty one and the near misses a
+// stage writes by hand instead of the constant among them.
+func TestSeverity_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, sev := range []ir.Severity{"", "fatal", "Error", "warn", " info"} {
+		_, ok := sev.Rank()
+		assert.False(t, ok, "%q", sev)
+		assert.False(t, sev.Valid(), "%q", sev)
+	}
+}
+
+// TestSeverityNames_SpellsMostSevereFirst pins the order a message naming the
+// severities lists them in, the reverse of their rank.
+func TestSeverityNames_SpellsMostSevereFirst(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"error", "warning", "info"}, ir.SeverityNames())
 }
 
 // TestFirstError_Cases covers the shapes call sites depend on: no

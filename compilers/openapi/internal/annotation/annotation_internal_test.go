@@ -809,9 +809,13 @@ func sourced(index int) provenance.Doc { return provenance.Doc{Source: index} }
 // pointers, as an applied overlay's attribution does, and every other position
 // in source 0, the base document.
 func overlaid(pointers ...jsontext.Pointer) provenance.Doc {
-	touched := make(map[jsontext.Pointer]bool, len(pointers))
+	touched := provenance.NewPositions()
 	for _, p := range pointers {
-		touched[p] = true
+		at := touched.Root()
+		for token := range p.Tokens() {
+			at = touched.Child(at, token)
+		}
+		at.Write()
 	}
-	return provenance.Doc{Overlay: provenance.Attributed(1, touched, nil)}
+	return provenance.Doc{Overlay: provenance.Attributed(1, touched)}
 }

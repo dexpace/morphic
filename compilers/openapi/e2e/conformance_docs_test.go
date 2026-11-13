@@ -4,11 +4,13 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -306,4 +308,50 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	openapitest.AssertInfoDiagAt(t, diags,
 		"/paths/~1a/get/responses/200/content/application~1json/examples/both/serializedValue")
 	openapitest.AssertInfoDiagAt(t, diags, "/components/examples/Serial/serializedValue")
+}
+
+// assertReplacementInference pins the replacement policy on its case: an
+// operation's message naming another's method and path, a parameter's naming a
+// sibling in code and a member's naming one fill ReplacedBy, marked beside the
+// promotion that read the message; a message naming a route or a member the
+// document does not declare fills nothing, and is reported only where it names
+// a member the document declares beside it.
+func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const marked = "extension-promotion," + openapi.ReplacementInferenceHeuristic
+	v1, ok := opByName(doc, "listZonesV1")
+	require.True(t, ok)
+	require.NotNil(t, v1.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Operation: "op/openapi/paths/~1v2~1zones/get"}}, v1.Deprecation.ReplacedBy)
+	assert.Equal(t, marked, v1.Provenance.Inferred)
+	from, ok := openapitest.ParamBySource(v1, "from_date")
+	require.True(t, ok)
+	require.NotNil(t, from.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Param: "param/openapi/paths/~1v1~1zones/get/parameters/start/query"}},
+		from.Deprecation.ReplacedBy)
+	assert.Equal(t, marked, from.Provenance.Inferred)
+
+	create, ok := opByName(doc, "createZoneV1")
+	require.True(t, ok)
+	require.NotNil(t, create.Deprecation)
+	assert.Empty(t, create.Deprecation.ReplacedBy, "POST /zones is no route the document declares")
+	assert.Equal(t, "Use POST /zones before 2027-01-01.", create.Deprecation.Message)
+
+	zone := secretModel(t, doc, "Zone")
+	modified, ok := propByWire(zone, "modified")
+	require.True(t, ok)
+	require.NotNil(t, modified.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Property: "p/openapi/components/schemas/Zone/properties/modified_at"}},
+		modified.Deprecation.ReplacedBy)
+	assert.Equal(t, marked, modified.Provenance.Inferred)
+	legacy, ok := propByWire(zone, "legacy")
+	require.True(t, ok)
+	require.NotNil(t, legacy.Deprecation)
+	assert.Empty(t, legacy.Deprecation.ReplacedBy, "gone names no member")
+	created, ok := propByWire(zone, "created")
+	require.True(t, ok)
+	require.NotNil(t, created.Deprecation)
+	assert.Empty(t, created.Deprecation.ReplacedBy, "createdAt names no member, beside created_at")
+	assert.Equal(t, ir.Inferred("extension-promotion"), created.Provenance.Inferred, "marked for its message alone")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Zone/properties/created"},
+		openapitest.PointersOf(diags, "openapi/undecided-replacement"))
 }

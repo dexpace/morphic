@@ -105,26 +105,38 @@ const (
 	// recognize it, and the reason it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
-	// parsed but is not a valid Overlay — a missing version, no actions, an action
-	// naming no target. Nothing is applied, so the compile refuses rather than
-	// lowering a source the caller believes was patched.
+	// parsed but is not a valid Overlay — a missing version or one no Overlay
+	// Specification names, no actions, an action naming no target, a selector that
+	// is no RFC 9535 query, a copy in an Overlay 1.0 document — as overlay.read and
+	// overlay.readSelector find. Nothing is applied, so the compile refuses rather
+	// than lowering a source the caller believes was patched.
 	OverlayInvalid = "openapi/invalid-overlay"
-	// OverlayFailed reports an overlay the library could not apply as written: a
-	// selector matching nothing under strict application, or an action whose
-	// update disagrees with the shape it targets. Actions are applied in order and
-	// the ones that landed are not undone, so the compile refuses — the tree left
-	// behind is neither the source nor what the overlay asked for.
+	// OverlayFailed reports an overlay that does not fit the document it is
+	// applied to, or no rule applies as written: an action setting both update
+	// and copy (overlay.read), one whose selector selects nothing under strict
+	// application or whose write the specification's rules refuse
+	// (overlay.runSequence), and an application that panicked. Actions apply in
+	// order and the ones that landed are not undone, so the compile refuses.
 	OverlayFailed = "openapi/overlay-failed"
-	// OverlayAction reports one strict-mode finding about a single action, naming
-	// the action and its target: that it changed nothing, or that it relies on
-	// JSONPath behaviour the overlay did not opt into.
-	//
-	// It stands alone as often as it accompanies a refusal, and the difference is
-	// the point. An action whose selector matched nothing is a typo and refuses
-	// under OverlayFailed, with these naming which actions are why; an action that
-	// matched and then changed nothing is merely redundant — the fix it describes
-	// is already in the source — so it is reported and the compile proceeds.
+	// OverlayUnsupported reports a valid overlay the compiler does not apply: an
+	// Overlay 1.2 document, or a selector RFC 9535 reads that the compiler's
+	// JSONPath implementation refuses or misreads (overlay.readSelector). Nothing
+	// is applied, so the compile refuses.
+	OverlayUnsupported = "openapi/overlay-unsupported"
+	// OverlayAction reports a warning about the overlay or a single action,
+	// naming the action and its target: that it changed nothing, because what it
+	// writes is there already, because it selects nothing under lax application,
+	// or because it sets no modifier; that it sets a field with no effect beside
+	// another; that it writes a merge key, or inside a node YAML aliases name;
+	// or that the source holds aliases or merge keys a selector does not read
+	// through, as overlay.runSequence and overlay.read find.
 	OverlayAction = "openapi/overlay-action"
+	// OverlayReplacedValue reports an action that replaced a primitive the source
+	// declares, as against adding one the source lacks, naming both values: an
+	// overlay written to fill a gap keeps winning once the source fills it, and
+	// this is how that shows (overlay.runSequence). Info, as overriding is a
+	// legitimate use.
+	OverlayReplacedValue = "openapi/overlay-replaced-value"
 	// OverlayOriginIncomplete reports that the overlay applied but the walk that
 	// attributes positions to it exceeded its node budget. Provenance degrades to
 	// naming the source for every position, which is what a compile with no
@@ -506,6 +518,26 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// InferredHTTPDate reports a response header the HTTP-date policy writes and
+	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
+	// date-time, whose text format spells as RFC 3339's, at the header. The
+	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// Info, as InferredDiscriminator is: the reading departs from what the
+	// format says, and the mark keeps what the document declared.
+	InferredHTTPDate = "openapi/inferred-http-date"
+	// UndecidedIdempotency reports an operation binding an Idempotency-Key
+	// header parameter that the idempotency policy cannot settle as its token,
+	// saying why, at the operation: it is sent by a method whose safety the
+	// compiler does not know, or binds the header more than once
+	// (docs/compilers/openapi.md#idempotency-inference). Info: the document
+	// declares no idempotency, so nothing it says is lost.
+	UndecidedIdempotency = "openapi/undecided-idempotency"
+	// UndecidedReplacement reports a deprecation whose message names an entity
+	// the replacement policy would read as its replacement, beside a name naming
+	// none or several, so the names fill nothing, saying which, at the
+	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
+	// the message keeps its prose, so nothing it says is lost.
+	UndecidedReplacement = "openapi/undecided-replacement"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

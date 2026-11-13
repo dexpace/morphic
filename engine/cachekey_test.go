@@ -18,7 +18,7 @@ import (
 // keyInputs returns a set of key inputs every row of a test starts from.
 func keyInputs() engine.KeyInputs {
 	return engine.KeyInputs{
-		Build: "build", IRVersion: "1.0.0", Dir: "/dir", Path: "spec.yaml", SpecHash: "hash",
+		Build: "build", IRVersion: "1.0.0", Location: "/dir/spec.yaml", Path: "spec.yaml", SpecHash: "hash",
 		Passes: []string{"validate"}, Settings: map[string]string{"grouping": "tags"},
 	}
 }
@@ -31,7 +31,7 @@ func TestDeriveKey_CoversEveryInput(t *testing.T) {
 	rows := map[string]func(*engine.KeyInputs){
 		"Build":     func(in *engine.KeyInputs) { in.Build = "other" },
 		"IRVersion": func(in *engine.KeyInputs) { in.IRVersion = "1.0.1" },
-		"Dir":       func(in *engine.KeyInputs) { in.Dir = "/other" },
+		"Location":  func(in *engine.KeyInputs) { in.Location = "/other/spec.yaml" },
 		"Path":      func(in *engine.KeyInputs) { in.Path = "other.yaml" },
 		"SpecHash":  func(in *engine.KeyInputs) { in.SpecHash = "other" },
 		"Passes":    func(in *engine.KeyInputs) { in.Passes = nil },

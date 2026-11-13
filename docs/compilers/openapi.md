@@ -213,45 +213,140 @@ compile onto the network. Once applied, the pre-parse refusals and the node budg
 tree as they hold the source, and validation and every lowering read it. A refusal at a node the
 overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
 pointers' bytes, since the source passed the same refusals alone; its message says it reads the
-tree the overlay leaves, which the overlay's own refusal does not. Each action is charged the
-nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
-`MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
-so it is refused while the tree is past the budget whatever a later action removes. An action that
-builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
-the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
-introduced or rewrote names the source as its `Provenance.Source` and that entry as its `WrittenBy`
-([provenance](../ir/provenance.md)), while a position it left alone keeps the source's line and
-column; a finding about the overlay document itself names the overlay as its `Source`. An overlay
-that does not parse, or is not a valid Overlay — no version, no actions, an action naming no target
-— is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot
-apply as written, or whose grafted content expands past the walk's node budget, is refused as an
-`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
-tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
-that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
-an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
-selector matches nothing is reported the same way and refuses the overlay as
-`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
-cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
-the overlay is applied and no position names it as a writer, as with no overlay, reported as an
-`openapi/overlay-origin-incomplete` warning.
+tree the overlay leaves, which the overlay's own refusal does not.
 
-- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
-  `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
+An overlay declaring Overlay 1.0 or 1.1, at any patch, which the specification asks tooling not to
+tell apart, is applied by that version's rules. One declaring Overlay 1.2 is refused as an
+`openapi/overlay-unsupported` error. Any other version, and an overlay that does not parse or lacks
+what the specification requires of it — an info object naming a title and a version, an `extends`
+that is a URI reference, an action, a target on each — is refused as an `openapi/invalid-overlay`
+error and nothing is applied, as is an Overlay 1.0 action writing `copy`, a field 1.1 introduced.
+Every `target` and `copy` is read as an RFC 9535 JSONPath query, whatever the version, since both
+versions name RFC 9535; an extension naming another dialect is not read. One RFC 9535 refuses is an
+`openapi/invalid-overlay` error: one using `~`, and one naming a member after a dot by a name RFC
+9535's shorthand does not admit, which holds only letters, digits, underscores and characters past
+ASCII and starts with no digit, so an extension key, which holds a `-`, is named in brackets; the
+error says what to write, `['x-internal']` for `.x-internal`. One RFC 9535 reads that the compiler's
+JSONPath implementation refuses or misreads where its text shows it
+([`jsonpath-rfc9535`](../parser-library.md#jsonpath-rfc9535)) is an `openapi/overlay-unsupported`
+error naming why and, where the compiler reads another spelling, what to write. Either is found
+before any action applies. The implementation also compares otherwise than RFC 9535 in a filter,
+where no text shows it, and those selectors apply as it reads them: a plain date, such as
+`2021-01-01`, equals no string and every other plain date, an integer written in another base, such
+as `0x10`, compares as 0, and two objects are equal only with their members in the same order.
+
+The actions apply in order, each to the tree the ones before it left. An action takes the first of
+`remove`, `update` and `copy` it sets, and a field the specification gives no effect beside a
+remove, or an action setting none, is an `openapi/overlay-action` warning. An action setting both
+`update` and `copy`, each of which the specification gives no effect beside the other, is refused as
+an `openapi/overlay-failed` error naming both. A remove deletes each node its target selects from
+the object or array holding it, at Overlay 1.0 a primitive too, since 1.0 has no other spelling for
+removing a primitive member. A YAML alias elsewhere naming a node it removed keeps the value it
+stood for, as a copy, each node of which names as its writer the document that wrote it; a copy that
+would grow the tree past `MaxSourceNodes` refuses the overlay as an `openapi/budget-exceeded` error,
+and one past the attribution walk's node budget as an `openapi/overlay-failed` error. An update
+writes its value into each node its target selects, and a copy writes the one node its `copy`
+selects, as that node stood when the action began:
+
+1. into an object, an object is merged member by member: a member the object lacks is added, a
+   primitive replaces a primitive, an array is concatenated with an array, an object is merged into
+   an object, and any other pair of values is refused;
+2. into an array, an array is concatenated with it, and anything else is appended to it as one
+   element. Overlay 1.0's text says an update to an array is "an entry to append", which the
+   compiler reads as 1.1 does. The two readings give an author different values only where the
+   array's elements are themselves arrays, as in an `examples` list: `[[1, 2]]` updated with
+   `[3, 4]` becomes `[[1, 2], 3, 4]`, where the literal 1.0 reading gives `[[1, 2], [3, 4]]`, which
+   an update of `[[3, 4]]` writes. An array whose elements are not arrays takes no array as one
+   entry, so 1.0 gives the update no other meaning there;
+3. a primitive replaces a primitive, which only an Overlay 1.1 target selects. An Overlay 1.0
+   update selecting one is refused naming both of its spellings: an update of the object holding it,
+   or the overlay declaring 1.1.
+
+Any other write is refused, and so are an Overlay 1.1 update or copy whose targets are not all of
+one kind, a copy whose `copy` selects more than one node, a remove of the document's root, and a
+write into a node the source writes as a YAML alias, whose anchor shares it with every use. Each is
+an `openapi/overlay-failed` error naming the action, at it in the overlay, and the source compiles
+to no Document. A node a target selects twice is written once, and what is written holds no alias: a
+copy is taken of what each alias names. A primitive an action writes over one the source declares,
+rather than adding a value the source lacks, is an `openapi/overlay-replaced-value` info naming both
+values, at the replacing value in the overlay; info, since overriding is a legitimate use, and
+`--fail-on` is a threshold over every code, so a run failing on this one alone needs a rating by
+code. A write over what an earlier action wrote is not reported, nor is an array an action appends
+to, which keeps what the source declares in it. An action that changes nothing is an
+`openapi/overlay-action` warning. An action whose target, or whose `copy`, selects nothing changes
+nothing, as the specification has it. Application is strict unless `Overlay.Lax` is set, and under
+strict such an action refuses the overlay as a likely typo, an `openapi/overlay-failed` error at
+each, once every action has applied; under lax it is an `openapi/overlay-action` warning, and the
+rest of the overlay applies.
+
+The actions read the source's tree as written, not the JSON value the specification applies an
+overlay to: a selector does not read through a YAML alias or a `<<` merge key, and a write inside a
+node an alias names reaches every alias of it. So a source writing an alias or a merge key draws one
+`openapi/overlay-action` warning saying selectors do not read through them, and each action
+changing what a node an alias names holds, by a write into it or below it or a remove from it, draws
+one naming the anchor's line and column and how many aliases name it. A remove of the anchored node
+itself draws none, as each alias keeps the value it stood for. An update writing a `<<` merge key
+into an object the tree holds is warned of too: it merges as written, so the members it names
+replace none the object holds.
+
+Each action is charged the nodes it can build before it runs: one whose charge would carry the tree,
+counted afresh, past `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing
+it would build built, so it is refused while the tree is past the budget whatever a later action
+removes. An action that builds nothing, such as a remove, is applied however large the tree, since
+the budget holds the tree the overlay leaves. The overlay becomes a second entry in
+`Document.Sources`, and every position it introduced or rewrote names the source as its
+`Provenance.Source` and that entry as its `WrittenBy` ([provenance](../ir/provenance.md)), while a
+position it left alone keeps the source's line and column; a finding about the overlay document
+itself names the overlay as its `Source`. Where the walk that attributes positions to the overlay
+runs out of its node budget, the overlay is applied and no position names it as a writer, as with
+no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
+
+- Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-unsupported`,
+  `openapi/overlay-action`, `openapi/overlay-replaced-value`, `openapi/overlay-origin-incomplete`,
+  `openapi/budget-exceeded`
 - Tests: `overlay.TestApply_RejectsAnOverlayItCannotRead`,
+  `overlay.TestRead_AppliesTheVersionsTheCompilerKnowsAtAnyPatch`,
+  `overlay.TestRead_RefusesWhatTheSpecificationRequiresAndTheOverlayLacks`,
+  `overlay.TestRead_RefusesACopyInAnOverlay10Document`, `overlay.TestRead_WarnsOfAFieldWithNoEffect`,
+  `overlay.TestRead_RefusesAnActionSettingBothUpdateAndCopy`,
+  `overlay.TestReadSelector_ReadsEveryTargetAsRFC9535`,
+  `overlay.TestReadSelector_SelectsWithEachKindOfSelector`,
+  `overlay.TestReadSelector_SelectsWhatRFC9535sExamplesSelect`,
+  `overlay.TestReadSelector_RefusesWhatItCannotReadAsRFC9535Does`,
+  `overlay.TestScanSelector_TellsAStringFromTheRest`,
+  `overlay.TestSpelledOtherwise_NamesAFixForEachCharacter`,
+  `overlay.TestGrafter_WritesAnUpdateAsTheSpecificationSays`,
+  `overlay.TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate`,
+  `overlay.TestRemove_TakesTheTargetsOfEachHolderTogether`,
+  `overlay.TestGrafter_AppliesActionsInOrderToWhatTheOnesBeforeLeft`,
+  `overlay.TestGrafter_ReportsAValueTheSourceDeclaresReplaced`,
+  `overlay.TestGrafter_TakesACopyOfTheSourceAsTheActionBegan`,
+  `overlay.TestGrafter_RefusesToWriteThroughAnAlias`,
+  `overlay.TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming`,
+  `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
+  `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
+  `overlay.TestApplyWithin_RefusesARepairPastTheNodeBudget`,
+  `overlay.TestApply_WarnsOfWhatTheSourcesAliasesMakeOfAnAction`,
+  `overlay.TestApply_CountsTheAliasesARemoveLeaves`, `overlay.TestApply_WarnsOfAMergeKeyAnUpdateWrites`,
+  `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
   `e2e.TestCompile_StrictRefusesAnActionThatMatchesNothing`,
-  `overlay.TestApply_StrictReportsAnActionThatChangesNothingWithoutRefusing`,
+  `e2e.TestCompile_LaxWarnsOfAnActionThatMatchesNothing`,
+  `overlay.TestApply_WarnsOfAnActionThatChangesNothingWithoutRefusing`,
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,
+  `overlay.TestAttribute_AllocatesInTheGraftsSizeNotItsPointers`,
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
   `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`
-- Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
-  Open: whether lax application should report an action that matches nothing (#652), how an update
-  merges a nested array (#653), and whether an overlay that replaces a value the source declares is
-  reported (#588).
+- Status: partly built: an overlay selects and writes the source's YAML aliases and `<<` merge keys
+  as the nodes they are, not as the values they stand for, which is warned of and not mended
+  (#1834). A filter comparing a plain date, an integer written in another base or an object compares
+  otherwise than RFC 9535, and the selectors refused as the JSONPath implementation's are applied
+  nowhere (#1835). An Overlay 1.2 document is refused (#1836). Rating
+  `openapi/overlay-replaced-value` apart from other codes, to fail a run on it alone, is #1812.
 
 ### `validation`
 
@@ -440,22 +535,42 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 ### `references`
 
 A `$ref` resolves within the source, as a JSON pointer. One naming another document is read through
-the reader the caller supplies (`compilers.Options.Reader`), against the directory of the source's
-path, each file or URL read once however many references name it, and held to the source's budgets
-and refusals ([`source-budgets`](#source-budgets)), where a document past one fails each reference
-naming it. The read stays inside the directory of the source's path, symbolic links included, and
-follows relative references alone, unless `Options.AllowExternalRefs` lets it reach any file and
-http(s) URLs: a `$ref` naming a document by a `file:` URI, or one other than the source by an
-absolute path, fails unread, whatever another `$ref` names that document by. Each is judged by its
-own spelling, so what the default reads depends neither on how the working directory is spelled nor
-on the order references are read in. In either mode a `$ref` naming a URL whose scheme is none of
-`http`, `https` and `file` fails unread, where a reader would take it for a path against the working
-directory; a file whose name holds a colon is written `./a:b.yaml`. A document outside fails each
-reference naming it, and with no reader no document is read.
+the reader the caller supplies (`compilers.Options.Reader`), each file or URL read and charged once
+however many references name it, by every spelling naming that one document (below), and held to the
+source's budgets and refusals ([`source-budgets`](#source-budgets)), where a document past one fails
+each reference naming it. Its document part is read against the document writing it, by RFC 3986
+§5.2, and the source's against where the source lies: the absolute path `compilers.Source.Location`
+names, which the engine sets with the symbolic links of the spec's directory resolved, or the
+source's `Path` where it is unset. Every file a compile names at an absolute path, the source
+included, lies where the reader places its directory (`compilers.DirectoryLocator`), its links
+resolved, so a file reached through a link to its directory and through the directory itself is one
+document. The working directory is never read, so what a reference names depends on no spelling of
+it, nor on how the spec was named, and a relative path names the file an absolute one does only
+where the source lies at an absolute path. A file's part is percent-decoded,
+so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
+escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
+path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+absolute path and a network-path reference among them, names what the document's URL makes of it, on
+the network. A reference written in a document read over http(s), the source included, is read
+only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
+`$id`, a draft 4 `id` or the source's `$self` moves onto one, fails unread where it is written, and
+the rest of the document is read. The read stays inside the directory the source lies in, symbolic
+links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
+reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
+or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
+by its own spelling, so what the default reads depends on no order references are read in. In either
+mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
+reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
+read as that file. A document outside fails each reference naming it, and with no reader no document
+is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
-ordered by its location from the source's directory, and what it declares lowers there, as the
-source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
+ordered by its location: its path from the directory the source lies in, or where no relative path
+reaches it, as from a source lying at a relative path to an absolute one, its own path. Its entry's
+path is that location joined to the directory of the source's `Path`, so a spec named relatively
+lists the documents beside it relatively, the `..` segments climbing out of that directory kept, as a
+link may place it elsewhere than cleaning them away would. What it declares lowers there, as
+the source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
 request body, response, header, example, callback, path item, security scheme or media type a
 reference brings in, with the schemas inline in it. A reference object written in what another
 document brings in is resolved against that document, as the source's are against the source, and
@@ -508,16 +623,12 @@ key of no schema vocabulary hold schemas, and within one a keyword reads as it d
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
-it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
-`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
-or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
-check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
-refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
-name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
-dialect rather than to the rule table's 2020-12 row; one
-beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
-every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
-a value is one. A schema another holds roots a resource where it writes an identifier as the
+it `id`, its `$id` then naming nothing. In drafts 4, 6 and 7 one naming a fragment alone, `#name`,
+declares that plain name as an `$anchor` does, which is why the load phase holds an `$id`'s format
+to the schema's dialect rather than to the rule table's 2020-12 row; one beside a `$ref` gives it no
+base, roots no resource and declares no name, as those drafts ignore every keyword there;
+`definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
+schema another holds roots a resource where it writes an identifier as the
 dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
@@ -629,6 +740,19 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
   `e2e.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `e2e.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
+  `e2e.TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `resolve.TestLocate`,
+  `resolve.TestForResolver`, `resolve.TestFilePart`, `resolve.TestFileOf`, `resolve.TestSameDocument`,
+  `resolve.TestPlaces_PlacesAFileWhereItsDirectoryLies`,
+  `load.TestEscapes_RespellsADocumentPartTheResolverReadsOtherwise`,
+  `load.TestExternal_DoHoldsTheSourceAFileURINames`, `load.TestLoad_RejectsARelativeLocation`,
+  `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
+  `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`,
+  `load.TestEscapes_RefusesALocalReferenceOfANetworkDocument`,
+  `load.TestExternal_ASourceReadOverTheNetworkReadsNoFile`, `bind.TestReachable`,
+  `load.TestLoad_AFileURIAndAPathAreOneDocument`, `e2e.TestCompile_AFileNamedLikeAURLIsReadAsAFile`,
   `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
   `e2e.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
@@ -681,21 +805,18 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
   `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An absolute-path `$ref` in a remote document is read as a local path (#936); a remote
-  document can make the compiler request a private address (#937); and a remote document reaching a
-  local file is refused naming only its last such `$ref` (#940). A reference object's pointer
-  holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
-  object's message ends in the resolver's own wording, unless its chain ends on a position holding
-  no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
-  chain of documents each declaring the URI the one before it asked for costs a binding pass per
-  link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
-  it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
-  second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
-  JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
-  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
-  in the length of a chain of reference objects, each naming the next (#1468).
+  (#604). A remote document can make the compiler request a private address (#937). A reference
+  object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
+  unresolved reference object's message ends in the resolver's own wording, unless its chain ends on
+  a position holding no object of its kind (#809). A chain of documents each declaring the URI the
+  one before it asked for costs a binding pass per link (#1372). A reference object reaching raw
+  YAML of the source leaves the references inside what it reaches unresolved (#1320), and one
+  whose pointer ends in `/` declares what it reaches at a second pointer (#1330). A reference
+  object whose `$ref` is a scalar under a tag outside YAML's JSON schema ruleset, which the model
+  decodes no string from, lowers nothing, and nothing reports it (#1368). A schema `$ref` whose
+  pointer passes through a reference object's alias lowers what it reaches a second time, at the
+  pointer it spells (#1359). The parser's resolver takes time cubic in the length of a chain of
+  reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
@@ -754,7 +875,10 @@ and is reported, as for every construct a later minor added, with an
 - Cases: `self-uri`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestCompile_RecordsSelfURI`
-- Status: partly built: `$self` is the base URI for some references and not others (#863).
+- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
+  every relative reference in every document. A document a reference reaches has its `$self`
+  ignored, and the source's, read as written, is the base of its reference objects alone, not of
+  its schema `$ref`s or mapping values (#863).
 
 ### `verbatim-preservation`
 
@@ -1109,7 +1233,8 @@ declaration that owns it.
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
 keyword states no message, version, date or replacement, which only
 [`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
-where no keyword does. An operation, and a
+where no keyword does; a replacement the message it supplies names is read too
+([`replacement-inference`](#replacement-inference)). An operation, and a
 tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
 beside its `description` and `externalDocs`; a response and an error case take `description` and
 `summary` ([`response-summary`](#response-summary)); a request
@@ -1130,6 +1255,55 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
   `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
+
+### `replacement-inference`
+
+The replacement policy, `Options.ReplacementInference` and the text option `replacement-inference`
+([`policies`](#policies)), reads what a deprecation's message names as its replacement into
+`Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)). It reads the message
+[`extension-promotion`](#extension-promotion) fills on three classes of deprecated node, each where
+no key the promotion maps to `deprecation.replacedBy` is written beside it, and reports a message
+naming a replacement it cannot settle as an info `openapi/undecided-replacement`:
+
+1. An operation's message names an operation by its route: a word that is a method an operation of
+   the document is bound with, a backtick or a parenthesis before it aside, then, after white
+   space, a path starting `/`, in a code span or out of one, up to white space or a backtick. So
+   `` Use `POST /v2/zones` instead. ``, ``the GET `/v2/zones` endpoint`` and
+   `Use GET /v2/zones before 2026-11-28.` each name a route. A route names the operation whose
+   binding has that method and that path template as written, or, naming none, with the
+   punctuation a sentence puts after a path (`.`, `,`, `;`, `:`, `!`, `?`, `)`) cut from its end.
+2. A parameter's message names, in each code span, a parameter of its operation, as a replacement
+   key names one: `<in>.<name>`, or a name one parameter carries.
+3. A model member's message names, in each code span, a member of its model by name, a member the
+   model's composition flattens in among them, as a replacement key names one.
+
+A code span is read as CommonMark reads one. The policy's trigger is a message naming an entity of
+the node's class other than the node: one naming none, or the node alone, fills nothing and is not
+reported, since prose naming something else is no defect. Where it names one, the names fill the
+field all or none, the node itself passed over and a repeat kept once: a name naming no entity, or
+several, leaves the field unset, reported at the node, quoting the first such name. The message
+keeps its prose either way. The words around a name are not read, so a message naming a declared
+entity for another reason, as ``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does,
+fills the field with it, and a document whose messages write so is compiled with the policy off. The
+reading runs once the document is whole, as a replacement may be declared after what it replaces. A
+Markdown link's title is display text and its URL a page of documentation, neither naming an entity
+the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
+message, where no measured document names a replacement such a scope resolves. On the golden spec
+(spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
+document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to the
+prefix the document mounts it under, which names no route as written, and 146 a link, and take
+nothing; 2 parameters and 32 members take the sibling a code span names. Each of the 59 is the
+replacement its message tells a caller to use, and no message is reported.
+
+- Cases: `replacement-inference`
+- Codes: `openapi/undecided-replacement`
+- Tests: `replacement.TestMessage_AnOperationsNamesItsReplacementByRoute`,
+  `replacement.TestMessage_ARouteTwoOperationsShareNamesNone`,
+  `replacement.TestMessage_AMembersAndAParametersNameSiblingsInCode`,
+  `replacement.TestMessage_ANameTwoParametersCarryIsReported`,
+  `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
+  `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `disjoint-visibility`
 
@@ -3049,6 +3223,39 @@ property, header or parameter that owns none, as `Secret`, inherited from a `$re
 - Tests: `operation.TestParams_SchemaRedactionReachesTheParameter`,
   `operation.TestParams_SchemaRedactionStaysOnANode`
 
+### `secret-inference`
+
+The secret policy, `Options.SecretInference` and the text option `secret-inference`
+([`policies`](#policies)), redacts a value whose name says it is a credential where the document
+asks nothing about its redaction. A parameter, a header of a response or of an encoding, or a
+model's member is `Secret` where its name's canonical words, a number after them aside, end in
+`password`, `passwd`, `passphrase`, `secret` or `apikey`, in `pass` followed by `phrase`, in `api`,
+`access`, `secret` or `private` followed by `key`, or in `access`, `refresh`, `auth`, `bearer`,
+`session` or `api` followed by `token`, or are `authorization` or `proxy` `authorization` alone, the
+fields whose value RFC 9110 defines as credentials (§11.6.2, §11.7.2), and its type reads, through
+its scalars, as `string` or `bytes`. A name's last words decide what it names, so `secret_id`,
+`R2-Access-Key-Id`, `page_token` and `payment_authorization` name no credential while `password2`
+and `passPhrase` name one, and `token` alone names none, since one API calls a credential so and
+another a unit of text; a value of another type, as `has_password: {type: boolean}` or a `secret`
+object holding a credential's parts, is none either. Such a name on such a type is the policy's
+trigger, and it declines nothing that meets it: the document has spoken where the use is already
+`Secret` or its type `Sensitive` ([`password`](#password)), and where a redaction key the promotion
+maps is written on the use or on a node its type reads through, so `x-sensitive: false` keeps a
+credential's name from asking. What it fills the document leaves silent, so nothing is reported. The
+reading waits for the document to be whole, since a `$ref` can name a type built after its use. On
+the golden spec, of the 123 uses its words and types match, the document redacts 93 itself, and the
+policy marks the other 30: the 2 `R2-Secret-Access-Key` header parameters and 28 members, 17
+`authorization`, 4 `client_secret`, 3 `password`, 2 `secret_access_key`, a `build_token_secret` and
+an `r2_secret`. One of the `password` members, a leaked-credential detection's, holds the ruleset
+expression that finds a password in a request rather than a password, which its name cannot tell
+apart (spec @86556f6f).
+
+- Cases: `secret-inference`
+- Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
+  `convention.TestRedact_LeavesWhatTheDocumentSays`, `convention.TestRedact_ReachesEveryUse`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+
 ### `whole-schema-fallbacks`
 
 Two whole-schema fallbacks answer to a compiler's own limits rather than to anything about the
@@ -3802,6 +4009,41 @@ call, not a compiler's, and the diagnostic lets an emitter suppress it.
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`
 
+### `idempotency-inference`
+
+The idempotency policy, `Options.IdempotencyInference` and the text option `idempotency-inference`
+([`policies`](#policies)), reads an operation's idempotency token off the header its key travels
+in. Its trigger is a header parameter named `Idempotency-Key`, compared without case, the field the
+IETF HTTPAPI working group's Idempotency-Key draft defines for a caller's key; no other spelling is
+read, as no other header carries a key on the golden spec or in 1,840 public OpenAPI 3 documents,
+and the one other parameter the golden spec names for one, the query parameter `idemp_key` of
+`POST /accounts/{account_id}/bulk/subscriptions`, abbreviates the name and describes nothing. An
+operation bound by `POST`, `PUT`, `PATCH` or `DELETE`, the methods among OpenAPI's fixed fields that
+RFC 9110 does not define as safe (§9.2.1), that states no idempotency of its own and binds exactly
+one such header takes an `Idempotency` of the `idempotency_token` kind whose `TokenParam` names that
+parameter ([operations](../ir/operations.md)), with no report, as the document leaves the field
+silent. An operation a webhook or a callback declares takes its token too: the API sends that
+request, and the key tells its receiver a delivery it has seen.
+
+A safe method needs no key, and its binding already states what a token would, the plan reading the
+operation as safe off it, so the document has spoken: `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY`
+take no token and draw no report. Two cases meet the trigger and decline it, each reported as an
+info `openapi/undecided-idempotency` at the operation, saying why, the operation keeping the
+idempotency it states, which is none: a method only an `additionalOperations` entry declares, whose
+safety the compiler does not know, and two header parameters of that name, which can differ only in
+case and so name no one token. On the golden spec it names the token of the 6 operations declaring
+the header, 5 `POST` and a `PUT`, and reports none: 4 describe it as what makes a retry safe or keeps
+a request from applying twice, and 2 as a client command key whose reuse for another request is
+refused with a `409`, as a reused idempotency key is (spec @86556f6f).
+
+- Cases: `idempotency-inference`
+- Codes: `openapi/undecided-idempotency`
+- Tests: `convention.TestIdempotency_TheKeyHeaderIsTheToken`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`,
+  `convention.TestIdempotency_DisabledReadsNoToken`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+
 ### `querystring`
 
 3.2's `in: querystring` lowers to the `querystring` location, the parameter binding the whole query
@@ -4230,6 +4472,36 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
   (#635); and a `style` or `explode` beside a header's `content`, where they have no effect, lowers
   in silence, as a parameter's does (#887).
 
+### `http-date-inference`
+
+The HTTP-date policy, `Options.HTTPDateInference` and the text option `http-date-inference`
+([`policies`](#policies)), gives a response header the text its field's definition gives a date. A
+header of a response, an error case or the default, naming one field, whose name, compared without
+case, is a field an RFC defines as an HTTP-date, or as one in its date form, `Date`,
+`Last-Modified`, `If-Modified-Since`, `If-Unmodified-Since`, `Retry-After` and `If-Range` (RFC 9110
+§6.6.1, §8.8.2, §13.1.3, §13.1.4, §10.2.3, §13.1.5), `Expires` (RFC 9111 §5.3) and `Sunset` (RFC
+8594 §3), and whose type reads, through its scalars, as the `datetime_offset` `format: date-time`
+lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the header, as the media type
+of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
+`http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
+a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
+declines nothing that meets it. It is an override of that one use, so a component a `$ref` names
+keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
+reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
+definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
+and is not read. On the golden spec one header is read, the `Last-Modified` of
+`GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
+HTTP-date (spec @86556f6f).
+
+- Cases: `http-date-inference`
+- Codes: `openapi/inferred-http-date`
+- Tests: `convention.TestHTTPDate_AFieldItsRFCDefinesAsADate`,
+  `convention.TestHTTPDate_ReadsEveryResponseAndNoPart`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: partly built: a header parameter so declared, which an SDK writes, keeps RFC 3339's text,
+  as a parameter has no encoding of its own and a scalar hoisted to type it would sit at a pointer
+  a `$ref` can name (#1799).
+
 ### `links`
 
 A response's `links` lower to `Links` on the `Response`, the `ErrorCase` or the `Default` that
@@ -4538,6 +4810,57 @@ kept and reported as a written one is.
   `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
   (#396).
+
+### `policies`
+
+A fact the compiler fills by policy rather than reads off a keyword (invariant 6) is filled under
+one model, which each policy's rule cites rather than restates: a promotion's
+([`extension-promotion`](#extension-promotion)) and each inference's, as
+[`discriminator-inference`](#discriminator-inference) and
+[`idempotency-inference`](#idempotency-inference) are. Grouping
+([`tag-groups`](#tag-groups), [`extension-groups`](#extension-groups)) is outside it, since it picks
+how operations are arranged rather than filling a fact a node holds.
+
+1. **Injection.** Each policy is one field of `Options`, a struct whose zero value is the policy
+   switched on and whose `Disabled` switches it off, with a data member, such as the promotion's
+   `Targets` or a list of media types, only where a caller sets one. Each policy also has a text
+   option, a row of the compiler's one table of switches, spelled as the marker the policy leaves,
+   which `false` turns off.
+2. **Marking.** A fact is of one of three classes, which the `Inferred` list beside it tells apart
+   ([promotion](../ir/unmodeled.md#promotion)): declared by a keyword, with no marker; promoted from
+   an extension the document writes, marked `extension-promotion` on the node keeping the
+   extension; or inferred from a convention, marked on the node holding it by a name for the fact
+   in the form `<fact>-inference`, as `secret-inference` is. A flag a fact carries of its own, as
+   `Pagination.Inferred` and `Discriminator.Inferred` are, says only that no keyword declared it,
+   and the list says which of the other two classes filled it.
+3. **Precedence.** Where several state a fact, a keyword decides first, then a promotion, then an
+   inference; what a keyword's value states beside a promotion's key is the promotion's rule, as
+   [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference,
+   the document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's
+   target, whatever its value: a value filled, one that failed to resolve, and an explicit `false`
+   each keep the inference from filling that fact.
+4. **Reports.** An inference filling a field the document leaves silent reports nothing. One whose
+   reading replaces what the document writes, as an HTTP-date replaces the RFC 3339 text a written
+   `date-time` names, reports an info `openapi/inferred-<fact>`. One whose trigger, the evidence its
+   rule reads, is met where the document has not spoken, and which then declines to fill the fact,
+   reports an info `openapi/undecided-<fact>` saying why.
+5. **Placement and order.** A fact read once the document is whole is read in a package named for
+   the fact or for the convention, which imports only `ir` and the compiler's `diag` and
+   `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
+   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, then
+   the audits of what the policies read, so an inference sees what every promotion filled. A reading
+   a node needs while it lowers, as nullable widening's ([`nullable`](#nullable)), or while the
+   registry settles, as discriminator inference's, is made there instead.
+
+- Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: partly built: the promotion has no text option (#658), and nothing audits what the
+  policies read (#657); no policy fills `Pagination` (#989); and the streaming and binary policies
+  mark `streaming-media-type` and `binary-media-type`, which their options `streaming-inference`
+  and `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name
+  for the reading rather than the fact (#1847).
 
 ### `extension-promotion`
 

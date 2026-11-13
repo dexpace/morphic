@@ -15,7 +15,7 @@ import (
 // included to ir.MaxGroupDepth, of its parameters, and of the headers its
 // responses and its bodies' encodings declare.
 func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
-	ops := operations(svc)
+	ops := lowering.Operations(svc)
 	byName := map[string][]ir.OpID{}
 	for _, op := range ops {
 		if name := op.Name.Source; name != "" {
@@ -76,11 +76,7 @@ func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
 
 // params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
-	ix := lowering.IndexParams(op)
-	param := func(name string) (ir.EntityRef, int) {
-		id, matched := ix.Named(name)
-		return ir.EntityRef{Param: id}, matched
-	}
+	param := paramFinder(op)
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {
 		p := &op.Params[i]
@@ -89,28 +85,16 @@ func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
 	return diags
 }
 
-// operations returns every operation svc holds, nested groups included, to
-// ir.MaxGroupDepth.
-func operations(svc *ir.Service) []*ir.Operation {
-	type level struct {
-		groups []ir.OperationGroup
-		depth  int
-	}
-	var ops []*ir.Operation
-	stack := []level{{groups: svc.Groups}}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
+// paramFinder returns what finds a parameter of op by name, as a link's key
+// names one (lowering.ParamIndex.Named). op's parameters are indexed once,
+// where a name is first looked for.
+func paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
+	var ix *lowering.ParamIndex
+	return func(name string) (ir.EntityRef, int) {
+		if ix == nil {
+			ix = new(lowering.IndexParams(op))
 		}
-		for gi := range top.groups {
-			g := &top.groups[gi]
-			for oi := range g.Operations {
-				ops = append(ops, &g.Operations[oi])
-			}
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
-		}
+		id, matched := ix.Named(name)
+		return ir.EntityRef{Param: id}, matched
 	}
-	return ops
 }
