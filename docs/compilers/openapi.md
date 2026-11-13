@@ -2258,8 +2258,8 @@ carrier of a property, parameter or header, and on an alias hoisted at any other
 A `oneOf` or `anyOf` whose every branch is a null branch
 ([`union-null-variant`](#union-null-variant)) admits what a schema of `null` alone admits, so it
 lowers as one does at that position, to an `Enum` with no member behind a nullable reference
-([`null-alone`](#null-alone)). The `Enum` carries no branch set, so the combinator, and
-the other one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
+([`null-alone`](#null-alone)). The `Enum` carries no branch set, so the combinator, and the other
+one too where both are written, is kept verbatim under `openapi:oneOf` or `openapi:anyOf`
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, and what else the
 schema writes that the `Enum` has no field for is kept by the census, as beside a schema of `null`
 alone.
