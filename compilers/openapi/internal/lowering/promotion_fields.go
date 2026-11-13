@@ -51,10 +51,10 @@ func AllowReserved(p Promoter, unmodeled ir.Unmodeled, prov *ir.Provenance) (boo
 
 // TokenEndpointAuthMethods reads from unmodeled, an OAuth flow's, the ways a
 // client authenticates to its token endpoint, by p's sources of
-// TargetTokenEndpointAuthMethods, and marks inferred when it returns any. A string is one method and a list of
-// strings several; a list holding empty text or a method twice is a misfit, as
-// the field is a set of names, and so is any other value. Nothing checks a
-// method against the registry, which is open.
+// TargetTokenEndpointAuthMethods, and marks inferred when it returns any. A
+// string is one method and a list of strings several; a list holding empty
+// text or a method twice is a misfit, as the field is a set of names, and so is
+// any other value. Nothing checks a method against the registry, which is open.
 func TokenEndpointAuthMethods(p Promoter, unmodeled ir.Unmodeled, inferred *ir.Inferred) ([]string, []ir.Diagnostic) {
 	if inferred == nil {
 		return nil, nil
