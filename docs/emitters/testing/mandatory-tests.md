@@ -162,19 +162,16 @@ throughout these documents.
     both orders of their units' packages. The fixture also names a property, a parameterless method,
     a `suspend` method and an enum entry after every member of the table of `NSObject`'s, `dealloc`,
     `zone`, `hash`, `self`, `load`, `copy`, AppKit's `accessibilityIsIgnored` and UIKit's
-    `accessibilityLabel` among them, a method of one parameter after each of
-    its one-parameter selectors (`responds(toSelector:)`), a method and an entry after a name of
-    each method family, and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion
-    object: the header builds a module, a Swift caller importing the platform's UI framework reads
-    each property's own value, calls each
-    method and reaches each entry by the name the policy chose, which is the name the header gives
-    it, a property `value`, one `version`, a method `hashValue()` and an entry `HASH_VALUE` keep
-    their names, `hash`,
-    `copy()` and `responds(to:)`
-    on a model still answer as `NSObject`'s, and that enum's `entries`, `values()` and `companion`
-    as its own, and the table equals what that document's commands read from each SDK the options
-    version names, Foundation's selectors, AppKit's and UIKit's and `hashValue` alike
-    ([Swift](../targets/kotlin/swift.md)).
+    `accessibilityLabel` among them, a method of one parameter after each of its one-parameter
+    selectors (`responds(toSelector:)`), a method and an entry after a name of each method family,
+    and entries `ENTRIES`, `VALUES` and `COMPANION` of an enum with a companion object: the header
+    builds a module, a Swift caller importing the platform's UI framework reads each property's own
+    value, calls each method and reaches each entry by the name the policy chose, which is the name
+    the header gives it, a property `value`, one `version`, a method `hashValue()` and an entry
+    `HASH_VALUE` keep their names, `hash`, `copy()` and `responds(to:)` on a model still answer as
+    `NSObject`'s, and that enum's `entries`, `values()` and `companion` as its own, and the table
+    equals what that document's commands read from each SDK the options version names, Foundation's
+    selectors, AppKit's and UIKit's and `hashValue` alike ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -713,8 +710,8 @@ throughout these documents.
     optional position takes, a box, a map, a slice and a pointer left nil, a nil pointer to a type
     declaring `IsZero` on its value and one declaring it on its pointer among them, and a number
     under implicit presence, written and left out exactly as a plain field of its type and tag is,
-    never panicking; a raw
-    body holding one is never logged or printed ([redaction](../refine/redaction.md)).
+    never panicking; a raw body holding one is never logged or printed
+    ([redaction](../refine/redaction.md)).
 44. **T-44 · Stability** — an operation's own tier, its nearest group's when it states none, and
     none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a `beta`
     operation's documentation names its tier and what it means on every target, an unstated one
@@ -1150,45 +1147,43 @@ throughout these documents.
     configuration sets for one operation, through a recursive model's member, its list and its map,
     through an `any` position, through a union read as the target's JSON value, a union whose
     variant is a union, an inclusive union and a model with a catch-all, and through a model of 200
-    members, each reach
-    the caller as a body that does not decode, the status and the bytes kept, on a thread with the
-    smallest stack its target names, 256 KB on the JVM and 512 KB on Kotlin/Native, and never as a
-    crash or a stack overflow; a body at the limit decodes through each, and the value then encodes,
-    prints, hashes, compares and validates on that thread, Kotlin/Native working on the calling
-    thread where the depth times its type's cost and 32 KB fit in what that thread has left, and on
-    a thread it starts otherwise, from a 64 KB thread, from a caller that leaves 60 KB of its own
-    stack at every depth from 1 to the limit, where a runtime reading the thread's size in place of
-    what is left ends the process at 14 levels in a debug build, and from the main thread, where a
-    hash of a value
-    two levels deep of a 200-member type starts none, a decode failing on a started thread reaching
-    the caller as that failure; on JS and on Wasm under node, where nothing is read and no thread
-    started, a body at the limit decodes through each and its value encodes, prints, hashes and
-    compares, and a JS decode that overflows below a caller deep in its own stack reaches it as a
-    body that does not decode, the next call decoding; a body holding one value more than
-    `Nesting.MaxValues` is refused the same way and one holding that many decodes, a member's name
-    counting none; an opening bracket inside a string counts for nothing, a string ending in an
-    escaped backslash among them, the value after it nested past the limit still refused; a value a
-    caller builds past the limit is refused by the client's encoder, nothing sent, and prints,
-    hashes, compares and validates without recursing into it, on Kotlin/Native on a 64 KB stack; a
-    value a caller builds that holds one child twice at each of 60 levels is refused by the encoder
-    once it has written `Nesting.MaxValues` values, prints in Go as far as that many values and then
-    `...` and fails Go's `Validate` after as many, and in Kotlin prints its class, depth and count
-    alone, hashes as its depth, equals only itself and fails `validate()`, each within a time bound
-    no walk of 2^60 values meets, which a hash or a check reading the depth alone fails; a value
-    past either limit fails Go's `Validate` with an error answering `errors.Is` for
-    `runtime.ErrNesting` and Kotlin's `validate()` with a failure whose `nesting` is true, read from
-    a Swift caller too, one held in an inclusive union's set field beside a field that passes among
-    them, in either order of the fields, a constraint's failure answering neither, alone or, in Go,
-    beside one that does; a value failing 1,001 checks reports 1,000 and that there were more, and
-    one failing 1,000 beside an inclusive union whose passing field drops the others' failures says
-    nothing more; in
-    Go a value holding itself through a pointer, a slice and a map is refused by the encoder, fails
-    `Validate` at the limit, its type in another package than the one holding it, and is printed by
-    `String`, `GoString`, `LogValue` and every `fmt` verb to the limit and no further, and no
-    generated field carries a `validate` tag, which a reflection validator would follow past it; a
-    Kotlin model built from a list its caller then changes keeps its members and its hash; and a
-    `Nesting.MaxDepth` a target cannot hold to, one above 64 on Multiplatform, is reported and none
-    is read to another depth ([models](../refine/models.md#how-deep-a-value-nests)).
+    members, each reach the caller as a body that does not decode, the status and the bytes kept, on
+    a thread with the smallest stack its target names, 256 KB on the JVM and 512 KB on
+    Kotlin/Native, and never as a crash or a stack overflow; a body at the limit decodes through
+    each, and the value then encodes, prints, hashes, compares and validates on that thread,
+    Kotlin/Native working on the calling thread where the depth times its type's cost and 32 KB fit
+    in what that thread has left, and on a thread it starts otherwise, from a 64 KB thread, from a
+    caller that leaves 60 KB of its own stack at every depth from 1 to the limit, where a runtime
+    reading the thread's size in place of what is left ends the process at 14 levels in a debug
+    build, and from the main thread, where a hash of a value two levels deep of a 200-member type
+    starts none, a decode failing on a started thread reaching the caller as that failure; on JS and
+    on Wasm under node, where nothing is read and no thread started, a body at the limit decodes
+    through each and its value encodes, prints, hashes and compares, and a JS decode that overflows
+    below a caller deep in its own stack reaches it as a body that does not decode, the next call
+    decoding; a body holding one value more than `Nesting.MaxValues` is refused the same way and one
+    holding that many decodes, a member's name counting none; an opening bracket inside a string
+    counts for nothing, a string ending in an escaped backslash among them, the value after it
+    nested past the limit still refused; a value a caller builds past the limit is refused by the
+    client's encoder, nothing sent, and prints, hashes, compares and validates without recursing
+    into it, on Kotlin/Native on a 64 KB stack; a value a caller builds that holds one child twice
+    at each of 60 levels is refused by the encoder once it has written `Nesting.MaxValues` values,
+    prints in Go as far as that many values and then `...` and fails Go's `Validate` after as many,
+    and in Kotlin prints its class, depth and count alone, hashes as its depth, equals only itself
+    and fails `validate()`, each within a time bound no walk of 2^60 values meets, which a hash or a
+    check reading the depth alone fails; a value past either limit fails Go's `Validate` with an
+    error answering `errors.Is` for `runtime.ErrNesting` and Kotlin's `validate()` with a failure
+    whose `nesting` is true, read from a Swift caller too, one held in an inclusive union's set
+    field beside a field that passes among them, in either order of the fields, a constraint's
+    failure answering neither, alone or, in Go, beside one that does; a value failing 1,001 checks
+    reports 1,000 and that there were more, and one failing 1,000 beside an inclusive union whose
+    passing field drops the others' failures says nothing more; in Go a value holding itself through
+    a pointer, a slice and a map is refused by the encoder, fails `Validate` at the limit, its type
+    in another package than the one holding it, and is printed by `String`, `GoString`, `LogValue`
+    and every `fmt` verb to the limit and no further, and no generated field carries a `validate`
+    tag, which a reflection validator would follow past it; a Kotlin model built from a list its
+    caller then changes keeps its members and its hash; and a `Nesting.MaxDepth` a target cannot
+    hold to, one above 64 on Multiplatform, is reported and none is read to another depth
+    ([models](../refine/models.md#how-deep-a-value-nests)).
 64. **T-64 · The runtime's surface** — on every target, a caller's program built outside the SDK, as
     another Go module, another Gradle build and a Swift file against the framework, compiles while
     it uses the client, a sub-client's method, the failure value, a stream and an event, and fails

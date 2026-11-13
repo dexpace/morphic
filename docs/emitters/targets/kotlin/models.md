@@ -168,12 +168,12 @@ call and the text are theirs.
 
 A value a caller builds can nest past the limit, and on Native printing one would end the process as
 decoding one would. So every model, union wrapper, inclusive union's class and positional class
-records, when it is constructed, how deep its JSON form nests, one more than its deepest member's,
-a wrapper and an inclusive union's class adding no level of their own, in `jsonDepth`, a member
-marked `@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime));
-the record holds because a built value never changes (above). Nothing recurses into a value past the
-limit: the client refuses to encode it, with an error and nothing sent, `toString` shows its class
-and its depth alone, `equals` compares the depths first and holds such a value equal only to itself,
+records, when it is constructed, how deep its JSON form nests, one more than its deepest member's, a
+wrapper and an inclusive union's class adding no level of their own, in `jsonDepth`, a member marked
+`@InternalSdkApi` ([the runtime](overview.md#what-a-caller-reaches-of-the-runtime)); the record
+holds because a built value never changes (above). Nothing recurses into a value past the limit: the
+client refuses to encode it, with an error and nothing sent, `toString` shows its class and its
+depth alone, `equals` compares the depths first and holds such a value equal only to itself,
 `hashCode` is then its depth, and `validate()` reports it as nested past the limit: it returns its
 failures, none for a value that passes, the first 1,000 and then one naming the check `maxFailures`
 where it found more (one sharing each child at 22 levels, its every node failing two constraints,
@@ -187,10 +187,10 @@ form holds, the sum of its members' and one for itself, none for a wrapper or an
 class, held at the greatest `Int` once past it, and a value past `MaxValues` is treated the same
 way, its count shown beside its depth: one sharing each child at 22 levels, 16,777,214 values,
 printed, hashed, compared and was found in a set in 0.9 s, and one at 30 levels answered all four in
-68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native
-2.4.0, a value 200,002 levels deep printed, hashed, compared and was found in a set on a 64 KB
-stack, where the same nesting with no record ended the process on 512 KB. Both Kotlin targets do
-this. On the JVM a `MaxDepth` raised past what a thread's stack takes still leaves a value within it
-the `StackOverflowError` any deep structure meets there, which its caller can catch. A count kept in
-a thread-local as each method recurses would bound them too, at two reads of it for every nested
-value hashed. T-63 holds these.
+68 µs, equal only to itself (Kotlin 2.4.0, JVM 25). Measured on Kotlin/Native 2.4.0, a value 200,002
+levels deep printed, hashed, compared and was found in a set on a 64 KB stack, where the same
+nesting with no record ended the process on 512 KB. Both Kotlin targets do this. On the JVM a
+`MaxDepth` raised past what a thread's stack takes still leaves a value within it the
+`StackOverflowError` any deep structure meets there, which its caller can catch. A count kept in a
+thread-local as each method recurses would bound them too, at two reads of it for every nested value
+hashed. T-63 holds these.

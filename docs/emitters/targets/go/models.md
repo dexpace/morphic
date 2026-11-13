@@ -99,16 +99,16 @@ them, under `omitzero`, under `omitzero,omitempty` and under neither, the two wr
 each time. Asking `T`'s `IsZero` of a nil pointer or interface panicked where the plain field wrote
 `{}`, and an `IsZero` answering only for a `T` that declares one differed in 21 of the 123 writes,
 `SecretOf(int64(0))` writing `"pin":0` under the implicit tag and a nil map `"tags":{}` (Go 1.27.3).
-A function is the one kind `fmt` prints as an address however it is asked.
-A pointer was built first: one to a list, a struct or a map is followed once under a verb `fmt` has
-no pointer form for, `%s` among them, and printed a `*[]string`'s secret in 216 of the same
-renderings, where `Secret` held it in none, nor did a failure holding the model. The costs are a
-function's: a caller wraps the value it would otherwise write, `runtime.SecretOf(v)` with `v` an
-`Opt[string]` for `password`, and reads `.Value()`; two models holding equal secrets are unequal to
-`reflect.DeepEqual`, and `==` does not compile on one, so a test compares through `Equal`, which
-go-cmp asks; and a member a document starts or stops marking changes type, a break for its callers,
-as a reference joining a cycle does ([recursive references](#recursive-references)). A value a
-caller takes out with `Value` is its own and renders as Go renders it. T-43 holds this section.
+A function is the one kind `fmt` prints as an address however it is asked. A pointer was built
+first: one to a list, a struct or a map is followed once under a verb `fmt` has no pointer form for,
+`%s` among them, and printed a `*[]string`'s secret in 216 of the same renderings, where `Secret`
+held it in none, nor did a failure holding the model. The costs are a function's: a caller wraps the
+value it would otherwise write, `runtime.SecretOf(v)` with `v` an `Opt[string]` for `password`, and
+reads `.Value()`; two models holding equal secrets are unequal to `reflect.DeepEqual`, and `==` does
+not compile on one, so a test compares through `Equal`, which go-cmp asks; and a member a document
+starts or stops marking changes type, a break for its callers, as a reference joining a cycle does
+([recursive references](#recursive-references)). A value a caller takes out with `Value` is its own
+and renders as Go renders it. T-43 holds this section.
 
 ## A shape that is an alias
 

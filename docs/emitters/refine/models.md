@@ -150,19 +150,19 @@ counting one and a member's name none. A text holding more is refused as one nes
 read or written, and no target visits more values than that, or more levels than `MaxDepth`, to
 print, hash, compare or validate one, each saying what its caller then sees. What validation reports
 for a value past either limit carries a declared kind no constraint's failure has, so a caller tells
-the two apart without reading a message. Such a value fails validation whatever else it reports,
-one held in a set field of an inclusive union beside a field that passes too, since a model, a
-union and its wrapper, an inclusive union and a positional type each descend through one shared
-walk state on Go, an inclusive union into every set field, and record their depth and count on
-Kotlin. A position several set fields of an inclusive union hold is counted once for each, so a
-union holding itself through two fields set together would double the count at each level its text
-adds, which no value of the golden spec can: its one inclusive union with two fields leading back to
-it is a JSON value's object and array, never set together (spec @bc6fad24, morphic @fa253fe19).
-Validation keeps the first 1,000 failures it finds, past the 151 checks a value of the golden spec's
-most constrained type reaching no cycle carries with one entry in each list and map and one variant
-of each union, and its report says when it found more, so what it holds is bounded as its walk is. A
-cap on the printed form alone was the alternative, and leaves the encoder and a generated comparison
-unbounded. T-63 holds this section.
+the two apart without reading a message. Such a value fails validation whatever else it reports, one
+held in a set field of an inclusive union beside a field that passes too, since a model, a union and
+its wrapper, an inclusive union and a positional type each descend through one shared walk state on
+Go, an inclusive union into every set field, and record their depth and count on Kotlin. A position
+several set fields of an inclusive union hold is counted once for each, so a union holding itself
+through two fields set together would double the count at each level its text adds, which no value
+of the golden spec can: its one inclusive union with two fields leading back to it is a JSON value's
+object and array, never set together (spec @bc6fad24, morphic @fa253fe19). Validation keeps the
+first 1,000 failures it finds, past the 151 checks a value of the golden spec's most constrained
+type reaching no cycle carries with one entry in each list and map and one variant of each union,
+and its report says when it found more, so what it holds is bounded as its walk is. A cap on the
+printed form alone was the alternative, and leaves the encoder and a generated comparison unbounded.
+T-63 holds this section.
 
 ## Recursive references
 

@@ -94,10 +94,9 @@ type Dependency struct {
 `Codec` into the target's AST with each imported name bound through `Imports`, so a node holds what
 it imports and never the name a row spelled it by, and what a file calls each import is settled by
 the naming steps, as every other name is ([reserved names](../refine/reserved-names.md)): two rows
-that spell `decimal` for
-two packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row
-may name a type of the SDK's runtime, which the target imports from the runtime's unit ([output
-units](../refine/output-units.md#the-runtimes-unit)).
+that spell `decimal` for two packages, or a row's package and a unit of the SDK's own, can meet in
+one file. A built-in row may name a type of the SDK's runtime, which the target imports from the
+runtime's unit ([output units](../refine/output-units.md#the-runtimes-unit)).
 
 ## An integer row reads a number by its value
 
