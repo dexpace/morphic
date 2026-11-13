@@ -69,4 +69,5 @@ in. The OpenAPI compiler's grouping by extension makes one for each path a docum
 operation under besides the one it is filed under, so that a remount, which names a group by its ID
 ([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds and can nest; an
 operation sits in one group, so its other placements are the remount's. A consumer applying no
-remount meets such a group with nothing to call.
+remount meets such a group with nothing to call; whether an SDK emitter then makes a sub-client of
+it is undecided (#1824).

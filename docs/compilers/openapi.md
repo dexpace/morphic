@@ -3516,6 +3516,8 @@ unmarked, and a callback's goes with the operation declaring it, marked as that 
   `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
   `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
   `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
+- Status: partly built: the segment is read up to the next `/` alone, so a key's query reaches its
+  group, `/users?role=admin` filing under `users?role=admin` (#1823).
 
 ### `extension-groups`
 
