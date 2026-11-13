@@ -102,7 +102,8 @@ func SelectBase(refs []int, takesPart func(i int) bool) (int, bool) {
 // Model or Union holding a discriminator its source declares, or a Model one of
 // whose supertypes does at any depth (ir.Supertypes), as a composition the
 // source writes elects its Base. A visited set ends the walk on a cyclic
-// hierarchy.
+// hierarchy. A member lowering to a Union that holds no discriminator reads as
+// none here, though the election over the source counts it (GitHub #1901).
 func inHierarchy(reg ir.TypeRegistry, node ir.TypeDef) bool {
 	doc := &ir.Document{Types: reg}
 	seen := map[ir.TypeID]bool{}

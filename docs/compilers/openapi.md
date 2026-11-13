@@ -1457,6 +1457,8 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`,
   `schema.TestAllOf_AUnionItNamesComposesAsWritten`, `schema.TestAllOf_ARefToAHierarchyMemberIsTheBase`,
   `merge.TestFold_RedeclaredModelsCompose`, `e2e.TestCompile_SharedCompositionAncestorsDoNotAmplify`
+- Status: partly built: a field redeclared as a hierarchy member that lowers to a `Union` holding no
+  discriminator takes it as a `Mixin` where a written `allOf` takes it as its `Base` (#1901).
 
 ### `allof-refinement`
 
