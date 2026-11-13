@@ -1633,8 +1633,7 @@ func TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced(t *testing.
 // TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder compiles one form
 // content with its encoding entries in two orders, and one document with its
 // two paths in two orders, each writing an entry of the same name. The Contents
-// come out equal. The order oracle (internal/harness diffOrderInvariants) reads
-// no Content.Unmodeled, so this unit test holds the kept entries instead.
+// come out equal, the entries kept whole included.
 func TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	contents := func(t *testing.T, src string) map[string]ir.Content {
