@@ -50,7 +50,8 @@ func lowerArray(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 // listedTuple returns how many schemas s, at pointer, writes `items` as a list
 // of where the rows of its dialect read that list as a tuple, as the drafts
 // before 2020-12 spell one, and false where they do not or it writes no list.
-// A list read so nowhere is the load phase's to report (load.ownedFinding).
+// A list read so nowhere is the table's to report
+// (docs/compilers/openapi.md#tuples).
 func listedTuple(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (int, bool) {
 	n, listed := listedItems(s)
 	return n, listed && lowering.SchemaRulesAt(c, pointer).Takes("items", oas.List)
@@ -96,6 +97,7 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 		elems = append(elems, ref)
 	}
 	t := &ir.Tuple{TypeCommon: common, Elems: elems, Constraints: collectionConstraints(c, ts, s, pointer)}
+	diags = append(diags, keepPrefixItems(c, &t.Unmodeled, s, pointer)...)
 	rest := ids.Ptr("additionalItems")
 	if js := heldAt(there, site+rest); !annotation.IsFalseSchema(js) {
 		ref, restDiags := Ref(c, ts, depth, js, pointer+rest)
@@ -103,6 +105,22 @@ func buildListedTuple(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 		t.Rest = &ref
 	}
 	return t, diags
+}
+
+// keepPrefixItems keeps on p, verbatim, the prefixItems s writes beside the
+// items list its dialect reads as the tuple, which is the dialect's own
+// spelling of one, where no text makes the two one tuple
+// (docs/compilers/openapi.md#tuples), and reports it once.
+func keepPrefixItems(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if annotation.RawPropertyNode(s, "prefixItems") == nil {
+		return nil
+	}
+	kept, diags := annotation.PreserveSchemaKeyword(p, s, "prefixItems", ir.ReasonDegradedLowering, pointer, c.Place())
+	if !kept {
+		return diags
+	}
+	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr("prefixItems"),
+		"prefixItems is kept verbatim: this schema's dialect reads its items list as the tuple"))
 }
 
 // writtenAt returns where s, lowered at pointer, is written: where the

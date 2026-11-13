@@ -1,6 +1,7 @@
 openapi: 3.0.3
 # Every construct OpenAPI 3.1 or 3.2 added to an object other than a schema's
-# own keywords, written once in a document declaring 3.0. Each is read as the
+# own keywords, written once in a document declaring 3.0, and a sample of the
+# JSON Schema keywords 3.1 added to a schema, in Edition. Each is read as the
 # version that added it defines it, and reported at its own key as a later
 # version's. The parameter style cookie is the one addition missing: the bundled
 # parser refuses it at every version (GitHub #389).
@@ -98,6 +99,13 @@ components:
         defaultMapping: '#/components/schemas/Novel'
     Novel:
       allOf: [{$ref: '#/components/schemas/Item'}]
+    Edition:
+      type: object
+      dependentRequired: {isbn: [publisher]}
+      properties:
+        number: {type: integer, const: 1, examples: [1]}
+        isbn: {type: string, $comment: Thirteen digits.}
+        publisher: {type: string}
   securitySchemes:
     clientCert: {type: mutualTLS}
     device:

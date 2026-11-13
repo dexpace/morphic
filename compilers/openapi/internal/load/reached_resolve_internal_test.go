@@ -698,9 +698,10 @@ paths:
 
 // TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre compiles one 3.0 schema
 // in the source, reached directly, and reached inside a parameter, and each
-// draws the same two findings, as 3.0 words them: its type list, which 3.0
+// draws the same findings, as 3.0 words them: its type list, which 3.0
 // does not admit (3.0.4 §Schema Object: type "Value MUST be a string"), and its
-// negative minLength. examples is not a 3.0 keyword, and draws none.
+// negative minLength, and a later minor's warning at examples, which is no 3.0
+// keyword.
 func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 	t.Parallel()
 	const header = "openapi: 3.0.3\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"
@@ -722,12 +723,13 @@ func TestResolve_AReached30SchemaIsCheckedAsTheSourcesAre(t *testing.T) {
 
 			_, diags := loadExternal(t, dir, c.root, Options{})
 
-			require.Len(t, diags, 2, "%+v", diags)
-			for _, d := range diags {
+			require.Len(t, diags, 3, "%+v", diags)
+			for _, d := range diags[:2] {
 				assert.Equal(t, diag.Validation+"/validation-type-mismatch", d.Code)
 			}
 			assert.Contains(t, diags[0].Message, `Schema Object field "minLength" must be a non-negative integer in OpenAPI 3.0`)
 			assert.Contains(t, diags[1].Message, `Schema Object field "type" must be a string in OpenAPI 3.0`)
+			assert.Equal(t, diag.LaterVersionConstruct, diags[2].Code, "examples is a keyword 3.1 added")
 		})
 	}
 }

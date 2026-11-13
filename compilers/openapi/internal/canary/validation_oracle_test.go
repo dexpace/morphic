@@ -31,6 +31,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -70,12 +71,16 @@ var validationReasons = map[string]string{
 	"version-gate": "the library does not gate a field or value by the declared minor; the table warns, as " +
 		"later-version-construct, of one that only " +
 		"a later minor's Fixed Fields define, such as an Info Object summary (3.1.2 §Info Object) or a Server Object " +
-		"name (3.2.0 §Server Object), and lowers it as that minor does",
+		"name (3.2.0 §Server Object), or a keyword JSON Schema 2020-12 added in a 3.0 schema (3.0.4 §Schema " +
+		"Object: 'Additional keywords defined by the JSON Schema specification that are not mentioned here are " +
+		"strictly unsupported'), and lowers it as that minor does",
 	"ref-siblings": "the library reads a 3.0 schema's $ref and the keywords beside it and says nothing of them; " +
 		"3.0 reads the position as a Reference Object (3.0.4 §Reference Object: 'This object cannot be extended " +
 		"with additional properties, and any properties added SHALL be ignored'), while 3.1 applies them as the " +
 		"schema's keywords, so the table warns of each, as later-version-construct, and the lowering applies it " +
-		"as 3.1 does, reading it as 3.0 defines it",
+		"as 3.1 does, reading it as 3.0 defines it; JSON Schema drafts 4, 6 and 7 ignore them too " +
+		"(draft-handrews-json-schema-01 §8.3: 'All other properties in a \"$ref\" object MUST be ignored'), so " +
+		"in a schema read in one the table warns of each the draft defines, applied as 2020-12 applies it",
 	"later-refused": "the library refuses a construct a later minor added as an error (additionalOperations before " +
 		"3.2, a cookie parameter's style: cookie before 3.2, a discriminator's defaultMapping or an xml nodeType " +
 		"before 3.2, which its 3.1 meta-schema closes); the table reports " +
@@ -97,8 +102,9 @@ var validationReasons = map[string]string{
 		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
-		"(1e999); the table leaves the shape of a bound to the load phase, which reads the literal exactly, as the " +
-		"schema lowering does, and reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
+		"(1e999); the table judges a bound as the schema lowering reads it, the literal exactly, and reports one " +
+		"that is no decimal a BigVal holds at the value, where the library reports the schema " +
+		"(docs/compilers/openapi.md#constraints)",
 	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
 		"dialect it names, and refuses what a draft spells otherwise, a draft 4 exclusive bound, a boolean " +
 		"modifying the bound beside it, or a tuple written as a list of items, which beneath another items it " +
@@ -282,10 +288,11 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 	if _, ok := oas.ParseMinor(version); !ok {
 		return nil, nil, fmt.Sprintf("declares %q, a version the table does not cover", version)
 	}
-	if refused := loadRefusal(t, d); refused != "" {
+	doc, refused := loaded(t, d)
+	if refused != "" {
 		return nil, nil, refused
 	}
-	compiler = tableFindings(t, root, version)
+	compiler = tableFindings(t, root, version, doc)
 	library, err := libraryFindings(t, d.data, root)
 	if err != nil {
 		return nil, nil, err.Error()
@@ -293,29 +300,32 @@ func compareDocument(t *testing.T, d validationDoc) (library, compiler []finding
 	return library, compiler, ""
 }
 
-// loadRefusal says why the load phase refuses a document before it validates
-// it, or is empty when it does not: a document it never validates has no
-// findings to compare, and some, such as an alias bomb, must not reach the
-// library at all.
-func loadRefusal(t *testing.T, d validationDoc) string {
+// loaded returns what the load phase makes of a document, and why it refuses
+// it before it validates it, empty when it does not: a document it never
+// validates has no findings to compare, and some, such as an alias bomb, must
+// not reach the library at all.
+func loaded(t *testing.T, d validationDoc) (*load.Document, string) {
 	t.Helper()
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: d.name, Data: d.data}, load.Options{})
 	if err != nil {
-		return "load fails: " + err.Error()
+		return nil, "load fails: " + err.Error()
 	}
 	if doc != nil {
-		return ""
+		return doc, ""
 	}
 	for _, dg := range diags {
 		if dg.Severity == ir.SeverityError {
-			return "load refuses it: " + dg.Code
+			return nil, "load refuses it: " + dg.Code
 		}
 	}
-	return "load refuses it"
+	return nil, "load refuses it"
 }
 
-// tableFindings checks the tree with the table at the declared version.
-func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
+// tableFindings checks the tree with the table at the declared version, each
+// Schema Object read with the rows of the dialect doc, the load of the same
+// document, reads it in: its own or a dialect root's at or above it, which
+// gives every schema the rows the compiler's check reads it with.
+func tableFindings(t testing.TB, root *yaml.Node, version string, doc *load.Document) []finding {
 	t.Helper()
 	view := nodeview.New()
 	locate := func(ptr jsontext.Pointer) ir.Provenance {
@@ -326,7 +336,10 @@ func tableFindings(t testing.TB, root *yaml.Node, version string) []finding {
 		}
 		return prov
 	}
-	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate})
+	diags := oas.NewChecker().Check(t.Context(), root, version, oas.Options{Locate: locate, Rows: doc.Rows.Schema,
+		RootRows: func(at jsontext.Pointer) (oas.SchemaRules, bool) {
+			return doc.Dialects.At(bind.Position{Doc: bind.Source, Pointer: at})
+		}})
 	out := make([]finding, 0, len(diags))
 	for _, d := range diags {
 		out = append(out, finding{class: classOf(d.Code), line: d.Provenance.Position.Line, column: d.Provenance.Position.Column})

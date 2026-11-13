@@ -1320,6 +1320,19 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/later-version-construct",
+      "message": "field \"const\" of the Schema Object was added in OpenAPI 3.1, and this document declares 3.0.3; it is lowered as in an OpenAPI 3.1 document",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port80/allOf/1/const",
+        "position": {
+          "line": 122,
+          "column": 19
+        }
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/inferred-nullable",
       "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",

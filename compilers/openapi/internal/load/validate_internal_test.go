@@ -4,9 +4,12 @@
 package load
 
 import (
+	"bytes"
+	"context"
 	"encoding/json/jsontext"
 	"fmt"
 	"math"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -19,6 +22,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
@@ -403,4 +407,97 @@ func TestLoad_AFindingOnASourceNodeCarriesItsPointer(t *testing.T) {
 				diags[0].Provenance))
 		})
 	}
+}
+
+// TestNamesDialect_ReadsTheKeyAndTheField pins which documents have their
+// schemas judged once the bindings are read: a 3.1 or 3.2 one writing
+// jsonSchemaDialect, or the key `$schema` in any mapping of its tree, under a
+// merge key, behind an alias or in an example alike, and a 3.0 one never.
+func TestNamesDialect_ReadsTheKeyAndTheField(t *testing.T) {
+	t.Parallel()
+	head := "info: {title: t, version: '1'}\npaths: {}\n"
+	for _, tc := range []struct {
+		name, src string
+		want      bool
+	}{
+		{"3.0 writing $schema", "openapi: 3.0.3\n" + head + "components: {schemas: {S: {$schema: x}}}\n", false},
+		{"jsonSchemaDialect", "openapi: 3.1.0\njsonSchemaDialect: 'https://e.com/d'\n" + head, true},
+		{"$schema in a schema", "openapi: 3.2.0\n" + head + "components: {schemas: {S: {$schema: x}}}\n", true},
+		{"under a merge key", "openapi: 3.1.0\n" + head + "components: {schemas: {S: {<<: {$schema: x}}}}\n", true},
+		{"behind an alias", "openapi: 3.1.0\n" + head + "x-a: &a {$schema: x}\ncomponents: {schemas: {S: *a}}\n", true},
+		{"in an example", "openapi: 3.1.0\n" + head + "components: {examples: {E: {value: {$schema: x}}}}\n", true},
+		{"as a value", "openapi: 3.1.0\n" + head + "x-a: [$schema]\n", false},
+		{"none", "openapi: 3.1.0\n" + head + "components: {schemas: {S: {type: string}}}\n", false},
+		{"no version", "jsonSchemaDialect: 'https://e.com/d'\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := openapitest.YAMLDocument(t, tc.src)
+			assert.Equal(t, tc.want, namesDialect(t.Context(), root, declaredVersion(root)))
+		})
+	}
+	root := openapitest.YAMLDocument(t, "openapi: 3.1.0\n"+head)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	assert.True(t, namesDialect(ctx, root, "3.1.0"), "a walk cut short may name one")
+}
+
+// TestJudgeSource_DeferringASchemaChangesNoFinding holds every 3.1 and 3.2 spec
+// under testdata writing no `$schema` to one judgement whether its Schema
+// Objects are read at once or handed back and read with CheckPending, as a
+// document that may name a dialect has them read: the same findings, in a
+// permuted order at most, and the same objects told to Seen. A spec whose
+// aliases expand it past a bound the corpus's ordinary specs stay under is
+// passed over.
+func TestJudgeSource_DeferringASchemaChangesNoFinding(t *testing.T) {
+	t.Parallel()
+	checked := 0
+	for _, path := range openapitest.SpecFiles(t, "../../../../testdata") {
+		data, err := os.ReadFile(path)
+		require.NoError(t, err, path)
+		if bytes.Contains(data, []byte("$schema")) {
+			continue
+		}
+		var root yaml.Node
+		if yaml.Unmarshal(data, &root) != nil {
+			continue
+		}
+		if expanded := (nodeview.Walk{Nodes: 1 << 16, Aliases: nodeview.AliasTarget}).Run(t.Context(), &root); expanded.Cut {
+			continue
+		}
+		version := declaredVersion(&root)
+		if m, ok := oas.ParseMinor(version); !ok || m == oas.V30 {
+			continue
+		}
+		checked++
+		once, onceSeen := judgedSchemas(t, &root, version, false)
+		deferred, deferredSeen := judgedSchemas(t, &root, version, true)
+		assert.ElementsMatch(t, once, deferred, path)
+		assert.Equal(t, onceSeen, deferredSeen, path)
+	}
+	assert.Positive(t, checked, "the corpus holds 3.1 and 3.2 specs")
+}
+
+// judgedSchemas returns what the table finds in root, a document declaring
+// version, and the objects it tells Seen of, its Schema Objects read at once
+// or, where deferred, handed back and read with CheckPending.
+func judgedSchemas(t *testing.T, root *yaml.Node, version string, deferred bool) ([]ir.Diagnostic, map[objectKey]bool) {
+	t.Helper()
+	seen := map[objectKey]bool{}
+	var pending []oas.Pending
+	opts := oas.Options{
+		Locate: walkedFrom(root, func(n *yaml.Node) ir.Provenance {
+			return ir.Provenance{Position: ir.Position{Line: n.Line, Column: n.Column}}
+		}),
+		ReadAt: true,
+		Seen:   func(k oas.Kind, n *yaml.Node) { seen[objectKey{node: nodeview.Deref(n), kind: k}] = true },
+	}
+	checker := oas.NewChecker()
+	if !deferred {
+		return checker.Check(t.Context(), root, version, opts), seen
+	}
+	later := opts
+	later.Later = func(p oas.Pending) { pending = append(pending, p) }
+	diags := checker.Check(t.Context(), root, version, later)
+	return append(diags, checker.CheckPending(t.Context(), pending, version, opts)...), seen
 }

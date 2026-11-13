@@ -94,12 +94,14 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/ynode": {"go.yaml.in/yaml/v3"},
 	// The OpenAPI Specification's rules as data, and the engine that checks a
 	// source tree against them at the minor it declares. It reads the tree
-	// through nodeview, reports through diag, counts its work through budget and
+	// through nodeview, reports through diag, counts its work through budget,
+	// judges a bound's decimal as the lowering reads it through value, and
 	// reaches nothing that loads or lowers: the table is the compiler's own
 	// authority on the specification, so it depends on no parser library.
 	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
+		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/value", "go.yaml.in/yaml/v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
 	// resolver's own reading and nothing of the compiler, so the scans, the loader
@@ -209,10 +211,8 @@ var rules = map[string][]string{
 	// and the library's pointer walk, directly and through navigation, to tell a
 	// hop that walked a document's bytes and to walk a document as it does, and
 	// the library's core models to tell its marshaller of the media type
-	// reference it builds (load.MediaTypes). It reaches value to judge a bound's
-	// decimal as the lowering reads it, for the values oas leaves to it
-	// (load.ownedFinding). It reaches nothing that lowers — at this point there
-	// is no document to lower.
+	// reference it builds (load.MediaTypes). It reaches nothing that lowers — at
+	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -227,7 +227,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
-		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",

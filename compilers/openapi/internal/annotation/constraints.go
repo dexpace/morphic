@@ -32,8 +32,8 @@ const (
 // bounds are read where lists are lowered. Numeric bounds come from the raw
 // YAML nodes, never the *float64 model fields, to keep full decimal precision.
 // A literal no BigVal holds, or an exclusive bound in the other form than
-// exclusiveBoolean selects, is skipped; the load phase reports it
-// (load.ownedFinding).
+// exclusiveBoolean selects, is skipped; the rule table's check reports it
+// (docs/compilers/openapi.md#constraints).
 //
 // The second return holds the one keyword that reaches no field, a 3.0
 // exclusive modifier with no bound beside it (applyExclusiveFlag), placed by

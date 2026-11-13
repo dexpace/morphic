@@ -75,17 +75,18 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
-		"compilers/openapi/internal/load":        7,
+		"compilers/openapi/internal/load":        8,
 		"compilers/openapi/internal/oas":         2,
 		"compilers/openapi/internal/overlay":     3,
 		"compilers/openapi/internal/sourceindex": 2,
 	},
 	"compilers/openapi/internal/oas": {
-		// oas.Options' Locate, Seen and Owned, which #1488 keeps under #1477's
-		// rule: the checker places its own findings, and an Owned's, to drop the
-		// repeat an alias makes, a policy, and Seen observes the walk, as Owned
-		// takes each value it leaves to the load phase, traversal callbacks.
-		"compilers/openapi/internal/load": 12,
+		// oas.Options' Locate, Seen, RootRows and Later, which #1488 keeps under
+		// #1477's rule: the checker places its own findings to drop the repeat an
+		// alias makes, a policy, and Seen observes the walk, RootRows answers the
+		// rows of each schema it enters and Later takes each it leaves unread,
+		// traversal callbacks.
+		"compilers/openapi/internal/load": 18,
 	},
 	"compilers/openapi/internal/provenance": {
 		// provenance.Tree's Pointers, a node's pointer in the tree it places, read

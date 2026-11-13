@@ -8,16 +8,20 @@ import "slices"
 // schemaKeywords returns the JSON Schema keywords a Schema Object takes: the
 // subset OpenAPI 3.0 names, and the 2020-12 vocabularies 3.1 and 3.2 adopt.
 func schemaKeywords() []Field {
-	fields := slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(), dialectAnnotations())
+	return readBounds(slices.Concat(keywords30(), dialectCore(), dialectApplicators(), dialectValidation(),
+		dialectAnnotations()))
+}
+
+// readBounds marks each numeric bound of fields, a JSON Schema dialect's
+// keywords, read as the decimal it spells (Field.Decimal): the schema lowering
+// reads a bound off the raw node, a quoted number as the decimal it spells, so
+// the check judges one as it reads it, bar a multipleOf written as a number no
+// greater than 0, which its shape refuses.
+func readBounds(fields []Field) []Field {
 	for i, f := range fields {
 		switch f.Name {
 		case "minimum", "maximum", "multipleOf", "exclusiveMinimum", "exclusiveMaximum":
-			// The schema lowering reads a bound off the raw node, a quoted number as the
-			// decimal it spells, and the load phase reports one that is no decimal a
-			// BigVal holds or is written in the other form than the schema's dialect
-			// gives it, so the table leaves the shape to it, bar a multipleOf written
-			// as a number no greater than 0.
-			fields[i] = f.shapeOwnedBy(ownerLoad)
+			fields[i] = f.decimal()
 		}
 	}
 	return fields
@@ -80,7 +84,7 @@ func keywords30() []Field {
 			admits(vals("array", "boolean", "integer", "number", "object", "string")...),
 		schemasOf("allOf", s, composed), schemasOf("oneOf", s, composed), schemasOf("anyOf", s, composed),
 		schemaOf("not", s, composed),
-		schemaOf("items", s, adjust("Value MUST be an object and not an array.")).listOwnedBy(ownerLoad),
+		schemaOf("items", s, adjust("Value MUST be an object and not an array.")),
 		schemaMapOf("properties", s, adjust("Property definitions MUST be a [Schema Object](#schema-object) and not a standard JSON Schema (inline or referenced).")),
 		schemaOf("additionalProperties", s, adjust("Value can be boolean or object.")).also(Boolean, s),
 		keyword("description", String, s, adjust("[CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.")),
@@ -101,12 +105,12 @@ func dialectCore() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
 	s := From(V31)
 	return []Field{
-		keyword("$id", String, s, cite).formatted(ResourceURI).formatOwnedBy(ownerLoad),
+		keyword("$id", String, s, cite).formatted(ResourceURI),
 		keyword("$schema", String, s, cite).formatted(AbsoluteURI),
 		keyword("$ref", String, s, cite).formatted(URI),
-		keyword("$anchor", String, s, cite).formatted(AnchorName).nonEmpty(s).formatOwnedBy(ownerLoad),
+		keyword("$anchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
 		keyword("$dynamicRef", String, s, cite).formatted(URI),
-		keyword("$dynamicAnchor", String, s, cite).formatted(AnchorName).nonEmpty(s).formatOwnedBy(ownerLoad),
+		keyword("$dynamicAnchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
 		keyword("$vocabulary", RawMap, s, cite),
 		keyword("$comment", String, s, cite),
 		schemaMapOf("$defs", s, cite),
@@ -124,11 +128,6 @@ func dialectApplicators() []Field {
 	singles := make([]Field, len(single))
 	for i, name := range single {
 		singles[i] = schemaOf(name, s, cite)
-		if name == "items" {
-			// A list of items is a tuple in a draft a schema can name, which the
-			// load phase judges in its dialect.
-			singles[i] = singles[i].listOwnedBy(ownerLoad)
-		}
 	}
 	return slices.Concat([]Field{
 		schemasOf("prefixItems", s, cite),

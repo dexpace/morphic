@@ -102,13 +102,73 @@ func TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords(t *testing.T) {
 	}
 }
 
-// TestCheck_JSONSchemaKeywordsOfALaterMinorAreLeftToTheSchemaLowering pins that
-// a keyword the dialect added is not reported as a later-version construct.
-func TestCheck_JSONSchemaKeywordsOfALaterMinorAreLeftToTheSchemaLowering(t *testing.T) {
+// laterKeywordValue is a value of fld's shape and format a 3.1 schema admits.
+func laterKeywordValue(fld oas.Field) string {
+	switch fld.Shape {
+	case oas.String:
+		if fld.Format == oas.AnchorName {
+			return "a"
+		}
+		return "'https://e.com/a'"
+	case oas.Natural:
+		return "1"
+	case oas.Nested, oas.Map, oas.RawMap:
+		return "{}"
+	case oas.List:
+		return "[{}]"
+	default:
+		return "[1]"
+	}
+}
+
+// TestCheck_AKeywordALaterDialectAddsIsWarnedOf pins each keyword the Schema
+// Object defines from 3.1 and not at 3.0, written in a 3.0 schema: warned of
+// once, at the key, as a later minor's construct, and judged as 3.1 judges
+// it, so a boolean schema stands where 3.1's admits one. A `$schema` there is
+// worded as choosing nothing. A key beside a 3.0 $ref draws the warning every
+// key there draws, alone.
+func TestCheck_AKeywordALaterDialectAddsIsWarnedOf(t *testing.T) {
+	obj, ok := oas.Table().Object(oas.Schema)
+	require.True(t, ok)
+	at30 := map[string]bool{}
+	for _, f := range obj.Fields {
+		if f.Defined.Holds(oas.V30) {
+			at30[f.Name] = true
+		}
+	}
+	var keywords []string
+	for _, f := range obj.Fields {
+		if f.Defined.Holds(oas.V31) && !at30[f.Name] {
+			keywords = append(keywords, f.Name)
+			doc := "{" + f.Name + ": " + laterKeywordValue(f) + "}"
+			want := fmt.Sprintf("field %q of the Schema Object was added in OpenAPI 3.1, and this document declares "+
+				"3.0.3; it is lowered as in an OpenAPI 3.1 document", f.Name)
+			if f.Name == "$schema" {
+				want = "field \"$schema\" of the Schema Object was added in OpenAPI 3.1, and this document declares " +
+					"3.0.3; a 3.0 schema is read in 3.0's own dialect whatever it names, so it is kept verbatim and chooses nothing"
+			}
+			diags := run(t, "3.0.3", oas.Schema, doc)
+			require.Len(t, diags, 1, doc)
+			assert.Equal(t, diag.LaterVersionConstruct, diags[0].Code, doc)
+			assert.Equal(t, ir.SeverityWarning, diags[0].Severity, doc)
+			assert.Equal(t, "/"+f.Name, string(diags[0].Provenance.Pointer), doc)
+			assert.Equal(t, want, diags[0].Message, doc)
+			assert.Empty(t, run(t, "3.1.0", oas.Schema, doc), "%s at the minor that added it", doc)
+		}
+	}
+	assert.Contains(t, keywords, "prefixItems")
 	verify(t, []scenario{
-		{"const in 3.0", "3.0.3", oas.Schema, `{const: 1, $defs: {a: {}}, prefixItems: [{}], examples: [1]}`, nil},
+		{"a boolean schema 3.1 admits", "3.0.3", oas.Schema, `{unevaluatedProperties: false, if: true}`,
+			[]finding{at(later, "/unevaluatedProperties"), at(later, "/if")}},
+		{"a value 3.1 refuses", "3.0.3", oas.Schema, `{const: 1, contentSchema: 5}`,
+			[]finding{at(later, "/const"), at(later, "/contentSchema"), at(mismatch, "/contentSchema")}},
+		{"beside a $ref", "3.0.3", oas.Schema, `{$ref: '#/a', const: 1, prefixItems: [{}]}`,
+			[]finding{at(later, "/const"), at(later, "/prefixItems")}},
 		{"unknown keys are not reported", "3.1.0", oas.Schema, `{madeUp: 1, x-ext: 2}`, nil},
 	})
+	for _, d := range run(t, "3.0.3", oas.Schema, `{$ref: '#/a', const: 1}`) {
+		assert.Contains(t, d.Message, "beside the $ref", "the sibling's warning, not the keyword's")
+	}
 }
 
 // schemaRefSiblings writes keys beside a schema's $ref at each kind of position

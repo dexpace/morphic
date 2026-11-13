@@ -86,7 +86,7 @@ type Dialects struct {
 	byNode map[*yaml.Node]oas.SchemaRules
 	// byDoc is the rows each document's schemas no root governs are read
 	// with, and byName each document by its name, for the load phase's own
-	// judgement (ownedFindings).
+	// judgement of a schema (judgeSchemas, reached.check).
 	byDoc  map[bind.DocID]oas.SchemaRules
 	byName map[string]bind.DocID
 }
@@ -95,6 +95,13 @@ type Dialects struct {
 // it names its dialect, the innermost such root's, and false where none does.
 func (d Dialects) At(p bind.Position) (oas.SchemaRules, bool) {
 	return bind.DialectAt(d.byRoot, p)
+}
+
+// root returns the rows of the dialect root at p, and false where none is
+// there, a root above p not counted.
+func (d Dialects) root(p bind.Position) (oas.SchemaRules, bool) {
+	r, ok := d.byRoot[p]
+	return r, ok
 }
 
 // rowsAt returns the rows the schema at p is read with: the innermost dialect

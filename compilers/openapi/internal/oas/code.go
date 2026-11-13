@@ -41,6 +41,8 @@ func (r ruler) code(rule Rule) {
 		dependentRequired(r, rule)
 	case "vocabulary":
 		vocabulary(r, rule)
+	case "dependencies":
+		dependencies(r, rule)
 	default:
 		r.w.add(diag.Newf(ir.SeverityError, diag.InternalInvariant, r.w.locate(r.f.at.ptr),
 			"the %s names the rule %q, which the engine does not implement", r.f.obj.Name, rule.Name), r.f.at.ptr)
@@ -480,4 +482,41 @@ func vocabulary(r ruler, rule Rule) {
 			r.fail(rule, classType, ptr, "field \"$vocabulary\" entry "+quote(p.Key)+" must be a boolean")
 		}
 	}
+}
+
+// dependencies judges each entry of a JSON Schema draft's `dependencies`: a
+// list is held to distinct strings, and to the entries the rule's Min counts,
+// any other entry is a schema, read as one, as the binder places it
+// (bind.DialectRule.Dependencies), and one that is neither is reported.
+func dependencies(r ruler, rule Rule) {
+	base := r.f.at.ptr.AppendToken("dependencies")
+	for _, p := range r.w.view.MappingPairs(r.f.byKey["dependencies"]) {
+		ptr := base.AppendToken(p.Key)
+		entry := nodeview.Deref(p.Val)
+		switch {
+		case entry != nil && entry.Kind == yaml.SequenceNode:
+			propertyDependency(r, rule, p.Key, entry, ptr)
+		case entry != nil && (entry.Kind == yaml.MappingNode || r.f.booleans && matches(Boolean, entry)):
+			r.w.object(site{kind: Schema, node: p.Val, ptr: ptr, held: p.Key, rows: r.f.rows, in: Schema}, r.f.depth+1)
+		default:
+			r.fail(rule, classType, ptr, "field \"dependencies\" entry "+quote(p.Key)+" must be a list of strings or a schema")
+		}
+	}
+}
+
+// propertyDependency judges list, the entry of `dependencies` keyed key at ptr
+// that lists the properties an instance holding key must hold too.
+func propertyDependency(r ruler, rule Rule, key string, list *yaml.Node, ptr jsontext.Pointer) {
+	what := "field \"dependencies\" entry " + quote(key)
+	switch {
+	case !matches(StringList, list):
+		r.fail(rule, classType, ptr, what+" must be a list of strings or a schema")
+		return
+	case len(list.Content) < rule.Min:
+		r.fail(rule, classCount, ptr, what+" must hold at least "+plural(rule.Min))
+	}
+	repeats(list, textOf, func(i, first int, s string) {
+		r.fail(rule, classDuplicate, itemPointer(ptr, i), what+" repeats "+quote(s)+" first written at "+
+			string(itemPointer(ptr, first)))
+	})
 }
