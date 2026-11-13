@@ -4558,6 +4558,7 @@ declaration both mounts share.
   `pagination.TestInfer_ReadsOnlyAMethodSafeToSendAgain`,
   `pagination.TestInfer_KeepsAPaginationTheOperationHolds`,
   `pagination.TestInfer_ReadsTheSameInEitherOrder`,
+  `pagination.TestInfer_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInfer_ReadsAMountedDeclarationForEachMount`,
   `pagination.TestResolve_ReadsAtMostTheBound`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,

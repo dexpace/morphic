@@ -84,7 +84,8 @@ func (p page) equal(q page) bool {
 // members, since a pager reads whichever arrives; one with no body, a 204 or a
 // 304, holds none, as a pager ends at it as at an empty page
 // (docs/emitters/plan/responses.md#other-responses). why says otherwise what
-// stops it.
+// stops it: of several bodies holding no page, the least of their reasons, so
+// the finding reads the same whatever order the responses and contents take.
 func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	if len(op.Responses) == 0 {
 		return page{}, "the operation declares no success response to read a page from"
@@ -93,7 +94,8 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 	if in.readsNextCursor() {
 		key.cursor, key.prim = in.cursor.Name.Canonical, in.prim
 	}
-	var first *page
+	var pages []page
+	var whys []string
 	for i := range op.Responses {
 		p := op.Responses[i].Payload
 		if p == nil {
@@ -102,21 +104,22 @@ func (r *reader) responsePage(op *ir.Operation, in inputs) (page, string) {
 		for j := range p.Contents {
 			ct := &p.Contents[j]
 			key.body = ct.Type.Target
-			pg := r.page(key)
-			switch {
-			case pg.why != "":
-				return page{}, fmt.Sprintf("the %s response body %s", ct.MediaType, pg.why)
-			case first == nil:
-				first = &pg
-			case !first.equal(pg):
-				return page{}, "the success responses' bodies hold their pages at different members"
+			if pg := r.page(key); pg.why != "" {
+				whys = append(whys, fmt.Sprintf("the %s response body %s", ct.MediaType, pg.why))
+			} else {
+				pages = append(pages, pg)
 			}
 		}
 	}
-	if first == nil {
+	switch {
+	case len(whys) > 0:
+		return page{}, slices.Min(whys)
+	case len(pages) == 0:
 		return page{}, "no success response has a body to read a page from"
+	case slices.ContainsFunc(pages[1:], func(pg page) bool { return !pages[0].equal(pg) }):
+		return page{}, "the success responses' bodies hold their pages at different members"
 	}
-	return *first, ""
+	return pages[0], ""
 }
 
 // page returns where the body key names holds a page, read once per key.

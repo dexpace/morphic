@@ -456,6 +456,73 @@ func TestInfer_ReadsTheSameInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestInfer_ReportsTheSameWhateverTheResponseOrder compiles each document with
+// its success responses, and each one's contents, declared in both orders: an
+// operation whose bodies stop a walk for several reasons is reported with the
+// same one, which turns on no declaration order.
+func TestInfer_ReportsTheSameWhateverTheResponseOrder(t *testing.T) {
+	t.Parallel()
+	const (
+		csv     = `text/csv: {schema: {type: string}}`
+		noList  = `application/json: {schema: {type: object, properties: {count: {type: integer}}}}`
+		results = `application/json: {schema: {type: object, properties: {result: ` + stringList + `}}}`
+		data    = `application/json: {schema: {type: object, properties: {data: ` + stringList + `}}}`
+		number  = `application/json: {schema: {type: integer}}`
+	)
+	for name, tc := range map[string]struct {
+		responses [][2]string // a status code and its contents, one per line
+		want      string
+	}{
+		"two contents, each holding no page": {[][2]string{{"200", csv + "\n" + noList}},
+			`the application/json response body holds no list of items`},
+		"two pages at different members beside a body holding none": {
+			[][2]string{{"200", results}, {"201", data}, {"202", number}},
+			`the application/json response body is neither an object nor a list`},
+		"a body holding no page beside one with no body": {[][2]string{{"200", csv}, {"204", ""}},
+			`the text/csv response body is neither an object nor a list`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := func(reversed bool) string {
+				var b strings.Builder
+				b.WriteString(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /things:
+    get:
+      operationId: listThings
+      parameters: [{name: page, in: query, schema: {type: integer}}]
+      responses:
+`)
+				responses := slices.Clone(tc.responses)
+				if reversed {
+					slices.Reverse(responses)
+				}
+				for _, r := range responses {
+					contents := strings.Split(r[1], "\n")
+					if reversed {
+						slices.Reverse(contents)
+					}
+					b.WriteString("        \"" + r[0] + "\":\n          description: d\n")
+					if r[1] == "" {
+						continue
+					}
+					b.WriteString("          content:\n")
+					for _, c := range contents {
+						b.WriteString("            " + c + "\n")
+					}
+				}
+				return b.String()
+			}
+			_, _, diags := listOp(t, src(false), openapi.Options{})
+			_, _, rdiags := listOp(t, src(true), openapi.Options{})
+			want := []string{"no pagination is inferred: " + tc.want}
+			assert.Equal(t, want, undecided(diags), "as written")
+			assert.Equal(t, want, undecided(rdiags), "reversed")
+		})
+	}
+}
+
 // TestInfer_ReadsAMountedDeclarationForEachMount pins a path item mounted at
 // two paths: each operation it mounts gets a Pagination of its own, which no
 // write to the other's reaches, and one it cannot settle is reported once, at
