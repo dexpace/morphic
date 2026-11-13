@@ -826,8 +826,8 @@ func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 	}
 }
 
-// secretDoc is the document the paths of TestCompile_ANetworkDocumentReadsNoLocalFile
-// name, on disk and on each host.
+// secretDoc is the document the paths of
+// TestCompile_ANetworkDocumentReadsNoLocalFile name, on disk and on each host.
 const secretDoc = "X: {type: integer}\nP: {name: p, in: query, schema: {type: integer}}\n"
 
 // compileOverTheNetwork compiles a source whose schema, and parameter where

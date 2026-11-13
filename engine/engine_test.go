@@ -938,9 +938,10 @@ func TestEngine_RunHoldsAThrowawayCompilerToItsContract(t *testing.T) {
 	}
 }
 
-// TestEngine_RunASpecNoOneCanLocateIsAGoError fails to place the spec's path, as
-// where the working directory cannot be named: what its references name would
-// be read against nothing, so the run is refused before anything compiles.
+// TestEngine_RunASpecNoOneCanLocateIsAGoError fails to place the spec's path,
+// as where the working directory cannot be named: what its references name
+// would be read against nothing, so the run is refused before anything
+// compiles.
 func TestEngine_RunASpecNoOneCanLocateIsAGoError(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("no working directory")

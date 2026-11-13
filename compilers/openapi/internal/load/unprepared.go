@@ -150,9 +150,9 @@ func (r *externalReads) once(key string, read func() answer) answer {
 	return rd.answer
 }
 
-// adopt returns the tree and the bytes prepared under prepared, for key, another
-// spelling of one document, to be held under too, and false where key has a
-// tree already or prepared none.
+// adopt returns the tree and the bytes prepared under prepared, for key,
+// another spelling of one document, to be held under too, and false where key
+// has a tree already or prepared none.
 func (r *externalReads) adopt(key, prepared string) (*yaml.Node, []byte, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -34,8 +34,8 @@ func SpecLocation(path string) (string, error) {
 	return specLocation(path, filepath.Abs)
 }
 
-// specLocation is SpecLocation with the reading of the working directory handed in,
-// absolute, so a test can fail it, which no system reliably does.
+// specLocation is SpecLocation with the reading of the working directory handed
+// in, absolute, so a test can fail it, which no system reliably does.
 func specLocation(path string, absolute func(string) (string, error)) (string, error) {
 	if path == "" {
 		return "", errEmptyLocation

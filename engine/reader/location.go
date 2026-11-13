@@ -27,9 +27,9 @@ type location struct {
 var errEmptyLocation = errors.New("the request names no document")
 
 // locate reads req.Location as a location, refusing an empty one, a file URI
-// naming no local file (see compilers.FilePath), and a URL a request confined to a
-// directory may not reach. windows says file URIs are read as Windows reads
-// them.
+// naming no local file (see compilers.FilePath), and a URL a request confined
+// to a directory may not reach. windows says file URIs are read as Windows
+// reads them.
 func locate(req compilers.DocumentRequest, windows bool) (location, error) {
 	if req.Location == "" {
 		return location{}, errEmptyLocation

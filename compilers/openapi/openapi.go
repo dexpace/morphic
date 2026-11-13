@@ -264,11 +264,12 @@ func optionsFrom(opts compilers.Options) (Options, error) {
 
 // loadOptions projects Options onto the subset the load phase reads, with the
 // caller's reader and the confinement Options.AllowExternalRefs sets for it:
-// the directory src lies in (load.Location) unless it is on. It exists so the mapping lives
-// in one place: load.Options is that package's own input, deliberately not this
-// public type, whose shape is a published contract (see Options) and most of
-// which describes lowering the loader cannot see. Each budget is read as
-// Limits spells one, its default beside it (budget.FromOption).
+// the directory src lies in (load.Location) unless it is on. It exists so the
+// mapping lives in one place: load.Options is that package's own input,
+// deliberately not this public type, whose shape is a published contract (see
+// Options) and most of which describes lowering the loader cannot see. Each
+// budget is read as Limits spells one, its default beside it
+// (budget.FromOption).
 func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Source) load.Options {
 	out := load.Options{
 		Reader:               reader,

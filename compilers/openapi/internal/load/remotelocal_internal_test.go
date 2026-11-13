@@ -37,10 +37,11 @@ func TestOverNetwork(t *testing.T) {
 
 // TestLocalTarget pins which $ref and $id values, read against a network base,
 // name a local location, and the location each names: a file: URI does, and a
-// drive path, which a reader reads from disk, and nothing else. An absolute path and a network-path reference name a resource
-// on the network, as RFC 3986 §5.2 resolves them against the document's URL
-// (GitHub #936), as do a relative path and an absolute URL; an internal
-// pointer names the document itself, and a URI on another scheme names no file.
+// drive path, which a reader reads from disk, and nothing else. An absolute
+// path and a network-path reference name a resource on the network, as RFC 3986
+// §5.2 resolves them against the document's URL (GitHub #936), as do a relative
+// path and an absolute URL; an internal pointer names the document itself, and
+// a URI on another scheme names no file.
 func TestLocalTarget(t *testing.T) {
 	t.Parallel()
 	const base = "http://host/dir/a.yaml"

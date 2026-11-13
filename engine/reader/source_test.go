@@ -287,13 +287,13 @@ func TestReadSource_ReadsARealFile(t *testing.T) {
 	assert.ErrorAs(t, err, &pathErr, "os.Open's error, naming the file")
 }
 
-// TestSpecLocation_PlacesASpecWhereItsDirectoryLies pins where a spec lies, as its
-// references are read against: absolute, the symbolic links of its directory
-// resolved, so the directory reached through a link and by its own path, from
-// any working directory, is one location, while a link to the spec itself is
-// kept, its references read beside it. A directory that does not resolve is
-// kept as written, a URL lies at no path, and an empty path names nothing. Not
-// parallel: it changes directory.
+// TestSpecLocation_PlacesASpecWhereItsDirectoryLies pins where a spec lies, as
+// its references are read against: absolute, the symbolic links of its
+// directory resolved, so the directory reached through a link and by its own
+// path, from any working directory, is one location, while a link to the spec
+// itself is kept, its references read beside it. A directory that does not
+// resolve is kept as written, a URL lies at no path, and an empty path names
+// nothing. Not parallel: it changes directory.
 func TestSpecLocation_PlacesASpecWhereItsDirectoryLies(t *testing.T) {
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	require.NoError(t, err)
@@ -323,9 +323,9 @@ func TestSpecLocation_PlacesASpecWhereItsDirectoryLies(t *testing.T) {
 	assert.Error(t, err, "an empty path names nothing")
 }
 
-// TestSpecLocation_FailsWhereTheWorkingDirectoryCannotBeRead pins that a relative
-// path the working directory cannot place is an error, not a location read
-// against nothing.
+// TestSpecLocation_FailsWhereTheWorkingDirectoryCannotBeRead pins that a
+// relative path the working directory cannot place is an error, not a location
+// read against nothing.
 func TestSpecLocation_FailsWhereTheWorkingDirectoryCannotBeRead(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("no working directory")
