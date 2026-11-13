@@ -216,28 +216,28 @@ func Merge(base Policy, over DeepPartial) Policy // a leaf written replaces the 
 - **A URL a response supplies**, a redirect's `Location`, a link to the next page or a place to
   poll, is requested as the target's URL library resolves it against the URL of the request it
   answered, less that URL's user, password, query and fragment. The next request is built from the
-  resolved URL and from nothing else of the response's text. Its origin is the scheme, host and
-  port the library holds for it, hosts compared with ASCII letter case folded and ports as numbers,
-  one left out being the scheme's, 80 or 443. Where that is the origin of the request the
-  operation's bindings built, the next request carries a base URL's user and password and what the
-  auth step writes, as that one did ([auth](../operations/auth.md#where-a-credential-can-be-read));
-  to any other origin it carries neither. A URL the library does not resolve, one that is not
-  `http` or `https`, and one holding a user or a password, which RFC 9110 §4.2.4 deprecates and
-  only the response can have written, is not followed: the redirect is returned as the response,
-  or fails as a transport's failure does where the library refuses it before the runtime reads it
+  resolved URL and from nothing else of the response's text. Its origin is the scheme, host and port
+  the library holds for it, hosts compared with ASCII letter case folded and ports as numbers, one
+  left out being the scheme's, 80 or 443. Where that is the origin of the request the operation's
+  bindings built, the next request carries a base URL's user and password and what the auth step
+  writes, as that one did ([auth](../operations/auth.md#where-a-credential-can-be-read)); to any
+  other origin it carries neither. A URL the library does not resolve, one that is not `http` or
+  `https`, and one holding a user or a password, which RFC 9110 §4.2.4 deprecates and only the
+  response can have written, is not followed: the redirect is returned as the response, or fails as
+  a transport's failure does where the library refuses it before the runtime reads it
   ([Go](../targets/go/emit.md#runtime-templates)), and the link or the place fails the walk or the
-  wait. A grammar of the runtime's own deciding which URL is followed was
-  written first, and no grammar reads a text as two libraries do: it followed no host holding `_`,
-  and it read ` https://other.example.net/x`, a space before it, as a path under the request's
-  origin, credentials included, where Ktor 3.2.3's `URLBuilder` requested the other host. The
-  query is removed because that builder keeps the user, the password and the query it started
-  from under a reference naming another host, at the cost that an empty reference, RFC 3986
-  §5.2.2's same document, is requested without the request's query. Built over Go 1.27.3's
-  `net/url` and `net/http` and over Ktor 3.2.3's `URLBuilder` and CIO engine, against a proxy
-  recording each request it received, for 119 references under three requests, one with a user and
-  one with a variable in its host: no credential, user, password or query of the first request
-  arrived at another origin, a reference with leading whitespace, `//host`, a megabyte of path
-  and a port written `:0443` among them, and the two libraries resolved 34 of the 119 apart.
+  wait. A grammar of the runtime's own deciding which URL is followed was written first, and no
+  grammar reads a text as two libraries do: it followed no host holding `_`, and it read
+  ` https://other.example.net/x`, a space before it, as a path under the request's origin,
+  credentials included, where Ktor 3.2.3's `URLBuilder` requested the other host. The query is
+  removed because that builder keeps the user, the password and the query it started from under a
+  reference naming another host, at the cost that an empty reference, RFC 3986 §5.2.2's same
+  document, is requested without the request's query. Built over Go 1.27.3's `net/url` and
+  `net/http` and over Ktor 3.2.3's `URLBuilder` and CIO engine, against a proxy recording each
+  request it received, for 119 references under three requests, one with a user and one with a
+  variable in its host: no credential, user, password or query of the first request arrived at
+  another origin, a reference with leading whitespace, `//host`, a megabyte of path and a port
+  written `:0443` among them, and the two libraries resolved 34 of the 119 apart.
 
 What a response may hold that the document does not list is not runtime policy, because it changes a
 type or a decoder rather than the boilerplate around them, and docs and mocks have to agree with it.
@@ -299,9 +299,9 @@ Each leaf's comment above gives its type, its default and its range, and a value
 - of another JSON type than the leaf's, `null` and a number in quotes among them: no leaf reads
   `null` as its default, since a layer leaves a member out to say that;
 - outside the range its comment gives, or a string outside its grammar: a header's name is an RFC
-  9110 token and an environment variable's an ASCII letter or `_` followed by ASCII letters, ASCII digits
-  and `_`, so neither holds a space, a line break or a `:`, and each is 64 bytes at most, a bound
-  chosen and not measured;
+  9110 token and an environment variable's an ASCII letter or `_` followed by ASCII letters, ASCII
+  digits and `_`, so neither holds a space, a line break or a `:`, and each is 64 bytes at most, a
+  bound chosen and not measured;
 - a header's name, compared without case, that names a field RFC 9110 registers (§18.4),
   `Transfer-Encoding`, `Cookie` or `Set-Cookie`, `Keep-Alive` or `Proxy-Connection`, or one the
   other of `Idempotency.Header` and `Telemetry.Client` names: the runtime would write the key or the
@@ -429,14 +429,14 @@ and the waits, `Retry.MaxAttempts`, `Retry.Backoff`, `Retry.Throttled`, `Redirec
 [Kotlin](../targets/kotlin/operations.md#the-client)). One set on a client replaces the resolved
 value for every operation, an operation's own and `Timeout.Env`'s included, as the highest layer
 does ([layers](#layers-and-operations)), since a caller who bounds a walk means every walk; a call
-takes its own through a client derived for it, which sends through its parent's transport unless it is given one. A value
-outside its leaf's range refuses the client, naming the option, and so does a duration that is no
-whole number of milliseconds, which the record cannot hold and rounding would change, 400µs to the
-`0ms` that bounds nothing. A backoff is set whole, its ratios in the record's thousandths, since a
-floating-point number does not say whether it was written with three fraction digits. The other
-members state what the API means or what the SDK declares, which statuses say a server did not act,
-which operations may send again, the kinds, the headers it names and sends, the key it generates, so
-they are fixed when the SDK is generated. T-37 holds it.
+takes its own through a client derived for it, which sends through its parent's transport unless it
+is given one. A value outside its leaf's range refuses the client, naming the option, and so does a
+duration that is no whole number of milliseconds, which the record cannot hold and rounding would
+change, 400µs to the `0ms` that bounds nothing. A backoff is set whole, its ratios in the record's
+thousandths, since a floating-point number does not say whether it was written with three fraction
+digits. The other members state what the API means or what the SDK declares, which statuses say a
+server did not act, which operations may send again, the kinds, the headers it names and sends, the
+key it generates, so they are fixed when the SDK is generated. T-37 holds it.
 
 A documentation link per failure, which the vocabulary this began from carries, is left out: no rule
 reads one, and a failure's page is the docs emitter's to link ([docs and
@@ -522,34 +522,34 @@ either language has. And a list of headers to hide fails the header it does not 
   ([auth](../operations/auth.md#where-a-credential-can-be-read)), so a key an injector or an
   `Authenticator` writes into the query is not in it;
 - for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
-  poll, the shown origin of the URL requested for it
-  ([above](#the-canonical-vocabulary)), then `/[REDACTED]`. A server signs such a URL in its query, as a link to
-  stored bytes is, or in its path, and nothing the document declares says which part is the
-  signature.
+  poll, the shown origin of the URL requested for it ([above](#the-canonical-vocabulary)), then
+  `/[REDACTED]`. A server signs such a URL in its query, as a link to stored bytes is, or in its
+  path, and nothing the document declares says which part is the signature.
 
 **A shown origin** is computed from a URL the runtime requests, never from a response's text: the
 scheme, the host and the port the target's URL library holds for it, written `scheme://host` and,
-where the port is not the scheme's own, `:` and the port. Each part is shown only within a bound,
-so a log line takes no megabyte and no line break from a response, and a URL with a part outside
-one is shown as `[REDACTED]` alone and is requested or not as any other is:
+where the port is not the scheme's own, `:` and the port. Each part is shown only within a bound, so
+a log line takes no megabyte and no line break from a response, and a URL with a part outside one is
+shown as `[REDACTED]` alone and is requested or not as any other is:
 
 - the scheme is `http` or `https`;
-- the host is 1 to 255 bytes (RFC 1035 §2.3.4), each an ASCII letter or digit, `-`, `.` or `_`,
-  or, where the library holds it within `[` and `]`, hex digits, `:` and `.` between them, and is
-  shown with its letters in lower case;
+- the host is 1 to 255 bytes (RFC 1035 §2.3.4), each an ASCII letter or digit, `-`, `.` or `_`, or,
+  where the library holds it within `[` and `]`, hex digits, `:` and `.` between them, and is shown
+  with its letters in lower case;
 - the port is a number from 1 to 65535, shown in decimal, so `:0443` and `:443` are one port, which
   `https` does not show.
 
-So the origin shown of a host that is not the request's is 269 bytes at most. A host equal to the request's, ASCII letter case folded, is
-shown as the request shows its own, the server template's text for it, or the marker alone where
-the template writes no host apart, as `{base}/v1` does, whatever the scheme and the port, so a variable in a server's host is `{name}` there too, as 7 of the golden spec's 12 servers
-place one (spec @bc6fad24, morphic @fa253fe19). Any other host within the bound is shown as it is, the request's
-with a final `.` and one holding a variable's value among them: the runtime cannot tell that value
-from a name the server chose, and a name lookup and a TLS handshake send a host in clear. Each
-target showing an origin read from the response's text by one grammar was built first, and showed
-what its library did not request. In the run above each origin shown was the origin the proxy
-received a request for, the longest `URL` was 274 bytes, and where the two targets' requests
-arrived at one origin both showed one text.
+So the origin shown of a host that is not the request's is 269 bytes at most. A host equal to the
+request's, ASCII letter case folded, is shown as the request shows its own, the server template's
+text for it, or the marker alone where the template writes no host apart, as `{base}/v1` does,
+whatever the scheme and the port, so a variable in a server's host is `{name}` there too, as 7 of
+the golden spec's 12 servers place one (spec @bc6fad24, morphic @fa253fe19). Any other host within
+the bound is shown as it is, the request's with a final `.` and one holding a variable's value among
+them: the runtime cannot tell that value from a name the server chose, and a name lookup and a TLS
+handshake send a host in clear. Each target showing an origin read from the response's text by one
+grammar was built first, and showed what its library did not request. In the run above each origin
+shown was the origin the proxy received a request for, the longest `URL` was 274 bytes, and where
+the two targets' requests arrived at one origin both showed one text.
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
 ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response. T-65

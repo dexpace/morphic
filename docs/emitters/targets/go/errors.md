@@ -82,14 +82,15 @@ type Chain state.Chain        // a function returning the library's error, as Ra
 `Causes` lists the chain as `errors.Is` walks it: a link before what it wraps, and the branches of
 one wrapping several (`Unwrap() []error`) in their order, each whole before the next, its first 32
 links and no more. A chain branching at each link grows with its depth as a power of two: with Go
-1.27.3, 18 nested `errors.Join(e, e)` over an `e` of two links, an `*os.SyscallError` wrapping `syscall.ECONNREFUSED`, walked whole gave 786,431 links and a 14 MB `Error`, and 32
-gave 611 bytes, a bound chosen, past the 3 links a refused connection's chain holds. `Error` writes
-the members and `Causes` joined by ` > `, and neither type has an `Unwrap`, since a reporter walking
-a chain prints each link's text. `Chain`'s `Is` lets a caller ask the library's chain a question
-whose answer is a boolean, `errors.Is(err, syscall.ECONNREFUSED)` or `context.DeadlineExceeded`, and
-`errors.As` finds none of its values, which a caller wanting one reads in a `Transport` wrapper. An
-`Authenticator`'s error is held as a transport's is, since a token source's text can quote the token
-response it was sent. T-65 holds this section.
+1.27.3, 18 nested `errors.Join(e, e)` over an `e` of two links, an `*os.SyscallError` wrapping
+`syscall.ECONNREFUSED`, walked whole gave 786,431 links and a 14 MB `Error`, and 32 gave 611 bytes,
+a bound chosen, past the 3 links a refused connection's chain holds. `Error` writes the members and
+`Causes` joined by ` > `, and neither type has an `Unwrap`, since a reporter walking a chain prints
+each link's text. `Chain`'s `Is` lets a caller ask the library's chain a question whose answer is a
+boolean, `errors.Is(err, syscall.ECONNREFUSED)` or `context.DeadlineExceeded`, and `errors.As` finds
+none of its values, which a caller wanting one reads in a `Transport` wrapper. An `Authenticator`'s
+error is held as a transport's is, since a token source's text can quote the token response it was
+sent. T-65 holds this section.
 
 ## A failure's place
 

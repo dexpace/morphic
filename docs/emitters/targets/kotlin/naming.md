@@ -21,18 +21,18 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     client's members, which its groups' properties and its operations' methods take ([the
     client](operations.md#the-client)), and in every unit what the runtime's templates declare,
     though the runtime's own unit holds no spec name ([the runtime's
-    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `SdkException`, `RefusedException`, `ApiException` and the
-    exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`, `OtherResponseException`,
-    `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`, `Authenticator`,
-    `Transport`, `TransportRequest`, `TransportResponse`, `TransportException`, `DecodeException`,
-    `LibraryCause`, `InboundRequest`, `InboundCheck`, `OutboundResponse`, and the opt-in annotations
-    `AlphaApi`, `BetaApi` and `InternalSdkApi` ([stability](operations.md#stability)) among them,
-    and on Multiplatform `Decimal` and `OffsetDateTime`. A file naming one beside a spec class of
-    its name imports one under a name of its own ([imports](#imports)), so no generated file needs
-    these reserved, while a caller's does: with Kotlin 2.4.0, a file importing a unit and the
-    runtime's with `*` found a class both declared ambiguous where it named it ("overload resolution
-    ambiguity between candidates"), so a spec class named `Response` would cost each such caller an
-    explicit import.
+    unit](../../refine/output-units.md#the-runtimes-unit)): `ApiFailure`, `SdkException`,
+    `RefusedException`, `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`,
+    `OtherResponse`, `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`,
+    `Optional`, `Duration`, `Authenticator`, `Transport`, `TransportRequest`, `TransportResponse`,
+    `TransportException`, `DecodeException`, `LibraryCause`, `InboundRequest`, `InboundCheck`,
+    `OutboundResponse`, and the opt-in annotations `AlphaApi`, `BetaApi` and `InternalSdkApi`
+    ([stability](operations.md#stability)) among them, and on Multiplatform `Decimal` and
+    `OffsetDateTime`. A file naming one beside a spec class of its name imports one under a name of
+    its own ([imports](#imports)), so no generated file needs these reserved, while a caller's does:
+    with Kotlin 2.4.0, a file importing a unit and the runtime's with `*` found a class both
+    declared ambiguous where it named it ("overload resolution ambiguity between candidates"), so a
+    spec class named `Response` would cost each such caller an explicit import.
   - Each class Kotlin's default imports give a file on a platform the target builds for, such as
     `List`, `Result`, `Error`, `System` and, on Native, `Platform`, a table of the options version
     as the Swift names below are, read from the Kotlin release and the JDK it is measured on. A
