@@ -3123,10 +3123,13 @@ which a bool cannot tell from one never written, and a count that does not fit i
 `minLength`, `maxLength`, `minItems`, `maxItems`, `minProperties` or `maxProperties`, is a
 non-negative integer with no upper limit, and its field holds one up to 2^63−1: one past that, at
 any node, carrier or `allOf` branch, reaches no field and is kept verbatim under `openapi:<keyword>`
-(`degraded_lowering`) with an info `openapi/degraded-construct` at the position, and on a branch it
-parts no other ([`allof-inline-residue`](#allof-inline-residue)). A count literal that is no
+(`degraded_lowering`) with an info `openapi/degraded-construct` saying so where it is written, and on
+a branch it parts no other ([`allof-inline-residue`](#allof-inline-residue)). Where several writers
+of one position, its schema and the branches folding into it, give one such keyword, the one
+binding the rest is kept, the smallest maximum or the largest minimum, compared exactly however
+large, the first of one value written twice, with one report. A count literal that is no
 non-negative integer is the load phase's to report ([`validation`](#validation)) and reaches no
-field.
+field, nor is it kept.
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
@@ -3153,6 +3156,8 @@ field.
   `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`,
   `schema.TestConstraints_AModifierBoundingNothingIsReportedOnce`,
   `schema.TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder`,
+  `schema.TestAllOf_TheBindingCountIsKeptInEveryOrder`,
+  `schema.TestCompareCounts_OrdersLiteralsExactly`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
 

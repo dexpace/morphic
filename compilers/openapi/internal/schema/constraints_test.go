@@ -1022,6 +1022,8 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 		{"a scalar's maxLength", "{type: string, minLength: 1, maxLength: " + past + "}", "maxLength",
 			&ir.Constraints{MinLength: new(int64(1))}},
 		{"a scalar's minLength past a float64", "{type: string, format: x-f, minLength: 1e400}", "minLength", nil},
+		{"a scalar's maxLength past a decimal's range", "{type: string, format: x-f, maxLength: 1e1000000000000000000}",
+			"maxLength", nil},
 		{"a model's minProperties", "{type: object, properties: {a: {type: string}}, minProperties: " + past + "}",
 			"minProperties", nil},
 		{"a map's maxProperties", "{type: object, additionalProperties: {type: string}, maxProperties: " + past + "}",
@@ -1039,6 +1041,8 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 			require.Len(t, diags, 1, "%+v", diags)
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
 			assert.Equal(t, jsontext.Pointer("/components/schemas/S"), diags[0].Provenance.Pointer)
+			assert.Equal(t, tc.keyword+" is past what a 64-bit integer holds, so no Constraints field states it; "+
+				"kept verbatim under Unmodeled", diags[0].Message, "the node holds the keyword, so it is no homeless one")
 		})
 	}
 
@@ -1052,21 +1056,28 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 	assert.Equal(t, &ir.Constraints{MaxLength: new(int64(9223372036854775807))}, propertyOf(t, doc, "S", "max").Constraints,
 		"a count at the int64 bound is stated")
 	assert.Len(t, diags, 1)
+
+	_, diags = parseFull(t, openapitest.ComponentSpec("    L: {type: array, items: {type: string}, maxLength: "+past+"}\n"))
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Contains(t, diags[0].Message, "has no home for maxLength", "a node holding no such count says so, whatever its size")
 }
 
 // TestConstraints_ACountTheLoadPhaseRefusesReachesNoField pins a count literal
 // that is no non-negative integer, which the parser's model reads as another
 // number, as none, or as the negative number it is: it reaches no Constraints
 // field, and the load phase's report is its one, at a node, a carrier and a
-// reference alike.
+// reference alike, a model and a map among the nodes, whose census would
+// otherwise find the bound unread.
 func TestConstraints_ACountTheLoadPhaseRefusesReachesNoField(t *testing.T) {
 	t.Parallel()
 	for _, literal := range []string{"2.5", `"3"`, "-1"} {
 		doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
 			"    S: {type: string, maxLength: "+literal+"}\n"+
 			"    L: {type: array, items: {type: string}, maxItems: "+literal+"}\n"+
-			"    R: {$ref: '#/components/schemas/Tags', maxItems: "+literal+"}\n"))
-		for _, name := range []string{"S", "L", "R"} {
+			"    R: {$ref: '#/components/schemas/Tags', maxItems: "+literal+"}\n"+
+			"    O: {type: object, properties: {a: {type: string}}, maxProperties: "+literal+"}\n"+
+			"    M: {type: object, additionalProperties: {type: string}, minProperties: "+literal+"}\n"))
+		for _, name := range []string{"S", "L", "R", "O", "M"} {
 			td := typeByName(doc, name)
 			assert.Empty(t, td.Common().Unmodeled, "%s %s", literal, name)
 			if c := heldBounds(td); c != nil {
@@ -1074,8 +1085,8 @@ func TestConstraints_ACountTheLoadPhaseRefusesReachesNoField(t *testing.T) {
 				assert.Nil(t, c.MaxItems, "%s %s", literal, name)
 			}
 		}
-		assert.Len(t, diags, 3, "%s: one report each, the load phase's: %+v", literal, diags)
-		assert.Equal(t, 3, openapitest.CountDiagsAt(diags, "openapi/validation/validation-type-mismatch", ir.SeverityError), literal)
+		assert.Len(t, diags, 5, "%s: one report each, the load phase's: %+v", literal, diags)
+		assert.Equal(t, 5, openapitest.CountDiagsAt(diags, "openapi/validation/validation-type-mismatch", ir.SeverityError), literal)
 	}
 }
 

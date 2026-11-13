@@ -6,6 +6,8 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -254,4 +256,60 @@ func TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder(t *testing.T) {
 		require.Len(t, diags, 1, "%v", order)
 		assert.Equal(t, jsontext.Pointer(fmt.Sprintf("/components/schemas/T/allOf/%d", i)), diags[0].Provenance.Pointer, "%v", order)
 	}
+}
+
+// TestAllOf_TheBindingCountIsKeptInEveryOrder pins counts no field states that
+// several writers of one position give, on its branches or beside its allOf:
+// the one binding the rest is kept, the smallest maximum and the largest
+// minimum compared exactly, with one info where it was written, in every order.
+// want is the kept entry's JSON.
+func TestAllOf_TheBindingCountIsKeptInEveryOrder(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, keyword string
+		counts        []string
+		want          string
+	}{
+		{"two maxima", "maxLength", []string{"99999999999999999999", "88888888888888888888"}, "88888888888888888888"},
+		{"two minima", "minProperties", []string{"88888888888888888888", "99999999999999999999"}, "99999999999999999999"},
+		{"three minima", "minLength", []string{"99999999999999999999", "88888888888888888888", "77777777777777777777"},
+			"99999999999999999999"},
+		{"maxima past a decimal's range, kept as a string (GitHub #1115)", "maxLength",
+			[]string{"2e1000000000000000000", "1e1000000000000000000"}, `"1e1000000000000000000"`},
+	} {
+		for _, order := range permutations(len(tc.counts)) {
+			branches := make([]string, len(order))
+			for k, i := range order {
+				branches[k] = "{" + tc.keyword + ": " + tc.counts[i] + "}"
+			}
+			for _, beside := range []bool{false, true} {
+				spec := "    T: {type: string, allOf: [" + strings.Join(branches, ", ") + "]}\n"
+				if beside {
+					spec = "    T: {type: string, " + branches[0][1:len(branches[0])-1] + ", allOf: [" +
+						strings.Join(branches[1:], ", ") + "]}\n"
+				}
+				doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(spec))
+				openapitest.RequireNoErrorDiags(t, diags)
+				um := typeByName(doc, "T").Common().Unmodeled
+				require.Equal(t, []string{"openapi:" + tc.keyword}, unmodeledKeys(um), "%s %v %v", tc.name, order, beside)
+				assert.Equal(t, tc.want, string(um["openapi:"+tc.keyword].Value), "%s %v %v", tc.name, order, beside)
+				assert.Len(t, diags, 1, "%s %v %v: one report", tc.name, order, beside)
+			}
+		}
+	}
+}
+
+// permutations returns every order of 0..n-1.
+func permutations(n int) [][]int {
+	if n == 1 {
+		return [][]int{{0}}
+	}
+	var out [][]int
+	for _, rest := range permutations(n - 1) {
+		for at := range n {
+			order := slices.Insert(slices.Clone(rest), at, n-1)
+			out = append(out, order)
+		}
+	}
+	return out
 }
