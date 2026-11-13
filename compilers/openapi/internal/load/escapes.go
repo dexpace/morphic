@@ -20,6 +20,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
@@ -91,14 +92,22 @@ func (e *escapes) refusalOf(key string) error {
 }
 
 // refused returns the respelling of the document part of the $ref value v,
-// and why e.refuses refuses it, or a nil reason where it refuses none.
-func (e *escapes) refused(v string) (key string, why error) {
+// written in the document at base, and why a read refuses it, or a nil reason
+// where it refuses none: by its spelling alone (e.refuses), or as naming a
+// document the one at base may not read (bind.Reachable), placed as the
+// resolver is handed it (resolve.Locate). With no e.refuses nothing is read,
+// so nothing is refused.
+func (e *escapes) refused(v, base string) (key string, why error) {
 	if e == nil || e.refuses == nil {
 		return "", nil
 	}
 	uri, _, _ := strings.Cut(v, "#")
 	uri = strings.TrimSpace(uri)
-	if why = e.refuses(uri); why == nil {
+	why = e.refuses(uri)
+	if target, ok := refscope.Locate(uri, base); why == nil && ok && !bind.Reachable(base, target) {
+		why = refused(target, bind.OffNetwork)
+	}
+	if why == nil {
 		return "", nil
 	}
 	return refusedScheme + ":" + url.PathEscape(uri), why
@@ -116,13 +125,13 @@ func (e *escapes) refusal() func(uri string) error {
 // forResolver returns the spelling the resolver is handed for the $ref value
 // v, written in the document at base: its fragment as fragment.ForResolver
 // spells it, and its document part as resolve.ForResolver does, so the
-// resolver reads the document the binder reads (resolve.Locate), or, where
-// e.refuses refuses that part, respelled under refusedScheme, so that the
+// resolver reads the document the binder reads (resolve.Locate), or, where a
+// read refuses that part (refused), respelled under refusedScheme, so that the
 // resolver asks for it where the read refuses it.
 func (e *escapes) forResolver(v, base string) string {
 	spelled := fragment.ForResolver(v)
 	uri, rest, found := strings.Cut(spelled, "#")
-	key, why := e.refused(spelled)
+	key, why := e.refused(spelled, base)
 	switch {
 	case why == nil && refscope.ForResolver(uri, base) == strings.TrimSpace(uri):
 		return spelled
@@ -161,7 +170,7 @@ func (e *escapes) escape(ctx context.Context, root *yaml.Node, base string) {
 		if was, ok := e.spellings[spelled]; !ok || v.Value < was {
 			e.spellings[spelled] = v.Value
 		}
-		if key, why := e.refused(v.Value); why != nil {
+		if key, why := e.refused(v.Value, base); why != nil {
 			e.minted[key] = why
 		}
 		e.written[n] = v.Value

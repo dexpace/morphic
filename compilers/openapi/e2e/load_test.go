@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -751,13 +753,13 @@ func TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost(t *testing.T) {
 }
 
 // TestCompile_ANetworkDocumentReadsNoLocalFile pins the boundary a document
-// fetched over the network is held to: whatever spells a location in it, a
-// $ref of a schema or of a parameter, or an $id or draft 4's `id` above a
-// relative $ref, nested or not, in a document the source names or another
-// network document does, every request names an http(s) URL. An absolute
+// fetched over the network is held to, one the source names or one another
+// network document does: every request names an http(s) URL. An absolute
 // path, a network-path reference and a path climbing past the root resolve on
-// the network by RFC 3986; a file: URI or a drive path refuses the document,
-// though a local file exists.
+// the network by RFC 3986, under an $id too. A file: URI or a drive path, as a
+// $ref, or as an $id or draft 4's `id` above one, nested or not, is refused
+// where it is written, though a local file exists, and the rest of the
+// document is read; an example's $ref is data.
 func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 	t.Parallel()
 	local := t.TempDir()
@@ -792,76 +794,214 @@ func TestCompile_ANetworkDocumentReadsNoLocalFile(t *testing.T) {
 		{"an absolute $id below another", below("$id: '//"+otherHost+"/a/'", "$id: '/x/'"), "", false},
 		{"a file URI $id below another", below("$id: '/a/'", "$id: '"+fileURI+"'"), "", true},
 		{"a draft 4 file URI id", below("$schema: 'http://json-schema.org/draft-04/schema#', id: '" + fileURI + "'"), "", true},
+		{"an example's $ref", "{type: object, example: {$ref: '" + fileURI + "secret.yaml#/X'}}", "", false},
 	} {
 		for _, hops := range []int{1, 2} {
 			t.Run(fmt.Sprintf("%s, %d documents deep", tc.name, hops), func(t *testing.T) {
 				t.Parallel()
-				doc := "components:\n  schemas:\n    S: " + tc.schema + "\n"
+				entries := []networkEntry{{"schemas", "S", tc.schema}}
 				if tc.param != "" {
-					doc += "  parameters:\n    P: {$ref: '" + tc.param + "'}\n"
+					entries = append(entries, networkEntry{"parameters", "P", "{$ref: '" + tc.param + "'}"})
 				}
-				diags, locations, host := compileOverTheNetwork(t, doc, hops, tc.param != "")
-				for _, l := range locations {
-					u, err := url.Parse(l)
-					require.NoError(t, err, l)
-					assert.Equal(t, "http", u.Scheme, "nothing local is read: %s", l)
-					assert.Contains(t, []string{host, otherHost}, u.Host, l)
-				}
-				var why []string
-				for _, d := range diags {
-					if d.Severity == ir.SeverityError {
-						why = append(why, d.Message)
-					}
-				}
-				if !tc.refused {
-					assert.Empty(t, why, "it is read from the network")
-					return
-				}
-				require.NotEmpty(t, why)
-				for _, w := range why {
-					assert.Contains(t, w, "is fetched over the network and its ", "the document is refused")
-				}
+				assertNoLocalRead(t, compileOverTheNetwork(t, "3.1.0", entries, hops), otherHost, tc.refused)
 			})
 		}
 	}
 }
 
-// secretDoc is the document the paths of
-// TestCompile_ANetworkDocumentReadsNoLocalFile name, on disk and on each host.
-const secretDoc = "X: {type: integer}\nP: {name: p, in: query, schema: {type: integer}}\n"
+// TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference pins the same
+// boundary for each kind of reference the compiler follows, a file: URI in a
+// document fetched over the network, one and two network documents deep: a
+// schema's $ref, a reference object of every kind the parser's resolver reads,
+// and a discriminator's mapping value and defaultMapping, which the compiler
+// binds, are each refused where they are written, and nothing local is read;
+// a link's operationRef and an example's externalValue name nothing a compile
+// reads.
+func TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference(t *testing.T) {
+	t.Parallel()
+	local := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(local, "secret.yaml"), []byte(secretDoc), 0o600))
+	secret := "file://" + filepath.ToSlash(local) + "/secret.yaml"
+	oneOf := "{oneOf: [{type: object, properties: {k: {type: string}}}], discriminator: {propertyName: k, "
+	for _, tc := range []struct {
+		name    string
+		entry   networkEntry
+		refused bool
+	}{
+		{"a schema", networkEntry{"schemas", "S", "{$ref: '" + secret + "#/X'}"}, true},
+		{"a parameter", networkEntry{"parameters", "P", "{$ref: '" + secret + "#/P'}"}, true},
+		{"a response", networkEntry{"responses", "R", "{$ref: '" + secret + "#/R'}"}, true},
+		{"a request body", networkEntry{"requestBodies", "B", "{$ref: '" + secret + "#/B'}"}, true},
+		{"a header", networkEntry{"headers", "H", "{$ref: '" + secret + "#/H'}"}, true},
+		{"an example", networkEntry{"examples", "E", "{$ref: '" + secret + "#/E'}"}, true},
+		{"a link", networkEntry{"links", "L", "{$ref: '" + secret + "#/L'}"}, true},
+		{"a callback", networkEntry{"callbacks", "C", "{$ref: '" + secret + "#/C'}"}, true},
+		{"a path item", networkEntry{"pathItems", "I", "{$ref: '" + secret + "#/I'}"}, true},
+		{"a security scheme", networkEntry{"securitySchemes", "Z", "{$ref: '" + secret + "#/Z'}"}, true},
+		{"a media type", networkEntry{"mediaTypes", "M", "{$ref: '" + secret + "#/M'}"}, true},
+		{"a mapping value", networkEntry{"schemas", "S", oneOf + "mapping: {a: '" + secret + "#/X'}}}"}, true},
+		{"a defaultMapping", networkEntry{"schemas", "S", oneOf + "defaultMapping: '" + secret + "#/X'}}"}, true},
+		{"a link's operationRef", networkEntry{"links", "L", "{operationRef: '" + secret + "#/O'}"}, false},
+		{"an example's externalValue", networkEntry{"examples", "E", "{externalValue: '" + secret + "'}"}, false},
+	} {
+		for _, hops := range []int{1, 2} {
+			t.Run(fmt.Sprintf("%s, %d documents deep", tc.name, hops), func(t *testing.T) {
+				t.Parallel()
+				got := compileOverTheNetwork(t, "3.2.0", []networkEntry{tc.entry}, hops)
+				assertNoLocalRead(t, got, "", tc.refused)
+			})
+		}
+	}
+}
 
-// compileOverTheNetwork compiles a source whose schema, and parameter where
-// param says so, name what doc declares, served over HTTP and reached through
-// hops network documents. It returns what the compile reports, the location of
-// every request it made, and the host doc is served from.
-func compileOverTheNetwork(t *testing.T, doc string, hops int, param bool) ([]ir.Diagnostic, []string, string) {
+// TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile pins the boundary for
+// a source itself read over the network, with external references allowed or
+// not: a file: URI in a schema's $ref, a parameter's, a mapping value, or
+// below an $id is refused, and so is the file a parameter's relative $ref
+// names under a 3.2 `$self` naming a file URI or a path, which the parser's
+// resolver reads it against. Nothing local is read.
+func TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile(t *testing.T) {
+	t.Parallel()
+	local := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(local, "secret.yaml"), []byte(secretDoc), 0o600))
+	dir := filepath.ToSlash(local) + "/"
+	self := func(base string) string {
+		return "openapi: 3.2.0\n$self: '" + base + "'\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+			"components:\n  parameters:\n    P: {$ref: 'secret.yaml#/P'}\n"
+	}
+	in31 := func(components string) string {
+		return "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n" + components
+	}
+	for _, tc := range []struct{ name, spec string }{
+		{"a schema's file URI", in31("  schemas:\n    S: {$ref: 'file://" + dir + "secret.yaml#/X'}\n")},
+		{"a parameter's file URI", in31("  parameters:\n    P: {$ref: 'file://" + dir + "secret.yaml#/P'}\n")},
+		{"a mapping value's file URI", in31("  schemas:\n    S: {oneOf: [{type: object}], discriminator: " +
+			"{propertyName: k, mapping: {a: 'file://" + dir + "secret.yaml#/X'}}}\n")},
+		{"a file URI $id", in31("  schemas:\n    S: {$id: 'file://" + dir + "', properties: {p: {$ref: 'secret.yaml#/X'}}}\n")},
+		{"a $self naming a file URI", self("file://" + dir)},
+		{"a $self naming a path", self(dir)},
+	} {
+		for _, allow := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s, external references allowed: %v", tc.name, allow), func(t *testing.T) {
+				t.Parallel()
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, err := w.Write([]byte(secretDoc))
+					assert.NoError(t, err)
+				}))
+				t.Cleanup(srv.Close)
+				rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
+				got, diags, err := openapi.New().Compile(t.Context(),
+					[]compilers.Source{{Path: srv.URL + "/v1/root.yaml", Data: []byte(tc.spec)}},
+					compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: allow}})
+				require.NoError(t, err)
+				require.NotNil(t, got)
+
+				assertNoLocalRead(t, networkCompile{diags: diags, locations: rec.locations(),
+					host: strings.TrimPrefix(srv.URL, "http://")}, "", true)
+			})
+		}
+	}
+}
+
+// secretDoc is the document the references of
+// TestCompile_ANetworkDocumentReadsNoLocalFile and its kin name, on disk and
+// on each host: an object of each kind a reference may name.
+const secretDoc = "X: {type: integer}\nP: {name: p, in: query, schema: {type: integer}}\n" +
+	"R: {description: r}\nB: {content: {application/json: {schema: {type: integer}}}}\n" +
+	"H: {schema: {type: integer}}\nE: {value: 1}\nL: {operationId: o}\nC: {}\nI: {}\n" +
+	"Z: {type: http, scheme: basic}\nM: {schema: {type: integer}}\n"
+
+// networkEntry is a components entry of a document served over the network:
+// its section, its name, and its value as YAML.
+type networkEntry struct{ section, name, value string }
+
+// networkCompile is what compileOverTheNetwork returns: what the compile
+// reported, the location of every request it made, and the host the network
+// documents are served from.
+type networkCompile struct {
+	diags     []ir.Diagnostic
+	locations []string
+	host      string
+}
+
+// compileOverTheNetwork compiles a source at version naming each of entries,
+// as a document served over HTTP declares it beside a schema OK, which the
+// source names too, reached through hops network documents, the last
+// declaring them, and asserts OK lowers.
+func compileOverTheNetwork(t *testing.T, version string, entries []networkEntry, hops int) networkCompile {
 	t.Helper()
+	entries = append(slices.Clone(entries), networkEntry{"schemas", "OK", "{type: string}"})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := secretDoc
 		switch {
 		case r.URL.Path == "/v1/d/a.yaml" && hops > 1:
-			body = "components:\n  schemas:\n    S: {$ref: 'b.yaml#/components/schemas/S'}\n" +
-				"  parameters:\n    P: {$ref: 'b.yaml#/components/parameters/P'}\n"
+			body = componentsOf(entries, func(e networkEntry) string { return "{$ref: 'b.yaml" + e.at() + "'}" })
 		case r.URL.Path == "/v1/d/a.yaml", r.URL.Path == "/v1/d/b.yaml":
-			body = doc
+			body = componentsOf(entries, func(e networkEntry) string { return e.value })
 		}
 		_, err := w.Write([]byte(body))
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(srv.Close)
 	api := srv.URL + "/v1/d/a.yaml"
-	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
-		"    A: {$ref: '" + api + "#/components/schemas/S'}\n"
-	if param {
-		root += "  parameters:\n    Q: {$ref: '" + api + "#/components/parameters/P'}\n"
-	}
+	root := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+		componentsOf(entries, func(e networkEntry) string { return "{$ref: '" + api + e.at() + "'}" })
 	rec := &recordingReader{inner: reader.Disk{Client: srv.Client()}}
 	got, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(t.TempDir(), "root.yaml"), Data: []byte(root)}},
 		compilers.Options{Reader: rec, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	return diags, rec.locations(), strings.TrimPrefix(srv.URL, "http://")
+	ok := slices.ContainsFunc(slices.Collect(maps.Keys(got.Types)), func(id ir.TypeID) bool {
+		return strings.Contains(string(id), "@http") && strings.HasSuffix(string(id), "/components/schemas/OK")
+	})
+	assert.True(t, ok, "the rest of the network document is read")
+	return networkCompile{diags: diags, locations: rec.locations(), host: strings.TrimPrefix(srv.URL, "http://")}
+}
+
+// at is the pointer naming e in the document declaring it.
+func (e networkEntry) at() string { return "#/components/" + e.section + "/" + e.name }
+
+// componentsOf is a components object declaring each of entries, as value
+// spells it, one key per section.
+func componentsOf(entries []networkEntry, value func(networkEntry) string) string {
+	bySection := map[string]string{}
+	for _, e := range entries {
+		bySection[e.section] += "    " + e.name + ": " + value(e) + "\n"
+	}
+	out := "components:\n"
+	for _, section := range slices.Sorted(maps.Keys(bySection)) {
+		out += "  " + section + ":\n" + bySection[section]
+	}
+	return out
+}
+
+// assertNoLocalRead holds what compileOverTheNetwork returns to the boundary:
+// every request named an http URL on the network documents' host or on other,
+// and every error says a reference was refused for naming no such URL, or,
+// where refused is false, there is none.
+func assertNoLocalRead(t *testing.T, got networkCompile, other string, refused bool) {
+	t.Helper()
+	for _, l := range got.locations {
+		u, err := url.Parse(l)
+		require.NoError(t, err, l)
+		assert.Equal(t, "http", u.Scheme, "nothing local is read: %s", l)
+		assert.Contains(t, []string{got.host, other}, u.Host, l)
+	}
+	var why []string
+	for _, d := range got.diags {
+		if d.Severity == ir.SeverityError {
+			why = append(why, d.Message)
+		}
+	}
+	if !refused {
+		assert.Empty(t, why, "it is read from the network")
+		return
+	}
+	require.NotEmpty(t, why)
+	for _, w := range why {
+		assert.Contains(t, w, bind.OffNetwork, "the reference is refused where it is written")
+	}
 }
 
 // TestCompile_AFileNamedLikeAURLIsReadAsAFile pins a relative $ref to a file

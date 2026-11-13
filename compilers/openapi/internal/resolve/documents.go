@@ -13,6 +13,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 )
 
 // documentOf returns the path of the document ref names when it is written in
@@ -76,14 +77,14 @@ func ForResolver(uri, base string) string {
 	return located
 }
 
-// networkURL returns base parsed as an http or https URL, and false for any
-// other location.
+// networkURL returns base parsed as an http or https URL (bind.OverNetwork),
+// and false for any other location.
 func networkURL(base string) (*url.URL, bool) {
-	u, err := url.Parse(base)
-	if err != nil || !strings.EqualFold(u.Scheme, "http") && !strings.EqualFold(u.Scheme, "https") {
+	if !bind.OverNetwork(base) {
 		return nil, false
 	}
-	return u, true
+	u, err := url.Parse(base)
+	return u, err == nil
 }
 
 // FilePart returns uri, a reference's document part, as the file it names

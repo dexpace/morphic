@@ -193,8 +193,8 @@ type Options struct {
 	// source lies in (Source.Location, else Source.Path) for any file and
 	// http(s) URLs. Off by default, since a spec is untrusted: reads stay
 	// inside that directory, symbolic links included, and follow relative
-	// references alone: a $ref spelling a file URI, or an absolute path to any
-	// document but the source, is refused.
+	// references alone. On or off, a reference in a document read over
+	// http(s) reads only http(s) URLs.
 	//
 	// Reads go through compilers.Options.Reader; with none, nothing is read.
 	// Each document read is a Document.Sources entry, and what it declares is

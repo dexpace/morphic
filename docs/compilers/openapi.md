@@ -453,9 +453,10 @@ so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it
 escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
 path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
 absolute path and a network-path reference among them, names what the document's URL makes of it, on
-the network. A document so fetched whose `$ref` or `$id` names a local location, by a `file:` URI or
-a drive path, is refused, failing each reference naming it, with the value at the least pointer
-among those that do as the reason. The read stays inside the directory the source lies in, symbolic
+the network. A reference written in a document read over http(s), the source included, is read
+only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
+`$id`, a draft 4 `id` or the source's `$self` moves onto one, fails unread where it is written, and
+the rest of the document is read. The read stays inside the directory the source lies in, symbolic
 links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
 reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
 or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
@@ -524,15 +525,10 @@ key of no schema vocabulary hold schemas, and within one a keyword reads as it d
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
-it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
-`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
-or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
-check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
-refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
-name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
-dialect rather than to the rule table's 2020-12 row; one
-beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
-every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
+it `id`, its `$id` then naming nothing. In drafts 4, 6 and 7 one naming a fragment alone, `#name`,
+declares that plain name as an `$anchor` does, which is why the load phase holds an `$id`'s format
+to the schema's dialect rather than to the rule table's 2020-12 row; one beside a `$ref` gives it no
+base, roots no resource and declares no name, as those drafts ignore every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
 a value is one. A schema another holds roots a resource where it writes an identifier as the
 dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
@@ -651,8 +647,11 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestEscapes_RespellsADocumentPartTheResolverReadsOtherwise`,
   `load.TestExternal_DoHoldsTheSourceAFileURINames`, `load.TestLoad_RejectsARelativeLocation`,
   `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
-  `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`, `load.TestLocalTarget`,
-  `load.TestReachesLocal_NamesTheLeastOffenderInEitherOrder`,
+  `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`,
+  `load.TestEscapes_RefusesALocalReferenceOfANetworkDocument`,
+  `load.TestExternal_ASourceReadOverTheNetworkReadsNoFile`, `bind.TestReachable`,
   `load.TestLoad_AFileURIAndAPathAreOneDocument`, `e2e.TestCompile_AFileNamedLikeAURLIsReadAsAFile`,
   `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
