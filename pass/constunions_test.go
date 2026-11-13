@@ -762,14 +762,16 @@ func TestConstUnions_KeepsABranchOfSeveralValuesNamedTwice(t *testing.T) {
 }
 
 // TestConstUnions_ReadsEachUnionOnce pins the cost of reading the unions: a
-// union two others name as a branch, and each reads first, is read once.
+// union two others name as a branch, and each reads first, is read once in
+// each reading, of which a run makes two here, as that branch holds several
+// values and is named twice.
 func TestConstUnions_ReadsEachUnionOnce(t *testing.T) {
 	t.Parallel()
 	doc := constDoc(anonymousUnion("t/x/I", "t/x/I/0", "t/x/I/1"), lit("t/x/I/0", "up"), lit("t/x/I/1", "down"),
 		union("t/x/A", "t/x/I", "t/x/A/0"), lit("t/x/A/0", "left"),
 		union("t/x/B", "t/x/I", "t/x/B/0"), lit("t/x/B/0", "right"))
 
-	assert.Equal(t, 3, pass.UnionReads(doc))
+	assert.Equal(t, 6, pass.ConstReadings(t, doc))
 }
 
 // TestConstUnions_ReturnsItsInputOnceItsContextIsDone cancels a Run at every
@@ -801,8 +803,10 @@ func TestConstUnions_ReturnsItsInputOnceItsContextIsDone(t *testing.T) {
 
 // TestConstUnions_WalksOnlyWhereItCounts pins the walks a run makes: the one
 // that finds the branches nothing references for consts, and one more to count
-// the references to the branches of several values a union took, made only
-// where one did. A document where no union reads as an Enum is not walked.
+// the references to the branches of several values a union took in a first
+// reading, made only where one did, though the count may show a branch named
+// twice, which no union then takes. A document where no union reads as an Enum,
+// in either reading, is not walked.
 func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -873,7 +877,7 @@ func TestConstUnions_BuildsEachMemberOnce(t *testing.T) {
 		require.True(t, ok, "the first union is an Enum")
 		assert.Len(t, enum.Members, links+1)
 		assert.Len(t, out.Types, 1, "no other union is left")
-		assert.Equal(t, links, pass.UnionReads(doc))
+		assert.Equal(t, links, pass.ConstReadings(t, doc))
 		return pass.ConstBuilt(t, doc)
 	}
 	const links = 64

@@ -185,9 +185,9 @@ func constEnums(r *unionReading) rewrite {
 }
 
 // readingOf returns the reading of each union of doc, which offers each branch
-// in sole to the first union asking for it.
-func readingOf(doc *ir.Document, sole map[ir.TypeID]bool) *unionReading {
-	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], sole: sole,
+// in offered to the first union asking for it.
+func readingOf(doc *ir.Document, offered map[ir.TypeID]bool) *unionReading {
+	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], offered: offered,
 		values: map[ir.TypeID]*values{}, named: map[ir.TypeID]bool{}, taken: map[ir.TypeID]bool{},
 		opened: map[ir.TypeID]bool{}, read: map[ir.TypeID]bool{}}
 	for id := range doc.Types {
@@ -203,9 +203,9 @@ func readingOf(doc *ir.Document, sole map[ir.TypeID]bool) *unionReading {
 type unionReading struct {
 	types  ir.TypeRegistry
 	spaces []string
-	// sole holds the branches of several values a union may take, each offered
-	// once, to the first union asking for it.
-	sole map[ir.TypeID]bool
+	// offered holds the branches of several values a union may take, each
+	// offered once, to the first union asking for it.
+	offered map[ir.TypeID]bool
 	// values holds what each union read as an Enum holds, named the types those
 	// unions' variants name, and taken those whose values a union took.
 	values       map[ir.TypeID]*values

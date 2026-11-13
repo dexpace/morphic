@@ -119,10 +119,6 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
 }
 
-// UnionReads is how many unions pass.ConstUnions reads in doc, as it reads
-// them, which reading each once holds to how many doc has.
-func UnionReads(doc *ir.Document) int { return readingOf(doc, nil).reads }
-
 // ConstWalks is how many walks of doc one run of pass.ConstUnions makes, its
 // count of the references to a branch and its search for the branches nothing
 // references among them.

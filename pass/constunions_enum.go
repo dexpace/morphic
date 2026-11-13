@@ -108,10 +108,11 @@ func (r *unionReading) heldAt(id ir.TypeID) (held, bool) {
 }
 
 // offer reports whether a union may take the branch of several values at id,
-// which only the first union asking for it may: one sole is asked for once.
+// which only the first union asking for it may, as a branch one reference
+// names is asked for once.
 func (r *unionReading) offer(id ir.TypeID) bool {
-	ok := r.sole[id]
-	delete(r.sole, id)
+	ok := r.offered[id]
+	delete(r.offered, id)
 	return ok
 }
 
