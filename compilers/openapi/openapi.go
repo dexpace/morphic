@@ -233,9 +233,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// What a deprecation names as its replacement may be declared anywhere, so
 	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))
-	// An extension under a prefix the policy owns is judged once every node
-	// that could keep one is built.
-	acc.AppendAll(lowering.UnreadExtensions(c, out))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -244,6 +241,9 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, lowered.Kept)
 	acc.AppendAll(metaDiags)
+	// An extension under a prefix the policy owns is judged once every node
+	// that could keep one is built, the document's own Unmodeled included.
+	acc.AppendAll(lowering.UnreadExtensions(c, out))
 	// Past the budget no $ref lowered, nor an additionalOperations entry, so
 	// what the lowering found depends on which copy came first: the refusal is
 	// reported alone, the same in any order. It is asked once every lowering has

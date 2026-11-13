@@ -4515,6 +4515,7 @@ the node's own keys alone, never lent by a `$ref`'s target, whose class is anoth
   `lowering.TestUnreadExtensions_ReportsAnOwnedKeyNoSourceReads`,
   `lowering.TestUnreadExtensions_NamesNoKeyAMappingDoesNotRead`,
   `lowering.TestUnreadExtensions_TheGroupingKeyIsRead`,
+  `e2e.TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode`,
   `lowering.TestPromoterServerName_ReadsTheDefaultKey`,
   `lowering.TestPromoterTokenEndpointAuthMethods_ReadsASet`,
   `lowering.TestPromoterAllowReserved_OnlyTrueAsksForIt`,

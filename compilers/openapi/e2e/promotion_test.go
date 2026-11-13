@@ -687,3 +687,45 @@ components:
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/paths/~1gone/get/x-replaced-by"))
 	assert.Contains(t, getGone.Unmodeled, "openapi:x-replaced-by", "the extension survives its promotion")
 }
+
+// TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode pins the owned-prefix report
+// to every node keeping an extension, the document's own among them: its root,
+// info, contact, license, tags and components keep theirs in the Document's
+// Unmodeled, which is merged last, so a judge run before it would miss them.
+func TestPromotion_AnOwnedPrefixIsJudgedAtEveryNode(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+x-acme-root: 1
+info:
+  title: T
+  version: "1"
+  x-acme-info: 1
+  contact: {name: c, x-acme-contact: 1}
+  license: {name: MIT, x-acme-license: 1}
+tags:
+  - {name: T, x-acme-tag: 1}
+paths:
+  /x:
+    get:
+      operationId: getX
+      x-acme-op: 1
+      responses: {"200": {description: ok}}
+components:
+  x-acme-components: 1
+  schemas:
+    S: {type: string, x-acme-schema: 1}
+`
+	_, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Prefixes: []string{"x-acme-"},
+		}}})
+	require.NoError(t, err)
+	for _, pointer := range []string{
+		"/x-acme-root", "/info/x-acme-info", "/info/contact/x-acme-contact", "/info/license/x-acme-license",
+		"/tags/0/x-acme-tag", "/paths/~1x/get/x-acme-op", "/components/x-acme-components",
+		"/components/schemas/S/x-acme-schema",
+	} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/unread-extension", pointer), pointer)
+	}
+}
