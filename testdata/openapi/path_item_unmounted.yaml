@@ -19,14 +19,14 @@
 # collision is decided by iteration order.
 #
 # Nothing here draws an error diagnostic, which is what the shape of each stray
-# key is chosen for: harness.Check stops at the first one, so a fixture that drew
-# it would never reach the invariant, round-trip, determinism and order-invariance
-# oracles it exists to reach. A key the library does not recognize is folded into
-# the item's operations map and unmarshalled as an Operation, so anything that is
-# not one fails to parse — while a well-formed operation folds in silence. That
-# silent fold is also the half this compiler lost most quietly: it raises nothing
-# at all, so before the census nothing named it. `mounted` is here so both kinds
-# of carrier appear in one document.
+# key is chosen for: a key drawing one would show the key refused, not what a
+# valid document keeps of it, which is what this fixture pins. A key the library
+# does not recognize is folded into the item's operations map and unmarshalled
+# as an Operation, so anything that is not one fails to parse — while a
+# well-formed operation folds in silence. That silent fold is also the half this
+# compiler lost most quietly: it raises nothing at all, so before the census
+# nothing named it. `mounted` is here so both kinds of carrier appear in one
+# document.
 openapi: 3.1.0
 info: {title: Unmounted Path Items, version: "1"}
 paths:

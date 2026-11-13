@@ -87,9 +87,10 @@ type Visibility struct {
 `readOnly` lowers to `Only: [read]` (plus delete/query per OpenAPI semantics); `writeOnly` to
 `Only: [create, update]`; GraphQL input-vs-output types to `create/update` vs `read`; TypeSpec
 `@visibility` maps directly. One logical model therefore produces N wire shapes; the projection
-(`ModelShape(model, shape)`, with PATCH additionally making properties optional *unless the
-binding disables it* — [http-binding](./http-binding.md) `PatchImplicitOptionality`) is a computed
-traversal in emitters' plan layer — the IR stores the single logical model plus the visibility
-facts, never the projected variants. Operations can override which filter applies to their
-request/response ([operations](./operations.md) `ParameterVisibility`/`ReturnTypeVisibility`). This
-is TypeSpec's `MetadataInfo` design with storage and computation split.
+(`ModelShape(model, shape)`, with a `PATCH` body making properties optional where its binding asks
+for it — [http-binding](./http-binding.md#patch-optionality) `PatchImplicitOptionality` — or a
+consumer's own policy reads the body so) is a computed traversal in emitters' plan layer — the IR
+stores the single logical model plus the visibility facts, never the projected variants.
+Operations can override which filter applies to their request/response
+([operations](./operations.md) `ParameterVisibility`/`ReturnTypeVisibility`). This is TypeSpec's
+`MetadataInfo` design with storage and computation split.

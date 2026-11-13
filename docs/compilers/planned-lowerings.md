@@ -88,11 +88,12 @@ highlights, and the list moves to a specification of its own when the compiler l
 - http traits → HTTPBinding incl. a greedy label `{name+}` → PathPattern `**` with no AllowReserved,
   since Smithy percent-encodes every character of one but a `/` and the unreserved ones, a `%` among
   them ([values as text](../emitters/refine/text.md#escaping)), `@endpoint`/`@hostLabel` →
-  HostPrefix/host location (additive binding), `@httpPrefixHeaders`/`@httpQueryParams` → Prefix
-  bindings on an input, the empty prefix and `@httpQueryParams` once #1748 gives them a spelling,
-  and `@httpPrefixHeaders` → a Header's Prefix on an output or an error ([prefix
-  headers](../ir/responses.md#prefix-headers)), `@httpResponseCode` → Response.StatusCodeProp,
-  `@requestCompression` → Compression, `@httpChecksumRequired` → ChecksumRequired
+  HostPrefix/host location (additive binding), `@httpPrefixHeaders` → a header binding's Prefix on
+  an input and `@httpQueryParams` → a query binding's Prefix of `""` ([prefix
+  bindings](../ir/http-binding.md#prefix-bindings)), and `@httpPrefixHeaders` → a Header's Prefix on
+  an output or an error ([prefix headers](../ir/responses.md#prefix-headers)), `@httpResponseCode`
+  → Response.StatusCodeProp, `@requestCompression` → Compression, `@httpChecksumRequired` →
+  ChecksumRequired
 - `@auth` order → priority-ordered Auth, `@optionalAuth` → empty option
 - `@jsonName` → WireName
 - `@mediaType` → Encoding.MediaType

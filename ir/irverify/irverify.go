@@ -173,6 +173,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkContentStreams,
 		checkLinkValues,
 		checkPrefixHeaders,
+		checkPrefixBindings,
 		checkEntityRefs,
 	}
 }

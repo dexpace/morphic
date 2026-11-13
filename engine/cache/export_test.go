@@ -4,7 +4,6 @@
 package cache
 
 import (
-	"context"
 	"io/fs"
 	"os"
 	"time"
@@ -49,7 +48,6 @@ func Prune(d *Dir) error { return d.prune(time.Now()) }
 // TallyDue exposes tallyDue, so a test can hand it ledgers no Store would read.
 func TallyDue(data []byte, limit int) bool { return tallyDue(data, limit) }
 
-// BuildIDOf exposes buildID, so a test can fail finding the executable.
-func BuildIDOf(ctx context.Context, executable func() (string, error)) (string, error) {
-	return buildID(ctx, executable)
-}
+// BuildIDOn exposes buildID, so a test can take each system's way to the image
+// and fail finding the executable.
+var BuildIDOn = buildID

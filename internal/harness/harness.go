@@ -42,35 +42,79 @@ const (
 	OutcomeOrderDependent   Outcome = "order-dependent"
 )
 
-// Result is one spec's outcome plus human-readable detail. Detail is empty when
-// Outcome is OutcomeOK and otherwise describes the first oracle that fired.
+// Result is one spec's outcome plus human-readable detail, and every oracle's
+// verdict on it.
 type Result struct {
 	// Spec identifies the input (its corpus path or logical name).
 	Spec string
-	// Outcome is the first failing oracle, or OutcomeOK when all passed.
+	// Outcome is the first oracle's finding, in Check's order, the fault that
+	// ended the run (OutcomeError, OutcomeUnrecognized), or OutcomeOK.
 	Outcome Outcome
 	// Detail is human-readable context for a non-OK outcome.
 	Detail string
+	// Verdicts holds one Verdict per oracle, in the order Oracles lists them:
+	// what each found, or why it asked nothing.
+	Verdicts []Verdict
 }
 
 // Check runs data through the engine as `morphic compile --verify` runs a
-// spec, its passes included, behind barrier.Catch and applies every oracle in
-// order, returning the first failure or OutcomeOK. A panic anywhere in the run
-// or the oracles is captured as OutcomePanic rather than escaping to the
-// caller. A caller mistake (nil ctx, empty spec identifier) is reported as
-// OutcomeError with a harness-prefixed Detail, so it is never misattributed to
-// the spec as a compiler panic.
+// spec, its passes included, behind barrier.Catch, and applies every oracle in
+// order. An error diagnostic stops none of them: each oracle with something to
+// compare compares it, and one with nothing declines, saying why. A panic
+// anywhere is OutcomePanic, and the oracles not yet run decline as not reached.
+// A caller mistake (nil ctx, empty spec identifier) is OutcomeError with a
+// harness-prefixed Detail, so it is never misattributed to the spec.
 func Check(ctx context.Context, spec string, data []byte) Result {
 	if ctx == nil {
-		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: nil context"}
+		return ended(spec, OutcomeError, "harness: nil context", nil)
 	}
 	if spec == "" {
-		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: empty spec identifier"}
+		return ended(spec, OutcomeError, "harness: empty spec identifier", nil)
 	}
 
-	var res Result
-	if err := barrier.Catch(func() { res = check(ctx, spec, data) }); err != nil {
-		return Result{Spec: spec, Outcome: OutcomePanic, Detail: panicDetail(err)}
+	var verdicts []Verdict
+	var fault error
+	if err := barrier.Catch(func() {
+		fault = check(ctx, spec, data, func(v Verdict) { verdicts = append(verdicts, v) })
+	}); err != nil {
+		return judge(spec, append([]Verdict{found(OracleNoPanic, panicDetail(err))}, verdicts...))
+	}
+	verdicts = append([]Verdict{passed(OracleNoPanic)}, verdicts...)
+	if errors.Is(fault, errUnrecognized) {
+		return ended(spec, OutcomeUnrecognized, fault.Error(), verdicts)
+	}
+	if fault != nil {
+		return ended(spec, OutcomeError, fault.Error(), verdicts)
+	}
+	return judge(spec, verdicts)
+}
+
+// ended is the Result of a run a fault ended before any oracle found anything,
+// outcome and detail saying which fault: every oracle that gave no verdict
+// declines as not reached.
+func ended(spec string, outcome Outcome, detail string, verdicts []Verdict) Result {
+	res := judge(spec, verdicts)
+	res.Outcome, res.Detail = outcome, detail
+	return res
+}
+
+// judge is the Result verdicts make: completed with a not-reached verdict from
+// each oracle that gave none, and the first finding as its outcome.
+func judge(spec string, verdicts []Verdict) Result {
+	answered := make(map[Oracle]Verdict, len(verdicts))
+	for _, v := range verdicts {
+		answered[v.Oracle] = v
+	}
+	res := Result{Spec: spec, Outcome: OutcomeOK}
+	for _, o := range Oracles() {
+		v, ok := answered[o]
+		if !ok {
+			v = declined(o, DeclineNotReached)
+		}
+		if v.Found() && res.Outcome == OutcomeOK {
+			res.Outcome, res.Detail = v.Outcome, v.Detail
+		}
+		res.Verdicts = append(res.Verdicts, v)
 	}
 	return res
 }
@@ -85,51 +129,64 @@ func panicDetail(err error) string {
 	return err.Error()
 }
 
-// check runs data through the oracles in order and returns the first that
-// fires, or OutcomeOK.
-func check(ctx context.Context, spec string, data []byte) Result {
+// check runs data through the oracles in order, handing each verdict to give,
+// and returns the fault that ends the run before any oracle can ask: a source
+// no compiler takes (errUnrecognized), or a Go error from the compile. A
+// verified run the engine refused is the invariants oracle's finding, and
+// nothing follows it, since the engine returns no document.
+func check(ctx context.Context, spec string, data []byte, give func(Verdict)) error {
 	doc, diags, err := compile(ctx, spec, data, passes())
-	if errors.Is(err, errUnrecognized) {
-		return Result{Spec: spec, Outcome: OutcomeUnrecognized, Detail: err.Error()}
-	}
 	if verr, ok := errors.AsType[*engine.VerifyError](err); ok {
-		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%s: %+v", verr.Stage, verr.Violations)}
+		give(found(OracleInvariants, fmt.Sprintf("%s: %+v", verr.Stage, verr.Violations)))
+		return nil
 	}
 	if err != nil {
-		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
+		return err
 	}
-	// Before the spec's own errors: a document breaking the invariants is a
-	// compiler's or a pass's bug whatever the spec says, and the run returns it.
-	// Only a refusal, an error and no document, has nothing to hold. The run's
-	// verification does not reach the findings the engine writes onto the
-	// document after its last stage (#1121), so this hold stays beside it.
-	first, failed := ir.FirstError(diags)
-	if doc != nil || !failed {
-		if vs := irverify.Verify(doc); len(vs) > 0 {
-			return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
-		}
+
+	give(invariants(doc, diags))
+	give(errorFree(diags))
+	if doc == nil {
+		give(declined(OracleRoundTrip, DeclineNoDocument))
+	} else {
+		give(OracleRoundTrip.judge(roundTrip(doc)))
 	}
-	if failed {
-		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: first.Code + ": " + first.Message}
+	// Determinism comes before the two oracles that compile the source again
+	// another way, so a compiler that is not even same-input-same-output is
+	// reported as that first, rather than as a pass changing its own output or
+	// as order-dependence.
+	give(OracleDeterminism.judge(deterministic(ctx, spec, data, doc, diags)))
+	if doc == nil {
+		give(declined(OracleIdempotence, DeclineNoDocument))
+	} else {
+		give(OracleIdempotence.judge(idempotent(ctx, spec, data, doc)))
 	}
-	if detail, ok := roundTrip(doc); !ok {
-		return Result{Spec: spec, Outcome: OutcomeRoundtrip, Detail: detail}
+	give(orderInvariant(ctx, spec, data, doc != nil))
+	return nil
+}
+
+// invariants holds what the run returned to irverify's invariants: a document
+// breaking one is a compiler's or a pass's bug whatever the spec says. Only a
+// refusal, an error and no document, has nothing to hold. The run's
+// verification does not reach the findings the engine writes onto the
+// document after its last stage (#1121), so this hold stays beside it.
+func invariants(doc *ir.Document, diags []ir.Diagnostic) Verdict {
+	if _, failed := ir.FirstError(diags); doc == nil && failed {
+		return declined(OracleInvariants, DeclineNoDocument)
 	}
-	if detail, ok := deterministic(ctx, spec, data, doc); !ok {
-		return Result{Spec: spec, Outcome: OutcomeNondeterministic, Detail: detail}
+	if vs := irverify.Verify(doc); len(vs) > 0 {
+		return found(OracleInvariants, fmt.Sprintf("%+v", vs))
 	}
-	// After deterministic: a pass that is not even same-input-same-output would
-	// read as one that changes its own output.
-	if detail, ok := idempotent(ctx, spec, data, doc); !ok {
-		return Result{Spec: spec, Outcome: OutcomeNonIdempotent, Detail: detail}
+	return passed(OracleInvariants)
+}
+
+// errorFree finds the first error diagnostic the run reported, the spec's own
+// account of what is wrong with it.
+func errorFree(diags []ir.Diagnostic) Verdict {
+	if first, failed := ir.FirstError(diags); failed {
+		return found(OracleNoErrorDiagnostic, first.Code+": "+first.Message)
 	}
-	// Last, and after deterministic: this one permutes the input, so a compiler
-	// that is not even same-input-same-output should be reported as that rather
-	// than as order-dependence.
-	if detail, ok := orderInvariant(ctx, spec, data); !ok {
-		return Result{Spec: spec, Outcome: OutcomeOrderDependent, Detail: detail}
-	}
-	return Result{Spec: spec, Outcome: OutcomeOK}
+	return passed(OracleNoErrorDiagnostic)
 }
 
 // errUnrecognized marks a source no registered compiler takes. Check reports it
@@ -249,18 +306,19 @@ func roundTrips(doc *ir.Document) (string, bool) {
 	return "", true
 }
 
-// deterministic marshals the first compile's IR, recompiles the same bytes, and
-// asserts the two marshaled forms are byte-identical (invariants #5, #7).
-func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Document) (string, bool) {
-	first, err := json.Marshal(doc)
+// deterministic marshals what the first compile returned, recompiles the same
+// bytes, and asserts the two marshaled forms are byte-identical (invariants #5,
+// #7). What a compile returned is its document, or for a refusal its findings.
+func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Document, diags []ir.Diagnostic) (string, bool) {
+	first, err := json.Marshal(outputOf(doc, diags))
 	if err != nil {
 		return "marshal first: " + err.Error(), false
 	}
-	recompiled, _, err := compile(ctx, spec, data, passes())
+	recompiled, again, err := compile(ctx, spec, data, passes())
 	if err != nil {
 		return "recompile: " + err.Error(), false
 	}
-	second, err := reserializeJSON(recompiled)
+	second, err := reserializeJSON(outputOf(recompiled, again))
 	if err != nil {
 		return "marshal second: " + err.Error(), false
 	}
@@ -270,10 +328,20 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 	return "", true
 }
 
+// outputOf is what a compile returned: its document, which holds every
+// finding, or the findings of a refusal, which returns none.
+func outputOf(doc *ir.Document, diags []ir.Diagnostic) any {
+	if doc == nil {
+		return diags
+	}
+	return doc
+}
+
 // Report renders results sorted by spec name into a stable multi-line summary:
-// one line per spec, plus one more for every newline a Detail carries, as the
-// round-trip oracle's does. Columns are sized from the results rendered, so a
-// spec path never runs into its outcome, and line up where each result begins.
+// one line per finding a result's verdicts hold, or one for its outcome when
+// they hold none, plus one more for every newline a Detail carries, as the
+// round-trip oracle's does. Columns are sized from the lines rendered, so a
+// spec path never runs into its outcome, and line up where each line begins.
 //
 // It copies its input, so the caller's order is preserved. The sort is stable
 // so that results named alike keep the order the caller gave them, not an
@@ -282,35 +350,60 @@ func Report(results []Result) string {
 	sorted := slices.Clone(results)
 	slices.SortStableFunc(sorted, func(a, b Result) int { return cmp.Compare(a.Spec, b.Spec) })
 
-	specWidth, outcomeWidth := columnWidths(sorted)
+	lines := make([]reportLine, 0, len(sorted)) // a line per result at least
+	for _, r := range sorted {
+		lines = append(lines, linesOf(r)...)
+	}
+	specWidth, outcomeWidth := columnWidths(lines)
 
 	var b strings.Builder
-	for _, r := range sorted {
+	for _, l := range lines {
 		// strings.Builder.Write never returns an error; the discard is explicit
 		// so no write in this codebase is dropped silently.
-		if r.Detail == "" {
-			_, _ = fmt.Fprintf(&b, "%-*s %s\n", specWidth, r.Spec, r.Outcome)
+		if l.detail == "" {
+			_, _ = fmt.Fprintf(&b, "%-*s %s\n", specWidth, l.spec, l.outcome)
 			continue
 		}
-		_, _ = fmt.Fprintf(&b, "%-*s %-*s %s\n", specWidth, r.Spec, outcomeWidth, r.Outcome, r.Detail)
+		_, _ = fmt.Fprintf(&b, "%-*s %-*s %s\n", specWidth, l.spec, outcomeWidth, l.outcome, l.detail)
 	}
 	return b.String()
 }
 
+// reportLine is one line Report renders.
+type reportLine struct {
+	spec, detail string
+	outcome      Outcome
+}
+
+// linesOf is what Report renders for r: a line per finding among its verdicts,
+// in Check's order, or its outcome alone.
+func linesOf(r Result) []reportLine {
+	var lines []reportLine
+	for _, v := range r.Verdicts {
+		if v.Found() {
+			lines = append(lines, reportLine{spec: r.Spec, outcome: v.Outcome, detail: v.Detail})
+		}
+	}
+	if len(lines) == 0 {
+		lines = append(lines, reportLine{spec: r.Spec, outcome: r.Outcome, detail: r.Detail})
+	}
+	return lines
+}
+
 // columnWidths returns the widths Report pads its first two columns to: the
-// longest spec, and the longest outcome among the results that carry a Detail.
-// A result with no Detail has nothing to the right of its outcome to line up, so
-// it is not what the outcome column is sized against and its own line stops at
-// the outcome rather than padding out to one.
+// longest spec, and the longest outcome among the lines that carry a detail. A
+// line with no detail has nothing to the right of its outcome to line up, so
+// it is not what the outcome column is sized against and stops at the outcome
+// rather than padding out to one.
 //
 // Widths are counted in runes because that is the unit fmt's %-*s pads in.
-func columnWidths(results []Result) (spec, outcome int) {
-	for _, r := range results {
-		spec = max(spec, utf8.RuneCountInString(r.Spec))
-		if r.Detail == "" {
+func columnWidths(lines []reportLine) (spec, outcome int) {
+	for _, l := range lines {
+		spec = max(spec, utf8.RuneCountInString(l.spec))
+		if l.detail == "" {
 			continue
 		}
-		outcome = max(outcome, utf8.RuneCountInString(string(r.Outcome)))
+		outcome = max(outcome, utf8.RuneCountInString(string(l.outcome)))
 	}
 	return spec, outcome
 }

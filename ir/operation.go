@@ -236,8 +236,9 @@ type PartEncoding struct {
 	Multi bool `json:"multi"`
 	// Filename reports that the part carries a filename (file part).
 	Filename bool `json:"filename"`
-	// AllowReserved permits reserved characters unescaped in the part's value,
-	// as HTTPParamBinding.AllowReserved does in a parameter's.
+	// AllowReserved writes the part's value as HTTPParamBinding.AllowReserved
+	// writes a parameter's: reserved characters and percent-encoded triples pass
+	// unescaped (OpenAPI Encoding allowReserved).
 	AllowReserved bool `json:"allowReserved"`
 }
 

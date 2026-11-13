@@ -331,7 +331,7 @@ type HTTPParamBinding struct
 	"param" ParamID omitempty
 	"paramPath" []PropID omitempty
 	"pathPattern" string omitempty
-	"prefix" string omitempty
+	"prefix" *string omitzero
 	"style" string omitempty
 	"wireName" string omitempty
 
