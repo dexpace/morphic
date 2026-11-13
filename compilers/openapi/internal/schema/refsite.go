@@ -212,19 +212,30 @@ func resolveAt(c lowering.Ctx, ts *compile.Types, at bind.Position, decl *oas3.J
 // A $ref and a discriminator mapping target meet here once each has its
 // pointer, so they cannot drift apart.
 func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
+	id, hoisted, ok := declaredIn(c, pointer, decl)
+	if hoisted {
+		ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
+	}
+	return id, ok
+}
+
+// declaredIn returns the ID of the type declared at pointer in c's document,
+// holding decl, as resolvePointer resolves it, and whether it is a position
+// hoisted where a reference reaches it, which a reference promises a node. It
+// reads no registry, so no answer turns on which schema lowered first.
+func declaredIn(c lowering.Ctx, pointer jsontext.Pointer, decl *oas3.JSONSchema[oas3.Referenceable]) (id ir.TypeID, hoisted, ok bool) {
 	// The source's components alone are lowered whole and named by name;
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
 	if c.IDs() == (ids.Document{}) {
-		if id, state := c.RefScope().ComponentRef(pointer); state.ByName() {
-			return id, state == ids.NamedComponent
+		if named, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+			return named, false, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {
-		return "", false
+		return "", false, false
 	}
-	ts.Promise(c.IDs().Coordinate(pointer), func() []ir.Diagnostic { return hoistSubSchema(c, ts, decl, pointer) })
-	return c.IDs().ForPointer(pointer), true
+	return c.IDs().ForPointer(pointer), true, true
 }
 
 // hoistSubSchema builds the node at pointer from decl, the schema written there,

@@ -17,7 +17,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -115,24 +114,16 @@ func follow(c lowering.Ctx, start link) valueChain {
 }
 
 // declaredAt returns the ID of the type declared at at, holding decl, which a
-// route can name, as resolveAt resolves it without promising it: a component
-// the source declares, by its name, or a schema the compile can hoist, in a
-// document it read, by the ID its pointer derives there. It reads no registry,
-// so no answer turns on which schema lowered first.
+// route can name, as resolveAt resolves it without promising it (declaredIn):
+// a component the source declares, by its name, or a schema the compile can
+// hoist, in a document it read, by the ID its pointer derives there.
 func declaredAt(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable]) (ir.TypeID, bool) {
 	in, ok := lowering.InDocument(c, at.Doc)
 	if !ok {
 		return "", false
 	}
-	if in.IDs() == (ids.Document{}) {
-		if id, state := in.RefScope().ComponentRef(at.Pointer); state.ByName() {
-			return id, state == ids.NamedComponent
-		}
-	}
-	if !resolve.Hoistable(decl) {
-		return "", false
-	}
-	return in.IDs().ForPointer(at.Pointer), true
+	id, _, ok := declaredIn(in, at.Pointer, decl)
+	return id, ok
 }
 
 // hierarchyRoute is the type a value whose chain is chain routes to on a
