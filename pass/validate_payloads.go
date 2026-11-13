@@ -186,22 +186,20 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // exposes, through the unions nested in its variants, as a composition
 // distributed across a union puts the body's properties on every variant;
 // else one a shape of such a type that is a model narrowing a union holds
-// (narrowedHolds), which is read only then (docs/ir/payloads.md). A key the
-// type exposes is answered before any of them is listed.
+// (narrowedHolds), which is read only then (docs/ir/payloads.md).
 func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
-	if facts.Exposes(target, key) {
-		return true
-	}
-	holders := partHolders(types, target)
-	return slices.ContainsFunc(holders, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
-		slices.ContainsFunc(holders, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
+	return anyHolder(types, target, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
+		anyHolder(types, target, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
 }
 
-// partHolders returns target and, where it stands for a union, the variants
-// of that union, through the unions nested in them, depth first. Each union is
-// read once, so a union nesting itself ends.
-func partHolders(types ir.TypeRegistry, target ir.TypeID) []ir.TypeID {
-	holders := []ir.TypeID{target}
+// anyHolder reports whether holds answers true of target or, where it stands
+// for a union, of a variant of that union, through the unions nested in them,
+// depth first, stopping at the first. Each union is read once, so a union
+// nesting itself ends.
+func anyHolder(types ir.TypeRegistry, target ir.TypeID, holds func(ir.TypeID) bool) bool {
+	if holds(target) {
+		return true
+	}
 	read := map[*ir.Union]bool{}
 	pending := []ir.TypeID{target}
 	for len(pending) > 0 {
@@ -213,11 +211,13 @@ func partHolders(types ir.TypeRegistry, target ir.TypeID) []ir.TypeID {
 		}
 		read[u] = true
 		for _, v := range u.Variants {
-			holders = append(holders, v.Type.Target)
+			if holds(v.Type.Target) {
+				return true
+			}
 			pending = append(pending, v.Type.Target)
 		}
 	}
-	return holders
+	return false
 }
 
 // maxNarrowedSteps bounds the steps ir.NarrowedShapes takes for one type a
