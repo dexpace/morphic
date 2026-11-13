@@ -30,6 +30,9 @@ compile needs it here too, or what is checked is not what would be built.
 --cache-dir is compile's, and shares its entries: a run of either answers the
 other.
 
+--triage, --diag-format, --show and --diag-limit are compile's, and write the
+same findings the same way.
+
 SIGINT, SIGTERM or SIGHUP stops the run, unless it comes once the compile is
 over: the diagnostics are then written whole, and the run exits as though it
 had not come. Another while the run is stopping changes nothing.`

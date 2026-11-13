@@ -148,15 +148,19 @@ completes commands, flags, and spec files by extension.
 
 | Flag | Commands | Meaning |
 |---|---|---|
-| `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a diagnostic at or above this severity is emitted (default `error`). `none` exits non-zero only when the spec lowered to no document. |
+| `--fail-on error\|warning\|info\|none` | both | Exit non-zero when a finding is rated at or above this severity and no `--triage` rule accepted it (default `error`). `none` exits non-zero only when the spec lowered to no document. |
 | `--disable-pass <name>` | both | Turn off the IR pass with this name, such as `validate`. Repeatable; a name no pass carries is refused with exit `2` and a message naming the passes there are. |
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
-| `--verify` | both | Check the IR the compiler and each pass return against the IR's structural invariants, and that no pass changes the document it was handed. The first stage to break one ends the run with exit `2`, listing what it broke. For developing a compiler or a pass: it slows the run. |
+| `--verify` | both | Check the IR the compiler and each pass return, and the findings each reports, against the IR's structural invariants, and that no pass changes the document it was handed. The first stage to break one ends the run with exit `2`, listing what it broke. For developing a compiler or a pass: it slows the run. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
 | `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec and every document it reads, the settings, the passes, and the working directory. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
+| `--triage <file>` | both | Rate or accept findings by the rules this JSON file lists ([Triage](#triage)). A file that cannot be read, or holds a rule no run can apply, is refused with exit `2` before anything compiles. |
+| `--diag-format text\|json` | both | Write the findings to stderr as text (the default), or as one [JSON report](#json-report). |
+| `--show error\|warning\|info` | both | In text, write each finding rated at or above this severity, and count the rest (default `info`). Refused beside `--diag-format json`. |
+| `--diag-limit <n>` | both | In text, write the first `<n>` findings of each code and severity, and count the rest (default `3`); `0` writes every one. Refused beside `--diag-format json`. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, each construct kept verbatim under `Unmodeled` at or beneath it with the node keeping it and its reason, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, each construct kept verbatim under `Unmodeled` at or beneath it with the node keeping it and its reason, and the diagnostics stamped at it, as their stages reported them. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -178,6 +182,113 @@ error openapi/unresolved-ref openapi.yaml#/components/schemas/Pet/discriminator/
   compiler recognized;
 - the bare IR location for one an IR pass made about the document.
 
+Each finding is written at the severity it is rated at, which is the one its stage reported unless
+a [triage](#triage) rule rates it otherwise. A spec can draw thousands of findings, so the text
+format writes the first three of each code and severity, in the order they were reported, and
+counts the rest; `--diag-limit 0` writes every one, and `--show warning` or `--show error` counts
+the findings below that severity instead of writing them. After the findings, each on a line
+indented so no reader of `<severity> <code>` lines takes it for a finding, come a line for each code
+and severity some findings of which were not written, a line for each triage rule that matched no
+finding, and, once anything was left unwritten, a tally:
+
+```
+  1303 more info openapi/degraded-construct not shown
+  triage rule for openapi/unresolved-ref at /components/schemas/Pet matched no finding
+  32 of 1890 findings shown: 4 error, 222 warning, 1664 info, 0 accepted
+```
+
+Every finding stays in the [JSON report](#json-report), which writes them all. A spec writes the
+keys, references and messages a line quotes, so a control character, a format character such as a
+bidirectional override, or a byte that is not UTF-8 is written escaped as Go's `%q` spells it
+(`\x1b`, `\n`, `\u202e`, `\xff`), in the findings and in `--explain`'s report alike: a spec cannot
+start a line of its own or send a terminal a control sequence.
+
+#### Triage
+
+A triage file lists rules about the findings of a run, each naming one diagnostic code, matched
+exactly, and a reason:
+
+```json
+{"rules": [
+  {"code": "openapi/unresolved-security-scheme", "severity": "warning",
+   "reason": "the gateway names these schemes, and the SDK sends none of them"},
+  {"code": "openapi/degraded-construct", "pointer": "/components/schemas/Pet/readOnly", "accept": true,
+   "reason": "Pet is only ever read"}
+]}
+```
+
+- `severity` rates the code's findings at `error`, `warning` or `info`, which is what `--fail-on`
+  and `--show` then read. A finding a stage reported at a severity the IR does not declare still
+  ends the run with exit `2`, as a stage breaking its contract, whatever a rule says of it.
+- `accept: true` accepts the findings, which then fail the run at no `--fail-on`, `info` included,
+  and are counted rather than written. A rule accepting findings names their place, so it accepts
+  none its code reports elsewhere. It does accept every finding of its code at that place, one
+  reported later included, and a place can hold a whole scope: a pass reports a collision between
+  two of the document's types at `doc`, so a rule accepting one there accepts the next (#1825).
+- `pointer` places the rule at the findings this JSON Pointer locates in the spec, the file
+  compiled, an overlay's writing into it included; `node` places it at the findings an IR pass
+  located at that IR node, such as `s/openapi/0`. A rule names at most one place, and one naming a
+  place outranks one naming only the code. A finding in a document a `$ref` reads (#1804), or
+  located by a line alone, can be ruled by its code only.
+
+A rule names no pattern: a `*` in a code is refused, as is a rule both rating and accepting, an
+acceptance naming no place, two rules ruling the same findings, a pointer that is not RFC 6901, a
+member the file does not define and a missing reason. A rule no finding matched is named after the
+findings, as many of each code as of a code's findings, and listed as `unusedRules` in the JSON
+report: unless a pass it was written for is off, the finding it names is gone, and the rule can go
+too. A run that lowered no document stopped short of most findings, so it names no rule unused. A
+file is read as a spec is, no further than 16 MiB.
+
+A file accepting each finding a run now draws at a place can start from the run's own report:
+
+```bash
+morphic validate openapi.yaml --diag-format json 2>&1 >/dev/null |
+  jq '{rules: [.findings[].diagnostic
+    | if .provenance.source == 0 and .provenance.pointer then {code, pointer: .provenance.pointer}
+      elif .provenance.node then {code, node: .provenance.node} else empty end
+    | . + {accept: true, reason: "accepted as found"}] | unique}' > triage.json
+```
+
+Write each `reason` yourself before relying on it: it is what the next reader has to go on. A rule
+the recipe places at a scope, such as `doc`, accepts every later finding of its code about that
+scope too.
+
+#### JSON report
+
+`--diag-format json` writes one JSON object to stderr, then a newline, for a program to read; the
+run's exit status and stdout are what text gives. It is written for every run that reaches its
+verdict, a spec that lowered to no document included, and nothing else is written to stderr then,
+not even a warning about the cache. A run that exits `2` before its verdict writes text instead, its
+warnings and then `morphic: ...`. One stopped after its report, or whose document is then refused,
+adds that line after the report, the report staying the first line, whatever status it exits with:
+a refused document leaves a run its findings failed at `1`, as [Exit codes](#exit-codes) says.
+
+```json
+{"version": 1, "failed": false,
+ "sources": [{"format": "openapi@3.1", "path": "openapi.yaml", "hash": "…"}],
+ "findings": [{"diagnostic": {"severity": "error", "code": "openapi/unresolved-security-scheme",
+                              "message": "…", "provenance": {"source": 0, "pointer": "/security/0/key"}},
+               "severity": "warning",
+               "rule": {"code": "openapi/unresolved-security-scheme", "severity": "warning", "reason": "…"}}],
+ "unusedRules": [],
+ "warnings": []}
+```
+
+| Member | Holds |
+|---|---|
+| `version` | the report's schema version, `1` |
+| `failed` | the verdict, the one the exit status reads |
+| `sources` | the files each `provenance.source` indexes, as an IR document's `sources` |
+| `findings` | every finding, in the order reported: `diagnostic` as its stage reported it, an IR diagnostic, `severity` as it is rated, `accepted` when a rule accepted it, and `rule`, the rule it met |
+| `unusedRules` | the triage rules no finding matched |
+| `warnings` | what kept the run from working as asked without failing it, such as a cache it could not use, one line each |
+
+Each list is present, empty when there is nothing in it. A change to any member's shape, a
+diagnostic's included, moves `version`, which `TestSchemaVersion_PinsTheEncodedShape` in
+`engine/report` holds to the encoded shape, so a consumer that checks it knows every member it
+will meet. A string is escaped as JSON escapes it, unlike the text format: a C1 control or a
+bidirectional override a spec writes stays raw, as it does in the IR document (#1826).
+
 #### Exit codes
 
 Both commands share them.
@@ -185,8 +296,8 @@ Both commands share them.
 | Code | Meaning |
 |---|---|
 | `0` | Clean, or a help request. |
-| `1` | The spec has problems: a diagnostic reached the `--fail-on` threshold, or the spec could not be lowered at all (an undecodable file, an unrecognized or unsupported format, a version no compiler claims). |
-| `2` | The invocation or the filesystem was wrong, the run was stopped, or something inside morphic failed: a bad flag or argument, a spec that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP that stopped the run, or a compiler or pass that broke its contract, which `--verify` also holds to the IR's invariants. Nothing in the spec's own contents leads to `2`. |
+| `1` | The spec has problems: a finding no triage rule accepted reached the `--fail-on` threshold, or the spec could not be lowered at all (an undecodable file, an unrecognized or unsupported format, a version no compiler claims). |
+| `2` | The invocation or the filesystem was wrong, the run was stopped, or something inside morphic failed: a bad flag or argument, a spec or triage file that could not be read, an output that could not be written, a SIGINT, SIGTERM or SIGHUP that stopped the run, or a compiler or pass that broke its contract, which `--verify` also holds to the IR's invariants. Nothing in the spec's own contents leads to `2`. |
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
@@ -272,11 +383,12 @@ with one wrapping `pass.ErrContract`. A panic arrives as a `*barrier.PanicError`
 keeps the value and the stack beside the one-line message. A stage that ignores `ctx` holds `Run`
 until it returns, and the run then fails with the context's error, whatever the stage returned. The
 structural duties only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set:
-it holds each stage's document to them, and each pass to leaving its input alone, and fails the run
-with an `*engine.VerifyError` listing what broke. `engine.WithCache` answers a run from an earlier
-one with the same inputs, skipping detection, the compile and the passes; `cache.NewDir` is a store
-on disk and `cache.BuildID` names the running build. A cache that fails reports on
-`Result.CacheErr` and never fails the run ([Architecture](docs/architecture.md) §2.6).
+it holds each stage's document to them, and the findings each stage reports, and each pass to
+leaving its input alone, and fails the run with an `*engine.VerifyError` listing what broke.
+`engine.WithCache` answers a run from an earlier one with the same inputs, skipping detection, the
+compile and the passes; `cache.NewDir` is a store on disk and `cache.BuildID` names the running
+build. A cache that fails reports on `Result.CacheErr` and never fails the run
+([Architecture](docs/architecture.md) §2.6).
 
 ```go
 eng, err := engine.New()
@@ -291,8 +403,9 @@ if err != nil {
     return err // misuse, I/O or a broken contract; problems in the spec arrive as diagnostics
 }
 
-// The CLI's own rendering, one diagnostic per line.
-if err := report.WriteDiagnostics(os.Stderr, res.Diagnostics, res.Sources); err != nil {
+// The CLI's own rendering, one finding per line, each one no rule accepted.
+r := report.Report{Sources: res.Sources, Findings: res.Findings, UnusedRules: res.UnusedRules}
+if err := report.WriteText(os.Stderr, r, report.TextOptions{}); err != nil {
     return err
 }
 if res.Failed {
@@ -308,7 +421,7 @@ reads every other document from disk as `Run` does. `RunSources` compiles source
 memory: the first is the spec, every source is a document its references or its settings may name
 by its `Path`, and nothing else is read, so a spec split across files compiles without a file
 written. `RunDocument` runs the passes over a document already compiled, such as one decoded from
-a file. `engine/report` renders diagnostics and `--explain` (`report.Explain`) exactly as the CLI
+a file. `engine/report` renders the findings and `--explain` (`report.Explain`) exactly as the CLI
 prints them, and `engine/output` writes a document as the CLI does: to a stream whole or not at
 all, or to a file replaced atomically. Both take the run's context, and a write it cancels leaves
 no partial document behind.
@@ -320,8 +433,18 @@ vocabulary, or as a typed value such as an `openapi.Options` through `RunOptions
 set one or the other, not both.
 
 `Result.Failed` is the engine's verdict, the one the CLI's exit status reads: a run fails when it
-lowered no document, or when a diagnostic reaches `RunOptions.FailOn`, which is `error` unless set
-to `warning`, `info` or `none`. A failed run still carries its document and every diagnostic.
+lowered no document, or when a finding no rule accepted is rated at `RunOptions.FailOn` or above,
+which is `error` unless set to `warning`, `info` or `none`. A failed run still carries its document
+and every diagnostic.
+
+`RunOptions.Triage` takes the [triage](#triage) rules, as `triage.Rule` values or read from a file
+by `engine.ReadTriage`; a rule `triage.NewRuleset` refuses fails the run with an error wrapping
+`triage.ErrInvalidRule` before the spec is read. `Result.Diagnostics` holds the findings as their
+stages reported them, as the document does, and `Result.Findings` the same findings as rated, index
+for index, each with the rule it met; `Result.UnusedRules` lists the rules that matched none. The
+rules are applied once the run is in hand, so a cached run is rated by the rules of the run it
+answers. `report.WriteText` renders the findings as the CLI's text does, and `report.WriteJSON` as
+its JSON report.
 
 ## Package layout
 
@@ -340,8 +463,9 @@ entry in that test allows, and nothing from a layer above its own.
 | `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
 | `emitters/*` | 2: IR → artifacts (not built yet) | `ir` + emitter contract |
 | `engine/` | 3: orchestration | everything below |
-| `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir`; `ir` + `engine/internal/atomicfile` (over `renameio`) |
-| `cmd/morphic/` | 4: CLI | `engine` (and its `report` and `output`) + `ir` + its command framework (`cobra`, `pflag`) |
+| `engine/triage/` | 3: the rules a caller writes about a run's findings, and the findings as rated | `ir` only |
+| `engine/reader/`, `engine/report/`, `engine/output/` | 3: what the engine reads, renders and writes | `compilers`; `ir` + `engine/triage`; `ir` + `engine/internal/atomicfile` (over `renameio`) |
+| `cmd/morphic/` | 4: CLI | `engine` (and its `report`, `output` and `triage`) + `ir` + its command framework (`cobra`, `pflag`) |
 | `cmd/morphic-harness/`, `cmd/morphic-census/`, `cmd/morphic-covergate/`, `cmd/morphic-vet/`, `internal/*` | tooling outside the pipeline: the oracle sweep, the census of IR facts, the coverage gate's judge, the go vet tool and the lint rules it runs, the architecture rules, the goroutine leak check, type-checked reads of declarations for tests, the IR's JSON shape that the IRVersion pin and the census read, the reader of the keyed documents, shared fixtures | as their entries allow; `internal/harness` is exempt |
 
 Compilers and emitters never import each other. A compiler's own `internal/` packages each carry

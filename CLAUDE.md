@@ -184,10 +184,12 @@ engine/      Layer 3 — orchestration; imports everything below. It owns every 
   cache/     what a run compiled, kept on disk between processes, and what names a build.
              Imports reader and internal/atomicfile.
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
-  report/    diagnostics and --explain, rendered for a person. Imports ir only.
+  triage/    the rules a caller writes about a run's findings, and the findings as rated.
+             Imports ir only.
+  report/    the findings, as text or a JSON report, and --explain. Imports ir and triage.
   output/    the IR document to a stream or a file, through engine/internal/atomicfile.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + its command
-             framework (cobra, pflag).
+cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report, output and triage) + its
+             command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-census/

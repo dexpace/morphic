@@ -439,7 +439,8 @@ var rules = map[string][]string{
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
-		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader", module + "/pass"},
+		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader",
+		module + "/engine/triage", module + "/pass"},
 	// Where a run's entries are kept between processes, and what names a build:
 	// files published through the atomic replace, and read as a source is. What
 	// an entry holds is the engine's, so it reaches nothing of the pipeline.
@@ -449,9 +450,13 @@ var rules = map[string][]string{
 	// else, so a caller compiling directly reads as the engine does without
 	// composing a pipeline.
 	"engine/reader": {module + "/compilers"},
-	// The one renderer of a run's findings for a person. It reaches ir alone: it
-	// renders what a run returned and nothing of how the run was composed.
-	"engine/report": {module + "/ir"},
+	// What a caller rules about a run's findings, and the findings as rated. It
+	// reaches ir alone: the engine applies it, and the renderer reads it.
+	"engine/triage": {module + "/ir"},
+	// The one renderer of a run's findings, for a person and for a program. It
+	// reaches ir and the rated findings: it renders what a run returned and
+	// nothing of how the run was composed.
+	"engine/report": {module + "/ir", module + "/engine/triage"},
 	// The engine's writer: the IR document to a stream or a file, published
 	// through the atomic replace beneath it.
 	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
@@ -461,9 +466,10 @@ var rules = map[string][]string{
 	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
-	// it asks the engine's renderer and writer for.
+	// it asks the engine's renderer and writer for, and it hands the run the
+	// triage rules a file holds.
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
-		module + "/engine/report", "github.com/spf13/cobra", "github.com/spf13/pflag"},
+		module + "/engine/report", module + "/engine/triage", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,
