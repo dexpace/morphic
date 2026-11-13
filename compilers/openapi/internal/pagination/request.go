@@ -5,9 +5,7 @@ package pagination
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -134,13 +132,11 @@ func notSendable(p *ir.Parameter, what string) string {
 	return fmt.Sprintf("query parameter %q names %s, and its type is no integer, number or string", p.Name.Source, what)
 }
 
-// quoted lists the parameters' names quoted, sorted so the list reads the same
-// whatever order the document declares them in.
+// quoted lists the parameters' names, two or more, as listed does.
 func quoted(params []*ir.Parameter) string {
 	names := make([]string, len(params))
 	for i, p := range params {
 		names[i] = strconv.Quote(p.Name.Source)
 	}
-	slices.Sort(names)
-	return strings.Join(names, " and ")
+	return listed(names)
 }

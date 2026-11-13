@@ -5,6 +5,8 @@ package pagination
 
 import (
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -104,4 +106,20 @@ func undecidedAt(op *ir.Operation, why string) ir.Diagnostic {
 	at := op.Provenance
 	at.Inferred = ""
 	return diag.Newf(ir.SeverityInfo, diag.UndecidedPagination, at, "no pagination is inferred: %s", why)
+}
+
+// maxListed bounds how many names a finding lists, so one naming hundreds of
+// parameters or members says what it means in one line.
+const maxListed = 3
+
+// listed joins names, two or more, into a list sorted so it reads the same
+// whatever order the document declares them in, naming the first maxListed
+// and how many more there are.
+func listed(names []string) string {
+	slices.Sort(names)
+	if more := len(names) - maxListed; more > 0 {
+		names = append(names[:maxListed:maxListed], strconv.Itoa(more)+" more")
+	}
+	last := len(names) - 1
+	return strings.Join(names[:last], ", ") + " and " + names[last]
 }

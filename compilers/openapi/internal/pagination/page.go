@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -311,13 +310,11 @@ func resolve(types ir.TypeRegistry, id ir.TypeID) ir.TypeDef {
 	return td
 }
 
-// wireNames lists the members' wire names quoted, sorted so the list reads the
-// same whatever order the document declares them in.
+// wireNames lists the members' wire names, two or more, as listed does.
 func wireNames(members []*ir.Property) string {
 	names := make([]string, len(members))
 	for i, m := range members {
 		names[i] = strconv.Quote(m.EffectiveWireName())
 	}
-	slices.Sort(names)
-	return strings.Join(names, " and ")
+	return listed(names)
 }
