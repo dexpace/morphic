@@ -49,7 +49,7 @@ const (
 	// ListsAreSegments reads a list as one path, each entry adding its segments.
 	ListsAreSegments = lowering.ListsAreSegments
 	// ListsAreGroups reads a list as several paths, filing the operation under
-	// the first.
+	// the first and making a group for each of the rest.
 	ListsAreGroups = lowering.ListsAreGroups
 )
 
@@ -160,10 +160,11 @@ type Options struct {
 	// Grouping selects the operation-grouping strategy.
 	Grouping GroupingStrategy `json:"grouping,omitempty"`
 	// GroupingExtension is what GroupByExtension reads, set as text by the
-	// options grouping-key, grouping-lists and grouping-fallback, and refused
-	// with any other strategy. Naming neither Key nor Lists reads
-	// DefaultGroupingExtension's, and naming one without the other is refused,
-	// since conventions disagree on a list. Fallback defaults to GroupByTags.
+	// options grouping-key, grouping-lists, grouping-aliases and
+	// grouping-fallback, and refused with any other strategy. Naming neither Key
+	// nor Lists reads DefaultGroupingExtension's, its Aliases unless the caller
+	// names one, and naming one without the other is refused, since conventions
+	// disagree on a list. Fallback defaults to GroupByTags.
 	GroupingExtension GroupingExtension `json:"groupingExtension,omitzero"`
 	// StreamingMedia selects which media types imply a stream. The zero value is
 	// the default list, on; a caller who wants only what a document declares
@@ -375,6 +376,9 @@ func (o Options) withDefaults() Options {
 	if o.GroupingExtension.Key == "" && o.GroupingExtension.Lists == "" {
 		def := DefaultGroupingExtension()
 		def.Fallback = o.GroupingExtension.Fallback
+		if o.GroupingExtension.Aliases != "" {
+			def.Aliases = o.GroupingExtension.Aliases
+		}
 		o.GroupingExtension = def
 	}
 	if o.GroupingExtension.Fallback == "" {
@@ -383,17 +387,22 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-// checkGrouping refuses a grouping extension o cannot read as asked, o having
-// its defaults: one beside another strategy, a key naming no extension, a key
-// or list reading without the other, and a fallback that is not a strategy an
-// operation stating no path can be grouped by. Each error names the text
-// option setting the field, as GroupingExtension's doc pairs them.
+// checkGrouping refuses a grouping o cannot honour, o having its defaults: a
+// strategy it does not name, as the text option refuses one, and a grouping
+// extension it cannot read as asked: one beside another strategy, a key naming
+// no extension, a key or list reading without the other, an aliases key naming
+// no extension or the key itself, and a fallback that is not a strategy an
+// operation stating no path can be grouped by. Each error names the text option
+// setting the field, as GroupingExtension's doc pairs them.
 func (o Options) checkGrouping() error {
+	if err := checkStrategy(o.Grouping); err != nil {
+		return err
+	}
 	ext := o.GroupingExtension
 	if o.Grouping != GroupByExtension {
 		if ext != (GroupingExtension{}) {
-			return fmt.Errorf("openapi: options %q, %q and %q apply only with %q set to %q",
-				optGroupingKey, optGroupingLists, optGroupingFallback, optGrouping, GroupByExtension)
+			return fmt.Errorf("openapi: options %q, %q, %q and %q apply only with %q set to %q",
+				optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optGrouping, GroupByExtension)
 		}
 		return nil
 	}
@@ -403,6 +412,10 @@ func (o Options) checkGrouping() error {
 	if ext.Lists != ListsAreSegments && ext.Lists != ListsAreGroups {
 		return fmt.Errorf("openapi: option %q: want %q or %q beside %q, as conventions disagree on what a list means, got %q",
 			optGroupingLists, ListsAreSegments, ListsAreGroups, optGroupingKey, ext.Lists)
+	}
+	if ext.Aliases != "" && (!strings.HasPrefix(ext.Aliases, "x-") || ext.Aliases == ext.Key) {
+		return fmt.Errorf("openapi: option %q: want an extension name starting \"x-\" other than %q's, got %q",
+			optGroupingAliases, optGroupingKey, ext.Aliases)
 	}
 	if ext.Fallback != GroupByTags && ext.Fallback != GroupByPathPrefix {
 		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
@@ -418,6 +431,7 @@ const (
 	optGrouping               = "grouping"
 	optGroupingKey            = "grouping-key"
 	optGroupingLists          = "grouping-lists"
+	optGroupingAliases        = "grouping-aliases"
 	optGroupingFallback       = "grouping-fallback"
 	optAllowExternalRefs      = "allow-external-refs"
 	optOverlay                = "overlay"
@@ -448,9 +462,9 @@ func limitOptions(l *Limits) map[string]*int {
 // as the vocabulary grows.
 func optionNames() []string {
 	names := []string{
-		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
-		optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia, optStreamingInference,
-		optBinaryMedia, optBinaryInference,
+		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
+		optOverlay, optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia,
+		optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -490,7 +504,7 @@ func (d *optionDecode) set(key, value string) error {
 	switch key {
 	case optGrouping:
 		return decodeGrouping(&d.opts.Grouping, value)
-	case optGroupingKey, optGroupingLists, optGroupingFallback:
+	case optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback:
 		return d.groupingExtension(key, value)
 	case optAllowExternalRefs:
 		return decodeBool(&d.opts.AllowExternalRefs, key, value)
@@ -555,6 +569,8 @@ func (d *optionDecode) groupingExtension(key, value string) error {
 		ext.Key = value
 	case optGroupingLists:
 		ext.Lists = ExtensionLists(value)
+	case optGroupingAliases:
+		ext.Aliases = value
 	default:
 		ext.Fallback = GroupingStrategy(value)
 	}
@@ -581,13 +597,24 @@ func (d *optionDecode) finish() (Options, error) {
 // decodeGrouping reads a grouping strategy by its own name, which is the same
 // string the JSON form uses.
 func decodeGrouping(out *GroupingStrategy, value string) error {
-	switch strategy := GroupingStrategy(value); strategy {
+	strategy := GroupingStrategy(value)
+	if err := checkStrategy(strategy); err != nil {
+		return err
+	}
+	*out = strategy
+	return nil
+}
+
+// checkStrategy refuses a grouping strategy the compiler does not name, in the
+// words of the text option, so a Go caller's misspelling is refused as the
+// text one is rather than grouped by tags.
+func checkStrategy(strategy GroupingStrategy) error {
+	switch strategy {
 	case GroupByTags, GroupByPathPrefix, GroupByExtension:
-		*out = strategy
 		return nil
 	default:
 		return fmt.Errorf("openapi: option %q: want %q, %q or %q, got %q",
-			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, value)
+			optGrouping, GroupByTags, GroupByPathPrefix, GroupByExtension, strategy)
 	}
 }
 
