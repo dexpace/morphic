@@ -125,34 +125,20 @@ func enumEntries(c lowering.Ctx, s *oas3.Schema, entries []enumEntry, pointer js
 	return kept, diags
 }
 
-// typesAdmit reports whether v is a value of one of types, as JSON Schema's
-// type keyword reads it. An empty list declares no type, and so admits v.
+// typesAdmit reports whether v is a value of one of types, read by the JSON
+// kinds the admission reading gives a type and a value (kindOfType,
+// kindOfValue). An empty list declares no type, and a type no schema defines
+// judges nothing, which validation reports; either admits v.
 func typesAdmit(types []oas3.SchemaType, v ir.Value) bool {
-	return len(types) == 0 || slices.ContainsFunc(types, func(st oas3.SchemaType) bool { return typeAdmits(st, v) })
-}
-
-// typeAdmits reports whether v is a value of the JSON type st: an integer by
-// its value, so 1.0 is one. A type no dialect defines judges nothing, so it
-// admits v; validation reports it.
-func typeAdmits(st oas3.SchemaType, v ir.Value) bool {
-	switch st {
-	case oas3.SchemaTypeString:
-		return v.Kind == ir.ValueString
-	case oas3.SchemaTypeInteger:
-		return merge.Admits(ir.PrimInteger, v)
-	case oas3.SchemaTypeNumber:
-		return merge.Admits(ir.PrimNumber, v)
-	case oas3.SchemaTypeBoolean:
-		return v.Kind == ir.ValueBool
-	case oas3.SchemaTypeObject:
-		return v.Kind == ir.ValueObject
-	case oas3.SchemaTypeArray:
-		return v.Kind == ir.ValueList
-	case oas3.SchemaTypeNull:
-		return v.Kind == ir.ValueNull
-	default:
-		return true
+	var admitted kindSet
+	for _, t := range types {
+		k := kindOfType(t)
+		if k == 0 {
+			return true
+		}
+		admitted |= k
 	}
+	return len(types) == 0 || kindOfValue(v)&admitted != 0
 }
 
 // typeList spells a declared type set for a message: its one type, or the

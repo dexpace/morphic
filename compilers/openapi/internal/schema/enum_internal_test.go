@@ -153,38 +153,38 @@ func TestValueKey_GrowsByAFixedAmountPerLevel(t *testing.T) {
 	assert.Less(t, len(key), 8*depth, "%d bytes", len(key))
 }
 
-// TestTypeAdmits_ReadsEachJSONType pins the type keyword's reading of a value,
-// a type no dialect defines judging nothing, and typesAdmit's empty set, which
-// declares no type.
-func TestTypeAdmits_ReadsEachJSONType(t *testing.T) {
+// TestTypesAdmit_ReadsEachTypesKinds pins the type keyword's reading of a
+// value, by the kinds the admission reading gives each: a type no schema
+// defines judges nothing, and no type declared admits every value.
+func TestTypesAdmit_ReadsEachTypesKinds(t *testing.T) {
 	t.Parallel()
 	str, one, half := ir.Value{Kind: ir.ValueString, Str: "1"}, ir.Value{Kind: ir.ValueNumber, Num: "1.0"},
 		ir.Value{Kind: ir.ValueNumber, Num: "0.5"}
 	null, yes := ir.Value{Kind: ir.ValueNull}, ir.Value{Kind: ir.ValueBool, Bool: true}
 	obj, list := ir.Value{Kind: ir.ValueObject}, ir.Value{Kind: ir.ValueList}
+	bin := ir.Value{Kind: ir.ValueBytes, Bytes: []byte("hi")}
 	for _, tc := range []struct {
-		st     oas3.SchemaType
+		types  []oas3.SchemaType
 		admits []ir.Value
 		not    []ir.Value
 	}{
-		{oas3.SchemaTypeString, []ir.Value{str}, []ir.Value{one, null}},
-		{oas3.SchemaTypeInteger, []ir.Value{one}, []ir.Value{half, str}},
-		{oas3.SchemaTypeNumber, []ir.Value{one, half}, []ir.Value{str}},
-		{oas3.SchemaTypeBoolean, []ir.Value{yes}, []ir.Value{str}},
-		{oas3.SchemaTypeObject, []ir.Value{obj}, []ir.Value{list}},
-		{oas3.SchemaTypeArray, []ir.Value{list}, []ir.Value{obj}},
-		{oas3.SchemaTypeNull, []ir.Value{null}, []ir.Value{str}},
-		{"file", []ir.Value{str, one, null}, nil},
+		{nil, []ir.Value{str, null, obj}, nil},
+		{[]oas3.SchemaType{oas3.SchemaTypeString}, []ir.Value{str, bin}, []ir.Value{one, null}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger}, []ir.Value{one}, []ir.Value{half, str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeNumber}, []ir.Value{one, half}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeBoolean}, []ir.Value{yes}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeObject}, []ir.Value{obj}, []ir.Value{list}},
+		{[]oas3.SchemaType{oas3.SchemaTypeArray}, []ir.Value{list}, []ir.Value{obj}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger, oas3.SchemaTypeBoolean}, []ir.Value{one, yes}, []ir.Value{str}},
+		{[]oas3.SchemaType{oas3.SchemaTypeInteger, "file"}, []ir.Value{str, one, null}, nil},
 	} {
 		for _, v := range tc.admits {
-			assert.True(t, typeAdmits(tc.st, v), "%s admits %+v", tc.st, v)
+			assert.True(t, typesAdmit(tc.types, v), "%v admits %+v", tc.types, v)
 		}
 		for _, v := range tc.not {
-			assert.False(t, typeAdmits(tc.st, v), "%s admits no %+v", tc.st, v)
+			assert.False(t, typesAdmit(tc.types, v), "%v admits no %+v", tc.types, v)
 		}
 	}
-	assert.True(t, typesAdmit(nil, str), "no type declared admits every value")
-	assert.False(t, typesAdmit([]oas3.SchemaType{oas3.SchemaTypeInteger, oas3.SchemaTypeBoolean}, str))
 }
 
 // TestDescribeValue_SpellsEachKind pins how a member is named in a message.

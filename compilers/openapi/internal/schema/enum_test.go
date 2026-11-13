@@ -539,7 +539,8 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 // JSON Schema conjoins the two, so no instance matches it, which is a warning at
 // the member (GitHub #619). The members lower as written, and the Enum's
 // ValueType is theirs, never a type they are not values of, which the census
-// keeps verbatim instead (GitHub #1453). A YAML !!binary is bytes, no string.
+// keeps verbatim instead. A YAML !!binary is a string's text to the type and
+// bytes to the ValueType, a format of string (GitHub #1453).
 func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -550,8 +551,9 @@ func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 	}{
 		{"strings under integer", `{type: integer, enum: [a, b]}`, ir.PrimString, []string{"/enum/0", "/enum/1"}},
 		{"numbers under string", `{type: string, enum: [1, 2]}`, ir.PrimNumber, []string{"/enum/0", "/enum/1"}},
-		{"binary under string", `{type: string, enum: [!!binary aGk=]}`, ir.PrimBytes, []string{"/enum/0"}},
-		{"binary beside a string", `{type: string, enum: [a, !!binary aGk=]}`, "", []string{"/enum/1"}},
+		{"binary under string", `{type: string, enum: [!!binary aGk=]}`, ir.PrimBytes, nil},
+		{"binary beside a string", `{type: string, enum: [a, !!binary aGk=]}`, "", nil},
+		{"binary under integer", `{type: integer, enum: [!!binary aGk=]}`, ir.PrimBytes, []string{"/enum/0"}},
 		{"a fraction and a string under integer", `{type: integer, enum: [1, 2, three, 4.5]}`, "",
 			[]string{"/enum/2", "/enum/3"}},
 		{"a type array", `{type: [string, integer], enum: [a, 1, true]}`, "", []string{"/enum/2"}},

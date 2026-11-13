@@ -2673,8 +2673,9 @@ members. A `format` that reaches no `ValueType`, whether the table lacks the pai
 not fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
 (`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but for `password`,
 which is a redaction ([`password`](#password)). A member that no declared `type` admits, as `"a"`
-under `type: integer` or a `!!binary` under `type: string`, matches no instance either, and is
-reported as an `openapi/degraded-construct` warning at it. Such a member is kept, the members
+under `type: integer`, matches no instance either, and is reported as an `openapi/degraded-construct`
+warning at it; a `!!binary` member is the string of its text to the `type`, as the rest of the
+compiler reads a value's kind, and `bytes`, a format of string, to the `ValueType`. Such a member is kept, the members
 lowering as written and the `type` kept verbatim under `openapi:type` (`degraded_lowering`) with the
 info at the schema: the document contradicts itself, as unquoted numbers under `type: string` do,
 and keeping either side alone would guess which statement it means, where keeping both loses
