@@ -5,36 +5,63 @@ package operation
 
 import (
 	"context"
-	"encoding/json/jsontext"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerCallbacks lowers each callback expression's path-item operations as
-// Operations registered in the parent's group, whatever their own tags or
-// grouping extension state (GitHub #1082), and binds them to the parent via
-// HTTPBinding.Callbacks keyed by the runtime expression
-// (docs/ir/http-binding.md). parent.mount roots callback operation identity, so
-// two parents sharing one $ref'd callback keep distinct callback operations;
-// parent.decl is the base a $ref'd callback or path item resolves against
-// (issue #107).
-func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointers, inferred ir.Inferred) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
-	cbMap := src.GetCallbacks()
-	if cbMap == nil || cbMap.Len() == 0 {
+// maxCallbackNesting bounds the levels of callbacks that lower below a path's
+// or a webhook's operation: 4, so an operation nested in fewer callbacks lowers
+// its own, and one nested in 4 keeps them verbatim. It stops a callback that
+// names itself through a $ref from lowering without end, while admitting an
+// exchange of several callbacks in turn.
+const maxCallbackNesting = 4
+
+// operationCallbacks lowers src's callbacks for the operation opCtx describes
+// (lowerCallbacks) while it is nested in fewer than maxCallbackNesting
+// callbacks. Past that the map is kept verbatim, beside the callbacks' own
+// extensions, and reported (docs/compilers/openapi.md#callbacks).
+func operationCallbacks(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+	if src.GetCallbacks().Len() == 0 {
 		return nil, nil, nil, nil
 	}
+	if opCtx.nesting < maxCallbackNesting {
+		return lowerCallbacks(c, w, src, opCtx)
+	}
+	at := opCtx.ptrs.decl + ids.Ptr("callbacks")
+	var kept ir.Unmodeled
+	written, diags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("", "callbacks"),
+		nodeview.Child(src.GetRootNode(), "callbacks"), ir.ReasonDegradedLowering, c.Place().At(at))
+	if written {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
+			"callbacks nested deeper than %d levels are not lowered; they are kept verbatim on the HTTP binding "+
+				"of the operation declaring them", maxCallbackNesting))
+	}
+	return nil, nil, kept, diags
+}
+
+// lowerCallbacks lowers each callback expression's path-item operations as
+// Operations registered in the parent's group, whatever their own tags or
+// grouping extension state (docs/compilers/openapi.md#callbacks), and binds
+// them to the parent via HTTPBinding.Callbacks keyed by the runtime expression
+// (docs/ir/http-binding.md). parent.ptrs.mount roots callback operation
+// identity, so two parents sharing one $ref'd callback keep distinct callback
+// operations; parent.ptrs.decl is the base a $ref'd callback or path item
+// resolves against (issue #107).
+func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opContext) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var callbacks []ir.Callback
 	var ops []ir.Operation
 	var ext ir.Unmodeled
 	var diags []ir.Diagnostic
-	for cbName, rcb := range cbMap.All() {
-		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, parent.decl+ids.Ptr("callbacks", cbName))
+	for cbName, rcb := range src.GetCallbacks().All() {
+		cb, c, cbDecl := lowering.Declared[soa.Callback](c, rcb, parent.ptrs.decl+ids.Ptr("callbacks", cbName))
 		if cb == nil {
 			continue
 		}
@@ -52,8 +79,13 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointer
 				continue
 			}
 			diags = append(diags, found...)
-			mount := parent.mount + ids.Ptr("callbacks", cbName, exprStr)
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(w, layers, mount, exprStr, inferred)
+			mount := parent.ptrs.mount + ids.Ptr("callbacks", cbName, exprStr)
+			route := opContext{
+				key: exprStr, template: exprStr, inbound: ir.HTTPInboundCallback,
+				inferred: parent.inferred, nesting: parent.nesting + 1,
+			}
+			at := mountSite{ptr: mount, use: c, usePtr: cbDecl + ids.Ptr(exprStr)}
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(w, layers, at, route)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Name: cbName, Expression: exprStr, Operations: opIDs})
@@ -64,24 +96,25 @@ func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointer
 }
 
 // lowerCallbackOps lowers the operations of a callback expression's path-item
-// layers. They do not recurse into their own callbacks (withCallbacks stays
-// false), bounding the lowering to the declared out-of-band set. mount is the
-// expression's identity base, distinct per parent operation, while each layer
-// keeps its declaration base, shared when the callback or its path item is
-// $ref'd (issue #107).
+// layers on route, each with the callbacks it declares in turn, one level
+// deeper (operationCallbacks), the deeper callbacks' operations listed after
+// the one declaring them. at.ptr is the expression's identity base, distinct
+// per parent operation, while each layer keeps its declaration base, shared
+// when the callback or its path item is $ref'd (issue #107).
 //
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(w walk, layers []layer, mount jsontext.Pointer, expr string, inferred ir.Inferred) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(w walk, layers []layer, at mountSite, route opContext) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
-	route := opContext{key: expr, inbound: ir.HTTPInboundCallback, inferred: inferred}
-	mounted, diags := mountPathItem(w, layers, mount, route, &orphan)
+	at.residue = &orphan
+	mounted, diags := mountPathItem(w, layers, at, route)
 	opIDs := make([]ir.OpID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
 	for _, m := range mounted {
 		opIDs = append(opIDs, m.op.ID)
 		ops = append(ops, m.op)
+		ops = append(ops, m.extra...)
 	}
 	return opIDs, ops, orphan, diags
 }
@@ -107,8 +140,9 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceG
 			continue
 		}
 		diags = append(diags, found...)
-		route := opContext{key: name, inbound: ir.HTTPInboundWebhook, withCallbacks: true}
-		mounted, hookDiags := mountPathItem(w, layers, hookPtr, route, &svc.Unmodeled)
+		route := opContext{key: name, inbound: ir.HTTPInboundWebhook}
+		at := mountSite{ptr: hookPtr, use: c, usePtr: hookPtr, residue: &svc.Unmodeled}
+		mounted, hookDiags := mountPathItem(w, layers, at, route)
 		diags = append(diags, hookDiags...)
 		for _, m := range mounted {
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {

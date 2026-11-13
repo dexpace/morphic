@@ -148,22 +148,22 @@ func inSource(source int) bool {
 // WriteExplanation writes e to w as the lines --explain prints: the
 // coordinate, the node at it or a line saying the document holds none, what is
 // interned below it and what is kept unmodeled at or below it when anything
-// is, and its diagnostics. What the kept entries' lines spell is the
-// document's, escaped (printable). It stops at the first write that fails and
-// returns that write's error, and refuses a nil w.
+// is, and its diagnostics, every string a spec can write escaped (printable).
+// It stops at the first write that fails and returns that write's error, and
+// refuses a nil w.
 func WriteExplanation(w io.Writer, e Explanation) error {
 	if w == nil {
 		return errNoWriter
 	}
 	lw := &lineWriter{w: w}
-	shown := string(e.Pointer)
+	shown := printable(string(e.Pointer))
 	if e.Pointer == "" {
 		shown = `"" (the whole document)` // printed bare, the root reads as a missing argument
 	}
 	lw.printf("coordinate %s\n", shown)
 
 	if e.Node != nil {
-		lw.printf("  node %s (%s)\n", e.Node.ID, e.Node.Kind)
+		lw.printf("  node %s (%s)\n", printable(string(e.Node.ID)), printable(string(e.Node.Kind)))
 	} else {
 		lw.printf("  the document holds no type node at this coordinate\n")
 	}
@@ -171,7 +171,7 @@ func WriteExplanation(w io.Writer, e Explanation) error {
 	if len(e.Below) > 0 {
 		lw.printf("  interned below it (%d):\n", len(e.Below))
 		for _, c := range e.Below {
-			lw.printf("    %s -> %s (%s)\n", c.Pointer, c.ID, c.Kind)
+			lw.printf("    %s -> %s (%s)\n", printable(string(c.Pointer)), printable(string(c.ID)), printable(string(c.Kind)))
 		}
 	}
 
@@ -179,7 +179,7 @@ func WriteExplanation(w io.Writer, e Explanation) error {
 
 	lw.printf("  diagnostics (%d):\n", len(e.Diagnostics))
 	for _, d := range e.Diagnostics {
-		lw.printf("    %s %s: %s\n", d.Severity, d.Code, d.Message)
+		lw.printf("    %s %s: %s\n", printable(string(d.Severity)), printable(d.Code), printable(d.Message))
 	}
 	return lw.err
 }

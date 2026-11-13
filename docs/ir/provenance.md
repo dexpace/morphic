@@ -24,7 +24,7 @@ type Position struct {
 const NoSource = -1 // the node addresses no input file
 
 type Diagnostic struct {
-    Severity   Severity  // error | warning | info
+    Severity   Severity  // error | warning | info, most severe first; Severities ranks them
     Code       string    // stable: "openapi/unresolved-ref", "ir/dangling-type-ref"
     Message    string
     Provenance Provenance
@@ -39,7 +39,9 @@ and `OAuthFlow` have none either, and record a promotion in an `Inferred` of the
 read a body or a part as a file, and `ContentStream` the one that read a content as a stream
 ([payloads](./payloads.md)): a marker on the operation's own `Provenance`, which a guessed stream
 also takes as the summary's, could not say which of its contents or parts the guess made a file or
-a stream.
+a stream. The IR declares no set of markers ([promotion](./unmodeled.md#promotion)), so a compiler
+names its own; the OpenAPI compiler's tell a promoted fact from an inferred one by name
+([`policies`](../compilers/openapi.md#policies)).
 
 **`Source` is where, `WrittenBy` is who.** An overlay patches a document in place, so what it
 writes sits at that document's positions and is read there. Its provenance names the patched

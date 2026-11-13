@@ -218,7 +218,10 @@ matrix](../../ir-spec-matrix.md)), the declared fact above.
 A method says nothing of whether an operation destroys something: `DELETE` and `PUT` are
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden
 spec no operation declares its idempotency, and of its 3,763 operations 1,841 use a safe method and
-2,693 an idempotent one. Without the policy no operation would be known idempotent, so no request
+2,693 an idempotent one; the OpenAPI compiler's idempotency policy gives 6, 5 `POST` and a `PUT`,
+the token their `Idempotency-Key` header carries
+([`idempotency-inference`](../../compilers/openapi.md#idempotency-inference), spec @86556f6f).
+Without the policy no operation would be known idempotent, so no request
 whose outcome is unknown would ever be sent again
 ([retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
 

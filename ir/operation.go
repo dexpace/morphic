@@ -54,7 +54,8 @@ type Operation struct {
 	// (Smithy @readonly, HTTP GET semantics).
 	Idempotency Idempotency `json:"idempotency"`
 	// Servers names the servers the operation is sent to, most preferred first,
-	// in place of its service's; empty = its service's (docs/ir/servers.md).
+	// in place of its service's; empty = its service's, save on an inbound
+	// operation, which inherits none (docs/ir/servers.md#inbound-operations).
 	// OpenAPI declares them on a path item and on an operation, the operation's
 	// own taking precedence. No entry is empty.
 	Servers []ServerID `json:"servers,omitempty"`

@@ -64,8 +64,8 @@ func overlayPastBudget(opts Options) ir.Diagnostic {
 
 // patch reads the caller's overlay (readOverlay) and applies it to the decoded
 // tree, or does nothing when there is none. The overlay document is refused
-// first if it is too large, too deep, or aliased past what the library can
-// follow (overlayRefusals); applyOverlay does the rest.
+// first if it is too large, too deep, or aliased past what its copy can follow
+// (overlayRefusals); applyOverlay does the rest.
 func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (overlay.Origin, []ir.Diagnostic, error) {
 	opts, read, err := readOverlay(ctx, opts)
 	if err != nil || len(read) > 0 {
@@ -86,10 +86,10 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 }
 
 // applyOverlay applies the overlay given what its pre-apply refusals found,
-// taken as data so each outcome is testable. An error there refuses before the
-// library is handed anything. Anything less, only the scan's report that it
-// faulted, is carried into what the compile reports: the overlay's protection
-// from the library is incomplete.
+// taken as data so each outcome is testable. An error there refuses before
+// anything is applied. Anything less, only the scan's report that it faulted,
+// is carried into what the compile reports: the overlay's protection from its
+// own aliases is incomplete.
 //
 // It re-runs the pre-parse refusals afterwards, because an overlay action can
 // graft what they refuse, such as nesting past the bound. They locate through
@@ -131,15 +131,14 @@ func patchedRefusals(ctx context.Context, tree provenance.Tree, root *yaml.Node,
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same
-// limits, before the library is handed it. The library clones each update by
-// following aliases, into every node its target selects: an anchor naming its
-// own ancestor overflows the stack, an alias bomb exhausts memory
-// (docs/parser-library.md#overlay-alias-clone, GitHub #489), and a deep update
-// costs more per node than a shallow one.
+// limits, before it is applied. An update is copied through its aliases into
+// every node its target selects (overlay.copyOf): an anchor naming its own
+// ancestor gives the copy no end, an alias bomb exhausts memory (GitHub #489),
+// and a deep update costs more per node than a shallow one.
 //
 // The whole overlay is decoded, since a scan of each update alone would miss a
 // cycle whose anchor sits outside it. Undecodable bytes are left to the
-// library.
+// overlay's own reading, which refuses them.
 func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	// The byte budget is checked before anything reads the bytes, as the
 	// source's is (GitHub #75): an overlay is an input document like the source,
