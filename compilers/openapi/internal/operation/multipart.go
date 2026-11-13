@@ -279,8 +279,10 @@ func (k partKeys) keepWhole(p keyedPart) []ir.Diagnostic {
 }
 
 // bodyPart is one form part: the name keying its encoding entry, and every
-// schema declaring it, which decide the structural flags when the body's type
-// cannot.
+// schema declaring it, off which what the body's type cannot tell is read:
+// whether it is a file as a body's schema is (readPartFile), whether it
+// repeats where its type cannot decide (declaredMulti), and its
+// contentEncoding.
 type bodyPart struct {
 	name    string
 	schemas []*oas3.JSONSchema[oas3.Referenceable]
@@ -578,33 +580,31 @@ func memberHolders(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID) (hol
 // partFlags returns p's encoding with the structural flags of the part decls
 // declare, read off the types the allOf merge settled on (declarationFlags),
 // multipart saying whether the body is multipart. Where a type is a kind
-// partTypeFlags cannot decide, they are read off every schema declaring the
-// part, as refs resolves them (declaredFlags), a reading left until then since
+// partTypeFlags cannot decide, Multi is read off every schema declaring the
+// part, as refs resolves them (declaredMulti), a reading left until then since
 // it walks a union's branches.
 func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, decls []*ir.Property, p keyedPart, multipart bool) ir.PartEncoding {
 	pe := p.encoding
-	if multi, file, decided := declarationFlags(node, decls, multipart); decided {
-		pe.Multi, pe.Filename = multi, file
-		return pe
+	multi, file, decided := declarationFlags(node, decls, multipart)
+	if !decided {
+		multi = declaredMulti(refs, p.part.schemas)
 	}
-	pe.Multi, pe.Filename = declaredFlags(refs, p.part.schemas, multipart)
+	pe.Multi, pe.Filename = multi, file
 	return pe
 }
 
 // declarationFlags reads the structural flags of a part whose value may be of
 // any of the types decls declare, as partTypeFlags reads a union's members:
-// multi where any is, and file where every one is. decided is false where
-// partTypeFlags cannot decide one of them.
+// multi where any is, and file where every one is, a type partTypeFlags cannot
+// decide being no file, as a union's member of such a kind is. decided is
+// false where partTypeFlags cannot decide one of them.
 func declarationFlags(node func(ir.TypeID) (ir.TypeDef, bool), decls []*ir.Property, multipart bool) (multi, file, decided bool) {
-	file = multipart && len(decls) > 0
+	file, decided = multipart && len(decls) > 0, true
 	for _, d := range decls {
 		declMulti, declFile, ok := partTypeFlags(node, d.Type, multipart)
-		if !ok {
-			return false, false, false
-		}
-		multi, file = multi || declMulti, file && declFile
+		multi, file, decided = multi || declMulti, file && declFile, decided && ok
 	}
-	return multi, file, true
+	return multi, file, decided
 }
 
 // partTypeFlags reads the structural flags of a part from its type, as
@@ -633,8 +633,8 @@ func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, mult
 }
 
 // maxPartUnions bounds the unions unionMembers and memberHolders read through
-// (styleguide bounded-everything rule). A part reaching more is read off its
-// declarations, as a part of a kind memberFlags cannot answer for is.
+// (styleguide bounded-everything rule). A part reaching more reads as one of a
+// kind memberFlags cannot answer for does (partFlags).
 const maxPartUnions = 64
 
 // unionMembers returns the variants of union through the unions nested in it,
@@ -715,24 +715,13 @@ func buildPartEncoding(c lowering.Ctx, w walk, name string, encMap *sequencedmap
 	return encodingConfig(c, w, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
 }
 
-// declaredFlags reads a part's structural flags off every schema declaring it,
-// as refs resolves them: multi where any declares an array (declaresArray),
-// and, in a multipart body, file where any is a string of format binary
-// (schemaIsFilePart).
-func declaredFlags(refs *typed.Bindings, schemas []*oas3.JSONSchema[oas3.Referenceable], multipart bool) (multi, file bool) {
-	for _, js := range schemas {
-		if s := schemaOf(refs, js); s != nil {
-			multi = multi || declaresArray(refs, s)
-			file = file || multipart && schemaIsFilePart(s)
-		}
-	}
-	return multi, file
-}
-
-// schemaIsFilePart reports whether a multipart part schema is a file: a string
-// of format binary.
-func schemaIsFilePart(s *oas3.Schema) bool {
-	return s.GetFormat() == "binary" && slices.Contains(s.GetType(), oas3.SchemaTypeString)
+// declaredMulti reads whether a part repeats off every schema declaring it, as
+// refs resolves them: where any declares an array (declaresArray).
+func declaredMulti(refs *typed.Bindings, schemas []*oas3.JSONSchema[oas3.Referenceable]) bool {
+	return slices.ContainsFunc(schemas, func(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+		s := schemaOf(refs, js)
+		return s != nil && declaresArray(refs, s)
+	})
 }
 
 // declaresArray reports whether s declares a repeated part: the array type on

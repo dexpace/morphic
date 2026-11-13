@@ -1482,7 +1482,7 @@ components:
 // one and a $ref branch, a union on an allOf branch or beside properties, and
 // a union nested in a branch. A name two branches declare is one part, keyed
 // by the first: it repeats where one declaration does, and is a file only
-// where each is.
+// where each is, whatever the other's kind.
 func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 	t.Parallel()
 	mfd := requestMedia(multipartForm)
@@ -1527,6 +1527,15 @@ func TestPartEncodings_AUnionBranchsPartIsKeyed(t *testing.T) {
 			}}},
 		{"a name two branches declare, a file in one and text in the other",
 			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+		{"a name two branches declare, a file in one and an enum in the other",
+			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: string, enum: [a]}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+		{"a name two branches declare, a file in one and an object in the other",
+			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, properties: {a: {type: string}}}}}]}", "{}",
+			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
+		{"a name two branches declare, a file in one and a map in the other",
+			"{oneOf: [" + fileForm + ", {type: object, properties: {file: {type: object, additionalProperties: {type: string}}}}]}", "{}",
 			map[ir.PropID]ir.PartEncoding{at("oneOf/0/properties/file"): {}}},
 	}
 	for _, tc := range cases {

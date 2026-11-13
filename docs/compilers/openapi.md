@@ -3932,7 +3932,8 @@ passing over:
 
 1. an object, a model or a map, takes `application/json`;
 2. a number, an integer, a boolean, and a string, a format's primitive among them, take
-   `text/plain`;
+   `text/plain`, as an enum or a `const` of strings does where it writes `format: binary` or
+   `byte`, which its type has no home for and keeps under `Unmodeled`;
 3. raw bytes, which every minor's lowering reads `format: binary` as, take
    `application/octet-stream`, as 3.0's row for `binary` and the later minors' row for raw binary,
    which their own multipart example gives a string of format `binary`, say;
@@ -3962,12 +3963,12 @@ which does, a tuple's rest included where elements may follow its prefix. A unio
 variants, through the unions nested in them, each as such a type is and one of another kind as
 neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
 multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
-them. For a property of any other kind, such as an enum, literal, model or map, and for a union
-reaching more nested unions than a bound of its own, they are read from every declaration of the
-part's name: `Multi` where any is an array, or writes no `type` and a union with an array among its
-branches, and, in a multipart body, `Filename` where any is a `string` with `format: binary`. In a
-multipart body a part is a file too where every declaration of it reads so as a body's schema does
-([`file-bodies`](#file-bodies)), an array through each of its elements, its `prefixItems` and the
+them. A property of any other kind, such as an enum, literal, model or map, or a union reaching more
+nested unions than a bound of its own, reads off its type as no file, as such a member of a union
+does, and its `Multi` is read from every declaration of the part's name: where any is an array, or
+writes no `type` and a union with an array among its branches. In a multipart body a part is a file
+too where every declaration of it reads so as a body's schema does ([`file-bodies`](#file-bodies)),
+an array through each of its elements, its `prefixItems` and the
 `items` after them, or a draft's list of `items` and the `additionalItems` after them
 ([`tuples`](#tuples)), a rest of `false` admitting none, as is an array branch of a union it writes,
 whose other branches are read as a body's union branches are: one declaring raw bytes; one leaving
@@ -4032,7 +4033,7 @@ in any case.
   `operation.TestPartEncodings_AUnionPastItsBoundIsReported`,
   `operation.TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration`,
   `operation.TestPartWalk_ReadsARefChainToItsBound`,
-  `operation.TestDeclaredFlags_ReadsEveryDeclaration`,
+  `operation.TestDeclaredMulti_ReadsEveryDeclaration`,
   `operation.TestDefaultContentType_ReadsEachValueByItsRow`,
   `operation.TestDefaultContentType_ReadsUpToItsBound`,
   `operation.TestPartValues_ReadsEachItemOfEachDeclaration`,

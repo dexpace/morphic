@@ -347,16 +347,13 @@ func TestPartEncodingEmpty_ReadsEveryField(t *testing.T) {
 	}
 }
 
-// TestDeclaredFlags_ReadsEveryDeclaration holds the flags read off a part's
-// declarations, where its type does not decide them, to each declaration: an
-// array repeats, and so does a union writing no type of its own with an array
-// branch; in a multipart body a string of format binary is a file, and one of
-// format byte, which is base64 text, is none, and no part of a url-encoded
-// body is a file.
-func TestDeclaredFlags_ReadsEveryDeclaration(t *testing.T) {
+// TestDeclaredMulti_ReadsEveryDeclaration holds whether a part repeats, read
+// off its declarations where its type does not decide it, to each
+// declaration: an array repeats, and so does a union writing no type of its
+// own with an array branch, and nothing else does.
+func TestDeclaredMulti_ReadsEveryDeclaration(t *testing.T) {
 	t.Parallel()
 	l, _ := loweredFor(t, openapitest.ComponentSpec("    Bin: {type: string, format: binary}\n"+
-		"    Byte: {type: string, format: byte}\n"+
 		"    List: {type: array, items: {type: string}}\n"+
 		"    Either: {oneOf: [{type: string}, {type: array, items: {type: string}}]}\n"+
 		"    Typed: {type: string, oneOf: [{type: array, items: {type: string}}]}\n"))
@@ -366,25 +363,20 @@ func TestDeclaredFlags_ReadsEveryDeclaration(t *testing.T) {
 		return js
 	}
 	for _, tc := range []struct {
-		name        string
-		schemas     []string
-		multipart   bool
-		multi, file bool
+		name    string
+		schemas []string
+		multi   bool
 	}{
-		{"binary", []string{"Bin"}, true, false, true},
-		{"binary in a url-encoded body", []string{"Bin"}, false, false, false},
-		{"byte", []string{"Byte"}, true, false, false},
-		{"an array beside binary", []string{"List", "Bin"}, true, true, true},
-		{"a union with an array branch", []string{"Either"}, true, true, false},
-		{"a union beside a type of its own", []string{"Typed"}, true, false, false},
+		{"binary", []string{"Bin"}, false},
+		{"an array beside binary", []string{"Bin", "List"}, true},
+		{"a union with an array branch", []string{"Either"}, true},
+		{"a union beside a type of its own", []string{"Typed"}, false},
 	} {
 		var schemas []*oas3.JSONSchema[oas3.Referenceable]
 		for _, name := range tc.schemas {
 			schemas = append(schemas, get(name))
 		}
-		multi, file := declaredFlags(l.ctx.Bindings(), schemas, tc.multipart)
-		assert.Equal(t, tc.multi, multi, "%s: multi", tc.name)
-		assert.Equal(t, tc.file, file, "%s: file", tc.name)
+		assert.Equal(t, tc.multi, declaredMulti(l.ctx.Bindings(), schemas), tc.name)
 	}
 }
 
