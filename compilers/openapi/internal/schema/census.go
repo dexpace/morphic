@@ -68,10 +68,13 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// keeps (PreserveUnknownKeywords).
 		_, listed := listedItems(s)
 		return isKind(td, ir.KindTuple) || !listed
-	case "maxItems", "minItems", "uniqueItems":
-		// Either collection node, since collectionConstraints fills both. That is
-		// also why valueConstraintKeywords leaves them out, which puts them in this
-		// census rather than in declaredConstraints.
+	case "maxItems", "minItems":
+		// Either collection node, since collectionConstraints fills both, or a
+		// reference's alias or carrier, unless the count is one no field states.
+		// That is also why valueConstraintKeywords leaves them out, which puts them
+		// in this census rather than in declaredConstraints.
+		return (holdsCollectionBounds(td) || ir.IsNilTypeDef(td)) && !keptCount(s, keyword, countOf(s, keyword))
+	case "uniqueItems":
 		return holdsCollectionBounds(td) || (ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
@@ -388,10 +391,11 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	unhomed := unhomedKeywords(s, td, slices.Concat(d.skipped, d.said))
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
-		// bounds it wrote reach no Constraints field anywhere.
-		// One carrying a number as text kept them itself (textBounds).
+		// bounds it wrote reach no Constraints field anywhere, but for one a
+		// reader already accounts for (unreadBounds). One carrying a number as
+		// text kept them itself (textBounds).
 		if !carriesNumberAsText(td) {
-			unhomed = append(unhomed, declaredConstraints(s)...)
+			unhomed = append(unhomed, unreadBounds(s, []ir.TypeDef{td})...)
 		}
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
@@ -405,6 +409,20 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
+}
+
+// unreadBounds returns the value constraints s writes (declaredConstraints) that
+// no reader accounts for, in order: what the reader of a node's bounds kept and
+// reported, a count no field states (keepCounts) or a 3.0 exclusive modifier
+// with no bound beside it, which a node of nodes keeps, and a count the load
+// phase refuses (refusedCount) are not kept and reported a second time.
+func unreadBounds(s *oas3.Schema, nodes []ir.TypeDef) []string {
+	return slices.DeleteFunc(declaredConstraints(s), func(keyword string) bool {
+		return refusedCount(s, keyword) || slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {
+			_, kept := td.Common().Unmodeled[annotation.EntryKey("", keyword)]
+			return kept
+		})
+	})
 }
 
 // refSiteShape describes what a $ref position's own declaration lowers to, for
@@ -465,7 +483,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	}
 	unhomed := unhomedAcross(s, nodes, handled)
 	if !slices.ContainsFunc(nodes, constraintsHome) {
-		unhomed = append(unhomed, declaredConstraints(s)...)
+		unhomed = append(unhomed, unreadBounds(s, nodes)...)
 	}
 	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
 }
@@ -484,7 +502,9 @@ func recordUnhomedKeywords(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 	return append(diags, recordUnhomedAt(c, &td.Common().Unmodeled, s, unhomed, shape, pointer)...)
 }
 
-// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once.
+// recordUnhomedAt keeps each unhomed keyword verbatim in p and reports them once,
+// a collection count no field states (keptCount) apart from the rest, as
+// keepCounts reports a value count.
 //
 // It names the keywords it actually stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert and was reported unpreservable
@@ -499,6 +519,13 @@ func recordUnhomedAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, unhomed []
 		if ok {
 			kept = append(kept, keyword)
 		}
+	}
+	counts := slices.DeleteFunc(slices.Clone(kept), func(keyword string) bool {
+		return keyword != "maxItems" && keyword != "minItems" || !keptCount(s, keyword, countOf(s, keyword))
+	})
+	kept = slices.DeleteFunc(kept, func(keyword string) bool { return slices.Contains(counts, keyword) })
+	if len(counts) > 0 {
+		diags = append(diags, countsKept(c, counts, pointer))
 	}
 	if len(kept) == 0 {
 		return diags

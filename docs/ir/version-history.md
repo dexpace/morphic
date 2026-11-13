@@ -593,13 +593,30 @@ it sees. Changes made together in one bump are listed together under it.
     ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
     its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
     under the ID its spelling gives it.
-- **0.55.0** — three changes of meaning, the shape kept:
+- **0.55.0** — no shape change. The OpenAPI compiler writes a count, `minLength`, `maxLength`,
+  `minItems`, `maxItems`, `minProperties` or `maxProperties`, past what a 64-bit integer holds to
+  no `Constraints` field, where it wrote `0` or a number the source does not state, and keeps it
+  verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier the position owns
+  ([`constraints`](../compilers/openapi.md#constraints)); a count literal that is no non-negative
+  integer, which the load phase refuses, reaches no field either. An inline `allOf` branch whose
+  bound keyword states no value, a 3.0 `exclusiveMinimum` with no bound beside it, one of `false` or
+  one the load phase refuses, parts no other branch, so it folds where nothing else parts it
+  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)), what it keeps landing
+  under its keyword rather than under `openapi:allOf/<n>`. A field several `allOf` conjuncts
+  declare ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)) now
+  holds two enums' shared values of the narrower value type, where it kept the first enum of
+  different value types, and holds what an alias of an enum, a `const`, a `Scalar`, a list, a map
+  or a tuple meets beside the node it stands for, where it kept the first; an alias adding only
+  null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
+  field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
+  the position instead, and one reading such a field may find a node minted for it.
+- **0.56.0** — three changes of meaning, the shape kept:
   - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
     reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
     lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
     also admits every other value, or to a `Model` where `properties` was written beside it, and a
     `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
-    to 0.54.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+    to 0.55.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
   - A union branch admitting `null` alone, written in place, is the union's `null` in every
     spelling, carried by the reference to the union rather than by a variant
     ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
@@ -607,7 +624,7 @@ it sees. Changes made together in one bump are listed together under it.
     `Enum` with no member, so a union of one such branch and one other is now a nullable reference
     to the other, and a union of more has one variant fewer, while one written beside a structural
     body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
-    pinned to 0.54.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    pinned to 0.55.0 finds no variant where it read one admitting `null` alone. The reverse holds
     too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
     `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
     and dropped what it wrote beside its type, so such a consumer also finds a variant where it
