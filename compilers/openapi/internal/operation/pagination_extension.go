@@ -105,7 +105,7 @@ func (pg *pager) operation(op *ir.Operation) []ir.Diagnostic {
 	}
 	page, reason := assemble(fields)
 	if page == nil {
-		return append(diags, pg.report(op, "its extensions state a pagination that %s, so it fills none", reason))
+		return append(diags, pg.report(op, "the pagination the policy reads from its extensions %s, so it fills none", reason))
 	}
 	op.Pagination = page
 	for _, prov := range fields.read {

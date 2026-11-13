@@ -297,8 +297,8 @@ func assertExtensionPagination(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Nil(t, noNextPage.Pagination)
 	assert.Empty(t, noNextPage.Provenance.Inferred)
 	require.Len(t, diags, 1, "the one walk with no next page: %+v", diags)
-	assert.Equal(t, `operation "op/openapi/paths/~1offsets/get": its extensions state a pagination that names `+
-		`neither an input continuing it nor a next link, so it fills none`, diags[0].Message)
+	assert.Equal(t, `operation "op/openapi/paths/~1offsets/get": the pagination the policy reads from its `+
+		`extensions names neither an input continuing it nor a next link, so it fills none`, diags[0].Message)
 }
 
 // assertExtensionServerName is a server named by the default key in each list

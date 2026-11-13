@@ -1154,7 +1154,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "operation \"op/openapi/paths/~1offsets/get\": its extensions state a pagination that names neither an input continuing it nor a next link, so it fills none",
+      "message": "operation \"op/openapi/paths/~1offsets/get\": the pagination the policy reads from its extensions names neither an input continuing it nor a next link, so it fills none",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1offsets/get"
