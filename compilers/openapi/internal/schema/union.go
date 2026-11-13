@@ -374,16 +374,19 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 
 // variantHint is the hint the union variant for the branch b written at vptr,
 // which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// inline and refines the $ref its allOf names, or t is a decorator (ir.Decorated)
-// over it, when it is the name the $ref suggests (lowering.NameThrough). 3.0
-// annotates a branch only by wrapping its $ref, so `{allOf: [{$ref: X}],
-// description: …}` names its variant as 3.1's `{$ref: X, description: …}` does
-// (GitHub #1018). The node t keeps the branch's own: a decorator collapses into
-// its reference wherever it is used.
+// inline, no title names it (lowering.NameTitle), and it refines the $ref its
+// allOf names, or t is a decorator (ir.Decorated) over it, when it is the name
+// the $ref suggests (lowering.NameThrough). 3.0 annotates a branch only by
+// wrapping its $ref, so `{allOf: [{$ref: X}], description: …}` names its
+// variant as 3.1's `{$ref: X, description: …}` does (GitHub #1018), a title
+// beside either too. The node t keeps the branch's own.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
 	if s == nil || isRefBranch(b) {
+		return own
+	}
+	if _, titled := lowering.NameTitle(c, vptr); titled {
 		return own
 	}
 	if r, refines := refinementOf(c, s, vptr); refines && r.ref != nil {
