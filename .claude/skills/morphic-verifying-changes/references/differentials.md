@@ -178,8 +178,8 @@ whether the answer means anything.
   no binary is rebuilt while a run of it starts with the flag.
 - **Why.** The key names a build by its executable's bytes and holds no environment (#1304): a run
   setting `ZZMUT=1`, which selected a mutant, got the document an unset run had stored, and an unset
-  run got the mutant's when the mutant ran first (morphic @c1d984a06). A run that starts as its
-  binary is replaced stores under the new build (#1318).
+  run got the mutant's when the mutant ran first (morphic @c1d984a06). Off Linux, a run that starts
+  as its binary is replaced stores under the new build (#1318).
 - **Probe.** Plant a mutant behind a variable and run it set and unset over one cache directory:
   both runs print the first one's document.
 

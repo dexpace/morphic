@@ -138,7 +138,9 @@ the exit code and nothing else.
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
 prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
 Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones. A long
-flag typed with one dash is refused, with the two-dash spelling to use.
+flag typed with one dash is refused, with the two-dash spelling to use. A command's flags may come
+before its name, as in `morphic --verify compile openapi.yaml`, and are read as the command reads
+them.
 
 `morphic --version` prints the build and the version of the IR schema its output follows.
 `morphic completion bash|zsh|fish|powershell` prints a completion script for that shell, which
@@ -154,7 +156,7 @@ completes commands, flags, and spec files by extension.
 | `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec and every document it reads, the settings, the passes, and the working directory. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, each construct kept verbatim under `Unmodeled` at or beneath it with the node keeping it and its reason, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -188,9 +190,15 @@ Both commands share them.
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
-write error is printed on stderr either way. `-o` publishes by rename, so a destination whose
-directory will not take a temp file, such as `/dev/null` or a read-only directory, cannot be
-written to at all.
+write error is printed on stderr either way.
+
+`-o` replaces a file by renaming a temporary file over it, so a reader of the file sees the whole
+previous document or the whole new one, never part of either. The file's directory must therefore
+take a new entry: a writable file in a read-only directory is refused, as writing it in place would
+give up that guarantee. A symlink to a file is replaced, not followed, and other hard links keep
+the old content. A FIFO or a character device, such as `/dev/null` or the pipe a shell's `>(…)`
+names, has no content to replace and is written as stdout is; a FIFO no process reads is refused
+rather than waited for. A directory, a socket or a block device is refused.
 
 SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
 stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that
@@ -198,9 +206,10 @@ status, as `set -e` does. A stopped run writes no document: a file `-o` names ke
 content, its temporary file removed, and stdout gets none of it. Stopped during the compile, it
 writes nothing at all; stopped during `compile`'s diagnostics, it finishes them, and no document or
 `--explain` report follows. A signal that comes once the run's last output has begun is too late to
-stop it: once the document is being written to stdout or moved into place over `-o`'s file, once an
-`--explain` report has begun, or once the compile is over for a run that writes nothing after its
-diagnostics, `validate` or `compile` of a spec that lowered to no document. The run then finishes
+stop it: once the document is being written to stdout or to the FIFO or device `-o` names, or
+moved into place over `-o`'s file, once an `--explain` report has begun, or once the compile is over
+for a run that writes nothing after its diagnostics, `validate` or `compile` of a spec that lowered
+to no document. The run then finishes
 and exits as though the signal had not been sent, so it never reports a stop for a document it
 wrote. Another signal while the run is stopping changes nothing, so a copy that a shell or a wrapper
 delivers along with the first cannot cut the cleanup short, and a signal that comes as morphic

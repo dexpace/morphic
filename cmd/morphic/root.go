@@ -37,7 +37,7 @@ func newRootCmd() *cobra.Command {
 	// cobra resolves the command before it defines -h and -v, and an undefined
 	// short flag is assumed to take a value: "morphic -h compile" would read
 	// compile as -h's argument and show root help. Defining them first makes
-	// each a switch, and lets singleDashLongFlags see them.
+	// each a switch, and lets misreadDashes see them.
 	root.InitDefaultHelpFlag()
 	root.InitDefaultVersionFlag()
 	return root

@@ -268,7 +268,7 @@ func TestReplaceDocument_MissingParentDirectory(t *testing.T) {
 	err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
 
 	require.ErrorIs(t, err, os.ErrNotExist)
-	assert.ErrorContains(t, err, fmt.Sprintf("create output %q", dest))
+	assert.ErrorContains(t, err, fmt.Sprintf("create the temporary file beside output %q", dest))
 }
 
 // TestEncode_ErrorPaths pins that both layouts tell a document that will not
