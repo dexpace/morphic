@@ -79,7 +79,8 @@ highlights, and the list moves to a specification of its own when the compiler l
   DefaultAdded, root-shape `@default` pushed down to properties w/ provenance
 - `@streaming` blob → StreamDetail + the payload Content's Stream (+`@requiresLength` →
   RequiresLength)
-- event streams → StreamDetail.Events union + Property.EventHeader/EventPayload + Initial messages
+- event streams → StreamDetail.Events union + the payload Content's Stream +
+  Property.EventHeader/EventPayload + Initial messages
 - service-level errors → Service.CommonErrors
 - protocol traits → Service.Protocols
 - service `rename`/`version` → Service.Renames/Version
