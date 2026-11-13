@@ -91,13 +91,13 @@ flattening is the model here: nested `@header`/`@body` annotations resolve to ex
 
 A binding can spread a map-typed parameter over many fields rather than send it as one: Smithy's
 `@httpPrefixHeaders` binds a map of strings to every request header whose name starts with a
-prefix, and `@httpQueryParams` binds one to every query parameter. A set `Prefix` makes the binding
-such a spread, at a `header` or a `query` location: each entry of the map is a header, or a query
-parameter, named by the prefix followed by the entry's key, and the empty prefix, which
-`@httpPrefixHeaders("")` writes and `@httpQueryParams` means, takes every name. The binding names no
-field of its own, so it sets no `WireName`, and a nil `Prefix` is a binding of the one field
-`WireName` names. How an entry gives way to a field another binding writes is the emitter's
-([text](../emitters/refine/text.md#the-text-of-a-value)).
+prefix, and `@httpQueryParams` binds a map of strings, or of lists of strings, to every query
+parameter. A set `Prefix` makes the binding such a spread, at a `header` or a `query` location:
+each entry of the map is a header, or a query parameter, named by the prefix followed by the
+entry's key, and the empty prefix, which `@httpPrefixHeaders("")` writes and `@httpQueryParams`
+means, takes every name. The binding names no field of its own, so it sets no `WireName`, and a nil
+`Prefix` is a binding of the one field `WireName` names. How an entry gives way to a field another
+binding writes is the emitter's ([text](../emitters/refine/text.md#the-text-of-a-value)).
 
 `Prefix` is a pointer because the empty prefix is a prefix, as `Header.Prefix` is for a response's
 headers ([prefix headers](./responses.md#prefix-headers)): a `Prefix string` whose empty value means
