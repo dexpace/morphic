@@ -227,9 +227,10 @@ func membersTyped(members []ir.EnumMember, s *oas3.Schema) bool {
 // typeShapedBy reports whether td is a node kind that carries the shape st names.
 //
 // An Enum carries a scalar type in ValueType, which enumValueType fills from
-// that type set where its members are values of it. A Literal is typeHome's to judge, since what it holds
-// depends on the format beside the type. Any admits every shape, so it
-// contradicts none; External and keywordHome's nil td carry no shape.
+// that type set where its members are values of it. A Literal is typeHome's to
+// judge, since what it holds depends on the format beside the type. Any admits
+// every shape, so it contradicts none; External and keywordHome's nil td carry
+// no shape.
 func typeShapedBy(td ir.TypeDef, st oas3.SchemaType) bool {
 	switch td.(type) {
 	case *ir.Model, *ir.MapT:
