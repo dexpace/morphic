@@ -389,9 +389,9 @@ func TestAllOf_AUnionBranchDistributesAsBesideTheAllOf(t *testing.T) {
 // (docs/compilers/openapi.md#union-beside-structure). Distributed, the schema
 // would be a union, no subtype of the ancestor, so it stays a tagged model
 // under it, its union kept verbatim, and the document validates, a subtype of
-// it included. An inline schema no route names distributes beside the allOf,
-// its variants untagged, and stays whole on its branch; a mapping key routes to
-// one, "" among them.
+// it included. An inline schema no route names distributes beside the allOf and
+// on its branch, its variants untagged; a mapping key routes to one, "" among
+// them.
 func TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Pet:
@@ -462,11 +462,59 @@ func TestUnion_ASubtypeADiscriminatorRoutesToStaysASubtype(t *testing.T) {
 		require.True(t, ok)
 		assert.Empty(t, m.DiscriminatorValue, "and no variant is tagged")
 	}
-	_, ok = doc.Types["t/anon/components/schemas/Holder/properties/branch"].(*ir.Model)
-	assert.True(t, ok, "and stays a model on its branch")
+	_, ok = doc.Types["t/anon/components/schemas/Holder/properties/branch"].(*ir.Union)
+	assert.True(t, ok, "and on its branch")
 	hamster, ok := doc.Types["t/anon/components/schemas/Holder/properties/hamster"].(*ir.Model)
 	require.True(t, ok, "one a mapping key routes to stays a model, the key \"\" among them")
 	assert.Contains(t, hamster.Unmodeled, "openapi:oneOf")
+}
+
+// TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside pins a union on an
+// allOf branch of a schema below a discriminated base, which is routed or not at
+// its position (docs/compilers/openapi.md#union-beside-structure): where no
+// route names it, it distributes as the same union beside the allOf does, in
+// either declaration order, and where a mapping key or the name of its
+// component routes to it, it stays a tagged model keeping the union with its
+// branch (GitHub #1695).
+func TestUnion_ABranchUnionNoRouteNamesDistributesAsBeside(t *testing.T) {
+	t.Parallel()
+	const sizes = "oneOf: [{$ref: '#/components/schemas/Small'}, {$ref: '#/components/schemas/Big'}]"
+	for _, doc := range discriminatedOrders(t, "3.1.0", `    Pet:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {gerbil: '#/components/schemas/Holder/properties/gerbil'}
+`, `    Small: {type: object, properties: {size: {type: integer}}}
+    Big: {type: object, properties: {weight: {type: integer}}}
+    Fish:
+      allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]
+    Holder:
+      type: object
+      properties:
+        beside: {allOf: [{$ref: '#/components/schemas/Pet'}], `+sizes+`}
+        branch: {allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]}
+        gerbil: {allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]}
+`) {
+		beside, ok := doc.Types["t/anon/components/schemas/Holder/properties/beside"].(*ir.Union)
+		require.True(t, ok, "beside the allOf, the union distributes")
+		branch, ok := doc.Types["t/anon/components/schemas/Holder/properties/branch"].(*ir.Union)
+		require.True(t, ok, "and on its branch, got %T", doc.Types["t/anon/components/schemas/Holder/properties/branch"])
+		require.Len(t, branch.Variants, len(beside.Variants))
+		for i := range beside.Variants {
+			want, got := doc.Types[beside.Variants[i].Type.Target].(*ir.Model), doc.Types[branch.Variants[i].Type.Target].(*ir.Model)
+			require.NotNil(t, got, "variant %d is a composed model", i)
+			assert.Equal(t, want.Base, got.Base, "variant %d", i)
+			assert.Equal(t, want.Mixins, got.Mixins, "variant %d", i)
+			assert.Empty(t, got.DiscriminatorValue, "variant %d is no routed subtype", i)
+		}
+		for id, tag := range map[ir.TypeID]string{componentID("Fish"): "Fish", "t/anon/components/schemas/Holder/properties/gerbil": "gerbil"} {
+			m, ok := doc.Types[id].(*ir.Model)
+			require.True(t, ok, "%s, a schema a route names, stays a model; got %T", id, doc.Types[id])
+			assert.Equal(t, tag, m.DiscriminatorValue, id)
+			assert.Contains(t, m.Unmodeled, "openapi:allOf/1", id)
+		}
+	}
 }
 
 // TestUnion_ASchemaNoRouteNamesDistributesBesideItsAllOf pins a union beside

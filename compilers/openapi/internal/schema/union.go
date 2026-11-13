@@ -320,28 +320,25 @@ type branchUnionIndex struct {
 // branchUnion returns the union an inline branch of s's allOf writes that s,
 // written at pointer, distributes across the rest of its composition, as it
 // would the same union written beside the allOf
-// (docs/compilers/openapi.md#union-beside-structure). Every reader of the
-// position asks, so it is read once a run.
+// (docs/compilers/openapi.md#union-beside-structure): none where a
+// discriminator on an ancestor routes to s at its position (routedSubtype), as
+// beside it. The schema's own reading is read once a run.
 func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unionAt, bool) {
 	at := lowering.Remembered(c, branchUnionOf{s}, func() branchUnionIndex { return findBranchUnion(c, s) })
-	if !at.ok {
+	if !at.ok || routedSubtype(c, s, pointer) {
 		return unionAt{}, false
 	}
 	e := allOfBranches(s, pointer).branches[at.index]
 	return unionAt{holder: e.schema.GetSchema(), at: e.pointer}, true
 }
 
-// findBranchUnion is branchUnion's reading of s: where s lowers its allOf,
-// composing, not refining, the one branch whose union declares shape against
-// s, where that branch lies within the flattening depth and classifyBranchSet
-// distributes its union, neither writing a discriminator (GitHub #1698). Two
-// such unions leave none, either dropping the other, and one declaring no
-// shape stays residue. A $ref site or a union beside the allOf lowers first
-// (lowerSchemaBody).
-//
-// Nor below a discriminated ancestor, whose route may name s (routedSubtype):
-// the readers of s share one reading, with no position to tell an inline s no
-// route names (GitHub #1695).
+// findBranchUnion is branchUnion's reading of s alone: where s lowers its
+// allOf, composing, not refining, the one branch whose union declares shape
+// against s, where that branch lies within the flattening depth and
+// classifyBranchSet distributes its union, neither writing a discriminator
+// (GitHub #1698). Two such unions leave none, either dropping the other, and
+// one declaring no shape stays residue. A $ref site or a union beside the allOf
+// lowers first (lowerSchemaBody).
 func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 	if s.GetDiscriminator() != nil || dispatchOf(s).won != "allOf" {
 		return branchUnionIndex{}
@@ -362,7 +359,7 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 		classifyBranchSet(c, holder) != unionDistributed {
 		return branchUnionIndex{}
 	}
-	if _, refines := refinementOf(c, s, ""); refines || len(discriminatedAncestors(c.Bindings(), s)) > 0 {
+	if _, refines := refinementOf(c, s, ""); refines {
 		return branchUnionIndex{}
 	}
 	return branchUnionIndex{index: index, ok: true}
