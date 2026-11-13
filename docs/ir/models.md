@@ -62,8 +62,9 @@ type Discriminator struct {
     Index    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
-    Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name;
-                                   // a hierarchy routes to each subtype by its DiscriminatorValue
+    Mapping  map[string]TypeID     // wire value → the type it routes to: a union's variant, or a
+                                   // hierarchy's base or subtype; nil on a union = infer by type
+                                   // name; a hierarchy routes to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;
@@ -92,6 +93,17 @@ instead, leaving the field empty where it admits several or none, and names itse
 every subtype of a base pinning its tag to one value does, and that tag then routes to more than
 one. A reading that declined there, as one filling a `Mapping`, which keys one target per tag, must,
 would leave each a tag its own instances reject for an encoder to write.
+
+A model's discriminator routes to its subtypes, and to the model itself where it is not `Abstract`:
+the instances of a concrete base are a payload as its subtypes' are, as an OpenAPI `mapping` may
+name the schema declaring the `discriminator`, and the base's own shape is a variant of every
+reference to it ([a polymorphic base](../emitters/refine/unions.md#a-polymorphic-base)). An
+`Abstract` model has no instance of its own, so `pass.Validate` refuses a route to it from its own
+`Mapping` or `Default` as one to a type that is no variant (`pass/discriminator-missing-variant`).
+The base carries no `DiscriminatorValue` for its own route: that field is the tag a discriminator on
+an ancestor routes a model by, which no ancestor of the base holds, and the base's route is its
+`Mapping` entry, so the fact has one home. `ir.IsSubtype` stays irreflexive: this is a clause of the
+route, not of the subtype relation every other reader of it asks.
 
 ## Composition
 

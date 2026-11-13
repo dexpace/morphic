@@ -475,6 +475,8 @@ it sees. Changes made together in one bump are listed together under it.
   them, where that variant is the branch's one reference and neither says anything of all its
   values: the branch's values become members of the union's `Enum`, each holding what its own
   member held, and the branch type goes
-  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A consumer pinned to
-  0.46.0 that read such a union as a `Union` finds an `Enum` there, and no longer finds the branch
-  type.
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.46.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.

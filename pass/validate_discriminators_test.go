@@ -65,6 +65,27 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 	assert.Equal(t, 2, countCode(t, diags, "pass/discriminator-missing-variant"))
 }
 
+// TestValidate_ModelDiscriminatorRoutesToItsConcreteBase pins a route to the
+// base holding the discriminator: legal from its Mapping and its Default where
+// the base is concrete, as its own instances are a payload, and refused where
+// it is Abstract, which no instance is (docs/ir/models.md#discriminator).
+func TestValidate_ModelDiscriminatorRoutesToItsConcreteBase(t *testing.T) {
+	t.Parallel()
+	for _, abstract := range []bool{false, true} {
+		doc := validDoc()
+		base := &ir.Model{ID: "t/base", Abstract: abstract, Discriminator: &ir.Discriminator{
+			Mapping: map[string]ir.TypeID{"base": "t/base", "sub": "t/sub"}, Default: "t/base",
+		}}
+		doc.Types["t/base"] = base
+		doc.Types["t/sub"] = &ir.Model{ID: "t/sub", Base: &ir.TypeRef{Target: "t/base"}, DiscriminatorValue: "sub"}
+		diags := validated(t, doc)
+
+		want := map[bool]int{false: 0, true: 2}[abstract]
+		assert.Equal(t, want, countCode(t, diags, "pass/discriminator-missing-variant"), "abstract: %v", abstract)
+		assert.Len(t, diags, want, "abstract: %v", abstract)
+	}
+}
+
 // TestValidate_SubtypeThroughAliasChain pins that a subtype composing an alias
 // of the base is still a subtype. A `$ref` carrying siblings composes the
 // branch's own node (docs/ir/models.md#composition-entries), so a hierarchy
