@@ -476,7 +476,8 @@ it sees. Changes made together in one bump are listed together under it.
     deprecated target leaves the use's `Deprecation` set
     ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
     pinned to 0.46.0 that read such a use as live finds it deprecated, and a `readOnly` or
-    `writeOnly` it read as withdrawn in force.
+    `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
+    another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
   - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
     of two conventions ([`extension-pagination`](../compilers/openapi.md#extension-pagination)),
     with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;

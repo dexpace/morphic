@@ -1490,7 +1490,9 @@ with no residue is kept on no variant
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. A
+`deprecated`, `readOnly` or `writeOnly` written `false` disagrees with nothing and lends nothing, as
+it states nothing a `true` elsewhere does not ([`ref-use-site`](#ref-use-site)). Value
 bounds and the counts `minItems` and `maxItems` agree where they meet, as a redeclared field's do
 ([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
 folds to `3`, `minItems: 1` beside `minItems: 2` to `2`, and `multipleOf: 4` beside `multipleOf: 6`
@@ -1531,7 +1533,8 @@ every entry reads that one twice.
 
 - Cases: `allof-inline-residue`
 - Codes: `openapi/degraded-construct`
-- Tests: `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
+- Tests: `schema.TestVoices_AFalseFlagAgreesWithATrue`,
+  `schema.TestAllOf_BranchWrittenByReferenceStillDerivesResidue`,
   `schema.TestAllOf_MergedBranchKeywordsAreNotResidue`,
   `schema.TestAllOf_UnpreservableBranchIsNotAnnounced`,
   `schema.TestAllOf_NestedInlineBranchKeyedByPointer`,
