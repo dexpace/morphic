@@ -269,13 +269,16 @@ func routeEntry(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, x *bra
 	if len(among) < 2 {
 		return x.variants[i].Type.Target, true, nil
 	}
-	pointers := make([]string, 0, len(among))
-	for _, b := range among {
+	// Only the branches the report shows are spelled, so an entry costs no more
+	// for a union whose every branch aliases the type it names.
+	shown := among[:min(len(among), maxReportedTags)]
+	pointers := make([]string, 0, len(shown))
+	for _, b := range shown {
 		pointers = append(pointers, string(x.pointers[b]))
 	}
 	return x.variants[i].Type.Target, true, []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
 		"%s names a schema %d branches of this union reach through a $ref (%s), and a tag routes to one "+
-			"variant; routed to the first", subject, len(among), fewQuoted(pointers))}
+			"variant; routed to the first", subject, len(among), quotedOf(pointers, len(among)))}
 }
 
 // mappingWhy is the reason value, a value of d's mapping, reports when it

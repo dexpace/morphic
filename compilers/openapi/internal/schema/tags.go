@@ -250,12 +250,18 @@ func disagreements(tags [][]string, implicit []implicitRoute) string {
 // fewQuoted quotes the first maxReportedTags of tags and says how many more
 // there are.
 func fewQuoted(tags []string) string {
-	named := make([]string, 0, min(len(tags), maxReportedTags))
-	for _, tag := range tags[:min(len(tags), maxReportedTags)] {
-		named = append(named, strconv.Quote(tag))
+	return quotedOf(tags[:min(len(tags), maxReportedTags)], len(tags))
+}
+
+// quotedOf quotes shown, the first of total strings, and says how many more
+// there are, for a caller that builds only the ones it shows.
+func quotedOf(shown []string, total int) string {
+	named := make([]string, 0, len(shown))
+	for _, s := range shown {
+		named = append(named, strconv.Quote(s))
 	}
 	list := strings.Join(named, ", ")
-	if more := len(tags) - maxReportedTags; more > 0 {
+	if more := total - len(shown); more > 0 {
 		list += " and " + strconv.Itoa(more) + " more"
 	}
 	return list

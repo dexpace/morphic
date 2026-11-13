@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -251,6 +252,28 @@ func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testi
 			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
 		})
 	}
+}
+
+// TestDiscriminatorMapping_ATypeManyVariantsAliasNamesAFew pins the info a
+// value routed to the first of more aliasing branches than a report lists
+// gives: it names the first three and counts the rest, which it spells for no
+// entry, so a union whose every branch aliases one type costs each entry no
+// more.
+func TestDiscriminatorMapping_ATypeManyVariantsAliasNamesAFew(t *testing.T) {
+	t.Parallel()
+	branches := make([]string, 0, 5)
+	for i := range 5 {
+		branches = append(branches, fmt.Sprintf("{$ref: '#/components/schemas/Apple', description: d%d}", i))
+	}
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    Apple: {type: object, properties: {kind: {type: string}}}\n"+
+		"    Fruit: {oneOf: ["+strings.Join(branches, ", ")+"], discriminator: {propertyName: kind, mapping: {a: Apple}}}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	const branch = "/components/schemas/Fruit/oneOf/"
+	assert.Equal(t, []string{"info " + diag.DegradedConstruct + " /components/schemas/Fruit/discriminator/mapping/a: " +
+		`discriminator mapping "a" names a schema 5 branches of this union reach through a $ref ("` + branch + `0", "` +
+		branch + `1", "` + branch + `2" and 2 more), and a tag routes to one variant; routed to the first`},
+		reported(withCode(diags, diag.DegradedConstruct)))
+	assert.Equal(t, ir.TypeID("t/anon"+branch+"0"), discriminatorOf(t, doc, componentID("Fruit")).Mapping["a"])
 }
 
 // TestDiscriminatorMapping_ReadsThroughWhateverIsBesideAPositionsRef pins that a
