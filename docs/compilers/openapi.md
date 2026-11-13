@@ -2942,13 +2942,19 @@ then that encoding's text and not a number's:
 `{type: string, format: int64, contentEncoding: base64}` lowers to a `Scalar` over `string` under
 `base64` with no `WireType`, as the encoding alone does
 ([`content-vocabulary`](#content-vocabulary)). A scalar hoisted for its format carries the bounds
-written beside it. The table is the same at every minor, and a pairing of `format` with another
-`type` is [`numeric-formats`](#numeric-formats)'.
+written beside it, but for a number carried as text, whose `Constraints` speak of the number
+([constraints](../ir/constraints.md#constraints)): a length or a `pattern` bounds its text and a
+numeric bound no string instance, so each value bound it or an `allOf` branch beside it writes is
+kept verbatim, its own under `openapi:<keyword>` (`no_ir_home`) with an info
+`openapi/degraded-construct` at it, and neither the `Scalar` nor a property or parameter carrying it
+holds one. The table is the same at every minor, and a pairing of `format` with another `type` is
+[`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
+  `schema.TestScalar_ANumberAsTextKeepsItsBoundsVerbatim`,
   `schema.TestLower_NamedScalarComponentResolves`,
   `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
@@ -3116,7 +3122,8 @@ kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits. A
+number carried as text holds no bound ([`string-formats`](#string-formats)).
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,

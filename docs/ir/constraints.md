@@ -26,6 +26,16 @@ type Constraints struct {
 }
 ```
 
+Constraints speak of the value, the instance of the node's logical type, and never of its wire form
+([the type table](../emitters/contract/type-table.md#a-row-keyed-by-an-encoding)). Under an
+[encoding](#encodings) that turns the value into another primitive, a bound the source wrote of the
+wire form is no bound of the value: the length or the pattern of the text an `int64` travels as
+bounds no `int64`, and a source's numeric bound written beside that text, which JSON Schema applies
+to no string, bounds nothing it says. A compiler keeps such a bound verbatim
+([boundaries](./boundaries.md)) rather than move it onto the value, as the OpenAPI compiler does for
+a number carried as text ([`string-formats`](../compilers/openapi.md#string-formats)); it still
+holds a length or pattern written beside `format: byte` as a bound of the bytes (#1851).
+
 ## Encodings
 
 ```go

@@ -34,7 +34,25 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 		diags = append(diags, voicedDiags...)
 		cons = merge.Constraints(cons, voiced)
 	}
+	if carriesNumberAsText(s) {
+		return nil, diags
+	}
 	return cons, diags
+}
+
+// carriesNumberAsText reports whether s lowers to a number written as its text
+// (numberAsText), whose Constraints would speak of the number
+// (docs/ir/constraints.md#constraints). Every value bound s or a voice writes
+// bounds something else, the text's length or pattern or an instance of
+// another kind than the string JSON Schema applies it to, so ConstraintsOf
+// leaves them all to the census (keepTextBounds).
+func carriesNumberAsText(s *oas3.Schema) bool {
+	types := effectiveTypes(s)
+	if s == nil || s.GetRef() != "" || len(types) != 1 || annotation.DeclaresRedaction(s) {
+		return false
+	}
+	_, carried := numberAsText(s, types[0], s.GetFormat())
+	return carried
 }
 
 // exclusiveIsBoolean reports whether s spells an exclusive bound as a boolean

@@ -484,8 +484,11 @@ it sees. Changes made together in one bump are listed together under it.
     them; it now takes the members' primitive and keeps the type verbatim.
   - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
     number whose `Encoding` is named `string`, a number written as the text of its value, with a
-    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)). It
-    had been a `Scalar` over `string` whose encoding named the format. A consumer pinned to 0.46.0
-    reads such a value's base as the number where it read a string.
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.46.0 reads such a value's base as the number where it read a
+    string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.

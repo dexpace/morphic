@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -177,6 +178,73 @@ func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
 			assert.Equal(t, tc.kept, kept)
 		})
 	}
+}
+
+// TestScalar_ANumberAsTextKeepsItsBoundsVerbatim pins the value bounds beside a
+// number carried as text. Its Constraints speak of the number, and none of them
+// does: a length or a pattern bounds the text, and a numeric bound no string
+// instance. Each is kept verbatim on the Scalar under no_ir_home, with an info
+// at it, and neither the Scalar nor a property or parameter carrying it holds a
+// bound. A format the table pairs with string keeps its bounds.
+func TestScalar_ANumberAsTextKeepsItsBoundsVerbatim(t *testing.T) {
+	t.Parallel()
+	const bounds = `pattern: "^[0-9]+$", minLength: 1, maxLength: 20, minimum: 5, exclusiveMaximum: 100, multipleOf: 5`
+	keywords := []string{"exclusiveMaximum", "maxLength", "minLength", "minimum", "multipleOf", "pattern"}
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /n:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string, format: int64, `+bounds+`}}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    N: {type: string, format: decimal, `+bounds+`}
+    H:
+      type: object
+      properties:
+        p: {type: string, format: int64, `+bounds+`}
+        d: {type: string, format: date, maxLength: 10}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	h, ok := typeByName(doc, "H").(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(h.Properties)
+	params := doc.Services[0].Groups[0].Operations[0].Params
+	require.Len(t, params, 1)
+	for at, carrier := range map[jsontext.Pointer]*ir.Constraints{
+		"/components/schemas/N":              nil,
+		"/components/schemas/H/properties/p": props["p"].Constraints,
+		"/paths/~1n/get/parameters/0/schema": params[0].Constraints,
+	} {
+		assert.Nil(t, carrier, "%s: what carries the number holds no bound", at)
+		sc, ok := nodeAt(doc, at).(*ir.Scalar)
+		require.True(t, ok, "%s hoists a Scalar", at)
+		assert.Nil(t, sc.Constraints, "%s: the number's Constraints hold no bound of its text", at)
+		for _, keyword := range keywords {
+			entry, kept := sc.Unmodeled["openapi:"+keyword]
+			if assert.True(t, kept, "%s: %s is kept", at, keyword) {
+				assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+				assert.Equal(t, at+jsontext.Pointer("/"+keyword), entry.Provenance.Pointer)
+			}
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, string(at)+"/"+keyword),
+				"%s: keeping %s is reported at it", at, keyword)
+		}
+		assert.Len(t, sc.Unmodeled, len(keywords), "%s keeps nothing else", at)
+	}
+	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
+	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
+}
+
+// nodeAt returns the type node lowered at the source pointer at.
+func nodeAt(doc *ir.Document, at jsontext.Pointer) ir.TypeDef {
+	for _, td := range doc.Types {
+		if td.Common().Provenance.Pointer == at {
+			return td
+		}
+	}
+	return nil
 }
 
 // TestContentVocabulary_LowersToEncoding pins where the 2020-12 content
