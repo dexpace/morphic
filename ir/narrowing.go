@@ -180,6 +180,10 @@ type narrowState struct {
 	// each union among them in over, so a union met is looked up once.
 	over []substitution
 	at   map[TypeID]int
+	// ends holds, at each union's place in over, what the chain of variants
+	// read from that union ends at, so the walk reads a chain once however
+	// many entries stand for its unions.
+	ends []variantEnd
 	// unions are the unions the walk met that over reads no variant of, read
 	// through alias scalars, once each in the order it met them.
 	unions []metUnion
@@ -192,6 +196,14 @@ type narrowState struct {
 	unending bool
 }
 
+// variantEnd is what a chain of variants read in unions' places ends at: the
+// last variant as its union writes it and the type that one stands for
+// through alias scalars, both "" until the walk reads the chain.
+type variantEnd struct {
+	target, id TypeID
+	read       bool
+}
+
 // metUnion is a union a walk met, and the ID it is registered under.
 type metUnion struct {
 	id    TypeID
@@ -199,14 +211,15 @@ type metUnion struct {
 }
 
 // substitute returns what stands where an entry writes target, which stands
-// for id: target and id themselves unless id is a union the walk reads a
-// variant of, else that variant as its union writes it and the type it stands
-// for through alias scalars, and so on along a chain of them, each variant
-// read a step. A chain longer than over has reached a union twice, so it stops
-// there. A model a variant stands for is recorded as placed.
+// for id: the two themselves unless id is a union the walk reads a variant of,
+// else that variant as its union writes it and the type it stands for through
+// alias scalars, and so on along a chain of them. Each meeting reads the
+// variant, a step, and the walk reads a chain once, as it does an alias chain,
+// each variant along it a step. One longer than over has reached a union
+// twice, so the walk substitutes nothing more. A model it ends at is placed.
 func (f *flattener) substitute(target, id TypeID) (TypeID, TypeID) {
 	n := f.narrow
-	if len(n.over) == 0 {
+	if len(n.over) == 0 || n.unending {
 		return target, id
 	}
 	if n.at == nil {
@@ -214,23 +227,31 @@ func (f *flattener) substitute(target, id TypeID) (TypeID, TypeID) {
 		for i, s := range n.over {
 			n.at[s.union] = i
 		}
+		n.ends = make([]variantEnd, len(n.over))
 	}
-	read := 0
+	var chain []int
 	for {
 		i, substituted := n.at[id]
 		if !substituted {
 			break
 		}
-		if read == len(n.over) {
+		if len(chain) == len(n.over) {
 			n.unending = true
 			return target, id
 		}
-		read++
 		f.steps++
+		if e := n.ends[i]; e.read {
+			target, id = e.target, e.id
+			break
+		}
+		chain = append(chain, i)
 		target = n.over[i].variant
 		id = f.resolve(target)
 	}
-	if m, ok := f.types[id].(*Model); read > 0 && ok && m != nil {
+	for _, i := range chain {
+		n.ends[i] = variantEnd{target: target, id: id, read: true}
+	}
+	if m, ok := f.types[id].(*Model); len(chain) > 0 && ok && m != nil {
 		if n.placed == nil {
 			n.placed = map[TypeID]bool{}
 		}

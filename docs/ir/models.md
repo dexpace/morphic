@@ -434,8 +434,9 @@ model's flattening with a variant of the union in its place:
   the root itself, is distributed as any other.
 - *Cost.* It flattens the model once to find the union, then once for each shape and for each
   composition that narrows a union in turn. Each walk also reads the variant it takes in a union's
-  place each time it meets the union, and the variants of each union it meets and reads none of, to
-  tell whether that one lists the model. Nested unions multiply the shapes and each walk reads the
+  place each time it meets the union, the chain once where that variant is a union read in turn, as
+  it reads an alias chain, and the variants of each union it meets and reads none of, to tell
+  whether that one lists the model. Nested unions multiply the shapes and each walk reads the
   whole composition again, so it counts every step of every walk, and one for each shape, against a
   limit its caller sets, and stops once they pass it, finishing the walk it is taking. The emitter
   plan sets `plan.MaxComposedSize`

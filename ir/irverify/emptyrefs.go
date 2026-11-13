@@ -139,9 +139,10 @@ var idPositions = map[string]idRule{
 
 	// ir.NarrowedShapes' result and its walks' own state, which no Document
 	// holds either. Narrowing.Union is "" where the composition narrows no
-	// one union, as its comment says, and narrowState.root before the walk
-	// meets its root model; every other holds an ID a walk read, a set
-	// variant's among them, an unset one being skipped.
+	// one union, as its comment says, narrowState.root before the walk meets
+	// its root model, and a variantEnd until the walk reads its chain; every
+	// other holds an ID a walk read, a set variant's among them, an unset one
+	// being skipped.
 	"Narrowing.Union":      idOptional,
 	"NarrowedShape.Over":   idRequired,
 	"metUnion.id":          idRequired,
@@ -151,6 +152,8 @@ var idPositions = map[string]idRule{
 	"narrowState.placed":   idRequired,
 	"substitution.union":   idRequired,
 	"substitution.variant": idRequired,
+	"variantEnd.target":    idOptional,
+	"variantEnd.id":        idOptional,
 }
 
 // idShape is how a field holds its IDs.

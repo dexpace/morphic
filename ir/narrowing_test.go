@@ -372,9 +372,9 @@ func TestNarrowedShapes_StepsCountWhatEachWalkReads(t *testing.T) {
 	}
 	once := irtest.DocOf(unionOf("u", "v"), owning("v", nil), owning("m", mixing("u", "x")), owning("x", nil))
 	twice := irtest.DocOf(unionOf("u", "v"), owning("v", nil), owning("m", mixing("u", "x")), owning("x", mixing("u")))
-	assert.Equal(t, spent(once)+2+4, spent(twice),
+	assert.Equal(t, spent(once)+2+3, spent(twice),
 		"meeting the union again is an entry and the union read, in the walk finding it, "+
-			"and those and the variant read and resolved in the shape's")
+			"and those and the variant read in the shape's, resolved at the first meeting alone")
 
 	narrow := irtest.DocOf(unionOf("u", "v"), owning("v", nil), owning("m", based("u")))
 	copied := irtest.DocOf(owning("v", nil), owning("m", based("v")))
@@ -397,6 +397,11 @@ func TestNarrowedShapes_StepsCountWhatEachWalkReads(t *testing.T) {
 	selfAndMore := irtest.DocOf(unionOf("u", "u", "v", "w"), owning("v", nil), owning("w", nil), owning("m", based("u")))
 	assert.Equal(t, spent(selfOnly)+2*listing, spent(selfAndMore),
 		"a shape whose chain reaches its union twice ends there, reading the union it ends at no further")
+	selfTwice := irtest.DocOf(unionOf("u", "u"), owning("m", mixing("u", "u")))
+	selfOnce := irtest.DocOf(unionOf("u", "u"), owning("m", mixing("u")))
+	assert.Equal(t, spent(selfOnce)+2+2, spent(selfTwice),
+		"once a chain reaches its union twice the walk substitutes nothing more, so meeting the union again "+
+			"is an entry and the union read, in the walk finding it and in the shape's")
 }
 
 // TestNarrowedShapes_CountsWhatNestedUnionsMultiply holds the steps to what
@@ -464,6 +469,38 @@ func TestNarrowedShapes_CountsWhatNestedUnionsMultiply(t *testing.T) {
 		assert.LessOrEqual(t, steps[2]-steps[1], 2*(steps[1]-steps[0])+8,
 			"%s: steps around 100, 200, 400 grow linearly: %v", name, steps)
 	}
+}
+
+// TestNarrowedShapes_ReadsAChainOncePerWalk holds an entry standing for a union
+// to the same cost however long the chain of variants read in its place: a
+// walk reads a chain once, as it reads an alias chain, so a model at the end
+// of a deep chain that names its first union, and one halfway along, many
+// times costs no product of the two.
+func TestNarrowedShapes_ReadsAChainOncePerWalk(t *testing.T) {
+	t.Parallel()
+	chained := func(deep, entries int) ir.TypeRegistry {
+		names := make([]ir.TypeID, entries)
+		for i := range names {
+			names[i] = unionAt(i % 2 * deep / 2)
+		}
+		doc := irtest.DocOf(owning("m", based(unionAt(0)), wired("m.a", "a")),
+			owning("v", mixing(names...), wired("v.b", "b")), unionOf(unionAt(deep-1), "v"))
+		for i := range deep - 1 {
+			doc.Types[unionAt(i)] = unionOf(unionAt(i), unionAt(i+1))
+		}
+		return doc.Types
+	}
+	perEntries := func(deep int) int {
+		few, spentFew, ok := ir.NarrowedShapes(chained(deep, 100), "m", math.MaxInt)
+		require.True(t, ok)
+		require.Len(t, few.Shapes, 1, "deep %d: the chain ends at the one model", deep)
+		require.Len(t, few.Shapes[0].Over, deep)
+		_, spentMore, ok := ir.NarrowedShapes(chained(deep, 200), "m", math.MaxInt)
+		require.True(t, ok)
+		return spentMore - spentFew
+	}
+	assert.Equal(t, perEntries(2), perEntries(50),
+		"a hundred entries more cost the same at the end of a chain 2 and 50 unions deep")
 }
 
 // unionAt is the ID of the i-th union of a nest.
