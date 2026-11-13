@@ -71,8 +71,8 @@ components:
       allOf:
         - anyOf: [{type: object, required: [to]}, {type: object, required: [cc]}]
         - anyOf: [{type: object, required: [text]}, {type: object, required: [html]}]
-    # A subtype a discriminated base routes to stays its subtype, its union kept
-    # with its branch: distributed, it would be a union, which no route names
+    # A subtype a discriminated base routes to stays its subtype, composing its
+    # union as a mixin: distributed, it would be a union, which no route names
     # as a subtype.
     Pet:
       type: object
@@ -87,3 +87,34 @@ components:
         - oneOf:
             - $ref: '#/components/schemas/WithoutData'
             - $ref: '#/components/schemas/WithData'
+    # No route names an inline schema below Pet, so its union distributes as
+    # one written beside its allOf would.
+    Kennel:
+      type: object
+      properties:
+        resident:
+          allOf:
+            - $ref: '#/components/schemas/Pet'
+            - oneOf:
+                - $ref: '#/components/schemas/WithoutData'
+                - $ref: '#/components/schemas/WithData'
+    # A union on a branch stands with the discriminator written on the branch,
+    # or beside the allOf, which routes the variants it distributes into.
+    Payment:
+      allOf:
+        - type: object
+          properties: {amount: {type: integer}}
+        - oneOf:
+            - $ref: '#/components/schemas/Card'
+            - $ref: '#/components/schemas/Bank'
+          discriminator: {propertyName: method}
+    Refund:
+      discriminator: {propertyName: method}
+      allOf:
+        - type: object
+          properties: {reason: {type: string}}
+        - oneOf:
+            - $ref: '#/components/schemas/Card'
+            - $ref: '#/components/schemas/Bank'
+    Card: {type: object, required: [method], properties: {method: {type: string}, last4: {type: string}}}
+    Bank: {type: object, required: [method], properties: {method: {type: string}, iban: {type: string}}}

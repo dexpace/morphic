@@ -27,7 +27,8 @@ different things and nothing outside the format can compute one. Whatever the fo
 without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is recorded as
 `/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its own, so no
 pointer a reference can spell ever reaches it — the general form of the rule
-[models](./models.md#composition-beside-a-union) states for distributed unions.
+[models](./models.md#composition-beside-a-union) states for distributed unions and for the union a
+routed subtype composes.
 
 ## Across documents
 

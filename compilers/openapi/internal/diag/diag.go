@@ -240,7 +240,9 @@ const (
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
-	// variants (docs/ir/models.md#composition-beside-a-union,
+	// variants (lowerDistributedUnion), or, for a subtype a discriminator routes
+	// to, by composing a Union minted for it as a mixin of its model
+	// (lowerSubtypeUnion; docs/ir/models.md#composition-beside-a-union,
 	// docs/compilers/openapi.md#union-beside-structure). Nothing is lost, so
 	// this records a decision rather than a degradation: the IR's shape no
 	// longer mirrors the source's, which is what a reader comparing the two
