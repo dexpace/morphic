@@ -73,10 +73,14 @@ func mayBeEnum(types ir.TypeRegistry, u *ir.Union) bool {
 }
 
 // watch has the walk count the references to the type at id and, where it is
-// an Enum, to its members.
+// an Enum, to its members, read once however many unions name it.
 func (r *typeRefs) watch(types ir.TypeRegistry, id ir.TypeID) {
+	if r.watched[id] {
+		return
+	}
 	r.watched[id] = true
 	if enum, isEnum := types[id].(*ir.Enum); isEnum {
+		r.membersRead += len(enum.Members)
 		for _, m := range enum.Members {
 			r.members[m.ID] = id
 		}
@@ -107,6 +111,9 @@ type typeRefs struct {
 	// pruning costs.
 	carries   map[reflect.Type]bool
 	typesRead int
+	// membersRead counts the members watch reads, which is what watching
+	// costs.
+	membersRead int
 }
 
 // sole reports whether the one reference to id is the variant of the one

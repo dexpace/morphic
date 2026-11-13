@@ -814,6 +814,35 @@ func TestConstUnions_ReadsAChainInWorkLinearInItsLength(t *testing.T) {
 	}
 }
 
+// TestConstUnions_ReadsASetManyUnionsNameOnce holds what a branch of several
+// values that many unions name costs to its size and to theirs, not to their
+// product: the members watched and read grow by about as much from 2n to 4n
+// as from n to 2n, where each of n unions reading the branch's n values, which
+// none of them can take, would grow with the square of n.
+func TestConstUnions_ReadsASetManyUnionsNameOnce(t *testing.T) {
+	t.Parallel()
+	const n = 100
+	w1, w2, w4 := pass.ReadingWork(fanIn(n)), pass.ReadingWork(fanIn(2*n)), pass.ReadingWork(fanIn(4*n))
+	require.Positive(t, w2-w1)
+	assert.LessOrEqual(t, float64(w4-w2), 2.5*float64(w2-w1), "%d, %d, %d", w1, w2, w4)
+}
+
+// fanIn is a document of n unions, each naming one Enum of n values they all
+// share and a value of its own.
+func fanIn(n int) *ir.Document {
+	values := make([]string, n)
+	for i := range values {
+		values[i] = fmt.Sprintf("s%d", i)
+	}
+	types := make([]ir.TypeDef, 0, 1+2*n)
+	types = append(types, pinned("t/x/S", values...))
+	for i := range n {
+		id := ir.TypeID(fmt.Sprintf("t/x/U%d", i))
+		types = append(types, union(id, "t/x/S", id+"/v"), lit(id+"/v", fmt.Sprintf("u%d", i)))
+	}
+	return constDoc(types...)
+}
+
 // TestConstUnions_ReadsEachUnionOnce pins the cost of reading the unions: a
 // union two others name as a branch, and each reads first, is read once.
 func TestConstUnions_ReadsEachUnionOnce(t *testing.T) {

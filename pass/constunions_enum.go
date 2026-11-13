@@ -69,8 +69,8 @@ func plainUnion(u ir.Union) bool {
 // primitive typing them, where v says nothing but what it says of a value
 // (variantFacts) and names an anonymous type of strings saying nothing else
 // (branchValues, commonFacts). One value takes what v and its type say of it.
-// Several are a set of their own, taken only where v is their type's one
-// reference and neither says anything of them all.
+// Several are a set of their own, which branchValues gives only where v is
+// their type's one reference, taken where neither says anything of them all.
 func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePart, ir.PrimKind, bool) {
 	said, plain := variantFacts(v)
 	if !plain {
@@ -85,7 +85,7 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 		return parts, "", false
 	}
 	if len(values) > 1 || values[0].of != nil {
-		if !r.refs.sole(v.Type.Target) || !said.none() || !typed.none() {
+		if !said.none() || !typed.none() {
 			return parts, "", false
 		}
 		return append(parts, values...), prim, true
@@ -105,7 +105,8 @@ func (r *unionReading) appendValues(parts []valuePart, v ir.Variant) ([]valuePar
 // by a primitive and saying nothing else, or a union read as an Enum. A
 // Literal's member is named by its value, as an enum's members are; an Enum's
 // are copies of its own; a union of one value gives its one member, and one of
-// several the values it holds.
+// several the values it holds. A type of several values gives them only to
+// the variant that is its one reference (typeRefs.sole).
 func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.TypeCommon, bool) {
 	switch t := r.types[id].(type) {
 	case *ir.Literal:
@@ -118,9 +119,11 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.
 		return []valuePart{{key: valueKey(t.Value), member: one}}, t.ValueType, t.TypeCommon, reflect.ValueOf(rest).IsZero()
 	case *ir.Enum:
 		if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" ||
+			(len(t.Members) > 1 && !r.refs.sole(id)) ||
 			slices.ContainsFunc(t.Members, func(m ir.EnumMember) bool { return m.Value.Kind != ir.ValueString }) {
 			return nil, "", ir.TypeCommon{}, false
 		}
+		r.work += len(t.Members)
 		rest := *t
 		rest.TypeCommon, rest.ValueType, rest.Members, rest.Closed = ir.TypeCommon{}, "", nil, false
 		values := make([]valuePart, len(t.Members))
@@ -135,6 +138,8 @@ func (r *unionReading) branchValues(id ir.TypeID) ([]valuePart, ir.PrimKind, ir.
 			return nil, "", ir.TypeCommon{}, false
 		case vs.n == 1:
 			return vs.parts, vs.prim, vs.union.TypeCommon, true
+		case !r.refs.sole(id):
+			return nil, "", ir.TypeCommon{}, false
 		default:
 			return []valuePart{{of: vs}}, vs.prim, vs.union.TypeCommon, true
 		}

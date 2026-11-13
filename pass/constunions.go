@@ -90,8 +90,8 @@ type unionReading struct {
 	// stack holds the IDs settle has yet to read.
 	stack []ir.TypeID
 	// reads counts the unions read, each once however many name it, and work
-	// each key distinct sets and each member enum builds: what a reading
-	// costs.
+	// each key distinct sets, each member a branch's Enum gives and each member
+	// enum builds: what a reading costs.
 	reads, work int
 }
 

@@ -123,15 +123,15 @@ func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
 // them, which reading each once holds to how many doc has.
 func UnionReads(doc *ir.Document) int { return readingOf(doc, nil).reads }
 
-// ReadingWork is the work pass.ConstUnions does reading doc's unions and
-// building the Enums it makes of them, as it counts it, with the references a
-// walk of doc counts.
+// ReadingWork is the work pass.ConstUnions does watching the members of doc's
+// branches, reading doc's unions and building the Enums it makes of them, as
+// it counts it, with the references a walk of doc counts.
 func ReadingWork(doc *ir.Document) int {
 	refs := refsTo(doc.Types)
 	ir.WalkValues(doc, ir.DocumentPath, refs)
 	r := readingOf(doc, refs)
 	r.rewrite()
-	return r.work
+	return refs.membersRead + r.work
 }
 
 // Watched is how many types pass.ConstUnions counts the references to in doc,
