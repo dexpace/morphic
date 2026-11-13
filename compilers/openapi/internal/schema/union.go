@@ -295,7 +295,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
 	diags = append(diags, spellImplicitRoutes(c, u.holder, node, pointer)...)
-	deferUnionTags(c, ts, s, common.ID, pointer)
+	deferUnionTags(c, ts, s, node, pointer)
 	return node, diags
 }
 

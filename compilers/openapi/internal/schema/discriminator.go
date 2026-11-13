@@ -33,7 +33,7 @@ import (
 // on (hierarchyRoute).
 func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, x *branchIndex, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
-	if d == nil {
+	if d == nil || !tagLocated(d, m) {
 		return nil, nil
 	}
 	mapping, diags := discriminatorMapping(c, ts, d, x, pointer)
@@ -46,6 +46,19 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir
 	defaultID, defaultDiags := discriminatorDefault(c, ts, d, x, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
+}
+
+// tagLocated reports whether the IR can locate the tag d names, on m where a
+// model declares it: by any name but the empty one, which PropertyName empty
+// cannot spell, and by that one only as the PropID of a property m declares
+// itself (docs/compilers/openapi.md#discriminator). One it cannot locate is no
+// node's, and the census keeps it verbatim.
+func tagLocated(d *oas3.Discriminator, m *ir.Model) bool {
+	if d.GetPropertyName() != "" {
+		return true
+	}
+	_, ok := propIDByName(m, "")
+	return ok
 }
 
 // propIDByName returns the PropID of the model property with the given source

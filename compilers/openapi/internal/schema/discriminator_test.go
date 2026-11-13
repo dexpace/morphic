@@ -5,6 +5,7 @@ package schema_test
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
 func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
@@ -296,5 +298,73 @@ components:
 			require.True(t, ok)
 			assert.Equal(t, "s", sub.DiscriminatorValue)
 		})
+	}
+}
+
+// TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim pins a discriminator
+// naming the empty string, a legal member name the IR's PropertyName cannot
+// hold, its empty value meaning none: on a model declaring no property of
+// that name, one inheriting it, and a union, plain or distributed, the node
+// holds no discriminator, the census keeps it verbatim and says why, once, and
+// a union is untagged, nothing inferred though its variants pin a tag. A model
+// declaring the property locates the tag by its PropID. Each holds at every
+// minor, in either declaration order, the document valid and the IR whole.
+func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
+	t.Parallel()
+	blocks := []string{
+		"    A: {type: object, required: [kind], properties: {'': {type: string}, kind: {type: string, enum: [a]}}}\n",
+		"    B: {type: object, required: [kind], properties: {kind: {type: string, enum: [b]}}}\n",
+		"    Plain: {type: object, discriminator: {propertyName: ''}}\n",
+		"    Inherits: {allOf: [{$ref: '#/components/schemas/A'}], discriminator: {propertyName: ''}}\n",
+		"    Mapped: {oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], " +
+			"discriminator: {propertyName: '', mapping: {a: A}}}\n",
+		"    Union: {oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}], discriminator: {propertyName: ''}}\n",
+		"    Beside: {type: object, properties: {kind: {type: string}}, oneOf: [{type: object, properties: {x: {type: string}}}, " +
+			"{type: object, properties: {y: {type: string}}}], discriminator: {propertyName: ''}}\n",
+		"    Own: {type: object, properties: {'': {type: string}}, discriminator: {propertyName: ''}}\n",
+	}
+	for _, version := range []string{"3.0.3", "3.1.1", "3.2.0"} {
+		for _, reversed := range []bool{false, true} {
+			doc, diags := parseFull(t, rawSpec(version, blocks, "", reversed))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, irverify.Verify(doc), "%s, reversed %t", version, reversed)
+			assert.Empty(t, validated(t, doc))
+			names := []string{"Plain", "Inherits", "Mapped", "Union", "Beside"}
+			kept := make([]string, 0, len(names))
+			for _, name := range names {
+				td := typeByName(doc, name)
+				assert.Nil(t, discriminatorIn(td), "%s holds none", name)
+				assert.Equal(t, ir.ReasonDegradedLowering, td.Common().Unmodeled["openapi:discriminator"].Reason, name)
+				assert.Empty(t, td.Common().Provenance.Inferred, "%s: nothing is inferred", name)
+				kept = append(kept, "info "+diag.DegradedConstruct+" /components/schemas/"+name+": this position "+
+					"lowered to a "+string(td.Kind())+" routed by no tag, as the IR's PropertyName cannot hold the empty "+
+					"name its discriminator gives the tag property, which has no home for discriminator declared beside "+
+					"it; kept verbatim under Unmodeled")
+			}
+			slices.Sort(kept)
+			assert.Equal(t, kept, reported(withCode(diags, diag.DegradedConstruct)), "%s, reversed %t", version, reversed)
+			for _, name := range []string{"Mapped", "Union", "Beside"} {
+				u, ok := typeByName(doc, name).(*ir.Union)
+				require.True(t, ok)
+				assert.False(t, u.WireTagged, "%s is untagged", name)
+			}
+			own, ok := typeByName(doc, "Own").(*ir.Model)
+			require.True(t, ok)
+			require.NotNil(t, own.Discriminator)
+			assert.Equal(t, own.Properties[0].ID, own.Discriminator.Property, "the tag is the property Own declares")
+		}
+	}
+}
+
+// discriminatorIn returns the discriminator the model or union td holds, or
+// nil for none or another kind.
+func discriminatorIn(td ir.TypeDef) *ir.Discriminator {
+	switch n := td.(type) {
+	case *ir.Model:
+		return n.Discriminator
+	case *ir.Union:
+		return n.Discriminator
+	default:
+		return nil
 	}
 }

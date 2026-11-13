@@ -386,14 +386,29 @@ func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q"
 // positionShape is nodeShape for the node td, the position's declaration s
 // lowered to. An Enum's ValueType is the home of any format the table pairs, so
 // an enum that left one verbatim says its members are why: its kind alone would
-// deny the home.
+// deny the home. So does a Model or Union holding no discriminator for want of
+// a tag it can locate (taglessShape).
 func positionShape(td ir.TypeDef, s *oas3.Schema) string {
 	if e, ok := td.(*ir.Enum); ok {
 		if prim, paired := formatPrimitive(s); paired && !enumMembersAre(e.Members, prim) {
 			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
 		}
 	}
-	return nodeShape(td.Kind())
+	return taglessShape(td, s, nodeShape(td.Kind()))
+}
+
+// taglessShape is shape, what s lowered to as td, unless td is a Model or a
+// Union and s declares a discriminator whose tag the IR cannot locate on it
+// (tagLocated), the reason td holds none: then it says so, as shape alone
+// would deny a node of that kind the field.
+func taglessShape(td ir.TypeDef, s *oas3.Schema, shape string) string {
+	d := s.GetDiscriminator()
+	m, _ := td.(*ir.Model)
+	if d == nil || !isKind(td, ir.KindModel) && !isKind(td, ir.KindUnion) || tagLocated(d, m) {
+		return shape
+	}
+	return fmt.Sprintf("a %s routed by no tag, as the IR's PropertyName cannot hold the empty name its "+
+		"discriminator gives the tag property", td.Kind())
 }
 
 // distributedShape describes the Union a body distributed across its variants
@@ -421,6 +436,7 @@ func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if discriminatorHome(u) {
 		handled = append(slices.Clip(handled), "discriminator")
 	}
+	shape = taglessShape(u, s, shape)
 	nodes := make([]ir.TypeDef, 0, len(u.Variants))
 	for _, v := range u.Variants {
 		node, held, nodeDiags := registeredNode(c, ts, v.Type.Target, pointer)
