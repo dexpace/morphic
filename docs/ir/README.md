@@ -96,7 +96,13 @@ compiler is planned to follow is [`planned-lowerings.md`](../compilers/planned-l
    emitted in sorted-key order; slices preserve source order). In memory it reads as the tree its
    JSON encodes: a pointer, slice or map may be shared, and is then written once per place that
    holds it, but none may hold itself, which has no encoding. `irverify` reports one that does
-   (`ir/cyclic-structure`).
+   (`ir/cyclic-structure`). The codec refuses only bytes that would be ill-formed, ambiguous or
+   not this generation's: a string that is not UTF-8, an object naming one member twice, and on
+   reading a member or a kind the schema does not define or an absent or foreign `irVersion`
+   ([ir-version](./ir-version.md)). Every other invariant is `irverify`'s, so a document breaking
+   one, such as an `IDSpaces` kind declared with no namespace, encodes and decodes as it is:
+   refusing it in the codec as well would be a second reader of the invariant to keep in step with
+   the first, and a document breaking one could no longer be written out to see what broke.
 6. **Provenance everywhere.** Every node records where it came from and whether it was declared
    or inferred.
 

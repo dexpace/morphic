@@ -308,7 +308,7 @@ var lenientDecodeOptions = []json.Options{
 // (top-level and nested).
 // Every case runs twice: once under default options, once under
 // lenientDecodeOptions, since the guarantee is that the caller's options
-// cannot relax any of them.
+// cannot relax any of them once UnmarshalJSONFrom runs.
 func TestDocument_UnmarshalRefusesMalformedInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -452,8 +452,9 @@ func unsortedTypesDoc() ir.Document {
 }
 
 // TestDocument_MarshalIgnoresCallerOptions pins that every caller option which
-// could change Document's encoded bytes is overridden by canonicalOptions
-// (json.go). Each option changes the bytes of unsortedTypesDoc when it is not
+// could change Document's encoded bytes is overridden by canonicalOptions once
+// MarshalJSONTo runs (json.go), a marshaler for anything the Document holds
+// among them. Each option changes the bytes of unsortedTypesDoc when it is not
 // pinned; each case must still produce bytes identical to a plain
 // json.Marshal(doc) with no options at all.
 func TestDocument_MarshalIgnoresCallerOptions(t *testing.T) {
@@ -583,6 +584,41 @@ func TestDocument_MarshalHonoursCallerIndent(t *testing.T) {
 	compacted := jsontext.Value(indented)
 	require.NoError(t, compacted.Compact())
 	assert.Equal(t, string(plain), string(compacted), "indentation must be the only difference from the plain encoding")
+}
+
+// TestDocument_ACodecForTheDocumentRunsInItsPlace pins the way around the
+// Document's methods json.go names: a marshaler or an unmarshaler a caller
+// registers for Document runs in place of MarshalJSONTo or UnmarshalJSONFrom,
+// so none of their pins or refusals applies.
+func TestDocument_ACodecForTheDocumentRunsInItsPlace(t *testing.T) {
+	t.Parallel()
+	doc := unsortedTypesDoc()
+	replaced, err := json.Marshal(&doc, json.WithMarshalers(json.MarshalFunc(func(*ir.Document) ([]byte, error) {
+		return []byte(`{"replaced":true}`), nil
+	})))
+	require.NoError(t, err)
+	assert.Equal(t, `{"replaced":true}`, string(replaced))
+
+	var decoded ir.Document
+	err = json.Unmarshal([]byte(`{"irVersion":"0.0.0","unknown":1}`), &decoded,
+		json.WithUnmarshalers(json.UnmarshalFunc(func([]byte, *ir.Document) error { return nil })))
+	assert.NoError(t, err, "neither the foreign irVersion nor the unknown member is refused")
+}
+
+// TestDocument_EncodesWhatOnlyTheVerifierRefuses pins that the codec refuses
+// no invariant irverify holds (docs/ir/README.md#design-rules): an IDSpaces
+// kind declared with no namespace, which ir/id-spaces-not-canonical reports,
+// encodes and decodes back as it is.
+func TestDocument_EncodesWhatOnlyTheVerifierRefuses(t *testing.T) {
+	t.Parallel()
+	doc := ir.Document{IRVersion: ir.IRVersion, IDSpaces: map[string][]string{ir.IDKindType: {}}}
+	raw, err := json.Marshal(&doc)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"idSpaces":{"t":[]}`)
+
+	var decoded ir.Document
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	assert.Empty(t, cmp.Diff(doc, decoded))
 }
 
 // TestTypeDef_UnmarshalRefusesForeignKindTag pins that a concrete kind
