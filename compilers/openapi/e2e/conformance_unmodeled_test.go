@@ -516,6 +516,48 @@ func assertAllOfNarrowingRedeclaration(t *testing.T, doc *ir.Document, diags []i
 	assertInadmissibleDefault(t, doc, diags)
 	assertNarrowingChainsAndScalars(t, doc, diags)
 	assertRefusedLateDefault(t, doc, diags)
+	assertEnumsAndAliasesMeet(t, doc, diags)
+}
+
+// assertEnumsAndAliasesMeet holds the enums of different value types and the
+// aliases beside a node they meet: each field is the enum or the list holding
+// what every declaration says, in either order, with no diagnostic.
+func assertEnumsAndAliasesMeet(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	enumOf := func(model string) *ir.Enum {
+		p := narrowedProp(t, doc, model)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is kept", model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: no diagnostic", model)
+		target := p.Type.Target
+		if l, ok := doc.Types[target].(*ir.List); ok {
+			target = l.Elem.Target
+		}
+		e, ok := doc.Types[target].(*ir.Enum)
+		require.True(t, ok, "%s: an enum", model)
+		return e
+	}
+	values := func(e *ir.Enum) []ir.Value {
+		out := make([]ir.Value, len(e.Members))
+		for k, m := range e.Members {
+			out[k] = m.Value
+		}
+		return out
+	}
+	one := []ir.Value{{Kind: ir.ValueNumber, Num: "1"}}
+	for _, model := range []string{"EnumValueTypeWideFirst", "EnumValueTypeNarrowFirst", "EnumValueTypesMeet"} {
+		e := enumOf(model)
+		assert.Equal(t, ir.PrimInteger, e.ValueType, "%s: of the narrower value type", model)
+		assert.Equal(t, one, values(e), model)
+	}
+	bc := []ir.Value{{Kind: ir.ValueString, Str: "b"}, {Kind: ir.ValueString, Str: "c"}}
+	for _, model := range []string{"AliasMeetsFirst", "AliasMeetsLast"} {
+		e := enumOf(model)
+		assert.Equal(t, bc, values(e), model)
+		assert.Equal(t, "Letters", e.Docs.Description, "%s: with what the alias adds", model)
+	}
+	for _, model := range []string{"AliasedListMeetsFirst", "AliasedListMeetsLast"} {
+		assert.Equal(t, bc, values(enumOf(model)), model)
+	}
 }
 
 // assertNarrowingChainsAndScalars pins the three-branch chain with its
@@ -1640,9 +1682,10 @@ func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.True(t, ok)
 	c, ok := propByWire(values, "c")
 	require.True(t, ok)
-	literal, ok := doc.Types[c.Type.Target].(*ir.Literal)
-	require.True(t, ok, "a null const is the value it says")
-	assert.Equal(t, ir.ValueNull, literal.Value.Kind)
+	enum, ok := doc.Types[c.Type.Target].(*ir.Enum)
+	require.True(t, ok, "a null const is an enum of null alone")
+	assert.Empty(t, enum.Members)
+	assert.True(t, c.Type.Nullable, "the reference holds the null")
 	d, ok := propByWire(values, "d")
 	require.True(t, ok)
 	require.NotNil(t, d.Default)

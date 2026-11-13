@@ -176,6 +176,27 @@ func TestRefScope_IsTheContextSeenAsAScope(t *testing.T) {
 	assert.False(t, scope.Declares.Has("Missing"))
 }
 
+// TestRefScope_ReadsTheSourceWhereItLies pins that the scope judges a document
+// part internal against where the source lies, its Location, which the
+// references were read against, and not against the Path the caller handed,
+// which Document.Sources records.
+func TestRefScope_ReadsTheSourceWhereItLies(t *testing.T) {
+	t.Parallel()
+	located := filepath.Join(t.TempDir(), "spec.yaml")
+	doc, _, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Location: located,
+		Data: []byte(openapitest.ComponentSpec("    User: {type: object}\n"))}, load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	scope := lowering.New(0, doc, lowering.Policy{}).RefScope()
+
+	assert.Equal(t, located, scope.SelfPath)
+	_, internal := scope.InternalPointer(located + "#/components/schemas/User")
+	assert.True(t, internal, "a $ref naming the source where it lies is internal")
+	_, internal = scope.InternalPointer("spec.yaml#/components/schemas/User")
+	assert.True(t, internal, "and so is one naming it relatively, read against where it lies")
+}
+
 // bindingsSpec declares a component schema whose $ref lands on another, for
 // the tests that follow the bindings a context carries.
 const bindingsSpec = `openapi: 3.1.0

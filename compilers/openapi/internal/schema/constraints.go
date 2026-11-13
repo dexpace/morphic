@@ -4,16 +4,23 @@
 package schema
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -34,7 +41,47 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 		diags = append(diags, voicedDiags...)
 		cons = merge.Constraints(cons, voiced)
 	}
-	return cons, diags
+	writers := append([]annotation.Voice{{Node: s, At: pointer}}, voices...)
+	return cons, append(diags, keepCounts(c, p, writers)...)
+}
+
+// carriesNumberAsText reports whether td is a Scalar over a number written as
+// its text (scalarTypeID), whose Constraints would speak of the number
+// (docs/ir/constraints.md#constraints). Every value bound written beside it
+// bounds something else, the text's length or pattern or an instance of
+// another kind than the string JSON Schema applies it to, so neither it nor a
+// carrier of it holds one (textBounds).
+func carriesNumberAsText(td ir.TypeDef) bool {
+	sc, ok := td.(*ir.Scalar)
+	return ok && sc != nil && sc.Encoding != nil && sc.Encoding.Name == numberTextEncoding &&
+		sc.Encoding.WireType != nil
+}
+
+// textBounds is cons for a position carrying a number as text: none, s's own
+// bounds kept verbatim on p (keepTextBounds), and a voice's left to keep its
+// branch whole, as a bound with no home does.
+func textBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, diags []ir.Diagnostic) (*ir.Constraints, []ir.Diagnostic) {
+	return nil, append(diags, keepTextBounds(c, p, s, pointer)...)
+}
+
+// keepTextBounds keeps each value bound s writes verbatim on p, under
+// openapi:<keyword> with no_ir_home, for a position carrying a number as text,
+// whose Constraints hold none (carriesNumberAsText), with an info at each.
+// The node and a carrier of it each keep them, as each held them in
+// Constraints.
+func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, keyword := range declaredConstraints(s) {
+		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
+		diags = append(diags, keptDiags...)
+		if kept {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+				"%s bounds no number written as text, whose Constraints speak of the number: a length or a "+
+					"pattern bounds the text, and any other bound no string instance; kept verbatim under Unmodeled",
+				keyword))
+		}
+	}
+	return diags
 }
 
 // exclusiveIsBoolean reports whether s spells an exclusive bound as a boolean
@@ -58,6 +105,189 @@ func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer json
 	return cons, stampConstraintDiags(c, diags, pointer)
 }
 
+// valueCountKeywords are the counts annotation.Constraints reads, in the order
+// keepCounts keeps them.
+var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "minProperties"}
+
+// keepCounts keeps verbatim in p each value count that writers, a position's
+// schema and its voices, write and no field states (keptCount): of several
+// writing one keyword, the one binding the rest (bindingCount), so the entry is
+// the same whatever their order. Each writer's kept counts are reported once,
+// where it was written (docs/compilers/openapi.md#constraints).
+func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice) []ir.Diagnostic {
+	binding := make([]int, len(valueCountKeywords))
+	for k, keyword := range valueCountKeywords {
+		binding[k] = bindingCount(writers, keyword)
+	}
+	var diags []ir.Diagnostic
+	for w, writer := range writers {
+		var kept []string
+		for k, keyword := range valueCountKeywords {
+			if binding[k] != w {
+				continue
+			}
+			ok, keptDiags := annotation.PreserveSchemaKeyword(p, writer.Node, keyword, ir.ReasonDegradedLowering, writer.At, c.Place())
+			diags = append(diags, stampConstraintDiags(c, keptDiags, writer.At)...)
+			if ok {
+				kept = append(kept, keyword)
+			}
+		}
+		if len(kept) > 0 {
+			diags = append(diags, countsKept(c, kept, writer.At))
+		}
+	}
+	return diags
+}
+
+// countsKept reports the counts kept, which no field states, at pointer.
+func countsKept(c lowering.Ctx, kept []string, pointer jsontext.Pointer) ir.Diagnostic {
+	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
+		"%s is past what a 64-bit integer holds, so no Constraints field states it; kept verbatim under Unmodeled",
+		strings.Join(kept, ", "))
+}
+
+// bindingCount returns the index of the writer whose keyword, a count keptCount
+// keeps, binds every other writer's: the smallest maximum or the largest
+// minimum, compared as the integers they are (compareCounts), the first of one
+// value written twice. It returns -1 where no writer writes one.
+func bindingCount(writers []annotation.Voice, keyword string) int {
+	best, sign := -1, 1
+	if strings.HasPrefix(keyword, "max") {
+		sign = -1
+	}
+	var bound string
+	for w, writer := range writers {
+		count, ok := keptLiteral(writer.Node, keyword)
+		if ok && (best < 0 || sign*compareCounts(count, bound) > 0) {
+			best, bound = w, count
+		}
+	}
+	return best
+}
+
+// keptLiteral returns the decimal literal of the count keyword s writes, where
+// keptCount keeps it: the value YAML resolved it to (value.NumericLiteral), or
+// its text where that carries a power of ten no ir.BigVal holds.
+func keptLiteral(s *oas3.Schema, keyword string) (string, bool) {
+	if !keptCount(s, keyword, countOf(s, keyword)) {
+		return "", false
+	}
+	node := nodeview.Deref(annotation.RawPropertyNode(s, keyword))
+	if count, err := value.NumericLiteral(node); err == nil {
+		return string(count), true
+	}
+	return strings.ReplaceAll(node.Value, "_", ""), true
+}
+
+// compareCounts returns -1, 0 or +1 as a, a literal of a count past 2^63-1, is
+// less than, equal to or greater than b, exactly however large: by the power of
+// ten each leading digit carries, then by their digits. An ir.Decimal holds no
+// power past ir.MaxDecimalExp, which a count may be written past, and the work
+// is linear in the literals, which math/big's parsing is not.
+func compareCounts(a, b string) int {
+	aPower, aDigits := magnitude(a)
+	bPower, bDigits := magnitude(b)
+	if order := cmp.Compare(len(aPower), len(bPower)); order != 0 {
+		return order
+	}
+	if order := strings.Compare(aPower, bPower); order != 0 {
+		return order
+	}
+	return strings.Compare(aDigits, bDigits)
+}
+
+// magnitude returns the power of ten the leading digit of lit, a literal of a
+// count past 2^63-1, carries, as digits with no leading zero, and its
+// significant digits, with no leading or trailing zero, so two spellings of one
+// value read alike.
+func magnitude(lit string) (power, digits string) {
+	mantissa, exponent, _ := strings.Cut(strings.ToLower(lit), "e")
+	whole, frac, _ := strings.Cut(strings.TrimPrefix(mantissa, "+"), ".")
+	digits = strings.TrimLeft(whole+frac, "0")
+	leading := len(whole+frac) - len(digits)
+	return shifted(exponent, int64(len(whole)-1-leading)), strings.TrimRight(digits, "0")
+}
+
+// shifted returns exponent, a decimal integer, plus offset, as digits with no
+// leading zero. A count past 2^63-1 carries a power of ten of 18 or more, so an
+// exponent of 19 digits or more is positive and past any offset a literal's
+// length gives (plus), and a shorter one sums within an int64. An exponent no
+// count is written with, one that is no integer or a long negative one, reads
+// as 0.
+func shifted(exponent string, offset int64) string {
+	exponent = strings.TrimPrefix(exponent, "+")
+	long := strings.TrimLeft(strings.TrimPrefix(exponent, "-"), "0")
+	e, err := strconv.ParseInt(cmp.Or(exponent, "0"), 10, 64)
+	switch {
+	case len(long) >= 19 && exponent[0] != '-':
+		return plus(long, offset)
+	case len(long) >= 19, err != nil:
+		e = 0
+	}
+	return strconv.FormatInt(e+offset, 10)
+}
+
+// plus returns n, the digits of a number past |offset|, plus offset, carrying
+// one digit at a time from the last, so it reads no more of n than the carry
+// reaches.
+func plus(n string, offset int64) string {
+	out := []byte(n)
+	carry := offset
+	for i := len(out) - 1; i >= 0 && carry != 0; i-- {
+		d := int64(out[i]-'0') + carry
+		carry = d / 10
+		if d%10 < 0 {
+			carry--
+		}
+		out[i] = byte('0' + d - carry*10)
+	}
+	return strings.TrimLeft(string(out), "0")
+}
+
+// keptCount reports whether keyword, a count s writes, is one the lowering keeps
+// verbatim rather than in Constraints: a non-negative integer, as the check
+// reads one (oas.Natural), that the parser's model does not hold exactly, as it
+// does not one past int64 (annotation.CountIsExact). Any other literal the model
+// misreads is the load phase's to report, and reaches no field.
+func keptCount(s *oas3.Schema, keyword string, model *int64) bool {
+	node := annotation.RawPropertyNode(s, keyword)
+	return node != nil && oas.Natural.Admits(node) && !annotation.CountIsExact(s, keyword, model)
+}
+
+// refusedCount reports whether keyword is a count s writes that is no
+// non-negative integer, which the load phase reports and no reader holds.
+func refusedCount(s *oas3.Schema, keyword string) bool {
+	node := annotation.RawPropertyNode(s, keyword)
+	return isCount(keyword) && node != nil && !oas.Natural.Admits(node)
+}
+
+// isCount reports whether keyword is one of the six counts.
+func isCount(keyword string) bool {
+	return slices.Contains(valueCountKeywords, keyword) || keyword == "maxItems" || keyword == "minItems"
+}
+
+// countOf returns the parser model's reading of keyword, one of the six counts,
+// that s writes, and nil for no schema.
+func countOf(s *oas3.Schema, keyword string) *int64 {
+	if s == nil {
+		return nil
+	}
+	switch keyword {
+	case "minLength":
+		return s.MinLength
+	case "maxLength":
+		return s.MaxLength
+	case "minItems":
+		return s.MinItems
+	case "maxItems":
+		return s.MaxItems
+	case "minProperties":
+		return s.MinProperties
+	default:
+		return s.MaxProperties
+	}
+}
+
 // stampConstraintDiags gives every constraint diagnostic the provenance of the
 // pointer that read the schema, which is what makes two reads of one sub-schema
 // — its owning property and a $ref that hoists it — identical and so deduped by
@@ -76,7 +306,11 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // alias to keep any other. PreserveRefSiteKeywords draws the same line.
 func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if LoweredToOwnNode(c, ts, pointer, t) {
-		return ConstraintsOf(c, p, s, voices, pointer)
+		cons, diags := ConstraintsOf(c, p, s, voices, pointer)
+		if td, built := ts.Node(t.Target); built && carriesNumberAsText(td) {
+			return textBounds(c, p, s, pointer, diags)
+		}
+		return cons, diags
 	}
 	return referenceConstraintsOf(c, ts, p, s, voices, t, pointer)
 }

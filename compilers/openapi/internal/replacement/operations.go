@@ -76,15 +76,25 @@ func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
 
 // params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
-	ix := lowering.IndexParams(op)
-	param := func(name string) (ir.EntityRef, int) {
-		id, matched := ix.Named(name)
-		return ir.EntityRef{Param: id}, matched
-	}
+	param := paramFinder(op)
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {
 		p := &op.Params[i]
 		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Param: p.ID}, "parameter", param)...)
 	}
 	return diags
+}
+
+// paramFinder returns what finds a parameter of op by name, as a link's key
+// names one (lowering.ParamIndex.Named). op's parameters are indexed once,
+// where a name is first looked for.
+func paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
+	var ix *lowering.ParamIndex
+	return func(name string) (ir.EntityRef, int) {
+		if ix == nil {
+			ix = new(lowering.IndexParams(op))
+		}
+		id, matched := ix.Named(name)
+		return ir.EntityRef{Param: id}, matched
+	}
 }

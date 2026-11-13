@@ -141,9 +141,10 @@ var rules = map[string][]string{
 	// The name of every node the lowering builds, as a function of the documents
 	// and the node's coordinate (GitHub #981). It reads the grammar through a
 	// bind table, the raw tree through nodeview and a $ref's fragment through
-	// fragment, and composes names in compile's grammar. It reaches nothing that
-	// lowers, so no lowering can make a name depend on the order it runs in.
-	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+	// fragment, composes names in compile's grammar, and reads the words a title
+	// or a key spells through ir's. It reaches nothing that lowers, so no
+	// lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
@@ -218,6 +219,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
@@ -250,11 +252,12 @@ var rules = map[string][]string{
 	// all, navigation to walk a pointer through the model as the resolver does,
 	// compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
-	// one it names no alias for included (ReferencedMediaType), and yaml to stop
-	// a walk at raw YAML, which holds none. It reaches nothing that lowers —
-	// following a reference far enough to lower its target recurses back into
-	// the schema walk, so that stays with the walk.
-	"compilers/openapi/internal/resolve": {module + "/ir",
+	// one it names no alias for included (ReferencedMediaType), yaml to stop a
+	// walk at raw YAML, which holds none, and compilers for the file a file URI
+	// names as a reader reads it. It reaches nothing that lowers — following a
+	// reference far enough to lower its target recurses back into the schema
+	// walk, so that stays with the walk.
+	"compilers/openapi/internal/resolve": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -332,13 +335,21 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
-	// What a deprecation names as its replacement, read once the document is
-	// whole. It reaches lowering for the promotion that reads the names and the
-	// parameter lookup links share, and ids for a schema's components ID, and
-	// nothing of the walks: it reads the document they built.
+	// What a deprecation names as its replacement, by a key or in its message,
+	// read once the document is whole. It reaches lowering for the policies,
+	// the promotion that reads the names and the parameter lookup links share,
+	// and diag for what it reports, and nothing of the walks: it reads the
+	// document they built (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering"},
+	// What a document's names imply, read once the document is whole: an
+	// operation's idempotency token, a credential's redaction and a header's
+	// HTTP-date text. It reaches lowering for the policies, the promotion whose
+	// keys it defers to and the parameter lookup links share, and diag for what
+	// it reports, and nothing of the walks: it reads the document they built.
+	"compilers/openapi/internal/convention": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth

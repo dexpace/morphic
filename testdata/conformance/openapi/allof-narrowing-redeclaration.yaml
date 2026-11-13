@@ -367,3 +367,56 @@ components:
             p: {type: array, items: {type: integer, format: int32}}
         - properties:
             p: {type: array, description: Counts, items: {type: integer}}
+    # Two enums of different value types are judged by their values: the enum
+    # of integer within the enum of number is the field's type, in either order,
+    # and two each holding a value the other lacks meet in an enum of the value
+    # they share, of the narrower value type.
+    EnumValueTypeWideFirst:
+      allOf:
+        - properties:
+            p: {type: number, enum: [1, 2]}
+        - properties:
+            p: {type: integer, enum: [1]}
+    EnumValueTypeNarrowFirst:
+      allOf:
+        - properties:
+            p: {type: integer, enum: [1]}
+        - properties:
+            p: {type: number, enum: [1, 2]}
+    EnumValueTypesMeet:
+      allOf:
+        - properties:
+            p: {type: number, enum: [1, 2.5]}
+        - properties:
+            p: {type: integer, enum: [1, 3]}
+    # An alias of an enum or a list meets one beside it as the node it stands
+    # for, in a node holding what the alias adds, in either order.
+    Letters: {type: string, enum: [a, b, c]}
+    LaterLetters: {type: string, enum: [b, c, d]}
+    WrappedLetters: {allOf: [{$ref: '#/components/schemas/Letters'}], description: Letters}
+    LetterList: {type: array, items: {$ref: '#/components/schemas/Letters'}}
+    WrappedLetterList: {allOf: [{$ref: '#/components/schemas/LetterList'}]}
+    AliasMeetsFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetters'}
+        - properties:
+            p: {$ref: '#/components/schemas/LaterLetters'}
+    AliasMeetsLast:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/LaterLetters'}
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetters'}
+    AliasedListMeetsFirst:
+      allOf:
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetterList'}
+        - properties:
+            p: {type: array, items: {$ref: '#/components/schemas/LaterLetters'}}
+    AliasedListMeetsLast:
+      allOf:
+        - properties:
+            p: {type: array, items: {$ref: '#/components/schemas/LaterLetters'}}
+        - properties:
+            p: {$ref: '#/components/schemas/WrappedLetterList'}

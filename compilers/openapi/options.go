@@ -168,6 +168,56 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
+// IdempotencyInference is the idempotency policy: whether an operation
+// declaring an `Idempotency-Key` header parameter, and no idempotency, takes it
+// as its idempotency token. It is another injectable-policy seam (architecture
+// principle 6), named here for the reason GroupingStrategy is.
+type IdempotencyInference = lowering.IdempotencyInference
+
+// IdempotencyInferenceHeuristic is the name an operation's Provenance.Inferred
+// carries where the idempotency policy read its token.
+const IdempotencyInferenceHeuristic = lowering.IdempotencyInferenceHeuristic
+
+// SecretInference is the secret policy: whether a parameter, a header or a
+// property whose name says it holds a credential, and whose value is text, is
+// redacted where the document asks for no redaction. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type SecretInference = lowering.SecretInference
+
+// SecretInferenceHeuristic is the name a parameter's, a header's or a
+// property's Provenance.Inferred carries where the secret policy set its
+// Secret.
+const SecretInferenceHeuristic = lowering.SecretInferenceHeuristic
+
+// HTTPDateInference is the HTTP-date policy: whether a response header whose
+// field an RFC defines as an HTTP-date, and whose schema declares a date-time
+// with no encoding, is written and read as an HTTP-date. It is another
+// injectable-policy seam (architecture principle 6), named here for the reason
+// GroupingStrategy is.
+type HTTPDateInference = lowering.HTTPDateInference
+
+// HTTPDateInferenceHeuristic is the name a header's Provenance.Inferred
+// carries where the HTTP-date policy set its Encoding.
+const HTTPDateInferenceHeuristic = lowering.HTTPDateInferenceHeuristic
+
+// ReplacementInference is the replacement policy: whether a deprecation whose
+// message names what to use instead, in a form the document's entities
+// resolve, names it in ReplacedBy too. It is another injectable-policy seam
+// (architecture principle 6), named here for the reason GroupingStrategy is.
+type ReplacementInference = lowering.ReplacementInference
+
+// ReplacementInferenceHeuristic is the name a deprecated node's
+// Provenance.Inferred carries where the replacement policy read its
+// replacements out of the message.
+const ReplacementInferenceHeuristic = lowering.ReplacementInferenceHeuristic
+
+// TitleNames is the title-names policy: whether a schema's title names the
+// anonymous node built from it, in place of the hint its position composes.
+// It is another injectable-policy seam (architecture principle 6), and is
+// named here rather than restated for the reason GroupingStrategy is.
+type TitleNames = lowering.TitleNames
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -217,12 +267,36 @@ type Options struct {
 	// off the strings it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
-	// AllowExternalRefs lets a read of another document leave the directory of
-	// Source.Path, against which references resolve, for any file and http(s)
-	// URLs. Off by default, since a spec is untrusted: reads stay inside that
-	// directory, symbolic links included, and follow relative references alone:
-	// a $ref spelling a file URI, or an absolute path to any document but the
-	// source, is refused.
+	// IdempotencyInference selects whether an operation declaring an
+	// `Idempotency-Key` header parameter, and no idempotency, takes it as its
+	// idempotency token, marked as inferred. The zero value is on; a caller who
+	// wants only what the document declares disables it.
+	IdempotencyInference IdempotencyInference `json:"idempotencyInference"`
+	// SecretInference selects whether a parameter, a header or a property whose
+	// name says it holds a credential is redacted, marked as inferred. The zero
+	// value is on; a caller who wants only the redaction the document asks for
+	// disables it.
+	SecretInference SecretInference `json:"secretInference"`
+	// HTTPDateInference selects whether a date-time response header whose field
+	// an RFC defines as an HTTP-date is written and read as one, marked as
+	// inferred. The zero value is on; a caller who wants the text the format
+	// names disables it.
+	HTTPDateInference HTTPDateInference `json:"httpDateInference"`
+	// ReplacementInference selects whether a deprecation whose message names
+	// what to use instead names it in ReplacedBy too, marked as inferred. The
+	// zero value is on; a caller who wants the replacement left in the message
+	// disables it.
+	ReplacementInference ReplacementInference `json:"replacementInference"`
+	// TitleNames selects whether a schema's title names the anonymous node
+	// built from it, its title its summary either way. The zero value is on; a
+	// caller who wants every such node named by its position disables it.
+	TitleNames TitleNames `json:"titleNames"`
+	// AllowExternalRefs lets a read of another document leave the directory the
+	// source lies in (Source.Location, else Source.Path) for any file and
+	// http(s) URLs. Off by default, since a spec is untrusted: reads stay
+	// inside that directory, symbolic links included, and follow relative
+	// references alone. On or off, a reference in a document read over
+	// http(s) reads only http(s) URLs.
 	//
 	// Reads go through compilers.Options.Reader; with none, nothing is read.
 	// Each document read is a Document.Sources entry, and what it declares is
@@ -455,24 +529,40 @@ func (o Options) checkGrouping() error {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping               = "grouping"
-	optGroupingKey            = "grouping-key"
-	optGroupingLists          = "grouping-lists"
-	optGroupingAliases        = "grouping-aliases"
-	optGroupingFallback       = "grouping-fallback"
-	optAllowExternalRefs      = "allow-external-refs"
-	optOverlay                = "overlay"
-	optOverlayLax             = "overlay-lax"
-	optNullableWidening       = "nullable-widening"
-	optDiscriminatorInference = "discriminator-inference"
-	optStreamingMedia         = "streaming-media"
-	optStreamingInference     = "streaming-inference"
-	optBinaryMedia            = "binary-media"
-	optBinaryInference        = "binary-inference"
-	optExtensionPromotion     = "extension-promotion"
-	optPromotionTargets       = "promotion-targets"
-	optPromotionPrefixes      = "promotion-prefixes"
+	optGrouping           = "grouping"
+	optGroupingKey        = "grouping-key"
+	optGroupingLists      = "grouping-lists"
+	optGroupingAliases    = "grouping-aliases"
+	optGroupingFallback   = "grouping-fallback"
+	optAllowExternalRefs  = "allow-external-refs"
+	optOverlay            = "overlay"
+	optOverlayLax         = "overlay-lax"
+	optStreamingMedia     = "streaming-media"
+	optBinaryMedia        = "binary-media"
+	optExtensionPromotion = "extension-promotion"
+	optPromotionTargets   = "promotion-targets"
+	optPromotionPrefixes  = "promotion-prefixes"
 )
+
+// switchOptions maps the name of each policy in o that text turns on or off to
+// the field saying it is off: the text names a policy as on or off, and the Go
+// field its being off, as each policy's Disabled does. A name is the marker
+// the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
+// for the streaming and binary policies', whose markers predate the rule
+// (#1847), and the title-names policy's, which leaves none.
+func switchOptions(o *Options) map[string]*bool {
+	return map[string]*bool{
+		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
+		string(DiscriminatorInferenceHeuristic): &o.DiscriminatorInference.Disabled,
+		string(IdempotencyInferenceHeuristic):   &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):        &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):      &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
+		"streaming-inference":                   &o.StreamingMedia.Disabled,
+		"binary-inference":                      &o.BinaryMedia.Disabled,
+		"title-names":                           &o.TitleNames.Disabled,
+	}
+}
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
 // caller holding only text sets the budgets a Go caller does.
@@ -493,10 +583,10 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingAliases, optGroupingFallback, optAllowExternalRefs,
-		optOverlay, optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia,
-		optStreamingInference, optBinaryMedia, optBinaryInference, optExtensionPromotion, optPromotionTargets,
+		optOverlay, optOverlayLax, optStreamingMedia, optBinaryMedia, optExtensionPromotion, optPromotionTargets,
 		optPromotionPrefixes,
 	}
+	names = slices.AppendSeq(names, maps.Keys(switchOptions(&Options{})))
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
 	return names
@@ -552,32 +642,10 @@ func (d *optionDecode) set(key, value string) error {
 	case optOverlayLax:
 		d.laxSet = true
 		return decodeBool(&d.lax, key, value)
-	case optNullableWidening:
-		// The text names the policy as on or off, and the Go field its being off,
-		// as the other policies' Disabled does.
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.NullableWidening.Disabled = !on
-		return err
-	case optDiscriminatorInference:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.DiscriminatorInference.Disabled = !on
-		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
-	case optStreamingInference:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.StreamingMedia.Disabled = !on
-		return err
 	case optBinaryMedia:
 		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
-	case optBinaryInference:
-		on := true
-		err := decodeBool(&on, key, value)
-		d.opts.BinaryMedia.Disabled = !on
-		return err
 	case optExtensionPromotion:
 		on := true
 		err := decodeBool(&on, key, value)
@@ -588,6 +656,12 @@ func (d *optionDecode) set(key, value string) error {
 	case optPromotionPrefixes:
 		d.opts.Promotions.Prefixes = strings.Split(value, ",")
 		return nil
+	}
+	if disabled, ok := switchOptions(&d.opts)[key]; ok {
+		on := true
+		err := decodeBool(&on, key, value)
+		*disabled = !on
+		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
 		return decodeBudget(budget, key, value)
