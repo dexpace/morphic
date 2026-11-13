@@ -284,7 +284,8 @@ a refused document leaves a run its findings failed at `1`, as [Exit codes](#exi
 Each list is present, empty when there is nothing in it. A change to any member's shape, a
 diagnostic's included, moves `version`, which `TestSchemaVersion_PinsTheEncodedShape` in
 `engine/report` holds to the encoded shape, so a consumer that checks it knows every member it
-will meet.
+will meet. A string is escaped as JSON escapes it, unlike the text format: a C1 control or a
+bidirectional override a spec writes stays raw, as it does in the IR document (#1826).
 
 #### Exit codes
 
