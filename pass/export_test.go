@@ -141,19 +141,29 @@ func ConstWalks(tb testing.TB, doc *ir.Document) int {
 // of the unions in doc, which building each once holds to how many they hold.
 func ConstBuilt(tb testing.TB, doc *ir.Document) int {
 	tb.Helper()
-	sole, err := soleBranches(tb.Context(), doc, ir.WalkValuesContext)
+	r, err := readingWithCounts(tb.Context(), doc, ir.WalkValuesContext)
 	require.NoError(tb, err)
-	return constEnums(doc, sole).built
+	return constEnums(r).built
+}
+
+// ConstReadings is how many unions a run of pass.ConstUnions reads, across
+// every reading it makes of doc.
+func ConstReadings(tb testing.TB, doc *ir.Document) int {
+	tb.Helper()
+	r, err := readingWithCounts(tb.Context(), doc, ir.WalkValuesContext)
+	require.NoError(tb, err)
+	return r.reads + r.priorReads
 }
 
 // ConstMoved is how many keys pass.ConstUnions adds to a set of the values it
-// checks distinct in reading the unions in doc, which taking over the largest
-// set a union names holds to how many values they hold, each once.
+// checks distinct, across every reading it makes of the unions in doc, which
+// taking over the largest set a union names holds to how many values they
+// hold, each once.
 func ConstMoved(tb testing.TB, doc *ir.Document) int {
 	tb.Helper()
-	sole, err := soleBranches(tb.Context(), doc, ir.WalkValuesContext)
+	r, err := readingWithCounts(tb.Context(), doc, ir.WalkValuesContext)
 	require.NoError(tb, err)
-	return readingOf(doc, sole).moved
+	return r.moved + r.priorMoved
 }
 
 // MembersUnder returns the members of the Enum root becomes where it holds the

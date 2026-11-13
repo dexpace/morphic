@@ -90,12 +90,12 @@ func (r *unionReading) variantPart(v ir.Variant) (part, ir.PrimKind, bool) {
 
 // heldAt returns what the type at id holds of values, and false where it holds
 // none of the kind a union reads as an Enum. Several values are a set of their
-// own, which only the one union naming it may take (r.sole): an Enum would copy
+// own, which only the one union naming it may take (r.offer): an Enum would copy
 // it into each union naming it, which a document can make grow with the
 // square of its size.
 func (r *unionReading) heldAt(id ir.TypeID) (held, bool) {
 	if v, read := r.values[id]; read {
-		return v.held(), v.count == 1 || r.sole[id]
+		return v.held(), v.count == 1 || r.offer(id)
 	}
 	switch t := r.types[id].(type) {
 	case *ir.Literal:
@@ -105,6 +105,14 @@ func (r *unionReading) heldAt(id ir.TypeID) (held, bool) {
 	default:
 		return held{}, false
 	}
+}
+
+// offer reports whether a union may take the branch of several values at id,
+// which only the first union asking for it may: one sole is asked for once.
+func (r *unionReading) offer(id ir.TypeID) bool {
+	ok := r.sole[id]
+	delete(r.sole, id)
+	return ok
 }
 
 // literalHeld returns the one value t holds, where t is an anonymous string
@@ -126,7 +134,7 @@ func literalHeld(t *ir.Literal) (held, bool) {
 // or several that only a union naming it may take. A member is a copy of its
 // own.
 func (r *unionReading) enumHeld(id ir.TypeID, t *ir.Enum) (held, bool) {
-	if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" || (len(t.Members) > 1 && !r.sole[id]) {
+	if t == nil || !t.Closed || len(t.Members) == 0 || t.ValueType == "" || (len(t.Members) > 1 && !r.offer(id)) {
 		return held{}, false
 	}
 	rest := *t

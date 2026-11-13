@@ -354,12 +354,12 @@ Built, and in the default list:
   `Enum`, a union of one value or a branch of several values only that variant references, is
   rewritten as the closed `Enum` of its values at the union's own ID, each member holding what its
   variant and branch say of its value, and each branch type nothing else references is removed
-  ([`string-const-union`](./compilers/openapi.md#string-const-union)). It counts the references to a
-  branch of several values before it decides, in a walk a document is given only where a union keyed
-  at its own ID names an anonymous union or an anonymous `Enum` of several members. A transform, it
-  runs first. It is no convenience simplification of reference-learnings.md §B0, which
-  are off by default: it loses nothing, keeping the union wherever an `Enum` could not say all it
-  does, so it is on, and `--disable-pass const-unions` hands an emitter the union instead.
+  ([`string-const-union`](./compilers/openapi.md#string-const-union)). It counts the references to
+  each branch of several values a union took before it decides, in a walk a document is given only
+  where a union took one. A transform, it runs first. It is no convenience simplification of
+  reference-learnings.md §B0, which are off by default: it loses nothing, keeping the union wherever
+  an `Enum` could not say all it does, so it is on, and `--disable-pass const-unions` hands an
+  emitter the union instead.
 - **validate** — referential integrity and the well-formedness rules the IR states, each rule family
   in a `pass/validate_<family>.go` of its own. Integrity means every typed-ID reference resolves to
   something the document declares (a `TypeRef` target against the type registry, an `OpID` against

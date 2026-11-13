@@ -42,11 +42,11 @@ func runConstUnions(ctx context.Context, doc *ir.Document, walk walkFunc) (*ir.D
 	if doc == nil {
 		return doc, nil
 	}
-	sole, err := soleBranches(ctx, doc, walk)
+	r, err := readingWithCounts(ctx, doc, walk)
 	if err != nil {
 		return doc, nil
 	}
-	rw := constEnums(doc, sole)
+	rw := constEnums(r)
 	if len(rw.enums) == 0 || !rw.sound || ctx.Err() != nil {
 		return doc, nil
 	}
@@ -74,17 +74,37 @@ func runConstUnions(ctx context.Context, doc *ir.Document, walk walkFunc) (*ir.D
 	return trimmed, append(diags, more...)
 }
 
-// soleBranches returns the types that only one reference names, among those a
-// union could take as a branch of several values, which a count of the
-// references to them tells. A document is walked for the count where a union
-// keyed at its own ID names an anonymous union, of any variants, or an
-// anonymous Enum of several members, whether or not that union becomes an Enum,
-// and one the depth cap cut short has none, as no count of it is one.
-func soleBranches(ctx context.Context, doc *ir.Document, walk walkFunc) (map[ir.TypeID]bool, error) {
-	ids := branchCandidates(doc)
-	if len(ids) == 0 {
-		return nil, nil
+// readingWithCounts returns the reading of doc's unions. A first reading offers
+// each branch of several values to the first union asking for it; where none
+// took one, or the one union taking each is its only reference, it stands, and
+// doc is walked only to count those taken. Otherwise the unions are read again,
+// each taking only a branch it is the one reference to.
+func readingWithCounts(ctx context.Context, doc *ir.Document, walk walkFunc) (*unionReading, error) {
+	offered := map[ir.TypeID]bool{}
+	for _, id := range branchCandidates(doc) {
+		offered[id] = true
 	}
+	r := readingOf(doc, offered)
+	if len(r.taken) == 0 {
+		return r, nil
+	}
+	taken := slices.Sorted(maps.Keys(r.taken))
+	sole, err := soleBranches(ctx, doc, taken, walk)
+	if err != nil {
+		return nil, err
+	}
+	if !slices.ContainsFunc(taken, func(id ir.TypeID) bool { return !sole[id] }) {
+		return r, nil
+	}
+	again := readingOf(doc, sole)
+	again.priorReads, again.priorMoved = r.reads, r.moved
+	return again, nil
+}
+
+// soleBranches returns those of ids that only one reference names, which a
+// count of the references to them tells. One the depth cap cut short has none,
+// as no count of it is one.
+func soleBranches(ctx context.Context, doc *ir.Document, ids []ir.TypeID, walk walkFunc) (map[ir.TypeID]bool, error) {
 	refs, complete, err := countRefs(ctx, doc, ids, walk)
 	if err != nil || !complete {
 		return nil, err
@@ -97,8 +117,10 @@ func soleBranches(ctx context.Context, doc *ir.Document, walk walkFunc) (map[ir.
 }
 
 // branchCandidates returns, in order, the anonymous Enums of several members and
-// anonymous unions that a union keyed at its own ID names as a variant. A
-// superset of what a union can take, which costs a count and decides nothing.
+// anonymous unions that a union keyed at its own ID names as a variant: a
+// superset of what a union can take, each offered to the first union asking
+// for it, which decides nothing until a count shows that union its one
+// reference.
 func branchCandidates(doc *ir.Document) []ir.TypeID {
 	found := map[ir.TypeID]bool{}
 	for id, td := range doc.Types {
@@ -143,12 +165,10 @@ type rewrite struct {
 	sound bool
 }
 
-// constEnums returns what to rewrite in doc: the Enum of each union that
-// constValues reads as one, which holds the values of the branches in sole that
-// its variants are the only references to. A union off its own key is left to
-// validate.
-func constEnums(doc *ir.Document, sole map[ir.TypeID]bool) rewrite {
-	r := readingOf(doc, sole)
+// constEnums returns what r, the reading of a document's unions, rewrites in
+// it: the Enum of each union that constValues reads as one, which holds the
+// values of each branch it took. A union off its own key is left to validate.
+func constEnums(r *unionReading) rewrite {
 	rw := rewrite{sound: true, taken: slices.Sorted(maps.Keys(r.taken))}
 	for _, id := range slices.Sorted(maps.Keys(r.values)) {
 		if r.taken[id] {
@@ -164,8 +184,8 @@ func constEnums(doc *ir.Document, sole map[ir.TypeID]bool) rewrite {
 	return rw
 }
 
-// readingOf returns the reading of each union of doc, which takes the branches
-// in sole.
+// readingOf returns the reading of each union of doc, which offers each branch
+// in sole to the first union asking for it.
 func readingOf(doc *ir.Document, sole map[ir.TypeID]bool) *unionReading {
 	r := &unionReading{types: doc.Types, spaces: doc.IDSpaces[ir.IDKindEnumMember], sole: sole,
 		values: map[ir.TypeID]*values{}, named: map[ir.TypeID]bool{}, taken: map[ir.TypeID]bool{},
@@ -183,7 +203,8 @@ func readingOf(doc *ir.Document, sole map[ir.TypeID]bool) *unionReading {
 type unionReading struct {
 	types  ir.TypeRegistry
 	spaces []string
-	// sole holds the types only one reference names, among those that can be taken.
+	// sole holds the branches of several values a union may take, each offered
+	// once, to the first union asking for it.
 	sole map[ir.TypeID]bool
 	// values holds what each union read as an Enum holds, named the types those
 	// unions' variants name, and taken those whose values a union took.
@@ -195,8 +216,9 @@ type unionReading struct {
 	// stack holds the IDs settle has yet to read.
 	stack []ir.TypeID
 	// reads counts the unions read, each once however many name it, and moved
-	// the keys added to a set of them, which is what a reading costs.
-	reads, moved int
+	// the keys added to a set of them, which is what a reading costs; prior
+	// counts the same of a reading before this one.
+	reads, moved, priorReads, priorMoved int
 }
 
 // settle reads the union at root, if it is one keyed at its own ID and not

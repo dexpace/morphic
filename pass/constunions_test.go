@@ -801,10 +801,8 @@ func TestConstUnions_ReturnsItsInputOnceItsContextIsDone(t *testing.T) {
 
 // TestConstUnions_WalksOnlyWhereItCounts pins the walks a run makes: the one
 // that finds the branches nothing references for consts, and one more to count
-// the references to a branch of several values, made wherever a union keyed at
-// its own ID names an anonymous union, of any variants, or an anonymous Enum of
-// several members, whether or not a union takes it. A document where no union
-// reads as an Enum and none names such a type is not walked.
+// the references to the branches of several values a union took, made only
+// where one did. A document where no union reads as an Enum is not walked.
 func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -817,11 +815,11 @@ func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 		{"branches of one value", constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), pinned("t/x/U/0", "red"),
 			pinned("t/x/U/1", "green")), 1},
 		{"a union of one value", constDoc(union("t/x/U", "t/x/U/0"), anonymousUnion("t/x/U/0", "t/x/U/0/0"),
-			lit("t/x/U/0/0", "red")), 2},
+			lit("t/x/U/0/0", "red")), 1},
 		{"a branch of several values", constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"),
 			pinned("t/x/U/1", "green", "blue")), 2},
 		{"a union naming an anonymous union of models", constDoc(union("t/x/U", "t/x/U/0"),
-			anonymousUnion("t/x/U/0", "t/x/U/0/0", "t/x/U/0/1"), &ir.Model{ID: "t/x/U/0/0"}, &ir.Model{ID: "t/x/U/0/1"}), 1},
+			anonymousUnion("t/x/U/0", "t/x/U/0/0", "t/x/U/0/1"), &ir.Model{ID: "t/x/U/0/0"}, &ir.Model{ID: "t/x/U/0/1"}), 0},
 		{"a union of several values", constDoc(union("t/x/U", "t/x/U/0"), anonymousUnion("t/x/U/0", "t/x/U/0/0", "t/x/U/0/1"),
 			lit("t/x/U/0/0", "red"), lit("t/x/U/0/1", "blue")), 2},
 		{"a branch of several values no union takes", constDoc(union("t/x/U", "t/x/B"), union("t/x/V", "t/x/B"),
@@ -834,6 +832,17 @@ func TestConstUnions_WalksOnlyWhereItCounts(t *testing.T) {
 	} {
 		assert.Equal(t, tt.walks, pass.ConstWalks(t, tt.doc), tt.name)
 	}
+}
+
+// TestConstUnions_ReadsAgainOnlyWhereATakeIsDisproved pins that the unions are
+// read once where every branch a union took is named by that union alone, and
+// again only where a branch was named twice.
+func TestConstUnions_ReadsAgainOnlyWhereATakeIsDisproved(t *testing.T) {
+	t.Parallel()
+	sole := constDoc(union("t/x/U", "t/x/U/0", "t/x/U/1"), lit("t/x/U/0", "red"), pinned("t/x/U/1", "green", "blue"))
+	twice := constDoc(union("t/x/U", "t/x/B"), union("t/x/V", "t/x/B"), pinned("t/x/B", "red", "blue"))
+	assert.Equal(t, 1, pass.ConstReadings(t, sole), "a sole branch's take was read twice")
+	assert.Equal(t, 4, pass.ConstReadings(t, twice), "a branch named twice was not read again")
 }
 
 // namedEnum is e as a named type, which a union cannot take the values of.
@@ -928,7 +937,8 @@ func TestConstUnions_AddsEachKeyOnce(t *testing.T) {
 
 // TestConstUnions_BuildsNoMemberForABranchManyName pins the growth a branch of
 // several values many unions name would cost if each were its Enum: none is
-// rewritten and no member is built, however many name the one branch.
+// rewritten and no member is built, however many name the one branch, and its
+// values are read into a set once, for the one union it is offered to.
 func TestConstUnions_BuildsNoMemberForABranchManyName(t *testing.T) {
 	t.Parallel()
 	const unions, values = 40, 25
@@ -945,6 +955,7 @@ func TestConstUnions_BuildsNoMemberForABranchManyName(t *testing.T) {
 
 	assert.Same(t, doc, collapsed(t, doc), "every union stays")
 	assert.Zero(t, pass.ConstBuilt(t, doc))
+	assert.LessOrEqual(t, pass.ConstMoved(t, doc), values, "the branch's values were read for more than one union")
 }
 
 // TestConstUnions_TakesNoBranchPastTheWalksReach pins that a walk the depth
