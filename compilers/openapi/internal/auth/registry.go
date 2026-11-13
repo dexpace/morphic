@@ -5,6 +5,7 @@ package auth
 
 import (
 	"maps"
+	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -18,6 +19,11 @@ import (
 // one.
 type Registry struct {
 	byID map[ir.AuthID]ir.AuthScheme
+	// entries holds the name of every securitySchemes entry of the source,
+	// whatever it lowered to, which a requirement's key is read as first
+	// (named). It is filled once, so no requirement a walk meets first reaches
+	// what another's key names.
+	entries map[string]bool
 	// root is where a scheme no entry declares is placed: the source's, whichever
 	// document holds the requirement naming it.
 	root ir.Provenance
@@ -29,8 +35,12 @@ type Registry struct {
 // c's source.
 func RegistryOf(c lowering.Ctx, declared map[ir.AuthID]ir.AuthScheme) *Registry {
 	byID := make(map[ir.AuthID]ir.AuthScheme, len(declared))
-	maps.Copy(byID, declared)
-	return &Registry{byID: byID, root: c.Place().At("")}
+	entries := make(map[string]bool, len(declared))
+	for id, scheme := range declared {
+		byID[id] = scheme
+		entries[scheme.Name.Source] = true
+	}
+	return &Registry{byID: byID, entries: entries, root: c.Place().At("")}
 }
 
 // Schemes returns a copy of the registry, or nil when it holds nothing, so a
@@ -40,6 +50,39 @@ func (r *Registry) Schemes() map[ir.AuthID]ir.AuthScheme {
 		return nil
 	}
 	return maps.Clone(r.byID)
+}
+
+// named returns the name of the securitySchemes entry key denotes in a
+// requirement c lowers. A key naming an entry the source declares is that
+// name, at every minor. Where c's rows let a key be a URI
+// (lowering.SecurityRules), one naming an entry of the source's
+// securitySchemes, read as a reference against the document holding the
+// requirement, is that entry's name, declared or not. Any other key is the name
+// it spells: a URI naming a scheme elsewhere is not followed (#1869). The
+// answer depends on key and the document alone, not on what the registry holds.
+func (r *Registry) named(c lowering.Ctx, key string) string {
+	if r.entries[key] || !lowering.SecurityRules(c).NamesByURI() {
+		return key
+	}
+	pointer, ok := c.RefScope().InternalPointer(key)
+	if !ok {
+		return key
+	}
+	if kind, name, ok := ids.ComponentEntry(pointer); ok && kind == "securitySchemes" {
+		return name
+	}
+	return key
+}
+
+// unresolvedClauses returns what an unresolved scheme's error adds about the key
+// a requirement c lowers writes: from the minor that lets a key be a URI, that
+// a URI naming a scheme anywhere but the source's securitySchemes is not read.
+func unresolvedClauses(c lowering.Ctx) string {
+	var why strings.Builder
+	if lowering.SecurityRules(c).NamesByURI() {
+		why.WriteString("; a URI naming a Security Scheme Object outside the source's components/securitySchemes is not read")
+	}
+	return why.String()
 }
 
 // unresolved returns the ID of the scheme name lowers to, minting it when no

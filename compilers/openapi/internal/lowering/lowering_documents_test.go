@@ -255,7 +255,8 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 // allocation counts are the process's.
 func TestNew_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
+	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding ||
+		lowering.SecurityRules(c) != doc.Rows.Security {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
 	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })

@@ -178,11 +178,13 @@ type Document struct {
 }
 
 // Rows is what the rule table says at the minor a document is read at, in a
-// dialect: how its schemas read (oas.SchemaRules), and what its Encoding
-// Objects leave unwritten (oas.EncodingRules).
+// dialect: how its schemas read (oas.SchemaRules), what its Encoding Objects
+// leave unwritten (oas.EncodingRules), and how its Security Requirement
+// Objects name a scheme (oas.SecurityRules).
 type Rows struct {
 	Schema   oas.SchemaRules
 	Encoding oas.EncodingRules
+	Security oas.SecurityRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -393,7 +395,7 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 // (oas.Spec.SchemaRules).
 func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
 	schema, unread := spec.SchemaRules(version, dialect)
-	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
+	return Rows{Schema: schema, Encoding: spec.EncodingRules(version), Security: spec.SecurityRules(version)}, unread
 }
 
 // supportedMinor returns the normalized major.minor prefix of an OpenAPI version
