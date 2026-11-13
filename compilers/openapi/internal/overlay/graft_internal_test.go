@@ -120,28 +120,54 @@ func TestGrafter_RefusesAMixOfAnAliasAndAValue(t *testing.T) {
 }
 
 // TestDetach_RemovesAMemberOrAnElementAndNothingElse pins what a remove takes
-// out of what holds a node: a member's key and value, an element alone, and
-// nothing for a node held as a key or not held at all, which the query never
-// selects and which remove refuses.
+// out of what holds a node: a member's key and value, an element alone, every
+// doomed one in one pass, and nothing for a node held as a key or not held at
+// all, which the query never selects and which remove refuses.
 func TestDetach_RemovesAMemberOrAnElementAndNothingElse(t *testing.T) {
 	t.Parallel()
-	key, value, other := ynode.Scalar("k"), ynode.Scalar("v"), ynode.Scalar("o")
-	mapping := ynode.Map(key, value, ynode.Scalar("x"), other)
-	assert.False(t, detach(mapping, key), "a key is no member's value")
-	assert.False(t, detach(mapping, ynode.Scalar("v")), "an equal node is not the node")
-	assert.True(t, detach(mapping, value))
-	assert.Equal(t, []*yaml.Node{mapping.Content[0], other}, mapping.Content, "the member went with its key")
+	key, value, other, last := ynode.Scalar("k"), ynode.Scalar("v"), ynode.Scalar("o"), ynode.Scalar("w")
+	mapping := ynode.Map(key, value, ynode.Scalar("x"), other, ynode.Scalar("y"), last)
+	assert.Zero(t, detach(mapping, map[*yaml.Node]bool{key: true}), "a key is no member's value")
+	assert.Zero(t, detach(mapping, map[*yaml.Node]bool{ynode.Scalar("v"): true}), "an equal node is not the node")
+	assert.Equal(t, 2, detach(mapping, map[*yaml.Node]bool{value: true, last: true}))
+	assert.Equal(t, []*yaml.Node{mapping.Content[0], other}, mapping.Content, "each member went with its key")
 
-	element := ynode.Scalar("e")
-	list := ynode.Seq(ynode.Scalar("a"), element)
-	assert.True(t, detach(list, element))
-	assert.Len(t, list.Content, 1)
+	first, element := ynode.Scalar("a"), ynode.Scalar("e")
+	list := ynode.Seq(element, first, element)
+	assert.Equal(t, 2, detach(list, map[*yaml.Node]bool{element: true}))
+	assert.Equal(t, []*yaml.Node{first}, list.Content)
+	assert.Zero(t, detach(ynode.Scalar("s"), map[*yaml.Node]bool{element: true}), "a scalar holds nothing")
 
 	g := newGrafter(v10, nil)
 	g.parents = map[*yaml.Node]*yaml.Node{key: mapping}
 	err := g.remove([]*yaml.Node{key})
 	require.Error(t, err, "remove refuses a node its holder does not hold as a value")
 	assert.Contains(t, err.Error(), "holds as no member or element")
+}
+
+// TestRemove_TakesTheTargetsOfEachHolderTogether pins a remove selecting many
+// members of one object and elements of one array, the array a member of that
+// object: each holder keeps what was not selected, in order, and a target
+// inside a target removed with it is taken too, from the holder it left.
+func TestRemove_TakesTheTargetsOfEachHolderTogether(t *testing.T) {
+	t.Parallel()
+	inner := ynode.Seq(ynode.Scalar("0"), ynode.Scalar("1"), ynode.Scalar("2"))
+	holder := ynode.Map(ynode.Scalar("a"), ynode.Scalar("1"), ynode.Scalar("b"), inner, ynode.Scalar("c"), ynode.Scalar("3"))
+	root := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{holder}}
+	g := newGrafter(v11, root)
+	require.True(t, g.indexParents(t.Context()))
+
+	require.NoError(t, g.remove([]*yaml.Node{holder.Content[1], inner.Content[0], inner.Content[2], holder.Content[5]}))
+	assert.Equal(t, "b", holder.Content[0].Value)
+	assert.Len(t, holder.Content, 2)
+	assert.Equal(t, "1", inner.Content[0].Value)
+	assert.Len(t, inner.Content, 1)
+	assert.True(t, g.removed)
+
+	g = newGrafter(v11, root)
+	require.True(t, g.indexParents(t.Context()))
+	require.NoError(t, g.remove([]*yaml.Node{inner, inner.Content[0]}))
+	assert.Empty(t, holder.Content, "the array went, and its element with it")
 }
 
 // TestIndexParents_BuildsOnceAndStopsOnceTheContextIsDone pins the index a

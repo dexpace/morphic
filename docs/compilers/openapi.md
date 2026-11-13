@@ -306,6 +306,7 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestSpelledOtherwise_NamesAFixForEachCharacter`,
   `overlay.TestGrafter_WritesAnUpdateAsTheSpecificationSays`,
   `overlay.TestGrafter_TellsA10PrimitiveRemoveFromAnUpdate`,
+  `overlay.TestRemove_TakesTheTargetsOfEachHolderTogether`,
   `overlay.TestGrafter_AppliesActionsInOrderToWhatTheOnesBeforeLeft`,
   `overlay.TestGrafter_ReportsAValueTheSourceDeclaresReplaced`,
   `overlay.TestGrafter_TakesACopyOfTheSourceAsTheActionBegan`,

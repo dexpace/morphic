@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -352,39 +351,64 @@ func copyOf(n, holder *yaml.Node, depth int, built func(from, holder, n *yaml.No
 var errCopyPastBound = errors.New("it copies past the bound on what one copy builds")
 
 // remove deletes each target from the object or array holding it, which the
-// parents index names. A target nothing holds, the document's root, is
-// refused: the specification removes a node from the map or array it is
-// contained in.
+// parents index names, in one pass over each holder, so removing many members
+// of one wide object reads it once, not once a member. A target nothing holds,
+// the document's root, is refused: the specification removes a node from the
+// map or array it is contained in.
 func (g *grafter) remove(targets []*yaml.Node) error {
+	doomed := make(map[*yaml.Node]bool, len(targets))
+	held := map[*yaml.Node][]*yaml.Node{} // each holder's targets, in the order selected
+	var holders []*yaml.Node
 	for _, t := range targets {
 		holder := g.parents[t]
 		if holder == nil || holder.Kind == yaml.DocumentNode {
 			return errors.New("it selects the document's root, which no object or array holds")
 		}
-		if !detach(holder, t) {
-			return fmt.Errorf("it selects a node at %s that what holds it holds as no member or element", where(t))
+		if held[holder] == nil {
+			holders = append(holders, holder)
+		}
+		held[holder] = append(held[holder], t)
+		doomed[t] = true
+	}
+	for _, holder := range holders {
+		if detach(holder, doomed) != len(held[holder]) {
+			return fmt.Errorf("it selects a node at %s that what holds it holds as no member or element", where(held[holder][0]))
 		}
 		g.removed = true
 	}
 	return nil
 }
 
-// detach removes n from holder's Content, with its key from a mapping, and
-// reports whether holder held it as a member's value or an element. A query
-// selects no key, so holding n otherwise is a stale index.
-func detach(holder, n *yaml.Node) bool {
-	i := slices.Index(holder.Content, n)
-	switch {
-	case i < 0:
-		return false
-	case holder.Kind == yaml.MappingNode && i%2 == 1:
-		holder.Content = slices.Delete(holder.Content, i-1, i+1)
-	case holder.Kind == yaml.SequenceNode:
-		holder.Content = slices.Delete(holder.Content, i, i+1)
+// detach removes from holder's Content each member whose value, and each
+// element, doomed holds, a member with its key, and returns how many it
+// removed. A query selects no key, so a key doomed holds stays, and the count
+// falls short of what the index says holder holds.
+func detach(holder *yaml.Node, doomed map[*yaml.Node]bool) int {
+	kept := holder.Content[:0]
+	switch holder.Kind {
+	case yaml.MappingNode:
+		for i := 0; i < len(holder.Content); i += 2 {
+			if i+1 < len(holder.Content) && doomed[holder.Content[i+1]] {
+				continue
+			}
+			kept = append(kept, holder.Content[i:min(i+2, len(holder.Content))]...)
+		}
+	case yaml.SequenceNode:
+		for _, n := range holder.Content {
+			if !doomed[n] {
+				kept = append(kept, n)
+			}
+		}
 	default:
-		return false
+		return 0
 	}
-	return true
+	removed := len(holder.Content) - len(kept)
+	clear(holder.Content[len(kept):])
+	holder.Content = kept
+	if holder.Kind == yaml.MappingNode {
+		removed /= 2
+	}
+	return removed
 }
 
 // indexParents indexes the node holding each node of the tree, once, and
