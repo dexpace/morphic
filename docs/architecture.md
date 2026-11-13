@@ -48,7 +48,9 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
    values (severity, code, message, source location). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from parameter names, envelope detection, acronym casing) lives in injectable per-compiler or
-   per-emitter policy objects, is clearly marked `Inferred` in provenance, and can be disabled.
+   per-emitter policy objects, is clearly marked `Inferred` in provenance, and can be disabled. The
+   OpenAPI compiler states once how its policies are switched, marked, ordered and reported
+   ([`policies`](compilers/openapi.md#policies)).
 7. **The IR is serializable.** The full document round-trips through JSON. This enables golden
    snapshot tests, IR diffing between spec versions, caching, and out-of-process emitters.
 

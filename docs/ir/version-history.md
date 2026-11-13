@@ -533,3 +533,16 @@ it sees. Changes made together in one bump are listed together under it.
   type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
   component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
   a subtype whose composed union rules its name out.
+- **0.51.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
+  option, fill facts a document implies by its names and messages, each node they fill marked in its
+  `Provenance.Inferred`. An operation sent by `POST`, `PUT`, `PATCH` or `DELETE` takes its one
+  header parameter `Idempotency-Key` as its `Idempotency` token
+  ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
+  or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
+  ([`secret-inference`](../compilers/openapi.md#secret-inference)); a deprecation's message naming a
+  declared route or a sibling in code fills `ReplacedBy`
+  ([`replacement-inference`](../compilers/openapi.md#replacement-inference)); and a `date-time`
+  response header whose field an RFC defines as an HTTP-date takes `Encoding` `http-date`
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
+  0.50.0 refuses a document from this generation, whose idempotency, redaction, replacements and
+  header texts it would read as no OpenAPI document wrote them.

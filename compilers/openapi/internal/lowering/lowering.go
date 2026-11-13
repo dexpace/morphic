@@ -83,10 +83,15 @@ type Ctx struct {
 	schemas resolve.Names
 
 	// NullableWidening is the nullable-widening policy, and
-	// DiscriminatorInference the discriminator-inference policy. They sit
-	// before foreign so the three share a word.
+	// DiscriminatorInference the discriminator-inference policy, beside the
+	// policies of what a document's names and messages imply, read once it is
+	// whole. They sit before foreign so all of them share a word.
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 
 	// foreign marks a lowering of content another document holds, read in that
 	// document's scope, and holder is the path the resolver read it by (see
@@ -199,6 +204,10 @@ type Policy struct {
 	Promotions             ExtensionPromotions
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	IdempotencyInference   IdempotencyInference
+	SecretInference        SecretInference
+	HTTPDateInference      HTTPDateInference
+	ReplacementInference   ReplacementInference
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -223,6 +232,10 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		promoter:               newPromoter(p.Promotions),
 		NullableWidening:       p.NullableWidening,
 		DiscriminatorInference: p.DiscriminatorInference,
+		IdempotencyInference:   p.IdempotencyInference,
+		SecretInference:        p.SecretInference,
+		HTTPDateInference:      p.HTTPDateInference,
+		ReplacementInference:   p.ReplacementInference,
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,

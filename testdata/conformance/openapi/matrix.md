@@ -70,7 +70,7 @@ witnessing it.
 
 ### `encoding-hints`
 
-- Witnesses: `encoding-byte`, `content-vocabulary`
+- Witnesses: `encoding-byte`, `content-vocabulary`, `http-date-inference`
 
 ### `wire-name-distinct`
 
@@ -96,7 +96,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`, `extension-redaction`
+- Witnesses: `secret-format`, `extension-redaction`, `secret-inference`
 
 ### `recursive-types`
 
@@ -178,10 +178,7 @@ witnessing it.
 
 ### `idempotency`
 
-- Uncovered: OpenAPI conveys it through HTTP verb semantics alone, and the method string
-  http-binding pins is the whole of what a spec could read. ir.Idempotency models the capability,
-  and a pass inferring safe/idempotent from that method is what would let a spec witness the row;
-  this retires when one lands
+- Witnesses: `idempotency-inference`
 
 ### `auth-schemes`
 
@@ -201,7 +198,8 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`,
+  `replacement-inference`
 
 ### `stability`
 

@@ -63,7 +63,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `operation-links` | Links from a response to the operation it leads to | ✅ links | — | — | ⚠ @references (to a resource) | — | — | ⚠ resource_reference (to a resource) | — |
 | `pagination` | Pagination (first-class) | ⚠ x-* / links | — | ✅ @list/@pageItems + prev/first/last links | ✅ paginated trait | ⚠ connections | — | ⚠ AIP-158 | — |
 | `long-running-operations` | Long-running operations | ⚠ x-* | — | ⚠ Azure.Core @pollingOperation | ⚠ smithy.waiters | — | — | ⚠ google.longrunning | ⚠ send_request |
-| `idempotency` | Idempotency | ⚠ verb semantics | ⚠ | — | ✅ idempotent/@idempotencyToken | — | — | ✅ idempotency_level | — |
+| `idempotency` | Idempotency | ⚠ verb semantics, Idempotency-Key header | ⚠ | — | ✅ idempotent/@idempotencyToken | — | — | ✅ idempotency_level | — |
 | `auth-schemes` | Auth schemes | ✅ securitySchemes | ✅ | ✅ @useAuth | ✅ auth traits | — | ✅ (wide: SASL/X509/userPassword; attaches to servers) | ⚠ | — |
 | `per-op-auth` | Per-op auth override (AND/OR) | ✅ security | ✅ | ✅ | ⚠ OR only, priority-ordered | — | ✅ | — | — |
 | `servers` | Servers / endpoints | ✅ servers+vars (3.2 named) | ✅ host | ✅ @server | ⚠ @endpoint hostPrefix only | — | ✅ named servers+protocols+security | — | ⚠ nodes/registry |
