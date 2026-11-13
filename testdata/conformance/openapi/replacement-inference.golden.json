@@ -443,6 +443,74 @@
             "pointer": "/components/schemas/Zone/properties/legacy",
             "inferred": "extension-promotion"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/created",
+          "name": {
+            "source": "created",
+            "canonical": "created"
+          },
+          "wireName": "created",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {
+            "message": "Use `created_at` or `createdAt` instead."
+          },
+          "unmodeled": {
+            "openapi:x-deprecated-reason": {
+              "reason": "vendor_extension",
+              "value": "Use `created_at` or `createdAt` instead.",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Zone/properties/created/x-deprecated-reason"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/created",
+            "inferred": "extension-promotion"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/created_at",
+          "name": {
+            "source": "created_at",
+            "canonical": "created_at"
+          },
+          "wireName": "created_at",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/created_at"
+          }
         }
       ],
       "abstract": false,
@@ -475,11 +543,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/undecided-replacement",
+      "message": "no replacement is inferred: \"createdAt\" names no property",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/created"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "replacement-inference.yaml",
-      "hash": "dcd36c34c0d3f600318ce17b22710b1ad77268791a55aace3b02b9787d579f75"
+      "hash": "87d1583df686c39e43c834119341683035c710b378f59daf3af3681ac4c00cd6"
     }
   ]
 }

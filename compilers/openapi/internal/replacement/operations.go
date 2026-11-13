@@ -29,12 +29,10 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 		}
 		return ir.EntityRef{Operation: found[0]}, 1
 	}
-	routes := indexRoutes(ops)
 	var diags []ir.Diagnostic
 	for _, op := range ops {
-		self := ir.EntityRef{Operation: op.ID}
-		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, self, "operation", operation)...)
-		r.message(op.Unmodeled, op.Deprecation, &op.Provenance, self, routes.named, routes.find)
+		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, ir.EntityRef{Operation: op.ID},
+			"operation", operation)...)
 		diags = append(diags, r.params(op)...)
 		diags = append(diags, r.payload(op.Request)...)
 		for i := range op.Responses {
@@ -76,23 +74,27 @@ func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
 	return diags
 }
 
-// params fills each parameter's replacements, among op's parameters, which are
-// indexed once, where a parameter first names one.
+// params fills each parameter's replacements, among op's parameters.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
+	param := paramFinder(op)
+	diags := make([]ir.Diagnostic, 0, len(op.Params))
+	for i := range op.Params {
+		p := &op.Params[i]
+		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Param: p.ID}, "parameter", param)...)
+	}
+	return diags
+}
+
+// paramFinder returns what finds a parameter of op by name, as a link's key
+// names one (lowering.ParamIndex.Named). op's parameters are indexed once,
+// where a name is first looked for.
+func paramFinder(op *ir.Operation) func(string) (ir.EntityRef, int) {
 	var ix *lowering.ParamIndex
-	param := func(name string) (ir.EntityRef, int) {
+	return func(name string) (ir.EntityRef, int) {
 		if ix == nil {
 			ix = new(lowering.IndexParams(op))
 		}
 		id, matched := ix.Named(name)
 		return ir.EntityRef{Param: id}, matched
 	}
-	diags := make([]ir.Diagnostic, 0, len(op.Params))
-	for i := range op.Params {
-		p := &op.Params[i]
-		self := ir.EntityRef{Param: p.ID}
-		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, self, "parameter", param)...)
-		r.message(p.Unmodeled, p.Deprecation, &p.Provenance, self, codeSpans, param)
-	}
-	return diags
 }

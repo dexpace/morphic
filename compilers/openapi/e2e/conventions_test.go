@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -29,6 +30,10 @@ var conventionCases = []string{
 // conventionMarks are the markers those policies leave on what they fill.
 var conventionMarks = []ir.Inferred{openapi.IdempotencyInferenceHeuristic, openapi.SecretInferenceHeuristic,
 	openapi.HTTPDateInferenceHeuristic, openapi.ReplacementInferenceHeuristic}
+
+// conventionCodes are what those policies report.
+var conventionCodes = []string{"openapi/undecided-idempotency", "openapi/undecided-replacement",
+	"openapi/inferred-http-date"}
 
 // useFacts is what the conventions fill on one operation, keyed by the ID of
 // the operation, parameter or header holding each: the order oracle compares
@@ -70,9 +75,9 @@ func conventionFacts(doc *ir.Document) map[string]useFacts {
 // TestConventions_DeclarationOrderChangesNothing compiles each convention's
 // case as written and with every mapping reversed, its paths, methods,
 // headers and members among them, and requires the same facts on each
-// operation, parameter and header, so no reading turns on which of two
-// declarations lowered first: a replacement declared after what it replaces
-// is named as one declared before it is.
+// operation, parameter and header, and the same reports, so no reading turns
+// on which of two declarations lowered first: a replacement declared after
+// what it replaces is named as one declared before it is.
 func TestConventions_DeclarationOrderChangesNothing(t *testing.T) {
 	t.Parallel()
 	for _, name := range conventionCases {
@@ -80,10 +85,11 @@ func TestConventions_DeclarationOrderChangesNothing(t *testing.T) {
 			t.Parallel()
 			src, err := os.ReadFile(filepath.Join(conformanceDir, name+".yaml"))
 			require.NoError(t, err)
-			written, _ := parseFull(t, string(src))
-			backward, _ := parseFull(t, string(reversed(t, string(src))))
+			written, writtenDiags := parseFull(t, string(src))
+			backward, backwardDiags := parseFull(t, string(reversed(t, string(src))))
 			facts := conventionFacts(written)
 			assert.Empty(t, cmp.Diff(facts, conventionFacts(backward)))
+			assert.Empty(t, cmp.Diff(conventionReports(writtenDiags), conventionReports(backwardDiags)))
 			filled := 0
 			for _, f := range facts {
 				for _, mark := range conventionMarks {
@@ -97,9 +103,23 @@ func TestConventions_DeclarationOrderChangesNothing(t *testing.T) {
 	}
 }
 
+// conventionReports is each of diags the conventions report, by its code,
+// pointer and message, sorted: a reversed source moves every line.
+func conventionReports(diags []ir.Diagnostic) []string {
+	var out []string
+	for _, d := range diags {
+		if slices.Contains(conventionCodes, d.Code) {
+			out = append(out, d.Code+" "+string(d.Provenance.Pointer)+" "+d.Message)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
 // TestConventions_DisabledFillsNothing compiles each convention's case with
-// every one of the four policies off, and requires none of their marks, so
-// each switch reaches the compile through the public Options.
+// every one of the four policies off, and requires none of their marks and
+// none of their reports, so each switch reaches the compile through the
+// public Options.
 func TestConventions_DisabledFillsNothing(t *testing.T) {
 	t.Parallel()
 	opts := openapi.Options{
@@ -113,10 +133,13 @@ func TestConventions_DisabledFillsNothing(t *testing.T) {
 			t.Parallel()
 			src, err := os.ReadFile(filepath.Join(conformanceDir, name+".yaml"))
 			require.NoError(t, err)
-			doc, _, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(string(src))},
+			doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(string(src))},
 				compilers.Options{FormatOptions: opts})
 			require.NoError(t, err)
 			require.NotNil(t, doc)
+			for _, code := range conventionCodes {
+				assert.False(t, openapitest.HasDiag(diags, code), code)
+			}
 			for id, f := range conventionFacts(doc) {
 				for _, mark := range conventionMarks {
 					assert.NotContains(t, string(f.Inferred), string(mark), id)

@@ -492,17 +492,20 @@ const (
 
 // switchOptions maps the name of each policy in o that text turns on or off to
 // the field saying it is off: the text names a policy as on or off, and the Go
-// field its being off, as each policy's Disabled does.
+// field its being off, as each policy's Disabled does. A name is the marker
+// the policy leaves on what it fills (docs/compilers/openapi.md#policies), but
+// for the streaming and binary policies', whose markers predate the rule
+// (#1847).
 func switchOptions(o *Options) map[string]*bool {
 	return map[string]*bool{
-		"nullable-widening":       &o.NullableWidening.Disabled,
-		"discriminator-inference": &o.DiscriminatorInference.Disabled,
-		"idempotency-inference":   &o.IdempotencyInference.Disabled,
-		"secret-inference":        &o.SecretInference.Disabled,
-		"http-date-inference":     &o.HTTPDateInference.Disabled,
-		"replacement-inference":   &o.ReplacementInference.Disabled,
-		"streaming-inference":     &o.StreamingMedia.Disabled,
-		"binary-inference":        &o.BinaryMedia.Disabled,
+		string(NullableWideningHeuristic):       &o.NullableWidening.Disabled,
+		string(DiscriminatorInferenceHeuristic): &o.DiscriminatorInference.Disabled,
+		string(IdempotencyInferenceHeuristic):   &o.IdempotencyInference.Disabled,
+		string(SecretInferenceHeuristic):        &o.SecretInference.Disabled,
+		string(HTTPDateInferenceHeuristic):      &o.HTTPDateInference.Disabled,
+		string(ReplacementInferenceHeuristic):   &o.ReplacementInference.Disabled,
+		"streaming-inference":                   &o.StreamingMedia.Disabled,
+		"binary-inference":                      &o.BinaryMedia.Disabled,
 	}
 }
 

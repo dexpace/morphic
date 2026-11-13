@@ -2,7 +2,7 @@
 # idempotency of its own, takes it as its idempotency token under the
 # idempotency policy, marked as inferred: on a method RFC 9110 does not define
 # as safe, the name compared without case, and only where one header carries
-# it.
+# it. One carrying it twice takes none and is reported as undecided.
 openapi: 3.1.0
 info: {title: IdempotencyInference, version: "1.0.0"}
 paths:

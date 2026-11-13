@@ -568,11 +568,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/undecided-idempotency",
+      "message": "no idempotency token is inferred: 2 header parameters are named Idempotency-Key, compared without case",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1payments~1{id}/delete"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "idempotency-inference.yaml",
-      "hash": "8a16c2d6983270ab3521774eead6e7d946b8f6744a43c10a989f222512c37878"
+      "hash": "77ffc66d1a3b66f2dcb71b518b723bc7e5126479395e6db458734ac2117b3424"
     }
   ]
 }

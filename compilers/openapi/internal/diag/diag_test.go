@@ -159,7 +159,7 @@ func codes() []string {
 		diag.MissingArrayItems, diag.LaterVersionConstruct, diag.ItemSchemaOnDocument,
 		diag.InvalidPathKey, diag.InferredNullable, diag.UnreadDialect, diag.InvalidItemsList,
 		diag.InferredDiscriminator,
-		diag.InferredHTTPDate,
+		diag.InferredHTTPDate, diag.UndecidedIdempotency, diag.UndecidedReplacement,
 	}
 }
 

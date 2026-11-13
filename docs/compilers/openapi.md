@@ -1134,13 +1134,12 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 ### `replacement-inference`
 
-The replacement policy reads what a deprecation's message names as its replacement into
-`Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)): the Go option
-`Options.ReplacementInference`, whose zero value is on and whose `Disabled` reads no message, and
-the text option `replacement-inference`, which `false` turns off (invariant 6). It reads the message
+The replacement policy, `Options.ReplacementInference` and the text option `replacement-inference`
+([`policies`](#policies)), reads what a deprecation's message names as its replacement into
+`Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)). It reads the message
 [`extension-promotion`](#extension-promotion) fills on three classes of deprecated node, each where
-no key the promotion maps to `deprecation.replacedBy` is written beside it, so a replacement a key
-names wins, and one a key fails to name stays unset:
+no key the promotion maps to `deprecation.replacedBy` is written beside it, and reports a message
+naming a replacement it cannot settle as an info `openapi/undecided-replacement`:
 
 1. An operation's message names an operation by its route: a word that is a method an operation of
    the document is bound with, a backtick or a parenthesis before it aside, then, after white
@@ -1154,26 +1153,30 @@ names wins, and one a key fails to name stays unset:
 3. A model member's message names, in each code span, a member of its model by name, a member the
    model's composition flattens in among them, as a replacement key names one.
 
-A code span is read as CommonMark reads one. The names fill the field all or none, the node itself
-passed over and a repeat kept once: a name naming no entity, or several, leaves the field unset in
-silence, since prose naming something else is no defect, and the message keeps its prose either way.
-The words around a name are not read, so a message naming a declared entity for another reason, as
-``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does, fills the field with it, and a
-document whose messages write so is compiled with the policy off. A node they fill has
-`Provenance.Inferred` naming `replacement-inference`. The reading runs once the document is whole,
-as a replacement may be declared after what it replaces. A Markdown link's title is display text and
-its URL a page of documentation, neither naming an entity the document holds, so a link is never
-read; nor is a header's, a schema's or a security scheme's message, where no measured document names
-a replacement such a scope resolves. On the golden spec (spec @86556f6f), of the 217 operations
-whose deprecation carries a message, 25 name a route the document declares, 16 in a code span and 9
-beside one, and take it; 10 name a path relative to the prefix the document mounts it under, which
-names no route as written, and 146 a link, and take nothing; 2 parameters and 32 members take the
-sibling a code span names. Each of the 59 is the replacement its message tells a caller to use.
+A code span is read as CommonMark reads one. The policy's trigger is a message naming an entity of
+the node's class other than the node: one naming none, or the node alone, fills nothing and is not
+reported, since prose naming something else is no defect. Where it names one, the names fill the
+field all or none, the node itself passed over and a repeat kept once: a name naming no entity, or
+several, leaves the field unset, reported at the node, quoting the first such name. The message
+keeps its prose either way. The words around a name are not read, so a message naming a declared
+entity for another reason, as ``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does,
+fills the field with it, and a document whose messages write so is compiled with the policy off. The
+reading runs once the document is whole, as a replacement may be declared after what it replaces. A
+Markdown link's title is display text and its URL a page of documentation, neither naming an entity
+the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
+message, where no measured document names a replacement such a scope resolves. On the golden spec
+(spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
+document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to the
+prefix the document mounts it under, which names no route as written, and 146 a link, and take
+nothing; 2 parameters and 32 members take the sibling a code span names. Each of the 59 is the
+replacement its message tells a caller to use, and no message is reported.
 
 - Cases: `replacement-inference`
+- Codes: `openapi/undecided-replacement`
 - Tests: `replacement.TestMessage_AnOperationsNamesItsReplacementByRoute`,
   `replacement.TestMessage_ARouteTwoOperationsShareNamesNone`,
   `replacement.TestMessage_AMembersAndAParametersNameSiblingsInCode`,
+  `replacement.TestMessage_ANameTwoParametersCarryIsReported`,
   `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
   `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
@@ -2993,31 +2996,30 @@ property, header or parameter that owns none, as `Secret`, inherited from a `$re
 
 ### `secret-inference`
 
-The secret policy redacts a value whose name says it is a credential where the document asks nothing
-about its redaction: the Go option `Options.SecretInference`, whose zero value is on and whose
-`Disabled` reads no name, and the text option `secret-inference`, which `false` turns off (invariant
-6). A parameter, a header of a response or of an encoding, or a model's member is `Secret`, its
-`Provenance.Inferred` naming `secret-inference`, where its name's canonical words, a number after
-them aside, end in `password`, `passwd`, `passphrase`, `secret` or `apikey`, in `pass` followed by
-`phrase`, in `api`, `access`, `secret` or `private` followed by `key`, or in `access`, `refresh`,
-`auth`, `bearer`, `session` or `api` followed by `token`, or are `authorization` or `proxy`
-`authorization` alone, the fields whose value RFC 9110 defines as credentials (§11.6.2, §11.7.2),
-and its type reads, through its scalars, as `string` or `bytes`. A name's last words decide what it
-names, so `secret_id`, `R2-Access-Key-Id`, `page_token` and `payment_authorization` name no
-credential while `password2` and `passPhrase` name one, and `token` alone names none, since one API
-calls a credential so and another a unit of text; a value of another type, as
-`has_password: {type: boolean}` or a `secret` object holding a credential's parts, is none either. A
-use already `Secret` takes nothing more, nor does one whose type is `Sensitive`
-([`password`](#password)), and a redaction key the promotion maps, written on the use or on a node
-its type reads through, decides whatever it says, so `x-sensitive: false` keeps a credential's name
-from asking. The reading waits for the document to be whole, since a `$ref` can name a type built
-after its use. Redaction changes how a value is shown and nothing sent, a wrong guess hiding a value
-from a log and a missed one printing a credential, so nothing is reported. On the golden spec, of
-the 123 uses its words and types match, the document redacts 93 itself, and the policy marks the
-other 30: the 2 `R2-Secret-Access-Key` header parameters and 28 members, 17 `authorization`, 4
-`client_secret`, 3 `password`, 2 `secret_access_key`, a `build_token_secret` and an `r2_secret`. One
-of the `password` members, a leaked-credential detection's, holds the ruleset expression that finds
-a password in a request rather than a password, which its name cannot tell apart (spec @86556f6f).
+The secret policy, `Options.SecretInference` and the text option `secret-inference`
+([`policies`](#policies)), redacts a value whose name says it is a credential where the document
+asks nothing about its redaction. A parameter, a header of a response or of an encoding, or a
+model's member is `Secret` where its name's canonical words, a number after them aside, end in
+`password`, `passwd`, `passphrase`, `secret` or `apikey`, in `pass` followed by `phrase`, in `api`,
+`access`, `secret` or `private` followed by `key`, or in `access`, `refresh`, `auth`, `bearer`,
+`session` or `api` followed by `token`, or are `authorization` or `proxy` `authorization` alone, the
+fields whose value RFC 9110 defines as credentials (§11.6.2, §11.7.2), and its type reads, through
+its scalars, as `string` or `bytes`. A name's last words decide what it names, so `secret_id`,
+`R2-Access-Key-Id`, `page_token` and `payment_authorization` name no credential while `password2`
+and `passPhrase` name one, and `token` alone names none, since one API calls a credential so and
+another a unit of text; a value of another type, as `has_password: {type: boolean}` or a `secret`
+object holding a credential's parts, is none either. Such a name on such a type is the policy's
+trigger, and it declines nothing that meets it: the document has spoken where the use is already
+`Secret` or its type `Sensitive` ([`password`](#password)), and where a redaction key the promotion
+maps is written on the use or on a node its type reads through, so `x-sensitive: false` keeps a
+credential's name from asking. What it fills the document leaves silent, so nothing is reported. The
+reading waits for the document to be whole, since a `$ref` can name a type built after its use. On
+the golden spec, of the 123 uses its words and types match, the document redacts 93 itself, and the
+policy marks the other 30: the 2 `R2-Secret-Access-Key` header parameters and 28 members, 17
+`authorization`, 4 `client_secret`, 3 `password`, 2 `secret_access_key`, a `build_token_secret` and
+an `r2_secret`. One of the `password` members, a leaked-credential detection's, holds the ruleset
+expression that finds a password in a request rather than a password, which its name cannot tell
+apart (spec @86556f6f).
 
 - Cases: `secret-inference`
 - Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
@@ -3699,31 +3701,35 @@ call, not a compiler's, and the diagnostic lets an emitter suppress it.
 
 ### `idempotency-inference`
 
-The idempotency policy reads an operation's idempotency token off the header its key travels in:
-the Go option `Options.IdempotencyInference`, whose zero value is on and whose `Disabled` reads
-none, and the text option `idempotency-inference`, which `false` turns off (invariant 6). An
-operation bound by `POST`, `PUT`, `PATCH` or `DELETE`, the methods among OpenAPI's fixed fields
-that RFC 9110 does not define as safe (§9.2.1), that states no idempotency of its own and binds
-exactly one header parameter named `Idempotency-Key`, compared without case, takes an
-`Idempotency` of the `idempotency_token` kind whose `TokenParam` names that parameter
-([operations](../ir/operations.md)), and its `Provenance.Inferred` names `idempotency-inference`.
-The name is the field the IETF HTTPAPI working group's Idempotency-Key draft defines for a caller's
-key, and no other spelling is read: no other header carries a key on the golden spec or in 1,840
-public OpenAPI 3 documents, and the one other parameter the golden spec names for one, the query
-parameter `idemp_key` of `POST /accounts/{account_id}/bulk/subscriptions`, abbreviates the name and
-describes nothing. A safe method needs no key, and what its binding defines says more of it than a
-token, so `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY` take none, nor does a method only an
-`additionalOperations` entry declares, whose safety the compiler does not know. An operation a
-webhook or a callback declares takes its token too: the API sends that request, and the key tells
-its receiver a delivery it has seen. Two header parameters of that name, which can differ only in
-case, name no one token, so the operation takes none. The reading departs from nothing the document
-says, so nothing is reported. On the golden spec it names the token of the 6 operations declaring
-the header, 5 `POST` and a `PUT`: 4 describe it as what makes a retry safe or keeps a request from
-applying twice, and 2 as a client command key whose reuse for another request is refused with a
-`409`, as a reused idempotency key is (spec @86556f6f).
+The idempotency policy, `Options.IdempotencyInference` and the text option `idempotency-inference`
+([`policies`](#policies)), reads an operation's idempotency token off the header its key travels
+in. Its trigger is a header parameter named `Idempotency-Key`, compared without case, the field the
+IETF HTTPAPI working group's Idempotency-Key draft defines for a caller's key; no other spelling is
+read, as no other header carries a key on the golden spec or in 1,840 public OpenAPI 3 documents,
+and the one other parameter the golden spec names for one, the query parameter `idemp_key` of
+`POST /accounts/{account_id}/bulk/subscriptions`, abbreviates the name and describes nothing. An
+operation bound by `POST`, `PUT`, `PATCH` or `DELETE`, the methods among OpenAPI's fixed fields that
+RFC 9110 does not define as safe (§9.2.1), that states no idempotency of its own and binds exactly
+one such header takes an `Idempotency` of the `idempotency_token` kind whose `TokenParam` names that
+parameter ([operations](../ir/operations.md)), with no report, as the document leaves the field
+silent. An operation a webhook or a callback declares takes its token too: the API sends that
+request, and the key tells its receiver a delivery it has seen.
+
+A safe method needs no key, and its binding already states what a token would, the plan reading the
+operation as safe off it, so the document has spoken: `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY`
+take no token and draw no report. Two cases meet the trigger and decline it, each reported as an
+info `openapi/undecided-idempotency` at the operation, saying why, the operation keeping the
+idempotency it states, which is none: a method only an `additionalOperations` entry declares, whose
+safety the compiler does not know, and two header parameters of that name, which can differ only in
+case and so name no one token. On the golden spec it names the token of the 6 operations declaring
+the header, 5 `POST` and a `PUT`, and reports none: 4 describe it as what makes a retry safe or keeps
+a request from applying twice, and 2 as a client command key whose reuse for another request is
+refused with a `409`, as a reused idempotency key is (spec @86556f6f).
 
 - Cases: `idempotency-inference`
+- Codes: `openapi/undecided-idempotency`
 - Tests: `convention.TestIdempotency_TheKeyHeaderIsTheToken`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`,
   `convention.TestIdempotency_DisabledReadsNoToken`,
   `openapi.TestDecodeOptions_TextReachesEveryField`,
   `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
@@ -4158,22 +4164,22 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
 
 ### `http-date-inference`
 
-The HTTP-date policy gives a response header the text its field's definition gives a date: the Go
-option `Options.HTTPDateInference`, whose zero value is on and whose `Disabled` reads no field, and
-the text option `http-date-inference`, which `false` turns off (invariant 6). A header of a
-response, an error case or the default, naming one field, whose name, compared without case, is a
-field an RFC defines as an HTTP-date, or as one in its date form, `Date`, `Last-Modified`,
-`If-Modified-Since`, `If-Unmodified-Since`, `Retry-After` and `If-Range` (RFC 9110 §6.6.1, §8.8.2,
-§13.1.3, §13.1.4, §10.2.3, §13.1.5), `Expires` (RFC 9111 §5.3) and `Sunset` (RFC 8594 §3), and
-whose type reads, through its scalars, as the `datetime_offset` `format: date-time` lowers to
-([`string-formats`](#string-formats)), with no `Encoding` on the header, as the media type of one
-declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
-`http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. It is an override
-of that one use, so a component a `$ref` names keeps its own text wherever else it is used. Its
-`Provenance.Inferred` names `http-date-inference`, and an info `openapi/inferred-http-date` at the
-header reports it, since `date-time` names RFC 3339's text, which the field's definition rules out.
-A header an encoding gives a part is a MIME header no such definition covers, and is not read. On
-the golden spec one header is read, the `Last-Modified` of
+The HTTP-date policy, `Options.HTTPDateInference` and the text option `http-date-inference`
+([`policies`](#policies)), gives a response header the text its field's definition gives a date. A
+header of a response, an error case or the default, naming one field, whose name, compared without
+case, is a field an RFC defines as an HTTP-date, or as one in its date form, `Date`,
+`Last-Modified`, `If-Modified-Since`, `If-Unmodified-Since`, `Retry-After` and `If-Range` (RFC 9110
+§6.6.1, §8.8.2, §13.1.3, §13.1.4, §10.2.3, §13.1.5), `Expires` (RFC 9111 §5.3) and `Sunset` (RFC
+8594 §3), and whose type reads, through its scalars, as the `datetime_offset` `format: date-time`
+lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the header, as the media type
+of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
+`http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
+a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
+declines nothing that meets it. It is an override of that one use, so a component a `$ref` names
+keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
+reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
+definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
+and is not read. On the golden spec one header is read, the `Last-Modified` of
 `GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
 HTTP-date (spec @86556f6f).
 
@@ -4480,6 +4486,57 @@ kept and reported as a written one is.
   `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
   (#396).
+
+### `policies`
+
+A fact the compiler fills by policy rather than reads off a keyword (invariant 6) is filled under
+one model, which each policy's rule cites rather than restates: a promotion's
+([`extension-promotion`](#extension-promotion)) and each inference's, as
+[`discriminator-inference`](#discriminator-inference) and
+[`idempotency-inference`](#idempotency-inference) are. Grouping
+([`tag-groups`](#tag-groups), [`extension-groups`](#extension-groups)) is outside it, since it picks
+how operations are arranged rather than filling a fact a node holds.
+
+1. **Injection.** Each policy is one field of `Options`, a struct whose zero value is the policy
+   switched on and whose `Disabled` switches it off, with a data member, such as the promotion's
+   `Targets` or a list of media types, only where a caller sets one. Each policy also has a text
+   option, a row of the compiler's one table of switches, spelled as the marker the policy leaves,
+   which `false` turns off.
+2. **Marking.** A fact is of one of three classes, which the `Inferred` list beside it tells apart
+   ([promotion](../ir/unmodeled.md#promotion)): declared by a keyword, with no marker; promoted from
+   an extension the document writes, marked `extension-promotion` on the node keeping the
+   extension; or inferred from a convention, marked on the node holding it by a name for the fact
+   in the form `<fact>-inference`, as `secret-inference` is. A flag a fact carries of its own, as
+   `Pagination.Inferred` and `Discriminator.Inferred` are, says only that no keyword declared it,
+   and the list says which of the other two classes filled it.
+3. **Precedence.** Where several state a fact, a keyword decides first, then a promotion, then an
+   inference; what a keyword's value states beside a promotion's key is the promotion's rule, as
+   [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference,
+   the document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's
+   target, whatever its value: a value filled, one that failed to resolve, and an explicit `false`
+   each keep the inference from filling that fact.
+4. **Reports.** An inference filling a field the document leaves silent reports nothing. One whose
+   reading replaces what the document writes, as an HTTP-date replaces the RFC 3339 text a written
+   `date-time` names, reports an info `openapi/inferred-<fact>`. One whose trigger, the evidence its
+   rule reads, is met where the document has not spoken, and which then declines to fill the fact,
+   reports an info `openapi/undecided-<fact>` saying why.
+5. **Placement and order.** A fact read once the document is whole is read in a package named for
+   the fact or for the convention, which imports only `ir` and the compiler's `diag` and
+   `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
+   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, then
+   the audits of what the policies read, so an inference sees what every promotion filled. A reading
+   a node needs while it lowers, as nullable widening's ([`nullable`](#nullable)), or while the
+   registry settles, as discriminator inference's, is made there instead.
+
+- Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: partly built: the promotion has no text option (#658), and nothing audits what the
+  policies read (#657); no policy fills `Pagination` (#989); and the streaming and binary policies
+  mark `streaming-media-type` and `binary-media-type`, which their options `streaming-inference`
+  and `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name
+  for the reading rather than the fact (#1847).
 
 ### `extension-promotion`
 

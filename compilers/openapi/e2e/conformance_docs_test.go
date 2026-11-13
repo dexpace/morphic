@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -313,8 +314,9 @@ func assertExamples32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // operation's message naming another's method and path, a parameter's naming a
 // sibling in code and a member's naming one fill ReplacedBy, marked beside the
 // promotion that read the message; a message naming a route or a member the
-// document does not declare fills nothing.
-func assertReplacementInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+// document does not declare fills nothing, and is reported only where it names
+// a member the document declares beside it.
+func assertReplacementInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const marked = "extension-promotion," + openapi.ReplacementInferenceHeuristic
 	v1, ok := opByName(doc, "listZonesV1")
 	require.True(t, ok)
@@ -345,4 +347,11 @@ func assertReplacementInference(t *testing.T, doc *ir.Document, _ []ir.Diagnosti
 	require.True(t, ok)
 	require.NotNil(t, legacy.Deprecation)
 	assert.Empty(t, legacy.Deprecation.ReplacedBy, "gone names no member")
+	created, ok := propByWire(zone, "created")
+	require.True(t, ok)
+	require.NotNil(t, created.Deprecation)
+	assert.Empty(t, created.Deprecation.ReplacedBy, "createdAt names no member, beside created_at")
+	assert.Equal(t, ir.Inferred("extension-promotion"), created.Provenance.Inferred, "marked for its message alone")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Zone/properties/created"},
+		openapitest.PointersOf(diags, "openapi/undecided-replacement"))
 }

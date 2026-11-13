@@ -39,12 +39,11 @@ func Apply(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 // of its parameters and of every header it declares, and the text of each of
 // its responses' headers.
 func operation(c lowering.Ctx, reg ir.TypeRegistry, op *ir.Operation) []ir.Diagnostic {
-	idempotency(c, op)
+	diags := idempotency(c, op)
 	for i := range op.Params {
 		p := &op.Params[i]
 		redactUse(c, reg, p.Name, p.Type, p.Unmodeled, &p.Secret, &p.Provenance)
 	}
-	var diags []ir.Diagnostic
 	for _, hs := range responseHeaders(op) {
 		for i := range hs {
 			redact(c, reg, &hs[i].Property)

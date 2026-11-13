@@ -3,7 +3,8 @@
 # path of an operation the document declares, a property's and a parameter's
 # by a code span naming a member of its model or a parameter of its operation.
 # A message naming something the document does not declare fills nothing, and
-# keeps its prose.
+# keeps its prose; one naming such a name beside a member it declares is
+# reported as undecided.
 openapi: 3.1.0
 info: {title: ReplacementInference, version: "1.0.0"}
 paths:
@@ -38,3 +39,5 @@ components:
         modified: {type: string, deprecated: true, x-deprecated-reason: Use `modified_at` instead.}
         modified_at: {type: string}
         legacy: {type: string, deprecated: true, x-deprecated-reason: Use `gone` instead.}
+        created: {type: string, deprecated: true, x-deprecated-reason: Use `created_at` or `createdAt` instead.}
+        created_at: {type: string}

@@ -4,12 +4,14 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -180,8 +182,14 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 // its case: a POST's Idempotency-Key header and a PUT's, through a $ref and in
 // lower case, are their tokens, marked; a GET, safe by its method, a PATCH
 // whose key is a query parameter, and a DELETE carrying the header twice in
-// two letter cases keep the idempotency the document leaves unknown.
-func assertIdempotencyInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+// two letter cases keep the idempotency the document leaves unknown, the
+// DELETE alone reported, as the one whose reading met its trigger and stopped.
+func assertIdempotencyInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Equal(t, []jsontext.Pointer{"/paths/~1payments~1{id}/delete"},
+		openapitest.PointersOf(diags, "openapi/undecided-idempotency"))
+	assert.Equal(t, "no idempotency token is inferred: 2 header parameters are named Idempotency-Key, compared without case",
+		openapitest.DiagMessageAt(t, diags, "openapi/undecided-idempotency", ir.SeverityInfo,
+			"/paths/~1payments~1{id}/delete"))
 	for _, tc := range []struct {
 		op    string
 		token ir.ParamID

@@ -4,43 +4,138 @@
 package replacement
 
 import (
+	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
 
-// message fills, under the replacement policy, the replacements dep's message
-// names, on a deprecated node, self, whose own keys write none, so that
-// nothing the promotion fills is read over: each name named reads in the
-// message, resolved by find. They fill the field all or none, a name resolving
-// to self passed over and a repeat kept once, so a name naming nothing, or
-// several entities, leaves the field unset in silence, the prose keeping it.
-// prov is marked where they fill it. The rule is
+// Infer fills, under the replacement policy, what the message of each
+// deprecated operation, parameter and model member names as its replacement,
+// where its own keys name none (message), and reports each message naming one
+// that it cannot settle. It runs after Resolve, as an inference reads after
+// every promotion (docs/compilers/openapi.md#policies). c is the source's
+// context.
+func Infer(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
+	if !c.ReplacementInference.Honours() {
+		return nil
+	}
+	r := resolver{c: c, p: c.Promoter(), doc: doc}
+	var diags []ir.Diagnostic
+	for i := range doc.Services {
+		diags = append(diags, r.inferService(&doc.Services[i])...)
+	}
+	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
+		if m, ok := doc.Types[id].(*ir.Model); ok && m != nil {
+			diags = r.inferMembers(diags, m)
+		}
+	}
+	return diags
+}
+
+// inferService reads the message of every operation svc holds, nested groups
+// included to ir.MaxGroupDepth, naming an operation by its route, and of each
+// of its parameters, naming a parameter beside it in code.
+func (r *resolver) inferService(svc *ir.Service) []ir.Diagnostic {
+	ops := lowering.Operations(svc)
+	routes := indexRoutes(ops)
+	var diags []ir.Diagnostic
+	for _, op := range ops {
+		diags = append(diags, r.message(deprecated{op.Unmodeled, op.Deprecation, &op.Provenance,
+			ir.EntityRef{Operation: op.ID}}, scope{"operation", routes.named, routes.find})...)
+		param := paramFinder(op)
+		for i := range op.Params {
+			p := &op.Params[i]
+			diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
+				ir.EntityRef{Param: p.ID}}, scope{"parameter", codeSpans, param})...)
+		}
+	}
+	return diags
+}
+
+// inferMembers reads the message of each of m's members, naming a member of
+// m in code, and returns diags with what it reports appended, as every
+// model's are, so a model reporting nothing allocates nothing.
+func (r *resolver) inferMembers(diags []ir.Diagnostic, m *ir.Model) []ir.Diagnostic {
+	member := memberFinder(r.doc.Types, m.ID)
+	for i := range m.Properties {
+		p := &m.Properties[i]
+		diags = append(diags, r.message(deprecated{p.Unmodeled, p.Deprecation, &p.Provenance,
+			ir.EntityRef{Property: p.ID}}, scope{"property", codeSpans, member})...)
+	}
+	return diags
+}
+
+// deprecated is a node whose deprecation's message Infer reads: the keys it
+// keeps, its deprecation, the provenance a replacement read marks, and the
+// entity it is.
+type deprecated struct {
+	own  ir.Unmodeled
+	dep  *ir.Deprecation
+	prov *ir.Provenance
+	self ir.EntityRef
+}
+
+// scope is how a message names an entity of one class: the class, as a report
+// names it, the names a message gives, and what finds the entity a name names,
+// returning how many it matches and the entity, read only where that is one.
+type scope struct {
+	class string
+	named func(string) []string
+	find  func(string) (ir.EntityRef, int)
+}
+
+// message fills, under the replacement policy, the replacements n's message
+// names, where n is deprecated and its own keys write none, so that nothing
+// the promotion fills is read over. A message naming no entity of n's class,
+// or n alone, names no replacement. One naming another fills the field all or
+// none, n passed over and a repeat kept once: a name naming nothing, or
+// several entities, leaves it unset, reported, the prose keeping it. n is
+// marked where they fill it. The rule is
 // docs/compilers/openapi.md#replacement-inference.
-func (r *resolver) message(own ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenance, self ir.EntityRef,
-	named func(string) []string, find func(string) (ir.EntityRef, int),
-) {
-	if !r.c.ReplacementInference.Honours() || dep == nil || r.p.Writes(own, lowering.TargetDeprecationReplacedBy) {
-		return
+func (r *resolver) message(n deprecated, s scope) []ir.Diagnostic {
+	if n.dep == nil || r.p.Writes(n.own, lowering.TargetDeprecationReplacedBy) {
+		return nil
 	}
-	names := named(dep.Message)
+	names := s.named(n.dep.Message)
 	refs := make([]ir.EntityRef, 0, len(names))
+	named, why := false, ""
 	for _, name := range names {
-		ref, matched := find(name)
-		if matched != 1 {
-			return
+		ref, matched := s.find(name)
+		if matched == 1 && ref == n.self {
+			continue
 		}
-		if ref != self && !slices.Contains(refs, ref) {
-			refs = append(refs, ref)
+		named = named || matched > 0
+		if matched == 1 {
+			if !slices.Contains(refs, ref) {
+				refs = append(refs, ref)
+			}
+			continue
+		}
+		if why == "" {
+			quantity := "no"
+			if matched > 1 {
+				quantity = "more than one"
+			}
+			why = fmt.Sprintf("%q names %s %s", name, quantity, s.class)
 		}
 	}
-	if len(refs) == 0 {
-		return
+	switch {
+	case !named:
+		return nil
+	case why != "":
+		at := *n.prov
+		at.Inferred = ""
+		return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.UndecidedReplacement, at,
+			"no replacement is inferred: %s", why)}
 	}
-	dep.ReplacedBy = refs
-	prov.Inferred = ir.JoinInferred(prov.Inferred, lowering.ReplacementInferenceHeuristic)
+	n.dep.ReplacedBy = refs
+	n.prov.Inferred = ir.JoinInferred(n.prov.Inferred, lowering.ReplacementInferenceHeuristic)
+	return nil
 }
 
 // codeSpans returns the content of each code span in text, in order, as
