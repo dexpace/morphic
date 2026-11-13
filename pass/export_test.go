@@ -141,3 +141,8 @@ func TypeRefVisits(doc *ir.Document, ids ...ir.TypeID) int {
 	}))
 	return n
 }
+
+// NarrowedHolds is narrowedHolds, for the external tests that cross its limit.
+func NarrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+	return narrowedHolds(types, target, key, limit)
+}

@@ -1617,6 +1617,36 @@ func TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder(t *testing.T) {
 	assert.Empty(t, cmp.Diff(forwardDiags, reversedDiags), "nor any diagnostic (-forward +reversed)")
 }
 
+// TestPartEncodings_AnUnreadNarrowingIsReported holds a body composing two
+// unions beside each other, a model whose shapes ir.NarrowedShapes does not
+// list, to one warning at its schema, and the entry of a part only a union's
+// variant declares to being kept whole, as one the body's type holds no
+// property for is.
+func TestPartEncodings_AnUnreadNarrowingIsReported(t *testing.T) {
+	t.Parallel()
+	const comps = "components:\n  schemas:\n" +
+		"    U: {oneOf: [{type: object, properties: {file: {type: string, format: binary}}}, {type: object, properties: {url: {type: string}}}]}\n" +
+		"    V: {oneOf: [{type: object, properties: {id: {type: integer}}}, {type: object, properties: {name: {type: string}}}]}\n"
+	mfd := requestMedia(multipartForm)
+	_, svc, diags := compileService(t, formDoc("", multipartForm,
+		"{allOf: [{$ref: '#/components/schemas/U'}, {$ref: '#/components/schemas/V'}, {type: object, properties: {note: {type: string}}}]}",
+		"{file: "+pngSource+"}", comps))
+	openapitest.RequireNoErrorDiags(t, diags)
+	content := formContent(t, svc, false)
+	assert.Equal(t, []ir.PropID{ir.PropID("p/openapi" + mfd + "/schema/allOf/2/properties/note")}, slices.Collect(maps.Keys(content.Encoding)),
+		"the model's own part is keyed")
+	assert.Equal(t, []string{"file"}, keptEncodingNames(content.Unmodeled))
+	var warned []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Severity == ir.SeverityWarning {
+			warned = append(warned, string(d.Provenance.Pointer)+": "+d.Message)
+		}
+	}
+	require.Len(t, warned, 1)
+	assert.Contains(t, warned[0], mfd+"/schema: ")
+	assert.Contains(t, warned[0], "narrows a union whose shapes are not read (several)")
+}
+
 // partEncodingIsEmpty reports whether pe states nothing, which the lowering
 // leaves out of Content.Encoding: a row expecting it states that the part
 // keys nothing.

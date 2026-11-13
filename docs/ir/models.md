@@ -209,11 +209,13 @@ lists that no member declares and the composition entries that name no model. It
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   ([payloads](./payloads.md)) or a discriminator's `Property`, names the declaration the flattening
   of that model takes, the content's type for an encoding key, or of each variant declaring the
-  part where that type is a union, so a consumer finds it on the member itself. The OpenAPI compiler
-  keys a part through the flattening, and tags a discriminator by an own property, which the
-  flattening takes. `pass.Validate` holds each only to a property the model
-  exposes, not yet to the one it takes, since a flattening per model it asks about grows
-  quadratically down a deep hierarchy, which its cost tests refuse.
+  part where that type is a union, or of each shape declaring it where that type, or a variant, is
+  a model narrowing a union ([below](#the-shapes-of-a-model-narrowing-a-union)), so a consumer finds
+  it on the member itself. The OpenAPI compiler keys a part through the flattening, and tags a
+  discriminator by an own property, which the flattening takes. `pass.Validate` holds each only to
+  a property the model exposes, or a shape of it holds, not yet to the one it takes, since a
+  flattening per model it asks about grows quadratically down a deep hierarchy, which its cost
+  tests refuse.
 - *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
   its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
   the walk needs no step budget and no recursion. Each type a redaction is read through is read once

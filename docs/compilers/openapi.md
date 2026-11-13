@@ -3879,7 +3879,12 @@ in its variants, the entry written applied to each and the structural flags and 
 read off that variant's declaration alone, so a part a file in one variant and text in another is
 both, each where it is declared. A schema declaring the part is read for one variant's declaration
 but where it declares another variant's, matched by the `PropID` its place gives it, so a
-declaration the `allOf` merge folds into a variant's is read with it. The parts are read by a walk
+declaration the `allOf` merge folds into a variant's is read with it. A body, or a variant, that is
+a model narrowing a union, as one composing a union beside a member of its own is, keys a part so
+under each shape it takes ([models](../ir/models.md#the-shapes-of-a-model-narrowing-a-union)), the
+declaration that shape's flattening takes, and one whose shapes `ir.NarrowedShapes` does not list,
+or not within a bound of its own, is reported as a warning `openapi/degraded-construct` at the body
+schema, since a part only its union's variants declare then has no key. The parts are read by a walk
 of the body's schema: the properties the schema its `$ref` chain ends on declares, then each `allOf`
 branch's, as [`allof-classification`](#allof-classification) flattens them, with the same cap, then
 each `oneOf` and `anyOf` branch's, of the schema and of each `allOf` branch. A `$ref` entry and a
@@ -4060,7 +4065,9 @@ in any case.
   `operation.TestPartEncodings_AContentTypeWrittenTakesNoDefault`,
   `operation.TestEncoding_ArrangingFieldsLowerWhereTheyTakeEffect`,
   `operation.TestEncoding_MultipartHeadersLower`,
-  `operation.TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder`
+  `operation.TestPartEncodings_AUnionBodyKeysEachVariantInEitherOrder`,
+  `operation.TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers`,
+  `operation.TestShapeFlattenings_ReadsShapesWithinItsLimit`
 - Status: partly built: a kept entry's unknown keys and reserved header names go unreported, as in
   the other objects kept whole (#1662); which reason keeps an entry OpenAPI gives no effect is open
   (#1791); and the parts a catch-all admits have no part encoding (#1805).

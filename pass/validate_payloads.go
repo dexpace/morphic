@@ -184,13 +184,24 @@ func appendUnknownPartDiags(dst []ir.Diagnostic, types ir.TypeRegistry, facts *i
 // partNamed reports whether key names a part of a body typed target: a
 // property the type exposes, or one a variant of the union it stands for
 // exposes, through the unions nested in its variants, as a composition
-// distributed across a union puts the body's properties on every variant
-// (docs/ir/payloads.md). Each union is read once, so a union nesting itself
-// ends.
+// distributed across a union puts the body's properties on every variant;
+// else one a shape of such a type that is a model narrowing a union holds
+// (narrowedHolds), which is read only then (docs/ir/payloads.md). A key the
+// type exposes is answered before any of them is listed.
 func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, key ir.PropID) bool {
 	if facts.Exposes(target, key) {
 		return true
 	}
+	holders := partHolders(types, target)
+	return slices.ContainsFunc(holders, func(h ir.TypeID) bool { return facts.Exposes(h, key) }) ||
+		slices.ContainsFunc(holders, func(h ir.TypeID) bool { return narrowedHolds(types, h, key, maxNarrowedSteps) })
+}
+
+// partHolders returns target and, where it stands for a union, the variants
+// of that union, through the unions nested in them, depth first. Each union is
+// read once, so a union nesting itself ends.
+func partHolders(types ir.TypeRegistry, target ir.TypeID) []ir.TypeID {
+	holders := []ir.TypeID{target}
 	read := map[*ir.Union]bool{}
 	pending := []ir.TypeID{target}
 	for len(pending) > 0 {
@@ -202,10 +213,28 @@ func partNamed(types ir.TypeRegistry, facts *irfacts.Index, target ir.TypeID, ke
 		}
 		read[u] = true
 		for _, v := range u.Variants {
-			if facts.Exposes(v.Type.Target, key) {
-				return true
-			}
+			holders = append(holders, v.Type.Target)
 			pending = append(pending, v.Type.Target)
+		}
+	}
+	return holders
+}
+
+// maxNarrowedSteps bounds the steps ir.NarrowedShapes takes for one type a
+// key is asked of (styleguide bounded-everything rule). It is the bound the
+// OpenAPI compiler keys a narrowing's parts under, so no key it writes is
+// refused for a walk cut shorter here.
+const maxNarrowedSteps = 100_000
+
+// narrowedHolds reports whether a shape of the model target, where it narrows
+// a union (ir.NarrowedShapes), holds a member declared as key: a part only one
+// of the union's variants declares, which the model exposes nowhere. A walk
+// past limit steps lists no shape, so it holds none.
+func narrowedHolds(types ir.TypeRegistry, target ir.TypeID, key ir.PropID, limit int) bool {
+	n, _, _ := ir.NarrowedShapes(types, target, limit)
+	for _, shape := range n.Shapes {
+		if slices.ContainsFunc(shape.Properties, func(fp ir.FlatProperty) bool { return fp.Property.ID == key }) {
+			return true
 		}
 	}
 	return false

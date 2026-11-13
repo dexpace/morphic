@@ -188,7 +188,8 @@ type Content struct {
 	// part property's PropID: of a part several declarations name, the one the
 	// flattening of Type takes (docs/ir/models.md#the-flattening), and of a union
 	// body, each variant's declaring it, through nested unions, each entry as
-	// that variant declares the part. No key is empty.
+	// that variant declares the part, as of each shape a model narrowing a union
+	// takes. No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads): how it travels, while Type stays what the source declares of it.

@@ -46,12 +46,12 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			members, complete := partMembers(reg, tc.body)
+			members, complete, _ := partMembers(reg, tc.body)
 			assert.Empty(t, members, "no property stands behind this body, and none is invented")
 			assert.True(t, complete)
 		})
 	}
-	members, complete := partMembers(reg, "t/model/cycle")
+	members, complete, _ := partMembers(reg, "t/model/cycle")
 	require.Len(t, members["file"], 1, "a model whose base closes on itself still has its own members")
 	assert.Equal(t, file.ID, members["file"][0].ID)
 	assert.True(t, complete)
@@ -59,9 +59,9 @@ func TestPartMembers_DeadEnds(t *testing.T) {
 
 // TestPartMembers_AUnionBodyHasItsVariantsMembers pins a body standing for a
 // union, as one a composition is distributed across does, through an alias
-// too: its members are its variants', through a union nested in a variant, in
-// source order, the first variant declaring a name naming it, and a
-// declaration several variants share listed once.
+// too: its members are its variants', through a union nested in a variant,
+// each variant's declaration of a name in source order, and a declaration
+// several variants share listed once.
 func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 	t.Parallel()
 	shared := ir.Property{ID: "p/body/file", WireName: "file"}
@@ -88,7 +88,7 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 		return out
 	}
 	for _, body := range []ir.TypeID{"t/u", "t/alias"} {
-		members, complete := partMembers(reg, body)
+		members, complete, _ := partMembers(reg, body)
 		assert.True(t, complete, "%s", body)
 		require.Len(t, members, 3, "%s", body)
 		assert.Equal(t, []ir.PropID{shared.ID}, ids(members["file"]), "a shared declaration is listed once: %s", body)
@@ -96,9 +96,91 @@ func TestPartMembers_AUnionBodyHasItsVariantsMembers(t *testing.T) {
 			"each variant's declaration, in source order, the nested union's in its place: %s", body)
 		assert.Equal(t, []ir.PropID{deep.ID}, ids(members["y"]), "a nested union's variant's member: %s", body)
 	}
-	members, complete := partMembers(reg, "t/nil")
+	members, complete, _ := partMembers(reg, "t/nil")
 	assert.Empty(t, members, "a typed nil union stands for no members")
 	assert.True(t, complete)
+}
+
+// narrowingRegistry holds t/n, a model declaring note and composing t/u, a
+// union of t/a, declaring file, and t/b, declaring url; t/two, composing t/u
+// and t/v, two unions; and t/plain, which composes no union.
+func narrowingRegistry() ir.TypeRegistry {
+	str := ir.TypeRef{Target: "t/prim/string"}
+	model := func(id ir.TypeID, props []ir.Property, mixins ...ir.TypeID) *ir.Model {
+		m := &ir.Model{ID: id, Properties: props}
+		for _, mixin := range mixins {
+			m.Mixins = append(m.Mixins, ir.TypeRef{Target: mixin})
+		}
+		return m
+	}
+	union := func(id ir.TypeID, variants ...ir.TypeID) *ir.Union {
+		u := &ir.Union{ID: id}
+		for _, v := range variants {
+			u.Variants = append(u.Variants, ir.Variant{Type: ir.TypeRef{Target: v}})
+		}
+		return u
+	}
+	return ir.TypeRegistry{
+		"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString},
+		"t/a":           model("t/a", []ir.Property{{ID: "p/a/file", WireName: "file", Type: str}}),
+		"t/b":           model("t/b", []ir.Property{{ID: "p/b/url", WireName: "url", Type: str}}),
+		"t/c":           model("t/c", []ir.Property{{ID: "p/c/id", WireName: "id", Type: str}}),
+		"t/u":           union("t/u", "t/a", "t/b"),
+		"t/v":           union("t/v", "t/c"),
+		"t/n":           model("t/n", []ir.Property{{ID: "p/n/note", WireName: "note", Type: str}}, "t/u"),
+		"t/two":         model("t/two", nil, "t/u", "t/v"),
+		"t/plain":       model("t/plain", []ir.Property{{ID: "p/plain/x", WireName: "x", Type: str}}),
+	}
+}
+
+// TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers pins a body that is
+// a model narrowing a union to its own members and each shape's, so a part
+// only a variant declares has a declaration to key, and a model narrowing two
+// unions, whose shapes ir.NarrowedShapes does not list, to its own alone,
+// named as unread.
+func TestPartMembers_AModelNarrowingAUnionHasItsShapesMembers(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	members, complete, unread := partMembers(reg, "t/n")
+	assert.True(t, complete)
+	assert.Empty(t, unread)
+	got := map[string][]ir.PropID{}
+	for name, decls := range members {
+		for _, d := range decls {
+			got[name] = append(got[name], d.ID)
+		}
+	}
+	assert.Equal(t, map[string][]ir.PropID{"note": {"p/n/note"}, "file": {"p/a/file"}, "url": {"p/b/url"}}, got)
+
+	members, _, unread = partMembers(reg, "t/two")
+	assert.Empty(t, members)
+	assert.Equal(t, []unreadNarrowing{{model: "t/two", why: "several"}}, unread)
+}
+
+// TestShapeFlattenings_ReadsShapesWithinItsLimit pins the shapes read to a
+// model narrowing a union, none to one composing no union, and a narrowing
+// whose walk passes the limit to none, named as unread past it.
+func TestShapeFlattenings_ReadsShapesWithinItsLimit(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	shapes, why := shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), maxNarrowedSteps)
+	assert.Nil(t, why)
+	assert.Len(t, shapes, 2, "one shape for each variant")
+	shapes, why = shapeFlattenings(reg, "t/plain", ir.FlattenedProperties(reg, "t/plain"), maxNarrowedSteps)
+	assert.Nil(t, why)
+	assert.Empty(t, shapes)
+	shapes, why = shapeFlattenings(reg, "t/n", ir.FlattenedProperties(reg, "t/n"), 1)
+	assert.Empty(t, shapes)
+	assert.Equal(t, &unreadNarrowing{model: "t/n", why: "past 1 steps"}, why)
+}
+
+// TestDeclaredProp_PlacesNothingTheBindingsDoNot pins that a schema the
+// bindings never read names no property, so a part's reading keeps it.
+func TestDeclaredProp_PlacesNothingTheBindingsDoNot(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	_, ok := declaredProp(l.ctx, oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{}))
+	assert.False(t, ok)
 }
 
 // TestMemberHolders_StopsPastItsBound pins that the union walk reads

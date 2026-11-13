@@ -70,6 +70,21 @@ paths:
                 - {type: object, properties: {doc: {type: string, format: binary}}}
                 - {type: object, properties: {doc: {type: array, items: {type: string, format: binary}}}}
       responses: {"204": {description: ok}}
+  # A body composing a union beside a member of its own lowers to a model
+  # narrowing that union: each shape it takes has its variant's parts.
+  /narrowed:
+    post:
+      operationId: narrowed
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/Upload'
+                - {type: object, properties: {note: {type: string}}}
+            encoding:
+              file: {contentType: image/png}
+      responses: {"204": {description: ok}}
 components:
   schemas:
     Either:
@@ -79,3 +94,7 @@ components:
             - {type: object, properties: {url: {type: string}}}
             - {type: object, properties: {id: {type: integer}}}
     Common: {type: object, properties: {name: {type: string}}}
+    Upload:
+      oneOf: [{$ref: '#/components/schemas/UploadFile'}, {$ref: '#/components/schemas/UploadLink'}]
+    UploadFile: {type: object, properties: {file: {type: string, format: binary}}}
+    UploadLink: {type: object, properties: {link: {type: string}}}

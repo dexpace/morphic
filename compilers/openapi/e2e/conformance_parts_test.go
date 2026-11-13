@@ -120,9 +120,9 @@ func assertMultipartDefaults32(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // assertEncodingUnionBranches pins a part only a union's branch declares to a
 // key on the variant declaring it, in each spelling: a oneOf body, an anyOf
 // behind a $ref with a union nested in a branch, a union on an allOf branch
-// the composition is distributed across, and a multi-typed body. A name two
-// branches declare is keyed under each, as each declares it. No entry is kept
-// whole.
+// the composition is distributed across, a multi-typed body, and a model
+// narrowing a union. A name two branches declare is keyed under each, as each
+// declares it. No entry is kept whole.
 func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	png := ir.PartEncoding{ContentTypes: []string{"image/png"}, Filename: true}
 	for op, want := range map[string]map[string]ir.PartEncoding{
@@ -130,6 +130,7 @@ func assertEncodingUnionBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		"anyOf":      {"file": png, "url": partOf(textPlain, ""), "id": partOf(textPlain, "")},
 		"composed":   {"targetUrl": partOf(textPlain, ""), "torrentfile": {ContentTypes: []string{"application/x-bittorrent"}, Filename: true}, "name": partOf(textPlain, "")},
 		"multiTyped": {"file": {ContentTypes: []string{"image/png"}, Filename: true, Inferred: "binary-media-type"}},
+		"narrowed":   {"file": png, "link": partOf(textPlain, ""), "note": partOf(textPlain, "")},
 	} {
 		parts, content := partsOf(t, doc, op)
 		assert.Equal(t, want, parts, op)

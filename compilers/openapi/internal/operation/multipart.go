@@ -5,6 +5,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -227,11 +228,16 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		td, ok := reg[id]
 		return td, ok
 	}
-	members, complete := partMembers(reg, k.body)
+	members, complete, unread := partMembers(reg, k.body)
 	var diags []ir.Diagnostic
 	if !complete {
 		diags = append(diags, k.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, k.schema,
 			"form body's type nests past %d unions, so a part only a union below them declares has no Content.Encoding key", maxPartUnions))
+	}
+	for _, n := range unread {
+		diags = append(diags, k.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, k.schema,
+			"form body's type %q narrows a union whose shapes are not read (%s), so a part only its variants declare "+
+				"has no Content.Encoding key", n.model, n.why))
 	}
 	for _, p := range k.parts {
 		decls := members[p.part.name]
@@ -291,17 +297,12 @@ func declarationOf(c lowering.Ctx, part bodyPart, d *ir.Property, decls []*ir.Pr
 
 // declaredProp returns the ID of the property whose schema is js, as the
 // schema lowering names one by where it is read, and false where the bindings
-// do not place js in a document the compile read.
+// do not place js in a document the compile read. Where they place it
+// nowhere, the zero position names the source, which is read and not used.
 func declaredProp(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (ir.PropID, bool) {
-	at, ok := c.Bindings().Site(js)
-	if !ok {
-		return "", false
-	}
-	dc, ok := lowering.InDocument(c, at.Doc)
-	if !ok {
-		return "", false
-	}
-	return dc.IDs().Prop(at.Pointer), true
+	at, placed := c.Bindings().Site(js)
+	dc, read := lowering.InDocument(c, at.Doc)
+	return dc.IDs().Prop(at.Pointer), placed && read
 }
 
 // keepWhole keeps the entry of p, a part the body's type holds no property for,
@@ -559,15 +560,13 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 }
 
 // partMembers returns, by wire name, the declarations the flattening of the
-// type body denotes takes for each of its members
-// (docs/ir/models.md#the-flattening), each an encoding key: what a reader of
-// the body's flattened shape looks up. A body standing for a union, as one a
-// composition is distributed across does, has its variants' members, through
-// the unions nested in them, each variant's declaration of a name in variant
-// order (docs/ir/payloads.md). A body standing for no model has none.
-// complete is false where more than maxPartUnions unions were read, past
-// which a member no union before them declares is missing.
-func partMembers(reg ir.TypeRegistry, body ir.TypeID) (members map[string][]*ir.Property, complete bool) {
+// type body denotes takes for each member, each an encoding key
+// (docs/ir/payloads.md): a union body's variants' too, through nested unions,
+// and each shape's of a body or variant narrowing a union (shapeFlattenings),
+// in that order. complete is false past maxPartUnions unions, where a member
+// only a union beyond them declares is missing, and unread names each model
+// whose shapes were not read.
+func partMembers(reg ir.TypeRegistry, body ir.TypeID) (members map[string][]*ir.Property, complete bool, unread []unreadNarrowing) {
 	node := func(id ir.TypeID) (ir.TypeDef, bool) {
 		td, ok := reg[id]
 		return td, ok
@@ -575,14 +574,57 @@ func partMembers(reg ir.TypeRegistry, body ir.TypeID) (members map[string][]*ir.
 	holders, complete := memberHolders(node, body)
 	members = map[string][]*ir.Property{}
 	for _, holder := range holders {
-		for _, fp := range ir.FlattenedProperties(reg, holder).Properties {
-			name := fp.Property.EffectiveWireName()
-			if !slices.ContainsFunc(members[name], func(p *ir.Property) bool { return p.ID == fp.Property.ID }) {
-				members[name] = append(members[name], fp.Property)
+		flat := ir.FlattenedProperties(reg, holder)
+		shapes, why := shapeFlattenings(reg, holder, flat, maxNarrowedSteps)
+		if why != nil {
+			unread = append(unread, *why)
+		}
+		for _, f := range append([]ir.Flattening{flat}, shapes...) {
+			for _, fp := range f.Properties {
+				name := fp.Property.EffectiveWireName()
+				if !slices.ContainsFunc(members[name], func(p *ir.Property) bool { return p.ID == fp.Property.ID }) {
+					members[name] = append(members[name], fp.Property)
+				}
 			}
 		}
 	}
-	return members, complete
+	return members, complete, unread
+}
+
+// maxNarrowedSteps bounds the steps ir.NarrowedShapes takes for one holder of
+// a form body's parts (styleguide bounded-everything rule), the bound the
+// emitter plan gives it (plan.MaxComposedSize), which pass.Validate's reading
+// of the same keys must not fall below.
+const maxNarrowedSteps = 100_000
+
+// unreadNarrowing is a model holding a form body's parts that narrows a union
+// whose shapes partMembers did not read, and why.
+type unreadNarrowing struct {
+	model ir.TypeID
+	why   string
+}
+
+// shapeFlattenings returns the flattening of each shape the model holder
+// takes where it narrows a union (ir.NarrowedShapes), whose own flattening is
+// flat: none where flat lists no conjunct naming no model, as no union is then
+// reached. why names a union narrowed whose shapes are not listed, as
+// Narrowing.Undistributed says or past limit steps.
+func shapeFlattenings(reg ir.TypeRegistry, holder ir.TypeID, flat ir.Flattening, limit int) ([]ir.Flattening, *unreadNarrowing) {
+	if len(flat.Unflattened) == 0 {
+		return nil, nil
+	}
+	n, _, ok := ir.NarrowedShapes(reg, holder, limit)
+	switch {
+	case !ok:
+		return nil, &unreadNarrowing{model: holder, why: fmt.Sprintf("past %d steps", limit)}
+	case n.Undistributed != "":
+		return nil, &unreadNarrowing{model: holder, why: string(n.Undistributed)}
+	}
+	out := make([]ir.Flattening, 0, len(n.Shapes))
+	for _, shape := range n.Shapes {
+		out = append(out, shape.Flattening)
+	}
+	return out, nil
 }
 
 // memberHolders returns the types whose members a body typed body has: body

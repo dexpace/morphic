@@ -46,7 +46,9 @@ type Content struct {
                                   // union, as one a composition is distributed across is, has its
                                   // variants' parts, through the unions nested in them, a part keyed
                                   // under each variant declaring it, each entry as that variant
-                                  // declares the part
+                                  // declares the part; and a body that is a model narrowing a
+                                  // union, or a variant that is one, each shape's parts
+                                  // (docs/ir/models.md)
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost
