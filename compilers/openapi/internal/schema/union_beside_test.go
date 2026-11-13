@@ -450,16 +450,25 @@ func TestAllOf_AHierarchyBaseBranchUnionHoldsItsDiscriminatorToItsRoutes(t *test
       allOf:
         - {type: object, properties: {kind: {type: string}}}
         - oneOf: [{$ref: '#/components/schemas/Puppy'}, {$ref: '#/components/schemas/Cat'}]
+    ByName:
+      discriminator: {propertyName: kind}
+      allOf:
+        - {type: object, properties: {kind: {type: string}}}
+        - oneOf: [{$ref: '#/components/schemas/Kitten'}, {$ref: '#/components/schemas/Cat'}]
 `, `    Puppy:
       allOf: [{$ref: '#/components/schemas/Mixed'}, {type: object, properties: {age: {type: integer}}}]
+    Kitten:
+      allOf: [{$ref: '#/components/schemas/ByName'}, {type: object, properties: {age: {type: integer}}}]
     Cat: {type: object, properties: {kind: {type: string}, meow: {type: boolean}}}
 `) {
-		mixed, ok := typeByName(doc, "Mixed").(*ir.Model)
-		require.True(t, ok, "Mixed is a hierarchy's base; got %T", typeByName(doc, "Mixed"))
-		assert.Nil(t, mixed.Discriminator, "it routes to Cat, no subtype of it")
-		assert.Contains(t, mixed.Unmodeled, "openapi:discriminator")
-		assert.Contains(t, mixed.Unmodeled, "openapi:allOf/1", "the union stays with its branch")
-		assert.True(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.DegradedConstruct, "/components/schemas/Mixed/discriminator"))
+		for _, name := range []string{"Mixed", "ByName"} {
+			m, ok := typeByName(doc, name).(*ir.Model)
+			require.True(t, ok, "%s is a hierarchy's base; got %T", name, typeByName(doc, name))
+			assert.Nil(t, m.Discriminator, "%s routes to Cat, no subtype of it, by a mapping or by name", name)
+			assert.Contains(t, m.Unmodeled, "openapi:discriminator", name)
+			assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "%s: the union stays with its branch", name)
+			assert.True(t, openapitest.HasDiagCodeAt(doc.Diagnostics, diag.DegradedConstruct, "/components/schemas/"+name+"/discriminator"))
+		}
 	}
 }
 
@@ -557,6 +566,10 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
       discriminator: {propertyName: size}
       allOf: [{$ref: '#/components/schemas/Pet'}, {`+sizes+`}]
     Lab: {allOf: [{$ref: '#/components/schemas/Pet'}, {$ref: '#/components/schemas/Collar'}], `+sizes+`}
+    Wolf:
+      discriminator: {propertyName: size, x-pack: true}
+      allOf: [{$ref: '#/components/schemas/Pet'}]
+      `+sizes+`
     Kennel: {allOf: [{$ref: '#/components/schemas/Dog'}, {properties: {name: {type: string}}}]}
     Outside: {$ref: '#/components/schemas/Bird/allOf/1'}
     Holder:
@@ -613,6 +626,12 @@ func TestUnion_ARoutedSubtypeComposesItsUnionAsAMixin(t *testing.T) {
 		hound := doc.Types["t/composed/components/schemas/Hound/allOf/1/oneOf"].(*ir.Union)
 		require.NotNil(t, hound.Discriminator, "a discriminator beside the union routes the Union")
 		assert.Equal(t, "size", hound.Discriminator.PropertyName)
+		wolf := typeByName(doc, "Wolf").(*ir.Model)
+		assert.Equal(t, ir.ReasonVendorExtension, wolf.Unmodeled["openapi:discriminator/x-pack"].Reason,
+			"what the schema's own discriminator adds rides on its node")
+		wolfUnion := doc.Types["t/composed/components/schemas/Wolf/oneOf"].(*ir.Union)
+		require.NotNil(t, wolfUnion.Discriminator)
+		assert.Empty(t, wolfUnion.Unmodeled, "and only there")
 		assert.True(t, ir.IsSubtype(doc, componentID("Kennel"), componentID("Pet")), "through Dog")
 		outside, ok := typeByName(doc, "Outside").(*ir.Scalar)
 		require.True(t, ok, "an outside $ref names the branch itself; got %T", typeByName(doc, "Outside"))
