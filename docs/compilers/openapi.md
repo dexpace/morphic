@@ -4591,10 +4591,11 @@ members of `x-fern-pagination`, and the `purpose` of `x-stainless-pagination-pro
 Neither reads an offset or a page number by default, since each convention leaves to its own
 configuration which of the two its walk counts.
 
-A page value is one member of every success response declaring a body, of each of its media types:
-one that a response or a media type holds at another member, as a header two success responses each
-declare does, resolves to nothing, as does a value a mark finds at two members as near the root, or
-at a header and a member of one response. The
+A page value is one member of every success response declaring a body, of each of its media types,
+and a header one of every success response, whether an expression or a mark names it, as a pager
+reads whichever arrives: one that a response or a media type holds at another member, or not at
+all, as a header two success responses each declare does, resolves to nothing, as does a value a
+mark finds at two members as near the root, or at a header and a member of one response. The
 fields fill a pagination whole or not at all: a value that resolves to nothing, two inputs
 continuing the walk, a cursor beside no next cursor or a next cursor beside no cursor, an offset or
 a page number beside no items, which a pager counts to advance an offset and to end either walk

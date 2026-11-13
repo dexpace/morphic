@@ -82,10 +82,12 @@ func (pg *pager) markedInput(op *ir.Operation, target lowering.ExtensionTarget, 
 
 // markedOutput resolves where src marks a value of a page: a member of the body
 // of the success responses, or one of their headers, which must all mark the
-// same one.
+// same one. A member is held by every response declaring a body, and a header
+// by every response, as an expression's value is.
 func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget, src lowering.ExtensionSource) (resolved[*ir.PropPath], string, []ir.Diagnostic) {
 	m := &marker{pg: pg, target: target, src: src}
 	r := resolved[*ir.PropPath]{at: op.Provenance}
+	var lacking, bodiedLacking bool // a response marks nothing, one declaring a body among them
 	for i := range op.Responses {
 		found, failure := m.inResponse(&op.Responses[i])
 		switch {
@@ -93,6 +95,8 @@ func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget,
 			r.stated = true
 			return r, failure, m.diags
 		case found == nil:
+			lacking = true
+			bodiedLacking = bodiedLacking || op.Responses[i].Payload != nil
 		case r.value == nil:
 			r.value, r.read, r.stated = found.path(), []*ir.Provenance{found.keeper}, true
 		case !sameOutput(r.value, found.path()):
@@ -100,6 +104,9 @@ func (pg *pager) markedOutput(op *ir.Operation, target lowering.ExtensionTarget,
 		default:
 			r.read = append(r.read, found.keeper)
 		}
+	}
+	if r.value != nil && (bodiedLacking || lacking && r.value.In == "header") {
+		return r, "marks a value one of the success responses does not hold", m.diags
 	}
 	return r, "", m.diags
 }
@@ -133,18 +140,21 @@ func (p *position) path() *ir.PropPath {
 	return &ir.PropPath{Segments: p.segments}
 }
 
-// within returns where m's source marks a value of body, the one position each
-// content marking one holds, and why it marks none where the contents mark
-// different members or one marks more than one.
+// within returns where m's source marks a value of body, the one position
+// every content holds, and why it marks none where the contents mark different
+// members, one marks more than one, or one marks none beside another marking
+// one, since a pager reads whichever content arrives.
 func (m *marker) within(body *ir.Payload) (*position, string) {
 	if body == nil {
 		return nil, ""
 	}
 	var out *position
+	lacking := false // a content marks nothing
 	for i := range body.Contents {
 		found := m.search(body.Contents[i].Type.Target)
 		switch {
 		case len(found) == 0:
+			lacking = true
 		case len(found) > 1 || found[0].shared:
 			return nil, "marks more than one member of a body, as near its root"
 		case out == nil:
@@ -152,6 +162,9 @@ func (m *marker) within(body *ir.Payload) (*position, string) {
 		case !slices.Equal(out.segments, found[0].segments):
 			return nil, "marks different members of a body's media types"
 		}
+	}
+	if out != nil && lacking {
+		return nil, "marks a member one of a body's media types does not hold"
 	}
 	return out, ""
 }

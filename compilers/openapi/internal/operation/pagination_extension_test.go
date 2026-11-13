@@ -308,9 +308,9 @@ func twoResponses(body string) string {
 }
 
 // TestPromotePagination_ReadsEverySuccessResponse pins a page value to the
-// success responses and their media types alike: each must hold it at one
-// member, a response with no body holding none, and a header no one member of
-// all of them. It also pins what sources of one target that state values on
+// success responses and their media types alike, whether an expression or a
+// mark names it: each must hold it at one member, a response with no body
+// holding none, and a header no one member of all of them. It also pins what sources of one target that state values on
 // one operation do: the policy's first decides, and a later one naming another
 // value is reported, while one naming the same is not.
 func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
@@ -350,6 +350,22 @@ func TestPromotePagination_ReadsEverySuccessResponse(t *testing.T) {
 			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}\n" +
 			"        \"201\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}",
 			"cursor in=param:c next=token", ""},
+		{"a mark beside a response with no body", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}\n" +
+			"        \"204\": {description: none}", "cursor in=param:c next=token", ""},
+		{"a mark one response's body does not hold", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Tokens'}}}}\n" +
+			"        \"201\": {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Query'}}}}",
+			"none", "marks a value one of the success responses does not hold"},
+		{"a marked header one response does not declare", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n" +
+			"          headers: {Next: {schema: {$ref: '#/components/schemas/Token'}}}\n" +
+			"        \"204\": {description: none}", "none", "marks a value one of the success responses does not hold"},
+		{"a mark one media type does not hold", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
+			"        \"200\":\n          description: ok\n          content:\n" +
+			"            application/json: {schema: {$ref: '#/components/schemas/Tokens'}}\n" +
+			"            text/csv: {schema: {type: string}}",
+			"none", "marks a member one of a body's media types does not hold"},
 		{"two media types marking two members", "      x-page: {cursor: $request.c}\n" + queryC + "      responses:\n" +
 			"        \"200\":\n          description: ok\n          content:\n" +
 			"            application/json: {schema: {$ref: '#/components/schemas/Tokens'}}\n" +
