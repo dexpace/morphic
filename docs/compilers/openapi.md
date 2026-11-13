@@ -1630,10 +1630,10 @@ composes as two models do (below). One judgment compares at most 64 pairs of mod
 member, since a `$ref` to a sibling position adds width at no cost in document size; past that the
 two are unrelated and compose, which loses nothing.
 An alias is narrower than the type it stands for, whatever its kind: a reference to it reads all
-that type says, and it may say more. Any other alias is judged, and a node it meets built, as the
-node it stands for where its chain ends in an enum, a `const`, a `Scalar`, a list, a map or a tuple:
-that node holding the bounds the chain and the node say together and each detail the nearest of them
-sets, as a reference to the alias reads it. So `{$ref: E, description: d}` and an `allOf` of `E`
+that type says, and it may say more. Against any other type, an alias whose chain ends in an enum, a
+`const`, a `Scalar`, a list, a map or a tuple is judged, and a node it meets built, as that node
+holding the bounds the chain and the node say together and each detail the nearest of them sets, as
+a reference to the alias reads it. So `{$ref: E, description: d}` and an `allOf` of `E`
 alone each meet an enum beside them as `E` would, holding what they add. Two aliases of one node are
 read only down to it, so they are judged as two `Scalar`s of one base are, and meet in an alias of
 it. A chain giving an encoding, bounds no one value states, bounds that a value an enum or a

@@ -68,14 +68,18 @@ func (r registry) aliasedNode(td ir.TypeDef, stop ir.TypeID) ([]*ir.Scalar, ir.T
 // aliases of one node stop being read through: what each adds to it is judged
 // against what the others add, and a node built of them stays an alias of it.
 func (r registry) sharedLink(tds ...ir.TypeDef) ir.TypeID {
-	chains := make([][]ir.TypeID, len(tds))
-	for k, td := range tds {
-		if chains[k] = r.links(td); len(chains[k]) == 0 {
+	first := r.links(tds[0])
+	if len(first) == 0 {
+		return ""
+	}
+	rest := make([][]ir.TypeID, len(tds)-1)
+	for k, td := range tds[1:] {
+		if rest[k] = r.links(td); len(rest[k]) == 0 {
 			return ""
 		}
 	}
-	for _, id := range chains[0] {
-		if !slices.ContainsFunc(chains[1:], func(ids []ir.TypeID) bool { return !slices.Contains(ids, id) }) {
+	for _, id := range first {
+		if !slices.ContainsFunc(rest, func(ids []ir.TypeID) bool { return !slices.Contains(ids, id) }) {
 			return id
 		}
 	}
