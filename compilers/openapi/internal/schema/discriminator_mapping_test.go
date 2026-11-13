@@ -5,7 +5,9 @@ package schema_test
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -236,67 +238,153 @@ func TestDiscriminatorMapping_ToAPureRefNamesItsTarget(t *testing.T) {
 	}
 }
 
-// TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap pins the
-// read-through's cap as behaviour rather than as a comment, as
+// TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap pins the chain's
+// bound as behaviour rather than as a comment, as
 // TestAllOf_DiscriminatorValueChainDeeperThanCap does for the ancestor walk. A
-// chain of $ref positions longer than the cap that is no cycle stops at the
-// position the cap reached, so the mapping names that position's alias. The
-// chain exactly the cap long is the control: it reads through to the component.
+// chain of $ref positions, or of components, longer than the bound that is no
+// cycle stops at the position the bound reached, so the mapping names what is
+// declared there. The chain exactly the bound long is the control: it reads
+// through to Dog, and tags it.
 func TestDiscriminatorMapping_ChainOfPositionsDeeperThanCap(t *testing.T) {
 	t.Parallel()
-	// The two cases below straddle the cap.
-	const hopCap = schema.MaxTypePositionHops
-	for _, tc := range []struct {
-		name  string
-		links int
-		want  ir.TypeID
+	const hopCap = schema.MaxChainHops
+	// Each kind writes a chain of links $refs from its first position, which
+	// first names, to Dog, and names its i-th position.
+	kinds := []struct {
+		name, first string
+		chain       func(links int) string
+		at          func(i int) ir.TypeID
 	}{
-		{"as long as the cap", hopCap, componentID("Dog")},
-		{"beyond the cap", hopCap + 1, ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Kennel/properties/a%d", hopCap))},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		{"positions", "'#/components/schemas/Kennel/properties/a0'", func(links int) string {
 			var kennel strings.Builder
 			kennel.WriteString("    Kennel:\n      type: object\n      properties:\n")
-			for i := range tc.links - 1 {
+			for i := range links - 1 {
 				fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Kennel/properties/a%d'}\n", i, i+1)
 			}
-			fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Dog'}\n", tc.links-1)
-			spec := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
-				"      discriminator: {propertyName: kind, mapping: {woofer: '#/components/schemas/Kennel/properties/a0'}}\n" +
-				"    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}\n" +
-				kennel.String()
+			fmt.Fprintf(&kennel, "        a%d: {$ref: '#/components/schemas/Dog'}\n", links-1)
+			return kennel.String()
+		}, func(i int) ir.TypeID {
+			return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/Kennel/properties/a%d", i))
+		}},
+		{"components", "C0", func(links int) string {
+			var chain strings.Builder
+			for i := range links - 1 {
+				fmt.Fprintf(&chain, "    C%d: {$ref: '#/components/schemas/C%d'}\n", i, i+1)
+			}
+			fmt.Fprintf(&chain, "    C%d: {$ref: '#/components/schemas/Dog'}\n", links-1)
+			return chain.String()
+		}, func(i int) ir.TypeID { return componentID(fmt.Sprintf("C%d", i)) }},
+	}
+	for _, kind := range kinds {
+		for _, tc := range []struct {
+			name  string
+			links int
+			want  ir.TypeID
+			tag   string
+		}{
+			{"as long as the cap", hopCap, componentID("Dog"), "woofer"},
+			{"beyond the cap", hopCap + 1, kind.at(hopCap), "Dog"},
+		} {
+			t.Run(kind.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				spec := "    Pet:\n      type: object\n      required: [kind]\n      properties: {kind: {type: string}}\n" +
+					"      discriminator: {propertyName: kind, mapping: {woofer: " + kind.first + "}}\n" +
+					"    Dog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {woof: {type: string}}}\n" +
+					kind.chain(tc.links)
 
-			doc, diags := parseFull(t, openapitest.ComponentSpec(spec))
+				doc, diags := parseFull(t, openapitest.ComponentSpec(spec))
 
-			openapitest.RequireNoErrorDiags(t, diags)
-			assert.Equal(t, map[string]ir.TypeID{"woofer": tc.want}, discriminatorOf(t, doc, componentID("Pet")).Mapping,
-				"a0 is %d $ref positions above the component", tc.links)
-		})
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Equal(t, map[string]ir.TypeID{"woofer": tc.want}, discriminatorOf(t, doc, componentID("Pet")).Mapping,
+					"the first is %d $refs above Dog", tc.links)
+				dog, ok := doc.Types[componentID("Dog")].(*ir.Model)
+				require.True(t, ok)
+				assert.Equal(t, tc.tag, dog.DiscriminatorValue, "a key, or Dog's name where none reaches it")
+			})
+		}
 	}
 }
 
-// TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow pins where the
-// read-through stops short of a target: a $ref into another document, one to
-// nothing, and one on a loop name no position a type is read at, so the
-// mapping keeps naming the position that $ref sits at, in either order of the
-// entries, and the $ref is reported where it is written.
-func TestDiscriminatorMapping_StopsAtAPureRefItCannotFollow(t *testing.T) {
+// TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError pins a value
+// whose chain reaches a $ref that lands on no schema, or on a loop: the one
+// mistake draws the one error its $ref draws where it is written, and nothing
+// else, pass.Validate included, in either declaration order. A union's value
+// naming the failing branch routes to the variant there, and a model's is left
+// out, as nothing is declared where its chain ends. Its last position is
+// lowered all the same, so a $ref only the mapping reaches is reported.
+func TestDiscriminatorMapping_ABrokenChainDrawsOnlyItsRefsError(t *testing.T) {
 	t.Parallel()
-	const branches = "      oneOf: [{$ref: 'other.yaml#/X'}, {$ref: '#/x-lib/Missing'}, {$ref: '#/components/schemas/Pet/oneOf/2'}]\n"
-	for _, mapping := range []string{"{e: '#/components/schemas/Pet/oneOf/0', m: '#/components/schemas/Pet/oneOf/1', " +
-		"l: '#/components/schemas/Pet/oneOf/2'}", "{l: '#/components/schemas/Pet/oneOf/2', " +
-		"m: '#/components/schemas/Pet/oneOf/1', e: '#/components/schemas/Pet/oneOf/0'}"} {
-		doc, diags := parseFull(t, openapitest.ComponentSpec("    Pet:\n"+branches+
-			"      discriminator: {propertyName: kind, mapping: "+mapping+"}\n")+"x-lib: {}\n")
-
-		branch := func(i string) ir.TypeID { return ir.TypeID("t/anon/components/schemas/Pet/oneOf/" + i) }
-		assert.Equal(t, map[string]ir.TypeID{"e": branch("0"), "m": branch("1"), "l": branch("2")},
-			discriminatorOf(t, doc, componentID("Pet")).Mapping, mapping)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/0"), mapping)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, "/components/schemas/Pet/oneOf/1"), mapping)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.CyclicRef, "/components/schemas/Pet/oneOf/2"), mapping)
+	const m = "/components/schemas/M/"
+	union := func(key, branches, entry string) []string {
+		return []string{"    M:\n      " + key + ": [" + branches + "]\n" +
+			"      discriminator: {propertyName: k, " + entry + "}\n"}
 	}
+	ref := func(pointer string) string { return "{$ref: '#" + pointer + "'}" }
+	model := func(mapping string) string {
+		return "    B:\n      type: object\n      properties: {k: {type: string}}\n" +
+			"      $defs: {Broken: {$ref: '#/components/schemas/Ghost', description: kept}}\n" +
+			"      discriminator: {propertyName: k, mapping: {" + mapping + "}}\n"
+	}
+	top := map[string]ir.TypeID{"a": "t/prim/any"}
+	tests := []struct {
+		name, version, owner string
+		blocks               []string
+		want                 []string // each diagnostic: severity, code and pointer
+		routes               map[string]ir.TypeID
+	}{
+		{"a branch on a loop", "3.1.0", "M", union("oneOf", ref(m+"oneOf/0"), "mapping: {a: '#"+m+"oneOf/0'}"),
+			[]string{"error openapi/cyclic-ref " + m + "oneOf/0"}, top},
+		{"a branch leading into a loop", "3.1.0", "M", union("oneOf", ref(m+"oneOf/1")+", "+ref(m+"oneOf/0"),
+			"mapping: {a: '#"+m+"oneOf/1'}"), []string{"error openapi/cyclic-ref " + m + "oneOf/0"}, top},
+		{"an anyOf branch", "3.1.0", "M", union("anyOf", ref(m+"anyOf/0"), "mapping: {a: '#"+m+"anyOf/0'}"),
+			[]string{"error openapi/cyclic-ref " + m + "anyOf/0"}, top},
+		{"a 3.2 defaultMapping", "3.2.0", "M", union("oneOf", ref(m+"oneOf/0"), "defaultMapping: '#"+m+"oneOf/0'"),
+			[]string{"error openapi/cyclic-ref " + m + "oneOf/0"}, map[string]ir.TypeID{"default": "t/prim/any"}},
+		{"a branch to nothing", "3.1.0", "M", union("oneOf", ref("/components/schemas/Ghost"),
+			"mapping: {a: '#"+m+"oneOf/0'}"), []string{"error openapi/unresolved-ref " + m + "oneOf/0"}, top},
+		{"a branch to a document not read", "3.1.0", "M", union("oneOf", "{$ref: 'other.yaml#/X'}",
+			"mapping: {a: '#"+m+"oneOf/0'}"), []string{"error openapi/unresolved-ref " + m + "oneOf/0"}, top},
+		{"a subtype's branch on a loop", "3.1.0", "B", []string{
+			"    B:\n      type: object\n      properties: {k: {type: string}}\n" +
+				"      discriminator: {propertyName: k, mapping: {a: '#/components/schemas/C/allOf/0'}}\n",
+			"    C: {allOf: [" + ref("/components/schemas/C/allOf/0") + ", " + ref("/components/schemas/B") + "]}\n",
+		}, []string{"error openapi/cyclic-ref /components/schemas/C/allOf/0"}, map[string]ir.TypeID{}},
+		{"what only the mapping reaches", "3.1.0", "B", []string{
+			model("a: '#/components/schemas/B/$defs/Broken', b: '#/components/schemas/C/allOf/0'"),
+			"    C: {allOf: [" + ref("/components/schemas/Ghost2") + ", " + ref("/components/schemas/B") + "]}\n",
+		}, []string{"error openapi/unresolved-ref /components/schemas/B/$defs/Broken",
+			"error openapi/unresolved-ref /components/schemas/C/allOf/0"}, map[string]ir.TypeID{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, reversed := range []bool{false, true} {
+				doc, diags := parseFull(t, rawSpec(tc.version, tc.blocks, "", reversed))
+				var got []string
+				for _, d := range append(diags, validated(t, doc)...) {
+					got = append(got, fmt.Sprintf("%s %s %s", d.Severity, d.Code, d.Provenance.Pointer))
+				}
+				slices.Sort(got)
+				assert.Equal(t, tc.want, got, "reversed %t", reversed)
+				d := discriminatorOf(t, doc, componentID(tc.owner))
+				routes := maps.Clone(d.Mapping)
+				if routes == nil {
+					routes = map[string]ir.TypeID{}
+				}
+				if d.Default != "" {
+					routes["default"] = d.Default
+				}
+				assert.Equal(t, tc.routes, routes, "reversed %t", reversed)
+			}
+		})
+	}
+	t.Run("the last position is lowered", func(t *testing.T) {
+		t.Parallel()
+		doc, _ := parseFull(t, openapitest.ComponentSpec(model("a: '#/components/schemas/B/$defs/Broken'")))
+		broken, ok := doc.Types["t/anon/components/schemas/B/$defs/Broken"]
+		require.True(t, ok, "only the mapping reaches $defs/Broken")
+		assert.Equal(t, "kept", broken.Common().Docs.Description, "what is written beside its $ref")
+	})
 }
 
 // TestDiscriminatorMapping_ThroughARefNamingTheSourceByItsFileName pins a
@@ -762,7 +850,7 @@ func TestDiscriminatorMapping_ReadsAValueNamingNoComponentAsAReference(t *testin
 	}
 	tags := map[ir.TypeID]string{"t/anon@cat.yaml": "f", "t/anon@other.yaml/X": "x", componentID("Tabby"): "c"}
 
-	var docs []*ir.Document
+	docs := make([]*ir.Document, 0, 2)
 	for _, reversed := range []bool{false, true} {
 		doc, diags, _ := compileFiles(t, valueFiles, rawSpec("3.2.0", blocks, "", reversed), openapi.Options{})
 		openapitest.RequireNoErrorDiags(t, diags)
@@ -851,5 +939,131 @@ func TestDiscriminatorMapping_ReportsAValueNamingNothingOnce(t *testing.T) {
 		}, reported(diags), "reversed %t", reversed)
 		assert.Equal(t, map[string]ir.TypeID{"c": componentID("Cat")}, discriminatorOf(t, doc, componentID("Pets")).Mapping)
 		assert.Empty(t, discriminatorOf(t, doc, componentID("Pets")).Default)
+	}
+}
+
+// TestDiscriminatorMapping_ReadsThroughAComponentThatIsARef pins a value
+// naming a component that writes a $ref, bare or beside a keyword, the last of
+// a chain of three, or before a position that writes one: the component lowers
+// to an alias over what its $ref names, which is no subtype or variant, so the
+// value routes to the type its chain ends on. A base routes each to Sub, which
+// takes the least key as its tag, and a union to the variant, writing no route
+// by name for a variant an entry routes. Each holds in either declaration
+// order, and the document validates.
+func TestDiscriminatorMapping_ReadsThroughAComponentThatIsARef(t *testing.T) {
+	t.Parallel()
+	blocks := []string{`    Root:
+      type: object
+      required: [kind]
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {sub: AliasSub, sib: '#/components/schemas/SiblingSub', tri: Alias3, via: Holder}
+`, "    Sub: {allOf: [{$ref: '#/components/schemas/Root'}], properties: {extra: {type: string}}}\n",
+		"    AliasSub: {$ref: '#/components/schemas/Sub'}\n",
+		"    SiblingSub: {$ref: '#/components/schemas/Sub', description: a ref with a sibling}\n",
+		"    Alias3: {$ref: '#/components/schemas/Alias2'}\n",
+		"    Alias2: {$ref: '#/components/schemas/AliasSub'}\n",
+		"    Holder: {$ref: '#/components/schemas/Box/properties/p'}\n",
+		"    Box: {type: object, properties: {p: {$ref: '#/components/schemas/Sub'}}}\n", `    Pet:
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+      discriminator: {propertyName: kind, mapping: {cat: CatAlias, sib: CatSibling, dog: Dog}}
+`, "    Cat: {type: object, required: [kind], properties: {kind: {type: string}}}\n",
+		"    Dog: {type: object, required: [kind], properties: {kind: {type: string}}}\n",
+		"    CatAlias: {$ref: '#/components/schemas/Cat'}\n",
+		"    CatSibling: {$ref: '#/components/schemas/Cat', description: a ref with a sibling}\n"}
+	for _, reversed := range []bool{false, true} {
+		doc, diags := parseFull(t, rawSpec("3.1.0", blocks, "", reversed))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, validated(t, doc), "every route is a subtype or a variant")
+		sub := componentID("Sub")
+		assert.Equal(t, map[string]ir.TypeID{"sub": sub, "sib": sub, "tri": sub, "via": sub},
+			discriminatorOf(t, doc, componentID("Root")).Mapping, "reversed %t", reversed)
+		subModel, ok := doc.Types[sub].(*ir.Model)
+		require.True(t, ok)
+		assert.Equal(t, "sib", subModel.DiscriminatorValue)
+		assert.Equal(t, []string{"info " + diag.DegradedConstruct + " /components/schemas/Sub: the discriminator mapping " +
+			"names this schema under 4 keys (sib, sub, tri, via); discriminatorValue holds the smallest in byte order, " +
+			"and the base's mapping keeps them all"}, reported(diags), "the keys naming Sub, and nothing else")
+		assert.Equal(t, map[string]ir.TypeID{"cat": componentID("Cat"), "sib": componentID("Cat"), "dog": componentID("Dog")},
+			discriminatorOf(t, doc, componentID("Pet")).Mapping, "no route by name: an entry routes Cat")
+	}
+}
+
+// TestDiscriminatorMapping_RoutesToTheNearestVariant pins which variant a
+// union's value routes to (docs/compilers/openapi.md#discriminator): reading
+// its chain from the position it names, the first position a branch meets
+// decides, a branch being that position, or having that type, before a branch
+// whose $ref chain passes it. Each row holds in either declaration order, with
+// nothing reported and the document valid.
+func TestDiscriminatorMapping_RoutesToTheNearestVariant(t *testing.T) {
+	t.Parallel()
+	const (
+		viaAlias  = "{$ref: '#/components/schemas/CatAlias', description: a cat}"
+		cat       = "{$ref: '#/components/schemas/Cat'}"
+		aliasCat  = "{$ref: '#/components/schemas/Cat', description: a cat}"
+		catAlias  = "{$ref: '#/components/schemas/CatAlias'}"
+		inline    = "{type: object, properties: {kind: {type: string}}}"
+		branchOne = "t/anon/components/schemas/Pet/oneOf/0"
+	)
+	for _, c := range []struct {
+		name, branches, value string
+		want                  ir.TypeID // "" for the variant the second branch has
+	}{
+		{"a component a branch passes, before the type one is", viaAlias + ", " + cat, "CatAlias", branchOne},
+		{"the type a branch has, before a branch passing it", viaAlias + ", " + cat, "Cat", componentID("Cat")},
+		{"the type a branch has, written first", cat + ", " + viaAlias, "Cat", componentID("Cat")},
+		{"a component a branch has", catAlias, "CatAlias", componentID("CatAlias")},
+		{"a branch by its pointer", catAlias, "'#/components/schemas/Pet/oneOf/0'", componentID("CatAlias")},
+		{"an inline branch by its pointer", cat + ", " + inline, "'#/components/schemas/Pet/oneOf/1'",
+			"t/anon/components/schemas/Pet/oneOf/1"},
+		{"the one branch passing a type", aliasCat, "Cat", branchOne},
+		{"the one branch passing what a component names", aliasCat, "CatAlias", branchOne},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			blocks := []string{"    Pet:\n      oneOf: [" + c.branches + "]\n" +
+				"      discriminator: {propertyName: kind, mapping: {c: " + c.value + "}}\n",
+				"    Cat: {type: object, properties: {kind: {type: string}}}\n",
+				"    CatAlias: {$ref: '#/components/schemas/Cat'}\n"}
+			for _, reversed := range []bool{false, true} {
+				doc, diags := parseFull(t, rawSpec("3.1.0", blocks, "", reversed))
+				assert.Empty(t, withCode(diags, diag.DegradedConstruct), "nothing is elected")
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Empty(t, validated(t, doc), "the route is a variant")
+				assert.Equal(t, c.want, discriminatorOf(t, doc, componentID("Pet")).Mapping["c"], "reversed %t", reversed)
+			}
+		})
+	}
+}
+
+// TestDiscriminatorMapping_LeavesAValueNamingNoVariantToValidate pins a value
+// naming a schema that is no variant of its union, or no subtype of its base:
+// the compiler routes to it and reports nothing, as the value names a schema,
+// and pass.Validate reports the route once, in either declaration order.
+func TestDiscriminatorMapping_LeavesAValueNamingNoVariantToValidate(t *testing.T) {
+	t.Parallel()
+	blocks := []string{
+		"    Pet:\n      oneOf: [{$ref: '#/components/schemas/Cat'}]\n" +
+			"      discriminator: {propertyName: kind, mapping: {c: Cat, b: Bird}}\n",
+		"    Base:\n      type: object\n      properties: {kind: {type: string}}\n" +
+			"      discriminator: {propertyName: kind, mapping: {b: '#/components/schemas/Bird'}}\n",
+		"    Cat: {type: object, properties: {kind: {type: string}}}\n",
+		"    Bird: {type: object, properties: {kind: {type: string}}}\n",
+	}
+	for _, reversed := range []bool{false, true} {
+		doc, diags := parseFull(t, rawSpec("3.1.0", blocks, "", reversed))
+		assert.Empty(t, diags, "the compiler reports nothing")
+		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Pet")).Mapping["b"])
+		assert.Equal(t, componentID("Bird"), discriminatorOf(t, doc, componentID("Base")).Mapping["b"])
+		var got []string
+		for _, d := range validated(t, doc) {
+			got = append(got, d.Code+": "+d.Message)
+		}
+		slices.Sort(got)
+		const missing = "pass/discriminator-missing-variant: discriminator mapping \"b\" on "
+		const bird = " references \"t/openapi/components/schemas/Bird\", which is not a variant of it"
+		assert.Equal(t, []string{missing + string(componentID("Base")) + bird, missing + string(componentID("Pet")) + bird},
+			got, "reversed %t", reversed)
 	}
 }

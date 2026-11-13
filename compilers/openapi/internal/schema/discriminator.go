@@ -4,7 +4,6 @@
 package schema
 
 import (
-	"cmp"
 	"encoding/json/jsontext"
 	"maps"
 	"slices"
@@ -23,313 +22,30 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerDiscriminator lowers a schema's discriminator. Each mapping entry
-// resolves to a target TypeID (a bare name implies
-// #/components/schemas/<name>; nil stays nil, preserving infer-by-name
-// semantics), and the tag is located via exactly one of Property /
-// PropertyName / Index (docs/ir/models.md#discriminator). m is the model
-// declaring it, a plain object or an allOf composition, whose declaring
-// property's PropID locates the tag, else PropertyName if undeclared; a nil m,
-// for a oneOf/anyOf union with no single model, names it by PropertyName alone.
-// variants are a union's, and nil for a model: what each names decides what the
-// mapping names (readsThrough).
-func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, variants []ir.Variant, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
+// lowerDiscriminator lowers a schema's discriminator: its tag, located by
+// exactly one of Property, PropertyName and Index (docs/ir/models.md#discriminator),
+// and its routes, each mapping value and the defaultMapping read by
+// discriminatorMapping. m is the model declaring it, a plain object or an
+// allOf composition, whose declaring property's PropID locates the tag, else
+// PropertyName; a nil m, for a oneOf/anyOf union, names it by PropertyName
+// alone. x is a union's branches, nil for a model: a union routes to its
+// variants (branchIndex.route), a model to the type each value's chain ends
+// on (hierarchyRoute).
+func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, x *branchIndex, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
 		return nil, nil
 	}
-	route := mappingRoute{variants: variantTargets(variants), referents: referencedVariants(c, ts, s, variants)}
-	mapping, diags := discriminatorMapping(c, ts, d, route, pointer)
+	mapping, diags := discriminatorMapping(c, ts, d, x, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(c, ts, d, route, pointer)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, d, x, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
-}
-
-// resolveDiscriminatorRoutes resolves the mapping and defaultMapping targets of
-// s's discriminator as lowerDiscriminator does, at pointer: each position one
-// names is hoisted, and one naming no schema is reported at its entry. A type
-// array admitting an object routes it by the discriminator though no node of
-// its union holds it (lowerTypeVariant), so what it routes to is lowered all
-// the same, and the census keeps the discriminator itself.
-func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	d := s.GetDiscriminator()
-	if d == nil {
-		return nil
-	}
-	_, diags := discriminatorMapping(c, ts, d, mappingRoute{}, pointer)
-	_, defaultDiags := discriminatorDefault(c, ts, d, mappingRoute{}, pointer)
-	return append(diags, defaultDiags...)
-}
-
-// variantTargets returns the set of types the variants name: the types a
-// union's discriminator may route to, as pass.Validate holds its mapping. It is
-// nil for none, which is a model's.
-func variantTargets(variants []ir.Variant) map[ir.TypeID]bool {
-	if len(variants) == 0 {
-		return nil
-	}
-	targets := make(map[ir.TypeID]bool, len(variants))
-	for _, v := range variants {
-		targets[v.Type.Target] = true
-	}
-	return targets
-}
-
-// mappingRoute is what a union's variants tell a mapping target: the types they
-// name, which readsThrough reads, and the one variant standing for each type a
-// branch's $ref names (referencedVariants). Both are nil for a model.
-type mappingRoute struct {
-	variants  map[ir.TypeID]bool
-	referents map[ir.TypeID]ir.TypeID
-}
-
-// routed is the type a mapping target resolving to id routes to: the variant
-// whose branch names id, which is an alias over it where a keyword is written
-// beside the branch's $ref, so the mapping names a variant, as pass.Validate
-// holds it and an emitter routes by it (GitHub #847).
-func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
-	if variant, ok := r.referents[id]; ok {
-		return variant
-	}
-	return id
-}
-
-// referencedVariants maps each type a branch's $ref names to its variant, for a
-// union's variants, built in branch order past the null branches. A type two
-// branches name maps to neither: a mapping naming it says nothing of which, so
-// it stays on the type, which is itself a variant unless both alias it, and
-// that pass.Validate reports, valid as the document is (GitHub #1298). It reads
-// the branches rather than the registry, so the answer turns on no lowering
-// order.
-func referencedVariants(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, variants []ir.Variant) map[ir.TypeID]ir.TypeID {
-	branches, _, _ := unionBranches(s)
-	branches = slices.DeleteFunc(slices.Clone(branches), isNullSchema)
-	if len(branches) != len(variants) {
-		return nil // a model's, which has no variants
-	}
-	referents := map[ir.TypeID]ir.TypeID{}
-	shared := map[ir.TypeID]bool{}
-	for i, b := range branches {
-		named, ok := resolveSchemaRef(c, ts, b) // false for one written inline
-		if !ok {
-			continue
-		}
-		_, twice := referents[named]
-		shared[named] = shared[named] || twice
-		referents[named] = variants[i].Type.Target
-	}
-	maps.DeleteFunc(referents, func(named, _ ir.TypeID) bool { return shared[named] })
-	return referents
-}
-
-// discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
-// into TypeIDs, in source order. An entry that does not resolve yields one
-// error diagnostic and is dropped — never a synthesized ID that nothing backs
-// (issue #14). An all-dropped mapping collapses to nil, preserving infer-by-name
-// semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, route mappingRoute, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
-	m := d.GetMapping()
-	if m == nil || m.Len() == 0 {
-		return nil, nil
-	}
-	var diags []ir.Diagnostic
-	out := make(map[string]ir.TypeID, m.Len())
-	for tag, target := range m.All() {
-		id, ok := resolveMappingTarget(c, ts, d, target, route)
-		if !ok {
-			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-				pointer+ids.Ptr("discriminator", "mapping", tag),
-				"discriminator mapping %q references unresolved schema %q%s", tag, target,
-				mappingWhy(c, d, target)))
-			continue
-		}
-		out[tag] = id
-	}
-	if len(out) == 0 {
-		return nil, diags
-	}
-	return out, diags
-}
-
-// discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
-// dropping it with one diagnostic when it does not resolve, as
-// discriminatorMapping drops an entry.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, route mappingRoute, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
-	dm := d.GetDefaultMapping()
-	if dm == "" {
-		return "", nil
-	}
-	id, ok := resolveMappingTarget(c, ts, d, dm, route)
-	if !ok {
-		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
-			pointer+ids.Ptr("discriminator", "defaultMapping"),
-			"discriminator defaultMapping references unresolved schema %q%s", dm,
-			mappingWhy(c, d, dm))}
-	}
-	return id, nil
-}
-
-// mappingWhy is the reason value, a value of d's mapping, reports when it
-// resolves to no type: why it lands on no schema, or why the table never read
-// it, as unresolvedWhy says for a $ref. A value holding no '#' may have been
-// meant as a component's name, which is read first, so its reason says both
-// readings failed.
-func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, value string) string {
-	why := unreadWhy(c.Bindings(), d)
-	if m, ok := c.Bindings().Mapping(d, value); ok {
-		why = hopWhy(m.Hop)
-	}
-	if strings.Contains(value, "#") {
-		return why
-	}
-	return ": the entry document declares no schema component of that name, and as a URI reference " +
-		cmp.Or(strings.TrimPrefix(why, ": "), "it names no schema")
-}
-
-// resolveMappingTarget resolves a mapping target, a mapping entry's or a
-// defaultMapping's, to the ID of the schema it names: a declared component's
-// bare name directly, and a reference as resolvePointer resolves a $ref at the
-// position whose type it names (typePosition), promising the schema there.
-//
-// The parser never reads a mapping value
-// (docs/parser-library.md#mapping-unresolved); the compiler reads one as a
-// $ref written at the discriminator (resolve.Scope.MappingTarget). Hoisting
-// what it lands on gives the target one pointer-derived ID in either
-// declaration order (GitHub #530). The answer is routed to the variant standing
-// for it (mappingRoute).
-func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string, route mappingRoute) (ir.TypeID, bool) {
-	if c.DeclaresSchema(target) {
-		return route.routed(componentIDByName(target)), true
-	}
-	at, decl, ok := c.RefScope().MappingTarget(d, target)
-	if !ok {
-		return "", false
-	}
-	at, decl = typePosition(c, at, decl, route.variants)
-	id, ok := resolveAt(c, ts, at, decl)
-	return route.routed(id), ok
-}
-
-// maxTypePositionHops bounds how many $ref positions typePosition reads
-// through (styleguide bounded-everything rule). A loop of them, and any longer
-// chain, stops at the position the bound reached, so the mapping names that
-// position's alias.
-const maxTypePositionHops = 64
-
-// typePosition returns the position, in whichever document, whose type a
-// mapping target naming at names, and the schema held there, starting from
-// decl, unread at a source component. It is at unless the position reads
-// through (readsThrough): a $ref only uses its target's type, so it names the
-// position the $ref does, as a union variant there does (GitHub #758). A $ref
-// landing on nothing a type is read at stops it, and its own position, lowered
-// as an alias that reports why, is named.
-func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
-	variantTypes map[ir.TypeID]bool,
-) (bind.Position, *oas3.JSONSchema[oas3.Referenceable]) {
-	if sourceComponent(at) {
-		// Most targets name a component, and resolve.Scope.ComponentRef answers
-		// for one by name, so nothing is fetched for it (see mappingTagsFor).
-		return at, nil
-	}
-	scope := c.RefScope()
-	for range maxTypePositionHops {
-		if !readsThrough(c, at, decl, variantTypes) {
-			break
-		}
-		next, ok := scope.Target(decl)
-		target := scope.Bindings.Declared(decl)
-		if !ok || target == nil && !sourceComponent(next) {
-			break
-		}
-		at, decl = next, target
-	}
-	return at, decl
-}
-
-// sourceComponent reports whether at is one of the source's components, which
-// is named by name rather than fetched where it is declared.
-func sourceComponent(at bind.Position) bool {
-	_, state := ids.ComponentSchema(at.Pointer)
-	return state == ids.NamedComponent && at.Doc == bind.Source
-}
-
-// readsThrough reports whether a mapping target naming at, where decl is
-// declared, names the position decl's $ref names instead (typePosition): not at
-// a component, whose node is a type of its own.
-//
-// Nor where the node at pointer is in variantTypes, the types a union's
-// variants name, nil for a model: that variant is a $ref to the position, and
-// the mapping must name what the variant names (GitHub #758). Any other
-// position is no variant or subtype, whatever is written beside its $ref, so
-// the mapping means what the $ref names (GitHub #764).
-func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
-	variantTypes map[ir.TypeID]bool,
-) bool {
-	if _, state := ids.ComponentSchema(at.Pointer); state != ids.NotComponent || decl == nil {
-		return false
-	}
-	if len(variantTypes) == 0 {
-		return true
-	}
-	in, ok := lowering.InDocument(c, at.Doc)
-	return !ok || !variantTypes[in.IDs().ForPointer(at.Pointer)]
-}
-
-// componentIDByName is the ID a mapping target naming a declared component
-// resolves to: its pointer's in the source, whose components a bare name names,
-// so a component keyed "" gets the anonymous ID it is interned under rather
-// than a named one nothing backs.
-func componentIDByName(name string) ir.TypeID {
-	return ids.Document{}.ForPointer(ids.Ptr("components", "schemas", name))
-}
-
-// typeAt keys the position whose type a mapping target names, by the position
-// the target names as the context reads it (lowering.Scoped).
-type typeAt struct {
-	at lowering.ScopedPosition
-}
-
-// mappingTargetID resolves a discriminator mapping target, a bare schema name
-// or a $ref string, to the TypeID of the schema it names. A bare name (even one
-// containing '/') naming a declared component resolves in any source order,
-// since every declared name is recorded before lowering begins. Otherwise the
-// target must be a $ref, read at the position whose type it names
-// (typePosition), in whichever document: a source component, or any other
-// position by the ID its pointer derives there, whose node resolveMappingTarget
-// promises. It reads no registry, so no answer turns on which schema lowered
-// first. scope is c's.
-func mappingTargetID(c lowering.Ctx, scope resolve.Scope, d *oas3.Discriminator, target string) (ir.TypeID, bool) {
-	if scope.Declares.Has(target) {
-		return componentIDByName(target), true
-	}
-	named, decl, ok := scope.MappingTarget(d, target)
-	if !ok {
-		return "", false
-	}
-	// No variant types: a tag asks whether the mapping reaches the subtype, so
-	// it reads through whatever a union's variants name (readsThrough). Each
-	// subtype asks it of every entry, so it is read once in each scope
-	// (lowering.Remembered).
-	at := lowering.Remembered(c, typeAt{lowering.Scoped(c, named)}, func() bind.Position {
-		position, _ := typePosition(c, named, decl, nil)
-		return position
-	})
-	in, ok := lowering.InDocument(c, at.Doc)
-	if !ok {
-		return "", false
-	}
-	if in.IDs() == (ids.Document{}) {
-		if id, state := scope.ComponentRef(at.Pointer); state.ByName() {
-			return id, state == ids.NamedComponent
-		}
-	}
-	return in.IDs().ForPointer(at.Pointer), true
 }
 
 // propIDByName returns the PropID of the model property with the given source
@@ -429,31 +145,6 @@ func routesByName(c lowering.Ctx, a, s *oas3.Schema) bool {
 		return set
 	})
 	return listed[s]
-}
-
-// mappingTagsFor returns every key d's mapping spells for the type id, sorted
-// in byte order, or nothing when the mapping does not name it. An empty result
-// is what sends the caller to the implicit name, and it is distinct from a
-// mapping that names id under the empty key, which returns that one key.
-//
-// Sorted rather than in source order because the caller elects the first, and
-// a mapping's key order is not a property of the document it is written in.
-func mappingTagsFor(c lowering.Ctx, d *oas3.Discriminator, id ir.TypeID) []string {
-	m := d.GetMapping()
-	if m == nil {
-		return nil
-	}
-	// Derived once, not per entry: every subtype reads its base's whole mapping,
-	// so n subtypes make n² lookups, and each derivation allocates.
-	scope := c.RefScope()
-	var tags []string
-	for tag, target := range m.All() {
-		if tid, ok := mappingTargetID(c, scope, d, target); ok && tid == id {
-			tags = append(tags, tag)
-		}
-	}
-	slices.Sort(tags)
-	return tags
 }
 
 // maxDiscriminatorAncestorDepth bounds how many composition levels

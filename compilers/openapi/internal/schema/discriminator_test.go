@@ -4,6 +4,8 @@
 package schema_test
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,7 +16,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
-	"github.com/dexpace/morphic/ir/irtest"
 )
 
 func TestModelDiscriminator_UndeclaredPropertyAndBadMapping(t *testing.T) {
@@ -191,33 +192,59 @@ components:
 	assert.Equal(t, pet.Variants[0].Type.Target, pet.Discriminator.Default)
 }
 
-// TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither pins the rule
-// for a target that two branches alias, each with its own keyword beside its
-// $ref: nothing in the mapping says which variant it means, so it stays on the
-// type, in either branch order, and validation reports it.
-func TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither(t *testing.T) {
+// TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst pins a
+// value naming a type two branches alias, each with its own keyword beside its
+// $ref (docs/compilers/openapi.md#discriminator): nothing in the value tells
+// the variants apart, so it routes to the first in branch order, with an info
+// at its entry naming both branches, for a oneOf and an anyOf, whichever
+// branch comes first, whichever key the mapping writes first and in either
+// declaration order, and the document validates.
+func TestDiscriminatorMapping_ATypeSeveralVariantsAliasRoutesToTheFirst(t *testing.T) {
 	t.Parallel()
-	spec := func(first, second string) string {
-		return `openapi: 3.1.0
-info: {title: t, version: "1"}
-paths: {}
-components:
-  schemas:
-    Cat: {type: object, properties: {kind: {type: string}}}
-    Pet:
-      oneOf:
-        - {$ref: '#/components/schemas/Cat', description: ` + first + `}
-        - {$ref: '#/components/schemas/Cat', description: ` + second + `}
-      discriminator: {propertyName: kind, mapping: {cat: '#/components/schemas/Cat'}}
-`
-	}
-	for _, src := range []string{spec("one", "two"), spec("two", "one")} {
-		doc, diags := parseFull(t, src)
-		openapitest.RequireNoErrorDiags(t, diags)
-		u, ok := typeByName(doc, "Pet").(*ir.Union)
-		require.True(t, ok)
-		assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Cat"), u.Discriminator.Mapping["cat"])
-		assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/discriminator-missing-variant")
+	const (
+		green      = "{$ref: '#/components/schemas/Apple', description: green}"
+		red        = "{$ref: '#/components/schemas/Apple', description: red}"
+		banana     = "{$ref: '#/components/schemas/Banana'}"
+		greenFirst = "{green_apple: '#/components/schemas/Apple', red_apple: '#/components/schemas/Apple', banana: Banana}"
+		redFirst   = "{red_apple: '#/components/schemas/Apple', banana: Banana, green_apple: '#/components/schemas/Apple'}"
+	)
+	for _, c := range []struct {
+		name, key, branches, mapping string
+		first, second                int // the branches aliasing Apple
+	}{
+		{"oneOf", "oneOf", green + ", " + red + ", " + banana, greenFirst, 0, 1},
+		{"anyOf", "anyOf", green + ", " + red + ", " + banana, greenFirst, 0, 1},
+		{"red written first in the mapping", "oneOf", green + ", " + red + ", " + banana, redFirst, 0, 1},
+		{"the red branch first", "oneOf", red + ", " + green + ", " + banana, greenFirst, 0, 1},
+		{"another branch first", "oneOf", banana + ", " + green + ", " + red, greenFirst, 1, 2},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			fruit := "    Fruit:\n      " + c.key + ": [" + c.branches + "]\n" +
+				"      discriminator: {propertyName: kind, mapping: " + c.mapping + "}\n"
+			const rest = "    Apple: {type: object, properties: {kind: {type: string}}}\n" +
+				"    Banana: {type: object, properties: {kind: {type: string}}}\n"
+			branch := func(i int) string { return "/components/schemas/Fruit/" + c.key + "/" + strconv.Itoa(i) }
+			info := func(tag string) string {
+				return fmt.Sprintf("info %s /components/schemas/Fruit/discriminator/mapping/%s: discriminator mapping %q "+
+					"names a schema 2 branches of this union reach through a $ref (%q, %q), and a tag routes to one "+
+					"variant; routed to the first", diag.DegradedConstruct, tag, tag, branch(c.first), branch(c.second))
+			}
+			var docs []*ir.Document
+			for _, src := range []string{fruit + rest, rest + fruit} {
+				doc, diags := parseFull(t, openapitest.ComponentSpec(src))
+				assert.Equal(t, []string{info("green_apple"), info("red_apple")}, reported(withCode(diags, diag.DegradedConstruct)))
+				openapitest.RequireNoErrorDiags(t, diags)
+				assert.Empty(t, validated(t, doc), "every tag routes to a variant")
+				u, ok := typeByName(doc, "Fruit").(*ir.Union)
+				require.True(t, ok)
+				first := ir.TypeID("t/anon" + branch(c.first))
+				assert.Equal(t, map[string]ir.TypeID{"green_apple": first, "red_apple": first, "banana": componentID("Banana")},
+					u.Discriminator.Mapping)
+				docs = append(docs, doc)
+			}
+			assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types))
+		})
 	}
 }
 

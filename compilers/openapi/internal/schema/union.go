@@ -259,10 +259,10 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // (spellImplicitRoutes). common is already built by the caller (internNode), so
 // buildUnion needs no hint of its own to build one.
 //
-// The variants are lowered before the discriminator, so its mapping resolves
-// knowing what each variant names (readsThrough). A union the discriminator
-// routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
-// names its variant (docs/ir/unions.md).
+// The variants are lowered before the discriminator, so its mapping routes to
+// them (indexBranches). A union the discriminator routes is WireTagged, an
+// anyOf as much as a oneOf: the tag property's value names its variant
+// (docs/ir/unions.md).
 func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, common ir.TypeCommon, pointer jsontext.Pointer,
 	variantType variantTypeFunc,
 ) (*ir.Union, []ir.Diagnostic) {
@@ -286,7 +286,11 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 		Exclusive:  exclusive,
 		Closed:     true,
 	}
-	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
+	var x *branchIndex
+	if s.GetDiscriminator() != nil {
+		x = indexBranches(c, u, variants)
+	}
+	disc, discDiags := lowerDiscriminator(c, ts, s, nil, x, pointer)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
 	diags = append(diags, discDiags...)
@@ -598,7 +602,7 @@ const (
 // A discriminator beside the union rules distribution out where a branch it
 // routes to composes s (branchesComposeBody), as one on an ancestor routing to
 // s, written at pointer, does (routedSubtype); any other routes the composed
-// variants (referencedVariants). docs/compilers/openapi.md#union-beside-structure
+// variants (indexBranches). docs/compilers/openapi.md#union-beside-structure
 // enumerates the shapes.
 func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) unionLowering {
 	if !unionBranchesDeclareShape(c, s) {
