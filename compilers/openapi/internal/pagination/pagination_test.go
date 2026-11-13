@@ -4,6 +4,7 @@
 package pagination_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -390,9 +391,9 @@ paths:
 }
 
 // TestInfer_KeepsAPaginationTheOperationHolds pins that inference fills only an
-// operation holding no Pagination: one a step before it filled from what the
-// document declares is kept whole, and nothing is marked or reported, so a
-// declared walk always wins over an inferred one.
+// operation holding no Pagination and none its extensions speak of: one a step
+// before it filled is kept whole, one the stated set names is left with none,
+// and nothing is marked or reported for either.
 func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 	t.Parallel()
 	declared := &ir.Pagination{Strategy: ir.PageStrategyNextLink}
@@ -409,17 +410,136 @@ func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 		}}}}}},
 	}
 	c := lowering.New(0, &load.Document{Doc: &soa.OpenAPI{}}, lowering.Policy{})
-	assert.Empty(t, pagination.Infer(c, doc))
+	assert.Empty(t, pagination.Infer(c, doc, nil))
 	op := doc.Services[0].Groups[0].Operations[0]
 	assert.Same(t, declared, op.Pagination)
 	assert.Equal(t, &ir.Pagination{Strategy: ir.PageStrategyNextLink}, op.Pagination)
 	assert.Empty(t, op.Provenance.Inferred)
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
-	assert.Empty(t, pagination.Infer(c, doc))
+	assert.Empty(t, pagination.Infer(c, doc, map[ir.OpID]bool{"op/list": true}))
+	assert.Nil(t, doc.Services[0].Groups[0].Operations[0].Pagination, "an operation its extensions speak of")
+	assert.Empty(t, doc.Services[0].Groups[0].Operations[0].Provenance.Inferred)
+
+	assert.Empty(t, pagination.Infer(c, doc, map[ir.OpID]bool{"op/other": true}))
 	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
 	require.NotNil(t, inferred, "the same operation holding none is inferred")
 	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)
+}
+
+// TestInfer_LeavesWhatAnExtensionSpeaksOf compiles GETs taking parameters the
+// names read as a walk, beside extensions that speak of a pagination, filling
+// one, resolving to nothing, answering false or marking a parameter, a member,
+// a header or a shared type, and two that speak of none. Inference fills and
+// reports only where none speaks under the options in force, in either
+// declaration order (docs/compilers/openapi.md#extension-pagination).
+func TestInfer_LeavesWhatAnExtensionSpeaksOf(t *testing.T) {
+	t.Parallel()
+	const (
+		pages = `{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: integer}}`
+		data  = `{type: object, properties: {data: ` + stringList + `}}`
+		fern  = `x-fern-pagination: `
+		mark  = `x-stainless-pagination-property: {purpose: `
+		next  = `{type: object, properties: {data: ` + stringList + `, next: `
+	)
+	// Each case's last three fields are what it compiles to with every policy
+	// on, with promotion off and with inference off: the strategy, the marker
+	// and the codes reported at its path.
+	cases := []struct{ name, ext, params, headers, body, on, noPromotion, noInference string }{
+		{"filled", fern + `{cursor: $request.page_token, next_cursor: $response.next_page_token, results: $response.data}`,
+			`{name: page_token, in: query, schema: {type: string}}, {name: per_page, in: query, schema: {type: integer}}`,
+			"", `{type: object, properties: {data: ` + stringList + `, next_page_token: {type: string}}}`,
+			"cursor extension-promotion []", "token pagination-inference []", "cursor extension-promotion []"},
+		{"failed", fern + `{cursor: $request.cursor, next_cursor: $response.next_cursor, results: $response.data}`,
+			pages, "", data, "- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"answered", fern + `false`, pages, "", data,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"answeredUnsettled", fern + `false`, pages + `, {name: cursor, in: query, schema: {type: string}}`, "", data,
+			"- - [degraded-construct]", "- - [undecided-pagination]", "- - [degraded-construct]"},
+		{"markedParam", "", pages + `, {name: after, in: query, schema: {type: string}, ` + mark + `next_cursor_param}}`,
+			"", data, "- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"markedMember", "", pages, "", next + `{type: string, ` + mark + `next_cursor_field}}}}`,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"markedHeader", "", pages, `headers: {X-Next: {schema: {type: string}, ` + mark + `next_cursor_field}}}, `, data,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"markedType", "", pages, "", next + `{$ref: '#/components/schemas/Cursor'}}}`,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"markedTypeAgain", "", pages, "", next + `{$ref: '#/components/schemas/Cursor'}}}`,
+			"- - [degraded-construct]", "page pagination-inference []", "- - [degraded-construct]"},
+		{"markedOperation", mark + `next_cursor_param}`, pages, "", data,
+			"page pagination-inference []", "page pagination-inference []", "- - []"},
+		{"unmarked", "", pages, "", data, "page pagination-inference []", "page pagination-inference []", "- - []"},
+	}
+	policies := map[string]openapi.Options{
+		"on":          {},
+		"noPromotion": {Promotions: openapi.ExtensionPromotions{Disabled: true}},
+		"noInference": {PaginationInference: openapi.PaginationInference{Disabled: true}},
+		"neither": {Promotions: openapi.ExtensionPromotions{Disabled: true},
+			PaginationInference: openapi.PaginationInference{Disabled: true}},
+	}
+	for policy, opts := range policies {
+		for _, reversed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s reversed=%v", policy, reversed), func(t *testing.T) {
+				t.Parallel()
+				paths := make([]string, len(cases))
+				for i, tc := range cases {
+					paths[i] = getPath(tc.name, tc.ext, tc.params, tc.headers, tc.body)
+				}
+				if reversed {
+					slices.Reverse(paths)
+				}
+				doc, diags := compile(t, "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n"+
+					strings.Join(paths, "")+"components: {schemas: {Cursor: {type: string, "+mark+"next_cursor_field}}}}\n", opts)
+				got := spoken(t, doc, diags)
+				for _, tc := range cases {
+					want := map[string]string{"on": tc.on, "noPromotion": tc.noPromotion, "noInference": tc.noInference,
+						"neither": "- - []"}[policy]
+					assert.Equal(t, want, got[tc.name], tc.name)
+				}
+			})
+		}
+	}
+}
+
+// getPath is a path item /name holding one GET, name, carrying the operation
+// entry ext, taking the query parameters params and answering 200 with the
+// response entries headers beside a JSON body, each written in YAML flow form.
+func getPath(name, ext, params, headers, body string) string {
+	return `  /` + name + `:
+    get:
+      operationId: ` + name + `
+      ` + ext + `
+      parameters: [` + params + `]
+      responses:
+        "200": {description: ok, ` + headers + `content: {application/json: {schema: ` + body + `}}}
+`
+}
+
+// spoken renders each GET of doc, by name, as its pagination's strategy, its
+// Provenance.Inferred and the codes of diags reported under its path item,
+// requiring every finding to sit under one.
+func spoken(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) map[string]string {
+	t.Helper()
+	codes := map[string][]string{}
+	for _, d := range diags {
+		at, ok := strings.CutPrefix(string(d.Provenance.Pointer), "/paths/~1")
+		require.True(t, ok, "a finding outside every path item: %+v", d)
+		name, _, _ := strings.Cut(at, "/")
+		codes[name] = append(codes[name], strings.TrimPrefix(d.Code, "openapi/"))
+	}
+	out := map[string]string{}
+	for _, op := range doc.Services[0].Groups[0].Operations {
+		strategy, marker := "-", string(op.Provenance.Inferred)
+		if op.Pagination != nil {
+			strategy = string(op.Pagination.Strategy)
+		}
+		if marker == "" {
+			marker = "-"
+		}
+		slices.Sort(codes[op.Name.Source])
+		out[op.Name.Source] = fmt.Sprintf("%s %s %v", strategy, marker, codes[op.Name.Source])
+	}
+	return out
 }
 
 // TestInfer_ReadsTheSameInEitherOrder compiles each document with its

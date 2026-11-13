@@ -18,11 +18,13 @@ import (
 // Infer fills the Pagination of each GET or QUERY of doc the client sends that
 // holds none, where a query parameter names where its walk continues and its
 // success responses say where a page holds its items, and a cursor walk's next
-// cursor (docs/compilers/openapi.md#pagination-policy). What it fills is marked
-// inferred, on the Pagination and in the operation's Provenance. An operation
-// whose parameters name a walk it cannot settle keeps none, reported as an
-// info diagnostic. doc's registry must be whole; c is the source's context.
-func Infer(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
+// cursor (docs/compilers/openapi.md#pagination-policy), marking it inferred on
+// the Pagination and in the operation's Provenance. An operation whose
+// parameters name a walk it cannot settle keeps none, reported as an info
+// diagnostic. It neither reads nor reports an operation in stated, whose
+// extensions speak of a pagination. doc's registry must be whole; c is the
+// source's context.
+func Infer(c lowering.Ctx, doc *ir.Document, stated map[ir.OpID]bool) []ir.Diagnostic {
 	if doc == nil || !c.PaginationInference.Honours() {
 		return nil
 	}
@@ -30,6 +32,9 @@ func Infer(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	for i := range doc.Services {
 		for _, op := range lowering.Operations(&doc.Services[i]) {
+			if stated[op.ID] {
+				continue
+			}
 			if why, undecided := r.infer(op); undecided {
 				diags = append(diags, undecidedAt(op, why))
 			}

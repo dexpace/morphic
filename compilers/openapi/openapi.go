@@ -228,19 +228,18 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	srv := servers.Reopen(lowered.Servers)
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
-	// A pagination an extension declares names members of response bodies, so
-	// it too is read once the registry is whole. The operations whose
-	// extensions speak of one are what a policy inferring a pagination leaves
-	// alone; none runs, so nothing reads them yet.
-	_, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
+	// The promotions run, then the inference, and that order is the precedence
+	// docs/compilers/openapi.md#extension-pagination states: what an
+	// operation's extensions say of its pagination, even that it has none, wins
+	// over what the names it uses suggest. A pagination names members of
+	// response bodies, so both run once the registry is whole, and the
+	// inference passes over each operation stated holds.
+	stated, pageDiags := operation.PromotePagination(c, &out.Services[0], reg)
 	acc.AppendAll(pageDiags)
 	// What a deprecation names as its replacement may be declared anywhere, so
 	// it is read once every node it can name is built.
 	acc.AppendAll(replacement.Resolve(c, out))
-	// A page is read through the types a response names, so pagination is
-	// inferred once the registry is whole, and after every step that fills a
-	// Pagination the document declares, since it fills only one holding none.
-	acc.AppendAll(pagination.Infer(c, out))
+	acc.AppendAll(pagination.Infer(c, out, stated))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version

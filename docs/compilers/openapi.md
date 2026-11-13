@@ -4808,6 +4808,7 @@ members. A path item mounted twice is reported once, at the declaration both mou
   `pagination.TestInfer_LeavesAnOperationNamingNoWalk`,
   `pagination.TestInfer_ReadsOnlyAMethodSafeToSendAgain`,
   `pagination.TestInfer_KeepsAPaginationTheOperationHolds`,
+  `pagination.TestInfer_LeavesWhatAnExtensionSpeaksOf`,
   `pagination.TestInfer_ReadsTheSameInEitherOrder`,
   `pagination.TestInfer_ReportsTheSameWhateverTheResponseOrder`,
   `pagination.TestInfer_ReadsAMountedDeclarationForEachMount`,
