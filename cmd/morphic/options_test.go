@@ -93,64 +93,74 @@ func TestPassFlag_SetKeepsNamesAsTyped(t *testing.T) {
 	assert.Equal(t, "validate validate ", got.String())
 }
 
-// TestFindingsFlags_ReadWhatTheyTake pins each value --diag-format, --show and
-// --diag-limit take, as literal text, and that each renders as typed.
-func TestFindingsFlags_ReadWhatTheyTake(t *testing.T) {
-	t.Parallel()
-	for _, raw := range []string{"text", "json"} {
-		var f formatFlag
-		require.NoError(t, f.Set(raw))
-		assert.Equal(t, raw, f.String())
-	}
-	for _, raw := range []string{"error", "warning", "info"} {
-		var f showFlag
-		require.NoError(t, f.Set(raw))
-		assert.Equal(t, raw, f.String())
-	}
-	for _, raw := range []string{"0", "1", "250"} {
-		var f limitFlag
-		require.NoError(t, f.Set(raw))
-		assert.Equal(t, raw, f.String())
-	}
-	var (
-		format formatFlag
-		show   showFlag
-		limit  limitFlag
-	)
-	assert.Equal(t, []string{"format", "severity", "count"}, []string{format.Type(), show.Type(), limit.Type()})
+// flagValue is a flag's value as pflag sets and renders it.
+type flagValue interface {
+	Set(raw string) error
+	String() string
+	Type() string
 }
 
-// TestFindingsFlags_RefuseWhatNamesNothing pins each refusal, the empty string
-// among them, which names no format, severity or count, and that a refused
-// value leaves the flag as it was.
-func TestFindingsFlags_RefuseWhatNamesNothing(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name string
-		flag interface {
-			Set(string) error
-			String() string
+// flagCase is one value a flag reads or refuses: refused is the text of the
+// refusal, "" for a value the flag takes.
+type flagCase struct {
+	raw, refused string
+}
+
+// checkFlagValue sets a fresh value of the flag each of cases names, holding
+// one it takes to rendering as typed, and one it refuses to its refusal and to
+// leaving the flag as it was.
+func checkFlagValue(t *testing.T, fresh func() flagValue, typeName string, cases []flagCase) {
+	t.Helper()
+	assert.Equal(t, typeName, fresh().Type())
+	for _, tc := range cases {
+		f := fresh()
+		before := f.String()
+		err := f.Set(tc.raw)
+		if tc.refused == "" {
+			require.NoError(t, err, "%q", tc.raw)
+			assert.Equal(t, tc.raw, f.String())
+			continue
 		}
-		raw, want string
-	}{
-		{"an unknown format", new(formatText), "xml", `"xml" is no diagnostics format (known: text, json)`},
-		{"no format", new(formatText), "", `"" is no diagnostics format`},
-		{"an unknown severity", new(showFlag("info")), "fatal", `"fatal" is no severity (known: error, warning, info)`},
-		{"none, a threshold and no severity", new(showFlag("info")), "none", `"none" is no severity`},
-		{"no severity", new(showFlag("info")), "", `"" is no severity`},
-		{"a negative count", new(limitFlag(3)), "-1", `want a count of 0 or more, got "-1"`},
-		{"no number", new(limitFlag(3)), "all", `got "all"`},
-		{"no count", new(limitFlag(3)), "", `got ""`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			before := tc.flag.String()
-			err := tc.flag.Set(tc.raw)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.want)
-			assert.Equal(t, before, tc.flag.String())
-		})
+		require.Error(t, err, "%q", tc.raw)
+		assert.Contains(t, err.Error(), tc.refused)
+		assert.Equal(t, before, f.String(), "a refused %q leaves the flag as it was", tc.raw)
 	}
+}
+
+// TestFormatFlag_SetReadsEachFormat pins the formats --diag-format takes, as
+// literal text, and the refusal of any other, the empty string among them.
+func TestFormatFlag_SetReadsEachFormat(t *testing.T) {
+	t.Parallel()
+	checkFlagValue(t, func() flagValue { return new(formatText) }, "format", []flagCase{
+		{"text", ""}, {"json", ""},
+		{"xml", `"xml" is no diagnostics format (known: text, json)`},
+		{"", `"" is no diagnostics format`},
+	})
+}
+
+// TestShowFlag_SetReadsEachSeverity pins the severities --show takes, and the
+// refusal of what names none, a threshold's none and the empty string among
+// them.
+func TestShowFlag_SetReadsEachSeverity(t *testing.T) {
+	t.Parallel()
+	checkFlagValue(t, func() flagValue { return new(showFlag("info")) }, "severity", []flagCase{
+		{"error", ""}, {"warning", ""}, {"info", ""},
+		{"fatal", `"fatal" is no severity (known: error, warning, info)`},
+		{"none", `"none" is no severity`},
+		{"", `"" is no severity`},
+	})
+}
+
+// TestLimitFlag_SetReadsACount pins the counts --diag-limit takes, zero
+// among them, and the refusal of what is no count of 0 or more.
+func TestLimitFlag_SetReadsACount(t *testing.T) {
+	t.Parallel()
+	checkFlagValue(t, func() flagValue { return new(limitFlag(3)) }, "count", []flagCase{
+		{"0", ""}, {"1", ""}, {"250", ""},
+		{"-1", `want a count of 0 or more, got "-1"`},
+		{"all", `got "all"`},
+		{"", `got ""`},
+	})
 }
 
 // TestRun_FindingsFlagsRefuseABadValue pins a bad value of each flag as a
