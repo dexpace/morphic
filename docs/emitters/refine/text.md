@@ -42,29 +42,29 @@ objects or of lists sends, which OpenAPI leaves undefined, is [below](#a-value-n
 member holding its style's own delimiter where expansion writes it as it writes the delimiter, a `.`
 under an exploded `label`, a space under `spaceDelimited`, a `|` under `pipeDelimited` or a `[` in a
 `deepObject` key, reads back as that delimiter, which OpenAPI leaves to an escaping of the API's own
-(Appendix E.6). A `Prefix` binding, and a response header whose `Prefix` is set, writes each entry
-of its map, in that order, as a field of its own, named by the prefix followed by the entry's key,
-its value the entry's text, and an entry naming a field another binding writes, in any case for a
-header, gives way to it, as Smithy has a client and a server do. Two entries naming one header
-field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would hold one of
-them. An empty prefix on a request's binding, Smithy's catch-all for every header or query
-parameter, has no spelling yet (#1748). A map a `form` or `cookie` style explodes into parameters of
-its own is a catch-all the same way: an entry under a name another binding owns
-([below](#a-value-no-style-arranges)) gives way to it, as Smithy's protocol tests have a client
-write its query map, and its reader holds each parameter of its location that no other binding owns,
-which is what a client wrote into it. Smithy has a server put every parameter in the map, a named
-one too, which would hand one pair to two inputs. A parameter whose `ContentType` names a media type
-([bindings](../plan/bindings.md)), and a form field or part of another content type, carries that
-media type's serialization of the value instead, so as JSON a string keeps its quotes, a field's or
-a part's only where its encoding sets no `Style` and no `Explode`, either of which OpenAPI has
-replace its content type (the Encoding Object's `style`). A field or part under `PartEncoding.Multi`
-is one for each element of its list, each carrying its element as the rules here carry a value, as
-OpenAPI applies an Encoding Object to each item (§4.14.5.1), and a value that is no list, which a
-union with a list among its variants can hold, is one field or part. A part's own headers
-(`PartEncoding.Headers`) have no rule yet (#1786). That holds where its encoding sets no `Style` and
-no `Explode`; where it sets either, the style arranges the value as it does a parameter's, since
-`Multi`, which the compiler sets from the type alone, says only that the field may repeat: under
-`style: form, explode: false` a list is the one field `u=a,b`.
+(Appendix E.6). A binding whose `Prefix` is set, and a response header whose `Prefix` is set,
+writes each entry of its map, in that order, as a field of its own, named by the prefix followed by
+the entry's key, its value the entry's text, and an entry naming a field another binding writes, in
+any case for a header, gives way to it, as Smithy has a client and a server do. Two entries naming
+one header field, as keys `A` and `a` do, fail the call before anything is sent, as a reader would
+hold one of them. The empty prefix names each field by its key alone, Smithy's catch-all for every
+header or query parameter ([prefix bindings](../../ir/http-binding.md#prefix-bindings)). A map a
+`form` or `cookie` style explodes into parameters of its own is a catch-all the same way: an entry
+under a name another binding owns ([below](#a-value-no-style-arranges)) gives way to it, as Smithy's
+protocol tests have a client write its query map, and its reader holds each parameter of its
+location that no other binding owns, which is what a client wrote into it. Smithy has a server put
+every parameter in the map, a named one too, which would hand one pair to two inputs. A parameter
+whose `ContentType` names a media type ([bindings](../plan/bindings.md)), and a form field or part
+of another content type, carries that media type's serialization of the value instead, so as JSON a
+string keeps its quotes, a field's or a part's only where its encoding sets no `Style` and no
+`Explode`, either of which OpenAPI has replace its content type (the Encoding Object's `style`). A
+field or part under `PartEncoding.Multi` is one for each element of its list, each carrying its
+element as the rules here carry a value, as OpenAPI applies an Encoding Object to each item
+(§4.14.5.1), and a value that is no list, which a union with a list among its variants can hold, is
+one field or part. A part's own headers (`PartEncoding.Headers`) have no rule yet (#1786). That
+holds where its encoding sets no `Style` and no `Explode`; where it sets either, the style arranges
+the value as it does a parameter's, since `Multi`, which the compiler sets from the type alone, says
+only that the field may repeat: under `style: form, explode: false` a list is the one field `u=a,b`.
 
 ## Null and empty
 
@@ -141,11 +141,10 @@ four segments where the template reads six. Over two million random templates an
 sent under that count read back as other texts, and 707,536 did without it. The count is all an
 emitter checks of a value against its pattern: a literal spelt otherwise still reads back, so it is
 the server's to refuse, and each emitter reports the binding as an info
-`emitters/<target>/unchecked-constraint`. That check is all an emitter drops: the IR has one that
-cannot validate a pattern drop it with a diagnostic ([HTTP bindings](../../ir/http-binding.md)), and
-a pattern dropped whole would send `a/b` as `a%2Fb`, one segment where the pattern names two, so the
-value is still escaped by this rule. The IR's comment on the field says the template uses reserved
-expansion, which this rule departs from and #1776 corrects. T-50 holds it.
+`emitters/<target>/unchecked-constraint`. The rest of that check is all an emitter skips, as the
+IR has a consumer skip what it cannot check ([HTTP bindings](../../ir/http-binding.md)), and never
+the pattern: one dropped whole would send `a/b` as `a%2Fb`, one segment where the pattern names
+two. T-50 holds it.
 
 A path parameter whose expansion leaves a segment `.` or `..`, or one WHATWG URL reads as either,
 such as `%2e`, fails the call before anything is sent: `fetch` removes it, a `..` with the segment
@@ -494,8 +493,8 @@ table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
 - **Each target's own HTTP-date reader**: at Go 1.27 and JDK 25, the JDK's `RFC_1123_DATE_TIME`
   refuses the golden spec's example, whose day name is not its date's, and writes `6 Nov` with one
   digit, and Go's `http.ParseTime` reads an rfc850-date's year `70` as 1970 at any date.
-- **A `PathPattern` text under RFC 6570's reserved expansion**, as the IR's comment on the field
-  describes it (#1776): `a:b%41?c` would travel as written and read as `a:bA` with a query of `c`.
+- **A `PathPattern` text under RFC 6570's reserved expansion**: `a:b%41?c` would travel as written
+  and read as `a:bA` with a query of `c`.
 - **A Smithy greedy label under `AllowReserved`**: it passes a triple and the reserved characters,
   so `a%41?c` would travel as written where Smithy sends `a%2541%3Fc`.
 - **An input no style arranges as one string wherever it is bound**: sent once under its binding's

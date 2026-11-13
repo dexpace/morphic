@@ -33,6 +33,8 @@ const (
 		"const-unions, replaces and removes types and edits nothing else"
 	relationAPI = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
 	factAPI     = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
+	planAPI     = "what docs/ir/models.md#the-shapes-of-a-model-narrowing-a-union derives for the emitter plan's " +
+		"TypePlan.Composed, which is not built yet"
 )
 
 // apiRoots names each function no binary of the module reaches that is there
@@ -70,6 +72,7 @@ var apiRoots = map[string]string{
 	"ir.Editor.RemoveAuthScheme":                   transformAPI,
 	"ir.Editor.UpdateDocument":                     transformAPI,
 	"ir.ExposedProps":                              relationAPI,
+	"ir.NarrowedShapes":                            planAPI,
 	"ir/irfacts.Index.Subtypes":                    factAPI,
 	"ir/irfacts.Index.Usage":                       factAPI,
 	"ir/irfacts.Index.Recursive":                   factAPI,

@@ -1,0 +1,31 @@
+# A chain of unions of strings, each naming the next once through $defs, is one
+# closed set of strings: pass.ConstUnions rewrites the first as the enum of
+# every value the chain holds and removes the rest
+# (docs/compilers/openapi.md#string-const-union). Chain names its next link
+# first and Ladder last, and Shared names a branch of several values Other names
+# too, which keeps both unions. The sweep's oracles run the passes twice and
+# over the reversed document.
+openapi: 3.1.0
+info: {title: Const Union Defs Chain, version: "1"}
+paths: {}
+components:
+  schemas:
+    Chain:
+      $defs:
+        X1: {oneOf: [{$ref: '#/components/schemas/Chain/$defs/X2'}, {const: a1}]}
+        X2: {oneOf: [{$ref: '#/components/schemas/Chain/$defs/X3'}, {const: a2}]}
+        X3: {oneOf: [{const: a3}, {const: a4}]}
+      oneOf: [{$ref: '#/components/schemas/Chain/$defs/X1'}, {const: a0}]
+    Ladder:
+      $defs:
+        Y1: {anyOf: [{type: string, enum: [b1]}, {$ref: '#/components/schemas/Ladder/$defs/Y2'}]}
+        Y2: {anyOf: [{type: string, enum: [b2]}, {type: string, enum: [b3, b4]}]}
+      anyOf: [{type: string, enum: [b0]}, {$ref: '#/components/schemas/Ladder/$defs/Y1'}]
+    Shared:
+      oneOf:
+        - {type: string, enum: [c1, c2]}
+        - {const: c3}
+    Other:
+      oneOf:
+        - $ref: '#/components/schemas/Shared/oneOf/0'
+        - {const: c4}

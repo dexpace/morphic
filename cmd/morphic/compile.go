@@ -33,11 +33,12 @@ stderr. Output to stdout is indented for reading; a file written with --output
 is compact unless --pretty asks for the indented form.
 
 --explain reports what compiling produced at one source coordinate — the type
-node the document holds there, the coordinates beneath it that hold one, and
-the diagnostics stamped at it — instead of writing the document. A pass may
-replace or remove a node the compiler made, which --disable-pass shows. The
-coordinate is a JSON Pointer, so '' is the whole document. It writes no file,
-so it cannot be combined with --output.
+node the document holds there, the coordinates beneath it that hold one, each
+construct kept verbatim under Unmodeled at or beneath it with the node keeping
+it and why, and the diagnostics stamped at it — instead of writing the
+document. A pass may replace or remove a node the compiler made, which
+--disable-pass shows. The coordinate is a JSON Pointer, so '' is the whole
+document. It writes no file, so it cannot be combined with --output.
 
 --disable-pass turns off one IR pass by name, and may be repeated. A name no
 pass carries is refused (exit 2) with the names that exist. --skip-validate is
@@ -66,13 +67,18 @@ Exit status is 0 when nothing reaches --fail-on, 1 when something does or the
 spec lowered to no document at all, and 2 for a misuse, an I/O error, a
 compiler or pass that broke its contract, or a run a signal stopped.
 
+--output replaces a file through a temporary file beside it, renamed into
+place, so the file's directory must take a new one. A FIFO or a character
+device, such as /dev/null, is written as stdout is, but for a FIFO no process
+reads, which is refused rather than waited for.
+
 SIGINT, SIGTERM or SIGHUP stops the run, which then writes no document: a file
 --output names keeps its previous content, its temporary file removed. One
-that comes once the document is being written to stdout or moved into place,
-once an --explain report has begun, or, for a spec that lowered to no
-document, once the compile is over, is too late to stop the run, which
-finishes as though it had not come. Another signal while the run is stopping
-changes nothing.`
+that comes once the document is being written to stdout or to a FIFO or
+device, or moved into place, once an --explain report has begun, or, for a spec
+that lowered to no document, once the compile is over, is too late to stop the
+run, which finishes as though it had not come. Another signal while the run is
+stopping changes nothing.`
 
 // compileExample is compile's examples, indented as cobra's help indents a
 // section.
@@ -285,10 +291,10 @@ func compileSpec(cmd *cobra.Command, specPath string, opts compileOptions) error
 // code and whose output then could not be written.
 //
 // A failed write does not overwrite a non-zero code. Whether a destination can
-// be written is a property of the destination (/dev/null and a read-only
-// directory both refuse output.ReplaceDocument's temporary file), not of the
-// spec, so the verdict on the spec keeps the exit code and 2 is left for runs
-// that failed for a reason outside the spec.
+// be written is a property of the destination (a read-only directory refuses
+// output.ReplaceDocument's temporary file, and a FIFO no process reads is
+// refused), not of the spec, so the verdict on the spec keeps the exit code and
+// 2 is left for runs that failed for a reason outside the spec.
 func writeFailureExit(code int) int {
 	if code != 0 {
 		return code

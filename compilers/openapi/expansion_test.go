@@ -191,6 +191,29 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 	}
 }
 
+// TestCompile_ACallbackNamingItselfIsChargedAtEachLevel pins what bounds a
+// callback whose operation declares it again by $ref: each level of it that
+// lowers charges the $ref its copy, down to the callback nesting bound, past
+// which the map is kept and no $ref lowers, so the budget sees exactly one
+// charge for each callback operation.
+func TestCompile_ACallbackNamingItselfIsChargedAtEachLevel(t *testing.T) {
+	t.Parallel()
+	src := pathsWith(getWith("/p", "      callbacks: {c: {$ref: '#/components/callbacks/C'}}\n"+okResponses),
+		"  callbacks:\n    C: {'{$request.body#/u}': {post: {responses: {'200': {description: ok}}, "+
+			"callbacks: {again: {$ref: '#/components/callbacks/C'}}}}}\n")
+	doc, diags := compileExpanding(t, src, -1)
+	require.NotNil(t, doc, "with the budget off: %+v", diags)
+	require.Len(t, doc.Services[0].Groups, 1)
+	levels := len(doc.Services[0].Groups[0].Operations) - 1
+	require.Greater(t, levels, 1, "the callback lowers below itself")
+	charged := levels * weightAt(t, src, "/components/callbacks/C")
+	doc, diags = compileExpanding(t, src, charged)
+	require.NotNil(t, doc, "at %d, a copy for each level: %+v", charged, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
+	doc, diags = compileExpanding(t, src, charged-1)
+	assertRefused(t, doc, diags, charged-1)
+}
+
 // TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull pins the charge
 // of a $ref naming a declaration nested in another one a $ref names: the IR
 // holds the inner one twice, once inside each copy, so each $ref is charged
