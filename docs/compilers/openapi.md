@@ -4460,12 +4460,15 @@ A source of a target stating that something is so, a deprecation, an open enum o
 redaction or a part of a page walk, may list the values that state it. Each is compared with a
 string's text, or with a boolean's or a number's JSON, so `true` lists both `true` and `"true"`. A
 value it lists states the fact, and any other states nothing. That other value is reported as an
-info `openapi/degraded-construct` at the key, unless another target reads the same member of the
-key, whose reading then decides what it is: a key spelling openness `allow` or `disallow`, listed
-`allow`, opens an enum on `allow` alone and reports `disallow` as it reports a misspelt `alow`, while
-the default's `x-stability`, listed `deprecated` for a deprecation, leaves a `true` to the stability
-reading of the same key, which reports it. A source with no list reads its target's own vocabulary,
-as below.
+info `openapi/degraded-construct` at the key, unless another target reads it off the same member of
+the key, listing it or listing no values, whose reading then decides what it is; a value every
+other reader's list leaves out is reported by each target listing values there, as none reads it. A
+key spelling openness `allow` or `disallow`, listed `allow`, opens an enum on `allow` alone and
+reports `disallow` as it reports a misspelt `alow`, while the default's `x-stability`, listed
+`deprecated` for a deprecation, leaves a `true` to the stability reading of the same key, which
+reports it. A source with no list reads its target's own vocabulary, as below. A key a pagination
+target reads is judged and reported as one statement of a page walk instead
+([`extension-pagination`](#extension-pagination)).
 
 A policy that would read less than it says is refused when the compile starts, as a Go error and no
 diagnostic, since the mistake is the caller's and not the document's: a target outside the
@@ -4712,6 +4715,20 @@ read lists the marker `extension-promotion`. A later source of a target naming a
 the first is reported and loses, as for every target. An operation holding a pagination already is
 not read.
 
+What a key holds is one statement to every source of a pagination target reading the key the same
+way, as an expression or as a mark, and is one of three things. It states part of a walk where it is
+an object holding a member a source reads, or, for a source reading the value whole, that value: an
+expression, written as a string, or a word a source lists, each read as above. `false` states that
+no walk, or no value of one, is there: nothing is read from it and nothing is reported. Any other
+value states nothing a source can read: `true`, null, a string, a number or a list where the sources
+read a member; an object holding none of the members they read, such as `{}`; an expression that is
+no string or is empty; and a word none of the sources of its member lists. Each is reported as an
+info `openapi/degraded-construct` at the key, or at the member read, once however many sources read
+it, saying that the key, being written, keeps an inferred pagination off where it is read. A word
+one source lists is reported by none of the others, even where only a source reading the other side
+of the walk lists it. A convention may read an operation's `true` as the walk the document's root
+states; no source reads the root, so that `true` is reported as the others are.
+
 A pagination is read in one order of precedence, stated here for every reading of one: a keyword the
 document writes, then a promoted extension, then an inference
 ([`pagination-policy`](#pagination-policy)). The document has spoken of an operation's pagination
@@ -4720,8 +4737,8 @@ and no later reading fills a pagination it spoke of. OpenAPI writes no paginatio
 that is each key a source of a pagination target names, written where this rule reads that source:
 on the operation for an expression, and for a mark on a parameter, a member of a body, a success
 response's header or the type one of them names, however many operations reach it. A value filling a
-pagination, one resolving to nothing or refused, and one stating nothing, `false`, null or an empty
-object, speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
+pagination, one resolving to nothing or refused, `false`, and one stating nothing a source can read
+speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
 the set a step inferring a pagination reads in place of their extensions, and marks no node for a
 pagination it does not fill. A key written anywhere else, such as on an error response or a mark on
 the operation itself, is read by no source, so it speaks of nothing.
@@ -4733,6 +4750,7 @@ the operation itself, is read by no source, so it speaks of nothing.
   `operation.TestPromotePagination_ReadsEverySuccessResponse`,
   `operation.TestPromotePagination_ReadsNothingOffPolicy`,
   `operation.TestPromotePagination_SaysWhichOperationsSpeakOfAPagination`,
+  `operation.TestPromotePagination_ReportsEachValueAKeyHolds`,
   `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
   `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
   `operation.TestPromotePagination_StatesNothingOffPolicy`,
@@ -4740,7 +4758,10 @@ the operation itself, is read by no source, so it speaks of nothing.
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`,
+  `lowering.TestPageStatementOf_ReportsWhatStatesNoValueOfAWalk`,
   `pagination.TestInfer_LeavesWhatAnExtensionSpeaksOf`
+- Status: partly built: an operation's `true` that a convention reads as the walk the document's
+  root states is reported, not read (#1876).
 
 ### `pagination-policy`
 
@@ -4750,14 +4771,13 @@ option `Options.PaginationInference`, whose zero value is on and whose `Disabled
 the text option `pagination-inference`, which `false` turns off (invariant 6). It reads each
 operation the client sends, a webhook or a callback being one it receives, once the registry is
 whole, and comes last in the precedence [`extension-pagination`](#extension-pagination) states: an
-operation holding a `Pagination`, or one whose extensions speak of a pagination, filled, resolving
-to nothing or stating none, is neither read nor reported, as the document has answered for it. Under
-a promotion policy mapping no pagination target, `extension-promotion=false` among them, no key is
-read, so no extension speaks and the policy reads every operation. A walk sends its operation again
-for each page, so it settles one only for a `GET` or a `QUERY`, the methods asking for no change on
-the server: a `POST` taking its path item's page parameters, as one creating a resource does, would
-create it once per page. A name is compared by its canonical words (`Naming.Canonical`), so
-`pageSize` and `page_size` are one name:
+operation holding a `Pagination`, or one whose extensions speak of a pagination, is neither read nor
+reported, as the document has answered for it. Under a promotion policy mapping no pagination
+target, `extension-promotion=false` among them, no key is read, so no extension speaks and the
+policy reads every operation. A walk sends its operation again for each page, so it settles one only
+for a `GET` or a `QUERY`, the methods asking for no change on the server: a `POST` taking its path
+item's page parameters, as one creating a resource does, would create it once per page. A name is
+compared by its canonical words (`Naming.Canonical`), so `pageSize` and `page_size` are one name:
 
 1. **Where a walk continues** is a query parameter named `page` or `page_number`, under the `page`
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or

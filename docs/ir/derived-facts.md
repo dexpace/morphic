@@ -128,7 +128,7 @@ Every other entity is keyed by a position that names it, its holder's key extend
 
 | Entity | Position |
 |---|---|
-| parameter | its operation, where the parameter travels and its wire name, a header's in lower case; one no binding places, its name |
+| parameter | its operation, where the parameter travels and its wire name, a header's in lower case, or for a [prefix binding](./http-binding.md#prefix-bindings), which names no field of its own, where it travels and its prefix, a header's in lower case; one no binding places, its name |
 | property | the model declaring it, and its wire name. The anonymous models a model composes in place are part of it: their properties are keyed as its own, each wire name keying the declaration the model's [flattening](./models.md#the-flattening) takes and none it overrides |
 | field argument | its property, and its name |
 | header | the response, error, default or stream item declaring it, or the property a multipart part encodes, and its name in lower case, or for a [prefix header](./responses.md#prefix-headers), which names no field of its own, its prefix in lower case |
