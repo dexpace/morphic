@@ -62,7 +62,9 @@ type GroupingExtension struct {
 	// stating a further group path under Key (AliasPaths). A group is minted for
 	// each, for a remount to name, and no operation is filed in it, so no
 	// GroupExtensionHeuristic marks it: a group has no provenance. Empty reads
-	// none.
+	// none. An embedded-policy mapping reading the extension into AlsoMount is
+	// its second reader, and must name this key for its mounts to name these
+	// groups.
 	Aliases string `json:"aliases,omitempty"`
 	// Fallback groups an operation Key states no path for: GroupByTags or
 	// GroupByPathPrefix, any other value, empty included, grouping by tags.

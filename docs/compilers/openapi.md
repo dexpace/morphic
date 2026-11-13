@@ -3551,6 +3551,16 @@ marker is on each operation the extension files, which a group holding none lack
 groups to the remount was weighed and rejected: an ID is opaque to a consumer
 ([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
 
+So the aliases extension has two readers, which must name the same key: `GroupingExtension.Aliases`
+(`--opt grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
+reads into an operation's `AlsoMount` ([embedded policy](../emitters/contract/embedded-policy.md)),
+for the mounts in them, which the mapping names as `Unmodeled` holds it, `openapi:x-forge-aliases`
+for the default. A mapping has no default key, so the two pair only where its configuration names
+the key this option reads. A mapping reading another key can name a group the IR does not hold, a
+warning `emitters/unmatched-key` that mounts nothing ([a key that matches
+nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a group made for a key no
+mapping reads is named by no mount.
+
 A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
 key, so a configuration can name a group, and a group nests in the one its prefix names whichever
