@@ -7,10 +7,16 @@ create/read/update/patch declarations the target needs — Speakeasy's "public t
 (de)serialize shape" split made explicit — for every type a shape reaches, so a union or a container
 holding a projected model is projected with it, as a model holding one is
 ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
-every projection; PATCH shapes make properties optional unless the binding disables it. A model used
-as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL
-inputs) may emit two shapes. How each shape's declaration is named, beyond `User`, `UserCreate` and
-`UserPatch`, is not stated yet (#1405).
+every projection; a patch shape makes properties optional, and a `PATCH` body's is one only where
+its binding or its media type says so ([TypePlan](../plan/types.md#what-a-patch-relaxes)). A model
+used as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for
+GraphQL inputs) may emit two shapes. Each shape's declaration takes the name the plan gives it,
+`ModelShape.Name` after the type's own: `User` for the read shape, and `UserCreate`,
+`UserCreateUpdate`, `UserUpdate` or `UserUpdatePatch` for any other, an alias of `User` where
+`ModelShape.Alias` says the shape projects what a read does
+([TypePlan](../plan/types.md#the-declaration-a-shape-takes)). Shapes sharing a name share the
+declaration, and no target names or merges them otherwise, since the docs and a mock name the same
+declarations from the same plan.
 
 ## Optionality × Nullability × Presence (INV8)
 
@@ -33,10 +39,17 @@ stays auditable (INV6). A configuration that wants only what the source declares
 `Nullable && Inferred == ""` instead, which is the declared bit
 ([type-graph](../../ir/type-graph.md#type-references)).
 
-A merge-patch body (`application/merge-patch+json`) is where all three of an optional field's states
-change the request: absent leaves the member as it is and `null` removes it. Every target sends both
-through the presence box (`Optional<T?>` on Kotlin, `OptNil[T]` on Go), never through a nullable
-alone.
+A merge-patch body (`application/merge-patch+json`) is where all three states of an optional
+nullable member change the request: absent leaves the member as it is, `null` removes it (RFC 7396
+§2) and a value sets it. Every target sends them through the presence box (`Optional<T?>` on Kotlin,
+`OptNil[T]` on Go), never through a nullable alone. A member whose reference admits no null is
+optional only, `Opt[T]` on Go and `T?` left out when null on Kotlin, so a caller cannot send `null`
+for it: the schema admits none there ([what a patch
+relaxes](../plan/types.md#what-a-patch-relaxes)). A map's or a catch-all's value that admits null
+takes no box, an entry being in the map or not, and sends `null` as the value's own nullable form: a
+`map[string]Nil[T]`, a catch-all of one beside a declared member and a `Map<String, T?>` each wrote
+an entry as `"A":null` and read it back (Go 1.27.3, kotlinx-serialization-json 1.11.0). T-59 holds
+it.
 
 ## Inheritance
 
@@ -67,20 +80,24 @@ refine](../plan/plan-or-refine.md)). `LowerModels` declares the variants before 
 shapes and lowering unions and discriminators reach them ([steps](steps.md)).
 
 The model takes the union's wire shape, a discriminator on the union routing each tag, and its
-default, to the variant composed over the one it names. Each variant composed here takes its entry's
+default, to the variant composed over the one it names. A tag naming a variant whose entry the plan
+leaves out, since no value takes it ([TypePlan](../plan/types.md#a-model-narrowing-a-union)), routes
+to no variant, and a default naming one is no default, so a value carrying such a tag takes the
+order [unions](unions.md#a-value-no-variant-recognizes) gives one no variant recognizes. A model
+left one entry is still that union, of one variant. Each variant composed here takes its entry's
 `Shapes`, the model's, each holding what its flattening shows there, as a model's `ModelShape` does
 ([ModelShape](../plan/types.md#modelshape--visibility-projection)); a shape reaching the model
 reaches the union ([a shape reaches what it holds](../plan/types.md#a-shape-reaches-what-it-holds)),
 so what the variants hold is projected with them, and a variant's `readOnly` member is in no create
 or patch shape of the model's. In each shape the model is inclusive and strict where the union is,
 since two variants the union keeps apart stay apart once composed, and it is open as `TypePlan.Open`
-says of the model ([policy](../plan/policy.md#a-union-a-client-reads-is-open)). Every path to a
-variant composed here passes through the model, which a target declares as a union, so it breaks a
-cycle through the variant as a union does ([recursive references](#recursive-references)). Such a
-variant has no `TypeID`, unlike one the compiler composes, nor has a union nesting the entries whose
-`Over` starts alike, so `Ctx.Syms` keys a variant by the model's and those its entry's `Over` lists,
-and such a union by the model's and those the shared start of its entries' `Over` lists, which name
-each from one generation to the next
+says of the model ([policy](../plan/policy.md#a-union-keeps-a-variant-it-does-not-know)). Every path
+to a variant composed here passes through the model, which a target declares as a union, so it
+breaks a cycle through the variant as a union does ([recursive references](#recursive-references)).
+Such a variant has no `TypeID`, unlike one the compiler composes, nor has a union nesting the
+entries whose `Over` starts alike, so `Ctx.Syms` keys a variant by the model's and those its entry's
+`Over` lists, and such a union by the model's and those the shared start of its entries' `Over`
+lists, which name each from one generation to the next
 ([naming](naming.md#collisions-and-the-names-a-generation-shipped)), and each goes to the model's
 output unit ([output units](output-units.md)).
 
@@ -97,6 +114,55 @@ admits, and one whose entries would pass the plan's limit. T-46 holds the rule.
 an open one stays strict, and an open one nested in a closed one stays open, under a strict caller
 too. Each target says how ([Go](../targets/go/models.md#user-in-go),
 [Kotlin](../targets/kotlin/models.md#unknown-members)).
+
+## How deep a value nests
+
+A server decides how deeply a value nests wherever a type can hold itself and wherever a position is
+typed `any`, and a decoder that recurses spends stack on every level. So every target reads a JSON
+text to a stated depth and no further, a level being one object or array inside another, and a text
+nested past it is a body that does not decode
+([responses](../plan/responses.md#a-body-that-does-not-decode)): the caller gets the status, the
+bytes and a decode error, never a crash. The depth is runtime policy's `Nesting.MaxDepth`, 64 unless
+a configuration sets another ([runtime
+policy](../contract/runtime-policy.md#how-deep-a-value-nests)), and it is one depth on every target:
+each refuses a body nested 65 levels. Leaving each runtime its own limit, json/v2's 10,000 levels on
+Go and whatever its thread's stack takes on Kotlin, was the alternative: a body would decode on one
+target and not on the other, with no setting to move either.
+
+On the golden spec (spec @bc6fad24, morphic @fa253fe19) the deepest value of a type that neither
+recurs nor reaches an `any` nests 13 levels, a model, a list and a map each one, and 50 of its
+41,149 types can hold a value of their own shape, which a server may nest as deep as it likes. What
+calls for a higher limit is a position that hands back a caller's own JSON as it was stored, whose
+depth is that caller's.
+
+The limit bounds what an SDK does with a value it decoded too, since encoding, printing, hashing,
+comparing and validating a value recurse as deep as it nests. A value a caller builds can nest
+deeper, and on some targets hold itself, and no target answers one with a crash its caller cannot
+recover from: each says what its encoder, its printed forms, its hash, its comparison and its
+validation do with it ([Go](../targets/go/models.md#nesting),
+[Kotlin](../targets/kotlin/models.md#nesting)).
+
+Depth does not bound work. A value that holds one child twice at each of 60 levels is 60 objects in
+memory and 2^60 values as JSON, and it nests within the limit, so encoding, printing, hashing,
+comparing or validating it would not end. So `Nesting.MaxValues`, 16,777,216 unless a configuration
+sets another, bounds the values of one JSON text, each object, array, string, number and literal
+counting one and a member's name none. A text holding more is refused as one nested too deep is,
+read or written, and no target visits more values than that, or more levels than `MaxDepth`, to
+print, hash, compare or validate one, each saying what its caller then sees. What validation reports
+for a value past either limit carries a declared kind no constraint's failure has, so a caller tells
+the two apart without reading a message. Such a value fails validation whatever else it reports, one
+held in a set field of an inclusive union beside a field that passes too, since a model, a union and
+its wrapper, an inclusive union and a positional type each descend through one shared walk state on
+Go, an inclusive union into every set field, and record their depth and count on Kotlin. A position
+several set fields of an inclusive union hold is counted once for each, so a union holding itself
+through two fields set together would double the count at each level its text adds, which no value
+of the golden spec can: its one inclusive union with two fields leading back to it is a JSON value's
+object and array, never set together (spec @bc6fad24, morphic @fa253fe19). Validation keeps the
+first 1,000 failures it finds, past the 151 checks a value of the golden spec's most constrained
+type reaching no cycle carries with one entry in each list and map and one variant of each union,
+and its report says when it found more, so what it holds is bounded as its walk is. A cap on the
+printed form alone was the alternative, and leaves the encoder and a generated comparison unbounded.
+T-63 holds this section.
 
 ## Recursive references
 

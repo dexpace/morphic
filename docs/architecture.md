@@ -287,10 +287,13 @@ A pass that takes settings, as `filter`, `version-slice` and `overlay` will, hol
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
 `RunOptions`, and the CLI through flags of the pass's own, both added with the pass. Where the
 settings have no neutral default, as those three's have none, supplying them is what turns the pass
-on. The compilers' textual option map is the wrong model here: it serves a set of formats the engine
-knows nothing about, while the built-in passes are a closed set the engine composes, so each setting
-can be typed, checked and documented where it is declared. An embedder's own pass takes its
-settings where the embedder builds it.
+on, save that `version-slice` slices every document stating versions, since no emitter reads
+availability, and a run asking a target that writes one snapshot for its artifacts names the version
+or is refused ([the emitter contract](./emitters/contract/emitter.md)). The compilers' textual
+option map is the wrong model here: it serves a set of formats the engine knows nothing about, while
+the built-in passes are a closed set the engine composes, so each setting can be typed, checked and
+documented where it is declared. An embedder's own pass takes its settings where the embedder builds
+it.
 
 The order lives in the `engine` package's default list, `engine.Passes`, not in `pass/`: composing
 passes is orchestration, which only the engine does. An embedder runs a list of its own,

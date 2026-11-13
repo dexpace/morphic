@@ -7,12 +7,24 @@ so it needs no struct.
 
 Kotlin's variant classes are the same wrapper as [Go's](../go/unions.md), for the same reason
 ([lowering table](lowering.md)), and each one's `toString` shows a variant the union redacts as
-`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)).
+`[REDACTED]` ([redaction](../../refine/redaction.md#a-redacted-value)). A wrapper takes its
+variant's name, most often the name of the type it wraps, so the union's file imports that type
+under a name of its own, `class Dog(val value: Dog2) : Pet`, as it does each declaration a class it
+nests would hide ([imports](naming.md#imports)).
 
 ## The fallback
 
 The fallback ([the shared rule](../../refine/unions.md#a-value-no-variant-recognizes)) is
 `Payment.Unknown`, holding a `JsonElement`.
+
+## Discriminators
+
+The serializer writes a variant's tag as [the shared
+rule](../../refine/unions.md#the-tag-a-variants-value-carries) says. A model's properties are
+`val`s, so it encodes a variant with one own tag to a `JsonObject` under the encoder's `Json` and
+writes that object with the tag at its member, in the member's place or first where the object has
+none, and a variant with several or none as it stands once its tag is checked. T-56 holds this
+section.
 
 ## An inclusive union
 

@@ -12,31 +12,39 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   intra-doc links via the *same* IR-ID lookup the Go emitter uses for doc comments, so a link
   follows what its target renders as. Examples use the schema arm (`Value/Headers`) vs the operation
   arm (`Input/Output/Error`) correctly. A union, a model narrowing one ([what the docs
-  render](#what-the-docs-render)) or an enum `TypePlan.Open` marks is documented as one that may
-  hold a variant or value the document does not list, a union inclusive in a shape, or a model
-  narrowing it there, as one whose
-  value may be several variants at once, and every `PlannedError` and `PlannedResponse` as the body
-  and headers it declares. An enveloped response is documented as the `Type` a method returns and
-  the `Envelope.Body` the wire carries, and an example of it as both: the member at `Value` of the
-  response's example for the first, and that example whole for the second. An operation is
-  documented as safe or idempotent where its `Effects` say so. Its README is returned as blocks a
-  user writes around ([write / integrate](write-integrate.md#a-document-the-user-writes-around)). No
-  runtime `Policy` is consulted — proving the IR/policy split pays off.
+  render](#what-the-docs-render)) or an enum `TypePlan.Open` marks is documented as one whose value
+  in a response may be a variant or a value the document does not list, which the SDK keeps, while a
+  request carries only what the document lists unless the IR declares the type open ([plan
+  policy](plan/policy.md#a-union-keeps-a-variant-it-does-not-know)), a union inclusive in a shape,
+  or a model narrowing it there, as one whose value may be several variants at once, and every
+  `PlannedError` and `PlannedResponse` as the body and headers it declares. An enveloped response is
+  documented as the `Type` a method returns and the `Envelope.Body` the wire carries, and an example
+  of it as both: the member at `Value` of the response's example for the first, and that example
+  whole for the second. An operation is documented as safe or idempotent where its `Effects` say so.
+  Its README is returned as blocks a user writes around ([write /
+  integrate](write-integrate.md#a-document-the-user-writes-around)). No runtime `Policy` is
+  consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and each response content's [example set](#one-set-of-examples) for canned responses, synthesizing
-  none of its own, sending the whole `Envelope.Body` where a response is enveloped, `Others` to
-  answer as each declared response does, the error taxonomy to simulate declared failures,
-  `TypePlan.Open` to say whether a variant or an enum value the document does not list may be sent,
-  `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the `BindingView` to route requests,
-  and the visibility projections to honor the same wire shapes an SDK sends/receives. Refine lowers
-  into a server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
+  none of its own, so with `Synthesize` off its streams and page walks hold only values the document
+  declares, bar the links and totals a walk states of itself, sending the whole `Envelope.Body`
+  where a response is enveloped, `Others` to answer as each declared response does, the error
+  taxonomy to simulate declared failures, the declared `Closed` of a union or an enum to say whether
+  a request may carry a variant or a value the document does not list, `TypePlan.Composed` to read a
+  body narrowing a union ([what a mock accepts](#what-a-mock-accepts)), `TypePlan.Strict` to refuse
+  a `oneOf` value as the SDK does, the binding it lowers ([bindings](plan/bindings.md)) to route
+  requests, `Stream` to answer each stream as its sides frame it and `Page` to end each page walk a
+  pager makes ([the mock's streams and page walks](#the-mocks-streams-and-page-walks)), and the
+  visibility projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
+  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
   constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
   construction** — the mock can *be* the interception target the SDK's wire-conformance harness
   ([mandatory tests](testing/mandatory-tests.md)) is diffed against. A response content whose
   example set is empty, as one can be with `Synthesize` off, is a warning
-  `emitters/mock/example-missing`, never a body it invents. It has no rule yet for a streaming
-  operation (#1675), for where a page walk ends (#1676), or for validating a request body that
-  narrows a union ([inheritance](refine/models.md#inheritance)) as the SDK lowers it (#1722).
+  `emitters/mock/example-missing`, never a body it invents. What it logs of a request is what an
+  SDK's event holds of one ([auth](operations/auth.md#where-a-credential-can-be-read)), so no header
+  and no body. It sends a webhook or a callback rather than routing one, as [operations the API
+  sends](operations/inbound.md) says, and the docs give each a page of its own there.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
@@ -60,20 +68,21 @@ content first within each, and those choices order the page and decide nothing e
 rendered once for each projection its `TypePlan.Shapes` gives it
 ([ModelShape](plan/types.md#modelshape--visibility-projection)), each table holding the members
 visible in that shape and marking those it requires, and shapes whose projections coincide share one
-table, as they share one declaration
-([models](refine/models.md#visibility-projections--n-wire-shapes)). So a write-only property is in
-no read shape's table and a read-only one in no create shape's, and a model one operation creates
-and another patches has a table for each, since a patch body's members are optional and a member
-visible only at creation is absent from it. A direction alone would merge those two. A model whose
-own members and those of the models it holds carry no visibility marker has one table for every
-shape, a patch's apart only where it or a model it holds requires a member or gives one a default,
-since a patch relaxes what is required and carries no default onto the wire, so its table shows
-none, and on the golden spec (spec @57b5196b, morphic @ab953d45) 15,694 of 17,872 models carry none
-on their own members or on any model they hold or inherit, so a table per shape would repeat itself
-for any of them two shapes but a patch reach. A type no shape reaches, one no operation sends or
-returns, is rendered once, unprojected, its table anchored by its model's anchor alone and shown
-through no shape, which `Shown` takes as a nil `ModelShape`, as an SDK declares it ([a shape reaches
-what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
+table, which names each declaration an SDK gives them ([the declaration a shape
+takes](plan/types.md#the-declaration-a-shape-takes)). So a write-only property is in no read shape's
+table and a read-only one in no create shape's, and a model one operation creates and another
+patches has a table for each where the patch relaxes its members ([what a patch
+relaxes](plan/types.md#what-a-patch-relaxes)) or a member is visible only at creation. A direction
+alone would merge those two. A model whose own members and those of the models it holds carry no
+visibility marker has one table for every shape, a patch's apart only where it or a model it holds
+requires a member or gives one a default, since a patch relaxes what is required and carries no
+default onto the wire, so its table shows none, and on the golden spec (spec @57b5196b, morphic
+@ab953d45) 15,694 of 17,872 models carry none on their own members or on any model they hold or
+inherit, so a table per shape would repeat itself for any of them two shapes but a patch reach. A
+type no shape reaches, one no operation sends or returns, is rendered once, unprojected, its table
+anchored by its model's anchor alone and shown through no shape, which `Shown` takes as a nil
+`ModelShape`, as an SDK declares it ([a shape reaches what it
+holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
 them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
@@ -87,7 +96,8 @@ in the byte order of their `TypeID`s, of a model whose flattening holds it. Each
 of its own for each shape it shows, a table coinciding shapes share carrying one for each of them,
 named through the page's ID-keyed resolution from its model and its shape, as identifiers are
 ([naming](refine/naming.md)), so it never takes a member's or another table's anchor, as a member
-named `create` beside a create table would; how a shape is named is #1405's to settle. A switcher
+named `create` beside a create table would; a shape's words are its key's, its lifecycles and its
+patch ([the declaration a shape takes](plan/types.md#the-declaration-a-shape-takes)). A switcher
 links a model's page in another version, never one of its tables, since a table's anchor is resolved
 within its own page and a version's page may resolve it otherwise, and links the page holding an
 anonymous model's table where that version gives the model no page of its own, and a link to the
@@ -205,6 +215,46 @@ are 988 under `https`, 7 under `http`, one an `https` autolink, and 14 relative,
 fragment alone, such as `#requests`, and 6 a path, such as `/api/resources/filters/`, which would
 otherwise break on a generated site.
 
+## What a mock accepts
+
+A handler reads a request body as the SDK's types decode it in the shape its operation sends it in
+([a shape reaches what it holds](plan/types.md#a-shape-reaches-what-it-holds)), and holds it to what
+`Build` holds a declared example to ([below](#one-set-of-examples)): admission in that shape
+([unions](refine/unions.md#a-value-several-variants-admit)), then the constraints of every
+declaration of each member the value lands on, the one its flattening takes and those that one
+overrides. A member's type is the taken declaration's, but an instance carries what each declaration
+asks of it ([the flattening](../ir/models.md#the-flattening)): the third variant of the golden
+spec's `realtimekit_StorageConfig` redeclares `access_key` with no bound over a declaration bounding
+it to one character at least, and a handler reading the taken one alone accepts `""` (spec
+@bc6fad24, morphic @fa253fe19). So an example the plan keeps for a request is a body the mock
+accepts, and a body the mock refuses is one the plan would refuse as an example.
+
+- **A union** is read by its `TypePlan.Union`: a discriminated one by the variant its tag routes to,
+  a tag naming none taking the order [unions](refine/unions.md#a-value-no-variant-recognizes) gives,
+  and an untagged one by the variants admitting the value, which is refused where two do and the
+  union is `Strict`, and held by each where the shape's `ModelShape.Inclusive` is set.
+- **A model narrowing a union** is read as that union, each entry of its `TypePlan.Composed` a
+  variant ([inheritance](refine/models.md#inheritance)). The tag routes to the entry over the
+  variant it names, through each union the entry's `Over` passes, and the body is held to the
+  members the entry's `Shapes` hold and require in the request's shape and to the constraints of
+  every declaration of each member its `Flattened` holds, taken and overridden. The model's own
+  `Flattened` holds only what it adds, so a handler reading it alone accepts what the API refuses.
+  The golden spec's `rulesets_Rule` request body adds `position` to a `oneOf` of 21 rules that
+  `action` routes, and the rule `block` routes to bounds a response's `status_code` to 400 through
+  499 and requires `content` and `content_type` beside it, none of which the body's own member says
+  (spec @bc6fad24, morphic @fa253fe19). There 15 models a client writes narrow a union beside a
+  member of their own, 3 of them over a discriminated one.
+- **What the document lists is all a request carries.** A handler refuses a variant or an enum value
+  the document does not list wherever the IR declares the type closed, whatever `TypePlan.Open`
+  says: `Open` is what a client survives in a response, and the API accepts what `Closed` states
+  ([plan policy](plan/policy.md#a-union-keeps-a-variant-it-does-not-know)). A mock built to accept
+  what the SDK keeps would pass a test sending a member the API has never listed.
+
+A handler reads a body once and tries an entry at most once, so a body narrowing an untagged union
+costs no more than its size times the entries its model composes, which `plan.MaxComposedSize`
+bounds when the plan is built ([TypePlan](plan/types.md#a-model-narrowing-a-union)), and one a tag
+routes is read by one entry. T-57 holds these rules.
+
 ## Routes and links
 
 Every docs target needs URLs, links between pages, an answer for two entities wanting one URL, and
@@ -232,10 +282,13 @@ a way to show one entity across API versions. Each is decided by data, never by 
   group's direct children. A slug is presentation (INV3), rendered from names by the naming policy,
   and two that collide in one template's scope are told apart by the ID-keyed resolution identifiers
   take ([naming](refine/naming.md)): three pairs of the golden spec's declared types share their
-  canonical words, which the SDKs resolve as well. Two slugs collide whatever their letter case, as
-  artifact paths do ([emit rules](emit/rules.md)), since a file system that ignores case keeps one
-  page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
-  `webhooks`, which slugs spelt as the source spells them would part by case alone.
+  canonical words, which the SDKs resolve as well. Two slugs collide where they fold alike, as
+  artifact paths do ([the path fold](emit/rules.md)), since a file system that ignores case keeps
+  one page of the two: two of the golden spec's groups, in its one service, are `Webhooks` and
+  `webhooks`, which slugs spelt as the source spells them would part by case alone. A slug that is a
+  Windows device name, which no page's path may hold ([emit rules](emit/rules.md)), is told apart as
+  a colliding one is, and a slug is held to the length cap of a name a path holds
+  ([naming](refine/naming.md#a-name-too-long-for-a-path-is-shortened)).
 - **A total route plan.** Every `ServiceID`, `GroupID`, `OpID`, `ChannelID`, `MessageID` and
   `AuthID` and every type with a page gets a route, every anonymous model rendered as a table on
   another's page an anchor there, every table of a model narrowing a union an anchor where the model
@@ -246,11 +299,11 @@ a way to show one entity across API versions. Each is decided by data, never by 
   is rendered and takes no anchor, since no link names one. Anything left without one is an error
   `emitters/docs/route-missing`, and a recursive type is linked by its ID, never inlined to a depth
   and cut.
-- **Collisions are refused.** Two entities whose routes resolve to one URL, letter case aside, are
-  an error `emitters/docs/route-collision` naming both, never a page that overwrites another and
-  never a page dropped. The check runs on the URLs the templates produce, over every route a run
-  plans, its table's and its agent documents' together, so no template can reintroduce a collision
-  the catalog did not have.
+- **Collisions are refused.** Two entities whose routes resolve to one URL, or to two that fold
+  alike ([the path fold](emit/rules.md)), are an error `emitters/docs/route-collision` naming both,
+  never a page that overwrites another and never a page dropped. The check runs on the URLs the
+  templates produce, over every route a run plans, its table's and its agent documents' together, so
+  no template can reintroduce a collision the catalog did not have.
 - **Links are requests.** A renderer never formats a URL. It writes a link request, an entity's ID
   with the projection it wants (a page, an anchor, a model's table in one shape, the agent document
   of one target and language), and the route plan answers it. A spec's
@@ -265,8 +318,8 @@ a way to show one entity across API versions. Each is decided by data, never by 
 - **Versions keep identity.** The emitter receives one version's snapshot ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and an entity's
   page is identified by its ID, never by the version, so a version switcher links one entity across
-  versions. Each snapshot's run writes under the directory its label names, as the contract has a
-  cross-version target's do ([contract
+  versions. Each snapshot's run writes under the directory its label names, two that fold alike set
+  apart by a suffix on the later, as the contract has a cross-version target's do ([contract
   rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), which the route
   plan, and no template, puts before every route but those of the pages spanning versions, so one
   entity's pages in two versions have two paths. The runs make one generation of the target, whose
@@ -279,23 +332,24 @@ a way to show one entity across API versions. Each is decided by data, never by 
   which no page's or anchor's route reads, and hands each run the tables of all of them in
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
-  no table, though the collision check reads it. A label is percent-encoded where a link writes it,
-  since a `#`, `?` or `%` in it would otherwise end or alter the URL. A switcher lists the labels
-  `Routes` keys, in the order `Document.Versions` gives them, never one no snapshot was made for. A
-  run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed,
-  which is also the version its switcher marks current: nothing in a snapshot's document says which
-  version it is. The engine cannot plan the routes itself, since the catalog and the templates are
-  the target's. A run plans its own routes by the same pure function, so its pages agree with its
-  snapshot's entry. A table holds each entity's page and anchor from the output root, its snapshot's
-  directory included, which is what a switcher links. What spans versions, the site-scope `llms.txt`
-  linking each version's and an index of the versions, is written once, by the run of the last of
-  the labels `Routes` keys in `Document.Versions` order, which every snapshot keeps whole
-  (architecture.md §2.2), since every run holds the labels and tables it is built from; those pages
-  sit at the output root and belong to the one generation, so they keep their place when another
-  label becomes last, and the collision check reads them against every label's directory, so a
-  template putting one under a label's name is refused. The `""` snapshot's run writes the site
-  scope, which is then its version's too, as one index. A link to an entity a version lacks resolves
-  to that version's page saying so. Slugs may differ between versions; IDs do not.
+  no table, though the collision check reads it. A label's directory is percent-encoded where a link
+  writes it, since a `#` or `%` in it would otherwise end or alter the URL, and a switcher shows the
+  label as written though its directory takes a suffix. A switcher lists the labels `Routes` keys,
+  in the order `Document.Versions` gives them, never one no snapshot was made for. A run finds its
+  own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed, which is also
+  the version its switcher marks current: nothing in a snapshot's document says which version it is.
+  The engine cannot plan the routes itself, since the catalog and the templates are the target's. A
+  run plans its own routes by the same pure function, so its pages agree with its snapshot's entry.
+  A table holds each entity's page and anchor from the output root, its snapshot's directory
+  included, which is what a switcher links. What spans versions, the site-scope `llms.txt` linking
+  each version's and an index of the versions, is written once, by the run of the last of the labels
+  `Routes` keys in `Document.Versions` order, which every snapshot keeps whole (architecture.md
+  §2.2), since every run holds the labels and tables it is built from; those pages sit at the output
+  root and belong to the one generation, so they keep their place when another label becomes last,
+  and the collision check reads them against every label's directory, so a template putting one
+  under a label's name is refused. The `""` snapshot's run writes the site scope, which is then its
+  version's too, as one index. A link to an entity a version lacks resolves to that version's page
+  saying so. Slugs may differ between versions; IDs do not.
 
 ## Documents for agents
 
@@ -343,26 +397,33 @@ is an error `engine/sample-target-invalid`, which the engine reports since the d
 see the registry, and one with no configuration is refused as an absent configuration always is. The
 engine runs a named target for its samples even when its generation writes nothing ([write /
 integrate](write-integrate.md#what-the-manifest-records)), since a docs run handed none would drop
-them, and, when the run names it too, runs it once with its artifacts, which on a sliced document
-only a cross-version target may be (#1531). A run made for samples alone reports what any run of
-that target reports, and the engine decides as for any run whether that is fatal: the docs show that
-SDK's calls, so an SDK that fails to generate fails the docs showing it. A target returns a sample
-for every operation its callers call, whatever its `Scope`, which gates its artifacts alone, since
-its names are the whole document's: a scoped SDK run's docs keep every sample. It returns none, with
-no diagnostic, for an operation the API starts, a webhook, a callback or a message the client
-receives, since no call spells it. A docs generation is a new one whenever the samples it is handed
-change, as an SDK target's own options can change them. A sample a target cannot render is a warning
-`emitters/<target>/sample-unrendered`, never an empty code block on the page, and so is one for an
-operation whose required input holds no example. A sample shows a call that succeeds, so its values
-are the `Input` of its operation's first success scenario (below): one ending in no `Error`, since
-an `Error` scenario's input is chosen to fail, and perhaps in no `Output`, as an operation answering
-with no body does. Its values are shown through the shape the operation sends them in, and where
-`Shown` cannot complete them the sample takes the next success scenario. That is one the operation
-declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else the one the plan
-assembles. An operation with neither has no sample: where `Assemble` is off it draws no diagnostic,
-whatever its inputs hold, since the policy chose it, and where `Assemble` is on and a required input
-holding no example kept one from being assembled, it draws the warning above. A redacted value is
-written as the target's placeholder for it (above).
+them, and, when the run names it too, runs it once with its artifacts, on a sliced document on the
+one snapshot such a target writes ([the contract](contract/emitter.md)). An SDK so written holds
+that one version, and a call spelled from another may not exist in it, so on a document stating
+versions each page shows a sample under its own snapshot's label, as the version of the SDK that
+spells the call. The label is on every version's pages, the written one's among them, since a docs
+target cannot tell which versions' SDKs are published: a pipeline running once per label publishes
+each, and a run naming a target for samples alone names no version. Showing samples on the written
+snapshot's pages alone was rejected for dropping what such a pipeline ships, and labelling only the
+others for making a docs page depend on which targets share its run (T-69). A run made for samples
+alone reports what any run of that target reports, and the engine decides as for any run whether
+that is fatal: the docs show that SDK's calls, so an SDK that fails to generate fails the docs
+showing it. A target returns a sample for every operation its callers call, whatever its `Scope`,
+which gates its artifacts alone, since its names are the whole document's: a scoped SDK run's docs
+keep every sample. It returns none, with no diagnostic, for an operation the API starts, a webhook,
+a callback or a message the client receives, since no call spells it. A docs generation is a new one
+whenever the samples it is handed change, as an SDK target's own options can change them. A sample a
+target cannot render is a warning `emitters/<target>/sample-unrendered`, never an empty code block
+on the page, and so is one for an operation whose required input holds no example. A sample shows a
+call that succeeds, so its values are the `Input` of its operation's first success scenario (below):
+one ending in no `Error`, since an `Error` scenario's input is chosen to fail, and perhaps in no
+`Output`, as an operation answering with no body does. Its values are shown through the shape the
+operation sends them in, and where `Shown` cannot complete them the sample takes the next success
+scenario. That is one the operation declares in `Operation.Examples`, as a Smithy or TypeSpec
+document can, else the one the plan assembles. An operation with neither has no sample: where
+`Assemble` is off it draws no diagnostic, whatever its inputs hold, since the policy chose it, and
+where `Assemble` is on and a required input holding no example kept one from being assembled, it
+draws the warning above. A redacted value is written as the target's placeholder for it (above).
 
 ## One set of examples
 
@@ -375,42 +436,46 @@ member and operation:
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs, save
   one holding an `ExternalURL` and no value, which the docs show as a link and which no set holds,
   since no value of it can be checked, shown, filled from or sent; each checked against its type and
-  constraints with visibility set aside, since the shape it is shown through settles that: a value
-  no shape could make valid, such as one its enum does not list, is refused, an enum the document
-  leaves open (`Enum.Closed` false) admitting a value it does not list. Shown through a shape, an
-  example drops the members that shape does not hold, keeping a key no member declares that the
-  model's catch-all admits, checked against the catch-all's type, and takes, for each member the
-  shape requires and the example lacks, the value a synthesized model gives that member (below), an
-  `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and
-  labels it generated, its
-  declared members kept as written; with `Assemble` off it fills nothing, and an example missing a
-  member the shape requires gives way as one it cannot complete does. So a response-form example
-  serves a create shape, a patch body's may leave out a required member, and, with `Assemble` on,
-  every required member's set holding a value and no `Strict` union left ambiguous by the shape, no
-  shape is left without one. `Build` refuses a union value several variants admit where the union is
-  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and `Shown` shows
-  such a value elsewhere through all of them, keeping each member one of them holds in the shape,
-  since an inclusive value may be several variants at once. A shape can make a value two variants of
-  a `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
+  constraints, a header's as the value it is and never through the readings a header's text admits
+  ([values as text](refine/text.md#reading-a-text)), a member's being those of every declaration its
+  flattening takes or overrides, as a synthesized value's are (below), with visibility set aside,
+  since the shape it is shown through settles that: a value no shape could make valid, such as one
+  its enum does not list, is refused, an enum the document leaves open (`Enum.Closed` false)
+  admitting a value it does not list. Shown through a shape, an example drops the members that shape
+  does not hold, keeping a key no member declares that the model's catch-all admits, checked against
+  the catch-all's type, and takes, for each member the shape requires and the example lacks, the
+  value a synthesized model gives that member (below), an `Undeclared` name's from its catch-all
+  type's set, which marks what is shown `Inferred` and labels it generated, its declared members
+  kept as written; with `Assemble` off it fills nothing, and an example missing a member the shape
+  requires gives way as one it cannot complete does. So a response-form example serves a create
+  shape, a patch body's may leave out a required member, and, with `Assemble` on, every required
+  member's set holding a value and no `Strict` union left ambiguous by the shape, no shape is left
+  without one. `Build` refuses a union value several variants admit where the union is
+  `TypePlan.Strict`, which decodes it as no variant, reporting it once as above, and a value of a
+  discriminated union that the variant its tag routes to does not admit, whichever other variant
+  does, since decoding reads it by its tag
+  ([unions](refine/unions.md#the-tag-a-variants-value-carries)), and `Shown` shows such a value
+  elsewhere through all of them, keeping each member one of them holds in the shape, since an
+  inclusive value may be several variants at once. A shape can make a value two variants of a
+  `Strict` union admit, by dropping the member that kept one of them out, so `Shown` checks
   admission again in the shape it shows and is false there, as for a member it cannot fill. A model
   narrowing a union is checked and shown as that union, the entries of its `TypePlan.Composed` its
   variants, each in its entry's shape and filled from what that entry requires there, strict and
   inclusive where the union is ([TypePlan](plan/types.md#a-model-narrowing-a-union)), so a value no
-  entry admits is refused, and a model adding nothing to its union as that union.
-  `plan.Shown` does this, the one projection every consumer reads an example through, reading
-  `Assemble` from `Plan.Policy.Examples`, and returns false for an example it cannot complete, a
-  required member's set being empty, so the consumer takes the set's next one; with none left the
-  position has no example there, which the docs show as none, a sample reports as
-  `sample-unrendered` and the mock as `example-missing`. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  entry admits is refused, and a model adding nothing to its union as that union. `plan.Shown` does
+  this, the one projection every consumer reads an example through, reading `Assemble` from
+  `Plan.Policy.Examples`, and returns false for an example it cannot complete, a required member's
+  set being empty, so the consumer takes the set's next one; with none left the position has no
+  example there, which the docs show as none, a sample reports as `sample-unrendered` and the mock
+  as `example-missing`. One they refuse is reported as a warning `emitters/plan/example-refused` and
+  left out, so every consumer falls to the next set alike: an SDK's test sending it would be refused
+  by the mock, as by the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a declared
+  example fails its own type in at least 295 types: in 292 no member of the enum, each closed, holds
+  it, such as `json` against `JSON` and `CSV`, and in 3 it is longer than `maxLength`. One declaring
+  none that adds no constraint to its type's takes its type's set, so a property shows the value its
+  type does, save an enum member, which takes its own value. A position whose type is a decorator
+  takes its own examples, else the nearest decorator's along the chain, as `CollapseAliases` folds
+  them, else, where it adds no constraint, the set of the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather
@@ -449,46 +514,54 @@ member and operation:
   declarations admit no value in common ([the flattening](../ir/models.md#the-flattening)): each of
   the golden spec's 355 error bodies composing a success shape and then a failure schema keeps the
   failure's `success: false`, which the success shape's `true` admits no value in common with (spec
-  @bc6fad24, morphic @ea70eba79). A list or map holds, for its k-th item or
-  entry, the k-th, its set's values taken in turn and, once they run out, synthesized values seeded
-  by index, so items differ where `uniqueItems` or a map's keys require it, a map's keys being
-  distinct values of its key type; a `uniqueItems` list holds no more items than distinct values
-  exist, and one left below its minimum is unsynthesizable. Each such value is a declared one whole,
-  or a synthesized one cut to the depth the bound leaves, so a property's value is the same alone
-  and inside its model wherever the bound leaves it whole and no other declaration of it refuses it,
-  and an optional recursive member ends.
-  The bounds cut only what validity leaves optional ([plan policy](plan/policy.md)): an optional
-  member more than `MaxDepth` models deep, and the entries of a list or map past the larger of
-  `MaxItems` and its minimum, or past its minimum alone once it lies deeper than `MaxDepth` or on a
-  recurrence of its own type along the value, so a recursion through no model, as the golden spec's
-  `cws_JSONValue` map and list recur, ends too, so a required list of its own model ends: the golden
-  spec's `cloudforce-one_TreeNode` requires `children`, a list of `TreeNode`, which holds none past
-  that depth. A required member is filled as deep as its schema requires, one whose reference is
-  `Nullable` ending a cycle with `null`, and a `minItems` above `MaxItems` is met: on the golden
-  spec 250 models reach a model four or more deep through their own or inherited required, non-null
-  members, and one list requires four items, which the default bounds would otherwise leave without
-  an example. A value the synthesizer cannot make valid, as a `pattern` it cannot satisfy or a
-  required cycle no value ends, or one holding more values than `plan.MaxExampleValues`, a fixed
-  limit the plan package states, 10,000, which bounds what a hostile schema can make one example
-  cost, is reported as a warning `emitters/plan/example-unsynthesized` and left out, never emitted
-  invalid. A model narrowing a union is synthesized as a value of one entry of its
-  `TypePlan.Composed`, chosen as a union's variant is (below), holding what that entry's flattening
-  holds as a model's value does, and a model adding nothing to its union takes the union's set where
-  it adds no constraint to it, and is otherwise synthesized as that union. So
-  `rulesets_ResponseRule`'s value is one of its union's rules carrying the five members it requires,
-  its `action`, which the model redeclares as a plain string, taking the value the variant's own
-  declaration pins, the tag routing to that variant. Which tag a value of a variant pinning none
-  carries is #1735's to settle.
+  @bc6fad24, morphic @ea70eba79). A list or map holds, for its k-th item or entry, the k-th, its
+  set's values taken in turn and, once they run out, synthesized values seeded by index, so items
+  differ where `uniqueItems` or a map's keys require it, a map's keys being distinct values of its
+  key type; a `uniqueItems` list holds no more items than distinct values exist, and one left below
+  its minimum is unsynthesizable. Each such value is a declared one whole, or a synthesized one cut
+  to the depth the bound leaves, so a property's value is the same alone and inside its model
+  wherever the bound leaves it whole and no other declaration of it refuses it, and an optional
+  recursive member ends. The bounds cut only what validity leaves optional ([plan
+  policy](plan/policy.md)): an optional member more than `ExamplePolicy.MaxDepth` models deep, and
+  the entries of a list or map past the larger of `MaxItems` and its minimum, or past its minimum
+  alone once deeper than that or on a recurrence of its own type along the value, so a recursion
+  through no model, as the golden spec's `cws_JSONValue` map and list recur, ends too, so a required
+  list of its own model ends: the golden spec's `cloudforce-one_TreeNode` requires `children`, a
+  list of `TreeNode`, which holds none past that depth. A required member is filled as deep as its
+  schema requires, one whose reference is `Nullable` ending a cycle with `null`, and a `minItems`
+  above `MaxItems` is met: on the golden spec 250 models reach a model four or more deep through
+  their own or inherited required, non-null members, and one list requires four items, which the
+  default bounds would otherwise leave without an example. A value the synthesizer cannot make
+  valid, as a `pattern` it cannot satisfy or a required cycle no value ends, or one holding more
+  values than `plan.MaxExampleValues`, a fixed limit the plan package states, 10,000, which bounds
+  what a hostile schema can make one example cost, is reported as a warning
+  `emitters/plan/example-unsynthesized` and left out, never emitted invalid. A model narrowing a
+  union is synthesized as a value of one entry of its `TypePlan.Composed`, chosen as a union's
+  variant is (below), holding what that entry's flattening holds as a model's value does, and a
+  model adding nothing to its union takes the union's set where it adds no constraint to it, and is
+  otherwise synthesized as that union. So `rulesets_ResponseRule`'s value is one of its union's
+  rules carrying the five members it requires, its `action`, which the model redeclares as a plain
+  string, taking the value the variant's own declaration pins, the tag routing to that variant. A
+  value synthesized as a variant of a discriminated union, whatever unions lie between, holds at the
+  tag's member one of that variant's own tags
+  ([unions](refine/unions.md#the-tag-a-variants-value-carries)): the first of them in the member's
+  own set where its declarations pin one, and otherwise the first in the byte order of their texts,
+  as a value of the member's type, and `plan.Shown` fills a tag a shape requires and an example
+  lacks the same way. A variant with no own tag takes the first value of its member's set that
+  routes to no variant, and has no example where the member is required and its set holds none,
+  which is reported as `emitters/plan/example-unsynthesized`. So a synthesized `nsc_Interconnect`
+  carries `direct` or `gcp_partner` as its `type`, which its variants leave a plain string, and a
+  value of either variant of `infra_ServiceConfig`, whose shared base lists both tags, the one
+  routing to it.
 - **Stable.** Each choice the synthesizer makes, such as which enum member, which variant or which
   entry of a model narrowing a union, is seeded from the entity's [correlation
   key](../ir/derived-facts.md#correlation-keys), or from its ID where no key identifies it, save on
-  a recurrence of its type along the value or deeper than `MaxDepth`, where it takes the first
-  variant, entry or member, in source order, from which a value ends.
-  So a required recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches
-  itself through a variant requiring a non-empty list of it. So a value is the same in either
-  declaration order, and on every regeneration until the entity's schema, its key, or its ID where
-  it seeds from one, the example policy, `irfacts.CorrelationVersion` or the synthesizer's code
-  changes.
+  a recurrence of its type along the value or deeper than `ExamplePolicy.MaxDepth`, where it takes
+  the first variant, entry or member, in source order, from which a value ends. So a required
+  recursive union ends: the golden spec's `cloudforce-one_EmailRuleCondition` reaches itself through
+  a variant requiring a non-empty list of it. So a value is the same in either declaration order,
+  and on every regeneration until the entity's schema, its key, or its ID where it seeds from one,
+  the example policy, `irfacts.CorrelationVersion` or the synthesizer's code changes.
 - **Shared** by the docs emitter, the samples, each SDK's tests and the mock server, none of which
   synthesizes its own.
 
@@ -497,6 +570,281 @@ value still moves when its entity's key or `irfacts.CorrelationVersion` does tho
 stays, as a renamed schema's would, and a persisted value would move with it, since it could be
 found again only by that key or by an ID the rename moves too, so persisting would add state without
 saving that churn.
+
+## The mock's streams and page walks
+
+An operation whose answer is no single body, a stream (`OpPlan.Stream`) or a page of a walk
+(`OpPlan.Page`), is answered so that each method an SDK generates for it meets the shape it asks for
+and ends, through the code a real server's answer takes. Each frame and page is a function of the
+document, the plan's policy, the mock's options and the request alone, its values drawn from the
+[example set](#one-set-of-examples), so the mock keeps no state between calls and answers one
+request with the same bytes on every run (INV7). The [behavior server](testing/behavior-server.md)
+is no second copy of these rules: it is written by hand so that a test can disagree with the
+generator, which a mock generated from the same plan cannot. T-66 and T-67 run an SDK's streams and
+pagers against the mock, which shows the two read the plan alike; T-14's routes show the plan reads
+the API rightly.
+
+### What the mock streams
+
+- **The shape asked for.** Where a side has a `Condition`, a request asks for its stream when the
+  input the condition names holds its value, and otherwise for the other content, whatever its
+  `Accept` says, since that input is what the API reads. Otherwise it asks by `Accept`: each content
+  of the primary response and of the response declaring `Recv`'s takes the `q` of the most specific
+  range matching it, a media type before `text/*` before `*/*` (RFC 9110 §12.5.1), compared as [one
+  election](plan/responses.md#one-election) compares, one taking `q=0` is excluded, and the mock
+  answers with the content of highest `q`, a tie going to the content `Return` elects, else to the
+  first declared, and with the content `Return` elects where none is left or `Accept` is absent,
+  each with the status and headers of the response declaring it. So the value method and the stream
+  method of one operation ([streaming](operations/streaming.md)) each get what they read, and
+  answering every request with the content `Return` elects would give the stream method a JSON body.
+- **What the frames hold.** A side the mock writes sends, in order, its elements; one value of the
+  first variant, in source order, whose `Variant.Event.Terminal` is true, where `Element` is a union
+  with one and the last element holds none; its `Terminator` as one frame's data, where it is set;
+  and then the body ends, the mock never holding a stream open. An `Initial` message is no frame
+  ([streams](plan/streams.md)). The elements are the content's declared examples, read through
+  `ContentExamples`: each item of a list value is a frame where `Element` is the `Elem` of the
+  content's list `Type`, a string value on a side with no `Element` is the body's text and is
+  written as it stands, since the schema describes the whole body (OpenAPI 3.2 §4.14.3), closed by a
+  line feed under `json_lines` and a blank line under `sse` where it does not end with one, so a
+  frame after it stays apart, and any other value `Element` admits is one frame. With none declared,
+  a side has `MaxItems` frames, the k-th the k-th value of the set of `Element`, or of the content's
+  `Type` where it has none, then one synthesized seeded by index, as a list's k-th item is. With
+  `Synthesize` off the mock makes none: a side has as many of those values as the set holds, up to
+  `MaxItems`, and where it holds none sends no element and draws `emitters/mock/example-missing`,
+  and a terminal variant whose set is empty is not sent, the body's end ending the stream. A
+  synthesized element holding a terminal variant before the last is left out, since the SDK would
+  end at it; a declared one stays, since the document says the stream ends there.
+- **How each is framed.** `sse` writes one event per frame, closed by a blank line, its data as one
+  `data:` line per line it holds, its lines split at each CR, LF and CRLF as a reader splits them
+  (WHATWG HTML §9.2.5), so a value holding a line feed arrives whole and one holding a carriage
+  return arrives with a line feed in its place, which an event stream cannot carry. Each field is
+  written with one space after its colon, which a reader strips, so a line starting with a space
+  keeps it. Under `FrameMembers` the element's `event`, `id` and `retry` are those fields and its
+  `data` the data, one with no `data` writing an empty `data:` line, since a reader dispatches no
+  event without one (§9.2.6), and an element whose `event`, `id` or `retry` holds a CR or an LF,
+  which would end that field and forge the next, is not sent, as no server can send it; otherwise
+  the data is the element's encoding, or its text where its root is `string`. `json_lines` writes
+  each frame's encoding and a line feed, its reader ending a line at an LF alone
+  ([streaming](operations/streaming.md#what-a-target-generates)), so a text frame arrives as one
+  frame per line it holds, a CR before an LF dropped, a lone CR kept, and a blank line none, the
+  mock writing no frame that is empty. `json_seq` writes a record separator, the encoding and a line
+  feed (RFC 7464). `multipart` writes a part per frame, typed as the side's `ItemEncoding` says and
+  otherwise by its element's codec, under a boundary derived from the parts' bytes and lengthened
+  until no part holds it. `bytes` sends the content's value as the body, a file having no frames.
+  `protocol` frames are another protocol's own, and the mock covers `http` alone, so it routes
+  `HTTP[0]`, as an HTTP SDK lowers, and an operation with no HTTP binding has no route there and
+  draws a warning `emitters/mock/unsupported-binding`, the code every target draws for it
+  ([bindings](plan/bindings.md)), never an answer its SDK would not read.
+- **A side the client writes.** The mock reads it as the SDK writes it: by its `Framing`, each frame
+  validated against `Element` as a body is, until the body ends or a frame whose data is its
+  `Terminator` arrives, after which a frame is refused; a `bytes` side is read to its end; and one
+  whose `RequiresLength` is set is refused (411) when its body arrives with no length, as the API
+  would refuse it. It then answers as for any call, as `Return` reads, a server answering once it
+  has read the request. It refuses at once a frame that fails validation, or the body past the bound
+  below, the frame that bound cuts refused as too large (413), never as one that does not decode.
+- **Both sides.** A `bidi` operation's sides run at once, neither waiting on the other: the mock
+  writes its own as a server stream, the same bytes whatever the client sends, since its frames
+  depend on none of the request's, and beside it reads the client's side and discards it, validating
+  no frame. Its response then ends as each version lets a server end one while the request is open.
+  Over HTTP/1.1 it states its length, a full-duplex response (Go's
+  `http.ResponseController.EnableFullDuplex`) whose handler returns only once the client's side has
+  ended, so the connection never closes on bytes the mock has not read, which would reset it and
+  lose a response its caller has not yet read. Over HTTP/2, which the mock serves on both its
+  listeners ([its options](#the-mocks-options)), the response ends once written, the read stopped
+  before the handler returns and the stream reset with `NO_ERROR`, which asks the client to stop
+  sending (RFC 9113 §8.1). Measured with Go 1.27.3's client, 20 runs of each caller and of sides up
+  to 8 MiB on each version, and Ktor 3.2.3's CIO engine over HTTP/1.1, 10 of each, every caller read
+  the mock's side whole on every run, where returning before the client's side ended over HTTP/1.1,
+  as a server stream does, lost it for a Go caller that wrote 1.6 MiB first in 6 of 20 runs and
+  failed its read in 8 more. Validating the client's frames was weighed and refused: a refusal after
+  the status could only cut the response at a point timing chooses, one request giving 1, 2 or 3
+  frames over 40 runs. Waiting for the client's side over HTTP/2 as well was refused too: there the
+  response ends only as the handler returns, so a caller that reads it to its end before ending its
+  own side would wait on a mock waiting on it. So was writing a frame for each frame read, since no
+  IR fact pairs one side's frames with the other's, and reading the client's side to its end before
+  writing, which stalls a caller that writes only after it reads. A caller reads before its side
+  ends only over a transport that delivers a response while its request is still open: Go's
+  `net/http` client does on both versions and Ktor's CIO engine on HTTP/1.1, the one it speaks,
+  while the JDK's `HttpClient` 25, under Ktor's Java engine, does on neither, so on it only a caller
+  that writes first can run. A caller's send after the mock's side has ended may fail at its own
+  transport, as Go's does on both versions, which T-66 does not count against the mock.
+- **What a caller controls.** Nothing in a request lengthens a stream: its frames are the declared
+  examples or `MaxItems`, each value within `plan.MaxExampleValues`. A side the client writes is
+  read to `MaxRequestBytes` in all and refused past it, and an exchange in which no byte of it moves
+  for `IdleTimeout`, a caller that stops reading or one that never ends a side the mock reads to its
+  end, is ended: over HTTP/2 its stream is reset and the connection, which other requests share,
+  kept. On both versions the read stops before the handler returns, since a read's deadline set
+  after it dereferenced nil in Go's HTTP/2 server. A `bidi` side past the bound is refused by
+  closing the connection over HTTP/1.1, so a caller that wrote that much before reading may lose the
+  mock's side, as 11 of 20 runs writing 20 MiB against a bound of 16 MiB did, its exchange failing
+  either way. Both are [options of the mock](#the-mocks-options).
+
+On the golden spec (spec @bc6fad24, morphic @fa253fe19) 13 operations stream. 8 the client reads: 6
+offer `json_lines` text beside JSON, 2 of them declaring a three-line example, one elects it for its
+one method beside CSV and Markdown no method asks for, and one offers `sse` frames of a model beside
+JSON. 5 the client writes: one `json_lines` text and 4 `bytes` files. None is `bidi` or sets a
+`Condition` or a `Terminator`, which no compiler fills yet (#1668). T-66 holds this section.
+
+### A page walk on the mock
+
+A paginated operation is answered as a walk a pager can finish: a finite list of items, cut into
+pages the request sizes, each page read from the request alone. The same canned page for every call,
+which the example set alone gives, never lets a walk end, since each page carries the same
+continuation and the same items. Counting calls was weighed and refused: a retry, a second walk or a
+test running beside it would move the count, and a request's page would turn on the calls before it.
+
+- **The items.** A walk holds `2n` items, `n` being those the primary response's example holds at
+  `ItemPath`, at least 1: a list of `ItemType` built as a synthesized list is (above), whose first
+  `n` are the example's. So a walk that sends no limit has two full pages and follows one
+  continuation. With `Synthesize` off the mock makes no value: an item the item type's set does not
+  give is the example's own again, from its first, and a walk whose example and set hold no item is
+  one page holding none.
+- **A page.** A request's page holds the items from the position it asks for, as many as the limit
+  it sends through `LimitIn`, else `n`, and none past the walk's end, and is the last where it holds
+  the walk's last item, save where the mock mints the walk's end (below), or none. A limit below 1
+  that the input admits sizes a page as no limit does, since a page of no items would end every walk
+  at once and state no page count. Under `cursor` and `token` the position is the start where the
+  request sends no continuation, else the one its continuation names: the mock mints distinct values
+  valid against `CursorOut`'s type and `CursorIn`'s, built as a `uniqueItems` list's items are, the
+  example's own first, the k-th naming the start of the walk's page k+1 at the request's size, so
+  one value serves a walk of two pages at any size, or of one where the walk's end is minted
+  (below), which takes a value too; where its type holds too few values, or with `Synthesize` off
+  its set declares too few, the walk ends after the last page they reach. It refuses a value it did
+  not mint. Under `offset` it is the offset sent, 0 where none is; under `page` the number sent less
+  `Page.FirstPage`, times the page's size, the first page where none is sent. Each is read and
+  computed at full precision, as a pager's are ([the numbers a walk reads and
+  sends](operations/pagination.md#the-numbers-a-walk-reads-and-sends)), so a number whose position
+  passes the walk's end gets a page holding none however large it is, as does one naming no position
+  of the walk: a number below `FirstPage` or an offset below 0 that the input admits, or one holding
+  a fraction. Under `next_link` and `link_header` the link names it: the request's own URL with one
+  query parameter of the mock's, `mock_page` prefixed with `_` until no input an operation at that
+  path declares is bound under its name, its value naming the operation, the position and the page's
+  size, which a limit sent in the body would otherwise lose, a value naming none of the walk
+  refused; an input owning the rest, as an exploded map does, holds no entry the mock reads as its
+  own. The mock answers a `GET` carrying it as that page whatever the method of the operation that
+  wrote it, since a pager follows a link with one ([what a pager sends
+  next](operations/pagination.md#what-a-pager-sends-next)).
+- **What a page says.** Each page but the last carries the continuation of the position after its
+  last item, where the strategy reads one, at the place `CursorOut` reads it or in the `Link`
+  header; every page states the walk's items where `TotalCount` reads them and its pages at the
+  request's size where `TotalPages` does; and the rest of each is the response's example, shown as
+  any is. The last carries no continuation: its member absent where optional, else null where
+  nullable; else the empty value where `no_next` is listed and its type admits one. Where the
+  continuation is required and not nullable and neither of those ends the walk, the mock mints one
+  more position, the walk's end, `total` with a total to read listed or not, since `total` counts
+  what the walk read and a walk a caller begins past the first page never reaches it: the page
+  holding the last item carries its continuation, and the page asking for it, the end page, holds
+  none, which `empty` ends, and `short` where the request sent a limit. Ending a walk `total` ends
+  on a value naming no page was weighed and refused: 5,208 walks begun at the second page ended on a
+  refusal with no warning, under every `Stop` listing `total`, `[empty, total]` among them. The end
+  page carries, where `Stop` is empty, the continuation its own request sent, a link the URL it was
+  sent to, the target written as it arrived, so the repeat ends the walk however the caller spelt
+  its query ([where a page walk ends](operations/pagination.md#where-a-page-walk-ends)), and
+  otherwise a value the mock did not mint, refused when sent back, which a type holding too few
+  values does not leave it (#1788). A repeat, an empty link among them, ends a walk only under an
+  empty `Stop` and on a page holding no items, so the mock writes one only on the end page there or
+  where `no_next` ends the walk, never where a pager would fetch the page again until its bound. A
+  walk whose continuation is required and not nullable therefore ends on a refusal where no listed
+  condition ends it first, and such an operation draws a warning `emitters/mock/page-walk-refused`,
+  once, unless `Stop` is empty or lists `empty` or `no_next` over a type admitting the empty value.
+  Leaving the member out all the same was weighed and refused: the SDK would fail to decode the last
+  page and lose its items.
+- **Why every walk ends.** Each continuation the mock writes names a position past the page's last
+  item, save three that end the walk: the end page's repeat under an empty `Stop`, the empty value
+  `no_next` ends on, and a value it did not mint, which it refuses. So a page holding none is the
+  last and the walk is finite, and a pager sending [its next
+  request](operations/pagination.md#what-a-pager-sends-next) reads each item once, in order, in at
+  most one request more than the walk has items, and one more again where it ends on a refusal. A
+  page but the last is full, so `short` ends nothing early; `total` is reached on the last data page
+  by a walk begun at the first, `no_next` holds on it, and `empty` holds on the page past the end,
+  where a walk under `offset` or `page` ends whatever `Stop` lists. Run over each strategy, each set
+  of `Stop` conditions, a continuation optional, nullable and required, each total, both first
+  pages, a `GET` and a `POST` operation, `n` of 1 to 3, one, two or unbounded declared cursor values
+  and seven limits, 70,560 walks begun at the first page and 43,008 begun at the second with the
+  continuation the mock wrote, a link's walks by a `GET`, a pager following these rules read each
+  item from where it began once and ended within that bound, refused only where the warning was
+  drawn; a link whose value named no size lost items in 1,824 of the first.
+- **What a caller controls.** A limit sizes only its own page, which never holds more than the walk:
+  a limit of a billion gets one page of the `2n` items, short and so the last, so a response's size
+  is bounded by the document's example and never by the request. An offset or a page number past the
+  end, however large, or one naming no position, gets a page holding none, and a continuation the
+  mock did not mint a refusal. A limit, an offset or a number its input's constraints refuse is
+  refused as any invalid input is.
+
+On the golden spec (spec @bc6fad24, morphic @fa253fe19) no operation has `Pagination`, since no
+compiler infers it yet (#989). By the names of their query parameters, its `GET`s take `page` in
+254, `cursor` in 92, `offset` beside `limit` in 37, and a token in 15, `page_token` in 13 and
+`continuation_token` and `continuationToken` in one each, 13 of them taking two of those; two
+`POST`s take `page`. None declares a `Link` header, and 15 return an optional, nullable `next`
+string in `result_info`, 12 of them `format: uri`. Of the 92, 12 require the `cursor` that
+`result_info` returns, 8 as a string that is not nullable, whose walks the empty cursor ends cleanly
+under `no_next` and the end position under `empty`. T-67 holds this section.
+
+## The mock's options
+
+The mock target's options ([target options](contract/options.md)) are what bounds the work a request
+can make it do, and these are all of them, with their defaults at its first version. A zero or
+negative number or duration is the strictest value of its option, never one that turns its bound
+off: a body of no bytes admitted, an exchange or a send ended at once, no send in flight; and an
+empty address listens on none.
+
+```go
+type Options struct {
+    MaxRequestBytes int64    // 16 MiB: a request body read in all, a streamed side or any other;
+                             // past it the request is refused (413) and read no further
+    IdleTimeout     Duration // 30s: an exchange in which no byte of it moves is ended, and a
+                             // connection whose request's head takes longer or that idles longer
+    Address         string   // "127.0.0.1:0": where the API listens, HTTP/1.1 and HTTP/2 with
+                             // prior knowledge (RFC 9113 §3.3)
+    TLSAddress      string   // "127.0.0.1:0": where the API listens over TLS, HTTP/2 and HTTP/1.1
+                             // by ALPN, under a certificate the mock makes when it starts
+    ControlAddress  string   // "127.0.0.1:0": where the control route listens, apart from the API
+    SendTo          []string // "127.0.0.0/8", "::1/128": the addresses a webhook or a callback
+                             // may be sent to; empty sends none
+    MaxSends        int      // 8: webhooks and callbacks in flight at once
+    SendTimeout     Duration // 10s: one send, from dialling to its answer's status
+}
+```
+
+The control route ([operations the API sends](operations/inbound.md#the-mock-server-and-the-docs))
+listens at `ControlAddress`, apart from the API's listeners, which the mock states when it starts
+beside the API's addresses and its certificate, as PEM: a route on the API's listener would have to
+miss every declared route, and a template whose first segment is a variable, such as
+`/{tenant}/items`, matches any path a prefix could choose. A `POST` to `/webhooks/` and a webhook's
+`WebhookName`, percent-encoded, sends that webhook to the URL its body's text names, and a name the
+document lacks is refused (404).
+
+The TLS listener is how a transport that offers HTTP/2 only by ALPN reaches HTTP/2: the JDK's
+`HttpClient` 25, asked for HTTP/2 over cleartext, sent an upgrade the mock does not take and spoke
+HTTP/1.1, saying nothing, and over the TLS listener negotiated HTTP/2, while Ktor's CIO engine
+speaks HTTP/1.1 alone. So a test trusting the certificate the mock states asserts the version its
+transport negotiated, and one that fell back to HTTP/1.1 fails rather than passing as the HTTP/2
+case.
+
+Three costs are left to the server the mock runs in. The number of connections is the operating
+system's to bound, as the mock serves a test's own process, on loopback by default. The size of a
+request's head is the server's, Go's `net/http` at 1 MB by default, which is what bounds the pairs a
+query or a cookie brings an input no style arranges ([values as
+text](refine/text.md#a-value-no-style-arranges)). A reader taking a byte within each `IdleTimeout`
+keeps its exchange open as long as the response lasts, which costs the mock one connection and its
+buffers for a response the document's examples bound. A connection holding no request, or part of
+one, is closed after `IdleTimeout`, the bound on a request's head and on a connection idle between
+requests: 200 such connections were all closed within 5 times it, and with neither bound all stayed
+open.
+
+A webhook or a callback is sent only to an `http` or `https` URL whose host resolves to an address
+`SendTo` lists, checked on the connection the mock dials, through no proxy, so a name resolving
+elsewhere by then is refused too: with a proxy from the environment, the connection dialled was the
+proxy's, on loopback, and the proxy sent a `POST` to a host outside the list. Any other is left
+unsent and logged, as the webhook's name or the callback's operation and expression, the URL as an
+event shows one ([what an event holds](contract/runtime-policy.md#what-an-event-holds)) and the
+bound that refused it, the request naming it answered all the same: a callback's URL comes from the
+request the mock answers, so without the list a request could make the mock call an address of its
+caller's choosing, and loopback serves a test's receiver, which runs beside it. A send that finds
+`MaxSends` in flight is left unsent and logged, never queued, so a burst of requests costs at most
+that many connections at once, where with no such bound 200 requests naming one loopback URL drew
+200 sends at once. Each send gives up past `SendTimeout`, follows no redirect and reads its answer's
+status alone. T-66, T-67 and T-71 hold these bounds.
 
 ## Documentation extensions
 
