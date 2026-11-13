@@ -160,13 +160,13 @@ func TestPromotePagination_FillsWhatTheExtensionsDeclare(t *testing.T) {
       parameters:
         - {name: at, in: query, schema: {type: integer}}
 ` + pageResponse, "offset in=param:at items=items pages=info.total"},
-		{"a page walk, its inputs in the body", `      x-page: {page: '$request.body#/cursor', limit: $request.size}
+		{"a page walk, its inputs in the body", `      x-page: {page: '$request.body#/cursor', limit: $request.size, items: $response.items}
       requestBody: {content: {application/json: {schema: {$ref: '#/components/schemas/Query'}}}}
-` + pageResponse, "page in=body:cursor limit=body:size"},
-		{"a member of a parameter", `      x-page: {page: $request.q.cursor}
+` + pageResponse, "page in=body:cursor limit=body:size items=items"},
+		{"a member of a parameter", `      x-page: {page: $request.q.cursor, items: $response.items}
       parameters:
         - {name: q, in: query, content: {application/json: {schema: {$ref: '#/components/schemas/Query'}}}}
-` + pageResponse, "page in=param:q.cursor"},
+` + pageResponse, "page in=param:q.cursor items=items"},
 		{"a next link", `      x-page: {link: $response.next}
 ` + pageResponse, "next_link link=next"},
 		{"a next link in a header", `      x-page: {link: $response.header.Next}
@@ -221,8 +221,9 @@ func TestPromotePagination_FillsWhatTheExtensionsDeclare(t *testing.T) {
 
 // TestPromotePagination_ReportsWhatFillsNone pins each pagination the
 // extensions state that fills nothing, reported at what stated it: a value
-// that resolves to nothing, a mark several nodes answer, and a walk with no way
-// to its next page. A pagination is filled whole or not at all.
+// that resolves to nothing, a mark several nodes answer, a walk no pager can
+// advance or end, and a walk with no way to its next page. A pagination is
+// filled whole or not at all.
 func TestPromotePagination_ReportsWhatFillsNone(t *testing.T) {
 	t.Parallel()
 	query := func(names ...string) string {
@@ -241,6 +242,10 @@ func TestPromotePagination_ReportsWhatFillsNone(t *testing.T) {
 			"sends a cursor and names no next cursor to send"},
 		{"a next cursor with nowhere to send it", "      x-page: {next: $response.next}\n" + pageResponse,
 			"names a next cursor and no input to send it in"},
+		{"an offset with no items to count", "      x-page: {offset: $request.at}\n" + query("at") + pageResponse,
+			"counts its walk by pagination.offset and names no items to count"},
+		{"a page number with no items to count", "      x-page: {page: $request.p, limit: $request.n}\n" +
+			query("p", "n") + pageResponse, "counts its walk by pagination.page and names no items to count"},
 		{"nothing reaching a next page", "      x-page: {items: $response.items}\n" + pageResponse,
 			"names neither an input continuing it nor a next link"},
 		{"a response value read off the request", "      x-page: {cursor: '$response.body#/next'}\n" + pageResponse,

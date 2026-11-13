@@ -149,7 +149,10 @@ func (pg *pager) report(op *ir.Operation, format string, args ...any) ir.Diagnos
 
 // assemble builds the pagination fields state, and returns why it builds none:
 // more than one input continuing the walk, a cursor beside no next cursor or a
-// next cursor beside no cursor, or nothing reaching the next page at all.
+// next cursor beside no cursor, an offset or a page number beside no items,
+// which a pager counts to advance an offset and to end either walk
+// (docs/emitters/operations/pagination.md), or nothing reaching the next page
+// at all.
 func assemble(f pageFields) (*ir.Pagination, string) {
 	var continues []lowering.ExtensionTarget
 	for _, t := range []lowering.ExtensionTarget{lowering.TargetPaginationCursor, lowering.TargetPaginationOffset,
@@ -161,6 +164,7 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 	_, cursor := f.inputs[lowering.TargetPaginationCursor]
 	_, next := f.outputs[lowering.TargetPaginationNextCursor]
 	_, link := f.outputs[lowering.TargetPaginationNextLink]
+	_, items := f.outputs[lowering.TargetPaginationItems]
 	switch {
 	case len(continues) > 1:
 		return nil, "names more than one input continuing it (" + joinTargets(continues) + ")"
@@ -168,6 +172,8 @@ func assemble(f pageFields) (*ir.Pagination, string) {
 		return nil, "sends a cursor and names no next cursor to send"
 	case !cursor && next:
 		return nil, "names a next cursor and no input to send it in"
+	case len(continues) == 1 && !cursor && !items:
+		return nil, "counts its walk by " + string(continues[0]) + " and names no items to count"
 	case len(continues) == 0 && !link:
 		return nil, "names neither an input continuing it nor a next link"
 	}
