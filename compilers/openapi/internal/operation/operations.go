@@ -237,7 +237,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 // however often the list names it. Tags compare as the text written.
 func operationTags(c lowering.Ctx, written []string, decl jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	tags, repeats := lowering.FirstOccurrences(written)
-	var diags []ir.Diagnostic
+	diags := make([]ir.Diagnostic, 0, len(repeats))
 	for _, r := range repeats {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, decl+ids.Ptr("tags", strconv.Itoa(r.At)),
 			"tag %q repeats the entry at index %d; it is kept once", written[r.At], r.First))

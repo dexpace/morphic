@@ -4,6 +4,7 @@
 package lowering_test
 
 import (
+	"slices"
 	"strconv"
 	"testing"
 
@@ -44,11 +45,11 @@ func TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst(t *testing.T) {
 // past the length compared pair by pair, read through a set, to the same fold.
 func TestFirstOccurrences_ALongListFoldsAsAShortOne(t *testing.T) {
 	t.Parallel()
-	var entries, want []string
+	entries := make([]string, 0, 23)
 	for i := range 20 {
 		entries = append(entries, "s"+strconv.Itoa(i))
 	}
-	want = append(want, entries...)
+	want := slices.Clone(entries)
 	entries = append(entries, "s3", "s0", "s3")
 	kept, repeats := lowering.FirstOccurrences(entries)
 	assert.Equal(t, want, kept)

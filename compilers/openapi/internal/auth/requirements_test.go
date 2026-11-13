@@ -1089,7 +1089,7 @@ components:
 		}
 	}
 	slices.Sort(got)
-	var wantDiags []string
+	wantDiags := make([]string, 0, 6)
 	for _, base := range []string{"", "/paths/~1x/get"} {
 		wantDiags = append(wantDiags,
 			base+`/security/0/o/1: scope "read" of scheme "o" repeats the entry at index 0; it is kept once`,

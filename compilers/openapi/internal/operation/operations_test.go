@@ -947,7 +947,7 @@ components:
 		}
 	}
 	slices.Sort(got)
-	var wantDiags []string
+	wantDiags := make([]string, 0, 12)
 	for _, decl := range []string{"/components/pathItems/Shared/get",
 		"/paths/~1x/get", "/paths/~1x/get/callbacks/onEvent/{$request.body#~1url}/post", "/webhooks/hook/post"} {
 		wantDiags = append(wantDiags,
@@ -963,7 +963,7 @@ components:
 // than lowering.FirstOccurrences compares pair by pair, through an operation.
 func TestOperation_ALongTagListFoldsAsAShortOne(t *testing.T) {
 	t.Parallel()
-	var written []string
+	written := make([]string, 0, 17)
 	for i := range 17 {
 		written = append(written, "t"+strconv.Itoa(i))
 	}

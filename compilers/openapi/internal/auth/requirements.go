@@ -89,7 +89,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 // as the text written, and one scheme's list folds apart from another's.
 func requiredScopes(c lowering.Ctx, written []string, key string, pointer jsontext.Pointer) ([]string, []ir.Diagnostic) {
 	scopes, repeats := lowering.FirstOccurrences(written)
-	var diags []ir.Diagnostic
+	diags := make([]ir.Diagnostic, 0, len(repeats))
 	for _, r := range repeats {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.RepeatedEntry, pointer+ids.Ptr(key, strconv.Itoa(r.At)),
 			"scope %q of scheme %q repeats the entry at index %d; it is kept once", written[r.At], key, r.First))
