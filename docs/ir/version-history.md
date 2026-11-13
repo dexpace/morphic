@@ -485,7 +485,7 @@ it sees. Changes made together in one bump are listed together under it.
     `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
     mapping names a key for them. A consumer pinned to 0.46.0 finds a pagination, a name or a field
     where none was written.
-  - A decorator over a target a keyword deprecates holds the `Deprecation` its own keys' members
-    state, which they were kept beside in silence.
+  - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
+    members state, which they were kept beside in silence.
   - The default mapping reads only the word `deprecated` of `x-stability` and
     `x-fern-availability` as a deprecation, so a boolean on either deprecates nothing.

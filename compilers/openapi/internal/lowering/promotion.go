@@ -257,10 +257,11 @@ type Referent struct {
 	Members ir.Deprecation
 	// Redacted reports that a key on the referent asks for redaction.
 	Redacted bool
-	// Homes reports that a schema the node falls back to is deprecated by its
-	// keyword, so the node is deprecated through it though the node's own
-	// Deprecation is unset, as a decorator's is, and a member the node writes
-	// annotates that deprecation. Its caller sets it, as the keyword is no key.
+	// Homes reports that a schema the node falls back to is deprecated, by its
+	// keyword or a key, so the node is deprecated through it though the node's
+	// own Deprecation is unset, as a decorator's is, and a member the node
+	// writes annotates that deprecation. Its caller sets it, as the keyword is
+	// no key and the schema is not the node.
 	Homes bool
 }
 

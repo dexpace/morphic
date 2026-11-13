@@ -4395,8 +4395,8 @@ whatever a `deprecated: false` beside it says, since a `false` states nothing
 boolean, which names no tier either and is reported once by the stability reading below. A key
 listing no values reads the text `deprecated` and a boolean `true` as stating it, `false` and any
 other word as stating nothing, and reports any other shape. A member is filled on what is deprecated
-by then, by a keyword, a key, or a schema it composes as its `Base` whose keyword deprecates it, as
-a decorator over a deprecated target is ([annotations](../ir/annotations.md#decorators)), and on
+by then, by a keyword, a key, or a schema it composes as its `Base` whose keyword or key deprecates
+it, as a decorator over a deprecated target is ([annotations](../ir/annotations.md#decorators)), and on
 anything else the key annotates nothing and stays where it is. `Message` reads
 `x-deprecated-reason`, `x-stainless-deprecation-message` and the `description` of
 `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads `x-sunset`, the `date`
