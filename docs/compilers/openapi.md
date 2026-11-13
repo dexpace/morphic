@@ -4716,10 +4716,10 @@ A pagination is read in one order of precedence, stated here for every reading o
 document writes, then a promoted extension, then an inference
 ([`pagination-policy`](#pagination-policy)). The document has spoken of an operation's pagination
 wherever a keyword or a key the policy maps to a pagination target is written, whatever its value,
-and no later reading fills a pagination it spoke of. OpenAPI writes no pagination keyword, so here that
-is each key a source of a pagination target names, written where this rule reads that source: on the
-operation for an expression, and for a mark on a parameter, a member of a body, a success response's
-header or the type one of them names, however many operations reach it. A value filling a
+and no later reading fills a pagination it spoke of. OpenAPI writes no pagination keyword, so here
+that is each key a source of a pagination target names, written where this rule reads that source:
+on the operation for an expression, and for a mark on a parameter, a member of a body, a success
+response's header or the type one of them names, however many operations reach it. A value filling a
 pagination, one resolving to nothing or refused, and one stating nothing, `false`, null or an empty
 object, speak alike. `PromotePagination` returns the operations it reads that so speak, by ID, as
 the set a step inferring a pagination reads in place of their extensions, and marks no node for a
@@ -4736,6 +4736,7 @@ the operation itself, is read by no source, so it speaks of nothing.
   `operation.TestPromotePagination_StatedReadsEitherSidesKey`,
   `operation.TestPromotePagination_StatedIsIndependentOfDeclarationOrder`,
   `operation.TestPromotePagination_StatesNothingOffPolicy`,
+  `operation.TestPromotePagination_ReadsNoOperationHoldingOne`,
   `lowering.TestOperations_ReadsEveryGroupToTheCap`,
   `operation.TestMarker_AUseOfATypeTheRegistryLacksMarksNothing`,
   `lowering.TestPageStatementOf_ReadsAnExpressionOrAMark`
