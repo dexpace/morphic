@@ -61,14 +61,18 @@ and may move that one. `pass.Validate` reports an ID repeated within one enum as
 A **closed** Enum with **no members** is the empty value space — it admits its members and has
 none — so it is how a compiler states a position that accepts no instance at all (JSON Schema's
 `enum: []`) without a bottom `TypeKind`. Emitters render it as their uninhabited type where they
-have one (TypeScript `never`); none may widen it to the top type.
+have one (TypeScript `never`); none may widen it to the top type. A nullable reference to one admits
+`null` and nothing else, which is how an enumeration of `null` alone lowers: `null` is no member of
+any enum, since whether a position admits it is its reference's
+([type-graph](./type-graph.md#type-references)).
 
 ## One member
 
 **The member count never decides an enumeration's kind.** An enumeration whose members an `Enum` can
-hold is an `Enum`, with one member as with many. One it cannot hold — a list or object member as
-above, members of different kinds, or only `null` — lowers to a `Union` of `Literal`s whatever its
-count, with a diagnostic. In particular, one member does not make an enumeration a
+hold is an `Enum`, with one member as with many, and with none where it lists `null` alone
+([above](#the-empty-enum)). One it cannot hold — a list or object member as above, or members of
+different kinds — lowers to a `Union` of `Literal`s whatever its count, with a diagnostic, and a
+`null` it lists is no variant of it, for the reason it is no member. In particular, one member does not make an enumeration a
 `Literal` ([containers](./containers.md)), which is for a source's *constant*: JSON Schema `const`,
 a TypeSpec literal type, an Erlang atom. The count is the wrong thing to decide the kind on:
 
@@ -88,11 +92,16 @@ that reading is its policy rather than a lowering.
 
 ## A union of strings
 
-A closed union whose every variant names an anonymous string `Literal`, a closed `Enum` of one
-string or a union of one value in turn, saying nothing else, is a closed set of strings in another
-spelling: a JSON Schema `oneOf` of `const`s, or OpenAPI 3.0's `anyOf` of one-member enums. A
-compiler keeps it a `Union`, each branch's docs and deprecation on the node it lowers to, and the
-engine's `const-unions` pass rewrites it as the closed `Enum` of its values at the union's own ID,
-each member holding what its branch says of its value, so a consumer meets one shape. Where the
-union says what no `Enum` can, it stays
-([`string-const-union`](../compilers/openapi.md#string-const-union)).
+A closed union whose every variant names an anonymous string `Literal`, a closed `Enum` of strings
+or a union of them in turn, saying nothing else, is a closed set of strings in another spelling: a
+JSON Schema `oneOf` of `const`s, or OpenAPI 3.0's `anyOf` of enums. A compiler keeps it a `Union`,
+each branch's docs and deprecation on the node it lowers to, and the engine's `const-unions` pass
+rewrites it as the closed `Enum` of its values at the union's own ID, each member holding what is
+said of its value, so a consumer meets one shape. A branch of several values is taken only where the
+union's variant is its one reference, so its values move into the `Enum` rather than being copied
+into each union naming it. Where the union says what no `Enum` can, it stays
+([`string-const-union`](../compilers/openapi.md#string-const-union)). A reading that runs before the
+pass and asks which strings a value admits, as discriminator inference does
+([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)), reads such a union
+as the set it holds, whether or not the pass will rewrite it, so its answer does not turn on how the
+document spelled the set.

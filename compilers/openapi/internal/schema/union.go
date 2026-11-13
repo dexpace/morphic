@@ -256,8 +256,9 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef
 
 // buildUnion assembles the Union node for the union u of the schema s, attaching
-// a discriminator when s declares one. common is already built by the caller
-// (internNode), so buildUnion needs no hint of its own to build one.
+// a discriminator when s declares one, with the routes it implies
+// (spellImplicitRoutes). common is already built by the caller (internNode), so
+// buildUnion needs no hint of its own to build one.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
 // knowing what each variant names (readsThrough). A union the discriminator
@@ -289,8 +290,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
+	diags = append(diags, discDiags...)
+	diags = append(diags, spellImplicitRoutes(c, u.holder, node, pointer)...)
 	deferUnionTags(c, ts, s, common.ID, pointer)
-	return node, append(diags, discDiags...)
+	return node, diags
 }
 
 // unionAt is a union a position lowers: the oneOf or anyOf, whichever
@@ -368,16 +371,19 @@ func findBranchUnion(c lowering.Ctx, s *oas3.Schema) branchUnionIndex {
 
 // variantHint is the hint the union variant for the branch b written at vptr,
 // which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// inline and refines the $ref its allOf names, or t is a decorator (ir.Decorated)
-// over it, when it is the name the $ref suggests (lowering.NameThrough). 3.0
-// annotates a branch only by wrapping its $ref, so `{allOf: [{$ref: X}],
-// description: …}` names its variant as 3.1's `{$ref: X, description: …}` does
-// (GitHub #1018). The node t keeps the branch's own: a decorator collapses into
-// its reference wherever it is used.
+// inline, no title names it (lowering.NameTitle), and it refines the $ref its
+// allOf names, or t is a decorator (ir.Decorated) over it, when it is the name
+// the $ref suggests (lowering.NameThrough). 3.0 annotates a branch only by
+// wrapping its $ref, so `{allOf: [{$ref: X}], description: …}` names its
+// variant as 3.1's `{$ref: X, description: …}` does (GitHub #1018), a title
+// beside either too. The node t keeps the branch's own.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
 	if s == nil || isRefBranch(b) {
+		return own
+	}
+	if _, titled := lowering.NameTitle(c, vptr); titled {
 		return own
 	}
 	if r, refines := refinementOf(c, s, vptr); refines && r.ref != nil {
@@ -413,7 +419,7 @@ func decorates(td ir.TypeDef) bool {
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		list := typeList{types: types, voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
+		list := typeArray{types: types, voices: positionVoices(c, ts, s, pointer, ir.TypeRef{})}
 		variants := make([]ir.Variant, 0, len(types))
 		for i, st := range types {
 			vptr := pointer + ids.Ptr("type", strconv.Itoa(i))
@@ -439,9 +445,9 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 	return id, diags
 }
 
-// typeList is what every variant of one type array reads beside its schema: the
+// typeArray is what every variant of one type array reads beside its schema: the
 // types it lists, and the voices of the position it is written at.
-type typeList struct {
+type typeArray struct {
 	types  []oas3.SchemaType
 	voices []annotation.Voice
 }
@@ -454,7 +460,7 @@ type typeList struct {
 // discriminator on the union instead. A scalar variant reads the value bounds,
 // the format and the content vocabulary st takes, and is a Scalar of its own
 // where it holds one, else the shared primitive.
-func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType, list typeList) (ir.TypeID, []ir.Diagnostic) {
+func lowerTypeVariant(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, st oas3.SchemaType, list typeArray) (ir.TypeID, []ir.Diagnostic) {
 	switch st {
 	case oas3.SchemaTypeObject:
 		return lowerModel(c, ts, depth, s, pointer, false /* discriminated */, kindObject)
@@ -899,7 +905,6 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 				return ref
 			})
 		diags = append(diags, unionDiags...)
-		diags = append(diags, spellImplicitRoutes(c, u.holder, def, pointer)...)
 		return def
 	})
 	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)

@@ -9,6 +9,6 @@
 // nearest object holding a schema as the grammar reads it (bind.Table.Kinds):
 // a component schema, request body, response, parameter or header, or a
 // document whose root it is. Each keyword beneath composes the name of the
-// position it leads to; a branch holding a $ref takes the name of the
-// position it lands on.
+// position it leads to, a title names its schema, and a branch holding a $ref
+// takes its target's.
 package naming

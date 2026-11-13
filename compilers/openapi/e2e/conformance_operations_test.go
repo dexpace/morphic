@@ -4,11 +4,14 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -139,6 +142,37 @@ func assertHTTPBinding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "/items/{id}", hb.URITemplate)
 }
 
+// assertPathKeyFragments pins a path key carrying a fragment: the URI template
+// is the route a request is sent to, the binding keeps the fragment, and every
+// operation sending one route another does shares it, the one written without
+// a fragment included. Each fragmented key draws its warning.
+func assertPathKeyFragments(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, want := range map[string]struct {
+		fragment string
+		shared   bool
+	}{
+		"bearerOAuth": {"oauth2", true}, "bearerApiKey": {"apiKey", true}, "bearer": {"", true}, "other": {"", false},
+	} {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, name)
+		hb := op.Bindings.HTTP[0]
+		assert.Equal(t, want.shared, hb.SharedRoute, "%s: whether its route is shared", name)
+		kept, fragmented := hb.Unmodeled["openapi:fragment"]
+		assert.Equal(t, want.fragment != "", fragmented, "%s: whether it keeps a fragment", name)
+		if fragmented {
+			assert.Equal(t, "/bearer", hb.URITemplate, name)
+			assert.JSONEq(t, `"`+want.fragment+`"`, string(kept.Value), name)
+		}
+	}
+	var warned []string
+	for _, d := range diags {
+		if d.Code == "openapi/invalid-path-key" {
+			warned = append(warned, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/paths/~1bearer#oauth2", "/paths/~1bearer#apiKey"}, warned)
+}
+
 // assertTagsGrouping32 is the 3.2 counterpart of assertTagsGrouping, and the
 // first case in the corpus to witness OperationGroup.Groups: a tag declaring a
 // parent nests its group under that parent's, an operation's non-navigational
@@ -173,4 +207,38 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "listBooks", listBooks.Name.Source)
 	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
 		"tag membership keeps every tag the operation named, badge included")
+}
+
+// assertIdempotencyInference pins the idempotency policy on each operation of
+// its case: a POST's Idempotency-Key header and a PUT's, through a $ref and in
+// lower case, are their tokens, marked; a GET, safe by its method, a PATCH
+// whose key is a query parameter, and a DELETE carrying the header twice in
+// two letter cases keep the idempotency the document leaves unknown, the
+// DELETE alone reported, as the one whose reading met its trigger and stopped.
+func assertIdempotencyInference(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Equal(t, []jsontext.Pointer{"/paths/~1payments~1{id}/delete"},
+		openapitest.PointersOf(diags, "openapi/undecided-idempotency"))
+	assert.Equal(t, "no idempotency token is inferred: 2 header parameters are named Idempotency-Key, compared without case",
+		openapitest.DiagMessageAt(t, diags, "openapi/undecided-idempotency", ir.SeverityInfo,
+			"/paths/~1payments~1{id}/delete"))
+	for _, tc := range []struct {
+		op    string
+		token ir.ParamID
+	}{
+		{"createPayment", "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"},
+		{"replacePayment", "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"},
+		{"listPayments", ""},
+		{"patchPayment", ""},
+		{"deletePayment", ""},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, tc.op)
+		if tc.token == "" {
+			assert.Equal(t, ir.Idempotency{}, op.Idempotency, tc.op)
+			assert.Empty(t, op.Provenance.Inferred, tc.op)
+			continue
+		}
+		assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, op.Idempotency, tc.op)
+		assert.Equal(t, openapi.IdempotencyInferenceHeuristic, op.Provenance.Inferred, tc.op)
+	}
 }

@@ -180,9 +180,12 @@ testdata/conformance/openapi/empty-names.yaml	16:9	validation-invalid-syntax	com
 testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
 testdata/conformance/openapi/empty-names.yaml	85:7	validation-type-mismatch	library	declared-dialect
 testdata/conformance/openapi/empty-names.yaml	90:18	validation-type-mismatch	library	declared-dialect
-testdata/conformance/openapi/empty-names.yaml	124:13	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/empty-names.yaml	130:13	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/empty-names.yaml	134:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	101:17	validation-invalid-reference	library	media-type-components
+testdata/conformance/openapi/empty-names.yaml	102:23	validation-invalid-reference	library	media-type-components
+testdata/conformance/openapi/empty-names.yaml	105:7	validation-invalid-syntax	compiler	component-names
+testdata/conformance/openapi/empty-names.yaml	109:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	115:13	validation-required-field	library	empty-is-missing
+testdata/conformance/openapi/empty-names.yaml	119:13	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	14:18	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-request-content.yaml	27:22	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	5:10	validation-required-field	library	empty-is-missing
@@ -205,6 +208,13 @@ testdata/conformance/openapi/empty-required-values.yaml	39:39	validation-require
 testdata/conformance/openapi/empty-required-values.yaml	40:47	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:61	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/extension-promotion.yaml	136:19	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/header-name-case.yaml	19:21	validation-duplicate-key	compiler	library-silent
+testdata/conformance/openapi/header-name-case.yaml	31:27	validation-duplicate-key	compiler	library-silent
+testdata/conformance/openapi/header-name-syntax.yaml	17:26	validation-invalid-format	compiler	library-silent
+testdata/conformance/openapi/header-name-syntax.yaml	39:23	validation-invalid-format	compiler	library-silent
+testdata/conformance/openapi/header-name-syntax.yaml	45:11	validation-invalid-format	compiler	library-silent
+testdata/conformance/openapi/header-name-syntax.yaml	52:11	validation-invalid-format	compiler	library-silent
+testdata/conformance/openapi/header-name-syntax.yaml	57:11	validation-invalid-format	compiler	library-silent
 testdata/conformance/openapi/later-version-constructs.yaml	7:8	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	8:20	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	12:12	later-version-construct	compiler	version-gate
@@ -290,8 +300,9 @@ testdata/conformance/openapi/yaml-timestamp-scalars.yaml	11:16	validation-type-m
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names
-testdata/golden/openapi/hint_positions.yaml	290:7	validation-invalid-syntax	compiler	component-names
-testdata/golden/openapi/hint_positions.yaml	294:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	317:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	321:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	371:7	validation-invalid-syntax	compiler	component-names
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_duplicate_key.yaml	12:5	validation-duplicate-key	library	position
@@ -299,3 +310,4 @@ testdata/openapi/cycle_duplicate_key.yaml	12:8	validation-duplicate-key	compiler
 testdata/openapi/cycle_pointer_whitespace_self.yaml	10:15	validation-invalid-format	compiler	library-silent
 testdata/openapi/cycle_schema_empty_key.yaml	10:9	validation-invalid-reference	library	component-names
 testdata/openapi/cycle_schema_empty_key.yaml	11:9	validation-invalid-syntax	compiler	component-names
+testdata/openapi/discriminator_maps_its_own_base.yaml	20:25	validation-invalid-schema	library	old-grammar

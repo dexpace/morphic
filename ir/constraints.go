@@ -73,10 +73,13 @@ type Constraints struct {
 // encoding.
 type Encoding struct {
 	// Name is the encoding scheme ("rfc3339", "base64", "zigzag", "packed",
-	// "delimited", format strings, ...).
+	// "delimited", "string" for a number written as its text, format strings,
+	// ...).
 	Name string `json:"name,omitempty"`
-	// WireType is the on-wire primitive when it differs from the logical type
-	// (utcDateTime encoded as int32; bytes as base64 string).
+	// WireType is the on-wire primitive the encoding turns the logical value into
+	// (utcDateTime encoded as int32; bytes, or a number, as a string). Over a
+	// string it marks text the encoding is applied to, where nil is text already
+	// encoded (docs/ir/constraints.md#encodings).
 	WireType *TypeRef `json:"wireType,omitzero"`
 	// MediaType is the content media type of the value itself (Smithy @mediaType,
 	// JSON Schema contentMediaType); "" = none.

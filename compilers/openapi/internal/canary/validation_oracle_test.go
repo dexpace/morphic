@@ -135,9 +135,10 @@ var validationReasons = map[string]string{
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
 		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
 		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
-		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
+		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
-		"insensitive')",
+		"insensitive'), and so is a headers map's key, two of which naming one header in different case name it " +
+		"twice (3.1.2 §Response Object: 'Maps a header name to its definition')",
 	"querystring-keywords": "the library accepts explode and allowReserved at in: querystring, which 3.2 bars " +
 		"there as it bars style (3.2.0 §Parameter Object: 'These fields MUST NOT be used with in: \"querystring\"'); " +
 		"the table warns of each as invalid-location-keyword: the content says what the parameter means, and the " +
@@ -149,6 +150,9 @@ var validationReasons = map[string]string{
 		"an empty component; the specification requires them to match ^[a-zA-Z0-9\\.\\-_]+$ (3.1.2 §Components " +
 		"Object: 'All the fixed fields declared above are objects that MUST use keys that match the regular " +
 		"expression'), which the table reports where the key is written",
+	"media-type-components": "the library models no Components Object mediaTypes " +
+		"(docs/parser-library.md#media-type-references), so it reads a schema's $ref into an entry as naming " +
+		"nothing, where the load phase models each entry and resolves the $ref",
 	"path-templating": "the library does not match a path's template expressions to its path parameters, which the " +
 		"specification requires (3.1.2 §Path Templating: 'Each template expression in the path MUST correspond to a " +
 		"path parameter')",

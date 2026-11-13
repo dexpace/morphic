@@ -119,7 +119,9 @@ in the docs.
    (severity, stable string code, message, provenance). The engine decides what is fatal.
 6. **Heuristics are policy, not semantics.** Anything inferred rather than declared (pagination
    from param names, envelope detection, acronym casing) lives in injectable per-compiler/emitter
-   policy, is marked `Inferred` in provenance, and can be disabled.
+   policy, is marked `Inferred` in provenance, and can be disabled. The OpenAPI compiler's policies
+   follow one model, `docs/compilers/openapi.md#policies`, which a new one cites rather than
+   restates.
 7. **Serializable & deterministic.** The whole `Document` round-trips through JSON (maps emitted in
    sorted-key order, slices in source order). This underpins golden snapshots, IR diffing, caching.
 8. **Optionality ≠ nullability.** `Property.Required` (wire presence) is orthogonal to
@@ -184,10 +186,12 @@ engine/      Layer 3 — orchestration; imports everything below. It owns every 
   cache/     what a run compiled, kept on disk between processes, and what names a build.
              Imports reader and internal/atomicfile.
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
-  report/    diagnostics and --explain, rendered for a person. Imports ir only.
+  triage/    the rules a caller writes about a run's findings, and the findings as rated.
+             Imports ir only.
+  report/    the findings, as text or a JSON report, and --explain. Imports ir and triage.
   output/    the IR document to a stream or a file, through engine/internal/atomicfile.
-cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report and output) + its command
-             framework (cobra, pflag).
+cmd/morphic/ Layer 4 — CLI; imports ir + engine (and its report, output and triage) + its
+             command framework (cobra, pflag).
 cmd/morphic-harness/
              Layer 4 — sweeps a spec or directory through the oracles; imports internal/harness.
 cmd/morphic-census/

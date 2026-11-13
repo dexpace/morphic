@@ -115,7 +115,7 @@ func namesOver(witnesses []rune) []string {
 }
 
 // runeClasses is how many values classOf can take: a bit for each question.
-const runeClasses = 1 << 7
+const runeClasses = 1 << 8
 
 // classOf returns r's class: everything the grammar can ask of a rune, one bit a
 // question, whichever of these it asks today, so a change to which it asks is
@@ -124,7 +124,7 @@ func classOf(r rune) uint8 {
 	var class uint8
 	for i, holds := range [...]bool{
 		unicode.IsLetter(r), unicode.IsDigit(r), unicode.IsMark(r), unicode.IsLower(r),
-		unicode.IsUpper(r), unicode.IsTitle(r), unicode.ToLower(r) != r,
+		unicode.IsUpper(r), unicode.IsTitle(r), unicode.ToLower(r) != r, ir.IsWordRune(r),
 	} {
 		if holds {
 			class |= 1 << i

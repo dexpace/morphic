@@ -114,12 +114,14 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
    says what the construct lowers to, and when each code the rule reports fires, written
    `openapi/<code>`; what the compiler does not do yet goes in the Status, with its issue, and the
    text names no issue. Write the rule before the code; it is what the review checks the code
-   against.
+   against. A rule whose fact a policy fills cites [`policies`](docs/compilers/openapi.md#policies)
+   for how the policy is switched, marked, ordered and reported, and states only its own trigger
+   and reading.
    *Fails if missed:* `TestLoweringSpec_RulesAreKeyedAndCarryEvidence` for an entry that names no
    evidence, `TestLoweringSpec_TextStatesEachCodeAndNoIssue` for a code the text never writes or an
    issue it names, and every `TestLoweringSpec` test for an entry in a shape the reader refuses. A
    rule never written fails the checks of steps 2 and 4 instead, once its code or case exists and no
-   rule names it.
+   rule names it. Nothing checks that a policy's rule cites `policies` rather than restating it.
 
    If the IR has no field for what the rule needs, stop here: that is a change to the IR, which
    [`architecture.md`](docs/architecture.md) §2.5 governs. Until it lands, the rule keeps the

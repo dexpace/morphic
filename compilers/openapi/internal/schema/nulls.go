@@ -432,7 +432,7 @@ func enumNullVerdict(s *oas3.Schema) nullVerdict {
 }
 
 // isNullValue reports whether an enum member or const node is the null literal,
-// read through the same converter enumMembers drops a member by. Both must
+// read through the same converter enumEntries drops a member by. Both must
 // recognize one spelling: the null this predicate lifts onto a reference is
 // exactly the member that lowering strips.
 func isNullValue(node values.Value) bool {

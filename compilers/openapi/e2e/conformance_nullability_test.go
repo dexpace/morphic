@@ -85,6 +85,51 @@ func assertCollapsedBranchHint(t *testing.T, doc *ir.Document) {
 	assert.Equal(t, branchID, ref.Base.Target, "the outside reference reaches that same node")
 }
 
+// assertEnumNullMember holds a null enum entry to the reference: no Literal
+// holds it, the Enum listing null alone has no member, and a type excluding
+// null leaves the entry admitting nothing (docs/compilers/openapi.md#enum-const).
+func assertEnumNullMember(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for id, td := range doc.Types {
+		if lit, ok := td.(*ir.Literal); ok {
+			assert.NotEqual(t, ir.ValueNull, lit.Value.Kind, "no Literal holds the null: %s", id)
+		}
+	}
+	mixed, ok := doc.Types[componentID("Mixed")].(*ir.Union)
+	require.True(t, ok, "members of two kinds are a union")
+	assert.Len(t, mixed.Variants, 2, "a variant per member that is not null")
+	narrowed, ok := doc.Types[componentID("Narrowed")].(*ir.Enum)
+	require.True(t, ok)
+	require.Len(t, narrowed.Members, 1)
+	assert.Equal(t, "a", narrowed.Members[0].Value.Str)
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/enum/1"),
+		"the null its type excludes is reported at it")
+
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	nullable := map[string]bool{}
+	for _, p := range holder.Properties {
+		nullable[p.WireName] = p.Type.Nullable
+	}
+	assert.Equal(t, map[string]bool{"mixed": true, "narrowed": false, "orNull": false}, nullable)
+
+	op, ok := opByName(doc, "deleteZone")
+	require.True(t, ok)
+	body, ok := doc.Types[firstContent(t, op).Type.Target].(*ir.Model)
+	require.True(t, ok)
+	for _, wire := range []string{"result", "gone"} {
+		p, found := propByWire(body, wire)
+		require.True(t, found, wire)
+		assert.True(t, p.Type.Nullable, "%s admits null", wire)
+		assert.Equal(t, wire == "result", p.Required, "%s keeps its own presence", wire)
+		only, isEnum := doc.Types[p.Type.Target].(*ir.Enum)
+		require.True(t, isEnum, "%s is an Enum, got %T", wire, doc.Types[p.Type.Target])
+		assert.Empty(t, only.Members, "%s admits null and nothing else", wire)
+		assert.True(t, only.Closed)
+		assert.Empty(t, only.Unmodeled, "a type beside no member says nothing")
+	}
+}
+
 // assertNullableEnum31 covers 3.1's spelling of a nullable enum: `null` listed
 // among the members of a null-admitting type array. The member is normalized
 // onto the Nullable bit of every reference to the enum rather than degrading the

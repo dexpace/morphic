@@ -48,12 +48,18 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"grouping":                "extension",
 			"grouping-key":            "x-speakeasy-group",
 			"grouping-lists":          "groups",
+			"grouping-aliases":        "x-speakeasy-aliases",
 			"grouping-fallback":       "path-prefix",
 			"allow-external-refs":     "true",
 			"overlay":                 "patch.yaml",
 			"overlay-lax":             "true",
 			"nullable-widening":       "false",
 			"discriminator-inference": "false",
+			"idempotency-inference":   "false",
+			"secret-inference":        "false",
+			"http-date-inference":     "false",
+			"replacement-inference":   "false",
+			"title-names":             "false",
 			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
 			"streaming-inference":     "false",
 			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
@@ -72,7 +78,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	require.True(t, ok, "the decoded value must be this compiler's own options type")
 	assert.Equal(t, openapi.GroupByExtension, opts.Grouping)
 	assert.Equal(t, openapi.GroupingExtension{
-		Key: "x-speakeasy-group", Lists: openapi.ListsAreGroups, Fallback: openapi.GroupByPathPrefix,
+		Key: "x-speakeasy-group", Lists: openapi.ListsAreGroups, Aliases: "x-speakeasy-aliases",
+		Fallback: openapi.GroupByPathPrefix,
 	}, opts.GroupingExtension)
 	assert.True(t, opts.AllowExternalRefs)
 	require.NotNil(t, opts.Overlay)
@@ -81,6 +88,11 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
 	assert.True(t, opts.DiscriminatorInference.Disabled, "discriminator-inference=false turns the policy off")
+	assert.True(t, opts.IdempotencyInference.Disabled, "idempotency-inference=false turns the policy off")
+	assert.True(t, opts.SecretInference.Disabled, "secret-inference=false turns the policy off")
+	assert.True(t, opts.HTTPDateInference.Disabled, "http-date-inference=false turns the policy off")
+	assert.True(t, opts.ReplacementInference.Disabled, "replacement-inference=false turns the policy off")
+	assert.True(t, opts.TitleNames.Disabled, "title-names=false turns the policy off")
 	assert.Equal(t, openapi.StreamingMedia{
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
@@ -115,6 +127,39 @@ func TestLimitOptions_NameEveryBudget(t *testing.T) {
 	}
 }
 
+// TestSwitchOptions_NameEveryPolicy holds the switches to Options itself: each
+// field whose type has a Disabled, a policy's, is turned on and off by exactly
+// one option, so a policy added without a name to switch it by fails here
+// rather than staying out of a text caller's reach. Promotions waits for the
+// text its mapping takes, which its switch is to come with (#658).
+func TestSwitchOptions_NameEveryPolicy(t *testing.T) {
+	t.Parallel()
+	unswitched := map[string]bool{"Promotions": true}
+	var o openapi.Options
+	fields := map[*bool]string{}
+	for name, field := range openapi.SwitchOptions(&o) {
+		_, dup := fields[field]
+		assert.False(t, dup, "%s switches a policy another option switches", name)
+		fields[field] = name
+	}
+	opts := reflect.ValueOf(&o).Elem()
+	policies := 0
+	for i := range opts.NumField() {
+		if opts.Field(i).Kind() != reflect.Struct || unswitched[opts.Type().Field(i).Name] {
+			continue
+		}
+		disabled := opts.Field(i).FieldByName("Disabled")
+		if !disabled.IsValid() {
+			continue
+		}
+		policies++
+		field, ok := reflect.TypeAssert[*bool](disabled.Addr())
+		require.True(t, ok, "%s.Disabled is a bool", opts.Type().Field(i).Name)
+		assert.Contains(t, fields, field, "%s has a switch", opts.Type().Field(i).Name)
+	}
+	assert.Len(t, fields, policies, "a switch for each policy, and no other")
+}
+
 func TestDecodeOptions_EmptySetIsDefaults(t *testing.T) {
 	t.Parallel()
 	got, err := openapi.New().DecodeOptions(compilers.OptionSet{})
@@ -131,10 +176,11 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, ` +
-				`discriminator-inference, grouping, grouping-fallback, grouping-key, grouping-lists, ` +
-				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
-				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
-				`streaming-media)`},
+				`discriminator-inference, grouping, grouping-aliases, grouping-fallback, grouping-key, grouping-lists, ` +
+				`http-date-inference, idempotency-inference, max-alias-surplus, max-enum-members, ` +
+				`max-external-documents, max-reference-expansion, max-source-bytes, max-source-nodes, ` +
+				`nullable-widening, overlay, overlay-lax, replacement-inference, secret-inference, ` +
+				`streaming-inference, streaming-media, title-names)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -146,9 +192,11 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		// A grouping extension is read by one strategy alone, so naming one beside
 		// another is a mistake about which grouping is in force.
 		{"a grouping key with no strategy", map[string]string{"grouping-key": "x-group", "grouping-lists": "segments"},
-			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
 		{"a grouping fallback beside tags", map[string]string{"grouping": "tags", "grouping-fallback": "tags"},
-			`options "grouping-key", "grouping-lists" and "grouping-fallback" apply only with "grouping" set to "extension"`},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
 		// Conventions disagree on what a list means, so neither half of the pair
 		// is taken from the default's.
 		{"a grouping key with no list reading", map[string]string{"grouping": "extension", "grouping-key": "x-group"},
@@ -171,6 +219,17 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "grouping-lists": want a value, got an empty one`},
 		{"an empty fallback", map[string]string{"grouping": "extension", "grouping-fallback": ""},
 			`option "grouping-fallback": want a value, got an empty one`},
+		{"an empty aliases key", map[string]string{"grouping": "extension", "grouping-aliases": ""},
+			`option "grouping-aliases": want a value, got an empty one`},
+		{"an aliases key beside tags", map[string]string{"grouping-aliases": "x-aliases"},
+			`options "grouping-key", "grouping-lists", "grouping-aliases" and "grouping-fallback" apply only with ` +
+				`"grouping" set to "extension"`},
+		{"an aliases key naming no extension", map[string]string{"grouping": "extension", "grouping-aliases": "aliases"},
+			`option "grouping-aliases": want an extension name starting "x-" other than "grouping-key"'s, got "aliases"`},
+		// One value read two ways would file and remount the operation by it.
+		{"an aliases key that is the grouping key", map[string]string{
+			"grouping": "extension", "grouping-key": "x-group", "grouping-lists": "segments", "grouping-aliases": "x-group",
+		}, `option "grouping-aliases": want an extension name starting "x-" other than "grouping-key"'s, got "x-group"`},
 		// An entry that could match nothing is refused: the list replaces the
 		// default, so a typo would turn the inference off for every media type.
 		{"empty streaming list", map[string]string{"streaming-media": ""},
@@ -214,6 +273,16 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "binary-inference": want a boolean, got "maybe"`},
 		{"non-boolean discriminator inference", map[string]string{"discriminator-inference": "maybe"},
 			`option "discriminator-inference": want a boolean, got "maybe"`},
+		{"non-boolean idempotency inference", map[string]string{"idempotency-inference": "maybe"},
+			`option "idempotency-inference": want a boolean, got "maybe"`},
+		{"non-boolean secret inference", map[string]string{"secret-inference": "maybe"},
+			`option "secret-inference": want a boolean, got "maybe"`},
+		{"non-boolean HTTP-date inference", map[string]string{"http-date-inference": "maybe"},
+			`option "http-date-inference": want a boolean, got "maybe"`},
+		{"non-boolean replacement inference", map[string]string{"replacement-inference": "maybe"},
+			`option "replacement-inference": want a boolean, got "maybe"`},
+		{"non-boolean title names", map[string]string{"title-names": "maybe"},
+			`option "title-names": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},
@@ -334,11 +403,57 @@ func TestCompile_GroupingExtensionDefaultsAndRefusals(t *testing.T) {
 			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{Fallback: "first"}},
 			`option "grouping-fallback"`,
 		},
+		"an aliases key that is the grouping key": {
+			openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: openapi.GroupingExtension{
+				Key: "x-a", Lists: openapi.ListsAreSegments, Aliases: "x-a",
+			}},
+			`option "grouping-aliases"`,
+		},
+		// A misspelt strategy is refused in the text option's words, never grouped
+		// by tags in silence.
+		"a strategy naming none": {
+			openapi.Options{Grouping: "extensions"},
+			`option "grouping": want "tags", "path-prefix" or "extension", got "extensions"`,
+		},
 	} {
 		_, err := filed(tc.opts)
 		require.Error(t, err, name)
 		assert.Contains(t, err.Error(), tc.wantErr, name)
 	}
+}
+
+// TestCompile_GroupingAliasesFollowTheKeysTheyRestate pins which aliases a Go
+// caller's grouping extension reads: the default's beside the default key, one
+// the caller names beside either key, and none beside a key the caller names
+// alone, since the default's entries restate the default key.
+func TestCompile_GroupingAliasesFollowTheKeysTheyRestate(t *testing.T) {
+	t.Parallel()
+	spec := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths:\n" +
+		"  /a:\n    get:\n      operationId: a\n      x-fern-sdk-group-name: a\n      x-g: a\n" +
+		"      x-forge-aliases: [{x-fern-sdk-group-name: forge}, {x-g: forge-g}]\n" +
+		"      x-other: [{x-fern-sdk-group-name: other}, {x-g: other-g}]\n" +
+		"      responses: {\"200\": {description: ok}}\n"
+	// groups compiles spec under ext and returns the IDs of its top-level groups.
+	groups := func(ext openapi.GroupingExtension) []ir.GroupID {
+		doc, _, err := openapi.New().Compile(context.Background(), []compilers.Source{openapitest.SourceOf(spec)},
+			compilers.Options{FormatOptions: openapi.Options{Grouping: openapi.GroupByExtension, GroupingExtension: ext}})
+		require.NoError(t, err)
+		require.NotNil(t, doc)
+		out := make([]ir.GroupID, 0, len(doc.Services[0].Groups))
+		for _, g := range doc.Services[0].Groups {
+			out = append(out, g.ID)
+		}
+		return out
+	}
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/forge"}, groups(openapi.GroupingExtension{}),
+		"the default key and its aliases")
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other"},
+		groups(openapi.GroupingExtension{Aliases: "x-other"}), "the default key and the caller's aliases")
+	assert.Equal(t, []ir.GroupID{"g/extension/a"},
+		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments}), "the caller's key alone")
+	assert.Equal(t, []ir.GroupID{"g/extension/a", "g/extension/other-g"},
+		groups(openapi.GroupingExtension{Key: "x-g", Lists: openapi.ListsAreSegments, Aliases: "x-other"}),
+		"the caller's key and aliases restating it")
 }
 
 // TestDefaultGroupingExtension_IsWhatTheLoweringApplies pins the exported

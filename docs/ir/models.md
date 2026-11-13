@@ -62,17 +62,20 @@ type Discriminator struct {
     Index    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
-    Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name;
-                                   // a hierarchy routes to each subtype by its DiscriminatorValue
+    Mapping  map[string]TypeID     // wire value → the type it routes to: a union's variant, or a
+                                   // hierarchy's base or subtype; nil on a union = infer by type
+                                   // name, else the routes declared or inferred and the one the
+                                   // source implies to each variant they leave out; a hierarchy
+                                   // routes to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;
                                    // "object" = {kind, value} wrapper (TypeSpec @discriminated envelope)
     EnvelopeValueName string       // wire name of the envelope's value property (default "value";
                                    // TypeSpec envelopePropertyName); meaningful only when Envelope=="object"
-    Inferred bool                  // discovered heuristically (each variant pins a property to a
-                                   // distinct value), not declared; a heuristic filling only the
-                                   // Mapping of a declared one leaves it false
+    Inferred bool                  // discovered heuristically (each variant pins a property to
+                                   // values no other admits), not declared; a heuristic filling
+                                   // only the Mapping of a declared one leaves it false
 }
 ```
 
@@ -80,6 +83,26 @@ A heuristic that sets `Inferred`, or fills the `Mapping` of a discriminator the 
 with none, names itself in the `Provenance.Inferred` of the node holding the discriminator
 ([provenance](./provenance.md)), as every heuristic does. `Inferred` alone says which half was
 read in: the tag itself, or only where its values route.
+
+On a union, a nil `Mapping` routes each variant by the name of its type, as OpenAPI's implicit
+mapping routes by component name, and one holding an entry routes by its entries alone. So a
+compiler writes into a `Mapping`, beside the entries its source writes, the route the source
+implies to each variant it declares none for, and writes the routes out too where a variant's type
+carries no name the source routes it by, as the OpenAPI compiler does for a variant composed over
+its branch or an alias for a keyword beside its `$ref`
+([`discriminator`](../compilers/openapi.md#discriminator)): a consumer reads a type's name to route
+only where the `Mapping` is nil. Reading a variant's name beside the entries, as OpenAPI's text
+routes a value no entry keys, would keep the IR nearer the source, but a variant whose type carries
+no such name would need its route written all the same, two spellings of one route, and every
+consumer would merge entries and names itself.
+
+A `Mapping` is also what a consumer writing an instance picks the variant's tag from. A source can
+imply a second route to a variant an entry routes: OpenAPI reads every value no entry keys as a
+component name, so a payload tagged `Dog` selects `Dog` beside an entry `dog: Dog`. A map cannot
+mark one of a variant's routes as read and never written, and written in unmarked, the name would
+give the variant a second tag with nothing to say which to write, so a compiler leaves it out, of a
+union's `Mapping` and a hierarchy's alike. A payload carrying it then routes nowhere, or to
+`Default`: the IR has no place yet for a route a consumer reads and never writes (#1863).
 
 A subtype's `DiscriminatorValue` is the tag by which a discriminator on one of its ancestors routes
 to it: a key that discriminator's `Mapping` names it under, or else the name the source routes it
@@ -92,6 +115,17 @@ instead, leaving the field empty where it admits several or none, and names itse
 every subtype of a base pinning its tag to one value does, and that tag then routes to more than
 one. A reading that declined there, as one filling a `Mapping`, which keys one target per tag, must,
 would leave each a tag its own instances reject for an encoder to write.
+
+A model's discriminator routes to its subtypes, and to the model itself where it is not `Abstract`:
+the instances of a concrete base are a payload as its subtypes' are, as an OpenAPI `mapping` may
+name the schema declaring the `discriminator`, and the base's own shape is a variant of every
+reference to it ([a polymorphic base](../emitters/refine/unions.md#a-polymorphic-base)). An
+`Abstract` model has no instance of its own, so `pass.Validate` refuses a route to it from its own
+`Mapping` or `Default` as one to a type that is no variant (`pass/discriminator-missing-variant`).
+The base carries no `DiscriminatorValue` for its own route: that field is the tag a discriminator on
+an ancestor routes a model by, which no ancestor of the base holds, and the base's route is its
+`Mapping` entry, so the fact has one home. `ir.IsSubtype` stays irreflexive: this is a clause of the
+route, not of the subtype relation every other reader of it asks.
 
 ## Composition
 

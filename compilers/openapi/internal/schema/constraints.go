@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -43,6 +44,45 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 	}
 	writers := append([]annotation.Voice{{Node: s, At: pointer}}, voices...)
 	return cons, append(diags, keepCounts(c, p, writers, takes)...)
+}
+
+// carriesNumberAsText reports whether td is a Scalar over a number written as
+// its text (scalarTypeID), whose Constraints would speak of the number
+// (docs/ir/constraints.md#constraints). Every value bound written beside it
+// bounds something else, the text's length or pattern or an instance of
+// another kind than the string JSON Schema applies it to, so neither it nor a
+// carrier of it holds one (textBounds).
+func carriesNumberAsText(td ir.TypeDef) bool {
+	sc, ok := td.(*ir.Scalar)
+	return ok && sc != nil && sc.Encoding != nil && sc.Encoding.Name == numberTextEncoding &&
+		sc.Encoding.WireType != nil
+}
+
+// textBounds is cons for a position carrying a number as text: none, s's own
+// bounds kept verbatim on p (keepTextBounds), and a voice's left to keep its
+// branch whole, as a bound with no home does.
+func textBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, diags []ir.Diagnostic) (*ir.Constraints, []ir.Diagnostic) {
+	return nil, append(diags, keepTextBounds(c, p, s, pointer)...)
+}
+
+// keepTextBounds keeps each value bound s writes verbatim on p, under
+// openapi:<keyword> with no_ir_home, for a position carrying a number as text,
+// whose Constraints hold none (carriesNumberAsText), with an info at each.
+// The node and a carrier of it each keep them, as each held them in
+// Constraints.
+func keepTextBounds(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	for _, keyword := range declaredConstraints(s) {
+		kept, keptDiags := annotation.PreserveSchemaKeyword(p, s, keyword, ir.ReasonNoIRHome, pointer, c.Place())
+		diags = append(diags, keptDiags...)
+		if kept {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer+ids.Ptr(keyword),
+				"%s bounds no number written as text, whose Constraints speak of the number: a length or a "+
+					"pattern bounds the text, and any other bound no string instance; kept verbatim under Unmodeled",
+				keyword))
+		}
+	}
+	return diags
 }
 
 // exclusiveIsBoolean reports whether s spells an exclusive bound as a boolean
@@ -281,7 +321,11 @@ func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s 
 	if s != nil && !lowersTypeArray(c, s, pointer) {
 		takes = declaredKinds(s)
 	}
-	return ConstraintsOf(c, p, s, voices, pointer, takes)
+	cons, diags := ConstraintsOf(c, p, s, voices, pointer, takes)
+	if td, built := ts.Node(t.Target); built && carriesNumberAsText(td) {
+		return textBounds(c, p, s, pointer, diags)
+	}
+	return cons, diags
 }
 
 // referenceConstraintsOf is ConstraintsOf for a position that lowered to target,

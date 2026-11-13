@@ -1022,8 +1022,6 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 		{"a scalar's maxLength", "{type: string, minLength: 1, maxLength: " + past + "}", "maxLength",
 			&ir.Constraints{MinLength: new(int64(1))}},
 		{"a scalar's minLength past a float64", "{type: string, format: x-f, minLength: 1e400}", "minLength", nil},
-		{"a scalar's maxLength past a decimal's range", "{type: string, format: x-f, maxLength: 1e1000000000000000000}",
-			"maxLength", nil},
 		{"a model's minProperties", "{type: object, properties: {a: {type: string}}, minProperties: " + past + "}",
 			"minProperties", nil},
 		{"a map's maxProperties", "{type: object, additionalProperties: {type: string}, maxProperties: " + past + "}",
@@ -1060,6 +1058,25 @@ func TestConstraints_ACountNoFieldStatesIsKeptVerbatim(t *testing.T) {
 	_, diags = parseFull(t, openapitest.ComponentSpec("    L: {type: array, items: {type: string}, maxLength: "+past+"}\n"))
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Contains(t, diags[0].Message, "has no home for maxLength", "a node holding no such count says so, whatever its size")
+}
+
+// TestConstraints_ACountPastTheDecimalRangeIsRefused pins a count past what a
+// BigVal holds: no Value holds it, so it is refused as any number past that
+// range kept verbatim is (docs/compilers/openapi.md#verbatim-preservation),
+// reaching no field and no entry, with an error where it is written.
+func TestConstraints_ACountPastTheDecimalRangeIsRefused(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    S: {type: string, format: x-f, maxLength: 1e1000000000000000000}\n"))
+	td := typeByName(doc, "S")
+	assert.Empty(t, td.Common().Unmodeled, "no entry holds it")
+	assert.Nil(t, heldBounds(td), "no field states it")
+	require.NotEmpty(t, diags)
+	for _, d := range diags {
+		assert.Equal(t, ir.SeverityError, d.Severity, "%+v", d)
+		assert.Equal(t, diag.UnpreservableConstruct, d.Code, "%+v", d)
+	}
+	assert.Equal(t, jsontext.Pointer("/components/schemas/S"), diags[0].Provenance.Pointer)
 }
 
 // TestConstraints_ACountTheLoadPhaseRefusesReachesNoField pins a count literal

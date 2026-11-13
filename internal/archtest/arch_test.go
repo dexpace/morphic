@@ -141,9 +141,10 @@ var rules = map[string][]string{
 	// The name of every node the lowering builds, as a function of the documents
 	// and the node's coordinate (GitHub #981). It reads the grammar through a
 	// bind table, the raw tree through nodeview and a $ref's fragment through
-	// fragment, and composes names in compile's grammar. It reaches nothing that
-	// lowers, so no lowering can make a name depend on the order it runs in.
-	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+	// fragment, composes names in compile's grammar, and reads the words a title
+	// or a key spells through ir's. It reaches nothing that lowers, so no
+	// lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
@@ -188,14 +189,13 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
-	// reports through diag, reaching ids for the pointer that names a position,
-	// nodeview for the document root, budget for the node budget it builds
-	// within and provenance for the attribution it hands out — and nothing that
-	// lowers, because it runs before there is anything to lower.
+	// reports through diag, reaching nodeview for the document root and the
+	// keys the parser reads, budget for the node budget it builds within and
+	// provenance for the attribution it hands out — and nothing that lowers,
+	// because it runs before there is anything to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/provenance",
 		"github.com/speakeasy-api/openapi/overlay", "go.yaml.in/yaml/v3"},
@@ -219,6 +219,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
@@ -333,13 +334,21 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
-	// What a deprecation names as its replacement, read once the document is
-	// whole. It reaches lowering for the promotion that reads the names and the
-	// parameter lookup links share, and ids for a schema's components ID, and
-	// nothing of the walks: it reads the document they built.
+	// What a deprecation names as its replacement, by a key or in its message,
+	// read once the document is whole. It reaches lowering for the policies,
+	// the promotion that reads the names and the parameter lookup links share,
+	// and diag for what it reports, and nothing of the walks: it reads the
+	// document they built (docs/compilers/openapi.md#policies).
 	"compilers/openapi/internal/replacement": {module + "/ir",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering"},
+	// What a document's names imply, read once the document is whole: an
+	// operation's idempotency token, a credential's redaction and a header's
+	// HTTP-date text. It reaches lowering for the policies, the promotion whose
+	// keys it defers to and the parameter lookup links share, and diag for what
+	// it reports, and nothing of the walks: it reads the document they built.
+	"compilers/openapi/internal/convention": {module + "/ir",
+		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/lowering"},
 	// The servers a document declares, whichever object declares them, and the
 	// registry they are lowered into. It is its own package for the reason auth
@@ -439,7 +448,8 @@ var rules = map[string][]string{
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
-		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader", module + "/pass"},
+		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader",
+		module + "/engine/triage", module + "/pass"},
 	// Where a run's entries are kept between processes, and what names a build:
 	// files published through the atomic replace, and read as a source is. What
 	// an entry holds is the engine's, so it reaches nothing of the pipeline.
@@ -449,9 +459,13 @@ var rules = map[string][]string{
 	// else, so a caller compiling directly reads as the engine does without
 	// composing a pipeline.
 	"engine/reader": {module + "/compilers"},
-	// The one renderer of a run's findings for a person. It reaches ir alone: it
-	// renders what a run returned and nothing of how the run was composed.
-	"engine/report": {module + "/ir"},
+	// What a caller rules about a run's findings, and the findings as rated. It
+	// reaches ir alone: the engine applies it, and the renderer reads it.
+	"engine/triage": {module + "/ir"},
+	// The one renderer of a run's findings, for a person and for a program. It
+	// reaches ir and the rated findings: it renders what a run returned and
+	// nothing of how the run was composed.
+	"engine/report": {module + "/ir", module + "/engine/triage"},
 	// The engine's writer: the IR document to a stream or a file, published
 	// through the atomic replace beneath it.
 	"engine/output": {module + "/ir", module + "/engine/internal/atomicfile"},
@@ -461,9 +475,10 @@ var rules = map[string][]string{
 	"engine/internal/atomicfile": {"github.com/google/renameio/v2"},
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
-	// it asks the engine's renderer and writer for.
+	// it asks the engine's renderer and writer for, and it hands the run the
+	// triage rules a file holds.
 	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
-		module + "/engine/report", "github.com/spf13/cobra", "github.com/spf13/pflag"},
+		module + "/engine/report", module + "/engine/triage", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,
