@@ -195,10 +195,12 @@ write error is printed on stderr either way.
 `-o` replaces a file by renaming a temporary file over it, so a reader of the file sees the whole
 previous document or the whole new one, never part of either. The file's directory must therefore
 take a new entry: a writable file in a read-only directory is refused, as writing it in place would
-give up that guarantee. A symlink to a file is replaced, not followed, and other hard links keep
-the old content. A FIFO or a character device, such as `/dev/null` or the pipe a shell's `>(…)`
-names, has no content to replace and is written as stdout is; a FIFO no process reads is refused
-rather than waited for. A directory, a socket or a block device is refused.
+give up that guarantee. Other hard links keep the old content. A FIFO or a character device, such
+as `/dev/null` or the pipe a shell's `>(…)` names, has no content to replace and is written as
+stdout is; a FIFO no process reads is refused rather than waited for. A directory, a socket or a
+block device is refused. A symlink is judged by what it names, and one naming a file, or nothing, is
+replaced, not followed: so `-o /dev/stdout` with stdout redirected to a file is refused, or, run as
+root, replaces the link (#1864).
 
 SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
 stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that

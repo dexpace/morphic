@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -458,17 +459,33 @@ func TestEncode_StopsAtTheWriteAfterTheContextEnds(t *testing.T) {
 }
 
 // TestReplaceDocument_ADirectoryIsRefused pins that a directory at the
-// destination is refused before anything is opened or created: renaming a file
-// over it fails, and writing it is no stream.
+// destination, reached by its own name or through a symlink, is refused before
+// anything is opened or created: renaming a file over it fails, and writing it
+// is no stream. A symlink is judged by what it names, so it is kept, where a
+// rename would replace it.
 func TestReplaceDocument_ADirectoryIsRefused(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	dest := filepath.Join(dir, "ir.json")
-	require.NoError(t, os.Mkdir(dest, 0o755))
+	for _, viaLink := range []bool{false, true} {
+		t.Run(fmt.Sprintf("through a symlink %t", viaLink), func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			target := filepath.Join(dir, "ir.json")
+			require.NoError(t, os.Mkdir(target, 0o755))
+			dest := target
+			if viaLink {
+				dest = filepath.Join(dir, "link")
+				require.NoError(t, os.Symlink(target, dest))
+			}
+			before := entriesIn(t, dir)
 
-	err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
+			err := output.ReplaceDocument(t.Context(), dest, orderedDoc(), output.Compact)
 
-	assert.EqualError(t, err, fmt.Sprintf("output %q is a directory, which holds no document", dest))
-	assert.Equal(t, []string{"ir.json"}, entriesIn(t, dir), "no temporary file is left beside it")
-	assert.Empty(t, entriesIn(t, dest), "nothing is written into it")
+			assert.EqualError(t, err, fmt.Sprintf("output %q is a directory, which holds no document", dest))
+			assert.ElementsMatch(t, before, entriesIn(t, dir), "no temporary file is left beside it")
+			info, statErr := os.Lstat(dest)
+			require.NoError(t, statErr)
+			assert.Equal(t, viaLink, info.Mode()&fs.ModeSymlink != 0, "the name stays what it was")
+			assert.Empty(t, entriesIn(t, target), "nothing is written into it")
+		})
+	}
 }
