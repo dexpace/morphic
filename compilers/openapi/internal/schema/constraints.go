@@ -25,20 +25,19 @@ import (
 )
 
 // ConstraintsOf returns the value constraints s and its voices write that apply
-// to a value of the kinds takes, the position's types', or nil where they write
-// none, for the node or carrier at pointer to hold, so a node, a property and a
-// parameter read them alike (docs/compilers/openapi.md#constraints). A bound
-// several write meets (merge.Constraints): a voice speaks only where its bounds
-// meet every other writer's (docs/compilers/openapi.md#allof-inline-residue).
+// to a value of the kinds takes, the position's types', and of each writer's
+// own (writerTakes), or nil where they write none, for the node or carrier at
+// pointer to hold (docs/compilers/openapi.md#constraints). A bound several
+// write meets (merge.Constraints): a voice speaks only where its bounds meet
+// every other writer's (docs/compilers/openapi.md#allof-inline-residue).
 //
 // p is the Unmodeled map of the node or carrier the constraints land on. A 3.0
 // exclusive modifier with no bound beside it to modify, which no ir.Constraints
 // field holds, is kept there (GitHub #286).
 func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer, takes kindSet) (*ir.Constraints, []ir.Diagnostic) {
-	take := boundsFor(takes)
-	cons, diags := constraintsAt(c, p, s, pointer, take)
+	cons, diags := constraintsAt(c, p, s, pointer, boundsFor(takes))
 	for _, v := range voices {
-		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At, take)
+		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At, boundsFor(writerTakes(takes, v.Node)))
 		diags = append(diags, voicedDiags...)
 		cons = merge.Constraints(cons, voiced)
 	}
@@ -113,18 +112,15 @@ var valueCountKeywords = []string{"maxLength", "maxProperties", "minLength", "mi
 
 // keepCounts keeps verbatim in p each value count that writers, a position's
 // schema and its voices, write and no field states (keptCount), of those a
-// reader of the kinds takes reads: of several writing one keyword, the one
-// binding the rest (bindingCount), so the entry is the same whatever their
-// order. Each writer's kept counts are reported once, where it was written
-// (docs/compilers/openapi.md#constraints). A count no such reader reads is the
-// census's to keep (untakenBounds).
+// reader of the kinds takes reads of each (writerTakes): of several writing one
+// keyword, the one binding the rest (bindingCount), so the entry is the same
+// whatever their order. Each writer's kept counts are reported once, where it
+// was written (docs/compilers/openapi.md#constraints). A count no such reader
+// reads is the census's to keep (untakenBounds).
 func keepCounts(c lowering.Ctx, p *ir.Unmodeled, writers []annotation.Voice, takes kindSet) []ir.Diagnostic {
 	binding := make([]int, len(valueCountKeywords))
 	for k, keyword := range valueCountKeywords {
-		binding[k] = -1
-		if taken(takes, keyword) {
-			binding[k] = bindingCount(writers, keyword)
-		}
+		binding[k] = bindingCount(writers, keyword, takes)
 	}
 	var diags []ir.Diagnostic
 	for w, writer := range writers {
@@ -154,10 +150,11 @@ func countsKept(c lowering.Ctx, kept []string, pointer jsontext.Pointer) ir.Diag
 }
 
 // bindingCount returns the index of the writer whose keyword, a count keptCount
-// keeps, binds every other writer's: the smallest maximum or the largest
-// minimum, compared as the integers they are (compareCounts), the first of one
-// value written twice. It returns -1 where no writer writes one.
-func bindingCount(writers []annotation.Voice, keyword string) int {
+// keeps and a reader of the kinds takes reads of it, binds every other such
+// writer's: the smallest maximum or the largest minimum, compared as the
+// integers they are (compareCounts), the first of one value written twice. It
+// returns -1 where no writer writes one.
+func bindingCount(writers []annotation.Voice, keyword string, takes kindSet) int {
 	best, sign := -1, 1
 	if strings.HasPrefix(keyword, "max") {
 		sign = -1
@@ -165,7 +162,7 @@ func bindingCount(writers []annotation.Voice, keyword string) int {
 	var bound string
 	for w, writer := range writers {
 		count, ok := keptLiteral(writer.Node, keyword)
-		if ok && (best < 0 || sign*compareCounts(count, bound) > 0) {
+		if ok && taken(writerTakes(takes, writer.Node), keyword) && (best < 0 || sign*compareCounts(count, bound) > 0) {
 			best, bound = w, count
 		}
 	}

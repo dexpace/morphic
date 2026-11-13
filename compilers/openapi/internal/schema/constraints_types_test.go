@@ -343,3 +343,45 @@ func TestConstraints_ACarrierRestatesTheBoundsItsNodeTakes(t *testing.T) {
 		assert.Equal(t, want, q.Constraints, "parameter %s", schema)
 	}
 }
+
+// TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes pins a value bound on an
+// allOf branch folding at a position, where the branch declares a type the bound
+// does not apply to: no Constraints in the document holds it, whichever branch
+// the position lowers by, so the IR does not turn on the branches' order, and
+// the branch keeps it. Neither a type array's variant whose type takes the bound
+// nor a composed Model reads it.
+func TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ schema, keyword, branch string }{
+		{"{allOf: [{type: string, minimum: 1}, {type: string, minimum: 2}]}", "minimum", "openapi:allOf/1"},
+		{"{allOf: [{type: string, minimum: 2}, {type: string, minimum: 1}]}", "minimum", "openapi:allOf/1"},
+		{"{type: [string, integer], format: x-mine, allOf: [{type: string, minimum: 1}]}", "minimum", "openapi:allOf/0"},
+		{"{allOf: [{$ref: '#/components/schemas/O'}, {type: object, properties: {a: {type: string}}, maxLength: 3}]}",
+			"maxLength", "openapi:allOf/1"},
+	} {
+		doc, diags := parseFull(t, atEverySite("3.1.0", tc.schema)+"    O: {properties: {o: {type: string}}}\n")
+		openapitest.RequireNoErrorDiags(t, diags)
+		for id, td := range doc.Types {
+			assert.False(t, boundField(heldBounds(td), tc.keyword), "%s: %s", tc.schema, id)
+		}
+		for _, site := range sitesOf(t, doc) {
+			assert.False(t, site.holds(tc.keyword), "%s: %s", tc.schema, site.pointer)
+		}
+		assert.Contains(t, marshalForTest(t, doc), `"`+tc.branch+`"`, tc.schema)
+	}
+}
+
+// TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt pins a count past 64
+// bits on a folding allOf branch declaring a type that takes no count of its
+// kind: the branch keeps it, once, with the report of a branch kept whole, and
+// it is not kept again as a count no field states.
+func TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    Num: {type: number}\n"+
+		"    C: {allOf: [{$ref: '#/components/schemas/Num'}, {type: number, maxLength: 99999999999999999999}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, []string{"openapi:allOf/1"}, unmodeledKeys(typeByName(doc, "C").Common().Unmodeled))
+	assert.Equal(t, 1, strings.Count(marshalForTest(t, doc), "99999999999999999999"))
+	require.Len(t, diags, 1, "%+v", diags)
+	assert.Contains(t, diags[0].Message, "the branch (maxLength)")
+}

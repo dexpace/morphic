@@ -623,8 +623,8 @@ it sees. Changes made together in one bump are listed together under it.
   `<pointer>/type/<index>`, each bound and a format the table pairs with one listed type land on
   the variant whose type takes them, and the property or parameter carrying the union holds no
   bound ([`type-arrays`](../compilers/openapi.md#type-arrays)); a bound on an `allOf` branch beside
-  the type list folds onto that variant
-  ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A consumer pinned to
+  the type list folds onto that variant, and one on a branch declaring a type it does not apply to
+  stays with that branch ([`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)). A consumer pinned to
   0.55.0 that read a numeric bound on a string, a bound on the carrier of a type array, or a
   variant's encoding taken from a format another listed type pairs with finds it under
   `openapi:<keyword>`, on the variant it applies to, or not at all.

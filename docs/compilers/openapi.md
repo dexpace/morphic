@@ -1691,7 +1691,8 @@ which for most is not at all. A `nullable` folds only from a branch writing no `
 the nullable-widening policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not
 fold, being a composing model's openness; a bound does not where the position has no field for it,
 as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value bound no type the
-position declares takes, or on a node with no `Constraints` for one, the `Union` of a type list
+position declares takes, one no type its own branch declares takes, since such a branch admits no
+value it bounds, or one on a node with no `Constraints` for one, the `Union` of a type list
 holding one where a variant whose type takes it does, and a collection bound on any node but a
 `List` or a `Tuple`, that `Union` holding one where such a variant does; a collection bound
 `Constraints` cannot state, a `uniqueItems` of `false` or a count past 64 bits, never folds. A
@@ -1779,7 +1780,9 @@ every entry reads that one twice.
   `schema.TestCollectionBound_OnABranchWithNoFieldStaysWithItsBranch`,
   `schema.TestRefinement_AValueBoundOnABranchBesideATypeListLandsOnItsVariant`,
   `schema.TestRefinement_ABranchBoundBesideATypeListIsReadAtTheBranch`,
-  `schema.TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt`
+  `schema.TestAllOf_ABranchBoundTheTypeCannotTakeStaysWithIt`,
+  `schema.TestConstraints_ABranchReadsTheBoundsItsOwnTypeTakes`,
+  `schema.TestConstraints_ABranchCountItsTypeCannotTakeIsKeptWithIt`
 
 ### `allof-redeclared-property`
 

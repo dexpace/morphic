@@ -55,6 +55,15 @@ func typeKinds(st oas3.SchemaType) kindSet {
 	return anyInstance
 }
 
+// writerTakes returns the kinds whose value bounds a reader of the kinds takes
+// reads of w, a position's schema or an allOf branch folding there: those w's
+// own types admit too, as a branch declaring a type bounds no value of another
+// kind. A reader's kinds are those of a type its position declares, so the
+// position's own schema leaves them as they are.
+func writerTakes(takes kindSet, w *oas3.Schema) kindSet {
+	return takes & declaredKinds(w)
+}
+
 // taken reports whether a reader of values of the kinds takes reads keyword:
 // whether keyword applies to a value of one of them. One the table does not list
 // applies to every value.
