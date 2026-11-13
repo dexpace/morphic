@@ -400,6 +400,8 @@ func TestPartWalk_DecidesKeysOnlyWhereItReadsEveryDeclaration(t *testing.T) {
 		decides      bool
 	}{
 		{"nothing beside", "{" + base + "}", true},
+		{"an annotation, an assertion and an extension beside", "{" + base + ", description: d, minProperties: 1, x-k: 1}", true},
+		{"an annotation beside a $ref", "{$ref: '#/components/schemas/Form', description: d}", true},
 		{"additionalProperties false", "{" + base + ", additionalProperties: false}", true},
 		{"additionalProperties", "{" + base + ", additionalProperties: {type: string}}", false},
 		{"additionalProperties true", "{" + base + ", additionalProperties: true}", false},
