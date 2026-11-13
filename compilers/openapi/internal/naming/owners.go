@@ -155,9 +155,9 @@ func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i in
 
 // mediaTypeOwner returns the hint of the owner of the media type at holder,
 // above which kinds lie: a components/mediaTypes entry is its own, by its key,
-// "" as any other, as a component schema keyed "" is named, and any other is
-// keyed under its owner's content, holder being <owner>/content/<media type>
-// (contentOwner).
+// the empty key included, as a component schema keyed "" is named, and any
+// other is keyed under its owner's content, holder being
+// <owner>/content/<media type> (contentOwner).
 func (n *Namer) mediaTypeOwner(doc bind.DocID, holder jsontext.Pointer, kinds []bind.Kind) (string, bool) {
 	if section, name, ok := ids.ComponentKey(holder); ok && section == "mediaTypes" {
 		return name, true
