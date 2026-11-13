@@ -36,6 +36,11 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 		"t/bare1":  &ir.Model{ID: "t/bare1", Anonymous: true, Provenance: ptrAt(declaredAt(1))},
 		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own("t/Pet"), Discriminator: &ir.Discriminator{}},
 		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own("t/Dog"), Discriminator: &ir.Discriminator{}},
+		"t/Mid":    &ir.Model{ID: "t/Mid", Provenance: ptrAt("/components/schemas/Mid"), Properties: own("t/Mid"), Base: &ir.TypeRef{Target: "t/Pet"}},
+		"t/midAka": &ir.Scalar{ID: "t/midAka", Base: &ir.TypeRef{Target: "t/Mid"}},
+		"t/Low":    &ir.Model{ID: "t/Low", Provenance: ptrAt("/components/schemas/Low"), Properties: own("t/Low"), Base: &ir.TypeRef{Target: "t/midAka"}},
+		"t/loopA":  &ir.Model{ID: "t/loopA", Provenance: ptrAt("/components/schemas/LoopA"), Properties: own("t/loopA"), Base: &ir.TypeRef{Target: "t/loopB"}},
+		"t/loopB":  &ir.Model{ID: "t/loopB", Provenance: ptrAt("/components/schemas/LoopB"), Properties: own("t/loopB"), Base: &ir.TypeRef{Target: "t/loopA"}},
 		"t/alias":  &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/B"}},
 		"t/in0":    inline("t/in0", declaredAt(0)),
 		"t/in1":    inline("t/in1", declaredAt(1)),
@@ -77,7 +82,8 @@ func declsOf(targets ...ir.TypeID) []declaration {
 
 // TestFold_RedeclaredModelsCompose pins what a field declared as several models,
 // or as a model beside a map or a union, takes: a model the fold mints,
-// composing each once as a written allOf of them does. Nothing is lost, so
+// composing each once as a written allOf of them does, its Base the first taking
+// part in a discriminator hierarchy at any depth. Nothing is lost, so
 // nothing is kept and nothing reported, and a bare `{}` beside the models adds
 // no conjunct.
 func TestFold_RedeclaredModelsCompose(t *testing.T) {
@@ -94,6 +100,9 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "two components stay mixins, in order", targets: []ir.TypeID{"t/B", "t/A"}, mixins: []ir.TypeID{"t/B", "t/A"}},
 		{name: "a discriminated component is the base", targets: []ir.TypeID{"t/A", "t/Pet"}, base: "t/Pet", mixins: []ir.TypeID{"t/A"}},
 		{name: "the first discriminated component is", targets: []ir.TypeID{"t/Dog", "t/A", "t/Pet"}, base: "t/Dog", mixins: []ir.TypeID{"t/A", "t/Pet"}},
+		{name: "a subtype of a discriminated component is", targets: []ir.TypeID{"t/A", "t/Mid"}, base: "t/Mid", mixins: []ir.TypeID{"t/A"}},
+		{name: "a deeper one, through an alias", targets: []ir.TypeID{"t/A", "t/Low"}, base: "t/Low", mixins: []ir.TypeID{"t/A"}},
+		{name: "a cycle of subtypes declaring none is not", targets: []ir.TypeID{"t/A", "t/loopA"}, mixins: []ir.TypeID{"t/A", "t/loopA"}},
 		{name: "one type declared twice composes once", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "`{}` adds no conjunct", targets: []ir.TypeID{"t/top", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
 		{name: "an alias of `{}` saying nothing of its values adds none", targets: []ir.TypeID{"t/A", "t/B", "t/topDoc"}, mixins: []ir.TypeID{"t/A", "t/B"}},

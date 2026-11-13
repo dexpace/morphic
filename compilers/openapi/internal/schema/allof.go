@@ -15,7 +15,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
-	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -311,7 +310,7 @@ func compositionRequired(own []string, comp allOfComposition) []string {
 func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, fields modelFields, comp allOfComposition,
 ) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	base, hasBase := selectAllOfBase(c.Bindings(), comp.branches)
+	base, hasBase := selectAllOfBase(c, comp.branches)
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, depth, fields, e.schema.GetSchema(), e.pointer)...)
@@ -570,20 +569,33 @@ func rawMappingKeys(root *yaml.Node) []string {
 
 // selectAllOfBase returns the index into branches of the one that becomes
 // Model.Base, and false when none qualifies (multiple non-hierarchy refs stay
-// Mixins). refs says where each branch's $ref ends.
-func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) (int, bool) {
+// Mixins): of several, the first whose $ref lands on a schema taking part in a
+// discriminator hierarchy (inHierarchy).
+func selectAllOfBase(c lowering.Ctx, branches []allOfBranch) (int, bool) {
 	refIdxs := make([]int, 0, len(branches))
 	for i, e := range branches {
 		if isRefBranch(e.schema) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
-	return merge.SelectBase(refIdxs, func(i int) bool { return refTargetHasDiscriminator(refs, branches[i].schema) })
+	return merge.SelectBase(refIdxs, func(i int) bool {
+		target := refBranchTarget(c.Bindings(), branches[i].schema)
+		return target != nil && inHierarchy(c, target)
+	})
 }
 
-// refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
-// that carries a discriminator (it anchors a polymorphic hierarchy).
-func refTargetHasDiscriminator(refs *typed.Bindings, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	target := refBranchTarget(refs, b)
-	return target != nil && target.GetDiscriminator() != nil
+// inHierarchyOf keys what inHierarchy read of one schema.
+type inHierarchyOf struct {
+	schema *oas3.Schema
+}
+
+// inHierarchy reports whether s takes part in a discriminator hierarchy: it
+// declares a discriminator, or composes through allOf, at any depth, a schema
+// that does, the ancestors whose routes tag it (discriminatedAncestors). It
+// reads the source, so no lowering order decides it, and every composition
+// naming s asks, so it is read once a run.
+func inHierarchy(c lowering.Ctx, s *oas3.Schema) bool {
+	return lowering.Remembered(c, inHierarchyOf{s}, func() bool {
+		return s.GetDiscriminator() != nil || len(discriminatedAncestors(c.Bindings(), s)) > 0
+	})
 }
