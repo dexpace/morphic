@@ -100,8 +100,8 @@ either, as `oneOf: [{$ref: A}, {$ref: A}]` or an `anyOf` listing `{type: string}
 keeps both variants, as it keeps every branch, and `pass.Validate` reports the later: as a warning
 `pass/exclusive-union-repeated-variant` where the union is exclusive, which then admits less than
 the source seems to say, and as an info `pass/inclusive-union-redundant-variant` where it is not.
-Each case has a code of its own, so a rule naming a code can take the redundant repeat without the
-one that narrows what the union admits.
+Each case has a code of its own, so a consumer selecting findings by code can take the redundant
+repeat without the one that narrows what the union admits.
 
 ## Open unions
 
