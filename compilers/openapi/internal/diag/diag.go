@@ -512,6 +512,13 @@ const (
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// InferredHTTPDate reports a response header the HTTP-date policy writes and
+	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
+	// date-time, whose text format spells as RFC 3339's, at the header. The
+	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// Info, as InferredDiscriminator is: the reading departs from what the
+	// format says, and the mark keeps what the document declared.
+	InferredHTTPDate = "openapi/inferred-http-date"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

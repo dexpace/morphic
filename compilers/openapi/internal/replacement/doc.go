@@ -3,7 +3,9 @@
 
 // Package replacement fills what a deprecation names as its replacement
 // (ir.Deprecation.ReplacedBy) from the vendor extensions a policy maps to
-// lowering.TargetDeprecationReplacedBy. It runs once the document is whole,
-// since a replacement may be declared after what it replaces, and reads the
-// extensions the nodes keep, as every promotion does.
+// lowering.TargetDeprecationReplacedBy, as every promotion reads the
+// extensions the nodes keep, and, under the replacement policy, from what the
+// deprecation's message names where no such extension is written. It runs
+// once the document is whole, since a replacement may be declared after what
+// it replaces.
 package replacement

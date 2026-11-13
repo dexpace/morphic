@@ -15,7 +15,7 @@ import (
 // included to ir.MaxGroupDepth, of its parameters, and of the headers its
 // responses and its bodies' encodings declare.
 func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
-	ops := operations(svc)
+	ops := lowering.Operations(svc)
 	byName := map[string][]ir.OpID{}
 	for _, op := range ops {
 		if name := op.Name.Source; name != "" {
@@ -29,10 +29,12 @@ func (r *resolver) service(svc *ir.Service) []ir.Diagnostic {
 		}
 		return ir.EntityRef{Operation: found[0]}, 1
 	}
+	routes := indexRoutes(ops)
 	var diags []ir.Diagnostic
 	for _, op := range ops {
-		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, ir.EntityRef{Operation: op.ID},
-			"operation", operation)...)
+		self := ir.EntityRef{Operation: op.ID}
+		diags = append(diags, r.fill(op.Unmodeled, op.Deprecation, &op.Provenance, self, "operation", operation)...)
+		r.message(op.Unmodeled, op.Deprecation, &op.Provenance, self, routes.named, routes.find)
 		diags = append(diags, r.params(op)...)
 		diags = append(diags, r.payload(op.Request)...)
 		for i := range op.Responses {
@@ -74,43 +76,23 @@ func (r *resolver) payload(p *ir.Payload) []ir.Diagnostic {
 	return diags
 }
 
-// params fills each parameter's replacements, among op's parameters.
+// params fills each parameter's replacements, among op's parameters, which are
+// indexed once, where a parameter first names one.
 func (r *resolver) params(op *ir.Operation) []ir.Diagnostic {
-	ix := lowering.IndexParams(op)
+	var ix *lowering.ParamIndex
 	param := func(name string) (ir.EntityRef, int) {
+		if ix == nil {
+			ix = new(lowering.IndexParams(op))
+		}
 		id, matched := ix.Named(name)
 		return ir.EntityRef{Param: id}, matched
 	}
 	diags := make([]ir.Diagnostic, 0, len(op.Params))
 	for i := range op.Params {
 		p := &op.Params[i]
-		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Param: p.ID}, "parameter", param)...)
+		self := ir.EntityRef{Param: p.ID}
+		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, self, "parameter", param)...)
+		r.message(p.Unmodeled, p.Deprecation, &p.Provenance, self, codeSpans, param)
 	}
 	return diags
-}
-
-// operations returns every operation svc holds, nested groups included, to
-// ir.MaxGroupDepth.
-func operations(svc *ir.Service) []*ir.Operation {
-	type level struct {
-		groups []ir.OperationGroup
-		depth  int
-	}
-	var ops []*ir.Operation
-	stack := []level{{groups: svc.Groups}}
-	for len(stack) > 0 {
-		top := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-		if top.depth > ir.MaxGroupDepth {
-			continue
-		}
-		for gi := range top.groups {
-			g := &top.groups[gi]
-			for oi := range g.Operations {
-				ops = append(ops, &g.Operations[oi])
-			}
-			stack = append(stack, level{groups: g.Groups, depth: top.depth + 1})
-		}
-	}
-	return ops
 }

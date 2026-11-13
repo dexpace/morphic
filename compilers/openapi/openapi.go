@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/document"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
@@ -225,8 +226,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	acc.AppendAll(lowered.Links.Resolve(c, &out.Services[0], reg, srv))
 	out.Servers = srv.Servers()
 	// What a deprecation names as its replacement may be declared anywhere, so
-	// it is read once every node it can name is built.
+	// it is read once every node it can name is built; so is what a name
+	// implies, which turns on the type a $ref names, built in any order.
 	acc.AppendAll(replacement.Resolve(c, out))
+	acc.AppendAll(convention.Apply(c, out))
 
 	m, metaDiags := document.Lower(c)
 	out.Name, out.Version = m.Name, m.Version
@@ -305,6 +308,10 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		Promotions:             o.Promotions,
 		NullableWidening:       o.NullableWidening,
 		DiscriminatorInference: o.DiscriminatorInference,
+		IdempotencyInference:   o.IdempotencyInference,
+		SecretInference:        o.SecretInference,
+		HTTPDateInference:      o.HTTPDateInference,
+		ReplacementInference:   o.ReplacementInference,
 	})
 }
 

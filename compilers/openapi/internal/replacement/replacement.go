@@ -20,10 +20,11 @@ import (
 // operationId, a parameter by `<in>.<name>` or its name within its operation,
 // a header by name among the headers beside it, a property by name within its
 // model, a schema by its components name, and a security scheme by its key
-// (docs/compilers/openapi.md#extension-promotion). c is the source's context.
+// (docs/compilers/openapi.md#extension-promotion). An operation, a parameter
+// or a property whose keys name none takes what its message names (message).
 func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	r := resolver{c: c, p: c.Promoter(), doc: doc}
-	if !r.p.Maps(lowering.TargetDeprecationReplacedBy) {
+	if !r.p.Maps(lowering.TargetDeprecationReplacedBy) && !c.ReplacementInference.Honours() {
 		return nil
 	}
 	var diags []ir.Diagnostic
@@ -44,11 +45,12 @@ func Resolve(c lowering.Ctx, doc *ir.Document) []ir.Diagnostic {
 	return diags
 }
 
-// resolver is what one Resolve reads its names against. A security scheme, a
-// model's member and a header are found by scanning their list for each name,
-// so a list whose every entry names another costs its length squared: only a
-// mapping reads replacements, and 8,000 such headers and members together add
-// under half a second to a compile, which an index per list would not repay.
+// resolver is what one Resolve reads its names against. A security scheme and
+// a header are found by scanning their list for each name, so a list whose
+// every entry names another costs its length squared: only a mapping reads
+// their replacements, and 8,000 such headers add under half a second to a
+// compile, which an index per list would not repay. A model's members, whose
+// messages every compile reads, are indexed by name once (members).
 type resolver struct {
 	c   lowering.Ctx
 	p   lowering.Promoter
@@ -112,7 +114,8 @@ func (r *resolver) schema(name string) (ir.EntityRef, int) {
 	return ir.EntityRef{Type: id}, 1
 }
 
-// typeDef fills td's own replacements, and those of a model's properties.
+// typeDef fills td's own replacements, and those of a model's properties. The
+// model's members are indexed once, where a property first names one.
 func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	common := td.Common()
 	diags := r.fill(common.Unmodeled, common.Deprecation, &common.Provenance, ir.EntityRef{Type: id}, "schema", r.schema)
@@ -120,20 +123,35 @@ func (r *resolver) typeDef(id ir.TypeID, td ir.TypeDef) []ir.Diagnostic {
 	if !ok {
 		return diags
 	}
-	flat := ir.FlattenedProperties(r.doc.Types, m.ID)
+	var byName map[string]ir.PropID
 	member := func(name string) (ir.EntityRef, int) {
-		for i := range flat.Properties {
-			if p := flat.Properties[i].Property; p.EffectiveWireName() == name {
-				return ir.EntityRef{Property: p.ID}, 1
-			}
+		if byName == nil {
+			byName = members(r.doc.Types, m.ID)
+		}
+		if p, found := byName[name]; found {
+			return ir.EntityRef{Property: p}, 1
 		}
 		return ir.EntityRef{}, 0
 	}
 	for i := range m.Properties {
 		p := &m.Properties[i]
-		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, ir.EntityRef{Property: p.ID}, "property", member)...)
+		self := ir.EntityRef{Property: p.ID}
+		diags = append(diags, r.fill(p.Unmodeled, p.Deprecation, &p.Provenance, self, "property", member)...)
+		r.message(p.Unmodeled, p.Deprecation, &p.Provenance, self, codeSpans, member)
 	}
 	return diags
+}
+
+// members indexes the members the model id flattens to by the name each
+// travels under, which a flattening holds one member of.
+func members(types ir.TypeRegistry, id ir.TypeID) map[string]ir.PropID {
+	flat := ir.FlattenedProperties(types, id)
+	byName := make(map[string]ir.PropID, len(flat.Properties))
+	for i := range flat.Properties {
+		p := flat.Properties[i].Property
+		byName[p.EffectiveWireName()] = p.ID
+	}
+	return byName
 }
 
 // headers fills each header's replacements, among the headers beside it. A

@@ -470,3 +470,16 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
+- **0.47.0** — no shape changed: four OpenAPI policies, each on by default and switched off by its
+  option, fill facts a document implies by its names and messages, each node they fill marked in its
+  `Provenance.Inferred`. An operation sent by a method RFC 9110 does not define as safe takes the
+  header parameter `Idempotency-Key` as its `Idempotency` token
+  ([`idempotency-inference`](../compilers/openapi.md#idempotency-inference)); a parameter, a header
+  or a member whose name ends in a credential's and whose value is text or bytes is `Secret`
+  ([`secret-inference`](../compilers/openapi.md#secret-inference)); a deprecation's message naming a
+  declared route or a sibling in code fills `ReplacedBy`
+  ([`replacement-inference`](../compilers/openapi.md#replacement-inference)); and a `date-time`
+  response header whose field an RFC defines as an HTTP-date takes `Encoding` `http-date`
+  ([`http-date-inference`](../compilers/openapi.md#http-date-inference)). A consumer pinned to
+  0.46.0 refuses a document from this generation, whose idempotency, redaction, replacements and
+  header texts it would read as no OpenAPI document wrote them.

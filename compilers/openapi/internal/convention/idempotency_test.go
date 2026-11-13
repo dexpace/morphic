@@ -1,0 +1,97 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package convention_test
+
+import (
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/convention"
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/ir"
+)
+
+// keyed is an operation bound by method, declaring a parameter for each of
+// bindings, its location and wire name, under an ID of its own.
+func keyed(method string, bindings ...ir.HTTPParamBinding) ir.Operation {
+	op := ir.Operation{ID: "op/a", Provenance: ir.Provenance{Inferred: "extension-promotion"}}
+	hb := ir.HTTPBinding{Method: method, URITemplate: "/a"}
+	for i, b := range bindings {
+		b.Param = ir.ParamID("param/" + string(rune('a'+i)))
+		op.Params = append(op.Params, ir.Parameter{ID: b.Param, Name: ir.NamingFor(b.WireName)})
+		hb.ParamBindings = append(hb.ParamBindings, b)
+	}
+	op.Bindings = ir.OpBindings{HTTP: []ir.HTTPBinding{hb}}
+	return op
+}
+
+// header is a binding of a header parameter under name.
+func header(name string) ir.HTTPParamBinding {
+	return ir.HTTPParamBinding{Location: ir.HTTPLocationHeader, WireName: name}
+}
+
+// TestIdempotency_TheKeyHeaderIsTheToken pins which operations take their
+// Idempotency-Key header as their token, marked beside what they carry: one
+// sent by a method RFC 9110 does not define as safe, binding exactly one header
+// of that name in any case, and stating no idempotency of its own.
+func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
+	t.Parallel()
+	declared := keyed(http.MethodPost, header("Idempotency-Key"))
+	declared.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
+	twice := keyed(http.MethodPost, header("Idempotency-Key"))
+	twice.Bindings.HTTP = append(twice.Bindings.HTTP, twice.Bindings.HTTP[0])
+	for _, tc := range []struct {
+		name  string
+		op    ir.Operation
+		token ir.ParamID
+	}{
+		{"a POST", keyed(http.MethodPost, header("Idempotency-Key")), "param/a"},
+		{"a PATCH", keyed(http.MethodPatch, header("Idempotency-Key")), "param/a"},
+		{"a PUT", keyed(http.MethodPut, header("Idempotency-Key")), "param/a"},
+		{"a DELETE", keyed(http.MethodDelete, header("Idempotency-Key")), "param/a"},
+		{"the name in lower case, after another header", keyed(http.MethodPost, header("X-Trace"), header("idempotency-key")),
+			"param/b"},
+		{"a GET", keyed(http.MethodGet, header("Idempotency-Key")), ""},
+		{"a HEAD", keyed(http.MethodHead, header("Idempotency-Key")), ""},
+		{"an OPTIONS", keyed(http.MethodOptions, header("Idempotency-Key")), ""},
+		{"a TRACE", keyed(http.MethodTrace, header("Idempotency-Key")), ""},
+		{"a QUERY", keyed("QUERY", header("Idempotency-Key")), ""},
+		{"a method only additionalOperations declares", keyed("LINK", header("Idempotency-Key")), ""},
+		{"a lower-case method", keyed("post", header("Idempotency-Key")), ""},
+		{"a query parameter of the name", keyed(http.MethodPost,
+			ir.HTTPParamBinding{Location: ir.HTTPLocationQuery, WireName: "Idempotency-Key"}), ""},
+		{"another header", keyed(http.MethodPost, header("X-Idempotency-Key")), ""},
+		{"two headers whose names differ in case", keyed(http.MethodPost, header("Idempotency-Key"),
+			header("idempotency-key")), ""},
+		{"a declared idempotency", declared, ""},
+		{"two bindings", twice, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := oneOperation(tc.op, registry(nil))
+			assert.Empty(t, convention.Apply(under(lowering.Policy{}), doc))
+			op := operationOf(doc)
+			if tc.token == "" {
+				assert.Equal(t, tc.op.Idempotency, op.Idempotency, "the idempotency stays as it was")
+				assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
+				return
+			}
+			assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, op.Idempotency)
+			assert.Equal(t, ir.Inferred("extension-promotion,idempotency-inference"), op.Provenance.Inferred)
+		})
+	}
+}
+
+// TestIdempotency_DisabledReadsNoToken pins the switch: with the policy off,
+// an operation the policy would name a token for keeps the idempotency the
+// document states, and no mark.
+func TestIdempotency_DisabledReadsNoToken(t *testing.T) {
+	t.Parallel()
+	doc := oneOperation(keyed(http.MethodPost, header("Idempotency-Key")), registry(nil))
+	assert.Empty(t, convention.Apply(under(lowering.Policy{IdempotencyInference: lowering.IdempotencyInference{Disabled: true}}), doc))
+	assert.Equal(t, ir.Idempotency{}, operationOf(doc).Idempotency)
+	assert.Equal(t, ir.Inferred("extension-promotion"), operationOf(doc).Provenance.Inferred)
+}

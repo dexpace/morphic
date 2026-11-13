@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -173,4 +174,32 @@ func assertTagsGrouping32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "listBooks", listBooks.Name.Source)
 	assert.Equal(t, []string{"beta", "books"}, listBooks.Tags,
 		"tag membership keeps every tag the operation named, badge included")
+}
+
+// assertIdempotencyInference pins the idempotency policy on each operation of
+// its case: a POST's Idempotency-Key header and a PUT's, through a $ref and in
+// lower case, are their tokens, marked; a GET, safe by its method, a PATCH
+// whose key is a query parameter, and a DELETE carrying the header twice in
+// two letter cases keep the idempotency the document leaves unknown.
+func assertIdempotencyInference(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for _, tc := range []struct {
+		op    string
+		token ir.ParamID
+	}{
+		{"createPayment", "param/openapi/paths/~1payments/post/parameters/Idempotency-Key/header"},
+		{"replacePayment", "param/openapi/paths/~1payments~1{id}/put/parameters/idempotency-key/header"},
+		{"listPayments", ""},
+		{"patchPayment", ""},
+		{"deletePayment", ""},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, tc.op)
+		if tc.token == "" {
+			assert.Equal(t, ir.Idempotency{}, op.Idempotency, tc.op)
+			assert.Empty(t, op.Provenance.Inferred, tc.op)
+			continue
+		}
+		assert.Equal(t, ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: tc.token}, op.Idempotency, tc.op)
+		assert.Equal(t, openapi.IdempotencyInferenceHeuristic, op.Provenance.Inferred, tc.op)
+	}
 }
