@@ -247,7 +247,7 @@ func IsDefaultIgnorable(r rune) bool {
 	// Unicode has changed the derivation itself between releases: rebuild this
 	// from that derivation and sweep every code point against it.
 	const (
-		interlinearFirst, interlinearLast       = '￹', '￻'
+		interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
 		egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
 	)
 
