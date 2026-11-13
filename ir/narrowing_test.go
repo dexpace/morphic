@@ -397,6 +397,11 @@ func TestNarrowedShapes_StepsCountWhatEachWalkReads(t *testing.T) {
 	selfAndMore := irtest.DocOf(unionOf("u", "u", "v", "w"), owning("v", nil), owning("w", nil), owning("m", based("u")))
 	assert.Equal(t, spent(selfOnly)+2*listing, spent(selfAndMore),
 		"a shape whose chain reaches its union twice ends there, reading the union it ends at no further")
+	nest := irtest.DocOf(unionOf("u", "x"), unionOf("x", "v"), owning("v", nil), owning("m", based("u")))
+	nestMet := irtest.DocOf(unionOf("u", "x"), unionOf("x", "v"), owning("v", mixing("x")), owning("m", based("u")))
+	assert.Equal(t, spent(nest)+3, spent(nestMet),
+		"meeting a union midway along a chain the walk has read is an entry, the union read and the chain's end read")
+
 	selfTwice := irtest.DocOf(unionOf("u", "u"), owning("m", mixing("u", "u")))
 	selfOnce := irtest.DocOf(unionOf("u", "u"), owning("m", mixing("u")))
 	assert.Equal(t, spent(selfOnce)+2+2, spent(selfTwice),
