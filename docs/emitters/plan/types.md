@@ -381,8 +381,8 @@ would make every edit of a Worker restate six members. Each of the six merge pat
 smaller key would elect: without the election above no request would go out relaxed, and an edit of
 a Worker would still restate its six. Four readings lost to this one:
 
-- **Every `PATCH` body relaxes**, which the IR's wording gives. It drops the required members of the
-  78, and over all a patch shape reaches it relaxes 346 members of 213 models.
+- **Every `PATCH` body relaxes.** It drops the required members of the 78, and over all a patch
+  shape reaches it relaxes 346 members of 213 models.
 - **None does unless the binding says so.** It is wrong for the two merge patches and for any
   document reusing a resource's schema that way, and the caller it fails has no way to send a
   partial edit.
