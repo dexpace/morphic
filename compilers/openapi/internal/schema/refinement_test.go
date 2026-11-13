@@ -286,8 +286,8 @@ func TestRefinement_AUnionBranchIsAConjunct(t *testing.T) {
 // an allOf is one of its conjuncts, as the same union on a branch is: at a
 // component and at a property, in either declaration order, the two spellings
 // lower alike, but for the key a union the principal does not say is kept under,
-// and none composes a model (GitHub #1685). The branch is written first, as the
-// election's tie goes to the keywords beside the allOf before any branch.
+// and none composes a model (GitHub #1685). The union's branch is written first,
+// as the election's tie goes to the keywords beside the allOf before any branch.
 func TestRefinement_AUnionBesideTheAllOfIsAConjunct(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {

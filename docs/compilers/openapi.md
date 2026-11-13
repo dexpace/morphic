@@ -1396,12 +1396,12 @@ keeps the union with its branch.
 
 A `oneOf` or `anyOf` written beside the `allOf` is one more conjunct, as one on a branch is: the
 keywords beside the `allOf` are read with it, and name a kind where they write one. Where a branch
-is then the principal, the position is a use of it and the union is a keyword beside the refinement:
-the principal saying it consumes it, as it would on a branch, one whose branches declare no shape
-against the position ([`union-beside-structure`](#union-beside-structure)) is kept under
-`openapi:oneOf` or `openapi:anyOf` as `validation_only`, reported as an info
+is then the principal, the position is a use of it and the union is a keyword beside the refinement.
+The principal consumes it where it says it, as on a branch. Otherwise one whose branches declare no
+shape against the position ([`union-beside-structure`](#union-beside-structure)) is kept under
+`openapi:oneOf` or `openapi:anyOf` as `validation_only` and reported as an info
 `openapi/validation-only-keyword` at the position, as beside any body, and any other is kept there
-under `degraded_lowering` with the report other keywords beside a refinement draw. So
+under `degraded_lowering`, with the report other keywords beside a refinement draw. So
 `{allOf: [{type: string, maxLength: 10}], anyOf: [{type: string}, {type: number}]}` lowers as the
 same union on a branch does, and `{allOf: [{$ref: Str}], oneOf: [{minLength: 1}, {maxLength: 2}]}`
 is a use of `Str` keeping its `oneOf` as validation logic. Where the keywords beside the `allOf`
@@ -1500,10 +1500,10 @@ as one beside the `allOf` reaches none ([`constraints`](#constraints)): a value 
 no `Constraints` for one, and a collection bound on any node but a `List` or a `Tuple`, the `Union`
 of a type list holding one where such a variant does; a collection bound `Constraints` cannot state,
 a `uniqueItems` of `false` or a count past 64 bits, never folds. A `$dynamicRef` beside the
-`allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)) and changes nothing else
-here, and a union beside it is a conjunct there: where the `allOf` composes, its branches fold into
-the composition as they do with neither there, beside a `$dynamicRef` it keeps from expanding
-([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
+`allOf` keeps it from refining ([`allof-refinement`](#allof-refinement)), where a union beside it is
+one more conjunct, and neither changes anything else here: where the `allOf` composes, its branches
+fold into the composition as they do with neither there, beside a `$dynamicRef` it keeps from
+expanding ([`dynamic-ref`](#dynamic-ref)) or a union kept verbatim
 ([`union-beside-structure`](#union-beside-structure)). Where a union beside the `allOf` or on one of
 its branches distributes, a branch's annotations and what a use binds reach the `Union` and its
 carriers, and a value bound each variant, as the same keyword beside the `allOf` does, and a branch
