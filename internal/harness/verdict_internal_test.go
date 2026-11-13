@@ -101,6 +101,28 @@ func TestCheck_ARefusalDeclinesWhatHoldsADocument(t *testing.T) {
 	}, r.Verdicts)
 }
 
+// TestCheck_ARefusedReencodingIsDeclined pins what the order oracle is told of
+// the source: one that compiles to a document, rewritten to text the compile
+// refuses, is the rewrite's failure, which a sweep counts, rather than two
+// refusals that compare alike.
+func TestCheck_ARefusedReencodingIsDeclined(t *testing.T) {
+	orig := compile
+	t.Cleanup(func() { compile = orig })
+	const src = "a:\n  b: 1\n  c: 2\n" // indented otherwise than the encoder indents
+	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+		if string(data) == src {
+			return soundDoc(), nil, nil
+		}
+		return nil, []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityError, "stub/refused", "no",
+			ir.Provenance{Source: ir.NoSource})}, nil
+	}
+
+	r := Check(context.Background(), "spec", []byte(src))
+
+	require.Len(t, r.Verdicts, len(Oracles()))
+	assert.Equal(t, declined(OracleOrder, DeclineReencodingRefused), r.Verdicts[len(r.Verdicts)-1])
+}
+
 // TestCheck_AFaultEndingTheRunLeavesTheRestNotReached pins the verdicts of a
 // run that ends early: a panic midway keeps the verdicts given before it, a
 // fault before the oracles leaves every one but no-panic not reached, and

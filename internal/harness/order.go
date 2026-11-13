@@ -35,10 +35,10 @@ const maxReverseDepth = 1025
 // Unlike `deterministic`, which recompiles the same bytes, permuted input
 // catches a lowering that depends on which declaration reached a pointer
 // first (#108, #112). Both arms compile the encoder's output
-// (reencodeMappings). It declines a source it cannot permute faithfully, and
-// proves order-independence only for the constructs its input contains, at
-// the default options, so it runs over the corpus.
-func orderInvariant(ctx context.Context, spec string, data []byte) Verdict {
+// (reencodeMappings). It declines a source it cannot permute faithfully, or
+// whose re-encoding alone is refused (compiled), and proves order-independence
+// only for what its input contains, at the default options.
+func orderInvariant(ctx context.Context, spec string, data []byte, compiled bool) Verdict {
 	baseline, why := reencodeMappings(data)
 	if why != "" {
 		return declined(OracleOrder, why)
@@ -57,6 +57,9 @@ func orderInvariant(ctx context.Context, spec string, data []byte) Verdict {
 	if err != nil {
 		// A Go error is never the spec's, so it is reported, as on the other arm.
 		return found(OracleOrder, "compile re-encoded: "+err.Error())
+	}
+	if doc == nil && compiled {
+		return declined(OracleOrder, DeclineReencodingRefused)
 	}
 	other, otherDiags, err := compile(ctx, spec, reversed, passes())
 	if err != nil {

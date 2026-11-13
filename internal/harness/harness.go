@@ -161,7 +161,7 @@ func check(ctx context.Context, spec string, data []byte, give func(Verdict)) er
 	} else {
 		give(OracleIdempotence.judge(idempotent(ctx, spec, data, doc)))
 	}
-	give(orderInvariant(ctx, spec, data))
+	give(orderInvariant(ctx, spec, data, doc != nil))
 	return nil
 }
 

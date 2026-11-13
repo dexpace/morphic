@@ -98,6 +98,10 @@ const (
 	// DeclineReencodingNoSpec: the source re-encoded reads as no spec any
 	// registered compiler takes, so there is no baseline to compare with.
 	DeclineReencodingNoSpec Decline = "re-encoding is no spec"
+	// DeclineReencodingRefused: the source compiles to a document and its
+	// re-encoding to none, so the two orders would compare a refusal the
+	// rewrite made rather than what the source compiles to.
+	DeclineReencodingRefused Decline = "re-encoding refused"
 )
 
 // Verdict is one oracle's answer for one spec: it asked and found nothing

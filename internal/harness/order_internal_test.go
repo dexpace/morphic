@@ -273,7 +273,7 @@ components:
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := orderInvariant(context.Background(), "spec", []byte(tc.src))
+			got := orderInvariant(context.Background(), "spec", []byte(tc.src), true)
 			assert.Equal(t, declined(OracleOrder, tc.why), got)
 		})
 	}
@@ -307,7 +307,7 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 	onlyPermutedFails(func() (*ir.Document, []ir.Diagnostic, error) {
 		return nil, nil, errors.New("boom")
 	})
-	got := orderInvariant(context.Background(), "spec", []byte(src))
+	got := orderInvariant(context.Background(), "spec", []byte(src), true)
 	assert.Equal(t, found(OracleOrder, "recompile permuted: boom"), got)
 
 	compile = func(_ context.Context, _ string, data []byte, _ []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
@@ -316,7 +316,7 @@ func TestOrderInvariant_CompileFailureIsReported(t *testing.T) {
 		}
 		return &ir.Document{}, nil, nil
 	}
-	got = orderInvariant(context.Background(), "spec", []byte(src))
+	got = orderInvariant(context.Background(), "spec", []byte(src), true)
 	assert.Equal(t, found(OracleOrder, "compile re-encoded: baseline boom"), got)
 }
 
@@ -331,7 +331,7 @@ func TestOrderInvariant_AReencodingNoCompilerTakesIsDeclined(t *testing.T) {
 		return nil, nil, fmt.Errorf("no compiler takes it: %w", errUnrecognized)
 	}
 
-	got := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"))
+	got := orderInvariant(context.Background(), "spec", []byte("a: 1\nb: 2\n"), true)
 
 	assert.Equal(t, declined(OracleOrder, DeclineReencodingNoSpec), got)
 }
@@ -339,6 +339,8 @@ func TestOrderInvariant_AReencodingNoCompilerTakesIsDeclined(t *testing.T) {
 // TestOrderInvariant_RefusalsCompareTheirFindings pins what the oracle asks of
 // a source the compiler refuses in an order: two refusals compare what they
 // report, and a refusal in one order alone is a finding, whichever order it is.
+// A refusal of the re-encoding alone, where the source compiles, is the
+// rewrite's, so the oracle declines rather than compare two refusals.
 func TestOrderInvariant_RefusalsCompareTheirFindings(t *testing.T) {
 	const src = "a: 1\nb: 2\n"
 	baseline, why := reencodeMappings([]byte(src))
@@ -348,17 +350,20 @@ func TestOrderInvariant_RefusalsCompareTheirFindings(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name                  string
+		compiled              bool
 		asWritten, permuted   *ir.Document
 		writtenDiags, permDia []ir.Diagnostic
 		want                  Verdict
 	}{
-		{"two refusals alike", nil, nil, refusal("x/refused"), refusal("x/refused"), passed(OracleOrder)},
-		{"two refusals apart", nil, nil, refusal("x/refused"), refusal("x/other"), found(OracleOrder,
+		{"two refusals alike", false, nil, nil, refusal("x/refused"), refusal("x/refused"), passed(OracleOrder)},
+		{"two refusals apart", false, nil, nil, refusal("x/refused"), refusal("x/other"), found(OracleOrder,
 			"diagnostics depend on declaration order (-as-written +reversed):\n")},
-		{"a refusal permuted only", &ir.Document{}, nil, nil, refusal("x/refused"), found(OracleOrder,
+		{"a refusal permuted only", true, &ir.Document{}, nil, nil, refusal("x/refused"), found(OracleOrder,
 			"the permuted source compiles to no document, and as written to one")},
-		{"a refusal as written only", nil, &ir.Document{}, refusal("x/refused"), nil, found(OracleOrder,
+		{"a refusal as written only", false, nil, &ir.Document{}, refusal("x/refused"), nil, found(OracleOrder,
 			"the permuted source compiles to a document, and as written to none")},
+		{"a refusal of the re-encoding alone", true, nil, nil, refusal("x/refused"), refusal("x/refused"),
+			declined(OracleOrder, DeclineReencodingRefused)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			orig := compile
@@ -370,9 +375,10 @@ func TestOrderInvariant_RefusalsCompareTheirFindings(t *testing.T) {
 				return tc.permuted, tc.permDia, nil
 			}
 
-			got := orderInvariant(context.Background(), "spec", []byte(src))
+			got := orderInvariant(context.Background(), "spec", []byte(src), tc.compiled)
 
 			assert.Equal(t, tc.want.Outcome, got.Outcome)
+			assert.Equal(t, tc.want.Declined, got.Declined)
 			assert.True(t, strings.HasPrefix(got.Detail, tc.want.Detail), got.Detail)
 		})
 	}
@@ -1032,7 +1038,7 @@ func TestReencodeMappings_AStreamOfNoDocuments(t *testing.T) {
 	assert.Empty(t, why)
 	assert.Empty(t, got)
 	assert.Equal(t, declined(OracleOrder, DeclineNothingToPermute),
-		orderInvariant(context.Background(), "spec", []byte("# nothing but a comment\n")))
+		orderInvariant(context.Background(), "spec", []byte("# nothing but a comment\n"), true))
 }
 
 // TestCheck_OrderDependentOutcome pins that Check classifies an order-dependent
