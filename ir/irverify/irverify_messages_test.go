@@ -128,6 +128,29 @@ func messageCases() []messageCase {
 				ID: "p/x/h", Name: named("h"), WireName: illFormed, Type: ir.TypeRef{Target: "t/x/M"}, Prefix: new(""),
 			}}}}})
 		}, "ir/prefix-header-wire-name", fmt.Sprintf("header under a prefix also names the field %q", illFormed)},
+		{"prefix binding location", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocation(illFormed), Prefix: new("")}},
+			}}}})
+		}, "ir/prefix-binding-location", fmt.Sprintf(
+			"binding under a prefix binds location %q, which is neither header nor query", illFormed)},
+		{"prefix binding wire name", func() *ir.Document {
+			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{
+				ParamBindings: []ir.HTTPParamBinding{{Location: ir.HTTPLocationQuery, WireName: illFormed, Prefix: new("")}},
+			}}}})
+		}, "ir/prefix-binding-wire-name", fmt.Sprintf("binding under a prefix also names the field %q", illFormed)},
+		{"prefix binding of no map", func() *ir.Document {
+			doc := opDoc(ir.Operation{
+				ID: "op/x/S/op", Name: named("op"),
+				Params: []ir.Parameter{{ID: "param/x/p", Name: named("p"), Type: ir.TypeRef{Target: illFormed}}},
+				Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{ParamBindings: []ir.HTTPParamBinding{{
+					Param: "param/x/p", Location: ir.HTTPLocationHeader, Prefix: new(""),
+				}}}}},
+			})
+			doc.Types = ir.TypeRegistry{illFormed: namedModel(illFormed)}
+			return doc
+		}, "ir/prefix-binding-not-map", fmt.Sprintf(
+			"binding under a prefix binds a parameter of type %q, which is no map", illFormed)},
 		{"inbound kind", func() *ir.Document {
 			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
 				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInbound(illFormed)}}}})

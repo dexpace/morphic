@@ -43,9 +43,11 @@ scheme the parameter gets no input at all, and a header parameter named `Authori
 ([auth](../operations/auth.md#a-parameter-in-a-credentials-slot)). The rule reads every scheme of
 the document, not those an operation requires, since a caller may send one an operation does not ask
 for. It marks nothing on the golden spec, none of whose 11,994 parameters is `Secret` or sits in a
-slot of its four declared schemes; what it does not reach is a credential only a name suggests, the
-`R2-Secret-Access-Key` header two of its operations declare, which stays the document's to mark
-(spec @bc6fad24, morphic @fa253fe19).
+slot of its four declared schemes (spec @bc6fad24, morphic @fa253fe19). What it does not reach is a
+credential only a name suggests, such as the `R2-Secret-Access-Key` header two of its operations
+declare, which the OpenAPI compiler's secret policy marks `Secret`
+([`secret-inference`](../../compilers/openapi.md#secret-inference)), so it is redacted as any
+`Secret` use is.
 
 Redacting changes how a value is shown and nothing else. Every rendering an SDK makes of a value as
 text, other than its wire form, shows a redacted one as `[REDACTED]`: each form the target's

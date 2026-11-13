@@ -1019,12 +1019,11 @@ func formatAgainst(f string, k valueKind) relation {
 // (valueKind), reporting false when the target does not end in a single
 // primitive kind (a model, union, list, tuple, literal, external, or a
 // base-less opaque scalar). The first Encoding met on the way decides the held
-// format, read by heldFormat over a chain ending in string. The chain is
-// bounded against a malformed registry.
+// format, read by heldFormat over a chain ending in string, and a Scalar leads
+// to what its values travel as (travelsAs). The chain is bounded.
 //
-// An Enum resolves via its already-computed ValueType (docs/ir/enums.md). A
-// Literal is deliberately left unresolved: a ValueNumber literal spans integer,
-// number, float and decimal, so no one kind stands for it.
+// An Enum resolves via its ValueType (docs/ir/enums.md). A Literal is left
+// unresolved: a ValueNumber literal spans integer, number, float and decimal.
 func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 	id := ref.Target
 	var first *ir.Encoding
@@ -1049,12 +1048,36 @@ func (r registry) kindOf(ref ir.TypeRef) (valueKind, bool) {
 			if first == nil {
 				first = t.Encoding
 			}
-			id = t.Base.Target
+			id = r.travelsAs(t)
 		default:
 			return valueKind{}, false
 		}
 	}
 	return valueKind{}, false
+}
+
+// travelsAs returns the type the values of s are instances of: its Base, but
+// for a Base whose values JSON writes as no string, which an Encoding naming a
+// WireType carries as that type, as a number written as its text is a string.
+// A Base JSON spells as a string, bytes among them, stays a string's kind
+// however it is encoded.
+func (r registry) travelsAs(s *ir.Scalar) ir.TypeID {
+	if s.Encoding == nil || s.Encoding.WireType == nil {
+		return s.Base.Target
+	}
+	base, ok := r.resolve(s.Base.Target)
+	prim, isPrim := base.(*ir.Primitive)
+	if !ok || !isPrim || spelledAsString(prim.Prim) {
+		return s.Base.Target
+	}
+	return s.Encoding.WireType.Target
+}
+
+// spelledAsString reports whether JSON writes a value of k as a string: k is
+// string or a format of it.
+func spelledAsString(k ir.PrimKind) bool {
+	rel := spelling.Relate(k, ir.PrimString)
+	return rel == spelling.Same || rel == spelling.ANarrower
 }
 
 // admits reports whether v is a value of the type ref names. A null is judged

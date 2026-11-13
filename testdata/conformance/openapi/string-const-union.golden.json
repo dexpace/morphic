@@ -101,6 +101,103 @@
       },
       "valueType": "string"
     },
+    "t/anon/components/schemas/Compass/oneOf/0": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Compass/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Compass/oneOf/0"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Compass/oneOf/0/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Compass/oneOf/0/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Compass/oneOf/0/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Compass/oneOf/0/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Compass/oneOf/0/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "north"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Compass/oneOf/0/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Compass/oneOf/0/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Compass/oneOf/0/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "south"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Compass/oneOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Compass/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Compass/oneOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "east"
+      },
+      "valueType": "string"
+    },
     "t/anon/components/schemas/Direction/oneOf/0": {
       "kind": "union",
       "id": "t/anon/components/schemas/Direction/oneOf/0",
@@ -166,6 +263,25 @@
       "value": {
         "kind": "string",
         "str": "down"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Fit/anyOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Fit/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Fit/anyOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "one-size"
       },
       "valueType": "string"
     },
@@ -281,6 +397,70 @@
       },
       "valueType": "string"
     },
+    "t/anon/components/schemas/Plan/oneOf/0": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Plan/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plan/oneOf/0"
+      },
+      "value": {
+        "kind": "string",
+        "str": "trial"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Plan/oneOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Plan/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The paid plans."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plan/oneOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Plan/oneOf/1/s:team",
+          "name": {
+            "source": "team",
+            "canonical": "team"
+          },
+          "value": {
+            "kind": "string",
+            "str": "team"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Plan/oneOf/1/s:business",
+          "name": {
+            "source": "business",
+            "canonical": "business"
+          },
+          "value": {
+            "kind": "string",
+            "str": "business"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
     "t/anon/components/schemas/Shade/oneOf/0": {
       "kind": "literal",
       "id": "t/anon/components/schemas/Shade/oneOf/0",
@@ -297,6 +477,80 @@
       "value": {
         "kind": "string",
         "str": "dark"
+      },
+      "valueType": "string"
+    },
+    "t/anon/components/schemas/Size/anyOf/0": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Size/anyOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Size/anyOf/0"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Size/anyOf/0/s:s",
+          "name": {
+            "source": "s",
+            "canonical": "s"
+          },
+          "value": {
+            "kind": "string",
+            "str": "s"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Size/anyOf/0/s:m",
+          "name": {
+            "source": "m",
+            "canonical": "m"
+          },
+          "value": {
+            "kind": "string",
+            "str": "m"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Size/anyOf/0/s:l",
+          "name": {
+            "source": "l",
+            "canonical": "l"
+          },
+          "value": {
+            "kind": "string",
+            "str": "l"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Size/anyOf/1": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Size/anyOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Size/anyOf/1"
+      },
+      "value": {
+        "kind": "string",
+        "str": "xl"
       },
       "valueType": "string"
     },
@@ -403,6 +657,47 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Compass": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Compass",
+      "name": {
+        "source": "Compass",
+        "canonical": "compass"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Compass"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Compass/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Compass/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Direction": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Direction",
@@ -440,6 +735,47 @@
         }
       ],
       "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Fit": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Fit",
+      "name": {
+        "source": "Fit",
+        "canonical": "fit"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Fit"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Size/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Fit/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
       "wireTagged": false,
       "closed": true,
       "inputOnly": false
@@ -546,6 +882,47 @@
       "closed": true,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Plan": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Plan",
+      "name": {
+        "source": "Plan",
+        "canonical": "plan"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plan"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Plan/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Plan/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Shade": {
       "kind": "union",
       "id": "t/openapi/components/schemas/Shade",
@@ -583,6 +960,47 @@
         }
       ],
       "exclusive": true,
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Size": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Size",
+      "name": {
+        "source": "Size",
+        "canonical": "size"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Size"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Size/anyOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Size/anyOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
       "wireTagged": false,
       "closed": true,
       "inputOnly": false
@@ -657,7 +1075,7 @@
     {
       "format": "openapi@3.1",
       "path": "string-const-union.yaml",
-      "hash": "6fa394a822a599bf63d6d4354a93c3bd755e91c959d726ed785deff25cd47dfa"
+      "hash": "f4b4509c28fc68c1215d8190d31234138b45e4183f42b7cb9b99b4be1f716047"
     }
   ]
 }

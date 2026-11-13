@@ -202,6 +202,22 @@ func TestCheck_FormatsAreChecked(t *testing.T) {
 	})
 }
 
+// TestCheck_TheEmptyStringIsJudgedByItsFormat pins the empty string against
+// each format: one it breaks, an email's or an absolute URI's, is reported as
+// any other text is, and one admitting it, a URI reference's or a server
+// URL's, draws nothing.
+func TestCheck_TheEmptyStringIsJudgedByItsFormat(t *testing.T) {
+	verify(t, []scenario{
+		{"empty email", "3.1.0", oas.Contact, `{email: ""}`, []finding{at(badFormat, "/email")}},
+		{"empty namespace", "3.1.0", oas.XML, `{namespace: ""}`, []finding{at(badFormat, "/namespace")}},
+		{"empty dialect", "3.1.0", oas.Document, `{openapi: 3.1.0, info: {title: t, version: v}, components: {}, jsonSchemaDialect: ""}`,
+			[]finding{at(badFormat, "/jsonSchemaDialect")}},
+		{"empty $schema", "3.1.0", oas.Schema, `{$schema: ""}`, []finding{at(badFormat, "/$schema")}},
+		{"empty reference", "3.1.0", oas.Info, `{title: t, version: v, termsOfService: ""}`, nil},
+		{"empty server url", "3.1.0", oas.Server, `{url: ""}`, nil},
+	})
+}
+
 // TestCheck_ComponentNamesAreChecked pins the key grammar of the components.
 func TestCheck_ComponentNamesAreChecked(t *testing.T) {
 	verify(t, []scenario{

@@ -138,7 +138,9 @@ the exit code and nothing else.
 `morphic help` lists the commands, and `morphic help <command>` or `morphic <command> --help`
 prints a command's description, examples and flags. Help always goes to stdout and exits `0`.
 Long flags take two dashes (`--fail-on`); `-o`, `-h` and `-v` are the only short ones. A long
-flag typed with one dash is refused, with the two-dash spelling to use.
+flag typed with one dash is refused, with the two-dash spelling to use. A command's flags may come
+before its name, as in `morphic --verify compile openapi.yaml`, and are read as the command reads
+them.
 
 `morphic --version` prints the build and the version of the IR schema its output follows.
 `morphic completion bash|zsh|fish|powershell` prints a completion script for that shell, which
@@ -154,7 +156,7 @@ completes commands, flags, and spec files by extension.
 | `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec and every document it reads, the settings, the passes, and the working directory. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
-| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
+| `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node the document holds there, the coordinates beneath it, each construct kept verbatim under `Unmodeled` at or beneath it with the node keeping it and its reason, and the diagnostics stamped at it. A pass may replace or remove a node the compiler made, which `--disable-pass` shows. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
 
 #### Diagnostics
 
@@ -188,9 +190,17 @@ Both commands share them.
 
 One run can earn both `1` and `2`: a spec that reached the threshold, whose `-o` destination then
 refused the write. The verdict on the spec wins, so `1` always means the spec has problems, and the
-write error is printed on stderr either way. `-o` publishes by rename, so a destination whose
-directory will not take a temp file, such as `/dev/null` or a read-only directory, cannot be
-written to at all.
+write error is printed on stderr either way.
+
+`-o` replaces a file by renaming a temporary file over it, so a reader of the file sees the whole
+previous document or the whole new one, never part of either. The file's directory must therefore
+take a new entry: a writable file in a read-only directory is refused, as writing it in place would
+give up that guarantee. Other hard links keep the old content. A FIFO or a character device, such
+as `/dev/null` or the pipe a shell's `>(…)` names, has no content to replace and is written as
+stdout is; a FIFO no process reads is refused rather than waited for. A directory, a socket or a
+block device is refused. A symlink is judged by what it names, and one naming a file, or nothing, is
+replaced, not followed. So `-o /dev/stdout`, with stdout redirected to a file, needs `/dev` to take
+a temporary file: it is refused, or, run as root, replaces the link (#1864).
 
 SIGINT, SIGTERM or SIGHUP stops a run, which exits `2` whatever it had found, naming the signal on
 stderr; a shell script interrupted with Ctrl-C goes on to its next command unless it checks that
@@ -198,9 +208,10 @@ status, as `set -e` does. A stopped run writes no document: a file `-o` names ke
 content, its temporary file removed, and stdout gets none of it. Stopped during the compile, it
 writes nothing at all; stopped during `compile`'s diagnostics, it finishes them, and no document or
 `--explain` report follows. A signal that comes once the run's last output has begun is too late to
-stop it: once the document is being written to stdout or moved into place over `-o`'s file, once an
-`--explain` report has begun, or once the compile is over for a run that writes nothing after its
-diagnostics, `validate` or `compile` of a spec that lowered to no document. The run then finishes
+stop it: once the document is being written to stdout or to the FIFO or device `-o` names, or
+moved into place over `-o`'s file, once an `--explain` report has begun, or once the compile is over
+for a run that writes nothing after its diagnostics, `validate` or `compile` of a spec that lowered
+to no document. The run then finishes
 and exits as though the signal had not been sent, so it never reports a stop for a document it
 wrote. Another signal while the run is stopping changes nothing, so a copy that a shell or a wrapper
 delivers along with the first cannot cut the cleanup short, and a signal that comes as morphic
@@ -219,14 +230,19 @@ OpenAPI compiler accepts:
 | Option | Values | Meaning |
 |---|---|---|
 | `grouping` | `tags` (default), `path-prefix`, `extension` | How operations are grouped into operation groups: by tag, by their path's first segment, or by the group path a vendor extension states, a group nested for each segment. |
-| `grouping-key` | an `x-` extension name | With `grouping=extension`, the extension stating an operation's group path, named together with `grouping-lists`. Naming neither reads `x-fern-sdk-group-name` with `segments`. |
-| `grouping-lists` | `segments`, `groups` | What a list under `grouping-key` means: the segments of one path, or several paths, the operation filed under the first. A string is one path, its segments separated by dots. |
+| `grouping-key` | an `x-` extension name | With `grouping=extension`, the extension stating an operation's group path, named together with `grouping-lists`. Naming neither reads `x-fern-sdk-group-name` with `segments`, and its aliases in `x-forge-aliases`. |
+| `grouping-lists` | `segments`, `groups` | What a list under `grouping-key` means: the segments of one path, or several paths, the operation filed under the first and a group made for each other. A string is one path, its segments separated by dots. |
+| `grouping-aliases` | an `x-` extension name | With `grouping=extension`, the extension listing an operation's aliases, each an object stating a further group path under `grouping-key`, for which a group is made. Naming neither `grouping-key` nor `grouping-lists` reads `x-forge-aliases`, and naming them reads none unless this names one. An embedded-policy mapping mounting operations in those groups must read the same extension ([`extension-groups`](docs/compilers/openapi.md#extension-groups)). |
 | `grouping-fallback` | `tags` (default), `path-prefix` | With `grouping=extension`, how an operation whose extension states no path is grouped. |
 | `allow-external-refs` | `true`, `false` (default) | Let `$ref` resolution read documents outside the spec's directory: files anywhere (by path or local `file:` URI) and http(s) URLs. Off, only a relative `$ref` into another document is read, and only a regular file inside the spec's directory tree, symbolic links included; any other, an absolute path or `file:` URI among them, is reported unresolved, whatever another `$ref` names the same file by. |
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. It is read as the spec is: a regular file, within `max-source-bytes`. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
 | `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
-| `discriminator-inference` | `true` (default), `false` | Read a union's tag off the string each variant pins its tag property to: as the mapping of a `discriminator` declaring none, where OpenAPI's implicit mapping would route by a component name the variant rejects, and as a discriminator for a closed `oneOf` or `anyOf` declaring none, where every variant requires one property and pins it to a distinct string; and read a subtype's tag off the strings it admits, where they rule out the component name its discriminator routes it by. What it reads is marked as inferred. `false` keeps only what the document declares. |
+| `discriminator-inference` | `true` (default), `false` | Read a union's tags off the strings each variant pins its tag property to: as the mapping of a `discriminator` declaring none, where OpenAPI's implicit mapping would route a variant by a component name it rejects, or not by every string it admits, and as a discriminator for a closed `oneOf` or `anyOf` declaring none, where every variant requires one property and pins it to strings no other variant admits; and read a subtype's tag off the strings it admits, where they rule out the component name its discriminator routes it by. What it reads is marked as inferred. `false` keeps only what the document declares. |
+| `idempotency-inference` | `true` (default), `false` | Read an operation's header parameter `Idempotency-Key`, in any letter case, as its idempotency token, where it states no idempotency and is sent by `POST`, `PUT`, `PATCH` or `DELETE`. What it reads is marked as inferred, and an operation it cannot settle, sent by a method only `additionalOperations` declares or carrying the header twice, is reported and left with none. `false` keeps only what the document declares. |
+| `secret-inference` | `true` (default), `false` | Redact a parameter, header or property whose name ends in a credential's, such as `password`, `client_secret`, `api_key` or `access_token`, and whose value is text or bytes, where the document asks nothing about its redaction. Each use it redacts is marked as inferred. `false` redacts only what the document asks for. |
+| `http-date-inference` | `true` (default), `false` | Write and read a `date-time` response header whose field an RFC defines as an HTTP-date, such as `Last-Modified` or `Expires`, as an HTTP-date, marking it as inferred and reporting it. `false` keeps the text its format names. |
+| `replacement-inference` | `true` (default), `false` | Read a deprecation's replacement out of its message: the method and path of an operation the document declares, for an operation, and a sibling named in a code span, for a parameter or a property. What it reads is marked as inferred, and a message naming one beside a name that names nothing, or several, is reported and fills none. `false` leaves the replacement in the message alone. |
 | `title-names` | `true` (default), `false` | Name an anonymous schema that writes a `title`, a union branch included, by the title's words, in place of the name its position composes (`variant_0`, its property's key, its owner's). `false` names every such schema by its position. The title is the schema's summary either way. |
 | `streaming-media` | media types and `+suffix`es, separated by commas | The media types read as a stream of frames where a document declares no `itemSchema`, in place of the default list: `application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and `+json-seq`. An entry starting with `+` matches every media type with that structured suffix. |
 | `streaming-inference` | `true` (default), `false` | Read a media type as a stream of frames, as `streaming-media` lists. `false` turns that reading off, whatever the list holds, leaving only what an `itemSchema` declares. |
@@ -240,7 +256,9 @@ OpenAPI compiler accepts:
 | `max-reference-expansion` | an integer | The budget on what `$ref`s copy: each `$ref` to a declaration other than a schema lowers its own copy of it, and of each component alias on the way, weighed as a node for each YAML node, a YAML alias as a copy of what it names, a byte for each byte of scalar text, and a node for a schema it holds, which lowers once; and on what each operation a path item's `additionalOperations` declares copies of what the item declares. |
 
 Each `max-*` option sets the `openapi.Limits` budget it names, whose default is documented there:
-`0` takes the default, and a negative value turns the budget off.
+`0` takes the default, and a negative value turns the budget off. Each option that is `true` by
+default switches a policy, and [`policies`](docs/compilers/openapi.md#policies) states how every
+policy is switched, what it marks, what it yields to, and what it reports.
 
 ```bash
 morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml

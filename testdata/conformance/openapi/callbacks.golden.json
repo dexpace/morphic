@@ -145,6 +145,15 @@
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
                     "inbound": "callback",
+                    "callbacks": [
+                      {
+                        "name": "onReply",
+                        "expression": "{$response.body#/replyUrl}",
+                        "operations": [
+                          "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post"
+                        ]
+                      }
+                    ],
                     "sharedRoute": false,
                     "checksumRequired": false
                   }
@@ -153,6 +162,49 @@
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post",
+              "name": {
+                "source": "onReply",
+                "canonical": "on_reply"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$response.body#/replyUrl}",
+                    "inbound": "callback",
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post/callbacks/onReply/{$response.body#~1replyUrl}/post"
               }
             }
           ]
@@ -195,7 +247,7 @@
     {
       "format": "openapi@3.1",
       "path": "callbacks.yaml",
-      "hash": "108b2bab248050864d2156a13cc0a0d3367f2ff3101bc15a6ef33b60216cca8b"
+      "hash": "70a2dadcf908d18e4c80b759d18ccadaf6a8daa9588ae3083077c42df9ba64b8"
     }
   ]
 }

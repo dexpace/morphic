@@ -588,59 +588,108 @@ func componentNamed(scope resolve.Scope, b *oas3.JSONSchema[oas3.Referenceable])
 }
 
 // spellImplicitRoutes writes into the discriminator of u, the union holder
-// writes and its body distributes, the route OpenAPI implies to each variant
-// no mapping entry routes to: the name of the component its $ref branch
-// names, unless another branch names it too or an entry spells it already. The
-// IR reads a variant no entry names by the name of its type, which a composed
-// variant, named for its position, does not carry
-// (docs/compilers/openapi.md#union-beside-structure). Distribution declines a
-// null branch, so each branch has its variant; one without is a compiler bug,
-// reported at pointer.
+// writes, the route OpenAPI implies to each variant no mapping entry routes:
+// the name of the component its $ref branch names, unless another branch names
+// it too or an entry spells it. The IR routes by type name only where the
+// Mapping is nil (docs/ir/models.md#discriminator), so these are written where
+// it holds an entry, or a variant's type is not that component, as a composed
+// variant's or an alias's is not. A non-null branch lacking its variant is a
+// compiler bug, reported at pointer.
 func spellImplicitRoutes(c lowering.Ctx, holder *oas3.Schema, u *ir.Union, pointer jsontext.Pointer) []ir.Diagnostic {
 	d := u.Discriminator
 	if d == nil {
 		return nil
 	}
-	branches, _, _ := unionBranches(holder)
-	if len(branches) != len(u.Variants) {
+	routes := implicitRoutes(c, holder)
+	if len(routes) != len(u.Variants) {
 		return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
-			"internal: the distributed union has %d variants for %d branches, so no route is written for them",
-			len(u.Variants), len(branches))}
+			"internal: the union has %d variants for %d branches, so no route is written for them",
+			len(u.Variants), len(routes))}
 	}
-	scope := c.RefScope()
-	names := make([]string, len(branches))
+	if len(d.Mapping) == 0 && typesAreNamed(routes, u.Variants) {
+		return nil
+	}
 	count := map[string]int{}
-	for i, b := range branches {
-		if name, _, ok := componentNamed(scope, b); ok {
-			names[i] = name
-			count[name]++
+	for _, r := range routes {
+		if r.named {
+			count[r.name]++
 		}
 	}
 	routed := make(map[ir.TypeID]bool, len(d.Mapping))
 	for _, target := range d.Mapping {
 		routed[target] = true
 	}
-	for i, name := range names {
+	for i, r := range routes {
 		variant := u.Variants[i].Type.Target
-		if count[name] != 1 || routed[variant] {
+		// An unnamed route writes nothing. count skips one too, but only as it
+		// counts named routes alone, so the guard says it where it is meant. A
+		// routed variant's name stays out though OpenAPI routes by it: a writer
+		// takes the variant's tag from the Mapping, which cannot mark a second
+		// route as only read (docs/compilers/openapi.md#discriminator).
+		if !r.named || count[r.name] != 1 || routed[variant] {
 			continue
 		}
-		if _, spelled := d.Mapping[name]; spelled {
+		if _, spelled := d.Mapping[r.name]; spelled {
 			continue
 		}
 		if d.Mapping == nil {
 			d.Mapping = map[string]ir.TypeID{}
 		}
-		d.Mapping[name] = variant
+		d.Mapping[r.name] = variant
 	}
 	return nil
 }
 
+// implicitRoute is the route OpenAPI's implicit mapping takes to a union
+// branch: the name of the component its $ref names, and that component's ID,
+// where it names one.
+type implicitRoute struct {
+	name      string
+	component ir.TypeID
+	named     bool
+}
+
+// routesExactly reports whether r routes by the one string set holds, and so
+// by all a variant admitting set admits.
+func (r implicitRoute) routesExactly(set []string) bool {
+	return r.named && len(set) == 1 && set[0] == r.name
+}
+
+// typesAreNamed reports whether each variant whose branch names a component,
+// routes holding the route to each in order, is of that component's type, so
+// that the name of its type is its route.
+func typesAreNamed(routes []implicitRoute, variants []ir.Variant) bool {
+	for i, r := range routes {
+		if r.named && r.component != variants[i].Type.Target {
+			return false
+		}
+	}
+	return true
+}
+
+// implicitRoutes returns the implicit route to each branch but a null one of
+// the union s writes, in branch order: one per variant. A branch written
+// inline, or a $ref to any other position, names none.
+func implicitRoutes(c lowering.Ctx, s *oas3.Schema) []implicitRoute {
+	scope := c.RefScope()
+	branches, _, _ := unionBranches(s)
+	routes := make([]implicitRoute, 0, len(branches))
+	for _, b := range branches {
+		if isNullSchema(b) {
+			continue
+		}
+		name, id, ok := componentNamed(scope, b)
+		routes = append(routes, implicitRoute{name: name, component: id, named: ok})
+	}
+	return routes
+}
+
 // besideUnionDiscriminator settles a discriminator a model holds beside a
 // union kept verbatim. A model discriminator says the model is a hierarchy's
-// base, so it stays only where every type it routes to is a subtype, the rule
-// pass/validate holds it to (ir.IsSubtype). Otherwise it moves, whole, to the
-// model's Unmodeled, beside the union it was written for.
+// base, so it stays only where every type it routes to is a subtype
+// (ir.IsSubtype). Otherwise it moves, whole, to the model's Unmodeled, beside
+// the union it was written for, a route to the model itself among them, which
+// pass/validate takes from a concrete model (GitHub #1806).
 //
 // It is a settlement because only a lowered node says whether its type is a
 // subtype, and a subtype lowered after the model has no Base yet when the

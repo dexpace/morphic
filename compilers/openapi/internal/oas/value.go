@@ -179,7 +179,9 @@ func (s Spec) booleanHeld(k Kind, m Minor) bool {
 
 // scalar checks a scalar value: that it is not empty where the grammar refuses
 // that, that it is one the field enumerates, and that it has its syntax, where
-// no other package judges that (Field.FormatOwner).
+// no other package judges that (Field.FormatOwner). The empty string is judged
+// as any text is, so a format it breaks, as an absolute URI's, refuses it, and
+// one admitting it says so in validFormat.
 func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointer) {
 	if node.Kind != yaml.ScalarNode {
 		return
@@ -191,7 +193,7 @@ func (w *walker) scalar(f frame, fld Field, node *yaml.Node, ptr jsontext.Pointe
 			f.obj.Name, fld.Name, w.minor, section)
 	case len(fld.Values) > 0:
 		w.enumerated(f, fld, node.Value, ptr)
-	case fld.Format != FormatNone && fld.FormatOwner == "" && node.Value != "" && !validFormat(fld.Format, node.Value):
+	case fld.Format != FormatNone && fld.FormatOwner == "" && !validFormat(fld.Format, node.Value):
 		w.report(ir.SeverityError, classFormat, ptr, "%s field %q must be %s in OpenAPI %s (%s)",
 			f.obj.Name, fld.Name, describeFormat(fld.Format), w.minor, section)
 	}

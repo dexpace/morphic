@@ -255,8 +255,9 @@ func preserveUnusedCombinator(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, w
 type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef
 
 // buildUnion assembles the Union node for the union u of the schema s, attaching
-// a discriminator when s declares one. common is already built by the caller
-// (internNode), so buildUnion needs no hint of its own to build one.
+// a discriminator when s declares one, with the routes it implies
+// (spellImplicitRoutes). common is already built by the caller (internNode), so
+// buildUnion needs no hint of its own to build one.
 //
 // The variants are lowered before the discriminator, so its mapping resolves
 // knowing what each variant names (readsThrough). A union the discriminator
@@ -288,8 +289,10 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, u unionAt, co
 	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
 	node.Discriminator = disc
 	node.WireTagged = disc != nil
+	diags = append(diags, discDiags...)
+	diags = append(diags, spellImplicitRoutes(c, u.holder, node, pointer)...)
 	deferUnionTags(c, ts, s, common.ID, pointer)
-	return node, append(diags, discDiags...)
+	return node, diags
 }
 
 // unionAt is a union a position lowers: the oneOf or anyOf, whichever
@@ -847,7 +850,6 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 				return ref
 			})
 		diags = append(diags, unionDiags...)
-		diags = append(diags, spellImplicitRoutes(c, u.holder, def, pointer)...)
 		return def
 	})
 	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)

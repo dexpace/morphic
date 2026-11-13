@@ -207,6 +207,7 @@ func conformanceCases() []conformanceCase {
 		{"missing-array-items", assertMissingArrayItems},
 		{"scalar-format", assertScalarFormat},
 		{"secret-format", assertSecretFormat},
+		{"secret-inference", assertSecretInference},
 		{"encoding-byte", assertEncodingByte},
 		{"content-vocabulary", assertContentVocabulary},
 		{"xml-hints", assertXMLHints},
@@ -214,6 +215,7 @@ func conformanceCases() []conformanceCase {
 		{"nullable-30", assertNullable30},
 		{"nullable-31-ref", assertNullable31Ref},
 		{"nullable-enum-31", assertNullableEnum31},
+		{"enum-null-member", assertEnumNullMember},
 		{"nullable-keyword-30", assertNullableKeyword30},
 		{"nullable-keyword-31", assertNullableKeyword31},
 		{"schema-ref-siblings-30", assertSchemaRefSiblings30},
@@ -234,6 +236,8 @@ func conformanceCases() []conformanceCase {
 		{"param-identity", assertParamIdentity},
 		{"enum-member-identity", assertEnumMemberIdentity},
 		{"http-binding", assertHTTPBinding},
+		{"idempotency-inference", assertIdempotencyInference},
+		{"path-key-fragments", assertPathKeyFragments},
 		{"param-styles", assertParamStyles},
 		{"param-style-matrix", assertParamStyleMatrix},
 		{"param-querystring", assertParamQuerystring},
@@ -256,6 +260,7 @@ func conformanceCases() []conformanceCase {
 		{"streaming-media-31", assertStreamingMedia31},
 		{"per-status-errors", assertPerStatusErrors},
 		{"default-response", assertDefaultResponse},
+		{"http-date-inference", assertHTTPDateInference},
 		{"response-links", assertResponseLinks},
 		{"webhooks", assertWebhooks},
 		{"callbacks", assertCallbacks},
@@ -266,6 +271,7 @@ func conformanceCases() []conformanceCase {
 		{"yaml-merge-keys", assertYAMLMergeKeys},
 		{"path-item-ref-siblings", assertPathItemRefSiblings},
 		{"deprecation", assertDeprecation},
+		{"replacement-inference", assertReplacementInference},
 		{"extension-promotion", assertExtensionPromotion},
 		{"extension-stability", assertExtensionStability},
 		{"extension-redaction", assertExtensionRedaction},
@@ -345,6 +351,9 @@ func invalidCases() map[string][]string {
 		// token, and a header parameter spelled in two cases, a repeat OpenAPI
 		// forbids as it does any.
 		"header-name-syntax": {"openapi/validation/validation-invalid-format", "openapi/duplicate-parameter"},
+		// An operation binding Idempotency-Key in two cases, a repeat as header
+		// names compare in any case, whose token the policy then declines to infer.
+		"idempotency-inference": {"openapi/duplicate-parameter"},
 		// Requirements naming a scheme the document does not hold: each name
 		// "MUST correspond to a security scheme". An entry naming no mechanism
 		// and one whose $ref reaches nothing are among what they name.

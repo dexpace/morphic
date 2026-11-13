@@ -60,8 +60,9 @@ func cyclic(types ir.TypeRegistry, models map[ir.TypeID]*ir.Model) bool {
 // every model it composes, its entries followed in order, Base, Implements,
 // Mixins, depth first and each model once; one member per wire name at its
 // first reading, taken by its last, overriding each other declaration once at
-// its first reading; required where a declaration or a Requires says so, and
-// secret where a declaration asks for it.
+// its first reading; required where a declaration or a Requires says so,
+// secret where a declaration asks for it, and deprecated as the last reading
+// stating a deprecation is.
 func reference(t *testing.T, types ir.TypeRegistry, root ir.TypeID) (lines, undeclared []string, unflattened []ir.TypeID) {
 	t.Helper()
 	r := referenceWalk{t: t, types: types, seen: map[ir.TypeID]bool{}, marked: map[ir.TypeID]bool{}}
@@ -138,10 +139,14 @@ func (r *referenceWalk) result() (lines, undeclared []string, unflattened []ir.T
 		line := fmt.Sprintf("%s@%s", last.p.ID, last.owner)
 		required := listed[wire]
 		var secret bool
+		var deprecation *ir.Deprecation
 		shown := map[ir.PropID]bool{last.p.ID: true}
 		for _, rd := range rs {
 			required = required || rd.p.Required
 			secret = secret || rd.p.Secret || reachesSensitive(r.types, rd.p.Type.Target)
+			if rd.p.Deprecation != nil {
+				deprecation = rd.p.Deprecation
+			}
 			if !shown[rd.p.ID] {
 				shown[rd.p.ID] = true
 				line += fmt.Sprintf(" < %s@%s", rd.p.ID, rd.owner)
@@ -152,6 +157,9 @@ func (r *referenceWalk) result() (lines, undeclared []string, unflattened []ir.T
 		}
 		if secret {
 			line += " secret"
+		}
+		if deprecation != nil {
+			line += " deprecated " + deprecation.Message
 		}
 		lines = append(lines, line)
 	}

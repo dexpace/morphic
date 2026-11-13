@@ -87,7 +87,7 @@ const (
 	// The document is refused before parsing whatever the position, since telling
 	// the faulting ones apart would mean copying the parser's object model, at
 	// the tagged mapping with the least pointer. A tagged scalar is not refused
-	// (GitHub #245).
+	// (docs/compilers/openapi.md#values).
 	TaggedMapping = "openapi/tagged-mapping"
 	// StreamDocumentsDropped reports a YAML stream holding more than one
 	// document with content. An OpenAPI document is one YAML document, so the
@@ -144,8 +144,7 @@ const (
 	// Warning where FalseSchema is info: a boolean `false` schema is the idiom for
 	// "forbid this here", but an empty member list is that statement written the
 	// way nobody does on purpose, usually a generator emitting a list it never
-	// filled. Not an error: the document is well-formed, and harness.Check stops
-	// at the first error diagnostic, hiding later findings.
+	// filled. Not an error: the document is well-formed.
 	EmptyEnum = "openapi/empty-enum"
 	// DuplicateEnumValue reports an `enum` entry whose value an earlier entry
 	// already holds, at the repeat's own position, whether the set lowers to an
@@ -208,15 +207,15 @@ const (
 	// method is unusable. speakeasy rejects a key naming a *standard* method, which
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
-	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: preserved raw for want of a structural home, lowered to a
-	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, operation.extensionLevels).
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every one is.
+	// DegradedConstruct reports a construct the compiler could not lower as
+	// written: kept raw for want of a home or past a bound (callbacks too deep,
+	// operation.operationCallbacks), lowered weaker (a mixed enum as a union, an
+	// unconvertible value as the top type, a member or const its type rejects as
+	// written), or dropped (a default or example, an enum's excluded null, the
+	// fields beside a path item $ref the load phase's walk misses). A promotion
+	// or grouping by extension reports an extension kept but read into no field
+	// or group (lowering.Promoter, operation.extensionPaths). It marks the lossy
+	// lowerings reported, not every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -318,8 +317,7 @@ const (
 	// OpenAPI does not say which declaration wins, so the one nearer the use
 	// site does, as for a $ref-adjacent schema sibling, and the other is not
 	// lowered at that mount. A warning, as InvalidStatusKey is: the document
-	// still lowers, nothing is lost unnamed, and an error would stop
-	// harness.Check early (GitHub #577).
+	// still lowers, and nothing is lost unnamed (GitHub #577).
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
@@ -362,8 +360,7 @@ const (
 	// The declaration is kept, since dropping it is a loss and an emitter's call
 	// (invariant 2; GitHub #39); the diagnostic lets an emitter suppress it. It is
 	// unconditional, not an Options switch, because nothing is inferred (invariant
-	// 6). Warning, not error: the document is well-formed, and harness.Check stops
-	// at the first error, hiding later findings.
+	// 6). Warning, not error: the document is well-formed.
 	ReservedHeaderName = "openapi/reserved-header-name"
 	// UnpreservableConstruct reports a construct that reached the IR in no form at
 	// all: the compiler had no field to model it and its source node could not be
@@ -390,8 +387,7 @@ const (
 	// gives its objects a closed key set and requires extensions to be prefixed
 	// x-, so such a key is a document error, usually a misspelling of the field
 	// beside it. Not an error, for the reason ReservedHeaderName is not: the
-	// document still lowers, and harness.Check stops at the first error
-	// diagnostic, which would hide every later finding.
+	// document still lowers.
 	UnknownObjectKey = "openapi/unknown-object-key"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
 	// name than the compiler keeps, so the ones past the bound reached the IR in no
@@ -446,9 +442,8 @@ const (
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It
 	// lowers as it would in 3.1, where `items` is optional: a List's element is
 	// the top type. A warning rather than an error: nothing the document
-	// declared is dropped, and harness.Check stops at the first error
-	// diagnostic. A code of its own rather than DegradedConstruct, because
-	// nothing is kept in a weaker shape.
+	// declared is dropped. A code of its own rather than DegradedConstruct,
+	// because nothing is kept in a weaker shape.
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
@@ -472,13 +467,12 @@ const (
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a
-	// template expression, an expression used twice, an empty segment, or a
-	// query. One warning per key names each, at the key's path item.
+	// template expression, an expression used twice, an empty segment, a query
+	// or a fragment. One warning per key names each, at the key's path item.
 	//
-	// Warning, as InvalidStatusKey is: the key is used as written, and an error
-	// would stop harness.Check before later findings. A "#" fragment is GitHub
-	// #602's to report, so nothing from it on is read, and matching the
-	// expressions to path parameters is #640's.
+	// Warning, as InvalidStatusKey is: the key is used as written, but for a
+	// fragment, which the URI template leaves out and each operation's binding
+	// keeps. Matching the expressions to path parameters is #640's.
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
@@ -504,15 +498,35 @@ const (
 	// is.
 	InvalidItemsList = "openapi/invalid-items-list"
 	// InferredDiscriminator reports a mapping the discriminator-inference
-	// policy reads off the tag values a union's variants pin, where the
-	// discriminator declares none and the component names OpenAPI's implicit
-	// mapping routes by are not those values, at the discriminator; and a
+	// policy reads off the strings a union's variants pin their tag to, where
+	// the discriminator declares none and the component names OpenAPI's
+	// implicit mapping routes by are not all of them, at the discriminator; and a
 	// subtype's tag it reads off the values the subtype admits, where they rule
 	// out the name it is routed by, at the subtype. The node is marked Inferred
 	// (docs/compilers/openapi.md#discriminator-inference).
 	// Info, as InferredNullable is: the reading is the document's evident
 	// intent, and the mark keeps the declared one.
 	InferredDiscriminator = "openapi/inferred-discriminator"
+	// InferredHTTPDate reports a response header the HTTP-date policy writes and
+	// reads as an HTTP-date, a field an RFC defines so whose schema declares a
+	// date-time, whose text format spells as RFC 3339's, at the header. The
+	// header is marked Inferred (docs/compilers/openapi.md#http-date-inference).
+	// Info, as InferredDiscriminator is: the reading departs from what the
+	// format says, and the mark keeps what the document declared.
+	InferredHTTPDate = "openapi/inferred-http-date"
+	// UndecidedIdempotency reports an operation binding an Idempotency-Key
+	// header parameter that the idempotency policy cannot settle as its token,
+	// saying why, at the operation: it is sent by a method whose safety the
+	// compiler does not know, or binds the header more than once
+	// (docs/compilers/openapi.md#idempotency-inference). Info: the document
+	// declares no idempotency, so nothing it says is lost.
+	UndecidedIdempotency = "openapi/undecided-idempotency"
+	// UndecidedReplacement reports a deprecation whose message names an entity
+	// the replacement policy would read as its replacement, beside a name naming
+	// none or several, so the names fill nothing, saying which, at the
+	// deprecated node (docs/compilers/openapi.md#replacement-inference). Info:
+	// the message keeps its prose, so nothing it says is lost.
+	UndecidedReplacement = "openapi/undecided-replacement"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single
