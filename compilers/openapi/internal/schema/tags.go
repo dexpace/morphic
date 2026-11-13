@@ -29,7 +29,7 @@ const maxReportedTags = 3
 // variant's type says of its tag, which only a registry every node is interned
 // in answers in any declaration order, so it is a settlement. A mapping the
 // document declares is read as written, beside the routes it implies
-// (spellImplicitRoutes).
+// (spellImplicitRoutes), so one of those its variant rejects stands (#1798).
 func deferUnionTags(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, pointer jsontext.Pointer) {
 	if !c.DiscriminatorInference.Honours() {
 		return

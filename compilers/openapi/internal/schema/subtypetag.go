@@ -20,7 +20,8 @@ import (
 // (docs/compilers/openapi.md#discriminator-inference). They are read off the
 // types of its members and the unions it composes, which only a registry
 // every node is interned in answers in any declaration order, so it is a
-// settlement.
+// settlement. A union kept verbatim beside or on its allOf is no node, and is
+// not read (#1694).
 func deferSubtypeTag(c lowering.Ctx, ts *compile.Types, tag subtypeTag, id ir.TypeID, pointer jsontext.Pointer) {
 	if tag.byName == nil || !c.DiscriminatorInference.Honours() {
 		return
