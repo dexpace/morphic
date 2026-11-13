@@ -25,17 +25,23 @@ const MaxHops = 64
 // alone, so the memo answers as a fresh Namer would. A Namer must not outlive
 // the trees its table holds, and is not safe for concurrent use.
 type Namer struct {
-	table  *bind.Table
-	views  map[bind.DocID]*nodeview.View
-	memo   map[bind.Position]string
-	titles titles
+	table *bind.Table
+	views map[bind.DocID]*nodeview.View
+	memo  map[bind.Position]string
+	// titles reads the title a schema names its node by, and is nil where
+	// titles name nothing.
+	titles *titles
 }
 
-// New returns a Namer over the documents table read. A nil table reads none,
-// and names each position by its pointer alone.
-func New(table *bind.Table) *Namer {
-	return &Namer{table: table, views: map[bind.DocID]*nodeview.View{}, memo: map[bind.Position]string{},
-		titles: titles{table: table, read: map[*yaml.Node]string{}, lists: map[bind.Position]map[string]int{}}}
+// New returns a Namer over the documents table read, naming a schema by its
+// title where byTitle holds (titles.at), and by its position where it does
+// not. A nil table reads none, and names each position by its pointer alone.
+func New(table *bind.Table, byTitle bool) *Namer {
+	n := &Namer{table: table, views: map[bind.DocID]*nodeview.View{}, memo: map[bind.Position]string{}}
+	if byTitle {
+		n.titles = &titles{table: table, read: map[*yaml.Node]string{}, lists: map[bind.Position]map[string]int{}}
+	}
+	return n
 }
 
 // At returns the hint the node at p is named by: the hint compile.NamingHint
@@ -64,15 +70,20 @@ func (n *Namer) at(p bind.Position, hops int) string {
 }
 
 // walk names p from its owner down the structure to it (steps), reading the
-// title of each schema on the way (titles.at), and reports whether p is a
-// composition branch its title does not name, and whether its title names it.
+// title of each schema on the way (titles.at) where titles name, and reports
+// whether p is a composition branch its title does not name, and whether its
+// title names it.
 func (n *Namer) walk(p bind.Position) (hint string, branch, titled bool) {
 	tokens := slices.Collect(p.Pointer.Tokens())
 	r := n.read(p)
 	start, owner := n.owner(p, tokens, r.kinds)
-	return steps(owner, tokens[start:], func(consumed int, union bool) string {
-		return n.titles.at(p.Doc, tokens[:start+consumed], r, union)
-	})
+	var title titler
+	if n.titles != nil {
+		title = func(consumed int, union bool) string {
+			return n.titles.at(p.Doc, tokens[:start+consumed], r, union)
+		}
+	}
+	return steps(owner, tokens[start:], title)
 }
 
 // branch names the composition branch at p, which steps named positionally

@@ -477,8 +477,8 @@ it sees. Changes made together in one bump are listed together under it.
     `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.46.0
     meets `Canonical` and `Hint` it would have carried such a character in without it.
   - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
-    included, by the title's words, where its position, its owner or the `$ref` beside it named it
-    ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
     keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
     Encoding Object another nests by the header's key.
   - The OpenAPI compiler compares a header parameter's name in any case

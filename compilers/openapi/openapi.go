@@ -305,6 +305,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		Promotions:             o.Promotions,
 		NullableWidening:       o.NullableWidening,
 		DiscriminatorInference: o.DiscriminatorInference,
+		TitleNames:             o.TitleNames,
 	})
 }
 

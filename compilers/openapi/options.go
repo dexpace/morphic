@@ -141,6 +141,12 @@ type DiscriminatorInference = lowering.DiscriminatorInference
 // and a subtype's where it read its tag.
 const DiscriminatorInferenceHeuristic = lowering.DiscriminatorInferenceHeuristic
 
+// TitleNames is the title-names policy: whether a schema's title names the
+// anonymous node built from it, in place of the hint its position composes.
+// It is another injectable-policy seam (architecture principle 6), and is
+// named here rather than restated for the reason GroupingStrategy is.
+type TitleNames = lowering.TitleNames
+
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
@@ -189,6 +195,10 @@ type Options struct {
 	// values it admits, what it reads marked as inferred. The zero value is on;
 	// a caller who wants only what the document declares disables it.
 	DiscriminatorInference DiscriminatorInference `json:"discriminatorInference"`
+	// TitleNames selects whether a schema's title names the anonymous node
+	// built from it, its title its summary either way. The zero value is on; a
+	// caller who wants every such node named by its position disables it.
+	TitleNames TitleNames `json:"titleNames"`
 	// AllowExternalRefs lets a read of another document leave the directory of
 	// Source.Path, against which references resolve, for any file and http(s)
 	// URLs. Off by default, since a spec is untrusted: reads stay inside that
@@ -424,6 +434,7 @@ const (
 	optOverlayLax             = "overlay-lax"
 	optNullableWidening       = "nullable-widening"
 	optDiscriminatorInference = "discriminator-inference"
+	optTitleNames             = "title-names"
 	optStreamingMedia         = "streaming-media"
 	optStreamingInference     = "streaming-inference"
 	optBinaryMedia            = "binary-media"
@@ -449,8 +460,8 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optGroupingKey, optGroupingLists, optGroupingFallback, optAllowExternalRefs, optOverlay,
-		optOverlayLax, optNullableWidening, optDiscriminatorInference, optStreamingMedia, optStreamingInference,
-		optBinaryMedia, optBinaryInference,
+		optOverlayLax, optNullableWidening, optDiscriminatorInference, optTitleNames, optStreamingMedia,
+		optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -518,6 +529,11 @@ func (d *optionDecode) set(key, value string) error {
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.DiscriminatorInference.Disabled = !on
+		return err
+	case optTitleNames:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.TitleNames.Disabled = !on
 		return err
 	case optStreamingMedia:
 		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)

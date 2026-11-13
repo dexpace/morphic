@@ -193,6 +193,7 @@ type Policy struct {
 	Promotions             ExtensionPromotions
 	NullableWidening       NullableWidening
 	DiscriminatorInference DiscriminatorInference
+	TitleNames             TitleNames
 }
 
 // New derives the context for doc, at srcIndex, under p. doc must not be nil:
@@ -220,7 +221,7 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 		overlay:                doc.Overlay,
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
+			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table(), p.TitleNames.Honours()),
 			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 				Bindings: doc.Bindings}, readings: map[any]any{}},
 		reached:   resolve.NewReached(),
