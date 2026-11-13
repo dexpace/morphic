@@ -4348,7 +4348,8 @@ without its parameters and in any case.
   `operation.TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder`,
   `operation.TestPartEncodings_AKeptEntryNeverTakesAPartsRecord`,
   `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWholeInCallbacksAndWebhooks`,
-  `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`
+  `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`,
+  `operation.TestPartEncodings_AKeptEntryIsPlacedInTheDocumentDeclaringIt`
 - Status: partly built: a part only a `oneOf` or `anyOf` branch declares is not keyed, its entry
   kept whole (#1771); an entry naming one a catch-all governs has no typed home (#1770); a key
   naming no property draws only the info (#1661); an entry OpenAPI gives no effect, one whose key
