@@ -363,6 +363,24 @@ func TestKeptDiscriminator_ResolvesItsValuesAtEverySite(t *testing.T) {
 	}
 }
 
+// TestKeptDiscriminator_ReadsNoValueOfOneTheModelCannotHold pins a
+// discriminator written as no object, which validation reports and the
+// model holds nothing of: the census keeps what is written and resolves no
+// value, there being none to read.
+func TestKeptDiscriminator_ReadsNoValueOfOneTheModelCannotHold(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec("    N: {type: string, discriminator: 5}\n"))
+	assert.Equal(t, []string{
+		"error openapi/validation/validation-type-mismatch /components/schemas/N/discriminator: Schema Object field " +
+			`"discriminator" must be an object in OpenAPI 3.1 (Schema Object)`,
+		"info " + diag.DegradedConstruct + ` /components/schemas/N: this position lowered to a node of kind "primitive", ` +
+			"which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
+	}, reported(diags))
+	kept, ok := typeByName(doc, "N").Common().Unmodeled["openapi:discriminator"]
+	require.True(t, ok)
+	assert.JSONEq(t, "5", string(kept.Value))
+}
+
 // unplacedSpec declares a discriminator beside a oneOf/anyOf at each position
 // whose lowering has no model to hold it: a null-only union as a component, a
 // property and beside a second combinator, a union beside a const, an enum and
