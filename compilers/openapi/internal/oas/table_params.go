@@ -265,7 +265,7 @@ func contentTypeDefaults(c func(Minor, string) Cite) []Default {
 		contentTypeDefault(DefaultUntyped, octet, From(V31), c(V31, table)),
 		contentTypeDefault(DefaultRawBinary, octet, Always(), c(V30, table),
 			sectioned("Example: Basic Multipart Form")(V31, "default for string with binary format is `application/octet-stream`"),
-			sectioned("Working with Binary Data")(V32, "raw binary is used where unencoded binary data is allowed")),
+			sectioned("Working with Binary Data")(V32, "**raw binary** is used where unencoded binary data is allowed")),
 		contentTypeDefault(DefaultByteFormat, octet, Only(V30), c(V30, table)),
 		contentTypeDefault(DefaultByteFormat, text, From(V31), noEffect, c(V32, table)),
 		contentTypeDefault(DefaultEncodedByteFormat, octet, Always(), c(V30, table), c(V31, table)),
