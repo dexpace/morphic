@@ -367,8 +367,9 @@ const uriSchemes = `components:
 // scheme, read as a reference against the document holding the requirement:
 // one naming an entry of the source's securitySchemes is that entry, declared
 // or not, exactly as if the key had been its name, and is reported where the
-// name would be, quoting the key written. A component name comes first, and any
-// other key is the name it spells.
+// name would be, quoting the key written, as a scope it repeats is reported
+// under the key. A component name comes first, and any other key is the name it
+// spells.
 func TestSecurityRequirement_A32KeyMayNameItsSchemeByURI(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -392,11 +393,13 @@ func TestSecurityRequirement_A32KeyMayNameItsSchemeByURI(t *testing.T) {
 			t.Parallel()
 			doc, svc, diags := serviceSpec(t, `openapi: 3.2.0
 info: {title: T, version: "1"}
-security: [{"`+tc.key+`": [read]}]
+security: [{"`+tc.key+`": [read, read]}]
 paths: {}
 `+uriSchemes)
 			require.Len(t, svc.Auth, 1)
 			assert.Equal(t, []ir.SchemeUse{{Scheme: tc.want, Scopes: []string{"read"}}}, svc.Auth[0].Schemes)
+			assert.Equal(t, []jsontext.Pointer{"/security/0" + ids.Ptr(tc.key, "1")},
+				openapitest.PointersOf(diags, diag.RepeatedEntry), "a repeat is where the key writes it")
 			assert.Contains(t, doc.Auth, tc.want)
 			entries := []ir.AuthID{ids.Auth("key"), ids.UnresolvedAuth("nomech"),
 				ids.Auth("#/components/securitySchemes/named"), ids.Auth("named"),
@@ -520,7 +523,9 @@ func compileBeside(t *testing.T, root, other string) (*ir.Document, []ir.Diagnos
 // TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder pins that the
 // name a URI yields depends on the key and the document alone: one operation
 // writing an undeclared name and another its URI reach one scheme, and the
-// documents and their diagnostics are equal whichever is declared first.
+// documents and their diagnostics are equal whichever is declared first, bar
+// what the permutation moves by design: the source's hash, and the order of the
+// operations it groups and of the diagnostics, compared as a multiset.
 func TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder(t *testing.T) {
 	t.Parallel()
 	const (
@@ -549,8 +554,20 @@ func TestSecurityRequirement_ANameAndItsURIAreOneSchemeInEitherOrder(t *testing.
 			assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, schemeUses(op.Auth[0]), "%s: %s", order, name)
 		}
 	}
-	assert.Empty(t, cmp.Diff(nameFirst.Auth, uriFirst.Auth), "the one scheme, whichever names it first")
-	assert.ElementsMatch(t, nameFirstDiags, uriFirstDiags)
+	assert.Empty(t, cmp.Diff(nameFirst, uriFirst, cmpopts.IgnoreFields(ir.SourceInfo{}, "Hash"),
+		cmpopts.IgnoreFields(ir.Provenance{}, "Position"), cmpopts.IgnoreFields(ir.Document{}, "Diagnostics"),
+		cmpopts.SortSlices(func(a, b ir.Operation) bool { return a.ID < b.ID })))
+	assert.ElementsMatch(t, reported(nameFirstDiags), reported(uriFirstDiags))
+}
+
+// reported renders each diagnostic as its code, severity, pointer and message,
+// so two orders of one document compare on what was reported and where.
+func reported(diags []ir.Diagnostic) []string {
+	out := make([]string, 0, len(diags))
+	for _, d := range diags {
+		out = append(out, fmt.Sprintf("%s %v %s %s", d.Code, d.Severity, d.Provenance.Pointer, d.Message))
+	}
+	return out
 }
 
 // TestSecurityRequirement_EveryOperationCarrierDiagnosesAtItsDeclaration pins

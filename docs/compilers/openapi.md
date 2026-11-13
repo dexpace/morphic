@@ -4250,10 +4250,11 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `lowering.TestFirstOccurrences_KeepsEachEntryOnceAtItsFirst`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by a URI outside the source's
-  `components/securitySchemes` lowers as unresolved (#1869), a field under a tag outside YAML's
-  JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
-  no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
-  `$ref` written as null refuses the whole document (#1284).
+  `components/securitySchemes` lowers as unresolved (#1869), and so does one naming the source by
+  its `$self` (#863), a field under a tag outside YAML's JSON schema ruleset reads as left out, so
+  `scheme: !local bearer` is reported as omitted and names no mechanism, and a `security` list under
+  a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
+  document (#1284).
 
 ### `security-scheme-fields`
 
