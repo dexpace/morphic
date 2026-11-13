@@ -623,7 +623,7 @@ func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSour
 		if !declared {
 			continue
 		}
-		raw, at, located := src.value(entry)
+		raw, at, _, located := src.value(entry)
 		if located == misfit {
 			// Worded without the member, so one key several sources read reports
 			// once: compile.Diags drops a repeat of the whole diagnostic.
@@ -726,23 +726,24 @@ func statesBoolean(raw ir.RawValue) (bool, statement) {
 }
 
 // value returns what s reads of entry, and where that sits: the entry's value
-// whole, or the member s names. An absent member states nothing, as an absent
-// key does; a value with no members cannot hold one (misfit).
-func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, statement) {
+// whole, or the member s names, beside the members the entry holds where s
+// reads one. An absent member states nothing, as an absent key does; a value
+// with no members cannot hold one (misfit).
+func (s ExtensionSource) value(entry ir.UnmodeledEntry) (ir.RawValue, ir.Provenance, map[string]ir.RawValue, statement) {
 	if s.Member == "" {
-		return entry.Value, entry.Provenance, states
+		return entry.Value, entry.Provenance, nil, states
 	}
 	var members map[string]ir.RawValue
 	if err := json.Unmarshal(entry.Value, &members); err != nil || members == nil {
-		return nil, entry.Provenance, misfit
+		return nil, entry.Provenance, nil, misfit
 	}
 	raw, present := members[s.Member]
 	if !present {
-		return nil, entry.Provenance, statesNothing
+		return nil, entry.Provenance, members, statesNothing
 	}
 	at := entry.Provenance
 	at.Pointer += ids.Ptr(s.Member)
-	return raw, at, states
+	return raw, at, members, states
 }
 
 // extensionText reads a preserved extension value as a string. Every
