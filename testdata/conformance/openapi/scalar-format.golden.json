@@ -84,6 +84,31 @@
         "name": "hex-color"
       }
     },
+    "t/anon/components/schemas/Holder/properties/id": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/id",
+      "name": {
+        "hint": "id"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/id"
+      },
+      "base": {
+        "target": "t/prim/int64",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "string",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      }
+    },
     "t/anon/components/schemas/Holder/properties/opens": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Holder/properties/opens",
@@ -103,6 +128,31 @@
       },
       "encoding": {
         "name": "time"
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/price": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/price",
+      "name": {
+        "hint": "price"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/price"
+      },
+      "base": {
+        "target": "t/prim/decimal",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "string",
+        "wireType": {
+          "target": "t/prim/string",
+          "nullable": false
+        }
       }
     },
     "t/anon/components/schemas/Holder/properties/whole": {
@@ -684,6 +734,60 @@
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/whole"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/id",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/price",
+          "name": {
+            "source": "price",
+            "canonical": "price"
+          },
+          "wireName": "price",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/price",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/price"
+          }
         }
       ],
       "abstract": false,
@@ -924,7 +1028,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "e68bed3e900ed553dbafdc40d1234aa8b7c57f25f0d577476779df7cd2817753"
+      "hash": "19b77acfaba476e8dd07a26ceff1a9664e298475f5b73b0ed6ea5b3cf6eb3f92"
     }
   ]
 }

@@ -232,6 +232,21 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), ts.Base.Target)
 	require.NotNil(t, ts.Encoding)
 	assert.Equal(t, "time", ts.Encoding.Name)
+
+	// A number's format on a string: the number is the Base, and the string it
+	// travels as the WireType, as byte puts bytes and its string.
+	for wire, base := range map[string]ir.PrimKind{"id": ir.PrimInt64, "price": ir.PrimDecimal} {
+		p, found := propByWire(h, wire)
+		require.True(t, found, wire)
+		ns, isScalar := doc.Types[p.Type.Target].(*ir.Scalar)
+		require.True(t, isScalar, "%s hoists a Scalar", wire)
+		require.NotNil(t, ns.Base)
+		assert.Equal(t, ir.PrimTypeID(base), ns.Base.Target, wire)
+		require.NotNil(t, ns.Encoding)
+		require.NotNil(t, ns.Encoding.WireType, wire)
+		assert.Equal(t, ir.Encoding{Name: "string", WireType: &ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)}},
+			*ns.Encoding, wire)
+	}
 }
 
 // assertSelectedPrimitives pins the table's pairings this spec writes: each

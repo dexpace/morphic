@@ -18,11 +18,14 @@ import (
 )
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
-// known pairing interns the shared primitive; byte, a pairing the table does
-// not list, and the 2020-12 content vocabulary each hoist a named Scalar
-// wrapping the base primitive with an Encoding, so what the position wrote
-// never leaks onto the shared primitive every other declaration of that type
-// also resolves to.
+// known pairing interns the shared primitive; byte, a number carried as text,
+// a pairing the table does not list, and the 2020-12 content vocabulary each
+// hoist a named Scalar wrapping the base primitive with an Encoding, so what
+// the position wrote never leaks onto the shared primitive every other
+// declaration of that type also resolves to.
+//
+// byte and a number carried as text put the logical primitive in Base and the
+// string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if annotation.DeclaresRedaction(s) {
@@ -37,12 +40,32 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
+		if num, carried := numberAsText(s, st, format); carried {
+			return hoistScalar(c, ts, depth, s, num, numberTextEncoding, new(ir.PrimString), pointer)
+		}
 		return hoistScalar(c, ts, depth, s, baseForType(st), format, nil, pointer)
 	}
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
 	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
+}
+
+// numberTextEncoding is the Encoding.Name of a number written as the text of
+// its value in a string (docs/ir/constraints.md#encodings).
+const numberTextEncoding = "string"
+
+// numberAsText returns the numeric primitive format selects under
+// `type: number`, where a `type: string` writes it: the string is the text of
+// a number of that primitive, as an int64 or a decimal wider than a JSON
+// number's readers hold may travel. A contentEncoding naming another encoding
+// says the string is that encoding's text instead, so the format, which
+// encodingName then keeps verbatim, selects nothing.
+func numberAsText(s *oas3.Schema, st oas3.SchemaType, format string) (ir.PrimKind, bool) {
+	if st != oas3.SchemaTypeString || format == "" || contentOverridesFormat(s, numberTextEncoding) {
+		return "", false
+	}
+	return spelling.Lookup(string(oas3.SchemaTypeNumber) + "/" + format)
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its
@@ -88,14 +111,14 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, b
 			wireRef := ts.PrimRef(*wire)
 			enc.WireType = &wireRef
 		}
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
-		diags = append(diags, consDiags...)
-		return &ir.Scalar{
-			TypeCommon:  common,
-			Base:        &baseRef,
-			Encoding:    enc,
-			Constraints: cons,
+		sc := &ir.Scalar{TypeCommon: common, Base: &baseRef, Encoding: enc}
+		cons, consDiags := ConstraintsOf(c, &sc.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
+		if carriesNumberAsText(sc) {
+			cons, consDiags = textBounds(c, &sc.Unmodeled, s, pointer, consDiags)
 		}
+		diags = append(diags, consDiags...)
+		sc.Constraints = cons
+		return sc
 	})
 	return id, diags
 }
@@ -126,7 +149,7 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 	if content == "" || content == formatName {
 		return formatName, nil
 	}
-	if formatName == "" {
+	if !contentOverridesFormat(s, formatName) {
 		return content, nil
 	}
 	at := pointer + ids.Ptr("format")
@@ -137,6 +160,14 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 				"contentEncoding %q is lowered and format is kept verbatim under Unmodeled", content))
 	}
 	return content, diags
+}
+
+// contentOverridesFormat reports whether s's contentEncoding names an encoding
+// other than formatName, the one its format names, which encodingName lowers
+// in the format's place.
+func contentOverridesFormat(s *oas3.Schema, formatName string) bool {
+	content := s.GetContentEncoding()
+	return formatName != "" && content != "" && content != formatName
 }
 
 // contentSchemaRef lowers contentSchema — the shape the encoded value has once
