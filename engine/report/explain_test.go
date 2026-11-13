@@ -583,7 +583,7 @@ func TestExplain_ListsAnEntryOnManyNodesInTheirOrder(t *testing.T) {
 	t.Parallel()
 	const at, key = jsontext.Pointer("/paths/~1p"), "openapi:pathItem/x-s"
 	operations := make([]ir.Operation, 12)
-	var want []string
+	want := make([]string, 0, len(operations))
 	for i := range operations {
 		own := fmt.Sprintf("openapi:x-%02d", i)
 		operations[i] = ir.Operation{ID: ir.OpID(fmt.Sprintf("op/%d", i)), Unmodeled: ir.Unmodeled{
