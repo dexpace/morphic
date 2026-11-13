@@ -4623,6 +4623,7 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
   `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
   `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
+  `e2e.TestSecurityUnresolved_AnUndecodedSchemeRefIsReportedByAFullCompile`,
   `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
   `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
