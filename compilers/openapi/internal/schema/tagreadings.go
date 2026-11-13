@@ -41,8 +41,8 @@ func readingsOf(c lowering.Ctx) *tagReadings {
 
 // object returns what an instance of the object flat flattens holds at the
 // property name: what its member admits (member, or any value where ok is
-// false, as it declares none), met with what each closed union it composes
-// admits there.
+// false, as it declares none), met with what each union it composes admits
+// there (conjunctKeys).
 func (r *tagReadings) object(reg ir.TypeRegistry, flat ir.Flattening, member ir.FlatProperty, ok bool, name string) tagSet {
 	got := anything()
 	if ok {
@@ -320,13 +320,14 @@ func declTypes(decls []ir.PropertyDecl) []ir.TypeRef {
 	return types
 }
 
-// conjunctKeys returns the object readings at the property name of the closed
-// unions flat's composition names, read through alias scalars.
+// conjunctKeys returns the object readings at the property name of the unions
+// flat's composition names, read through alias scalars. One not closed admits
+// any value (closedJoin), which bounds nothing it is met with.
 func conjunctKeys(reg ir.TypeRegistry, flat ir.Flattening, name string) []readKey {
 	var keys []readKey
 	for _, id := range flat.Unflattened {
 		target, _ := throughAliases(reg, id)
-		if u := unionNode(reg, target); u != nil && u.Closed {
+		if unionNode(reg, target) != nil {
 			keys = append(keys, readKey{id: target, name: name, object: true})
 		}
 	}

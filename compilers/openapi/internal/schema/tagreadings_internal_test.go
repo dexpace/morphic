@@ -302,6 +302,7 @@ func TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits(t *testing.T) {
 		"own, the union open":         {"t/a", &ir.Union{ID: "t/u", Variants: []ir.Variant{{Type: to("t/vb")}}}, []string{"a"}, false},
 		"a variant composing a union": {"", unionOf("t/u", true, to("t/vb"), to("t/composing")), []string{"a", "b", "c"}, false},
 		"a variant a union in turn":   {"", unionOf("t/u", true, to("t/va"), to("t/inner")), []string{"a", "b", "c"}, false},
+		"a variant through an alias":  {"", unionOf("t/u", true, to("t/va"), to("t/avc")), []string{"a", "c"}, false},
 		"a variant on a cycle":        {"", unionOf("t/u", true, to("t/va"), to("t/looping")), nil, false},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -310,7 +311,8 @@ func TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits(t *testing.T) {
 				"t/inner":     unionOf("t/inner", false, to("t/vb"), to("t/vc")),
 				"t/innerac":   unionOf("t/innerac", true, to("t/va"), to("t/vc")),
 				"t/composing": &ir.Model{ID: "t/composing", Mixins: []ir.TypeRef{to("t/innerac")}},
-				"t/looping":   &ir.Model{ID: "t/looping", Mixins: []ir.TypeRef{to("t/u")}}}
+				"t/looping":   &ir.Model{ID: "t/looping", Mixins: []ir.TypeRef{to("t/u")}},
+				"t/avc":       &ir.Scalar{ID: "t/avc", Base: &ir.TypeRef{Target: "t/vc"}}}
 			maps.Copy(r, reg)
 			composed := ir.TypeID("t/u")
 			if tc.through {
