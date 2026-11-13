@@ -193,12 +193,12 @@ func typeHome(td ir.TypeDef, s *oas3.Schema) bool {
 // literalValueType took because the value is one of it, or a format of the
 // type, as bytes is of string, or the type is the object or array a composite
 // value already is. A type set naming no shape is TypeRef.Nullable's, as
-// typeHome says; one naming several, or a type the value is not, reached no
-// field.
+// typeHome says, where it admits the value; one naming several, or a type the
+// value is not, reached no field.
 func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 	types := effectiveTypes(s)
 	if len(types) == 0 {
-		return true
+		return typesAdmit(s.GetType(), lit.Value)
 	}
 
 	if len(types) > 1 {
@@ -229,7 +229,7 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 // set s declares, which then says nothing the members do not. One a member is
 // no value of is a type the Enum's ValueType does not take (enumValueType).
 func membersTyped(members []ir.EnumMember, s *oas3.Schema) bool {
-	types := effectiveTypes(s)
+	types := s.GetType()
 	return !slices.ContainsFunc(members, func(m ir.EnumMember) bool { return !typesAdmit(types, m.Value) })
 }
 

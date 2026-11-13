@@ -99,10 +99,11 @@ func (e enumEntry) isNull() bool { return e.err == nil && e.val.Kind == ir.Value
 // admit no instance, since JSON Schema conjoins enum with the keywords beside
 // it, and each is reported at itself as a warning: a null where those keywords
 // exclude null, which nothing then holds, and a value no type s declares
-// admits, which is kept as written beside the type the census keeps verbatim.
+// admits, `null` among them, which is kept as written beside the type the
+// census keeps verbatim.
 func enumEntries(c lowering.Ctx, s *oas3.Schema, entries []enumEntry, pointer jsontext.Pointer) ([]enumEntry, []ir.Diagnostic) {
 	admitsNull := slices.ContainsFunc(entries, enumEntry.isNull) && schemaAdmitsNull(c, s)
-	types := effectiveTypes(s)
+	types := s.GetType()
 	kept := make([]enumEntry, 0, len(entries))
 	var diags []ir.Diagnostic
 	for _, e := range entries {
@@ -268,7 +269,7 @@ func lowerConst(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsont
 	if err != nil {
 		return id, diags // hoistLiteral reported it
 	}
-	if types := effectiveTypes(s); !typesAdmit(types, val) {
+	if types := s.GetType(); !typesAdmit(types, val) {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, pointer+ids.Ptr("const"),
 			"const %s is no value of the declared type %s, which JSON Schema conjoins with const, so no instance "+
 				"matches it; the literal holds the value as written", describeValue(val), typeList(types)))

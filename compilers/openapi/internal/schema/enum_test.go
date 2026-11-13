@@ -623,6 +623,10 @@ func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 		{"an integer written with a point", `{type: integer, enum: [1.0, 2]}`, ir.PrimInteger, nil},
 		{"binary with no type", `{enum: [!!binary aGk=, !!binary aG8=]}`, ir.PrimBytes, nil},
 		{"members of their type", `{type: number, enum: [1, 2.5]}`, ir.PrimNumber, nil},
+		{"a string under null alone", `{type: "null", enum: [a, null]}`, ir.PrimString, []string{"/enum/0"}},
+		{"numbers under a null list", `{type: ["null"], enum: [1, 2]}`, ir.PrimNumber, []string{"/enum/0", "/enum/1"}},
+		{"a string under a nullable integer", `{type: [integer, "null"], enum: [a, null]}`, ir.PrimString,
+			[]string{"/enum/0"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1049,6 +1053,7 @@ func TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits(t *testing.T) {
 		{"an object", `{type: object, const: {a: 1}}`, "", "", false},
 		{"a list", `{type: array, const: [1]}`, "", "", false},
 		{"a binary under string", `{type: string, const: !!binary aGk=}`, ir.PrimBytes, "", false},
+		{"a number under null alone", `{type: "null", const: 5}`, ir.PrimNumber, "openapi:type", true},
 		{"an object the type is not", `{type: array, const: {a: 1}}`, "", "openapi:type", true},
 		{"a list the type is not", `{type: object, const: [1]}`, "", "openapi:type", true},
 	}
