@@ -27,8 +27,8 @@ import (
 // resolves whichever is declared first: the base carrying the discriminator, or
 // the schema enclosing the target. With the base first the target was not yet
 // built when the mapping was read, so the entry was dropped as unresolved
-// (GitHub #530). The two-order harness cannot see this: it stops at the first
-// error diagnostic, which that order produced.
+// (GitHub #530). The two-order harness proves both orders only for the targets
+// the committed specs hold; a row here pins each kind of target.
 //
 // Each row's spec is written base-first, the order that failed; the other order
 // moves the base's block after the owner's.

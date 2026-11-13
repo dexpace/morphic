@@ -2175,11 +2175,11 @@ routes, as one beside a union kept verbatim is settled
 ([`union-beside-structure`](#union-beside-structure)), would keep it only where it routes nowhere,
 and would have to find every component composing the schema to know that. Two typed homes lose as
 well. A subtype's `Base` naming the variant would compose the schema's object half where its `allOf`
-names the schema, and `Base` names what the source wrote ([composition
-entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model discriminator to
-`ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a `Union` base into
-its object variant would part from that relation, and teaching the relation the step would change
-what it means for every document.
+names the schema, and `Base` names what the source wrote
+([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds each route
+of a model discriminator to another type to `ir.IsSubtype`, the subtype relation every consumer
+reads: a check stepping from a `Union` base into its object variant would part from that relation,
+and teaching the relation the step would change what it means for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
@@ -2245,9 +2245,9 @@ distributed union ([`discriminator`](#discriminator)): a `mapping` target, or th
 `defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
 that branch. OpenAPI routes a variant no entry names by the name of the component its branch
 names, which a composed variant, named for its position, does not carry, so that route is written
-into the `Mapping`, as [`discriminator`](#discriminator) writes each route a nil one would not say.
-No variant carries a `DiscriminatorValue`, which tags a subtype in a
-hierarchy, since the mapping's keys tag the union's variants, and
+into the `Mapping`, as [`discriminator`](#discriminator) writes it wherever a nil one would not say
+it. No variant carries a `DiscriminatorValue`, which tags a subtype in a hierarchy, since the
+mapping's keys tag the union's variants, and
 [`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
 
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
@@ -2282,9 +2282,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
 6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
    as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
    lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
-   `pass/validate` holds a mapping to), so it stays a `Model` under it, with the tag that rule gives
-   it, if any. One written beside a union routes by name only what that union lists, so beside a
-   schema it does not list, and no `mapping` key names, a union distributes.
+   `pass/validate` holds a route to another type to), so it stays a `Model` under it, with the tag
+   that rule gives it, if any. One written beside a union routes by name only what that union lists,
+   so beside a schema it does not list, and no `mapping` key names, a union distributes.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -2316,22 +2316,23 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 4).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
-when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
-`pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
-each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
-and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no component, is
-no route unless the `mapping` names it. Otherwise the whole object (`propertyName`, `mapping`,
-`defaultMapping`) is kept verbatim in `Unmodeled["openapi:discriminator"]` on the node keeping the
-union, with an info `openapi/degraded-construct` at the discriminator; a subtype keeps the
-`DiscriminatorValue` its mapping key gives it, since that is still the tag its instances carry, and
-a body the move leaves holding a map and nothing else lowers to that map's `MapT`
-([containers](../ir/containers.md)). A union whose branches declare no shape
-(`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
-[`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
-The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
-nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
-`Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
-`enum`, a `const`, or an alias over a `$ref` beside it.
+when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`): each `mapping` target,
+the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
+`oneOf`'s branches where `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch,
+or one naming no component, is no route unless the `mapping` names it, and a route to the `Model`
+itself is none of its subtypes, though `pass/validate` takes one where the model is concrete.
+Otherwise the whole object (`propertyName`, `mapping`, `defaultMapping`) is kept verbatim in
+`Unmodeled["openapi:discriminator"]` on the node keeping the union, with an info
+`openapi/degraded-construct` at the discriminator; a subtype keeps the `DiscriminatorValue` its
+mapping key gives it, since that is still the tag its instances carry, and a body the move leaves
+holding a map and nothing else lowers to that map's `MapT` ([containers](../ir/containers.md)). A
+union whose branches declare no shape (`validation_only`) is held to the same rule. A multi-typed
+body leaves no discriminator to settle: [`type-arrays`](#type-arrays) keeps it on the `Union` the
+body lowers to, beside the kept union. The compiler decides once every node is interned
+(`compile.Settlement`), because neither the walk nor the source schemas can answer it: a subtype
+declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose `allOf` names
+the `Model` may still lower to no subtype — an `enum`, a `const`, or an alias over a `$ref` beside
+it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
@@ -2423,8 +2424,9 @@ as one whose branches declare shape.
 - Status: partly built: a union beside a composition the bounds cut short degrades even where each
   branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
   keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
-  no route names the schema (#1695), and a discriminated union on a branch stays whole with its
-  branch (#1698).
+  no route names the schema (#1695), a discriminated union on a branch stays whole with its
+  branch (#1698), and a discriminator routing to the model holding it moves though that route is
+  legal (#1806).
 
 ### `union-beside-ref`
 
@@ -2486,16 +2488,28 @@ says why ([`shape-applicator`](#shape-applicator)): a union so written is untagg
 [`discriminator-inference`](#discriminator-inference) reads nothing for it. Each `mapping` entry
 lowers to its key and the type its value routes to, and 3.2's `defaultMapping` to
 `Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
-routes a variant no `mapping` entry routes by the name of the component its `$ref` branch names, its
-implicit mapping, and the IR routes by a variant type's name only where a union's `Mapping` is nil
-([models](../ir/models.md#discriminator)). So a union's `Mapping` holds that route, the name keying
-its variant, wherever a nil one would not say it: where the `mapping` holds an entry, or where a
-variant's type is not the component its branch names, as an alias for a keyword beside the `$ref` is
-not, nor a variant composed over its branch ([`union-beside-structure`](#union-beside-structure)). A
-name two branches name, or one an entry spells already, keys nothing more, and an inline variant has
-none. A variant an entry routes is not routed by its name too, as OpenAPI's own example maps `dog`
-to `Dog` "rather than the default (implicit) value of Dog"; one the `defaultMapping` names still is.
-With no `mapping`, and each variant whose branch names a component that component itself, the
+reads a tag per value, as the name of a component schema unless a `mapping` entry keys that value,
+its implicit mapping: 3.0.4, 3.1.1 and 3.2.0 say so ("_unless_ a `mapping` is present for that
+value"), and 3.0.3 and 3.1.0, which those patch releases clarify, fail a value only where it matches
+no "implicit or explicit mapping". Their example maps the value `dog` to `Dog` "rather than the
+default (implicit) value of `Dog`", which the patch releases correct to "of
+`#/components/schemas/dog`", the reading `dog` itself takes with no entry. So the name of the
+component a variant's `$ref` branch names routes to the variant whether or not an entry routes it
+too. The IR routes by a variant type's name only where a union's `Mapping` is nil
+([models](../ir/models.md#discriminator)), so a union's `Mapping` holds the name route to each
+variant no entry routes, the name keying its variant, wherever a nil one would not say it: where the
+`mapping` holds an entry, or where a variant's type is not the component its branch names, as an
+alias for a keyword beside the `$ref` is not, nor a variant composed over its branch
+([`union-beside-structure`](#union-beside-structure)). A name two branches name, or one an entry
+spells already, keys nothing more, and an inline variant has none. The compiler leaves out the name
+of a variant an entry routes, though OpenAPI routes by it: a `Mapping` is what a consumer writing an
+instance picks the variant's tag from, and a map cannot mark one of two routes to a variant as read
+and never written, so the name written in would give the variant a second tag to write and nothing
+to say which. A hierarchy leaves out the name of a subtype a key tags in the same way, its
+`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload
+carrying such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
+`defaultMapping`. A variant the `defaultMapping` names and no entry routes is still routed by its
+name. With no `mapping`, and each variant whose branch names a component that component itself, the
 `Mapping` is nil and a union routes each variant by the name of its type, unless
 [`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
 subtype the mapping names under several keys — an alias tag — takes the smallest in byte order as
@@ -2570,7 +2584,10 @@ is a reference wherever its discriminator ends up.
   `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`,
   `schema.TestMappingTagsFor_ReadsTheMappingOnce`
 - Status: partly built: a variant whose branch names a component of another document is routed by
-  its type's name where the `Mapping` is nil, and by nothing where it holds an entry (#1829).
+  its type's name where the `Mapping` is nil, and by nothing where it holds an entry (#1829); and a
+  payload tagged with the name of a union's variant or a hierarchy's subtype that an entry routes
+  reaches no variant, or `Default`, though OpenAPI routes it by that name, as the IR has no place
+  for a route a consumer reads and never writes (#1863).
 
 ### `discriminator-value`
 
@@ -2707,26 +2724,29 @@ ask. Two unions and a subtype meet it:
 
 ### `string-const-union`
 
-A `oneOf` or `anyOf` whose every branch is a string `const`, a one-member string `enum` or such a
-union is a closed set of strings in another spelling. The compiler lowers it as any union
-([`union`](#union)), each branch to its `Literal` or `Enum` holding what the branch says of its
-value, and the engine's `const-unions` pass, not the compiler, normalizes it to the closed `Enum` of
-those values at the union's own ID, so an emitter meets one shape however the document wrote the
-set. A branch that is such a union is read as the `Enum` it becomes, in the same run, so no second
-run finds one. Each member is identified and named as the same value in an `enum` is
-([`enum-const`](#enum-const)), in branch order, and holds what its branch says of its value: its
-docs, deprecation, availability, examples and kept constructs. A branch's type nothing else
+A `oneOf` or `anyOf` whose every branch is a string `const`, a string `enum` or such a union is a
+closed set of strings in another spelling. The compiler lowers it as any union ([`union`](#union)),
+each branch to its `Literal` or `Enum` holding what the branch says of its values, and the engine's
+`const-unions` pass, not the compiler, normalizes it to the closed `Enum` of those values at the
+union's own ID, so an emitter meets one shape however the document wrote the set. A branch that is
+such a union is read as the values it holds, in the same run, so no second run finds one. Each
+member is identified and named as the same value in an `enum` is ([`enum-const`](#enum-const)), in
+branch order, and holds what is said of its value: a branch of one value gives its member the
+branch's docs, deprecation, availability, examples and kept constructs, and a branch of several
+gives each of its values what that value's own member holds. A branch's type nothing else
 references goes with the union.
 
 The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
-its own that an `Enum` member is not; a branch holding several values, a set of its own that the
-`Enum` would copy into each union naming it, which a document can make grow with the square of its
-size; a value two branches hold, which a `oneOf` rejects and whose two branches may say two things
-of it; values typed by two primitives; a nullable branch; a construct a branch keeps verbatim for
-any reason but being a vendor extension, such as a constraint its `Literal` has no home for, which
-narrows the branch and would not narrow a member; a branch whose `Provenance.Inferred` names a
-heuristic, whose mark no member could carry; and one fact two places say of one value. A union of
-numbers, or of values of several kinds, is outside this rule and stays a union.
+its own that an `Enum` member is not; a branch holding several values that another node names too,
+or a member of which another node names, a set of its own that the `Enum` would copy into each
+union naming it, which a document can make grow with the square of its size; a branch holding
+several values that it or its variant says anything of, which no one member could hold; a value two
+branches hold, which a `oneOf` rejects and whose two branches may say two things of it; values typed
+by two primitives; a nullable branch; a construct a branch keeps verbatim for any reason but being a
+vendor extension, such as a constraint its `Literal` has no home for, which narrows the branch and
+would not narrow a member; a branch whose `Provenance.Inferred` names a heuristic, whose mark no
+member could carry; and one fact two places say of one value. A union of numbers, or of values of
+several kinds, is outside this rule and stays a union.
 
 - Cases: `string-const-union`
 - Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`

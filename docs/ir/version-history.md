@@ -470,18 +470,50 @@ it sees. Changes made together in one bump are listed together under it.
   headers](./responses.md#prefix-headers)). `irverify` holds such a header to a map type and no
   wire name, and `irfacts.CorrelationVersion` moved to 3, keying it by its prefix. No compiler
   fills it yet. A consumer pinned to 0.45.0 refuses a document with a prefix header.
-- **0.47.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry holds every
-  route of the union ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the
-  route OpenAPI implies to each variant no entry routes, the name of the component its branch names,
-  and writes the routes out too where a variant's type is an alias for a keyword beside its `$ref`,
-  as it did for a variant composed over its branch
+- **0.47.0** — the empty prefix of a parameter's binding got a spelling, and other fields a request
+  is written by changed meaning ([HTTP binding](./http-binding.md)):
+  - `HTTPParamBinding.Prefix` became a pointer, nil for a binding of one field, so the empty prefix,
+    which takes every header or query parameter, as Smithy's `@httpPrefixHeaders("")` and
+    `@httpQueryParams` bind one, is a prefix ([prefix bindings](./http-binding.md#prefix-bindings)).
+    `irverify` holds a binding under a prefix to a `header` or `query` location, to no wire name
+    and, binding a whole parameter, to a map type, and `irfacts.CorrelationVersion` moved to 4,
+    keying such a parameter by its prefix. No compiler fills it yet. A consumer pinned to 0.46.0
+    reads the empty prefix as no prefix.
+  - A nil `HTTPBinding.PatchImplicitOptionality` states nothing, so a `PATCH` body requires what
+    its schema requires; only `true` makes every member optional ([patch
+    optionality](./http-binding.md#patch-optionality)). A consumer pinned to 0.46.0 relaxed every
+    `PATCH` body on nil, and so let a caller leave out what the server requires.
+  - A value whose `HTTPParamBinding.PathPattern` names several segments is percent-encoded in all
+    but `/` and RFC 3986's unreserved characters, whatever `AllowReserved` says, and a consumer
+    that cannot check a value against the pattern skips that check, never the pattern. One pinned
+    to 0.46.0 sent such a value under RFC 6570's reserved expansion, or as one segment.
+  - `AllowReserved`, on a parameter's binding and on a part's encoding, passes percent-encoded
+    triples unescaped beside the reserved characters, as RFC 6570's reserved expansion does. A
+    consumer pinned to 0.46.0 encoded a triple's `%` again.
+  - `HTTPBinding.RequestContentTypes` lists the request body's media types in source order and
+    states no preference among them, where it was worded as priority-ordered.
+- **0.48.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.47.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.
+- **0.49.0** — no shape change. A union's `Discriminator.Mapping` that holds an entry its source
+  writes holds, beside those entries, the route the source implies to each variant it declares none
+  for ([models](./models.md#discriminator)): the OpenAPI compiler writes into it the name of the
+  component that variant's branch names, and writes the routes out too where a variant's type is an
+  alias for a keyword beside its `$ref`, as it did for a variant composed over its branch
   ([`discriminator`](../compilers/openapi.md#discriminator)). Its discriminator-inference policy
   reads what a variant or a subtype admits as a set of strings
   ([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)): a variant pinning
   its tag to several strings no other variant admits maps each to it, in a declared discriminator's
   `Mapping` and in an inferred one; a tag written as a union of string values bounds them as an
   `enum` does; and what a schema composes as a union, its variants read as objects in turn, meets
-  what it declares. A consumer pinned to 0.46.0 that routed a variant a mapping left out by its
+  what it declares. A consumer pinned to 0.48.0 that routed a variant a mapping left out by its
   type's name finds the route in the `Mapping`, reads unions it read as untagged, or as routed by
   component names, as routed by the strings their variants pin, and finds no `DiscriminatorValue` on
   a subtype whose composed union rules its name out.

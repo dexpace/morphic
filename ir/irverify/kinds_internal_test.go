@@ -64,6 +64,7 @@ func TestOperationPathChecks_SeeOnlyThePathToTheField(t *testing.T) {
 		"checkStability":      checkStability,
 		"checkInteractions":   checkInteractions,
 		"checkPrefixHeaders":  checkPrefixHeaders,
+		"checkPrefixBindings": checkPrefixBindings,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

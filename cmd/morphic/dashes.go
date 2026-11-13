@@ -13,32 +13,30 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// singleDashLongFlags refuses a long flag spelled with one dash. Go's flag
-// package, which morphic parsed with before cobra, accepted that spelling; pflag
-// reads it as shorthands, so on compile "-opt=k=v" is "-o pt=k=v": the option
-// dropped, the document written to a file named "pt=k=v", and exit 0.
+// misreadDashes refuses a flag spelled with one dash that pflag would misread.
+// pflag reads a long flag so spelled as shorthands, so on compile "-opt=k=v" is
+// "-o pt=k=v": the option dropped, the document written to a file named
+// "pt=k=v", and exit 0. It also drops, unread, what starts "test." where a
+// shorthand could, which it keeps for go test's own flags.
 //
 // It checks the arguments of the command cobra will run, read as pflag will read
 // them: a flag's value is not a flag, and nothing after a "--" is one. A command
-// not found here is cobra's to resolve; help and completion join the tree only
-// as it executes.
-func singleDashLongFlags(root *cobra.Command, args []string) error {
+// not found here is cobra's to resolve.
+func misreadDashes(root *cobra.Command, args []string) error {
 	target, rest, found := findCommand(root, args)
 	if !found {
 		return nil // cobra resolves the command again, and reports what it cannot find
 	}
-	// cobra defines the help flag before it parses; defining it here first lets
-	// "-help" be read as the flag it names.
-	target.InitDefaultHelpFlag()
 
 	fs := target.Flags()
-	probe := pflag.NewFlagSet(target.Name(), pflag.ContinueOnError)
-	probe.SetOutput(io.Discard)
-	probe.AddFlagSet(fs)
-
+	probe := probeFor(target)
 	for i := 0; i < len(rest); i++ {
-		if name, ok := oneDashName(rest[i]); ok && fs.Lookup(name) != nil {
+		name, oneDash := oneDashName(rest[i])
+		if oneDash && fs.Lookup(name) != nil {
 			return misuse(target, fmt.Sprintf("long flags take two dashes: write %q, not %q", "-"+rest[i], rest[i]))
+		}
+		if oneDash && dropsAsGoTestFlag(fs, rest[i][1:]) {
+			return misuse(target, fmt.Sprintf("unknown shorthand flag: 't' in %s", rest[i]))
 		}
 		switch readAlone(probe, rest[i]) {
 		case wantsValue:
@@ -62,6 +60,18 @@ func findCommand(root *cobra.Command, args []string) (*cobra.Command, []string, 
 	return target, rest, true
 }
 
+// probeFor returns a flag set holding c's flags, help among them, for readAlone
+// to parse with. cobra defines the help flag only as it parses; defining it
+// here first lets "-h" be read as the switch it is, and "-help" as the flag it
+// names.
+func probeFor(c *cobra.Command) *pflag.FlagSet {
+	c.InitDefaultHelpFlag()
+	probe := pflag.NewFlagSet(c.Name(), pflag.ContinueOnError)
+	probe.SetOutput(io.Discard)
+	probe.AddFlagSet(c.Flags())
+	return probe
+}
+
 // oneDashName returns the name tok spells after a single dash, up to any "=",
 // or false when tok does not start with exactly one dash.
 func oneDashName(tok string) (string, bool) {
@@ -70,6 +80,27 @@ func oneDashName(tok string) (string, bool) {
 	}
 	name, _, _ := strings.Cut(tok[1:], "=")
 	return name, true
+}
+
+// goTestPrefix starts what pflag drops where a shorthand could start: go test's
+// own flags, such as -test.v, which it leaves for the flag package to read.
+const goTestPrefix = "test."
+
+// dropsAsGoTestFlag reports whether pflag, reading shorts as shorthands of fs,
+// as it reads what follows one dash, drops what is left of them: goTestPrefix
+// starts them, or follows a run of shorthands that take no value. A shorthand
+// that takes one reads the rest as its value, so "-otest.json" is -o's file.
+func dropsAsGoTestFlag(fs *pflag.FlagSet, shorts string) bool {
+	for ; shorts != ""; shorts = shorts[1:] {
+		if strings.HasPrefix(shorts, goTestPrefix) {
+			return true
+		}
+		flag := fs.ShorthandLookup(shorts[:1])
+		if flag == nil || flag.NoOptDefVal == "" {
+			return false
+		}
+	}
+	return false
 }
 
 // reading is how pflag reads one argument on its own.
@@ -85,7 +116,8 @@ const (
 // readAlone asks pflag how it reads tok, so that which argument is a flag's
 // value is pflag's own answer rather than a copy of its grammar. probe holds
 // the command's flags and is parsed with values discarded, so neither the flags
-// nor the command's own flag set change.
+// nor the command's own flag set change. Once a "--" is read, probe reports
+// every later argument as ending the flags, so a reading stops there.
 func readAlone(probe *pflag.FlagSet, tok string) reading {
 	err := probe.ParseAll([]string{tok}, func(*pflag.Flag, string) error { return nil })
 

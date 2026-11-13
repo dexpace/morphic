@@ -106,8 +106,9 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 }
 
 // TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank holds one side of the line
-// isBlankName draws — see its comment for why the IR declines to judge an
-// invisible rune that is not the whole entry.
+// isBlankName draws: an invisible rune beside a visible one is no blank entry,
+// since whether it makes a legal name turns on the grammar of the format the
+// alias is matched against, which the IR does not know (docs/ir/naming.md#aliases).
 func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 	t.Parallel()
 	assert.Empty(t, aliasViolations(t, "com.example.\u200bUser", " padded "))

@@ -117,6 +117,9 @@ func TestDiscriminatorMapping_WritesTheRoutesItImplies(t *testing.T) {
 		name, ver, branches, mapping string
 		want                         map[string]string // tag -> the variant's target; "alias" for U/oneOf/0's
 	}{
+		// OpenAPI routes the value Cat to Cat beside the entry, but a mapping is
+		// what a writer takes Cat's tag from, and the key Cat would give it a
+		// second tag to write, which nothing could mark as only read (#1863).
 		{"an entry beside an unnamed variant", "3.1.0", cat + ", " + dog, "{cat: Cat}",
 			map[string]string{"cat": "Cat", "Dog": "Dog"}},
 		{"past a null branch", "3.1.0", "{type: 'null'}, " + cat + ", " + dog, "{cat: Cat}",

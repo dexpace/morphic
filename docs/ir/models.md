@@ -62,9 +62,11 @@ type Discriminator struct {
     Index    *int                  // positional: 0-based tuple element carrying the tag Literal
                                    // (Erlang tagged tuples {ok, V} | {error, R}; JSON arrays with a
                                    // const head via prefixItems)
-    Mapping  map[string]TypeID     // wire value → subtype; nil on a union = infer by type name,
-                                   // else every route of it; a hierarchy routes to each subtype
-                                   // by its DiscriminatorValue
+    Mapping  map[string]TypeID     // wire value → the type it routes to: a union's variant, or a
+                                   // hierarchy's base or subtype; nil on a union = infer by type
+                                   // name, else the routes declared or inferred and the one the
+                                   // source implies to each variant they leave out; a hierarchy
+                                   // routes to each subtype by its DiscriminatorValue
     Default  TypeID                // variant to use when the tag is absent/unrecognized
                                    // (OpenAPI 3.2 defaultMapping); zero = none
     Envelope string                // "" = tag inline in the variant object;
@@ -84,15 +86,23 @@ read in: the tag itself, or only where its values route.
 
 On a union, a nil `Mapping` routes each variant by the name of its type, as OpenAPI's implicit
 mapping routes by component name, and one holding an entry routes by its entries alone. So a
-compiler writes into a `Mapping` every route its source implies beside those it declares, and
-writes them out too where a variant's type carries no name the source routes it by, as the OpenAPI
-compiler does for a variant composed over its branch or an alias for a keyword beside its `$ref`
+compiler writes into a `Mapping`, beside the entries its source writes, the route the source
+implies to each variant it declares none for, and writes the routes out too where a variant's type
+carries no name the source routes it by, as the OpenAPI compiler does for a variant composed over
+its branch or an alias for a keyword beside its `$ref`
 ([`discriminator`](../compilers/openapi.md#discriminator)): a consumer reads a type's name to route
 only where the `Mapping` is nil. Reading a variant's name beside the entries, as OpenAPI's text
-routes one no entry names, would keep the IR nearer the source, but a variant whose type carries no
-such name would need its route written all the same, two spellings of one route, and every consumer
-would merge entries and names itself, deciding whether a variant an entry routes is routed by its
-name too, which the specification settles only in an example.
+routes a value no entry keys, would keep the IR nearer the source, but a variant whose type carries
+no such name would need its route written all the same, two spellings of one route, and every
+consumer would merge entries and names itself.
+
+A `Mapping` is also what a consumer writing an instance picks the variant's tag from. A source can
+imply a second route to a variant an entry routes: OpenAPI reads every value no entry keys as a
+component name, so a payload tagged `Dog` selects `Dog` beside an entry `dog: Dog`. A map cannot
+mark one of a variant's routes as read and never written, and written in unmarked, the name would
+give the variant a second tag with nothing to say which to write, so a compiler leaves it out, of a
+union's `Mapping` and a hierarchy's alike. A payload carrying it then routes nowhere, or to
+`Default`: the IR has no place yet for a route a consumer reads and never writes (#1863).
 
 A subtype's `DiscriminatorValue` is the tag by which a discriminator on one of its ancestors routes
 to it: a key that discriminator's `Mapping` names it under, or else the name the source routes it
@@ -105,6 +115,17 @@ instead, leaving the field empty where it admits several or none, and names itse
 every subtype of a base pinning its tag to one value does, and that tag then routes to more than
 one. A reading that declined there, as one filling a `Mapping`, which keys one target per tag, must,
 would leave each a tag its own instances reject for an encoder to write.
+
+A model's discriminator routes to its subtypes, and to the model itself where it is not `Abstract`:
+the instances of a concrete base are a payload as its subtypes' are, as an OpenAPI `mapping` may
+name the schema declaring the `discriminator`, and the base's own shape is a variant of every
+reference to it ([a polymorphic base](../emitters/refine/unions.md#a-polymorphic-base)). An
+`Abstract` model has no instance of its own, so `pass.Validate` refuses a route to it from its own
+`Mapping` or `Default` as one to a type that is no variant (`pass/discriminator-missing-variant`).
+The base carries no `DiscriminatorValue` for its own route: that field is the tag a discriminator on
+an ancestor routes a model by, which no ancestor of the base holds, and the base's route is its
+`Mapping` entry, so the fact has one home. `ir.IsSubtype` stays irreflexive: this is a clause of the
+route, not of the subtype relation every other reader of it asks.
 
 ## Composition
 
@@ -162,8 +183,8 @@ writes is itself what evaluates a key in JSON Schema.
 
 `ir.FlattenedProperties(types, id)` returns a model's full shape: its members, one per wire name,
 each with the declaration it takes, the declarations that one overrides, whether an instance must
-carry it and whether its value is redacted, beside the names a `Requires` lists that no member
-declares and the composition entries that name no model. Its rules:
+carry it, whether its value is redacted and whether it is deprecated, beside the names a `Requires`
+lists that no member declares and the composition entries that name no model. Its rules:
 
 - *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
   of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
@@ -187,8 +208,8 @@ declares and the composition entries that name no model. Its rules:
   at any distance, unless that model composes it too; and of two declarations whose models do not
   compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
-  slot with its own type. The member takes every facet but whether it is required and whether it
-  is redacted — type, `Presence`, visibility, default, docs — from the declaration it takes, and
+  slot with its own type. The member takes every facet but whether it is required, redacted or
+  deprecated — type, `Presence`, visibility, default, docs — from the declaration it takes, and
   lists the ones it overrides, which is where a consumer conjoining more finds them. Nothing is
   reported: redeclaring is how a subtype narrows, and whether two declarations agree is a question
   about their types, which the flattening does not ask.
@@ -202,15 +223,18 @@ declares and the composition entries that name no model. Its rules:
   conjunct that redeclares a field another conjunct marks secret cannot print it in the clear: the
   member takes the later declaration's type and keeps the earlier one's redaction. A consumer reads
   the member's `Secret` and need not conjoin `Overridden` itself.
+- *Deprecation.* A member is deprecated (`FlatProperty.Deprecation`) where any of its declarations
+  states a `Deprecation`, and carries that of the last declaration the walk reads that states one,
+  the taken one's where it does: a deprecation only accumulates, as a redaction does, so a conjunct
+  redeclaring a field another conjunct deprecates does not make it current. A consumer reads the
+  member's `Deprecation`, which the taken declaration's own may not hold.
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
-  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below). A consumer
-  lowering a union there as the one the model narrows ([below](#a-union-a-composition-names))
-  flattens each shape an instance takes by this walk too, reading a variant where the walk meets the
-  union ([TypePlan](../emitters/plan/types.md#a-model-narrowing-a-union)), so the variant's members
-  are laid out and overridden as any conjunct's are; `FlattenedProperties` takes no variant yet
-  (#1734).
+  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below). Where a
+  union there is one the model narrows, `ir.NarrowedShapes` flattens each shape an instance takes
+  by this walk too, with a variant read in the union's place
+  ([below](#the-shapes-of-a-model-narrowing-a-union)).
 - *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
   reads the model's own ([TypePlan](../emitters/plan/types.md)), so a conjunct closing its property
   set is the consumer's to weigh. A property marked `Flatten` is one member like any other, the
@@ -229,7 +253,8 @@ declares and the composition entries that name no model. Its rules:
   the walk needs no step budget and no recursion. Each type a redaction is read through is read once
   too, so a `Base` chain many declarations name costs one reading, and one that cycles ends where it
   repeats. It costs the declarations it returns plus the models, entries, aliases and types it
-  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`.
+  passes, so an `irfacts` index could answer no faster, and it stays a function of `ir`, where a
+  compiler reads it too.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
 declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
@@ -244,6 +269,17 @@ declaration taken alone would make optional. Visibility is the declaration taken
 directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes them
 read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch patch
 body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
+
+Deprecation accumulates where visibility does not because no declaration can lift it: the IR has no
+"not deprecated" to state, a declaration without `Deprecation` saying nothing of it, and JSON Schema
+2020-12 (Validation §9.3) holds an instance location deprecated where any applicable `deprecated` is
+true. The OpenAPI compiler's fold of a field redeclared across inline `allOf` branches keeps the
+first deprecation any of them states, so taking the declaration's alone would make a field current
+or not by whether its conjuncts were written inline or by `$ref`. On the golden spec
+(`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at `0cd087ff6`) no member's taken
+declaration lacks a deprecation an overridden one states, of 63,587 members across 18,017 models,
+nor any of the 2,184 members of the shapes the models narrowing a union take, so the rule moves no
+member there.
 
 ## Composition entries
 
@@ -400,3 +436,59 @@ takes, and the tag a route to it. It was rejected on input the compiler must low
   union's variants and discriminator, the golden spec's most shared union ten times over, each
   composed variant a node minted per pair of schema and variant, and no node would say that the
   schema composes the union, as the source does.
+
+## The shapes of a model narrowing a union
+
+A model narrows a union where its composition reaches one at any distance, an entry naming it read
+through alias scalars, that does not list the model, its variants read through alias scalars too,
+since a model a union lists is that variant ([above](#a-union-a-composition-names)).
+`ir.NarrowedShapes(types, id, limit)` returns that union and the shapes an instance takes, each the
+model's flattening with a variant of the union in its place:
+
+- *A variant in a union's place.* Wherever the walk meets the union, at every entry standing for
+  it, it reads the variant there instead, as that entry's target, read through alias scalars. So the
+  variant's members are laid out, overridden, required, redacted and deprecated as any conjunct's
+  are ([the flattening](#the-flattening)), and a variant composing its own union reads itself in
+  its place there too. A variant naming no model is listed in `Unflattened` as the union's
+  `Variants` write it. `Stored` above takes two shapes: over `Block`, `action` and `status` and then
+  `id`, and over `Log`, `action` and then `id`.
+- *Unions in turn.* Where the composition over a variant narrows a union in turn, as a variant that
+  is a union, or composes one, makes it, that shape gives way to one for each of that union's
+  variants, and `NarrowedShape.Over` lists the variants read, outermost first. So no shape narrows
+  a union, and the shapes follow each union's variants in source order, depth first. A union with no
+  variant gives none.
+- *What it does not distribute* (`Narrowing.Undistributed`): a composition narrowing two unions or
+  more, the model's own or one over the variants a shape reads (`several`), whose shapes no one list
+  of variants names; one no distribution ends (`unending`), where a variant read in a union's place
+  composes the model in turn, so that a shape of the model holds the model, or a union reaches
+  itself through the unions among its variants; and a union tagged by a key, an envelope or a tuple
+  element (`not_values`), whose variants are not the values it admits ([tag
+  modes](./unions.md#tag-modes)). Each leaves the shapes empty, `Union` naming the union where the
+  model narrows one. A variant composing its own union, or a model the root composes rather than
+  the root itself, is distributed as any other.
+- *Cost.* It flattens the model once to find the union, then once for each shape and for each
+  composition that narrows a union in turn. Each walk also reads the variant it takes in a union's
+  place each time it meets the union, the chain once where that variant is a union read in turn, as
+  it reads an alias chain, and the variants of each union it meets and reads none of, to tell
+  whether that one lists the model. Nested unions multiply the shapes and each walk reads the
+  whole composition again, so it counts every step of every walk, and one for each shape, against a
+  limit its caller sets, and stops once they pass it, finishing the walk it is taking. The emitter
+  plan sets `plan.MaxComposedSize`
+  ([TypePlan](../emitters/plan/types.md#a-model-narrowing-a-union)).
+
+It is a function of `ir`, beside the flattening it extends, and the one reading of these rules: the
+emitter plan's `TypePlan.Composed` takes its shapes, and the docs, the example set, a mock and the
+SDK targets read those. Two designs were weighed against it:
+
+- **A walk taking the variants to read, each caller listing the shapes.** Every caller would then
+  read the unions through alias scalars, tell a union listing the model from one it narrows, expand
+  the unions in turn, end what no distribution ends and count what the walks read, each a copy
+  that could disagree with the walk it calls.
+- **A model per shape, built in a copy of the registry and flattened.** It costs a copy of the
+  registry for each shape, gives the members owners that point into those copies rather than into
+  the document, and counts nothing of what a shape reads. The tests hold the shapes to it.
+
+On the golden spec (`cloudflare/api-schemas` `openapi.json` at `86556f6f`, compiled at
+`0cd087ff6`), 49 models narrow a union: 23 beside a member of their own, in 158 shapes and at most
+21 for one model, and 26 adding nothing to their union. None is undistributed, and
+`rulesets_ResponseRule` spends the most, 1,220 steps.
