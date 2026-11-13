@@ -742,10 +742,15 @@ something a caller asks for with `none`, never a default.
   order — no panic, `irverify`'s structural invariants, no error diagnostic, JSON round-trip,
   determinism across two compiles, each pass's idempotence and the pass list's (§2.2), and
   **order-independence**. The last one compiles the same source twice with every mapping's entry
-  order reversed and diffs the two documents. It is the general form of the two-order check, and it
-  is what catches an interning collision: two declarations minting one node at a single pointer
-  produce the same document read either way only if neither is the one that got there first. Both
-  pointer collisions the compiler has had were invisible to a single-order suite.
+  order reversed, each YAML anchor moved to the first place that names it, and diffs the two
+  documents whole, forgiving only the order of what a mapping orders. It is the general form of the
+  two-order check, and it is what catches an interning collision: two declarations minting one node
+  at a single pointer produce the same document read either way only if neither is the one that got
+  there first. Both pointer collisions the compiler has had were invisible to a single-order suite.
+  An error diagnostic stops none of the oracles, and an oracle with nothing to compare declines,
+  saying why, so a sweep's summary counts what each asked and what it could not. The order oracle
+  leaves sequences as written, an `allOf`'s branches among them (#1666), and compiles at the
+  default limits alone (#1519).
 - **Architecture test** (`internal/archtest`): import-graph assertions for the layering rules
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, that no function is
