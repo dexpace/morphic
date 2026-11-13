@@ -508,3 +508,13 @@ it sees. Changes made together in one bump are listed together under it.
     as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
     another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.47.0
     builds the fragment into a URL and reads no route as shared.
+- **0.49.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+  whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
+  them, where that variant is the branch's one reference and neither says anything of all its
+  values: the branch's values become members of the union's `Enum`, each holding what its own
+  member held, and the branch type goes
+  ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
+  may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
+  which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
+  to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  type, and meets a base among the types its own discriminator routes to.
