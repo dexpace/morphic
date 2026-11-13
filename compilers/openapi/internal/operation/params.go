@@ -14,6 +14,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -54,7 +55,7 @@ func lowerParameters(c lowering.Ctx, w walk, mount jsontext.Pointer, params []so
 		diags = append(diags, paramDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this use of the parameter, over what its declaration says (GitHub #610).
-		param.Docs = resolve.UseDocs[soa.Parameter](sp.ref, param.Docs)
+		param.Docs = resolve.UseDocs[soa.Parameter](c.Bindings(), sp.ref, param.Docs)
 		logical = append(logical, param)
 		bindings = append(bindings, binding)
 	}
@@ -378,15 +379,17 @@ type sourcedParam struct {
 // position recomputed from the merged slice (issue #36), and a $ref'd path
 // item's are under its own declaration pointer, not the path it is mounted at
 // (issue #107).
-func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParameter, opDeclPtr jsontext.Pointer) []sourcedParam {
+func mergeParameters(b *typed.Bindings, pathParams []sourcedParam, opParams []*soa.ReferencedParameter,
+	opDeclPtr jsontext.Pointer,
+) []sourcedParam {
 	merged := make([]sourcedParam, 0, len(opParams)+len(pathParams))
-	merged = appendSourced(merged, opParams, opDeclPtr, nil, nil)
+	merged = appendSourced(b, merged, opParams, opDeclPtr, nil, nil)
 	if len(pathParams) == 0 {
 		return merged
 	}
-	shadowed := shadowedKeys(opParams)
+	shadowed := shadowedKeys(b, opParams)
 	for _, p := range pathParams {
-		if key, ok := paramKey(p.ref); ok && shadowed[key] {
+		if key, ok := paramKey(b, p.ref); ok && shadowed[key] {
 			continue
 		}
 		merged = append(merged, p)
@@ -399,11 +402,11 @@ func mergeParameters(pathParams []sourcedParam, opParams []*soa.ReferencedParame
 // skipping any whose (name, in) key is in shadowed. A nil shadowed map reads as
 // all-false, which is what the operation side passes: operation parameters are
 // never shadowed, and are lowered in the operation's own context (a nil in).
-func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
+func appendSourced(b *typed.Bindings, dst []sourcedParam, params []*soa.ReferencedParameter, base jsontext.Pointer,
 	shadowed map[string]bool, in *lowering.Ctx,
 ) []sourcedParam {
 	for i, p := range params {
-		if key, ok := paramKey(p); ok && shadowed[key] {
+		if key, ok := paramKey(b, p); ok && shadowed[key] {
 			continue
 		}
 		dst = append(dst, sourcedParam{ref: p, pointer: base + ids.Ptr("parameters", strconv.Itoa(i)), in: in})
@@ -413,19 +416,20 @@ func appendSourced(dst []sourcedParam, params []*soa.ReferencedParameter, base j
 
 // shadowedKeys returns the (in, name) identities declared by opParams, so a
 // path-item parameter sharing one is left out of the merge as a duplicate.
-func shadowedKeys(opParams []*soa.ReferencedParameter) map[string]bool {
+func shadowedKeys(b *typed.Bindings, opParams []*soa.ReferencedParameter) map[string]bool {
 	shadowed := make(map[string]bool, len(opParams))
 	for _, p := range opParams {
-		if key, ok := paramKey(p); ok {
+		if key, ok := paramKey(b, p); ok {
 			shadowed[key] = true
 		}
 	}
 	return shadowed
 }
 
-// paramKey builds the (in, name) identity of a parameter for merge dedup.
-func paramKey(rp *soa.ReferencedParameter) (string, bool) {
-	p := resolve.Object[soa.Parameter](rp)
+// paramKey builds the (in, name) identity of a parameter for merge dedup, read
+// through the bindings b, as the lowering reads it.
+func paramKey(b *typed.Bindings, rp *soa.ReferencedParameter) (string, bool) {
+	p := resolve.Object[soa.Parameter](b, rp)
 	if p == nil {
 		return "", false
 	}

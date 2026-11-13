@@ -10,7 +10,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -154,17 +153,14 @@ func TestExternalReads_IsSafeForConcurrentUse(t *testing.T) {
 		t.Run(fmt.Sprintf("doc%d", i), func(t *testing.T) {
 			t.Parallel()
 			tree := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
-			doc := &soa.OpenAPI{}
-			doc.InitCache()
 			for range 100 {
 				r.recordTree(key, tree, nil)
 				got, ok := r.preparedFor(key)
 				assert.True(t, ok)
 				assert.Same(t, tree, got)
-				assert.True(t, r.prepared(tree))
 				a := r.once(key, func() answer { return answer{body: []byte(key)} })
 				assert.Equal(t, key, string(a.body))
-				r.handOver(doc, nil)
+				r.adopt(key+"#again", key)
 			}
 		})
 	}

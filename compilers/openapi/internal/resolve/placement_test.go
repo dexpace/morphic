@@ -74,7 +74,6 @@ func TestScope_Target_WhereTheCompilerResolvedTheRef(t *testing.T) {
 	other, ok := b.doc.Bindings.Entry(b.component(t, "Other"))
 	require.True(t, ok)
 	assert.Equal(t, bind.Resolved, other.Hop.Status, "the $ref into another document resolved")
-	assert.False(t, other.Hop.Named, "but not in the source, whose pointers it spells")
 	got, ok := b.scope.Target(b.component(t, "Other"))
 	require.True(t, ok)
 	assert.Equal(t, bind.Position{Doc: other.Hop.Target.Doc, Pointer: "/components/schemas/E"}, got,

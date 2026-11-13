@@ -129,3 +129,27 @@ func assertReachedOutsideModel(t *testing.T, _ *ir.Document, diags []ir.Diagnost
 		diagsAt(diags, "openapi/validation/validation-type-mismatch", "/x-schemes/key/description"),
 		"the table's finding on the reached scheme, where the field is written (GitHub #879)")
 }
+
+// assertReferenceObjectChains pins reference objects bound by the compiler:
+// each reference resolves however it reads, through aliases, a `<<` list, a
+// path item $ref, a character above U+FFFF or a merged $ref, and what it names
+// lowers where it is declared, once (docs/compilers/openapi.md#references).
+func assertReferenceObjectChains(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	assert.Empty(t, diags, "every reference resolves")
+	op, ok := opByName(doc, "createOrder")
+	require.True(t, ok)
+	names := make([]string, 0, len(op.Params))
+	for _, p := range op.Params {
+		names = append(names, p.Name.Source)
+	}
+	assert.Equal(t, []string{"page", "limit", "cursor", "key"}, names)
+	assert.Equal(t, bodyAt("/paths/~1archive/post"), requestContent(t, op).Type.Target, "the body /archive declares")
+	h, ok := headerByWire(op.Responses[0].Headers, "X-Rate")
+	require.True(t, ok, "the header inside the raw response lowers")
+	assert.Equal(t, ir.TypeID("t/prim/integer"), h.Type.Target)
+	assert.Equal(t, bodyAt("/paths/~1drafts/put"), requestType(t, doc, "replaceOrder"), "the field beside the $ref")
+	page, ok := doc.Types[componentID("PageSize")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/anon/components/parameters/Page/schema"), page.Base.Target, "the schema Page declares")
+	assert.NotContains(t, doc.Types, ir.TypeID("t/anon/components/parameters/Alias/schema"), "no second node")
+}

@@ -202,6 +202,5 @@ func TestUnreachedKeys_NamesWhatOnlyAPassThatDidNotStandRead(t *testing.T) {
 			return &n, yaml.Unmarshal([]byte(docs[name]), &n)
 		}})
 
-	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table, nil))
-	assert.Empty(t, unreachedKeys(table, map[string]bool{"/a.yaml": true}))
+	assert.Equal(t, map[string]bool{"/a.yaml": true}, unreachedKeys(table))
 }

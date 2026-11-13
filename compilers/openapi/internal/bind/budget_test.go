@@ -47,9 +47,6 @@ x-lib:
 // budgetConfig is the configuration budgetSpec is bound under, at limit.
 func budgetConfig(limit budget.Limit) bind.Config {
 	cfg := withDocuments(map[string]string{"other.yaml": "S: {$ref: '#/T'}\nT: {type: string}\n"})
-	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
-		return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, name == "spec.yaml" && p == "/paths/~1a"
-	}
 	cfg.Limit = limit
 	return cfg
 }
@@ -490,9 +487,9 @@ func TestSpellings(t *testing.T) {
 		"raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no schema of " +
 			"the model whose definitions answer it, and neither the document's root nor a schema of the model " +
 			"above it holds one": {Reason: bind.RawDefinition},
-		"it names another document, and external references are not read":                    {Reason: bind.ExternalOff},
-		"the document it names could not be read: gone":                                      {Reason: bind.Unreadable, Detail: "gone"},
-		"its pointer passes through a reference that resolves to nothing the compiler reads": {Reason: bind.Unpassable},
+		"it names another document, and external references are not read": {Reason: bind.ExternalOff},
+		"the document it names could not be read: gone":                   {Reason: bind.Unreadable, Detail: "gone"},
+		"its pointer passes through a reference that does not resolve":    {Reason: bind.Unpassable},
 		"it reads a key that may lie past a `<<` merge chain deeper than the 64 levels the compiler expands": {
 			Reason: bind.MergeBound},
 		"it was not read within the budget": {Status: bind.OverBudget},

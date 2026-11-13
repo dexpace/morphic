@@ -259,6 +259,10 @@ testdata/conformance/openapi/param-style-matrix.yaml	75:60	validation-allowed-va
 testdata/conformance/openapi/param-style-matrix.yaml	76:65	validation-allowed-values	library	old-grammar
 testdata/conformance/openapi/querystring-forbidden-keywords.yaml	17:20	invalid-location-keyword	compiler	querystring-keywords
 testdata/conformance/openapi/querystring-forbidden-keywords.yaml	28:26	invalid-location-keyword	compiler	querystring-keywords
+testdata/conformance/openapi/reference-object-chains.yaml	16:11	validation-allowed-values	library	merged-ref
+testdata/conformance/openapi/reference-object-chains.yaml	16:11	validation-required-field	library	merged-ref
+testdata/conformance/openapi/reference-object-chains.yaml	16:11	validation-required-field	library	merged-ref
+testdata/conformance/openapi/reference-object-chains.yaml	20:18	validation-invalid-syntax	library	token-range
 testdata/conformance/openapi/relaxed-required-fields.yaml	9:7	validation-required-field	library	relaxed-requirement
 testdata/conformance/openapi/relaxed-required-fields.yaml	13:16	validation-required-field	library	relaxed-requirement
 testdata/conformance/openapi/relaxed-required-fields.yaml	18:7	validation-required-field	library	relaxed-requirement

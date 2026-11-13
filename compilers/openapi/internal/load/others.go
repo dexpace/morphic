@@ -102,13 +102,12 @@ func (o Others) index(name string) (int, bool) {
 }
 
 // unreachedKeys is the key of each document table read that nothing it holds is
-// in (bind.Document.Unreached), but those the parser's resolver read, whose
-// keys resolved holds: a reference object's chain reaches them, which the table
-// need not see. Such a document lowers nothing and is no input of the result.
-func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool {
+// in (bind.Document.Unreached). Such a document lowers nothing and is no input
+// of the result.
+func unreachedKeys(table *bind.Table) map[string]bool {
 	unused := map[string]bool{}
 	for id := range bind.DocID(table.Documents()) {
-		if d := table.Document(id); d.Unreached && !resolved[readKey(d.Name)] {
+		if d := table.Document(id); d.Unreached {
 			unused[readKey(d.Name)] = true
 		}
 	}
@@ -127,9 +126,7 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
 	for key := range read.data {
-		// The source is held under each spelling the resolver reaches it by,
-		// with no bytes of its own; it is Document.Sources' first entry.
-		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
+		if unused[key] {
 			continue
 		}
 		label, _ := labelOf(read.self.path, key)

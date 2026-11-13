@@ -7,29 +7,20 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
-	"iter"
 	"maps"
-	"net/http"
 	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/references"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
-	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/provenance"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -37,307 +28,27 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// external is what the resolver reads a document through when Options.Reader
-// lets a reference leave the source. It stands in for the resolver's file
-// system and HTTP client, reading every document through that reader, and
-// prepares each tree as Load does the source's: the same budgets and pre-parse
-// refusals, then readyForModel.
-//
-// The tree is stored where the resolver looks for a parsed document, so the
-// model builds from it, not from the resolver's own parse, which drops anchored
-// entries (docs/parser-library.md#anchored-entry-dropped, GitHub #501). Anchors
-// are released only behind the refusals, which reject a recursive one
-// (docs/parser-library.md#alias-cycle, GitHub #536).
+// external reads the documents a reference names beside the source, when
+// Options.Reader lets a reference leave the source (bind.Config.Open): each
+// through that reader, once in the compile however it is spelled, and prepared
+// as Load prepares the source: the same budgets and pre-parse refusals, then
+// readyForModel. Anchors are released only behind the refusals, which reject a
+// recursive one (docs/parser-library.md#alias-cycle, GitHub #536).
 type external struct {
-	doc  *soa.OpenAPI
 	opts Options
 	// read holds every document prepared and the answer each document's one
-	// read got, shared by the readers of one compile, so a second resolution is
-	// answered as the first was and handed what it prepared (see
-	// resolveExternal).
+	// read got.
 	read *externalReads
-	// held is the source as hold hands it to the resolver of doc, which Open
-	// hands it again under each other spelling the resolver opens it by.
-	held *heldSource
-	// work is what settle has spent resuming resolutions in doc's pass.
-	work *resumeWork
-	// ctx bounds the reads Open makes. The resolver's file system takes no
-	// context, so the one its resolution runs under is held here, as the
-	// resolution holds it.
-	ctx context.Context
+	// version is the source's OpenAPI version, whose rows read a document
+	// that declares none (readsID).
+	version string
 }
 
-// crossed reports each budget the reads through reader crossed, once every
-// read is in: the resolver's and the binding's.
-func crossed(place provenance.Doc, reader *external) []ir.Diagnostic {
-	return append(reader.work.exhausted(place), reader.read.exhausted(place)...)
-}
-
-// maxOpenedSpellings is the most spellings Open holds every object of the
-// source under. A spelling the scan found holds only the objects its $refs
-// name, so they cost no more than the $refs. One Open meets is one the scan
-// found no $ref to write, such as a schema's $ref the resolver rebased onto
-// its $id, and how many a document presents is its own. Past this, Open holds
-// the document alone and the resolver builds a copy of what a $ref names, as
-// for any document.
-const maxOpenedSpellings = 16
-
-// heldSource is what the resolver of one document is handed as the source:
-// each object of a referenced kind its model holds, by the pointer naming it,
-// the one key under which a reference object is held as itself, and the keys
-// the document is held under, each saying whether every object is held there
-// too. Every copy of the reader shares one, and mu guards all but itself,
-// which Open adds to while the resolver reads.
-type heldSource struct {
-	mu     sync.Mutex
-	bySite map[jsontext.Pointer]heldObject
-	itself string
-	keys   map[string]bool
-	// opened counts the spellings Open held every object under, against
-	// maxOpenedSpellings.
-	opened budget.Budget
-}
-
-// heldObject is an object the source's model holds, and the pointer naming it.
-type heldObject struct {
-	site jsontext.Pointer
-	obj  resolvable
-}
-
-// newExternal returns the reader for doc's external references, recording in
-// read what it prepares and how each document's read was answered. The
-// document's caches are initialized here rather than trusted to be, because
-// storing into an uninitialized one faults inside the library.
-func newExternal(ctx context.Context, doc *soa.OpenAPI, opts Options, read *externalReads) external {
-	doc.InitCache()
-	return external{doc: doc, opts: opts, read: read,
-		held: &heldSource{bySite: map[jsontext.Pointer]heldObject{}, keys: map[string]bool{},
-			opened: budget.New(budget.AtMost(maxOpenedSpellings))}, work: newResumeWork(),
-		ctx: ctx}
-}
-
-// hold stores the source where the resolver looks for a document it has read:
-// under each key it is looked up by with every object, and under each
-// spelling a $ref names it by with the objects those $refs name (see holdSite).
-// A $ref back into the source from another document reaches the source's own
-// objects, and no file is read (GitHub #759).
-//
-// A reference object is held as itself only under the key an internal $ref
-// resolves against, when no $self rebases it: the resolver resolves it there as
-// the source does. Elsewhere a stand-in is held (see externalReads.mend).
-func (e external) hold(ctx context.Context, sibs Siblings, media MediaTypes) {
-	if len(e.read.self.keys()) == 0 {
-		return
-	}
-	base := e.doc.GetSelf()
-	if base == "" {
-		e.held.itself = e.read.self.path
-		base = e.read.self.path
-	}
-	e.holdWalked(walkSource(ctx, e.doc, sibs, media))
-	e.holdSpellings(ctx, e.read.self.root, base)
-}
-
-// holdWalked is hold over the walk of e.doc the caller supplies, so a test can
-// hand it one that panics, which stops the walk where it stands, for the
-// resolution walk to report. It holds the source under its keys, then each
-// spelling recorded (see holdRecorded): a second resolution's. Only reference
-// objects are held: the resolver is never asked to resolve a schema.
-func (e external) holdWalked(items iter.Seq[soa.WalkItem]) {
-	keys := e.read.self.keys()
-	if len(keys) == 0 {
-		return
-	}
-	e.held.mu.Lock()
-	defer e.held.mu.Unlock()
-	// Deferred so a walk that stops early still holds the recorded spellings,
-	// and before the unlock.
-	defer e.holdRecorded()
-	for _, key := range keys {
-		e.holdDocument(key, true)
-	}
-	if _, err := eachModel(items, "source", func(site jsontext.Pointer, r resolvable) error {
-		o := heldObject{site: site, obj: r}
-		e.held.bySite[site] = o
-		for _, key := range keys {
-			e.holdObject(key, o)
-		}
-		return nil
-	}); err != nil {
-		return
-	}
-}
-
-// holdRecorded holds the source under each spelling recorded, and under it the
-// objects recorded there that the walk collected. The caller holds e.held.mu.
-func (e external) holdRecorded() {
-	for _, key := range e.read.spelled.keys() {
-		e.holdDocument(key, false)
-		for _, site := range e.read.spelled.at(key) {
-			if o, ok := e.held.bySite[site]; ok {
-				e.holdObject(key, o)
-			}
-		}
-	}
-}
-
-// holdSite holds the source under key for a $ref spelled by it that names site:
-// its document, and the object at site where it has one, once for each pair.
-// The resolver asks the cache for exactly the spelling and pointer a $ref
-// writes, so these are all it can ask for. A key every object is held under
-// holds site already.
-func (e external) holdSite(key string, site jsontext.Pointer) {
-	e.held.mu.Lock()
-	defer e.held.mu.Unlock()
-	whole, held := e.held.keys[key]
-	if whole {
-		return
-	}
-	if !held {
-		e.holdDocument(key, false)
-		e.read.spelled.note(key, "")
-	}
-	if o, ok := e.held.bySite[site]; ok && e.read.spelled.note(key, site) {
-		e.holdObject(key, o)
-	}
-}
-
-// holdOpened holds the source under name, a spelling Open was asked to open: its
-// document, and every object while maxOpenedSpellings allows.
-func (e external) holdOpened(name string) {
-	e.held.mu.Lock()
-	defer e.held.mu.Unlock()
-	if _, held := e.held.keys[name]; held {
-		return
-	}
-	whole := e.held.opened.Spend(1)
-	e.holdDocument(name, whole)
-	e.read.spelled.note(name, "")
-	if !whole {
-		return
-	}
-	for site, o := range e.held.bySite {
-		if e.read.spelled.note(name, site) {
-			e.holdObject(name, o)
-		}
-	}
-}
-
-// holdDocument stores the source's tree under key, and bytes beside it, which
-// the resolver needs to find before it reuses a held object. They are empty:
-// with a tree held beside them the resolver parses no bytes, but it copies them
-// whole whenever it reads the document through them, as it does for every
-// schema $ref naming the source's file, so the source's own would cost a copy
-// of the source each time. The tree is recorded as read from the bytes held.
-// whole says every object is held under key too. The caller holds e.held.mu.
-func (e external) holdDocument(key string, whole bool) {
-	e.held.keys[key] = whole
-	e.doc.StoreExternalDocumentInCache(key, e.read.self.root)
-	e.doc.StoreReferenceDocumentInCache(key, []byte{})
-	e.read.recordTree(key, e.read.self.root, []byte{})
-}
-
-// holdObject stores o under key: itself, or a stand-in for a reference object
-// held under any key but e.held.itself.
-func (e external) holdObject(key string, o heldObject) {
-	held := any(o.obj)
-	if key != e.held.itself && o.obj.IsReference() {
-		if stand, ok := e.read.standIn(o.obj); ok {
-			held = stand
-		}
-	}
-	e.doc.StoreReferencedObjectInCache(key+"#"+string(o.site), held)
-}
-
-// holdSpellings holds the source under each spelling a $ref in tree, read
-// against base as the resolver reads it, names the source by, before the
-// resolver looks one up: for each such $ref, the object it names. Spelled
-// otherwise, a back reference is not found held, and the resolver builds a copy
-// of what it names (see Open). It visits each node of tree once, following an
-// alias only to read a $ref's key and value, as the model does.
-func (e external) holdSpellings(ctx context.Context, tree *yaml.Node, base string) {
-	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		for _, ref := range writtenAt(n, "$ref") {
-			e.holdSpelling(references.Reference(ref.Value), base)
-		}
-		return nodeview.Descend
-	}}.Run(ctx, tree)
-}
-
-// writtenAt returns the scalar values the mapping n writes under key itself,
-// each alias followed: the pairs written in place, every copy, since a walk
-// visiting every node meets whatever a `<<` merges in where it is written.
-func writtenAt(n *yaml.Node, key string) []*yaml.Node {
-	var out []*yaml.Node
-	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
-		k, own := nodeview.KeyOf(n.Content[i])
-		if v := nodeview.Deref(n.Content[i+1]); own && k == key && v != nil && v.Kind == yaml.ScalarNode {
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-// holdSpelling holds the source under the key ref, read against base, names a
-// document by, for the pointer ref writes, when that document is the source.
-func (e external) holdSpelling(ref references.Reference, base string) {
-	uri := ref.GetURI()
-	if uri == "" {
-		return
-	}
-	abs, err := references.ResolveAbsoluteReference(ref, base)
-	if err != nil {
-		return
-	}
-	if !e.read.self.names(abs.AbsoluteReference) {
-		return
-	}
-	e.holdSite(abs.AbsoluteReference, fragment.Pointer(string(ref)))
-}
-
-// settle finishes resolving r, whose resolution returned err. It mends the
-// records r's chain holds (see externalReads.mend), and resumes a resolution
-// that stalled where mending cures it (see resumable): the library reports a
-// document as its bytes when it holds both them and the object a reference
-// names, and a hop resolved against bytes fails (GitHub #761). Each resumption
-// starts past the hop the last stalled at, so maxResolutionHops bounds them, and
-// is charged to e.work before it reads anything.
-func (e external) settle(ctx context.Context, r resolvable, opts references.ResolveOptions, err error) error {
-	for range maxResolutionHops {
-		c := resolutionChain(r)
-		resume, refused := e.resumable(c, err)
-		if refused != nil {
-			err = refused
-		}
-		if !resume {
-			break
-		}
-		e.read.mend(c, e.doc)
-		_, err = r.Resolve(ctx, opts)
-	}
-	e.read.mend(resolutionChain(r), e.doc)
-	return err
-}
-
-// Open serves the file name names as its one read in the compile answered it
-// (see externalReads.once), reading it the first time it is asked for (see
-// fetch).
-//
-// The source, spelled as no key holds it, is held under name and served as
-// held, not read. That is a spelling no $ref the resolver met was found by
-// (see holdSpellings), such as one under a schema's relative $id: the
-// resolver builds a copy of what it names, as it does of any document's. Every
-// object is held under it, up to maxOpenedSpellings of them.
-func (e external) Open(name string) (fs.File, error) {
-	if e.read.self.names(name) {
-		e.holdOpened(name)
-		return servedFile{Reader: bytes.NewReader(nil)}, nil
-	}
-	a := e.readAs(e.ctx, fileNamed(name), name, fileNamed(name))
-	if a.err != nil {
-		return nil, unread{a.err}
-	}
-	return servedFile{Reader: bytes.NewReader(a.body)}, nil
+// newExternal returns the reader of the documents the references of a source
+// declaring version name, recording in read what it prepares and how each
+// document's read was answered.
+func newExternal(version string, opts Options, read *externalReads) *external {
+	return &external{opts: opts, read: read, version: version}
 }
 
 // readAs answers the read of the document id names, asked for by the spelling
@@ -350,20 +61,14 @@ func (e external) readAs(ctx context.Context, id, key, location string) answer {
 	if e.opts.Reader == nil {
 		return answer{err: refused(key, "no reader was supplied to read it")}
 	}
-	if err := e.unnamed(key, location); err != nil {
-		return answer{err: err}
+	if err := e.unnamed(location); err != nil {
+		return answer{err: refused(key, err.Error())}
 	}
 	a := e.read.once(id, func() answer { return e.fetch(ctx, id, key, location) })
 	if a.err != nil {
 		return a
 	}
-	// Prepared under another spelling of the document, its tree is held where
-	// the resolver looks for one it read by key, as prepare holds it.
-	if tree, data, adopted := e.read.adopt(key, a.prepared); adopted {
-		e.doc.StoreExternalDocumentInCache(key, tree)
-		e.read.recordTree(key, tree, data)
-		e.holdSpellings(ctx, tree, key)
-	}
+	e.read.adopt(key, a.prepared)
 	return a
 }
 
@@ -386,27 +91,8 @@ func fileNamed(name string) string {
 	return clean
 }
 
-// Do answers req as the one read in the compile of the document at its URL
-// answered it (see externalReads.once), fetching it the first time it is
-// asked for (see fetch). A document read is a successful response; a failed
-// read is the client's error, which the resolver reports as the reference's
-// reason. A file URI comes here too, read as the file it names, the source
-// served as held, as by Open.
-//
-// The resolver looks a document up by its URL as net/url spells it, so an
-// absolute $ref spelled otherwise misses; resolveExternal recovers that
-// document (GitHub #538).
-func (e external) Do(req *http.Request) (*http.Response, error) {
-	key := req.URL.String()
-	if e.read.self.names(key) {
-		e.holdOpened(key)
-		return answer{}.response(req)
-	}
-	return e.readAs(req.Context(), documentID(key), key, key).response(req)
-}
-
 // documentID names the document a URL key, as a request spells it, reads: the
-// file a file URI names, as Open names one, or the URL itself.
+// file a file URI names, as fileNamed names one, or the URL itself.
 func documentID(key string) string {
 	if file, ok := refscope.FileOf(key); ok {
 		return fileNamed(file)
@@ -432,18 +118,12 @@ func (e external) fetch(ctx context.Context, id, key, location string) answer {
 	return answer{body: data, prepared: key}
 }
 
-// unnamed returns the refusal of the document under key, read at location,
-// unread, or nil: the one its $ref drew by how it is spelled, respelled for the
-// resolver (see refusedByName), or, for a read confined to Options.Within, a
-// file URI's. A file read at a path is no file URI, though its name, as the
-// resolver joins it, may start like one ("./file:a.yaml" is read as
-// "file:a.yaml").
-func (e external) unnamed(key, location string) error {
-	if why := e.read.self.escapes.refusalOf(key); why != nil {
-		return why
-	}
+// unnamed returns why a read confined to Options.Within refuses the document
+// read at location unread, or nil: a file URI names it. A file read at a path
+// is no file URI, though its name may start like one ("./file:a.yaml").
+func (e external) unnamed(location string) error {
 	if e.opts.Within != "" && isFileURI(location) {
-		return refused(key, "it is named by a file URI"+followedWhenAllowed)
+		return errors.New("it is named by a file URI" + followedWhenAllowed)
 	}
 	return nil
 }
@@ -519,12 +199,9 @@ func directoryNamed(dir string) string {
 	return strconv.Quote(dir)
 }
 
-// prepare stores the tree the bytes of the document id names parse to under
-// key, once the source's refusals pass it, its $refs rewritten as the
-// source's are (see escapes), and returns the bytes, which the resolver still
-// reads. It runs once per document read (see externalReads.once), and asks its
-// context last, as the resolver reads none
-// (docs/parser-library.md#resolution-unbounded).
+// prepare records the tree the bytes of the document id names parse to under
+// key, once the source's refusals pass it, readied as the source's is, and
+// returns the bytes. It runs once per document read (see externalReads.once).
 //
 // The byte budget is checked again, though the reader held the read to it:
 // admitting bytes past it would let a reader lift a budget the compile set.
@@ -546,10 +223,7 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 		return nil, err
 	}
 	readyForModel(ctx, root)
-	e.read.self.escapes.escape(ctx, root, key)
-	e.doc.StoreExternalDocumentInCache(key, root)
 	e.read.recordTree(key, root, data)
-	e.holdSpellings(ctx, root, key)
 	// A screen or walk above that a cancel cut short has admitted nothing.
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -557,8 +231,8 @@ func (e external) prepare(ctx context.Context, id, key string, data []byte) ([]b
 	return data, nil
 }
 
-// parseTree parses data as the resolver parses an external document, its first
-// document, and returns the parser's error for bytes that do not parse, or
+// parseTree parses data as the parser parses a document, its first document,
+// and returns the parser's error for bytes that do not parse, or
 // ctx's once it is done: the parse reads the bytes through ctx
 // (contextReader). Bytes holding no document parse to an empty tree, as
 // yaml.Unmarshal parses them.
@@ -603,9 +277,9 @@ func (e external) admit(ctx context.Context, key string, root *yaml.Node) error 
 // readsID returns whether the binder reads a schema of root, a document read
 // beside the source, written in dialect as naming its identifier `id`: by the
 // rows dialect has at the version root declares, or the source's, as the
-// binder asks them (bindSchemas).
+// binder asks them (bindAll).
 func (e external) readsID(root *yaml.Node) func(dialect string) bool {
-	d := &dialects{spec: e.read.self.judged.checker.Spec(), version: e.doc.GetOpenAPI()}
+	d := &dialects{spec: e.read.self.judged.checker.Spec(), version: e.version}
 	declared := declaredVersion(root)
 	return func(dialect string) bool {
 		_, _, rows := d.of(declared, dialect)
@@ -749,26 +423,8 @@ func nowhere() provenance.Tree {
 }
 
 // refused returns the error the read of the document under key fails with,
-// refused for reason, which the resolver reports as the reason each reference
-// naming it could not be resolved.
+// refused for reason, which the binder reports as the reason each reference
+// naming it could not be resolved (bind.Unreadable).
 func refused(key, reason string) error {
 	return fmt.Errorf("external document %s refused: %s", key, reason)
-}
-
-// servedFile serves bytes read already as the file the resolver opened: a
-// document's, from its one read, or those held for the source (see
-// holdDocument). The resolver reads it and closes it, and asks nothing else of
-// it.
-type servedFile struct {
-	*bytes.Reader
-}
-
-// Stat refuses: what is served was read, and no file is open.
-func (servedFile) Stat() (fs.FileInfo, error) {
-	return nil, fs.ErrInvalid
-}
-
-// Close releases nothing: there is nothing opened.
-func (servedFile) Close() error {
-	return nil
 }

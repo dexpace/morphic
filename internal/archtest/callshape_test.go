@@ -48,11 +48,10 @@ var callShapeBaseline = map[string]map[string]int{
 		"compilers/openapi/internal/schema":    6,
 	},
 	"compilers/openapi/internal/bind": {
-		// bind.Config's seven functions, which #1488 keeps under #1477's rule: I/O
-		// (Open), policy bind may not import (Locate, Refuse), a live query
-		// (Written), lookups through load's key normalization (Through, Beside),
-		// and a dialect's rows, built only once a schema names it (Dialect).
-		"compilers/openapi/internal/load": 7,
+		// bind.Config's four functions, which #1488 keeps under #1477's rule: I/O
+		// (Open), policy bind may not import (Locate, Refuse), and a dialect's
+		// rows, built only once a schema names it (Dialect).
+		"compilers/openapi/internal/load": 4,
 	},
 	"compilers/openapi/internal/load": {
 		// DocumentReader, through which load reads the documents references and
@@ -75,7 +74,7 @@ var callShapeBaseline = map[string]map[string]int{
 	"compilers/openapi/internal/nodeview": {
 		// What nodeview.Walk calls as it visits and leaves a node: traversal
 		// callbacks.
-		"compilers/openapi/internal/load":        7,
+		"compilers/openapi/internal/load":        3,
 		"compilers/openapi/internal/oas":         2,
 		"compilers/openapi/internal/overlay":     3,
 		"compilers/openapi/internal/sourceindex": 2,
@@ -93,12 +92,6 @@ var callShapeBaseline = map[string]map[string]int{
 		// the load reading the tree: a lazily built index.
 		"compilers/openapi/internal/load": 1,
 		"compilers/openapi/internal/scan": 1,
-	},
-	"compilers/openapi/internal/resolve": {
-		// resolve.Scope's Holds, Beside and Writes, which #1488 keeps under #1477's
-		// rule: a lazily built index (Holds), and queries of load's index of the
-		// fields written beside a path item $ref (Beside, Writes).
-		"compilers/openapi/internal/load": 3,
 	},
 	"engine/internal/atomicfile": {
 		// Replace calls the fill it is handed before it returns: an immediate

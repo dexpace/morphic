@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -91,20 +90,19 @@ func readsDraft4ID(dialect string) bool {
 
 // remoteReader is the reader of a 3.1 source's external references, judging
 // what it fetches against the rule table, as a load hands it one.
-func remoteReader(t *testing.T, doc *soa.OpenAPI) external {
+func remoteReader(t *testing.T) *external {
 	t.Helper()
-	doc.OpenAPI = "3.1.0"
 	self := sourceDocument{judged: judgment{checker: oas.NewChecker()}}
-	return newExternal(t.Context(), doc, Options{Reader: reader.Disk{}}, newExternalReads(self, budget.Unbounded()))
+	return newExternal("3.1.0", Options{Reader: reader.Disk{}}, newExternalReads(self, budget.Unbounded()))
 }
 
-// TestExternal_DoRefusesANetworkDocumentReachingALocalFile pins GitHub #929: a
+// TestExternal_DocumentRefusesANetworkDocumentReachingALocalFile pins GitHub #929: a
 // document fetched over the network that references a local file is refused
 // when it is prepared, before the file is opened, a $ref naming a file: URI or
 // an identifier rebasing one onto one. The refusal names the $ref and the
 // file, and the document is not stored. An absolute path names a resource on
 // the network (TestLocalTarget).
-func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
+func TestExternal_DocumentRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 	t.Parallel()
 	tests := map[string]struct{ body, reason string }{
 		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file file:///etc/passwd`},
@@ -129,15 +127,13 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 				assert.NoError(t, err)
 			})
 			key := srv.URL + "/remote.yaml"
-			req, err := http.NewRequest(http.MethodGet, key, nil)
-			require.NoError(t, err)
-			doc := &soa.OpenAPI{}
+			ext := remoteReader(t)
 
-			_, err = remoteReader(t, doc).Do(req)
+			_, err := ext.document(t.Context(), key)
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "external document "+key+" refused: it is fetched over the network and "+tc.reason)
-			_, ok := doc.GetCachedExternalDocument(key)
+			_, ok := ext.read.preparedFor(key)
 			assert.False(t, ok, "nothing is stored for a refused document")
 		})
 	}
@@ -208,11 +204,11 @@ func TestReachesLocal_NamesTheLeastOffenderInEitherOrder(t *testing.T) {
 	}
 }
 
-// TestExternal_DoReadsANetworkDocumentStayingOnTheHost pins the other side:
+// TestExternal_DocumentReadsANetworkDocumentStayingOnTheHost pins the other side:
 // a network document whose $refs stay on the host is prepared and stored, not
 // refused, and so is one whose example writes an `id` a drive letter would
 // spell, as no dialect it names reads one.
-func TestExternal_DoReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
+func TestExternal_DocumentReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]string{
 		"a relative $ref":       remoteDoc("./b.yaml#/x"),
@@ -226,15 +222,12 @@ func TestExternal_DoReadsANetworkDocumentStayingOnTheHost(t *testing.T) {
 				assert.NoError(t, err)
 			})
 			key := srv.URL + "/a.yaml"
-			req, err := http.NewRequest(http.MethodGet, key, nil)
-			require.NoError(t, err)
-			doc := &soa.OpenAPI{}
+			ext := remoteReader(t)
 
-			resp, err := remoteReader(t, doc).Do(req)
+			_, err := ext.document(t.Context(), key)
 
 			require.NoError(t, err)
-			t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })
-			_, ok := doc.GetCachedExternalDocument(key)
+			_, ok := ext.read.preparedFor(key)
 			assert.True(t, ok, "a document that stays on the host is prepared")
 		})
 	}

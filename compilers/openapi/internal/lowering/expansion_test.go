@@ -18,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering/loweringtest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/ir"
 )
@@ -312,8 +311,6 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	assert.True(t, param.Below("schema").Schema())
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c, "/paths/~1a/get/parameters/0/schema"),
 		"a schema is no object a $ref of this kind names")
-	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c.InScope(resolve.Scope{Foreign: true}), "/paths/~1a/get/parameters/0"),
-		"what another document holds, read at the source's coordinates, has no position of its own")
 }
 
 // TestChargeExpansion_ChargesTheRunsExpansion pins the two charges a copy made

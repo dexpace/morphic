@@ -23,14 +23,6 @@ type places struct {
 	table  *bind.Table
 }
 
-// site returns where a finding at the reference site s is placed.
-func (p places) site(s refSite) ir.Provenance {
-	if s.inSource() {
-		return p.source.At(s.pointer)
-	}
-	return p.in(s.doc, s.pointer)
-}
-
 // position returns where a finding at the position at of the bindings' table
 // is placed.
 func (p places) position(at bind.Position) ir.Provenance {

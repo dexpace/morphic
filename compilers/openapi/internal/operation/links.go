@@ -107,7 +107,7 @@ func draftLinks(c lowering.Ctx, r *soa.Response, rptr jsontext.Pointer) ([]linkD
 			continue
 		}
 		d, draftDiags := draftLink(lc, l, lptr, name)
-		d.docs = resolve.UseDocs[soa.Link](rl, d.docs)
+		d.docs = resolve.UseDocs[soa.Link](c.Bindings(), rl, d.docs)
 		d.at, d.use = c, use
 		drafts = append(drafts, d)
 		diags = append(diags, draftDiags...)

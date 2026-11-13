@@ -110,30 +110,6 @@ func TestFileOf(t *testing.T) {
 	}
 }
 
-// TestForResolver pins how a reference's document part is spelled for the
-// parser's resolver, so that its own join reads the document Locate names:
-// decoded where it names a file, and against an http(s) URL, as the URL Locate
-// names wherever the resolver reads another, as it reads an absolute path or a
-// network-path reference as a local file, any other part as written.
-func TestForResolver(t *testing.T) {
-	t.Parallel()
-	for _, c := range []struct{ uri, base, want string }{
-		{"my%20file.yaml", "/api/spec.yaml", "my file.yaml"},
-		{" my%20file.yaml ", "spec.yaml", "my file.yaml"},
-		{"common.yaml", "/api/spec.yaml", "common.yaml"},
-		{"/schemas/pet.yaml", "https://example.com/v1/a.yaml", "https://example.com/schemas/pet.yaml"},
-		{"//cdn.example.com/pet.yaml", "https://example.com/v1/a.yaml", "https://cdn.example.com/pet.yaml"},
-		{"pet%20s.yaml", "https://example.com/v1/a.yaml", "pet%20s.yaml"},
-		{"file:///etc/x.yaml", "https://example.com/v1/a.yaml", "file:///etc/x.yaml"},
-		{"/%zz", "https://example.com/v1/a.yaml", "/%zz"},
-		{"", "https://example.com/v1/a.yaml", ""},
-		{"../b.yaml", "https://example.com/v1/a.yaml", "../b.yaml"},
-		{"https://other.example/b.yaml", "https://example.com/v1/a.yaml", "https://other.example/b.yaml"},
-	} {
-		assert.Equal(t, c.want, ForResolver(c.uri, c.base), "%q in %q", c.uri, c.base)
-	}
-}
-
 // TestFilePart pins the file a reference's document part names: decoded, but
 // kept as written where decoding would name another document or text no IR
 // string holds, and for a URL, whose escapes are its own.

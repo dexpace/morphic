@@ -29,23 +29,24 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// resolverPanicSpec is a document the parser accepts and the resolver faults on:
-// `B: {$ref}` is a mapping whose $ref key carries no value, so populating the
-// response reference that points at it nil-dereferences inside speakeasy.
+// parserPanicSpec is a document the parser accepts and faults on building:
+// `B: {$ref}` is a mapping whose $ref key carries no value, so building the
+// response the reference names from it nil-dereferences inside the parser.
 // FuzzCycleDetector found it; the same bytes are committed as a corpus entry.
-const resolverPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
+const parserPanicSpec = "openapi: 3.0\ncomponents:\n responses:\n  000: {$ref: '#/B'}\nB: {$ref}"
 
-// TestCompile_ResolverPanicIsADiagnostic is the end-to-end half: the panic
-// becomes an ordinary unresolved-ref diagnostic, so a malformed spec is refused
-// as a spec problem rather than reported as a Go error or crashing the process.
-func TestCompile_ResolverPanicIsADiagnostic(t *testing.T) {
+// TestCompile_AParserPanicIsADiagnostic is the end-to-end half: the panic
+// building what a reference reaches becomes an ordinary openapi/validation
+// error at the reference, so a malformed spec is refused as a spec problem
+// rather than reported as a Go error or crashing the process.
+func TestCompile_AParserPanicIsADiagnostic(t *testing.T) {
 	t.Parallel()
 	doc, diags, err := openapi.New().Compile(t.Context(),
-		[]compilers.Source{{Path: "resolver-panic.yaml", Data: []byte(resolverPanicSpec)}},
+		[]compilers.Source{{Path: "parser-panic.yaml", Data: []byte(parserPanicSpec)}},
 		compilers.Options{})
 	require.NoError(t, err, "a malformed spec is a spec problem, not a Go error")
-	assert.NotNil(t, doc, "resolution failure does not stop the document being lowered")
-	openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+	assert.NotNil(t, doc, "a failed build does not stop the document being lowered")
+	assert.Equal(t, 1, countCode(diags, diag.Validation, "/components/responses/000"), "%+v", diags)
 }
 
 // TestCompile_AResolutionFailureIsReportedOnceAtItsRef pins the once-per-site
@@ -130,12 +131,12 @@ func TestCompile_AResolutionFailureIsReportedOnceAtItsRef(t *testing.T) {
 
 // TestCompile_AReferenceObjectToANonObjectIsReportedOnce pins what a reference
 // object whose $ref names a position holding no object of its kind draws
-// (GitHub #1044): one unresolved-ref error at the $ref, naming the kind as a
-// schema $ref to a position holding no schema is worded, and, when the chain
-// went through another reference object first, the $ref written at the hop
-// before. No finding stands beside it at the target, and it does not depend on
-// which $ref reaches the target first. A target with findings of its own
-// still reports them.
+// (GitHub #1044): one unresolved-ref error at the $ref whose own hop lands
+// there, naming the kind as a schema $ref to a position holding no schema is
+// worded, in whichever document writes it, and none at a reference whose chain
+// passes that one. No finding stands beside it at the target, and it does not
+// depend on which $ref reaches the target first. A target with findings of its
+// own still reports them.
 func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	const (
@@ -206,9 +207,7 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 			spec: openapitest.PathsSpec("  /x:\n    get:\n      parameters: [{$ref: '#/components/parameters/P'}]\n"+
 				"      responses: {\"200\": {description: ok}}\n") +
 				"components:\n  parameters:\n    P: {$ref: '#/x-lib/S'}\n" + stringLib,
-			pointer: "/paths/~1x/get/parameters/0",
-			message: `unresolved $ref "#/components/parameters/P", through "#/x-lib/S": ` +
-				"it names a position that holds no parameter",
+			pointer: "/components/parameters/P", message: notKind("parameter"),
 		},
 	}
 	for name, tc := range tests {
@@ -271,10 +270,9 @@ func TestCompile_AReferenceObjectToANonObjectIsReportedOnce(t *testing.T) {
 		require.NoError(t, err)
 
 		want := []ir.Diagnostic{{Severity: ir.SeverityError, Code: diag.UnresolvedRef,
-			Message: `unresolved $ref "mid.yaml#/P", through "#/S" in ` + filepath.Join(dir, "mid.yaml") +
-				": it names a position that holds no parameter",
-			Provenance: ir.Provenance{Pointer: "/paths/~1x/get/parameters/0"}}}
-		assert.Empty(t, cmp.Diff(want, diags), "the hop before names where it is written")
+			Message:    `unresolved $ref "#/S": it names a position that holds no parameter`,
+			Provenance: ir.Provenance{Source: 1, Pointer: "/P"}}}
+		assert.Empty(t, cmp.Diff(want, diags), "reported where the hop that fails is written, in mid.yaml")
 	})
 
 	t.Run("a target with findings of its own still reports them", func(t *testing.T) {

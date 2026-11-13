@@ -92,15 +92,15 @@ type child func(ctx context.Context, input []byte) string
 // children returns the calls a child can run, by name.
 func children() map[string]child {
 	return map[string]child{
-		"resolve":     resolveAll,
-		"targets":     resolveTargets,
-		"unmarshal":   unmarshal,
-		"goroutines":  goroutinesStarted,
-		"alive":       goroutinesAlive,
-		"orders":      unknownKeyOrders,
-		"allocations": allocations,
-		"chain-root":  chainRootAllocations,
-		"overlay":     applyOverlay,
+		"resolve":         resolveAll,
+		"targets":         resolveTargets,
+		"unmarshal":       unmarshal,
+		"decode-response": decodeResponse,
+		"goroutines":      goroutinesStarted,
+		"alive":           goroutinesAlive,
+		"orders":          unknownKeyOrders,
+		"allocations":     allocations,
+		"overlay":         applyOverlay,
 		// The binding oracle's library side.
 		"binding-oracle": libraryAnswers,
 		// Two whose ending is known, for the tests of probe itself.

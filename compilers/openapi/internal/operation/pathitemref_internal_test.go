@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -59,7 +60,7 @@ paths:
 	const usePtr = jsontext.Pointer("/paths/~1a")
 
 	for foreign, want := range map[bool]string{false: "does not reach", true: "in another document"} {
-		use := lowering.New(0, &load.Document{Doc: l.ctx.Doc}, lowering.Policy{})
+		use := lowering.New(0, &load.Document{Doc: l.ctx.Doc, Bindings: l.ctx.Bindings()}, lowering.Policy{})
 		if foreign {
 			scope := use.RefScope()
 			scope.Foreign, scope.Holder = true, "other.yaml"
@@ -76,12 +77,10 @@ paths:
 }
 
 // TestPathItemLayers_AOneLayerMountCostsItsLayerAlone pins what a mount with
-// nothing beside a $ref costs, which is nearly every mount: resolving its item,
-// the context lowering.Within gives that item, and the one-entry slice. A scope that Hops or
-// a sibling layer keeps takes its closure over a copy of the context with it,
-// so building one for every mount cost each that much more. The item is inline,
-// since Within's walk through a $ref allocates a varying count under the race
-// detector.
+// nothing beside a $ref costs, which is nearly every mount: resolving its item
+// and the one-entry slice. A scope that a sibling layer keeps takes its closure
+// over a copy of the context with it, so building one for every mount cost
+// each that much more.
 func TestPathItemLayers_AOneLayerMountCostsItsLayerAlone(t *testing.T) {
 	l, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -95,9 +94,9 @@ paths:
 	const usePtr = jsontext.Pointer("/paths/~1b")
 
 	within := testing.AllocsPerRun(20, func() {
-		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, usePtr)
-		lowering.Within[soa.PathItem](l.ctx, rp).Siblings()
+		resolve.ObjectAt[soa.PathItem](l.ctx.RefScope(), rp, bind.Position{Pointer: usePtr})
+		_ = l.ctx.Siblings()
 	})
 	layers := testing.AllocsPerRun(20, func() { pathItemLayers(l.ctx, rp, usePtr) })
-	assert.Equal(t, within+1, layers, "the item's resolution, Within's work and the one layer")
+	assert.Equal(t, within+1, layers, "the item's resolution and the one layer")
 }

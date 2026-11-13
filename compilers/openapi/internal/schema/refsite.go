@@ -155,14 +155,9 @@ func unresolvedWhy(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) stri
 }
 
 // unreadWhy is why the table holds nothing for model, a schema or a
-// discriminator: it lies in what a reference object resolved to where the
-// table could not place it (typed.Bindings.Unplaced), or the budget or the
-// merge bound stopped the reading (bind.Table.Unread).
+// discriminator: the budget or the merge bound stopped the reading
+// (bind.Table.Unread).
 func unreadWhy(refs *typed.Bindings, model any) string {
-	if site, ok := refs.Unplaced(model); ok {
-		return ": it is in what the reference at " + site + " resolved to, which the compiler " +
-			"cannot read where the parser placed it"
-	}
 	if why := refs.Table().Unread(); why != "" {
 		return ": " + why
 	}

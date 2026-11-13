@@ -120,6 +120,11 @@ var validationReasons = map[string]string{
 		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +
 		"scheme with no type, or an HTTP one with no scheme or an empty one, by the security scheme lowering " +
 		"(docs/compilers/openapi.md#security-requirements)",
+	"merged-ref": "the library reads a mapping whose $ref a `<<` merges in as an inline object, and holds it to " +
+		"that object's rules; the table reads it as a reference, as the document's JSON spells it " +
+		"(docs/compilers/openapi.md#references)",
+	"token-range": "the library refuses a $ref whose pointer holds a character above U+FFFF " +
+		"(docs/parser-library.md#pointer-token-range); RFC 6901 admits any",
 	"beside-ref": "the library models a Path Item that writes a $ref as the reference alone, and validates none of " +
 		"the fields beside it; the table reads them as the item's own, as the lowering does " +
 		"(docs/compilers/openapi.md#path-item-ref-fields)",

@@ -176,7 +176,7 @@ func lowerResponseParts(c lowering.Ctx, w walk, r *soa.Response, code string, rp
 	parts := responseParts{name: responseName(code), payload: payload, headers: headers}
 	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
 	diags = append(diags, summaryDiags...)
-	parts.docs = resolve.UseDocs[soa.Response](ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	parts.docs = resolve.UseDocs[soa.Response](c.Bindings(), ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
 	links, linkDiags := draftLinks(c, r, rptr)
 	parts.links = links
 	diags = append(diags, linkDiags...)

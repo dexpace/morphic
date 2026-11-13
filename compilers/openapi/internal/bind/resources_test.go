@@ -98,33 +98,27 @@ func TestBind_ReadsIdentifiers(t *testing.T) {
 				return
 			}
 			require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
-			assert.Equal(t, at(tc.want), e.Hop.Target)
-			assert.Equal(t, tc.want, e.Hop.Spelled, "an identifier is spelled where its schema is written")
+			assert.Equal(t, at(tc.want), e.Hop.Target, "an identifier is placed where its schema is written")
 			assert.Equal(t, bind.Schema, e.Hop.Role)
 		})
 	}
 }
 
 // TestBind_ReadsNoIdentifierTheModelIgnores pins where no identifier is read:
-// the fields beside a reference object's $ref, which the model ignores. One
-// written beside a path item's $ref is read, and refused as any pointer into
-// those fields is (GitHub #824).
+// the fields beside a reference object's $ref, which OpenAPI ignores. One
+// written beside a path item's $ref is read, as a mount reads those fields
+// (docs/compilers/openapi.md#path-item-ref-fields).
 func TestBind_ReadsNoIdentifierTheModelIgnores(t *testing.T) {
 	t.Parallel()
-	cfg := resolving
-	cfg.Beside = func(p jsontext.Pointer) (jsontext.Pointer, string, bool) {
-		if p == "/paths/~1a/parameters/0/schema" {
-			return "/paths/~1a", "parameters", true
-		}
-		return "", "", false
-	}
 	table := bound(t, "openapi: 3.1.0\ninfo: {title: t, version: '1'}\n"+
 		"paths:\n  /a:\n    $ref: '#/components/pathItems/I'\n    parameters: [{name: p, in: query, schema: {$anchor: i}}]\n"+
 		"components:\n  pathItems:\n    I: {}\n"+
 		"  parameters:\n    P: {$ref: '#/components/parameters/Q', schema: {$anchor: p}}\n    Q: {name: q, in: query}\n"+
-		"  schemas:\n    A: {$ref: '#p'}\n    B: {$ref: '#i'}\n", cfg)
+		"  schemas:\n    A: {$ref: '#p'}\n    B: {$ref: '#i'}\n", resolving)
 	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/A").Hop.Reason)
-	assert.Equal(t, bind.BesideRef, entryAt(t, table, "/components/schemas/B").Hop.Reason)
+	b := entryAt(t, table, "/components/schemas/B")
+	require.Equal(t, bind.Resolved, b.Hop.Status, b.Hop.Why())
+	assert.Equal(t, at("/paths/~1a/parameters/0/schema"), b.Hop.Target)
 }
 
 // TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument pins whose

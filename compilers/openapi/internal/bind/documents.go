@@ -19,12 +19,6 @@ import (
 // deeper.
 const maxPointerTokens = 1024
 
-// maxPasses bounds how many reference objects one read passes through. Each
-// is read on from where the parser's resolver ended its chain, and an end the
-// resolver places past another reference object is read on through that one
-// in turn (GitHub #762), so a loop of such ends stops here.
-const maxPasses = 64
-
 // errNotRead is why a reference to another document fails when the table
 // reads none (Config.Open is nil).
 var errNotRead = errors.New("other documents are not read")
@@ -180,10 +174,7 @@ func (d *docs) node(p Position) *yaml.Node {
 // compare orders positions as a table reads them: the source's first,
 // another document's by its name, then by pointer (comparePositions).
 func (d *docs) compare(p, q Position) int {
-	if c, ok := byName(p, q, d.name); ok {
-		return c
-	}
-	return comparePositions(p, q)
+	return compareNamed(p, q, d.name)
 }
 
 // name returns the name of the document id names.
@@ -216,9 +207,9 @@ func (d *docs) stateAt(p Position) state {
 	return stateOf(d.rootState(p.Doc), slices.Collect(p.Pointer.Tokens()))
 }
 
-// refOf is the $ref n carries, read through id's view as the source writes it,
-// and whether it carries a string one: a null $ref is none, as the parser
-// reads it.
+// refOf is the $ref n carries, read through id's view as the model reads the
+// mapping, a `<<` merging one in included, and whether it carries a string one:
+// a null $ref is none, as the parser reads it.
 func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 	if n = nodeview.Deref(n); n == nil || n.Kind != yaml.MappingNode {
 		return "", false
@@ -226,11 +217,6 @@ func (d *docs) refOf(id DocID, n *yaml.Node) (string, bool) {
 	v := nodeview.Deref(d.list[id].view.ChildByToken(n, "$ref"))
 	if v == nil || v.Kind != yaml.ScalarNode || v.Tag == "!!null" {
 		return "", false
-	}
-	if d.cfg.Written != nil {
-		if written, ok := d.cfg.Written(v); ok {
-			return written, true
-		}
 	}
 	return v.Value, true
 }
@@ -241,54 +227,6 @@ type reading struct {
 	at    Position
 	node  *yaml.Node
 	state state
-}
-
-// read reads pointer from the root of document id, as RFC 6901 reads it, and
-// through each reference object it passes, into what that names (through).
-func (d *docs) read(id DocID, pointer jsontext.Pointer) (reading, Reason) {
-	return d.readFrom(id, pointer, 0, nil)
-}
-
-// readFrom is read, having passed passes reference objects already. Given a
-// node to reach, it stops at the first position holding it, and names nothing
-// where none does. The pointer read so far is kept as bytes and spelled into
-// the reading only where one is passed on or returned, so a read costs its
-// pointer's length rather than its square.
-func (d *docs) readFrom(id DocID, pointer jsontext.Pointer, passes int, want *yaml.Node) (reading, Reason) {
-	r := reading{at: Position{Doc: id}, node: d.list[id].root, state: d.rootState(id)}
-	var soFar []byte
-	tokens := 0
-	for token := range pointer.Tokens() {
-		if tokens++; tokens > maxPointerTokens || !d.work.spend(1) {
-			return r.spelledAs(soFar), NoTarget
-		}
-		if referenceKinds[r.state] && d.writesRef(r) {
-			var reason Reason
-			if r, reason = d.through(r.spelledAs(soFar), passes); reason != NoReason {
-				return r, reason
-			}
-			soFar = append(soFar[:0], r.at.Pointer...)
-		}
-		if want != nil && nodeview.Deref(r.node) == want {
-			return r.spelledAs(soFar), NoReason
-		}
-		child := d.child(r.at.Doc, r.node, token)
-		if child == nil {
-			return r.spelledAs(soFar), d.absent(r.at.Doc, r.node)
-		}
-		soFar = append(soFar, jsontext.Pointer("").AppendToken(token)...)
-		r = reading{at: Position{Doc: r.at.Doc}, node: child, state: step(r.state, token)}
-	}
-	if want != nil && nodeview.Deref(r.node) != want {
-		return r.spelledAs(soFar), NoTarget
-	}
-	return r.spelledAs(soFar), NoReason
-}
-
-// writesRef reports whether r holds a $ref through would read on through.
-func (d *docs) writesRef(r reading) bool {
-	ref, ok := d.refOf(r.at.Doc, r.node)
-	return ok && ref != ""
 }
 
 // spelledAs is r at the pointer spelled in b.
@@ -325,36 +263,6 @@ func isIndex(token string) bool {
 		return false
 	}
 	return strings.Trim(token, "0123456789") == ""
-}
-
-// through carries r on to what the reference object at r names, where the
-// parser's resolver ended its chain (Config.Through), read at the same state:
-// a pointer through a response reads on in the response it names. The end is
-// read as any pointer is, through the reference objects it lies past, up to
-// the node the chain reached (ReferenceEnd, and
-// docs/parser-library.md#trailing-empty-token). An object writing no $ref is read
-// where it is, in whichever document.
-func (d *docs) through(r reading, passes int) (reading, Reason) {
-	if !d.writesRef(r) {
-		return r, NoReason
-	}
-	if d.cfg.Through == nil || passes >= maxPasses {
-		return r, Unpassable
-	}
-	e, ok := d.cfg.Through(d.list[r.at.Doc].name, r.at.Pointer)
-	if !ok {
-		return r, Unpassable
-	}
-	id, err := d.open(e.Name)
-	if err != nil {
-		return r, Unpassable
-	}
-	end, reason := d.readFrom(id, e.Pointer, passes+1, nodeview.Deref(e.Node))
-	if reason != NoReason {
-		return r, Unpassable
-	}
-	end.state = r.state
-	return end, NoReason
 }
 
 // schemaShaped reports whether n can be read as a schema: a mapping, or a

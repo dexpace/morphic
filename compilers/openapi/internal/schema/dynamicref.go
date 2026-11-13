@@ -28,18 +28,13 @@ import (
 // one schema resource (dynamicChainVerdict). The anchors are those of the
 // document the reference is written in, so one another document holds names its
 // own (GitHub #762). A $dynamicRef co-declared with a $ref, oneOf/anyOf or a
-// shape is irreducible too, as is one in content no position of a document
-// places.
+// shape is irreducible too.
 func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (at bind.Position, why string, ok bool) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {
 		return bind.Position{}, why, false
 	}
-	from, placed := c.Position(pointer)
-	if !placed {
-		return bind.Position{}, "it is written in what a reference resolved to, which no position of its document " +
-			"places, so nothing says whose $dynamicAnchor it names", false
-	}
+	from := c.Position(pointer)
 	at, why, ok = soleAnchorSite(c, name)
 	if !ok {
 		return bind.Position{}, why, false

@@ -27,8 +27,9 @@ const refKey = "$ref"
 // wrapper keeps none of them: its Object is nil on the $ref branch, so the
 // operations, parameters, servers, x-* and undeclared keys beside a $ref reach
 // no model (GitHub #577). Every pass of this phase reads them as part of the
-// source, so their references resolve, and their findings are reported, as the
-// document's own are. The zero value holds none.
+// source, so their references are indexed where the binder reads them, and
+// their findings are reported, as the document's own are. The zero value holds
+// none.
 type Siblings struct {
 	// byNode is each modelled use site's index in list, by the mapping it is
 	// written as, and faulted each use site the parser faulted on, whose fault
@@ -36,41 +37,6 @@ type Siblings struct {
 	byNode  map[*yaml.Node]int
 	faulted map[*yaml.Node]bool
 	list    []Sibling
-	// at holds every position the walk met a modelled use site at, an alias's
-	// included, with that use site's model.
-	at *sites
-	// writtenAs holds the mapping each reference object a model's walk met is
-	// written as, by its position there: every one but a schema, whose $ref is
-	// refused by pointer alone.
-	writtenAs map[jsontext.Pointer]*yaml.Node
-}
-
-// sites is a trie of positions by token, so Beside reads a pointer in one pass
-// over its tokens, stopping at the first no position continues with: the work
-// is bounded by the depth of the use sites, however long the pointer is.
-type sites struct {
-	next map[string]*sites
-	// use is the position ending here and model its use site's model, when one
-	// does.
-	use   jsontext.Pointer
-	model int
-	ends  bool
-}
-
-// insert records model as the use site at site.
-func (n *sites) insert(site jsontext.Pointer, model int) {
-	for token := range site.Tokens() {
-		child, ok := n.next[token]
-		if !ok {
-			if n.next == nil {
-				n.next = map[string]*sites{}
-			}
-			child = &sites{}
-			n.next[token] = child
-		}
-		n = child
-	}
-	n.use, n.model, n.ends = site, model, true
 }
 
 // Sibling is the fields one use site writes beside its $ref: the Path Item they
@@ -78,9 +44,6 @@ func (n *sites) insert(site jsontext.Pointer, model int) {
 type Sibling struct {
 	Item    *soa.PathItem
 	Pointer jsontext.Pointer
-	// keys holds the keys the fields are written under, as the parser reads the
-	// mapping, `<<` merge keys expanded.
-	keys map[string]bool
 }
 
 // Of returns the fields written beside rp's $ref, and false when rp is no
@@ -114,50 +77,6 @@ func (s Siblings) Unread(rp *soa.ReferencedPathItem) bool {
 		return false
 	}
 	return writesBeside(node)
-}
-
-// Beside returns the use site, and the key written beside its $ref, that pointer
-// passes through: a position the walk met a modelled path item $ref at,
-// followed by one of the keys its fields are written under. The resolver reads
-// such a pointer through the $ref into the item it names, so it never reaches
-// the field the source writes there (GitHub #824), and the lowering declares
-// that field at the very pointer. ok is false for any other pointer.
-func (s Siblings) Beside(pointer jsontext.Pointer) (use jsontext.Pointer, key string, ok bool) {
-	n, key, ok := s.useOf(pointer)
-	if !ok {
-		return "", "", false
-	}
-	return n.use, key, true
-}
-
-// useOf returns the position Beside names for pointer, with the key.
-func (s Siblings) useOf(pointer jsontext.Pointer) (*sites, string, bool) {
-	n := s.at
-	for token := range pointer.Tokens() {
-		if n == nil {
-			break
-		}
-		if n.ends && s.list[n.model].keys[token] {
-			return n, token, true
-		}
-		n = n.next[token]
-	}
-	return nil, "", false
-}
-
-// Writes reports whether obj, a reference object, is written as the mapping
-// the fields beside a path item $ref write at pointer: the field itself, held
-// or copied, rather than one the $ref names. With external references allowed,
-// the resolver can answer a pointer into those fields so, since the load phase
-// holds the source for it (external.hold). A pointer through an alias's
-// position reads the fields where their model was found. No schema is written.
-func (s Siblings) Writes(pointer jsontext.Pointer, obj any) bool {
-	n, _, beside := s.useOf(pointer)
-	if !beside {
-		return false
-	}
-	node, ok := s.writtenAs[s.list[n.model].Pointer+pointer[len(n.use):]]
-	return ok && nodeview.Deref(ownRoot(obj)) == node
 }
 
 // useSite returns the mapping rp, which must not be nil, is written as, through
@@ -213,48 +132,25 @@ func refBeside(n *yaml.Node) bool {
 // resolution walk meets the same fault at the same model, and reports it.
 func siblingsFrom(ctx context.Context, items iter.Seq[soa.WalkItem], tree provenance.Tree, build siblingBuild,
 ) (Siblings, []ir.Diagnostic) {
-	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}, at: &sites{},
-		writtenAs: map[jsontext.Pointer]*yaml.Node{}}
+	s := Siblings{byNode: map[*yaml.Node]int{}, faulted: map[*yaml.Node]bool{}}
 	var faults []ir.Diagnostic
-	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) {
+	met := func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
 		faults = append(faults, s.add(ctx, site, rp, build, tree)...)
-	}
-	// A model's walk also records what each reference object in it is written
-	// as; the document's matches its path items alone.
-	inModel := func(site jsontext.Pointer, w referenceWrapper) error {
-		if _, schema := w.(*schemaRef); !schema {
-			s.write(site, w)
-		}
-		if rp, isItem := w.(*soa.ReferencedPathItem); isItem {
-			met(site, rp)
-		}
 		return nil
 	}
-	_, err := eachModel(items, "sibling search", func(site jsontext.Pointer, rp *soa.ReferencedPathItem) error {
-		met(site, rp)
-		return nil
-	})
+	_, err := eachModel(items, "sibling search", met)
 	// The document's walk, then each model's in turn, until one panics or ctx
 	// is done.
 	for i := 0; err == nil && i < len(s.list) && i < sourceindex.MaxIndexedNodes && ctx.Err() == nil; i++ {
-		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", inModel)
+		_, err = eachModel(s.modelWalk(ctx, i), "sibling search", met)
 	}
 	return s, faults
 }
 
-// write records the mapping w, met at site in a model's walk, is written as.
-// One with none is not recorded, so no answer without one is taken for it.
-func (s *Siblings) write(site jsontext.Pointer, w referenceWrapper) {
-	if node := nodeview.Deref(ownRoot(w)); node != nil {
-		s.writtenAs[site] = node
-	}
-}
-
 // add models the fields rp's use site writes beside its $ref, at site. It does
 // nothing for an rp that is no reference, nor for a mapping holding nothing
-// beside the $ref; a mapping already met is only noted at site. A mapping the
-// parser faulted on holds no model, and its fault is returned as an error
-// diagnostic instead.
+// beside the $ref, nor for a mapping already met. A mapping the parser faulted
+// on holds no model, and its fault is returned as an error diagnostic instead.
 func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.ReferencedPathItem, build siblingBuild,
 	tree provenance.Tree,
 ) []ir.Diagnostic {
@@ -265,8 +161,7 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 	if s.faulted[node] {
 		return nil
 	}
-	if i, seen := s.byNode[node]; seen {
-		s.at.insert(site, i)
+	if _, seen := s.byNode[node]; seen {
 		return nil
 	}
 	fields, ok := withoutRef(node)
@@ -280,20 +175,8 @@ func (s *Siblings) add(ctx context.Context, site jsontext.Pointer, rp *soa.Refer
 			"the fields written beside this path item's $ref could not be read: %s", err.Error())}
 	}
 	s.byNode[node] = len(s.list)
-	s.at.insert(site, len(s.list))
-	s.list = append(s.list, Sibling{Item: item, Pointer: site, keys: writtenKeys(fields)})
+	s.list = append(s.list, Sibling{Item: item, Pointer: site})
 	return nil
-}
-
-// writtenKeys returns the keys the mapping fields, a use site less its $ref, is
-// written under, read as the parser reads it.
-func writtenKeys(fields *yaml.Node) map[string]bool {
-	pairs := nodeview.Pairs(fields)
-	written := make(map[string]bool, len(pairs))
-	for _, p := range pairs {
-		written[p.Key] = true
-	}
-	return written
 }
 
 // withoutRef returns a copy of the mapping node less every pair keyed $ref,

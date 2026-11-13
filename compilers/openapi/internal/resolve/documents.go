@@ -26,14 +26,12 @@ func documentOf(ref references.Reference, base string) (string, bool) {
 }
 
 // Locate returns the document uri, the part of a reference before its '#',
-// names when written in the document at base, spelled as the parser's resolver
-// spells what it reads (references.ResolveAbsoluteReference), and false where
-// it names none. It is the one reading of a document part, the binder's and
-// the resolver's, departing from the resolver's own thrice: against an
-// http(s) URL, an absolute path resolves by RFC 3986 §5.2; a file path is read
-// decoded (FilePart); and a relative path whose first segment holds a colon
-// keeps a leading "./" (RFC 3986 §4.2). The load phase respells the first
-// two for the resolver (ForResolver).
+// names when written in the document at base, spelled as the parser library
+// joins one (references.ResolveAbsoluteReference), and false where it names
+// none. It is the one reading of a document part, departing from the
+// library's join thrice: against an http(s) URL, an absolute path resolves by
+// RFC 3986 §5.2; a file path is read decoded (FilePart); and a relative path
+// whose first segment holds a colon keeps a leading "./" (RFC 3986 §4.2).
 func Locate(uri, base string) (string, bool) {
 	uri = strings.TrimSpace(uri)
 	if b, ok := networkURL(base); ok && uri != "" {
@@ -51,29 +49,6 @@ func Locate(uri, base string) (string, bool) {
 		located = "./" + located
 	}
 	return located, true
-}
-
-// ForResolver returns uri, the document part of a reference written in the
-// document at base, spelled so that the parser's resolver, joining it its own
-// way, reads the document Locate names: as the file it names (FilePart), and,
-// against an http(s) URL, as the URL Locate names wherever the resolver's own
-// reading names another, as it does an absolute path or a network-path
-// reference, which it reads as a local file. So no reference in a document
-// fetched over the network is read where Locate does not place it.
-func ForResolver(uri, base string) string {
-	uri = strings.TrimSpace(uri)
-	if _, ok := networkURL(base); !ok {
-		return FilePart(uri)
-	}
-	located, ok := Locate(uri, base)
-	if !ok {
-		return uri
-	}
-	own, err := references.ResolveAbsoluteReference(references.Reference(uri), base)
-	if err == nil && own.AbsoluteReference == located {
-		return uri
-	}
-	return located
 }
 
 // networkURL returns base parsed as an http or https URL, and false for any

@@ -17,11 +17,9 @@ import (
 func canaries() map[string]func(t *testing.T) {
 	return map[string]func(t *testing.T){
 		"schema-cycle-overflow":  schemaCycleOverflow,
-		"resolution-unbounded":   resolutionUnbounded,
 		"defs-order":             defsOrder,
 		"mapping-unresolved":     mappingUnresolved,
 		"reference-object-cycle": referenceObjectCycle,
-		"reference-chain-walk":   referenceChainWalk,
 		"root-defs":              rootDefs,
 		"alias-cycle":            aliasCycle,
 		"alias-expansion":        aliasExpansion,
@@ -43,6 +41,8 @@ func canaries() map[string]func(t *testing.T) {
 		"null-type-is-empty":     nullTypeIsEmpty,
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
+		"merge-list-pointer":     mergeListPointer,
+		"pointer-token-range":    pointerTokenRange,
 		"context-unread":         contextUnread,
 		"media-type-references":  mediaTypeReferences,
 	}

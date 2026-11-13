@@ -793,7 +793,7 @@
     {
       "severity": "error",
       "code": "openapi/unresolved-ref",
-      "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": not found -- key missingAuth not found in sequencedmap.Map",
+      "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": it names nothing in the document it points into",
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/brokenRefAuth"

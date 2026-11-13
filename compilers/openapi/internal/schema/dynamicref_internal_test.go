@@ -16,7 +16,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -116,25 +115,6 @@ func TestDynamicHop_HopsOnlyWhenExactlyOneAnchorSiteIsNamed(t *testing.T) {
 			assert.Equal(t, tc.wantNext, next.Pointer)
 		})
 	}
-}
-
-// TestDynamicExpansion_ReadsNoAnchorsForContentNoDocumentPlaces pins that content
-// read at the source's coordinates with no position of its document expands
-// against nothing, the source's anchors included.
-func TestDynamicExpansion_ReadsNoAnchorsForContentNoDocumentPlaces(t *testing.T) {
-	t.Parallel()
-	l, diags := LoweredFor(t, openapitest.ComponentSpec("    Node: {$dynamicAnchor: n, type: object}\n    D: {$dynamicRef: '#n'}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	js, ok := l.Ctx.Doc.GetComponents().GetSchemas().Get("D")
-	require.True(t, ok)
-
-	_, _, expanded := dynamicExpansion(l.Ctx, js.GetSchema(), "/components/schemas/D")
-	require.True(t, expanded, "read in the source it expands")
-
-	foreign := l.Ctx.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"})
-	_, why, expanded := dynamicExpansion(foreign, js.GetSchema(), "/components/schemas/D")
-	assert.False(t, expanded)
-	assert.Contains(t, why, "no position of its document")
 }
 
 // TestAnchorHolds_NeedsASchemaInAnotherDocument pins the target a position of

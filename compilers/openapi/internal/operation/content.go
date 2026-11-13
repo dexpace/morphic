@@ -67,10 +67,9 @@ type mediaDecl struct {
 // declaredMedia returns what the content entry media, written at mediaPtr in
 // c's document, stands for (mediaDecl), and false for one written as a $ref
 // resolving to nothing, which lowers nothing, as any reference object does
-// (docs/compilers/openapi.md#references). The load phase or the rule table
-// reported why, but for a $ref inside an object reached in raw YAML
-// (GitHub #1320) or one the model decodes no string from (GitHub #1368). Keys
-// beside the $ref but summary and description are not read (GitHub #1321).
+// (docs/compilers/openapi.md#references), where the load phase reported why.
+// Keys beside the $ref but summary and description are not read (GitHub
+// #1321).
 //
 // One declaration lowers at its own pointer however many entries name it, so
 // it interns one type (GitHub #856).
@@ -100,7 +99,7 @@ func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagno
 		d.ctx.Place(), d.pointer, "")
 	docs := ir.Docs{Description: description}
 	if d.use != nil {
-		docs = resolve.UseDocs[soa.MediaType](d.use, docs)
+		docs = resolve.UseDocs[soa.MediaType](d.entryCtx.Bindings(), d.use, docs)
 	}
 	if !read {
 		return docs, nil, diags

@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -103,40 +102,27 @@ components:` + a.components + "\n"
 // $ref whose pointer passes a reference lowers what it reaches where that is
 // declared, at the end of the reference's chain, so it and a $ref spelled to
 // the declaration name one node (docs/compilers/openapi.md#references). The
-// alias is declared before what it names, and each spec compiles alike with
-// every mapping reversed.
+// alias is declared before what it names.
 func TestReferenceIdentity_ASchemaRefThroughAnAliasIsOneNode(t *testing.T) {
 	t.Parallel()
 	for _, a := range aliasesPassed {
 		t.Run(a.name, func(t *testing.T) {
 			t.Parallel()
-			spec := identitySpec(a)
-			doc, diags := parseFull(t, spec)
-			assertNoErrorDiags(t, diags)
-			declared := ir.TypeID("t/anon" + a.spell("Y"))
-			require.Contains(t, doc.Types, declared, "the schema lowers where it is declared")
-			alias := ir.TypeID("t/anon" + a.spell("X"))
-			assert.NotContains(t, doc.Types, alias, "and at no pointer an alias spells")
-			for _, name := range []string{"through", "direct"} {
-				op, ok := opByName(doc, name)
-				require.True(t, ok, name)
-				assert.Equal(t, declared, firstContent(t, op).Type.Target, "%s types its body by that node", name)
-			}
-
-			assertOrderFree(t, spec)
+			refSpec{spec: identitySpec(a)}.inBothOrders(t, func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+				t.Helper()
+				assertNoErrorDiags(t, diags)
+				declared := ir.TypeID("t/anon" + a.spell("Y"))
+				require.Contains(t, doc.Types, declared, "the schema lowers where it is declared")
+				alias := ir.TypeID("t/anon" + a.spell("X"))
+				assert.NotContains(t, doc.Types, alias, "and at no pointer an alias spells")
+				for _, name := range []string{"through", "direct"} {
+					op, ok := opByName(doc, name)
+					require.True(t, ok, name)
+					assert.Equal(t, declared, firstContent(t, op).Type.Target, "%s types its body by that node", name)
+				}
+			})
 		})
 	}
-}
-
-// assertOrderFree compiles spec as written and with every mapping reversed,
-// and requires one type registry and one set of findings of the two. Neither
-// may hold an error, since harness.Check's order oracle runs only past them.
-func assertOrderFree(t *testing.T, spec string) {
-	t.Helper()
-	forward, forwardDiags := parseFull(t, spec)
-	back, backDiags := parseFull(t, string(reversed(t, spec)))
-	assert.Empty(t, cmp.Diff(typesJSON(t, forward), typesJSON(t, back)), "one registry in either order")
-	assert.Equal(t, placedFindings(forwardDiags), placedFindings(backDiags), "one set of findings in either order")
 }
 
 // typesJSON is doc's type registry encoded, keys sorted.

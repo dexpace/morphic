@@ -75,25 +75,24 @@ var unreadSchemaRefs = []struct{ name, file, at string }{
 	{"schema-empty-token-stays", "cycle_schema_empty_token_stays", "/components/schemas/A"},
 }
 
-// referenceObjectCycles are chains of reference objects that cycle, or whose
-// pointer passes back through a reference on the chain, with a reference each
-// is reported unresolved at. The resolver follows such a chain in a loop and
-// reports it, so the compile reaches the lowering (GitHub #574).
+// referenceObjectCycles are chains of reference objects that loop, reported as
+// one loop at its least member, or whose pointer passes a reference that
+// cannot resolve before it does, reported unresolved where its own hop fails.
 var referenceObjectCycles = []struct {
 	name, file string
-	at         string
+	code, at   string
 }{
-	{"path-item-mutual", "cycle_path_item_mutual", "/paths/~1a"},
-	{"path-item-self", "cycle_path_item_self", "/paths/~1a"},
-	{"webhook-mutual", "cycle_webhook_mutual", "/webhooks/onA"},
-	{"response-via-path", "cycle_response_via_path", "/paths/~1a/get/responses/200"},
-	{"path-item-via-component", "cycle_path_item_via_component", "/paths/~1a"},
-	{"path-item-prefix-self", "cycle_path_item_prefix_self", "/paths/~1a"},
-	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling", "/paths/~1a"},
-	{"path-item-prefix-chain", "cycle_path_item_prefix_chain", "/paths/~1b"},
-	{"component-path-item-prefix", "cycle_component_path_item_prefix", "/components/pathItems/A"},
-	{"webhook-prefix-self", "cycle_webhook_prefix_self", "/webhooks/onA"},
-	{"path-item-empty-segment", "cycle_path_item_empty_segment", "/components/pathItems/A"},
+	{"path-item-mutual", "cycle_path_item_mutual", diag.CyclicRef, "/paths/~1a"},
+	{"path-item-self", "cycle_path_item_self", diag.CyclicRef, "/paths/~1a"},
+	{"webhook-mutual", "cycle_webhook_mutual", diag.CyclicRef, "/webhooks/onA"},
+	{"response-via-path", "cycle_response_via_path", diag.CyclicRef, "/paths/~1a/get/responses/200"},
+	{"path-item-via-component", "cycle_path_item_via_component", diag.CyclicRef, "/components/pathItems/X"},
+	{"path-item-prefix-self", "cycle_path_item_prefix_self", diag.UnresolvedRef, "/paths/~1a"},
+	{"path-item-prefix-sibling", "cycle_path_item_prefix_sibling", diag.UnresolvedRef, "/paths/~1a"},
+	{"path-item-prefix-chain", "cycle_path_item_prefix_chain", diag.UnresolvedRef, "/paths/~1b"},
+	{"component-path-item-prefix", "cycle_component_path_item_prefix", diag.UnresolvedRef, "/components/pathItems/A"},
+	{"webhook-prefix-self", "cycle_webhook_prefix_self", diag.UnresolvedRef, "/webhooks/onA"},
+	{"path-item-empty-segment", "cycle_path_item_empty_segment", diag.UnresolvedRef, "/components/pathItems/A"},
 }
 
 // TestCycleReproducers_EveryFixtureIsExercised holds the four fixture tables
@@ -481,11 +480,14 @@ func TestCompile_ALoopThroughAnotherDocumentIsReportedOnce(t *testing.T) {
 	}
 }
 
-// TestCompile_ReferenceObjectCycleIsReportedUnresolved pins what the compile
-// does with a chain of reference objects that fails: it reaches the lowering,
-// and the resolver's failure is reported unresolved at the reference, never as
-// a cycle refused before parsing.
-func TestCompile_ReferenceObjectCycleIsReportedUnresolved(t *testing.T) {
+// TestCompile_AFailingChainOfReferenceObjectsIsReportedOnce pins what the
+// compile does with a chain of reference objects that fails: it reaches the
+// lowering, never refused before parsing, and is reported once, a loop as
+// openapi/cyclic-ref at its least member, as a loop of schema $refs is
+// (docs/compilers/openapi.md#reference-cycles), and a pointer passing a
+// reference that cannot resolve before it does as openapi/unresolved-ref at the
+// $ref whose own hop fails (docs/compilers/openapi.md#references).
+func TestCompile_AFailingChainOfReferenceObjectsIsReportedOnce(t *testing.T) {
 	t.Parallel()
 	for _, tc := range referenceObjectCycles {
 		t.Run(tc.name, func(t *testing.T) {
@@ -494,11 +496,13 @@ func TestCompile_ReferenceObjectCycleIsReportedUnresolved(t *testing.T) {
 			_, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.file + ".yaml", Data: data}}, compilers.Options{})
 			require.NoError(t, err, "a failing reference is a spec problem, not a Go error")
+			var reports []string
 			for _, d := range diags {
-				assert.NotEqual(t, diag.CyclicRef, d.Code, "the resolver reports this itself: %+v", d)
+				if d.Severity == ir.SeverityError {
+					reports = append(reports, d.Code+" "+string(d.Provenance.Pointer))
+				}
 			}
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedRef, tc.at),
-				"the reference is reported unresolved at %s; got %+v", tc.at, diags)
+			assert.Equal(t, []string{tc.code + " " + tc.at}, reports, "%+v", diags)
 		})
 	}
 }
@@ -616,22 +620,23 @@ components:
 `},
 }
 
-// TestDetectCycles_ComponentOnlyCyclesLeftToResolver pins that a cycle of
-// reference objects held in components is no cycle to the alias scan, and is
-// reported unresolved by the parser's resolver, where a loop of schema $refs
-// is the compiler's own to report.
-func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
+// TestDetectCycles_ComponentOnlyCyclesAreLoopsNotAliasCycles pins that a
+// cycle of reference objects held in components is no cycle to the alias
+// scan, which refuses a document, and is reported as a loop of $refs, which
+// refuses nothing (docs/compilers/openapi.md#reference-cycles).
+func TestDetectCycles_ComponentOnlyCyclesAreLoopsNotAliasCycles(t *testing.T) {
 	t.Parallel()
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, scan.Aliases(t.Context(), provenance.Tree{}, ir.Provenance{}, scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus)),
-				"a components-only cycle is the resolver's to report")
+				"a components-only cycle is no alias cycle")
 
-			_, diags, err := openapi.New().Compile(t.Context(),
+			doc, diags, err := openapi.New().Compile(t.Context(),
 				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
 			require.NoError(t, err)
-			openapitest.AssertHasCode(t, diags, diag.UnresolvedRef, ir.SeverityError)
+			assert.NotNil(t, doc, "a loop refuses nothing")
+			openapitest.AssertHasCode(t, diags, diag.CyclicRef, ir.SeverityError)
 		})
 	}
 }
@@ -666,14 +671,6 @@ components:
 info: {title: t, version: '1'}
 paths: {}
 x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
-`},
-	{"responses-ref-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  responses:
-    A: {$ref: '#/components/responses/B'}
-    B: {$ref: '#/components/responses/A'}
 `},
 	{"allof-wrapped-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
@@ -828,8 +825,9 @@ func FuzzCycleDetector(f *testing.F) {
 // TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders pins that a
 // pointer through a reference already on its chain is reported the same way
 // whichever reference is declared first: /b's pointer passes through /a, whose
-// own $ref leads to /b. Each is reported unresolved where it is written, and
-// neither is refused as a cycle.
+// own $ref leads to /b, so /b's hop needs its own resolution and resolves to
+// nothing. It is reported unresolved where it is written, /a's own hop, which
+// lands on /b, is not, and neither is refused as a cycle.
 func TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths:\n"
@@ -849,7 +847,7 @@ func TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders(t *testing.T
 				require.Equal(t, diag.UnresolvedRef, d.Code, "%+v", d)
 				sites = append(sites, string(d.Provenance.Pointer))
 			}
-			assert.ElementsMatch(t, []string{"/paths/~1a", "/paths/~1b"}, sites)
+			assert.Equal(t, []string{"/paths/~1b"}, sites)
 		})
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -90,7 +89,7 @@ func TestExternal_AdmitRefusesPointersPastTheAllowance(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+longKeysDeep(60, 10000)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
+	err = newExternal("", Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")

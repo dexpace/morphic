@@ -319,8 +319,8 @@ type Limits struct {
 	// it. A document past it is not read, each reference into it is reported
 	// unresolved, and the compile reports openapi/budget-exceeded once. It
 	// bounds how many documents are read, not their size, which MaxSourceBytes
-	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
-	// neither (docs/parser-library.md#resolution-unbounded).
+	// and MaxSourceNodes bound one at a time
+	// (docs/compilers/openapi.md#source-budgets).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 	// MaxReferenceExpansion bounds what lowering copies through $refs and path
 	// items. A declaration a $ref names, a schema aside, lowers again at every

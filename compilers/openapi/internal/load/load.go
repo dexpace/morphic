@@ -75,12 +75,6 @@ type Options struct {
 	// cancels at the start of a phase through it, and lists the phases a load
 	// enters.
 	entered func(phase)
-	// rebuildDoc rebuilds the model for resolveExternal's second pass, or nil for
-	// unmarshal itself. It is unexported because it is this package's test seam:
-	// the rebuild repeats an unmarshal that already succeeded on the same bytes
-	// and tree, and unmarshal depends on nothing else, so only a substitute
-	// reaches the error build returns for a failed rebuild.
-	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error)
 }
 
 // readyForModel readies every node of the model's source tree, in one walk: it
@@ -91,8 +85,7 @@ type Options struct {
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
 // GitHub #459). That skip is the only read of a name; an alias reaches its
 // target by a kept pointer. Run it after the pre-parse refusals, which read
-// names. A document read through external is readied too (GitHub #501), and
-// replaces the resolver's own parse on a second resolution (GitHub #538).
+// names. A document read through external is readied too (GitHub #501).
 func readyForModel(ctx context.Context, root *yaml.Node) {
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
 	// is judged from its parent, which knows whether it is a key.
@@ -140,26 +133,24 @@ func mistagged(n *yaml.Node, i int) bool {
 // its own, which the CLI reports on the channel it uses for being invoked wrong.
 var ErrParse = errors.New("parse source")
 
-// Document is the successful output of the load phase: a parsed, resolved
-// speakeasy document plus the identity metadata the rest of the compiler needs.
+// Document is the successful output of the load phase: a parsed speakeasy
+// document, where each of its references lands, and the identity metadata the
+// rest of the compiler needs.
 // A nil *Document with error-severity diagnostics means the source is a spec
 // problem the compiler refuses to lower (e.g. an unsupported version). The
 // normalized "openapi" + major.minor format reaches the IR through
 // Source.Format alone; Document does not separately carry a
 // compilers.SourceFormat, since nothing downstream ever read one.
 type Document struct {
-	Doc    *soa.OpenAPI  // parsed, reference-resolved document
+	Doc    *soa.OpenAPI  // parsed document, whose references Bindings resolve
 	Source ir.SourceInfo // the entry Document.Sources records for this source
 	// Location is where the source lies, as its references are read against
 	// (see Location).
 	Location string
-	// Bindings answers where each schema $ref lands and where its chain ends,
-	// as the compiler resolved it (bindSchemas), and the schemas there.
+	// Bindings answers where each $ref lands and where its chain ends, a
+	// schema's or a Reference Object's, as the compiler resolved it (bindAll),
+	// and the models there.
 	Bindings *typed.Bindings
-	// Holds is resolve.Scope.Holds, answered from an index of the raw YAML
-	// the model reads on in, which builds each mapping's index once, whoever
-	// asks (GitHub #778).
-	Holds func(raw *yaml.Node, token string) bool
 	// Overlay attributes the positions an applied overlay is answerable for. Its
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
@@ -241,8 +232,6 @@ func Load(ctx context.Context, srcIndex int, src compilers.Source, opts Options)
 // included — without being read as a refusal itself.
 func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Parsed, opts Options) (*Document, []ir.Diagnostic, error) {
 	l := &loading{srcIndex: srcIndex, src: src, opts: opts, root: parsed.root}
-	// Every return leaves the tree as the source wrote it.
-	defer l.restoreTrees()
 	for _, s := range steps() {
 		if err := opts.enter(ctx, s.phase); err != nil {
 			return nil, nil, err
@@ -264,25 +253,13 @@ func build(ctx context.Context, srcIndex int, src compilers.Source, parsed *Pars
 	return doc, diags, nil
 }
 
-// rebuilder returns the rebuild of the model of root that resolveExternal's
-// second pass is handed: o.rebuildDoc, or unmarshal itself.
-func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) func() (*soa.OpenAPI, error) {
-	rebuildDoc := o.rebuildDoc
-	if rebuildDoc == nil {
-		rebuildDoc = unmarshal
-	}
-	return func() (*soa.OpenAPI, error) { return rebuildDoc(ctx, data, root) }
-}
-
-// sourceChecks runs the rules the compiler checks over the resolved source:
-// the repeats of a parameter or servers list, and the references refused for
-// reading past a path item $ref into the fields beside it, less any resolved
-// already reports (see besideRefs).
+// sourceChecks runs the rules the compiler checks over the source: the
+// repeats of a parameter or servers list, each entry read through the
+// bindings, as the lowering reads it.
 func sourceChecks(ctx context.Context, place provenance.Doc, doc *soa.OpenAPI, sibs Siblings,
-	media MediaTypes, resolved []ir.Diagnostic,
+	media MediaTypes, bindings *typed.Bindings,
 ) []ir.Diagnostic {
-	diags := listRepeats(place, sibs, walkSource(ctx, doc, sibs, media))
-	return append(diags, besideRefs(place, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
+	return listRepeats(place, sibs, bindings, walkSource(ctx, doc, sibs, media))
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

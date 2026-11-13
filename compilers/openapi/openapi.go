@@ -126,11 +126,11 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 // the load phase already reported at the same position.
 //
 // The load phase reports a failure at the $ref, and a cycle once, with the
-// reason. The lowering reports a schema or security-scheme $ref it could not
-// follow at that pointer, and also where the load phase did not: a $ref the
-// binding never read, or one a resolver panic hid. So only a report the load
-// phase made at that exact provenance, in whichever document, is dropped; kept,
-// one failure would read as two (#385).
+// reason. The lowering reports a schema $ref it could not follow at that
+// pointer, and also where the load phase did not, as at a $ref the binding
+// never read. So only a report the load phase made at that exact provenance,
+// in whichever document, is dropped; kept, one failure would read as two
+// (#385).
 func withoutRereported(lowered, loaded []ir.Diagnostic) []ir.Diagnostic {
 	reported := make(map[ir.Provenance]bool)
 	for _, d := range loaded {

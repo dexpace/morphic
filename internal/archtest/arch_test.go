@@ -113,19 +113,11 @@ var rules = map[string][]string{
 	// than by a reading of its own.
 	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/budget",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
-	// How the library's walk reads a pointer through the parsed model, a token at
-	// a time, and where it leaves the model for raw YAML. It reaches the library's
-	// navigation and the root node a model was built from, and nothing of the
-	// compiler, so the reference scope and the loader read a pointer as the
-	// resolver does, without the key scan its read of raw YAML costs.
-	"compilers/openapi/internal/navigation": {"github.com/speakeasy-api/openapi/jsonpointer",
-		"github.com/speakeasy-api/openapi/marshaller", "go.yaml.in/yaml/v3"},
-	// Every schema $ref of the source resolved into a table over the decoded
-	// trees, never through the library's resolver (GitHub #558). It reads a tree
-	// through nodeview and a fragment through fragment, counts its work through
-	// budget, and reaches nothing of the library's model or of the compiler:
-	// what the library resolved of a reference object reaches it as data,
-	// through its Config.
+	// Every $ref of the source, a schema's and a reference object's, resolved
+	// into a table over the decoded trees, never through the library's resolver
+	// (GitHub #558). It reads a tree through nodeview and a fragment through
+	// fragment, counts its work through budget, and reaches nothing of the
+	// library's model or of the compiler.
 	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
@@ -206,10 +198,9 @@ var rules = map[string][]string{
 	// reach, to the specification's rules through oas, each within its budget
 	// through budget. It reaches resolve to read
 	// which mapping values name a position in the source as the lowering will,
-	// and the library's pointer walk, directly and through navigation, to tell a
-	// hop that walked a document's bytes and to walk a document as it does, and
-	// the library's core models to tell its marshaller of the media type
-	// reference it builds (load.MediaTypes). It reaches value to judge a bound's
+	// the library's marshaller to build the object a reference lands on in raw
+	// YAML, and the library's core models to tell its marshaller of the media
+	// type reference it builds (load.MediaTypes). It reaches value to judge a bound's
 	// decimal as the lowering reads it, for the values oas leaves to it
 	// (load.ownedFinding). It reaches nothing that lowers — at this point there
 	// is no document to lower.
@@ -218,8 +209,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
-		module + "/compilers/openapi/internal/fragment",
-		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
@@ -228,12 +217,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
 		module + "/compilers/openapi/internal/value",
-		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/openapi/core",
-		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Recognition of a source from its bytes, before the compile. It reaches load
 	// for the parse the compile goes on to lower, budget for the byte budget that
@@ -246,10 +233,10 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// What a $ref names: the pointer it addresses, the schema declared there and
-	// the type already interned there. It reaches bind for where a schema $ref
-	// lands, annotation to ask whether a referenced position declares a body at
-	// all, navigation to walk a pointer through the model as the resolver does,
-	// compile for the registry it looks IDs up in, the library's openapi package
+	// the type already interned there. It reaches bind for where a $ref lands,
+	// annotation to ask whether a referenced position declares a body at all,
+	// nodeview to read what a reference object writes beside its $ref as the
+	// model reads a mapping, compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
 	// one it names no alias for included (ReferencedMediaType), yaml to stop a
 	// walk at raw YAML, which holds none, and compilers for the file a file URI
@@ -262,7 +249,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/navigation",
+		module + "/compilers/openapi/internal/nodeview",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
 		"github.com/speakeasy-api/openapi/openapi/core",

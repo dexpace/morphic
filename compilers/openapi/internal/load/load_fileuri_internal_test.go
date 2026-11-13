@@ -23,10 +23,8 @@ func fileURI(scheme, path string) string {
 }
 
 // TestLoad_AFileURIReadsTheFileItNames pins GitHub #927: a $ref written as a
-// file URI reads the file, where the resolver's own HTTP client refused the
-// scheme, under each spelling of the scheme and authority. Spelled in capitals,
-// the resolver keys the document apart from the request, so its anchored
-// operations hold only through GitHub #538's recovery, as a URL's do.
+// file URI reads the file, under each spelling of the scheme and authority,
+// its anchored operations held as the read releases their anchors.
 func TestLoad_AFileURIReadsTheFileItNames(t *testing.T) {
 	t.Parallel()
 	dir := externalDir(t, map[string]string{"ext.yaml": anchoredExternalDoc})
@@ -43,7 +41,7 @@ func TestLoad_AFileURIReadsTheFileItNames(t *testing.T) {
 			got, diags := loadExternal(t, dir, rootReferencing(uri), Options{})
 
 			assert.Empty(t, diags)
-			assertRecoveredAt(t, got.Doc, "/x")
+			assertRecoveredAt(t, got, "/x")
 		})
 	}
 }

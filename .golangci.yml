@@ -134,6 +134,16 @@ linters:
         - pattern: ^oas\.ParseMinor$
           pkg: /compilers/openapi/internal/oas$
           msg: ask the rule table how a document's version reads, not the version
+        # The OpenAPI compiler binds every $ref itself
+        # (docs/compilers/openapi.md#references), so the parser library's
+        # reference wrapper holds no resolution: what its resolution accessors
+        # return is nothing, or an inline entry's own object, which
+        # resolve.Object answers through the bindings' table, a $ref a `<<`
+        # merges in among what it reads as one. They are refused outside
+        # resolve and tests, which exclusions below excuse.
+        - pattern: ^openapi\.Reference\.(GetObject|GetResolvedObject|MustGetObject|GetObjectAny|GetReferenceResolutionInfo|IsResolved)$
+          pkg: ^github\.com/speakeasy-api/openapi/openapi$
+          msg: read what a reference stands for through resolve.Object, which asks the bindings
     funlen:
       # The styleguide's hard cap. Statements are not capped as well: a function
       # is long because of what it does, and two limits on the same axis only
@@ -259,7 +269,7 @@ linters:
       - path: _test\.go
         linters:
           - forbidigo
-        text: forbidden by pattern|use of `recover`|not the version
+        text: forbidden by pattern|use of `recover`|not the version|which asks the bindings
       # The OpenAPI compiler's load phase reads the version each document
       # declares, and its rule table reads it as the rows of a minor. The paths
       # are unanchored so the plants' look-alikes of the two are excused too.
@@ -267,6 +277,12 @@ linters:
         linters:
           - forbidigo
         text: not the version
+      # resolve is where a reference wrapper is read, through the bindings'
+      # table. The path is unanchored so the plants' look-alike is excused too.
+      - path: (^|/)compilers/openapi/internal/resolve/
+        linters:
+          - forbidigo
+        text: which asks the bindings
       - path: _test\.go
         linters:
           - forcetypeassert
@@ -315,13 +331,6 @@ linters:
         linters:
           - containedctx
         source: ^\s*ctx\s+context\.Context$
-      # keyed runs as pointer reads step through models, and the Type.Fields
-      # range this proposes costs it four allocations a call where indexing
-      # costs none. TestKeyed_CostsNoAllocation holds it there.
-      - path: compilers/openapi/internal/navigation/navigation\.go
-        linters:
-          - modernize
-        text: stditerators
 
 formatters:
   enable:
