@@ -621,6 +621,8 @@ func spellImplicitRoutes(c lowering.Ctx, holder *oas3.Schema, u *ir.Union, point
 	}
 	for i, r := range routes {
 		variant := u.Variants[i].Type.Target
+		// An unnamed route writes nothing. count skips one too, but only as it
+		// counts named routes alone, so the guard says it where it is meant.
 		if !r.named || count[r.name] != 1 || routed[variant] {
 			continue
 		}
