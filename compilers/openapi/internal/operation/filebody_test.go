@@ -22,7 +22,8 @@ import (
 // reading of its schema and its media type, on both sides of an operation: a
 // declared file is unmarked, a file the binary policy reads is marked and keeps
 // the type its schema lowered to, a union is what all its branches admit, a
-// branch admitting no bytes passed over, and a schema saying the body is
+// branch admitting no bytes passed over, an identifier, a dialect or a store of
+// schemas, beside a $ref too, says nothing, and a schema saying the body is
 // anything but raw bytes is no file whatever its media type.
 func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 	t.Parallel()
@@ -59,6 +60,18 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 			openapi.Options{}, marker, true, ""},
 		{"a string pdf holding schemas", "application/pdf", "{schema: {$defs: {Page: {type: integer}}, type: string}}",
 			openapi.Options{}, marker, true, ""},
+		{"a string naming its dialect on octet-stream", "application/octet-stream",
+			"{schema: {$schema: 'https://spec.openapis.org/oas/3.1/dialect/base', type: string}}",
+			openapi.Options{}, "", true, ""},
+		{"a string writing a vocabulary on octet-stream", "application/octet-stream",
+			"{schema: {$vocabulary: {'https://json-schema.org/draft/2020-12/vocab/core': true}, type: string}}",
+			openapi.Options{}, "", true, ""},
+		{"a $ref with a dialect beside it", "application/octet-stream",
+			`{schema: {$ref: "#/components/schemas/Text", $schema: 'https://json-schema.org/draft/2020-12/schema'}}`,
+			openapi.Options{}, "", true, ""},
+		{"a date naming its dialect on octet-stream", "application/octet-stream",
+			"{schema: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: string, format: date}}",
+			openapi.Options{}, "", false, ""},
 		{"a false schema on octet-stream", "application/octet-stream", "{schema: false}", openapi.Options{}, "", false, ""},
 		{"an svg", "image/svg+xml", "{}", openapi.Options{}, "", false, "t/prim/any"},
 		{"a schemaless JSON body", "application/json", "{}", openapi.Options{}, "", false, "t/prim/any"},
@@ -226,9 +239,9 @@ components:
 // application/octet-stream to the keywords a JSON Schema draft spells
 // otherwise than 2020-12: draft 4's identifier `id`, a draft's `definitions`
 // and 2019-09's `$recursiveAnchor` say nothing of the value, as `$id`, `$defs`
-// and `$dynamicAnchor` do, so the body is a file, beside a $ref too, and in a
-// dialect defining none of them each is a keyword a file's schema may not
-// write.
+// and `$dynamicAnchor` do, and nor does a draft's `$schema`, so the body is a
+// file, beside a $ref too, and in a dialect defining none of them each is a
+// keyword a file's schema may not write.
 func TestBodyFile_ReadsADraftsSpellingAsItsTwin(t *testing.T) {
 	t.Parallel()
 	const (
@@ -247,6 +260,8 @@ func TestBodyFile_ReadsADraftsSpellingAsItsTwin(t *testing.T) {
 		{d2019, "{type: string, definitions: {Page: {type: integer}}}", false},
 		{d2019, "{type: string, $recursiveAnchor: true}", true},
 		{d2020, "{type: string, $recursiveAnchor: true}", false},
+		{d4, "{type: string, $schema: '" + d4 + "'}", true},
+		{d7, "{$ref: '#/components/schemas/Text', $schema: '" + d7 + "'}", true},
 	} {
 		t.Run(tc.dialect+" "+tc.schema, func(t *testing.T) {
 			t.Parallel()

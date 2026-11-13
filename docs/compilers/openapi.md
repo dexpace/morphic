@@ -3724,8 +3724,10 @@ refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, 
 type. It leaves the media type to say where it is absent, `true`, or writes no keyword but `type` as
 `string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
-the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
-the value, as a JSON Schema draft's spellings of them do where the schema's dialect defines one,
+the identifiers `$id`, `$anchor` and `$dynamicAnchor`, the dialect keywords `$schema` and
+`$vocabulary` and the store `$defs`, which say nothing of the value, since naming the dialect a
+schema is read in changes how its other keywords read and not what they admit, as a JSON Schema
+draft's spellings of them do where the schema's dialect defines one,
 draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds
 `maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
