@@ -267,10 +267,9 @@ canary. A behaviour found that the page lacks is added there.
 ## Ask the resolver directly
 `resolver-probe`
 
-- **Rule.** To learn what the resolver does with a shape, ask it in a child of
-  `compilers/openapi/internal/canary` (`probe(t, "resolve", spec)`), which bounds the run and reads
-  an overflow, a panic or a hang as an outcome. A watchdog of your own must kill; a Go binary
-  ignores `SIGALRM`.
+- **Rule.** To learn what the resolver does with a shape, build the harness test binary and run
+  `TestResolverOracle_ProbeHelper` with `MORPHIC_RESOLVER_PROBE` set to the spec. Bound it with a
+  watchdog that kills; a Go binary ignores `SIGALRM`.
 - **Why.** The scan's comments said a re-entrant prefix deadlocks the resolver, and the probe showed
   within minutes that it does not; a runaway compile then outlived a `perl` alarm, since Go ignores
   `SIGALRM` (#541, #574, #591).
