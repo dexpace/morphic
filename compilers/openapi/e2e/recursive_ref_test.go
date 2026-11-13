@@ -241,3 +241,28 @@ func TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin(t *testing.T) {
 		})
 	}
 }
+
+// TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce holds what a
+// $recursiveRef asks of its document's `$recursiveAnchor: true` declarations
+// to one reading of them per document: n resources each declaring one and
+// referring to its own root cost n squared where each reference reads them all.
+// Doubling them has to cost about twice, not four times. Not parallel:
+// AllocsPerRun measures the process.
+func TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce(t *testing.T) {
+	cost := func(n int) float64 {
+		var b strings.Builder
+		b.WriteString("openapi: 3.1.0\ninfo: {title: R, version: '1'}\n" +
+			"jsonSchemaDialect: 'https://json-schema.org/draft/2019-09/schema'\npaths: {}\ncomponents:\n  schemas:\n")
+		for i := range n {
+			id := strconv.Itoa(i)
+			b.WriteString("    C" + id + ": {$id: 'https://example.com/c" + id + "', $recursiveAnchor: true, " +
+				"properties: {k: {$recursiveRef: '#'}}}\n")
+		}
+		src := b.String()
+		return testing.AllocsPerRun(1, func() { compileUse(t, src) })
+	}
+	const n = 200
+	small, large := cost(n), cost(2*n)
+	require.Positive(t, small, "a measurement of nothing bounds nothing")
+	assert.Less(t, large, 3*small, "twice the resources must cost about twice, not about four times")
+}

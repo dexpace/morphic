@@ -648,10 +648,3 @@ func (c Ctx) Position(pointer jsontext.Pointer) (bind.Position, bool) {
 func (c Ctx) DynamicAnchorSites(name string) ([]bind.Position, bool) {
 	return c.Bindings().Table().DynamicAnchors(c.homeDoc, name)
 }
-
-// RecursiveAnchorSites returns the positions of c's document declaring
-// `$recursiveAnchor` true, and whether that is every one
-// (bind.Table.RecursiveAnchors).
-func (c Ctx) RecursiveAnchorSites() ([]bind.Position, bool) {
-	return c.Bindings().Table().RecursiveAnchors(c.homeDoc)
-}

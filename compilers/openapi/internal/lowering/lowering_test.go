@@ -601,21 +601,6 @@ func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	assert.True(t, whole)
 }
 
-// TestRecursiveAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites
-// declaring `$recursiveAnchor` true are the table's for the document c reads,
-// in the dialect defining the keyword alone.
-func TestRecursiveAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
-	t.Parallel()
-	src := openapitest.ComponentSpec("    A: {$schema: 'https://json-schema.org/draft/2019-09/schema', $recursiveAnchor: true}\n" +
-		"    B: {$recursiveAnchor: true}\n")
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	sites, whole := lowering.New(0, doc, lowering.Policy{}).RecursiveAnchorSites()
-	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}}, sites, "2020-12 defines no $recursiveAnchor")
-	assert.True(t, whole)
-}
-
 // TestPosition_PlacesWhatADocumentHolds pins that a context reading the source,
 // or a document at its own coordinates, places a pointer, and that one reading
 // another document's content at the source's places nothing.

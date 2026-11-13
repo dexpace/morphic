@@ -637,12 +637,12 @@ const d2019 = "$schema: 'https://json-schema.org/draft/2019-09/schema'"
 // TestRecursiveRef_ExpandsWhereItsTargetIsStatic pins 2019-09's $recursiveRef
 // in an OpenAPI document: "#" names the root of the resource the reference is
 // in, and the reference expands to it where that declares no $recursiveAnchor
-// true, or every schema of the document declaring one lies in its resource.
-// Under no identifier "#" names the OpenAPI Object, which holds no schema, so
-// the reference is kept, saying what makes it expand. Any other value, a
-// sibling it cannot carry, two resources declaring the anchor and an
-// identifier or a declaration the merge bound may hide each keep it too,
-// under degraded_lowering, saying why.
+// true, or every schema of the document declaring one, in a dialect defining
+// the keyword, lies in its resource. Under no identifier "#" names the OpenAPI
+// Object, which holds no schema, so it is kept, saying what makes it expand.
+// Any other value, a sibling it cannot carry, two resources declaring the
+// anchor and an identifier or a declaration the merge bound may hide each keep
+// it too, under degraded_lowering, saying why.
 func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 	t.Parallel()
 	items := func(name, head, ref string) string {
@@ -667,6 +667,11 @@ func TestRecursiveRef_ExpandsWhereItsTargetIsStatic(t *testing.T) {
 			schemas: strings.Replace(tree, "{type: array, items:", "{type: array, $recursiveAnchor: true, items:", 1)},
 		{name: "a root declaring no anchor", schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}"),
 			model: "Static", expandsTo: "Static"},
+		{name: "a root declaring none beside two resources declaring it", model: "Static", expandsTo: "Static",
+			schemas: items("Static", "$id: 'https://example.com/s', ", "{$recursiveRef: '#'}") + tree +
+				items("Other", "$id: 'https://example.com/o', $recursiveAnchor: true, ", "{}")},
+		{name: "a resource declaring it in a dialect defining none", model: "Tree", expandsTo: "Tree",
+			schemas: tree + "    Modern: {$id: 'https://example.com/m', $recursiveAnchor: true}\n"},
 		{name: "a root declaring the anchor false", model: "False", expandsTo: "False",
 			schemas: items("False", "$id: 'https://example.com/f', $recursiveAnchor: false, ", "{$recursiveRef: '#'}")},
 		{name: "no identifier", schemas: items("Bare", "$recursiveAnchor: true, ", "{$recursiveRef: '#'}"), model: "Bare",

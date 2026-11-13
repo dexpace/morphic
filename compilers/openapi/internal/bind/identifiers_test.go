@@ -627,13 +627,13 @@ func TestDynamicFragment_ReadsAPlainFragment(t *testing.T) {
 	}
 }
 
-// TestRecursiveAnchors_CountsWhatADocumentDeclares pins the index a
-// $recursiveRef's expansion reads: each schema declaring `$recursiveAnchor` as
-// the boolean true where its dialect defines the keyword
-// (DialectRule.Recursive), an alias re-declaring at its own position, and
-// neither false, a string, nor one in a dialect defining no such keyword. A
-// read past the merge bound proves nothing.
-func TestRecursiveAnchors_CountsWhatADocumentDeclares(t *testing.T) {
+// TestRecursiveAnchor_CountsWhatADocumentDeclares pins what a $recursiveRef's
+// expansion reads: each schema declaring `$recursiveAnchor` as the boolean
+// true where its dialect defines the keyword (DialectRule.Recursive), an alias
+// re-declaring at its own position, and neither false, a string, nor one in a
+// dialect defining no such keyword; the resources holding them counted once
+// each. A read past the merge bound proves nothing.
+func TestRecursiveAnchor_CountsWhatADocumentDeclares(t *testing.T) {
 	t.Parallel()
 	const d2019 = "'https://json-schema.org/draft/2019-09/schema'"
 	recursive := self
@@ -645,27 +645,32 @@ func TestRecursiveAnchors_CountsWhatADocumentDeclares(t *testing.T) {
 		"    F: {$schema: "+d2019+", $recursiveAnchor: false}\n"+
 		"    S: {$schema: "+d2019+", $recursiveAnchor: 'true'}\n"+
 		"    N: {$schema: "+d2019+", properties: {p: {$recursiveAnchor: true}}}\n"+
-		"    D7: {$schema: 'http://json-schema.org/draft-07/schema#', $recursiveAnchor: true}\n"+
-		"    Z: {$recursiveAnchor: true}\n", recursive)
-	sites, whole := table.RecursiveAnchors(bind.Source)
-	assert.True(t, whole)
-	got := make([]jsontext.Pointer, 0, len(sites))
-	for _, p := range sites {
-		got = append(got, p.Pointer)
+		"    I: {$schema: "+d2019+", $id: 'https://example.com/i', properties: {p: {$recursiveAnchor: true}}}\n"+
+		"    D7: {$schema: 'http://json-schema.org/draft-07/schema#', $id: 'https://example.com/d', $recursiveAnchor: true}\n"+
+		"    Z: {$id: 'https://example.com/z', $recursiveAnchor: true}\n", recursive)
+	for at, want := range map[jsontext.Pointer]bool{
+		"/components/schemas/T": true, "/components/schemas/A": true, "/components/schemas/N/properties/p": true,
+		"/components/schemas/I/properties/p": true, "/components/schemas/F": false, "/components/schemas/S": false,
+		"/components/schemas/N": false, "/components/schemas/D7": false, "/components/schemas/Z": false,
+	} {
+		declared, resources, known := table.RecursiveAnchor(bind.Position{Pointer: at})
+		assert.Equal(t, want, declared, at)
+		assert.Equal(t, 2, resources, "the document's resource and I's")
+		assert.True(t, known)
 	}
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/N/properties/p",
-		"/components/schemas/T"}, got)
 
 	past := strings.Replace(anchoredPastTheBound(), "    A: {$dynamicAnchor: t}\n",
 		"    A: {$schema: "+d2019+", $recursiveAnchor: true}\n", 1)
-	sites, whole = bound(t, past, recursive).RecursiveAnchors(bind.Source)
-	assert.Len(t, sites, 1)
-	assert.False(t, whole, "a schema past the bound may declare a second")
+	declared, resources, known := bound(t, past, recursive).RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	assert.True(t, declared)
+	assert.Equal(t, 1, resources)
+	assert.False(t, known, "a schema past the bound may declare a second")
 
 	var none *bind.Table
-	sites, whole = none.RecursiveAnchors(bind.Source)
-	assert.Empty(t, sites)
-	assert.True(t, whole)
+	declared, resources, known = none.RecursiveAnchor(bind.Position{Pointer: "/components/schemas/A"})
+	assert.False(t, declared)
+	assert.Zero(t, resources)
+	assert.True(t, known)
 }
 
 // TestLandDynamic_LandsWhereTheRefItSpellsWould pins what a dynamic reference

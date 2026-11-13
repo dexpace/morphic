@@ -3468,12 +3468,12 @@ written beside a reference that expands is read as one beside a `$ref` is
   `schema.TestRecursiveRef_IsAKeywordOnlyWhereItsDialectDefinesIt`,
   `schema.TestRecursiveRef_LandsOnTheRootOfItsResource`, `schema.TestSameResource_SaysWhyTwoPositionsMayLieInTwo`,
   `bind.TestLandDynamic_LandsWhereTheRefItSpellsWould`,
-  `lowering.TestRecursiveAnchorSites_ReadsTheBindingsOfItsDocument`,
   `e2e.TestOlderDrafts_ARecursiveRefExpandsWhereItsTargetIsStatic`,
   `e2e.TestOlderDrafts_ARecursiveRefReadsAsItsDynamicTwin`,
+  `e2e.TestOlderDrafts_ARecursiveRefReadsItsDocumentsAnchorsOnce`,
   `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
   `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
-  `bind.TestRecursiveAnchors_CountsWhatADocumentDeclares`,
+  `bind.TestRecursiveAnchor_CountsWhatADocumentDeclares`,
   `bind.TestResource_NamesTheRootOfAPositionsResource`
 - Status: partly built: a `$recursiveRef` is kept where two resources of its document each declare
   `$recursiveAnchor: true`, even where neither can reach the other (#1884); and a `$dynamicRef` whose

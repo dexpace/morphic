@@ -6,7 +6,6 @@ package schema
 import (
 	"encoding/json/jsontext"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -163,22 +162,16 @@ func unresolvedRoot(root bind.Position) string {
 // none. Two unrelated resources each declaring one are not told apart from a
 // path through both (GitHub #1884).
 func recursiveScope(c lowering.Ctx, root bind.Position) (string, bool) {
-	sites, complete := c.RecursiveAnchorSites()
-	resources := map[bind.Position]bool{}
-	for _, site := range sites {
-		r, known := c.Bindings().Table().Resource(site)
-		complete = complete && known
-		resources[r] = true
-	}
+	declared, resources, known := c.Bindings().Table().RecursiveAnchor(root)
 	switch {
-	case !complete:
+	case !known:
 		return "this document's identifiers were not read whole, so $recursiveAnchor is not known to be declared " +
 			"in one schema resource", false
-	case !slices.Contains(sites, root):
+	case !declared:
 		return "", true
-	case len(resources) > 1:
+	case resources > 1:
 		return fmt.Sprintf("$recursiveAnchor: true is declared in %d schema resources of this document, so the "+
-			"target depends on the evaluation path", len(resources)), false
+			"target depends on the evaluation path", resources), false
 	default:
 		return "", true
 	}
