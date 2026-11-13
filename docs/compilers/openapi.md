@@ -2883,7 +2883,11 @@ never re-derived from the dispatch that produced it. A position that reduced to 
 an alias of its own first: a shared primitive must never carry one declaration's keywords. The
 `format` keyword joins the list wherever the lowered node does not pair it with a primitive — no
 `type` declared, or an object, an array or an enum — since it is homed by pairing with a type rather
-than by a node kind, and `password` is never unhomed ([`password`](#password)). The census reads
+than by a node kind, and `password` is never unhomed ([`password`](#password)). A format on an array
+is kept so whatever its name, `format: set` among them, which some documents write to mean distinct
+items and no specification defines: reading it as `uniqueItems` would be a heuristic, which only an
+injectable policy may apply, and the entry it is kept under is what such a policy would read. The
+census reads
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
 bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
 elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
@@ -2906,8 +2910,8 @@ is kept on the union, under a report naming a union of models.
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`,
+  `schema.TestUnhomedApplicator_AFormatOnAnArrayIsKeptNotRead`,
   `schema.TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise`
-- Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
 
