@@ -373,7 +373,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 	if owns == id && !constraintsHome(td) {
 		// No alias will be hoisted over a node the position already owns, so the
 		// bounds it wrote reach no Constraints field anywhere, but for one the
-		// reader of its bounds kept already (keepCounts).
+		// reader of its bounds kept already (keptNowhere).
 		unhomed = append(unhomed, keptNowhere([]ir.TypeDef{td}, declaredConstraints(s))...)
 	}
 	if len(unhomed) == 0 && len(d.skipped) == 0 {
@@ -390,8 +390,9 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 }
 
 // keptNowhere returns the keywords of declared no node of nodes keeps an entry
-// for, in order: a count the reader of a node's bounds kept (keepCounts) is not
-// kept and reported twice.
+// for, in order: what the reader of a node's bounds kept and reported, a count no
+// field states (keepCounts) or a 3.0 exclusive modifier with no bound beside it,
+// is not kept and reported a second time.
 func keptNowhere(nodes []ir.TypeDef, declared []string) []string {
 	return slices.DeleteFunc(declared, func(keyword string) bool {
 		return slices.ContainsFunc(nodes, func(td ir.TypeDef) bool {

@@ -3139,6 +3139,8 @@ field.
   `schema.TestRefinement_ACollectionBoundLandsAtEveryPosition`,
   `schema.TestConstraints_ACountNoFieldStatesIsKeptVerbatim`,
   `schema.TestConstraints_ACountTheLoadPhaseRefusesReachesNoField`,
+  `schema.TestConstraints_ACountAVariantKeepsIsKeptOnce`,
+  `schema.TestConstraints_AModifierBoundingNothingIsReportedOnce`,
   `schema.TestAllOf_ACountNoFieldStatesIsKeptInEitherOrder`,
   `annotation.TestExactCount_StatesOnlyAnExactCount`,
   `oas.TestShape_Admits`
