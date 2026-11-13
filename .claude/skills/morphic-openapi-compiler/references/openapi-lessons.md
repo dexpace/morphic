@@ -253,13 +253,14 @@ canary. A behaviour found that the page lacks is added there.
 `conformance-case`
 
 - **Rule.** Beyond step 4 of `CONTRIBUTING.md`'s lowering-rule recipe, a spec under
-  `testdata/conformance/openapi/` has no YAML aliases (use inline `<<`), so the order oracle can
-  permute it, and gives an unknown path-item key a mapping value with `responses`, an operation as
+  `testdata/conformance/openapi/` writes no mapping key twice and no anchor name on two nodes, so
+  the order oracle can permute it (`TestHarness_InRepoCorpus` fails a decline it does not list),
+  and gives an unknown path-item key a mapping value with `responses`, an operation as
   `docs/parser-library.md#embedded-map-keys` reads it. A value the library refuses adds rows to the
   validation oracle's disagreements: run
   `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`,
   then classify each row with a reason.
-- **Why.** One case failed `TestOrderInvariant_ReachesTheCorpus`, the validation oracle and
+- **Why.** One case failed the order oracle's reach guard, the validation oracle and
   `TestLoweringSpec_CasesAreTheCorpus` on its first run (#1106); a numeric case added rows (#1113).
 - **Probe.** `go test ./internal/harness ./compilers/openapi/...`.
 

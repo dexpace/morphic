@@ -173,7 +173,7 @@ func TestReplace_ReadOnlyDirFails(t *testing.T) {
 	err := atomicfile.Replace(t.Context(), dest, writing("fresh\n"))
 
 	require.ErrorIs(t, err, fs.ErrPermission)
-	assert.ErrorContains(t, err, "create output")
+	assert.ErrorContains(t, err, "create the temporary file beside output")
 	assert.Equal(t, "PREVIOUS\n", contentOf(t, dest),
 		"a destination that cannot be replaced keeps its previous content")
 }
@@ -246,7 +246,7 @@ func TestReplace_NearLimitNameFails(t *testing.T) {
 				return
 			}
 			require.Error(t, err, "the temporary name must not fit where the destination does")
-			assert.ErrorContains(t, err, "create output")
+			assert.ErrorContains(t, err, "create the temporary file beside output")
 			assert.Equal(t, "PREVIOUS\n", contentOf(t, dest),
 				"the destination keeps its previous content when the temporary name will not fit")
 		})
