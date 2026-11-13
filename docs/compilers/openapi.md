@@ -230,7 +230,10 @@ naming why. Either is found before any action applies.
 The actions apply in order, each to the tree the ones before it left. An action takes the first of
 `remove`, `update` and `copy` it sets, and a field the specification gives no effect beside it, or
 an action setting none, is an `openapi/overlay-action` warning. A remove deletes each node its
-target selects from the object or array holding it. An update writes its value into each node its
+target selects from the object or array holding it, and a YAML alias elsewhere naming a node it
+removed keeps the value it stood for, as a copy, each node of which names as its writer the document
+that wrote it; a copy past the attribution walk's node budget refuses the overlay as an
+`openapi/overlay-failed` error. An update writes its value into each node its
 target selects, and a copy writes the one node its `copy` selects, as that node stood when the
 action began:
 
@@ -284,6 +287,10 @@ no overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestGrafter_ReportsAValueTheSourceDeclaresReplaced`,
   `overlay.TestGrafter_TakesACopyOfTheSourceAsTheActionBegan`,
   `overlay.TestGrafter_RefusesToWriteThroughAnAlias`,
+  `overlay.TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming`,
+  `overlay.TestRepairAliases_KeepsTheWriterOfWhatItCopies`,
+  `overlay.TestApplyWithin_RefusesARepairPastItsBound`,
+  `load.TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused`,
   `load.TestLoad_ReadsANamedOverlayThroughTheReader`,
   `load.TestLoad_ANamedOverlayThatCannotBeReadIsAGoError`,
   `e2e.TestCompile_StrictRefusesAnActionThatMatchesNothing`,

@@ -14,12 +14,13 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// maxNodes bounds the walk that attributes the positions an overlay wrote; the
-// application spends the caller's Options.MaxNodes. It counts nodes visited,
-// not depth, because the walk is iterative, and a document this large is
-// pathological. A walk that exhausts it abandons the attribution whole rather
-// than return a partial one, and every position keeps the source as its
-// origin.
+// maxNodes bounds the walk that attributes the positions an overlay wrote, and
+// the copies that repair the aliases a remove left; the application spends the
+// caller's Options.MaxNodes. It counts nodes, not depth, because the walk is
+// iterative, and a document this large is pathological. A walk that exhausts
+// it abandons the attribution whole rather than return a partial one, and
+// every position keeps the source as its origin; copies past it refuse the
+// overlay.
 const maxNodes = 1 << 21
 
 // Options is one pre-read overlay document and how strictly to apply it.
@@ -103,13 +104,13 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 		return Origin{}, diags
 	}
 
-	var written map[*yaml.Node]bool
+	var g *grafter
 	reported, applied := applyRecovered(at, func() ([]ir.Diagnostic, bool) {
 		var (
 			out []ir.Diagnostic
 			ok  bool
 		)
-		written, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes)
+		g, out, ok = runSequence(ctx, p, root, opts.Lax, opts.MaxNodes)
 		return out, ok
 	})
 	diags = append(diags, reported...)
@@ -117,9 +118,18 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 		return Origin{}, diags
 	}
 
+	// A repair a cancel cut short refuses as a cancelled sequence does, with
+	// nothing reported, since the caller reads its context next.
+	switch done, safe := repairAliases(ctx, root, g, walks); {
+	case !done:
+		return Origin{}, diags
+	case !safe:
+		return Origin{}, append(diags, diag.Newf(ir.SeverityError, diag.OverlayFailed, at,
+			"overlay applied, but the aliases a remove left naming what it removed expand past %d nodes", walks.Cap()))
+	}
 	source := ir.SourceInfo{Format: ir.OverlayFormat + "@" + p.declared, Path: opts.Path, Hash: ir.SourceHash(opts.Data)}
-	positions, complete := attribute(ctx, root, written, walks)
-	if !complete {
+	positions, attributed := attribute(ctx, root, g.written, walks)
+	if !attributed {
 		// Applied without attribution: the source keeps every position, but the
 		// overlay stays in Document.Sources, since the warning below names it.
 		return Origin{source: source, applied: true}, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,

@@ -145,6 +145,35 @@ func TestLoad_ATaggedMappingGraftedThroughAnAliasIsRefused(t *testing.T) {
 	}
 }
 
+// TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused pins the other way
+// an alias comes to name a node no Content list holds: a remove of the anchor
+// it names. Here the overlay first writes a tagged mapping into the anchored
+// responses, then removes their anchor, so the operation's alias of them names
+// a mapping the refusals would not see and the parser faults on, on a
+// goroutine no recover reaches. The alias is replaced by a copy of what it
+// names, so the tag is found at the alias's position, and refused.
+func TestLoad_ATaggedMappingLeftBehindARemovedAnchorIsRefused(t *testing.T) {
+	t.Parallel()
+	const spec = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\nx-r: &r {\"200\": {description: ok}}\n" +
+		"paths:\n  /b:\n    get:\n      responses: *r\n"
+	const ov = "overlay: 1.1.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
+		"  - target: $['x-r']\n    update: {\"404\": !x {description: nf}}\n" +
+		"  - target: $['x-r']\n    remove: true\n"
+	opts := Options{Overlay: &overlay.Options{Path: "patch.yaml", Data: []byte(ov)}, OverlaySrcIndex: 1}
+
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(spec), opts)
+
+	require.NoError(t, err, "a tagged mapping is a spec problem, not a Go error")
+	assert.Nil(t, doc, "nothing is lowered")
+	require.Equal(t, 1, countErrorsAt(diags, diag.TaggedMapping), "diagnostics: %+v", diags)
+	for _, d := range diags {
+		if d.Code == diag.TaggedMapping {
+			assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/paths/~1b/get/responses/404", WrittenBy: 1}, d.Provenance,
+				"at the alias's position, which the overlay wrote")
+		}
+	}
+}
+
 // TestLoad_AnAliasGraftedFromTheSourceIsCountedWhereItLands is the other half
 // of the same copy, on a graft that crashes nothing. A copy action copies a
 // subtree of the source, so an alias inside it would be detached too: no tag,

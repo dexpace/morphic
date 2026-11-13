@@ -334,3 +334,73 @@ func aliasNodes(root *yaml.Node) int {
 	}
 	return count
 }
+
+// TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming pins what a remove of
+// an anchored node leaves at each alias of it: a copy of the value the alias
+// stands for, holding no alias, so every reader walking the tree sees what the
+// parser follows (GitHub #477). An alias reached through a `<<` merge key and
+// one inside another anchored value are copied alike, and one both the anchor
+// and the alias of which were removed leaves nothing.
+func TestRepairAliases_CopiesWhatARemoveLeftAnAliasNaming(t *testing.T) {
+	t.Parallel()
+	const src = "x-t: &s {description: d}\nx-use: *s\nx-merged: {<<: *s, k: 1}\nx-outer: &o {inner: *s}\nx-twice: *o\n" +
+		"x-gone: {a: &g {z: 1}, b: *g}\n"
+	_, root, diags := applied(t, src, v11+"  - target: $['x-t']\n    remove: true\n  - target: $['x-gone']\n    remove: true\n", false)
+	require.Empty(t, diags)
+
+	sameValue(t, "{x-use: {description: d}, x-merged: {<<: {description: d}, k: 1}, x-outer: {inner: {description: d}}, "+
+		"x-twice: {inner: {description: d}}}", root)
+	assert.Zero(t, aliasNodesNaming(root, func(target *yaml.Node) bool { return !reaches(root, target) }),
+		"no alias is left naming a node the tree does not hold")
+	_, use := member(t, root, "x-use")
+	assert.Equal(t, yaml.MappingNode, use.Kind, "the alias is a copy of what it named")
+	assert.Equal(t, 1, use.Line, "keeping the line the source writes the value at")
+	_, twice := member(t, root, "x-twice")
+	assert.Equal(t, yaml.AliasNode, twice.Kind, "an alias whose anchor the tree still holds is left alone")
+}
+
+// TestRepairAliases_KeepsTheWriterOfWhatItCopies pins the attribution of a
+// copy a remove's repair makes: a node the overlay wrote into the anchor
+// before removing it is the overlay's at the alias's position, and one the
+// source declares stays the source's, as the value the alias stands for is the
+// source's.
+func TestRepairAliases_KeepsTheWriterOfWhatItCopies(t *testing.T) {
+	t.Parallel()
+	origin, _, diags := applied(t, "x-r: &r {k: v}\nx-meta: *r\n",
+		v11+"  - target: $['x-r']\n    update: {k2: w}\n  - target: $['x-r']\n    remove: true\n", false)
+	require.Empty(t, diags)
+
+	assert.Equal(t, overlayIndex, origin.Attribution().WriterAt("/x-meta/k2"), "the overlay wrote k2")
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta/k"), "the source declares k")
+	assert.Equal(t, 0, origin.Attribution().WriterAt("/x-meta"), "and the mapping holding both")
+}
+
+// aliasNodesNaming counts the alias nodes a Content walk from root reaches
+// whose target names says of.
+func aliasNodesNaming(root *yaml.Node, names func(*yaml.Node) bool) int {
+	count := 0
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		n := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if n.Kind == yaml.AliasNode && names(n.Alias) {
+			count++
+		}
+		stack = append(stack, n.Content...)
+	}
+	return count
+}
+
+// reaches reports whether a Content walk from root reaches n.
+func reaches(root, n *yaml.Node) bool {
+	stack := []*yaml.Node{root}
+	for len(stack) > 0 {
+		top := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if top == n {
+			return true
+		}
+		stack = append(stack, top.Content...)
+	}
+	return false
+}

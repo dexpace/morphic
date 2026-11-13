@@ -35,6 +35,9 @@ type grafter struct {
 	// replaced holds the values the source declares that the action being
 	// written replaced, for the sequence to report.
 	replaced []replacement
+	// removed reports that a remove detached a node, which may leave an alias
+	// naming it (repairAliases): nothing else the grafter does detaches one.
+	removed bool
 }
 
 // replacement is a primitive the source declares that an action replaced:
@@ -295,11 +298,12 @@ func (g *grafter) attach(target, key, value *yaml.Node, depth int) (*yaml.Node, 
 // clone returns a copy of n for the tree, depth levels below the selected
 // node, recording each node it builds as written. The caller adopts the copy.
 func (g *grafter) clone(n *yaml.Node, depth int) (*yaml.Node, error) {
-	return copyOf(n, nil, depth, func(holder, built *yaml.Node) {
+	return copyOf(n, nil, depth, func(_, holder, built *yaml.Node) bool {
 		g.written[built] = true
 		if holder != nil {
 			g.adopt(holder, built)
 		}
+		return true
 	})
 }
 
@@ -312,12 +316,12 @@ func (g *grafter) adopt(holder, n *yaml.Node) {
 
 // copyOf returns a copy of n, which holder is to hold, depth levels below the
 // node an action selected. The copy holds no alias: an alias is replaced by a
-// copy of what it names, which is the value it stands for. It keeps no anchor,
-// since the node it named is not the one being written, and no line and
-// column, since the document it lands in does not write it there. built, when
-// set, is handed each node the copy builds and the node holding it, nil for
-// the copy's own root.
-func copyOf(n, holder *yaml.Node, depth int, built func(holder, n *yaml.Node)) (*yaml.Node, error) {
+// copy of what it names, the value it stands for. It keeps no anchor, since
+// the node it named is not the one being written, and no line and column,
+// since the document it lands in does not write it there. built, when set, is
+// handed each node built, the node it copies and its holder, nil for the root,
+// and stops the copy by answering false.
+func copyOf(n, holder *yaml.Node, depth int, built func(from, holder, n *yaml.Node) bool) (*yaml.Node, error) {
 	if depth > maxPayloadDepth {
 		return nil, fmt.Errorf("it writes a value nested past %d levels", maxPayloadDepth)
 	}
@@ -326,8 +330,8 @@ func copyOf(n, holder *yaml.Node, depth int, built func(holder, n *yaml.Node)) (
 		return nil, errors.New("it writes an alias that names nothing")
 	}
 	out := &yaml.Node{Kind: from.Kind, Style: from.Style, Tag: from.Tag, Value: from.Value}
-	if built != nil {
-		built(holder, out)
+	if built != nil && !built(from, holder, out) {
+		return nil, errCopyPastBound
 	}
 	if len(from.Content) == 0 {
 		return out, nil
@@ -343,6 +347,9 @@ func copyOf(n, holder *yaml.Node, depth int, built func(holder, n *yaml.Node)) (
 	return out, nil
 }
 
+// errCopyPastBound reports a copy its caller stopped at the bound it keeps.
+var errCopyPastBound = errors.New("it copies past the bound on what one copy builds")
+
 // remove deletes each target from the object or array holding it, which the
 // parents index names. A target nothing holds, the document's root, is
 // refused: the specification removes a node from the map or array it is
@@ -356,6 +363,7 @@ func (g *grafter) remove(targets []*yaml.Node) error {
 		if !detach(holder, t) {
 			return fmt.Errorf("it selects a node at %s that what holds it holds as no member or element", where(t))
 		}
+		g.removed = true
 	}
 	return nil
 }

@@ -53,11 +53,12 @@ type sequence struct {
 	missed bool
 }
 
-// runSequence applies p to root and returns the nodes it introduced or
-// rewrote, what it reported, and whether the tree is the overlay applied: false
-// once an action cannot apply, or one would build past maxNodes.
+// runSequence applies p to root and returns the grafter that wrote it, which
+// holds what the actions did, what it reported, and whether the tree is the
+// overlay applied: false once an action cannot apply, or one would build past
+// maxNodes.
 func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNodes budget.Limit,
-) (map[*yaml.Node]bool, []ir.Diagnostic, bool) {
+) (*grafter, []ir.Diagnostic, bool) {
 	s := &sequence{plan: p, root: root, lax: lax, size: budget.New(maxNodes), grafts: newGrafter(p.version, root)}
 	if s.budgeted() {
 		s.measure(ctx)
@@ -82,7 +83,7 @@ func runSequence(ctx context.Context, p plan, root *yaml.Node, lax bool, maxNode
 	if s.missed {
 		return nil, s.diags, false
 	}
-	return s.grafts.written, s.diags, true
+	return s.grafts, s.diags, true
 }
 
 // selected returns the nodes a's target selects in the tree as it now stands,
