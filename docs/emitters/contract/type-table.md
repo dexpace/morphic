@@ -36,7 +36,9 @@ type Dependency struct {
   ([constraints](../../ir/constraints.md#encodings)), then `ScalarChain.Encoding` — or `""` where
   none is. A compiler already gives every format it recognizes a primitive of its own — OpenAPI's
   `date-time` is `datetime_offset` — so a key spells only what the IR does not, such as
-  `{string, "email"}` or `{bytes, "base64"}`, compared exactly as written. An enum's `ValueType`
+  `{string, "email"}` or `{bytes, "base64"}`, compared exactly as written, and a `string` whose
+  encoding names a `WireType`, text to encode, is keyed as `bytes`
+  ([below](#a-row-keyed-by-an-encoding)). An enum's `ValueType`
   resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
   to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
   by the declaration its reference names.
@@ -253,17 +255,22 @@ value as its primitive's default row does unless the target's lowering table say
   `string`, as its `WireType` ([`numeric-formats`](../../compilers/openapi.md#numeric-formats)),
   and what each puts in `WireType` decides what a row writes. Until one lands, the lookup above
   types such a value as its `WireType`, a `datetime_offset` under `unixTimestamp` as the `int64`,
-  `integer`, `number` or `string` of seconds its caller fills, which is written right. A value so
-  typed is checked against none of its constraints, which speak of the value and not of its wire
-  form, as a mapped type's are not. `varint`, `zigzag` and `fixed` name a binary layout, which no
-  JSON value or text shows, so the number's own row writes one. A row added for an encoding at a
-  later options version types its values anew, which is that version's break to state ([target
-  options](options.md)).
-- **A string under an encoding** is the encoded text already, as OpenAPI's `contentEncoding` beside
-  no `format` lowers it ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so
-  no row encodes a `string`. A string that is the text to encode, as Smithy has a `@mediaType`
-  string in a header, has no spelling in the IR apart from that one, so a compiler lowering one
-  waits on the IR telling them apart.
+  `integer`, `number` or `string` of seconds its caller fills, which is written right. A number
+  under `string`, written as the text of its value, has none either (#1852), so an `int64` carried
+  as text is a string its caller fills, written as given. A value so typed is checked against none
+  of its constraints, which speak of the value and not of its wire form, as a mapped type's are not.
+  `varint`, `zigzag` and `fixed` name a binary layout, which no JSON value or text shows, so the
+  number's own row writes one. A row added for an encoding at a later options version types its
+  values anew, which is that version's break to state ([target options](options.md)).
+- **A string under an encoding** naming no `WireType` is the encoded text already, as OpenAPI's
+  `contentEncoding` beside no `format` lowers it
+  ([`content-vocabulary`](../../compilers/openapi.md#content-vocabulary)), so its key's row never
+  encodes it. One whose encoding names a `WireType` of `string` is text to encode, as Smithy has a
+  `@mediaType` string in a header ([encodings](../../ir/constraints.md#encodings)), and is keyed as
+  `bytes` under the same name: the row writes the text's UTF-8 octets as that encoding writes
+  octets, and reads it back as text, refusing octets that are no UTF-8, so `hi` under `base64` is
+  `aGk=`. Read under `{string, name}`, one key would mean both, and a row encoding it would encode
+  OpenAPI's text twice.
 
 Each target's lowering table names the type and the codec of each ([Go](../targets/go/lowering.md),
 [Kotlin](../targets/kotlin/lowering.md)), and T-51 holds the rows and the lookup. The designs it was

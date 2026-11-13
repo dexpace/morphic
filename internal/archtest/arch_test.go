@@ -141,9 +141,10 @@ var rules = map[string][]string{
 	// The name of every node the lowering builds, as a function of the documents
 	// and the node's coordinate (GitHub #981). It reads the grammar through a
 	// bind table, the raw tree through nodeview and a $ref's fragment through
-	// fragment, and composes names in compile's grammar. It reaches nothing that
-	// lowers, so no lowering can make a name depend on the order it runs in.
-	"compilers/openapi/internal/naming": {module + "/compilers/compile",
+	// fragment, composes names in compile's grammar, and reads the words a title
+	// or a key spells through ir's. It reaches nothing that lowers, so no
+	// lowering can make a name depend on the order it runs in.
+	"compilers/openapi/internal/naming": {module + "/ir", module + "/compilers/compile",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
@@ -218,6 +219,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/navigation",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",

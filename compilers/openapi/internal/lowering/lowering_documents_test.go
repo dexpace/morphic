@@ -374,3 +374,21 @@ func TestDeclared_KeepsTheUseSiteOfAReferenceThatResolvedNothing(t *testing.T) {
 	assert.Equal(t, "/paths/~1a/get/parameters/0", string(at))
 	assert.Equal(t, ids.Document{}, there.IDs())
 }
+
+// TestNameTitle_IsTheNameATitleGivesInTheContextsDocument pins that the title
+// a context reads is the one written at the pointer in its own document:
+// ext.yaml's parameter schema is titled, and the source's /P/schema is no
+// schema at all.
+func TestNameTitle_IsTheNameATitleGivesInTheContextsDocument(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "X: {type: string}\nP: {name: p, in: query, schema: {title: Page Size, type: object}}\n")
+	there, ok := lowering.InDocument(c, extDoc(t, c))
+	require.True(t, ok)
+
+	title, titled := lowering.NameTitle(there, "/P/schema")
+	assert.True(t, titled)
+	assert.Equal(t, "page_size", title)
+	title, titled = lowering.NameTitle(c, "/P/schema")
+	assert.False(t, titled)
+	assert.Empty(t, title)
+}

@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"testing"
 
@@ -85,7 +86,7 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 		{typ: "integer", format: "Int8", base: ir.PrimInteger},     // a format name is case-sensitive
 		{typ: "number", format: "double-int", base: ir.PrimNumber}, // a registry format with no primitive
 		{typ: "number", format: "float16", base: ir.PrimNumber},    // a width no PrimKind names
-		{typ: "string", format: "int64", base: ir.PrimString},      // GitHub #637's orientation
+		{typ: "string", format: "double-int", base: ir.PrimString}, // no number's format the table pairs
 	} {
 		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
 			t.Parallel()
@@ -280,6 +281,140 @@ func TestScalar_AnEncodedFormatBesideAValueSetLowersAsByteDoes(t *testing.T) {
 			openapitest.AssertInfoDiagAt(t, diags, "/components/schemas/A")
 		})
 	}
+}
+
+// TestScalar_ANumberAsTextIsItsNumberOnAString pins a numeric format written on
+// a `type: string`: the number it selects under `number` is the Scalar's Base,
+// the logical type, its Encoding names a number written as its text, and the
+// string it travels as is the WireType, as byte's bytes and string are
+// (docs/compilers/openapi.md#string-formats). A contentEncoding naming another
+// encoding says the string is that encoding's text, so the format selects
+// nothing and is kept, and the Scalar is over the string with no WireType; a
+// media type or a schema of the content beside it leaves the format lowered.
+func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		format, extra string
+		base          ir.PrimKind
+		name          string
+		kept          bool
+		wire          bool
+	}{
+		{format: "int8", base: ir.PrimInt8, name: "string", wire: true},
+		{format: "int16", base: ir.PrimInt16, name: "string", wire: true},
+		{format: "int32", base: ir.PrimInt32, name: "string", wire: true},
+		{format: "int64", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "uint8", base: ir.PrimUint8, name: "string", wire: true},
+		{format: "uint16", base: ir.PrimUint16, name: "string", wire: true},
+		{format: "uint32", base: ir.PrimUint32, name: "string", wire: true},
+		{format: "uint64", base: ir.PrimUint64, name: "string", wire: true},
+		{format: "float", base: ir.PrimFloat32, name: "string", wire: true},
+		{format: "double", base: ir.PrimFloat64, name: "string", wire: true},
+		{format: "decimal", base: ir.PrimDecimal, name: "string", wire: true},
+		{format: "decimal128", base: ir.PrimDecimal128, name: "string", wire: true},
+		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimString, name: "base64", kept: true},
+		{format: "double", extra: ", contentEncoding: base32, contentMediaType: text/plain", base: ir.PrimString,
+			name: "base32", kept: true},
+		{format: "int64", extra: ", contentEncoding: string", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentMediaType: text/plain", base: ir.PrimInt64, name: "string", wire: true},
+		{format: "int64", extra: ", contentSchema: {type: integer}", base: ir.PrimInt64, name: "string", wire: true},
+	} {
+		t.Run(tc.format+tc.extra, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
+				"    H:\n      type: object\n      properties:\n        p: {type: string, format: %s%s}\n", tc.format, tc.extra)))
+			h, ok := typeByName(doc, "H").(*ir.Model)
+			require.True(t, ok)
+			sc, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the base is the number the format selects, or the string an encoding overrides it with")
+			require.NotNil(t, sc.Encoding)
+			assert.Equal(t, tc.name, sc.Encoding.Name)
+			if tc.wire {
+				require.NotNil(t, sc.Encoding.WireType, "the number travels as a string")
+				assert.Equal(t, ir.PrimTypeID(ir.PrimString), sc.Encoding.WireType.Target)
+			} else {
+				assert.Nil(t, sc.Encoding.WireType, "the string is the encoded text already")
+			}
+			_, kept := sc.Unmodeled["openapi:format"]
+			assert.Equal(t, tc.kept, kept)
+		})
+	}
+}
+
+// TestScalar_ANumberAsTextKeepsItsBoundsVerbatim pins the value bounds beside a
+// number carried as text. Its Constraints speak of the number, and none of them
+// does: a length or a pattern bounds the text, and a numeric bound no string
+// instance. Each is kept verbatim on the Scalar under no_ir_home, with an info
+// at it, and neither the Scalar nor a property or parameter carrying it holds a
+// bound. A format the table pairs with string keeps its bounds, and an alias an
+// allOf refinement lowers to loses none of its own.
+func TestScalar_ANumberAsTextKeepsItsBoundsVerbatim(t *testing.T) {
+	t.Parallel()
+	const bounds = `pattern: "^[0-9]+$", minLength: 1, maxLength: 20, minimum: 5, exclusiveMaximum: 100, multipleOf: 5`
+	keywords := []string{"exclusiveMaximum", "maxLength", "minLength", "minimum", "multipleOf", "pattern"}
+	doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /n:
+    get:
+      parameters:
+        - {name: q, in: query, schema: {type: string, format: int64, `+bounds+`}}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    N: {type: string, format: decimal, `+bounds+`}
+    R: {allOf: [{$ref: '#/components/schemas/N'}], type: string, format: int64, minimum: 5}
+    H:
+      type: object
+      properties:
+        p: {type: string, format: int64, `+bounds+`}
+        d: {type: string, format: date, maxLength: 10}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	h, ok := typeByName(doc, "H").(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(h.Properties)
+	params := doc.Services[0].Groups[0].Operations[0].Params
+	require.Len(t, params, 1)
+	for at, carrier := range map[jsontext.Pointer]*ir.Constraints{
+		"/components/schemas/N":              nil,
+		"/components/schemas/H/properties/p": props["p"].Constraints,
+		"/paths/~1n/get/parameters/0/schema": params[0].Constraints,
+	} {
+		assert.Nil(t, carrier, "%s: what carries the number holds no bound", at)
+		sc, ok := nodeAt(doc, at).(*ir.Scalar)
+		require.True(t, ok, "%s hoists a Scalar", at)
+		assert.Nil(t, sc.Constraints, "%s: the number's Constraints hold no bound of its text", at)
+		for _, keyword := range keywords {
+			entry, kept := sc.Unmodeled["openapi:"+keyword]
+			if assert.True(t, kept, "%s: %s is kept", at, keyword) {
+				assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
+				assert.Equal(t, at+jsontext.Pointer("/"+keyword), entry.Provenance.Pointer)
+			}
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, string(at)+"/"+keyword),
+				"%s: keeping %s is reported at it", at, keyword)
+		}
+		assert.Len(t, sc.Unmodeled, len(keywords), "%s keeps nothing else", at)
+	}
+	require.NotNil(t, props["d"].Constraints, "a date keeps the length bound of its text")
+	assert.Equal(t, new(int64(10)), props["d"].Constraints.MaxLength)
+
+	r, ok := typeByName(doc, "R").(*ir.Scalar)
+	require.True(t, ok, "the refinement owns an alias")
+	_, kept := r.Unmodeled["openapi:minimum"]
+	assert.True(t, kept || (r.Constraints != nil && r.Constraints.Min != nil), "the alias holds its bound somewhere")
+}
+
+// nodeAt returns the type node lowered at the source pointer at.
+func nodeAt(doc *ir.Document, at jsontext.Pointer) ir.TypeDef {
+	for _, td := range doc.Types {
+		if td.Common().Provenance.Pointer == at {
+			return td
+		}
+	}
+	return nil
 }
 
 // TestContentVocabulary_LowersToEncoding pins where the 2020-12 content

@@ -1,0 +1,701 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "composed",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "extension",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Header Name Syntax",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Header Name Syntax",
+        "canonical": "header_name_syntax"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1traces/get",
+              "name": {
+                "source": "getTrace",
+                "canonical": "get_trace"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1traces/get/parameters/X-Trace/header",
+                  "name": {
+                    "source": "X-Trace",
+                    "canonical": "x_trace"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1traces/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
+                  "name": {
+                    "source": "x-trace",
+                    "canonical": "x_trace"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1traces/get/parameters/1"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1traces/get/responses/200/headers/not a token",
+                      "name": {
+                        "source": "not a token",
+                        "canonical": "not_a_token"
+                      },
+                      "wireName": "not a token",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1traces/get/responses/200/headers/not a token"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/traces",
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1traces/get/parameters/X-Trace/header",
+                        "location": "header",
+                        "wireName": "X-Trace",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1traces/get/parameters/x-trace/header",
+                        "location": "header",
+                        "wireName": "x-trace",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1traces/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items/properties/n",
+          "name": {
+            "source": "n",
+            "canonical": "n"
+          },
+          "wireName": "n",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Carried/headers//content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Carried/headers//content/application~1json/schema/items/properties/i",
+          "name": {
+            "source": "i",
+            "canonical": "i"
+          },
+          "wireName": "i",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Carried/headers//content/application~1json/schema/items/properties/i"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f",
+          "name": {
+            "source": "f",
+            "canonical": "f"
+          },
+          "wireName": "f",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Framed/headers//content/application~1jsonl/itemSchema/properties/f"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/responses/Listed/headers//schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/responses/Listed/headers//schema/items",
+      "name": {
+        "hint": "empty_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed/headers//schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/responses/Listed/headers//schema/items/properties/h",
+          "name": {
+            "source": "h",
+            "canonical": "h"
+          },
+          "wireName": "h",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/responses/Listed/headers//schema/items/properties/h"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Frame": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Frame",
+      "name": {
+        "source": "Frame",
+        "canonical": "frame"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Frame"
+      },
+      "base": {
+        "target": "t/anon/components/responses/Framed/headers//content/application~1jsonl/itemSchema",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/HeaderContentItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HeaderContentItem",
+      "name": {
+        "source": "HeaderContentItem",
+        "canonical": "header_content_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HeaderContentItem"
+      },
+      "base": {
+        "target": "t/anon/components/responses/Carried/headers//content/application~1json/schema/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/HeaderItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/HeaderItem",
+      "name": {
+        "source": "HeaderItem",
+        "canonical": "header_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/HeaderItem"
+      },
+      "base": {
+        "target": "t/anon/components/responses/Listed/headers//schema/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/NestedItem": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/NestedItem",
+      "name": {
+        "source": "NestedItem",
+        "canonical": "nested_item"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NestedItem"
+      },
+      "base": {
+        "target": "t/anon/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers//schema/items",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "unmodeled": {
+    "openapi:components/requestBodies/Parts": {
+      "reason": "no_ir_home",
+      "value": {
+        "content": {
+          "multipart/form-data": {
+            "encoding": {
+              "part": {
+                "contentType": "multipart/mixed",
+                "encoding": {
+                  "inner": {
+                    "headers": {
+                      "": {
+                        "schema": {
+                          "items": {
+                            "properties": {
+                              "n": {
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "properties": {
+                "part": {
+                  "properties": {
+                    "inner": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/Parts"
+      }
+    },
+    "openapi:components/responses/Carried": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "ok",
+        "headers": {
+          "": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "i": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Carried"
+      }
+    },
+    "openapi:components/responses/Framed": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "ok",
+        "headers": {
+          "": {
+            "content": {
+              "application/jsonl": {
+                "itemSchema": {
+                  "properties": {
+                    "f": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed"
+      }
+    },
+    "openapi:components/responses/Listed": {
+      "reason": "no_ir_home",
+      "value": {
+        "description": "ok",
+        "headers": {
+          "": {
+            "schema": {
+              "items": {
+                "properties": {
+                  "h": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            }
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-invalid-format",
+      "message": "Response Object field \"headers\" has the key \"not a token\", which must be a token of letters, digits and !#$%&'*+-.^_`|~ in OpenAPI 3.2 (Response Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1traces/get/responses/200/headers/not a token",
+        "position": {
+          "line": 17,
+          "column": 26
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-invalid-format",
+      "message": "Response Object field \"headers\" has the key \"\", which must be a token of letters, digits and !#$%&'*+-.^_`|~ in OpenAPI 3.2 (Response Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Framed/headers/",
+        "position": {
+          "line": 45,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-invalid-format",
+      "message": "Response Object field \"headers\" has the key \"\", which must be a token of letters, digits and !#$%&'*+-.^_`|~ in OpenAPI 3.2 (Response Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Listed/headers/",
+        "position": {
+          "line": 52,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-invalid-format",
+      "message": "Response Object field \"headers\" has the key \"\", which must be a token of letters, digits and !#$%&'*+-.^_`|~ in OpenAPI 3.2 (Response Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/responses/Carried/headers/",
+        "position": {
+          "line": 57,
+          "column": 11
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-invalid-format",
+      "message": "Encoding Object field \"headers\" has the key \"\", which must be a token of letters, digits and !#$%&'*+-.^_`|~ in OpenAPI 3.2 (Encoding Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/requestBodies/Parts/content/multipart~1form-data/encoding/part/encoding/inner/headers/",
+        "position": {
+          "line": 39,
+          "column": 23
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/duplicate-parameter",
+      "message": "parameter \"x-trace\" in \"header\" repeats the entry at /paths/~1traces/get/parameters/0, spelled \"X-Trace\", as HTTP compares header names in any case",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1traces/get/parameters/1"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.2",
+      "path": "header-name-syntax.yaml",
+      "hash": "c984eb245b09d8cf798641b66fc5d9e26ad68792d8924e2e80e8d05e6bcc436d"
+    }
+  ]
+}

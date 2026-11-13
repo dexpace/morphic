@@ -299,9 +299,9 @@ throughout these documents.
     list, its elements keep the member and it stays closed. A required member no shape holds
     (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
     positions and one with one and no `Rest`, each admits only its own length. A `null` that two
-    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
-    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
-    on an open union and is a coded error on a closed one
+    nullable variants admit, one of them a nullable reference to an enum with no member, or a
+    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
+    variant admits takes the fallback on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
 30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
@@ -397,14 +397,16 @@ throughout these documents.
     strict decoding, one with no members stays closed under either setting and refuses every value,
     a flags one refusing 0 too, an optional member of it decoding only where it is absent, and
     refuses to encode every value a target can hand it, so that Go fails to encode a struct
-    requiring one left at its zero value and leaves out an optional one unset, one declaring a
-    `FallbackMember` reads an unlisted value as that member, and an open `Flags` enum keeps a bit no
-    member names in its flags form; an enum declared open is `Open` wherever it is used, with no
-    `Inferred` mark. A `oneOf` of two string variants only their `pattern`s tell apart decodes each
-    value into the variant whose pattern it meets, in either declaration order; a value both admit
-    and meet decodes into the first, and under `StrictExclusive` is a coded error, as is one both
-    admit and neither meets ([plan
-    policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
+    requiring one left at its zero value and leaves out an optional one unset, an anonymous one
+    every reference reaches as nullable declares no type and is `Null` on Go and `Nothing?` on
+    Kotlin at each use, a required member of it writing `null` and refusing `"x"` and an optional
+    one decoding where absent and left out unset, one declaring a `FallbackMember` reads an unlisted
+    value as that member, and an open `Flags` enum keeps a bit no member names in its flags form; an
+    enum declared open is `Open` wherever it is used, with no `Inferred` mark. A `oneOf` of two
+    string variants only their `pattern`s tell apart decodes each value into the variant whose
+    pattern it meets, in either declaration order; a value both admit and meet decodes into the
+    first, and under `StrictExclusive` is a coded error, as is one both admit and neither meets
+    ([plan policy](../plan/policy.md#an-enum-keeps-a-value-it-does-not-list),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
     each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
@@ -952,9 +954,11 @@ throughout these documents.
     GMT` and `Sun Nov  6 08:49:37 1994` as `1994-11-06T08:49:37Z`, and at
     `9999-12-31T23:59:59-01:00` fails before anything is sent; `base64`, `rfc3339` and `iso8601`
     write what their primitives' rows do; and a property whose own `Encoding` is `base64url`, typed
-    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `bytes` scalar under an encoding no
-    row names whose `WireType` is `string`, and a `datetime_offset` under one with no `WireType`,
-    are each a string in the SDK that is sent as given, with a warning
+    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `string` under `base64` whose
+    `WireType` is `string` writes `hi` as `aGk=` and reads it back, and refuses `/w==`, whose octet
+    is no UTF-8, where one with no `WireType` sends `aGk=` as given. A `bytes` scalar under an
+    encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
+    `WireType`, are each a string in the SDK that is sent as given, with a warning
     `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
     `WireType` is `int64`, `integer`, `number` or `string` is that type; and a `string` under
     `email` stays a string with an info ([the type

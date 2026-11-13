@@ -4,6 +4,7 @@
 package schema_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -145,6 +146,19 @@ func TestLower_InlineSchemaHoistedOnce(t *testing.T) {
 	assert.Empty(t, item.Name.Source, "hoisted inline types carry a hint, not a source name")
 }
 
+// untitledProbe is openapitest.InlineProbeBody less its title, which would name
+// the node it is written at (docs/compilers/openapi.md#naming): the rows that
+// write it pin the name each position composes without one.
+var untitledProbe = strings.Replace(openapitest.InlineProbeBody, "title: SUM, ", "", 1)
+
+// TestUntitledProbe_WritesNoTitle pins that untitledProbe is the probe less its
+// title, so a probe spelling its title otherwise cannot name every row SUM.
+func TestUntitledProbe_WritesNoTitle(t *testing.T) {
+	t.Parallel()
+	assert.NotContains(t, untitledProbe, "title")
+	assert.Len(t, untitledProbe, len(openapitest.InlineProbeBody)-len("title: SUM, "))
+}
+
 // TestInlinePosition_HintIsTheSameInBothOrders pins the spelling each inline
 // position takes, not only that the two orders agree (GitHub #353): the
 // structural spelling composed from the enclosing node's hint and the
@@ -163,43 +177,43 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		hint  string
 		refAt ir.TypeID
 	}{
-		{"items", "    A: {type: array, items: " + openapitest.InlineProbeBody + "}\n",
+		{"items", "    A: {type: array, items: " + untitledProbe + "}\n",
 			"t/anon/components/schemas/A/items", "a_item", ""},
-		{"additionalProperties", "    A: {type: object, additionalProperties: " + openapitest.InlineProbeBody + "}\n",
+		{"additionalProperties", "    A: {type: object, additionalProperties: " + untitledProbe + "}\n",
 			"t/anon/components/schemas/A/additionalProperties", "a_value", ""},
-		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + openapitest.InlineProbeBody + "}}\n",
+		{"patternProperties", "    A: {type: object, patternProperties: {\"^x\": " + untitledProbe + "}}\n",
 			"t/anon/components/schemas/A/patternProperties/^x", "a_pattern", ""},
-		{"prefixItems", "    A: {type: array, prefixItems: [" + openapitest.InlineProbeBody + "]}\n",
+		{"prefixItems", "    A: {type: array, prefixItems: [" + untitledProbe + "]}\n",
 			"t/anon/components/schemas/A/prefixItems/0", "a_0", ""},
-		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + openapitest.InlineProbeBody + "}\n",
+		{"tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: " + untitledProbe + "}\n",
 			"t/anon/components/schemas/A/items", "a_item", ""},
 		// Nested, because the name is composed along the whole chain rather than
 		// one step: the outside $ref used to name this "items", losing both levels.
-		{"items under items", "    A: {type: array, items: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+		{"items under items", "    A: {type: array, items: {type: array, items: " + untitledProbe + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item", ""},
 		// Rooted at a property rather than at the component, so the enclosing hint
 		// the walk rebuilds from is the property's key.
 		{"items under a property", "    A: {type: object, properties: {p: {type: array, items: " +
-			openapitest.InlineProbeBody + "}}}\n",
+			untitledProbe + "}}}\n",
 			"t/anon/components/schemas/A/properties/p/items", "p_item", ""},
 		{"contentSchema", "    A: {type: string, contentMediaType: application/json, contentSchema: " +
-			openapitest.InlineProbeBody + "}\n",
+			untitledProbe + "}\n",
 			"t/anon/components/schemas/A/contentSchema", "a_content", ""},
 		// The reference is aimed at contentSchema and the assertion at what is
 		// under it.
 		{"items under contentSchema", "    A: {type: string, contentMediaType: application/json, " +
-			"contentSchema: {type: array, items: " + openapitest.InlineProbeBody + "}}\n",
+			"contentSchema: {type: array, items: " + untitledProbe + "}}\n",
 			"t/anon/components/schemas/A/contentSchema/items", "a_content_item",
 			"t/anon/components/schemas/A/contentSchema"},
 		// Aimed at a tuple's rest: a rest named by a role of its own would part
 		// from the name its /items pointer gives it.
 		{"items under a tuple rest", "    A: {type: array, prefixItems: [{type: string}], items: {type: array, items: " +
-			openapitest.InlineProbeBody + "}}\n",
+			untitledProbe + "}}\n",
 			"t/anon/components/schemas/A/items/items", "a_item_item",
 			"t/anon/components/schemas/A/items"},
 		// Aimed at additionalProperties.
 		{"items under additionalProperties", "    A: {type: object, additionalProperties: {type: array, items: " +
-			openapitest.InlineProbeBody + "}}\n",
+			untitledProbe + "}}\n",
 			"t/anon/components/schemas/A/additionalProperties/items", "a_value_item",
 			"t/anon/components/schemas/A/additionalProperties"},
 		// The remaining rows put a key spelled like a keyword, or a branch's
@@ -209,27 +223,29 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 		// beneath it.
 		{"a property named items is not the items keyword",
 			"    A: {type: object, properties: {items: {type: array, items: " +
-				openapitest.InlineProbeBody + "}}}\n",
+				untitledProbe + "}}}\n",
 			"t/anon/components/schemas/A/properties/items/items", "items_item",
 			"t/anon/components/schemas/A/properties/items"},
 		{"a property named additionalProperties is not the additionalProperties keyword",
 			"    A: {type: object, properties: {additionalProperties: {type: object, additionalProperties: " +
-				openapitest.InlineProbeBody + "}}}\n",
+				untitledProbe + "}}}\n",
 			"t/anon/components/schemas/A/properties/additionalProperties/additionalProperties",
 			"additional_properties_value", "t/anon/components/schemas/A/properties/additionalProperties"},
 		{"a property named contentSchema is not the contentSchema keyword",
 			"    A: {type: object, properties: {contentSchema: {type: array, items: " +
-				openapitest.InlineProbeBody + "}}}\n",
+				untitledProbe + "}}}\n",
 			"t/anon/components/schemas/A/properties/contentSchema/items", "content_schema_item",
 			"t/anon/components/schemas/A/properties/contentSchema"},
 		{"a patternProperties entry keyed items is not the items keyword",
 			"    A: {type: object, patternProperties: {items: {type: array, items: " +
-				openapitest.InlineProbeBody + "}}}\n",
+				untitledProbe + "}}}\n",
 			"t/anon/components/schemas/A/patternProperties/items/items", "a_pattern_item",
 			"t/anon/components/schemas/A/patternProperties/items"},
+		{"a title names the position it is written at", "    A: {type: array, items: " +
+			openapitest.InlineProbeBody + "}\n", "t/anon/components/schemas/A/items", "sum", ""},
 		{"items beneath a oneOf branch is named off the branch, not the ordinal",
 			"    A: {oneOf: [{type: array, items: {type: array, items: " +
-				openapitest.InlineProbeBody + "}}, {type: integer}]}\n",
+				untitledProbe + "}}, {type: integer}]}\n",
 			"t/anon/components/schemas/A/oneOf/0/items/items", "variant_0_item_item",
 			"t/anon/components/schemas/A/oneOf/0/items"},
 	} {
@@ -265,7 +281,7 @@ func TestInlinePosition_HintIsTheSameInBothOrders(t *testing.T) {
 func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
 	t.Parallel()
 	const id = ir.TypeID("t/anon/paths/~1x/get/responses/200/content/application~1json/schema/items")
-	const op = `paths:
+	op := `paths:
   /x:
     get:
       operationId: getX
@@ -273,7 +289,7 @@ func TestInlinePosition_UnderPathsIsNamedByItsDeclaration(t *testing.T) {
         "200":
           description: ok
           content:
-            application/json: {schema: {type: array, items: ` + openapitest.InlineProbeBody + `}}
+            application/json: {schema: {type: array, items: ` + untitledProbe + `}}
 `
 	const outsider = "components:\n  schemas:\n" +
 		"    Outsider: {$ref: '#/paths/~1x/get/responses/200/content/application~1json/schema/items'}\n"
