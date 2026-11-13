@@ -578,13 +578,28 @@ it sees. Changes made together in one bump are listed together under it.
     string.
   - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
     text already encoded. No compiler writes the first yet.
-- **0.54.0** — three changes of meaning, the shape kept:
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.
+- **0.55.0** — three changes of meaning, the shape kept:
   - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
     reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
     lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
     also admits every other value, or to a `Model` where `properties` was written beside it, and a
     `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
-    to 0.53.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+    to 0.54.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
   - A union branch admitting `null` alone, written in place, is the union's `null` in every
     spelling, carried by the reference to the union rather than by a variant
     ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
@@ -592,7 +607,7 @@ it sees. Changes made together in one bump are listed together under it.
     `Enum` with no member, so a union of one such branch and one other is now a nullable reference
     to the other, and a union of more has one variant fewer, while one written beside a structural
     body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
-    pinned to 0.53.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    pinned to 0.54.0 finds no variant where it read one admitting `null` alone. The reverse holds
     too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
     `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
     and dropped what it wrote beside its type, so such a consumer also finds a variant where it

@@ -229,6 +229,43 @@ func TestCheck_ComponentNamesAreChecked(t *testing.T) {
 	})
 }
 
+// TestCheck_HeaderNamesAreFieldNames pins the key grammar of a headers map, a
+// Response Object's and an Encoding Object's: each key is an HTTP field name,
+// so a token, an error where it is not, as a header parameter's name is, and
+// a key naming the header a key spelled lower in byte order names in another
+// case draws a warning at itself, whichever order the map writes the two in.
+func TestCheck_HeaderNamesAreFieldNames(t *testing.T) {
+	const h = "{schema: {}}"
+	verify(t, []scenario{
+		{"tokens", "3.1.0", oas.Response, `{description: d, headers: {X-Rate: ` + h + `, "!#$%&'*+-.^_|~09": ` + h + `}}`, nil},
+		{"the empty key", "3.1.0", oas.Response, `{description: d, headers: {"": ` + h + `}}`,
+			[]finding{at(badFormat, "/headers/")}},
+		{"a key holding spaces", "3.0.3", oas.Response, `{description: d, headers: {"not a token": ` + h + `}}`,
+			[]finding{at(badFormat, "/headers/not a token")}},
+		{"a key past ASCII", "3.2.0", oas.Response, `{headers: {"X-Rät": ` + h + `}}`, []finding{at(badFormat, "/headers/X-Rät")}},
+		{"two keys one header", "3.1.0", oas.Response, `{description: d, headers: {X-Rate: ` + h + `, x-rate: ` + h + `}}`,
+			[]finding{at(duplicate, "/headers/x-rate")}},
+		{"the two the other way round", "3.1.0", oas.Response,
+			`{description: d, headers: {x-rate: ` + h + `, X-Rate: ` + h + `}}`, []finding{at(duplicate, "/headers/x-rate")}},
+		{"three keys one header", "3.1.0", oas.Response,
+			`{description: d, headers: {x-rate: ` + h + `, X-RATE: ` + h + `, X-Rate: ` + h + `}}`,
+			[]finding{at(duplicate, "/headers/x-rate"), at(duplicate, "/headers/X-Rate")}},
+		{"an encoding's", "3.1.0", oas.Encoding, `{headers: {"": ` + h + `, X-Part: ` + h + `, x-part: ` + h + `}}`,
+			[]finding{at(badFormat, "/headers/"), at(duplicate, "/headers/x-part")}},
+		{"a component's key is a component name", "3.1.0", oas.Components, `{headers: {X-Rate: ` + h + `, x-rate: ` + h + `}}`, nil},
+	})
+	diags := run(t, "3.1.0", oas.Response, `{description: d, headers: {x-rate: `+h+`, X-Rate: `+h+`}}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, `Response Object field "headers" has the keys "X-Rate" and "x-rate", which name one header, `+
+		`as HTTP compares field names in any case, and both are read in OpenAPI 3.1 (Response Object)`, diags[0].Message)
+	diags = run(t, "3.1.0", oas.Response, `{description: d, headers: {"": `+h+`}}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+	assert.Equal(t, `Response Object field "headers" has the key "", which must be a token of letters, digits and `+
+		"!#$%&'*+-.^_`|~ in OpenAPI 3.1 (Response Object)", diags[0].Message)
+}
+
 // TestCheck_ObjectsAreReadWhereTheyAreHeld pins the descent into every
 // container shape.
 func TestCheck_ObjectsAreReadWhereTheyAreHeld(t *testing.T) {

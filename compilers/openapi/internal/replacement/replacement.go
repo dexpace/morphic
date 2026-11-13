@@ -154,7 +154,8 @@ func memberFinder(types ir.TypeRegistry, id ir.TypeID) func(string) (ir.EntityRe
 
 // headers fills each header's replacements, among the headers beside it. A
 // name matches a header in any case, as HTTP compares header names, so one
-// matching two headers whose names differ only in case (#635) names both.
+// matching two headers whose names differ only in case names both, a repeat
+// reported where its map writes it (docs/compilers/openapi.md#header-style).
 func (r *resolver) headers(hs []ir.Header) []ir.Diagnostic {
 	sibling := func(name string) (ir.EntityRef, int) {
 		var found ir.EntityRef

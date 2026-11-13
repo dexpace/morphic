@@ -144,6 +144,7 @@ func conformanceCases() []conformanceCase {
 		{"named-types", assertNamedTypes},
 		{"neutral-naming", assertNeutralNaming},
 		{"empty-names", assertEmptyNames},
+		{"title-hints", assertTitleHints},
 		{"inline-types", assertInlineTypes},
 		{"component-reuse", assertComponentReuse},
 		{"shared-response-across-status", assertSharedResponseAcrossStatus},
@@ -247,6 +248,8 @@ func conformanceCases() []conformanceCase {
 		{"param-xml-residue", assertParamXMLResidue},
 		{"param-ref-inheritance", assertParamRefInheritance},
 		{"header-content-schema", assertHeaderContentSchema},
+		{"header-name-case", assertHeaderNameCase},
+		{"header-name-syntax", assertHeaderNameSyntax},
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
 		{"file-body", assertFileBody},
@@ -345,6 +348,13 @@ func invalidCases() map[string][]string {
 		// A parameter and a header whose content holds several entries, where the
 		// specification requires exactly one.
 		"content-several-entries": {"openapi/validation/validation-entry-count"},
+		// Header names no HTTP field can have: a headers map's key that is no
+		// token, and a header parameter spelled in two cases, a repeat OpenAPI
+		// forbids as it does any.
+		"header-name-syntax": {"openapi/validation/validation-invalid-format", "openapi/duplicate-parameter"},
+		// An operation binding Idempotency-Key in two cases, a repeat as header
+		// names compare in any case, whose token the policy then declines to infer.
+		"idempotency-inference": {"openapi/duplicate-parameter"},
 		// Requirements naming a scheme the document does not hold: each name
 		// "MUST correspond to a security scheme". An entry naming no mechanism
 		// and one whose $ref reaches nothing are among what they name.
