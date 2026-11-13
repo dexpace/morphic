@@ -207,11 +207,10 @@ verifier and codecs must reach.
 ## Say which declarations a reader of a flattened member needs
 `flattened-member-declarations`
 
-- **Rule.** A flattened member (`ir.FlattenedProperties`) takes every facet bar `Required` and
-  `Secret`, which accumulate, from one declaration, and lists the rest in `Overridden`. A new
-  reader's comment says which its question needs, and it reads those: what an instance carries
-  conjoins every declaration, while what the member renders as is the taken one. Whether
-  deprecation accumulates is #1628's to decide.
+- **Rule.** A flattened member (`ir.FlattenedProperties`) takes every facet bar `Required`,
+  `Secret` and `Deprecation`, which accumulate, from one declaration, and lists the rest in
+  `Overridden`. A new reader's comment says which its question needs, and it reads those: what an
+  instance carries conjoins every declaration, while what the member renders as is the taken one.
 - **Why.** A redaction an overridden declaration asked for was dropped (#1211). On #1700, tag
   inference read only the taken declaration, so a body redeclaring the tag as a plain string hid
   each variant's pin, and the mapping was keyed by component names (#1704).

@@ -1,0 +1,41 @@
+# An operation declaring an Idempotency-Key header parameter, and no
+# idempotency of its own, takes it as its idempotency token under the
+# idempotency policy, marked as inferred: on a method RFC 9110 does not define
+# as safe, the name compared without case, and only where one header carries
+# it. One carrying it twice takes none and is reported as undecided.
+openapi: 3.1.0
+info: {title: IdempotencyInference, version: "1.0.0"}
+paths:
+  /payments:
+    post:
+      operationId: createPayment
+      parameters:
+        - {name: Idempotency-Key, in: header, schema: {type: string}}
+      responses: {'204': {description: ok}}
+    get:
+      operationId: listPayments
+      parameters:
+        - {name: Idempotency-Key, in: header, schema: {type: string}}
+      responses: {'204': {description: ok}}
+  /payments/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    put:
+      operationId: replacePayment
+      parameters:
+        - $ref: '#/components/parameters/Key'
+      responses: {'204': {description: ok}}
+    patch:
+      operationId: patchPayment
+      parameters:
+        - {name: Idempotency-Key, in: query, schema: {type: string}}
+      responses: {'204': {description: ok}}
+    delete:
+      operationId: deletePayment
+      parameters:
+        - {name: Idempotency-Key, in: header, schema: {type: string}}
+        - {name: IDEMPOTENCY-KEY, in: header, schema: {type: string}}
+      responses: {'204': {description: ok}}
+components:
+  parameters:
+    Key: {name: idempotency-key, in: header, required: true, schema: {type: string}}

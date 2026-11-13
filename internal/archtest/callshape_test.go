@@ -61,9 +61,9 @@ var callShapeBaseline = map[string]map[string]int{
 		"engine/reader": 6,
 	},
 	"compilers/openapi/internal/lowering": {
-		// Promoter.Referent and Remembered each call the function they are handed
-		// before they return: immediate callbacks.
-		"compilers/openapi/internal/schema": 14,
+		// Promoter.Referent, Remembered and Settled each call the function they
+		// are handed before they return: immediate callbacks.
+		"compilers/openapi/internal/schema": 15,
 	},
 	"compilers/openapi/internal/merge": {
 		// What a fold asks the walk that declared the field, through merge.Walk:
@@ -108,6 +108,7 @@ var callShapeBaseline = map[string]map[string]int{
 	},
 	"ir": {
 		// ir.Visitor and the ForEach walks: traversal callbacks.
+		"engine/report":   1,
 		"internal/census": 1,
 		"ir/irfacts":      3,
 		"ir/irverify":     2,

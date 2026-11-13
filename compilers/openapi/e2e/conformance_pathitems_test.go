@@ -110,6 +110,14 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok, "the callback operation is registered alongside its parent")
 	assertPathItemServersNamed(t, doc, cb, "https://callbacks.example.com")
 	assert.Empty(t, op.Servers, "the callback's servers stay on the callback, not on the parent")
+
+	reply, ok := opByName(doc, "onReply")
+	require.True(t, ok, "a callback declared on a callback's operation lowers too")
+	require.Len(t, cb.Bindings.HTTP[0].Callbacks, 1)
+	nested := cb.Bindings.HTTP[0].Callbacks[0]
+	assert.Equal(t, ir.Callback{Name: "onReply", Expression: "{$response.body#/replyUrl}", Operations: []ir.OpID{reply.ID}}, nested)
+	assert.Equal(t, ir.HTTPInboundCallback, reply.Bindings.HTTP[0].Inbound)
+	assert.Empty(t, reply.Servers, "the servers of the item declaring it are not its own")
 }
 
 // assertPathItemAnchoredKey pins that an undeclared path-item key whose value

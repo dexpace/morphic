@@ -48,8 +48,8 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 	require.Len(t, pet.Variants, 2, "both variants present")
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
-	assert.Equal(t, map[string]ir.TypeID{"cat": "t/openapi/components/schemas/Cat"},
-		pet.Discriminator.Mapping)
+	assert.Equal(t, map[string]ir.TypeID{"cat": "t/openapi/components/schemas/Cat", "Dog": "t/openapi/components/schemas/Dog"},
+		pet.Discriminator.Mapping, "the mapping holds the route it implies to the variant it leaves out")
 }
 
 func TestAnyOf_IsNonExclusiveUnion(t *testing.T) {

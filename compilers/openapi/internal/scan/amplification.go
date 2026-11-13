@@ -46,8 +46,8 @@ const minExpandedNodes = 1 << 15 // 32768
 // catches one anchor repeated in a flat list, whose ratio stays put while
 // memory climbs, as diag.BudgetExceeded.
 //
-// Run it only once recursive anchors are refused, which makes the alias graph
-// a DAG (see Aliases).
+// Run it after anchorCycle (see Aliases): a recursive anchor below the
+// index's tracked depth reaches the weigh walk's cut (pushChildren).
 func aliasAmplification(ctx context.Context, tree provenance.Tree, root *yaml.Node, raw int, surplus budget.Limit,
 ) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
@@ -164,9 +164,9 @@ func newAliasWeigher(allowance budget.Limit) *aliasWeigher {
 // too large. It returns none for a document within the allowance. It weighs on
 // past the first, since which comes first is the document's declaration order.
 //
-// A node is expanded once at most: a weighed node's frame pops unexpanded, and
-// pushChildren skips one in flight. So the stack holds root's frame and at most
-// one per Content entry or alias. A done ctx stops it, partway.
+// A node is expanded once at most: a frame whose node holds a weight pops,
+// and pushChildren skips one in flight. So the stack holds root's frame and at
+// most one per Content entry or alias. A done ctx stops it, partway.
 func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node {
 	if root == nil {
 		return nil
@@ -199,9 +199,10 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 }
 
 // dependsOnAmplifier reports whether something n's weight depends on (see
-// childrenOf), every one of which is weighed by the time n is, is itself past
-// the allowance. A node a cycle cut is not weighed and never finishes, so the
-// node depending on it is the innermost there is.
+// childrenOf), every one of which holds a weight by the time n is weighed, is
+// itself past the allowance. A node a cycle cut holds the weight the cut gave
+// it rather than one computed, so it is no amplifier, and the node depending
+// on it is the innermost there is.
 func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
 	return slices.ContainsFunc(childrenOf(n), func(c *yaml.Node) bool {
 		return !w.cut[c] && !w.allowance.Admits(w.weight[c])
@@ -210,11 +211,11 @@ func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
 
 // pushChildren enqueues the nodes n's weight depends on (see childrenOf). A
 // child whose weight is already known is not re-pushed. A child already in
-// flight is a cycle that slipped past anchorCycle having refused every
-// recursive anchor — unreachable from a parsed document, but defended against
-// anyway: rather than re-enter it and loop, its weight is held at the first
-// count past the allowance, which is always large enough to carry the
-// document to refusal without ever pretending the cyclic subtree is small.
+// flight is a cycle anchorCycle did not see: a recursive anchor below the
+// index's tracked depth, which a parsed document can hold, or a cycle in a
+// tree built by hand. Rather than re-enter it and loop, its weight is held at
+// the first count past the allowance, which is always large enough to carry
+// the document to refusal without ever pretending the cyclic subtree is small.
 func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 	for _, c := range childrenOf(n) {
 		if c == nil {

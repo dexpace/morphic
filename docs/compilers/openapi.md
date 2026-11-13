@@ -1117,7 +1117,8 @@ declaration that owns it.
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
 keyword states no message, version, date or replacement, which only
 [`extension-promotion`](#extension-promotion) can supply, and which can state the deprecation itself
-where no keyword does. An operation, and a
+where no keyword does; a replacement the message it supplies names is read too
+([`replacement-inference`](#replacement-inference)). An operation, and a
 tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
 beside its `description` and `externalDocs`; a response and an error case take `description` and
 `summary` ([`response-summary`](#response-summary)); a request
@@ -1138,6 +1139,55 @@ marked ([references in prose](../ir/annotations.md#references-in-prose)).
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
   `operation.TestContent_RequestBodyDocsReachThePayload`,
   `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
+
+### `replacement-inference`
+
+The replacement policy, `Options.ReplacementInference` and the text option `replacement-inference`
+([`policies`](#policies)), reads what a deprecation's message names as its replacement into
+`Deprecation.ReplacedBy` ([replacements](../ir/annotations.md#replacements)). It reads the message
+[`extension-promotion`](#extension-promotion) fills on three classes of deprecated node, each where
+no key the promotion maps to `deprecation.replacedBy` is written beside it, and reports a message
+naming a replacement it cannot settle as an info `openapi/undecided-replacement`:
+
+1. An operation's message names an operation by its route: a word that is a method an operation of
+   the document is bound with, a backtick or a parenthesis before it aside, then, after white
+   space, a path starting `/`, in a code span or out of one, up to white space or a backtick. So
+   `` Use `POST /v2/zones` instead. ``, ``the GET `/v2/zones` endpoint`` and
+   `Use GET /v2/zones before 2026-11-28.` each name a route. A route names the operation whose
+   binding has that method and that path template as written, or, naming none, with the
+   punctuation a sentence puts after a path (`.`, `,`, `;`, `:`, `!`, `?`, `)`) cut from its end.
+2. A parameter's message names, in each code span, a parameter of its operation, as a replacement
+   key names one: `<in>.<name>`, or a name one parameter carries.
+3. A model member's message names, in each code span, a member of its model by name, a member the
+   model's composition flattens in among them, as a replacement key names one.
+
+A code span is read as CommonMark reads one. The policy's trigger is a message naming an entity of
+the node's class other than the node: one naming none, or the node alone, fills nothing and is not
+reported, since prose naming something else is no defect. Where it names one, the names fill the
+field all or none, the node itself passed over and a repeat kept once: a name naming no entity, or
+several, leaves the field unset, reported at the node, quoting the first such name. The message
+keeps its prose either way. The words around a name are not read, so a message naming a declared
+entity for another reason, as ``Unlike `GET /v0/zones`, this pages.`` or ``Formerly `b`.`` does,
+fills the field with it, and a document whose messages write so is compiled with the policy off. The
+reading runs once the document is whole, as a replacement may be declared after what it replaces. A
+Markdown link's title is display text and its URL a page of documentation, neither naming an entity
+the document holds, so a link is never read; nor is a header's, a schema's or a security scheme's
+message, where no measured document names a replacement such a scope resolves. On the golden spec
+(spec @86556f6f), of the 217 operations whose deprecation carries a message, 25 name a route the
+document declares, 16 in a code span and 9 beside one, and take it; 10 name a path relative to the
+prefix the document mounts it under, which names no route as written, and 146 a link, and take
+nothing; 2 parameters and 32 members take the sibling a code span names. Each of the 59 is the
+replacement its message tells a caller to use, and no message is reported.
+
+- Cases: `replacement-inference`
+- Codes: `openapi/undecided-replacement`
+- Tests: `replacement.TestMessage_AnOperationsNamesItsReplacementByRoute`,
+  `replacement.TestMessage_ARouteTwoOperationsShareNamesNone`,
+  `replacement.TestMessage_AMembersAndAParametersNameSiblingsInCode`,
+  `replacement.TestMessage_ANameTwoParametersCarryIsReported`,
+  `replacement.TestMessage_YieldsToWhatTheDocumentSays`,
+  `replacement.TestCodeSpans_ReadsCommonMarksSpans`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `disjoint-visibility`
 
@@ -2186,10 +2236,10 @@ verbatim is settled ([`union-beside-structure`](#union-beside-structure)), would
 it routes nowhere, and would have to find every component composing the schema to know that. Two
 typed homes lose as well. A subtype's `Base` naming the variant would compose the schema's object
 half where its `allOf` names the schema, and `Base` names what the source wrote
-([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds a model
-discriminator to `ir.IsSubtype`, the subtype relation every consumer reads: a check stepping from a
-`Union` base into its object variant would part from that relation, and teaching the relation the
-step would change what it means for every document.
+([composition entries](../ir/models.md#composition-entries)). And `pass/validate` holds each route
+of a model discriminator to another type to `ir.IsSubtype`, the subtype relation every consumer
+reads: a check stepping from a `Union` base into its object variant would part from that relation,
+and teaching the relation the step would change what it means for every document.
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`, `type-array-discriminator`
 - Codes: `openapi/unresolved-ref`
@@ -2300,9 +2350,9 @@ distributed union ([`discriminator`](#discriminator)): a `mapping` target, or th
 `defaultMapping`, naming the component a `$ref` branch names routes to the variant composed over
 that branch. OpenAPI routes a variant no entry names by the name of the component its branch
 names, which a composed variant, named for its position, does not carry, so that route is written
-into the `Mapping`: each such name keys its variant, unless two branches name that component or an
-entry spells that key already. No variant carries a `DiscriminatorValue`, which tags a subtype in a
-hierarchy, since the mapping's keys tag the union's variants, and
+into the `Mapping`, as [`discriminator`](#discriminator) writes it wherever a nil one would not say
+it. No variant carries a `DiscriminatorValue`, which tags a subtype in a hierarchy, since the
+mapping's keys tag the union's variants, and
 [`discriminator-inference`](#discriminator-inference) may read the mapping off the tags they pin.
 
 A `oneOf` or `anyOf` written as an inline branch of the schema's `allOf` conjoins with the rest of
@@ -2337,9 +2387,9 @@ shares one reading of it, which has none. Distribution cannot reach these shapes
 6. a `discriminator` on an `allOf` ancestor routes to the schema, by a `mapping` key or by its name
    as a component ([`discriminator-value`](#discriminator-value)): the route names what the schema
    lowers to, which as a `Union` would be no subtype of that ancestor (`ir.IsSubtype`, what
-   `pass/validate` holds a mapping to), so it stays a `Model` under it, with the tag that rule gives
-   it, if any. One written beside a union routes by name only what that union lists, so beside a
-   schema it does not list, and no `mapping` key names, a union distributes.
+   `pass/validate` holds a route to another type to), so it stays a `Model` under it, with the tag
+   that rule gives it, if any. One written beside a union routes by name only what that union lists,
+   so beside a schema it does not list, and no `mapping` key names, a union distributes.
 
 In each, whatever structural body the schema declares is lowered — `properties` or a declared
 `type` yields a `Model` or typed node — and the union branches are kept verbatim in
@@ -2371,22 +2421,23 @@ which stays validation logic beside it whatever they repeat, and a `discriminato
 keeps the body where a branch composes it (shape 4).
 
 A `discriminator` beside any of these shapes whose body lowers to a `Model` stays on that `Model` only
-when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`, the rule
-`pass/validate` holds a model discriminator to): each `mapping` target, the `defaultMapping`, and
-each component a `$ref` branch names, which it routes to by name — `oneOf`'s branches where `oneOf`
-and `anyOf` are both declared, since `oneOf` wins. An inline branch, or one naming no component, is
-no route unless the `mapping` names it. Otherwise the whole object (`propertyName`, `mapping`,
-`defaultMapping`) is kept verbatim in `Unmodeled["openapi:discriminator"]` on the node keeping the
-union, with an info `openapi/degraded-construct` at the discriminator; a subtype keeps the
-`DiscriminatorValue` its mapping key gives it, since that is still the tag its instances carry, and
-a body the move leaves holding a map and nothing else lowers to that map's `MapT`
-([containers](../ir/containers.md)). A union whose branches declare no shape
-(`validation_only`) is held to the same rule. A multi-typed body leaves no discriminator to settle:
-[`type-arrays`](#type-arrays) keeps it on the `Union` the body lowers to, beside the kept union.
-The compiler decides once every node is interned (`compile.Settlement`), because neither the walk
-nor the source schemas can answer it: a subtype declared after the `Model` has no `Base` while the
-`Model` lowers, and a schema whose `allOf` names the `Model` may still lower to no subtype — an
-`enum`, a `const`, or an alias over a `$ref` beside it.
+when every type it routes to is a subtype of it at any depth (`ir.IsSubtype`): each `mapping` target,
+the `defaultMapping`, and each component a `$ref` branch names, which it routes to by name —
+`oneOf`'s branches where `oneOf` and `anyOf` are both declared, since `oneOf` wins. An inline branch,
+or one naming no component, is no route unless the `mapping` names it, and a route to the `Model`
+itself is none of its subtypes, though `pass/validate` takes one where the model is concrete.
+Otherwise the whole object (`propertyName`, `mapping`, `defaultMapping`) is kept verbatim in
+`Unmodeled["openapi:discriminator"]` on the node keeping the union, with an info
+`openapi/degraded-construct` at the discriminator; a subtype keeps the `DiscriminatorValue` its
+mapping key gives it, since that is still the tag its instances carry, and a body the move leaves
+holding a map and nothing else lowers to that map's `MapT` ([containers](../ir/containers.md)). A
+union whose branches declare no shape (`validation_only`) is held to the same rule. A multi-typed
+body leaves no discriminator to settle: [`type-arrays`](#type-arrays) keeps it on the `Union` the
+body lowers to, beside the kept union. The compiler decides once every node is interned
+(`compile.Settlement`), because neither the walk nor the source schemas can answer it: a subtype
+declared after the `Model` has no `Base` while the `Model` lowers, and a schema whose `allOf` names
+the `Model` may still lower to no subtype — an `enum`, a `const`, or an alias over a `$ref` beside
+it.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of these shapes: it narrows the body without reshaping it, which is
@@ -2480,8 +2531,9 @@ as one whose branches declare shape.
   branch restates only what the body itself writes (#1423), a subtype a discriminator routes to
   keeps its union verbatim (#1694), a union on a branch below a discriminated base stays whole where
   no route names the schema (#1695), a discriminated union on a branch stays whole with its
-  branch (#1698), and a union holding a null branch stays whole where the reference could hold
-  the null its body admits (#1856).
+  branch (#1698), a discriminator routing to the model holding it moves though that route is legal
+  (#1806), and a union holding a null branch stays whole where the reference could hold the null
+  its body admits (#1856).
 
 ### `union-beside-ref`
 
@@ -2538,15 +2590,34 @@ On a `Model` whose own properties include the one `propertyName` names, the tag 
 `PropID`, in `Discriminator.Property`; otherwise, and on every `Union`, it is the name as written,
 in `Discriminator.PropertyName`. Each `mapping` entry lowers to its key and the `TypeID` its target
 lowers to, the target named by reference or by bare schema name, and 3.2's `defaultMapping` to
-`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. With no
-`mapping`, the `Mapping` is nil, and a union routes each variant by the name of its type, as
-OpenAPI's implicit mapping does by component name, unless
-[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin, or the
-variants are composed over their branches ([`union-beside-structure`](#union-beside-structure)),
-which writes those names out. A mapping
-target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the entry,
-which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag —
-takes the smallest in byte order as its `DiscriminatorValue`
+`Discriminator.Default`. `Inferred` is not set: the document declares the discriminator. OpenAPI
+reads a tag per value, as the name of a component schema unless a `mapping` entry keys that value,
+its implicit mapping: 3.0.4, 3.1.1 and 3.2.0 say so ("_unless_ a `mapping` is present for that
+value"), and 3.0.3 and 3.1.0, which those patch releases clarify, fail a value only where it matches
+no "implicit or explicit mapping". Their example maps the value `dog` to `Dog` "rather than the
+default (implicit) value of `Dog`", which the patch releases correct to "of
+`#/components/schemas/dog`", the reading `dog` itself takes with no entry. So the name of the
+component a variant's `$ref` branch names routes to the variant whether or not an entry routes it
+too. The IR routes by a variant type's name only where a union's `Mapping` is nil
+([models](../ir/models.md#discriminator)), so a union's `Mapping` holds the name route to each
+variant no entry routes, the name keying its variant, wherever a nil one would not say it: where the
+`mapping` holds an entry, or where a variant's type is not the component its branch names, as an
+alias for a keyword beside the `$ref` is not, nor a variant composed over its branch
+([`union-beside-structure`](#union-beside-structure)). A name two branches name, or one an entry
+spells already, keys nothing more, and an inline variant has none. The compiler leaves out the name
+of a variant an entry routes, though OpenAPI routes by it: a `Mapping` is what a consumer writing an
+instance picks the variant's tag from, and a map cannot mark one of two routes to a variant as read
+and never written, so the name written in would give the variant a second tag to write and nothing
+to say which. A hierarchy leaves out the name of a subtype a key tags in the same way, its
+`DiscriminatorValue` being a key ([`discriminator-value`](#discriminator-value)). A payload
+carrying such a name routes nowhere in the IR, or to `Default` where a 3.2 document declares
+`defaultMapping`. A variant the `defaultMapping` names and no entry routes is still routed by its
+name. With no `mapping`, and each variant whose branch names a component that component itself, the
+`Mapping` is nil and a union routes each variant by the name of its type, unless
+[`discriminator-inference`](#discriminator-inference) reads it off the tags the variants pin. A
+mapping target that resolves to no schema is reported as an `openapi/unresolved-ref` error at the
+entry, which the `Mapping` leaves out. A subtype the mapping names under several keys — an alias tag
+— takes the smallest in byte order as its `DiscriminatorValue`
 ([`discriminator-value`](#discriminator-value)), since the field holds one and a mapping's key order
 is not a property of the document, with every key kept in the base's `Mapping` and the election
 reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
@@ -2567,12 +2638,16 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
   `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
-  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
+  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`,
+  `schema.TestDiscriminatorMapping_WritesTheRoutesItImplies`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
-  type two variants alias, which a valid document can write (#1298); a mapping naming some variants
-  of a union leaves the routes OpenAPI implies for the others unwritten, where a distributed union's
-  carries them, and the IR does not say how a partial mapping routes (#1702).
+  type two variants alias, which a valid document can write (#1298); a variant whose branch names a
+  component of another document is routed by its type's name where the `Mapping` is nil, and by
+  nothing where it holds an entry (#1829); and a payload tagged with the name of a union's variant
+  or a hierarchy's subtype that an entry routes reaches no variant, or `Default`, though OpenAPI
+  routes it by that name, as the IR has no place for a route a consumer reads and never writes
+  (#1863).
 
 ### `discriminator-value`
 
@@ -2619,43 +2694,64 @@ no subtype, so no variant of a distributed union carries a tag.
 The discriminator-inference policy reads a union's tags off what its variants pin, and a subtype's
 off what it admits: the Go option `Options.DiscriminatorInference`, whose zero value is on and whose
 `Disabled` reads only what the document declares, and the text option `discriminator-inference`,
-which `false` turns off (invariant 6). A variant pins a property where the declarations its
-flattening reads of it (`ir.FlattenedProperties`), the one the member takes and those it overrides,
-hold it to one string, as an instance meets them all: one is a reference to a string `Literal`, or
-to a closed `Enum` of one string member, read through alias scalars, none pins another value, and
-not every one admits null. So a body beside a union that redeclares the tag as a string, which its
-composed variants take, leaves each branch's pin in force
-([`union-beside-structure`](#union-beside-structure)). A number, a boolean, or a value set of more
-than one pins nothing a `Mapping` holds, since a discriminator's tag is the wire string. The reading
-waits for every node to be interned (`compile.Settlement`), since a variant lowered after its union
-has no node while the union lowers, and what it finds no other settlement changes, whichever settles
-first. Two unions and a subtype meet it:
+which `false` turns off (invariant 6). What an instance admits is read off the IR, each type read
+through alias scalars. A value of a type admits a string `Literal`'s one string, the members of a
+closed `Enum` every one of which is a string, or what a value of a closed union does: the strings
+any of its variants admits, a `oneOf`'s as an `anyOf`'s. A value two variants of a `oneOf` admit
+matches neither, but what is read of a variant can admit more than it holds, as a constraint kept
+beside an `Enum` rules some of its members out, so a string read off two variants may still match
+one alone. A union on a cycle of such unions, or reaching one, admits any value, and any other type,
+a number among them, any string, since a discriminator's tag is the wire string, which a number's
+text spells too. A value admits null where its reference or an alias it is read through does, or one
+of a union's variants does, and null is no tag. A member admits what every declaration its
+flattening reads of it admits (`ir.FlattenedProperties`), the one it takes and those it overrides,
+as an instance meets them all, and null only where each does. An object admits at a property what
+its member of that name admits, any value where it declares none, met with what each closed union it
+composes admits there: what any of the union's variants admits as an object in turn, a variant that
+is no model or union admitting any value. A cycle of objects and the unions they compose, as a union
+listing subtypes that compose it, is read alike from wherever the reading enters it, each member
+admitting what it does given what the others admit, from any value down until none changes: so a
+subtype pinning its tag admits its pin, and the union what its subtypes admit. A cycle is swept at
+most 64 times, each sweep reading every member off the one before; one still changing then is read
+as the last sweep left it, which admits no less than its instances hold, so nothing is reported.
+
+So a body beside a union that redeclares the tag as a string, which its composed variants take,
+leaves each branch's pin in force ([`union-beside-structure`](#union-beside-structure)), and a tag
+written as a `oneOf` of `const`s reads as one written as an `enum`, the set
+[`string-const-union`](#string-const-union) later normalizes it to. A variant pins a property where
+it admits one or more strings and nothing else. The reading is a settlement (`compile.Settlement`):
+it waits for every node to be interned, since a variant lowered after its union has no node while
+the union lowers, and for every redeclared field to fold
+([`allof-redeclared-property`](#allof-redeclared-property)). No settlement after it changes what it
+finds, whichever settles first, and each type is read once a run, however many unions and subtypes
+ask. Two unions and a subtype meet it:
 
 1. A `discriminator` declaring no `mapping` routes each variant by the name of the component its
-   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant and names a tag
-   a variant pinning another value rejects. Where every variant pins the `propertyName` to a
-   distinct string and some variant's is not that name, the `Mapping` is read off the pinned
-   values, the union's `Provenance.Inferred` names `discriminator-inference`, and an info
+   `$ref` branch names, OpenAPI's implicit mapping, which reaches no inline variant, names a tag a
+   variant pinning other strings rejects, and routes no other string a variant admits. Where every
+   variant pins the `propertyName` to strings no other variant admits, and some variant admits other
+   than its name alone, the `Mapping` maps each string to the variant admitting it, the union's
+   `Provenance.Inferred` names `discriminator-inference`, and an info
    `openapi/inferred-discriminator` at the discriminator names the first variants it reads
-   otherwise. `Discriminator.Inferred` stays false: the tag property is declared.
+   otherwise, with the first strings each admits. `Discriminator.Inferred` stays false: the tag
+   property is declared. Variants sharing a string leave the routes to the document, since a
+   `Mapping` routes a tag to one variant.
 2. A closed union of two or more variants declaring no discriminator, no variant admitting null,
-   gets one where every variant requires a property and pins it to a distinct string: the first
-   such property in the first variant's layout order is its `PropertyName`, each pinned value maps
-   to its variant, and the union is `WireTagged`, `Discriminator.Inferred` set and
-   `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no other
-   admits, a payload names its variant as validation finds it, departing from nothing the document
-   says, so nothing is reported. An open union may meet a variant carrying any tag
+   gets one where every variant requires a property and pins it to strings no other variant admits:
+   the first such property in the first variant's layout order is its `PropertyName`, each string
+   maps to the variant admitting it, and the union is `WireTagged`, `Discriminator.Inferred` set
+   and `Provenance.Inferred` naming `discriminator-inference`. Each variant requiring a value no
+   other admits, a payload names its variant as validation finds it, departing from nothing the
+   document says, so nothing is reported. An open union may meet a variant carrying any tag
    ([unions](../ir/unions.md#open-unions)), and is left alone.
 3. A subtype a discriminator routes by its name ([`discriminator-value`](#discriminator-value))
    carries that name, which validation rejects where the subtype admits only other strings for the
-   `propertyName`. A declaration admits a string `Literal`'s one string, or the members of a closed
-   `Enum` every one of which is a string, read through alias scalars, and any string otherwise,
-   null being no tag; the subtype admits what every declaration its flattening reads of the member
-   admits. Where that rules the name out, the subtype carries the one string it admits, or,
-   admitting several or none, no tag, since none routes to it; its `Provenance.Inferred` names
-   `discriminator-inference`, and an info `openapi/inferred-discriminator` at it names what it
-   admits. Each subtype is read alone, so two admitting one string both carry it, as their instances
-   do ([models](../ir/models.md#discriminator)).
+   `propertyName`, read as an object, null being no tag. Where that rules the name out, the subtype
+   carries the one string it admits, or, admitting several or none, no tag, since none routes to it;
+   its `Provenance.Inferred` names `discriminator-inference`, and an info
+   `openapi/inferred-discriminator` at it names what it admits. Each subtype is read alone, so two
+   admitting one string both carry it, as their instances do
+   ([models](../ir/models.md#discriminator)).
 
 - Cases: `discriminator-inferred`
 - Codes: `openapi/inferred-discriminator`
@@ -2666,38 +2762,50 @@ first. Two unions and a subtype meet it:
   `schema.TestDiscriminatorInference_LeavesALoneOrNullableVariant`,
   `schema.TestDiscriminatorInference_DisabledReadsNothing`,
   `schema.TestDiscriminatorInference_ReadsADistributedUnion`,
-  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`, `schema.TestPinnedValue_ReadsOneStringOnly`,
-  `schema.TestPinnedMember_ReadsEveryDeclaration`,
+  `schema.TestUnionTags_ReadsOnlyWhatItWasDeferredFor`,
+  `schema.TestTagReadings_ValueReadsAClosedSetOfStrings`,
+  `schema.TestTagReadings_AUnionOnACycleAdmitsAnything`,
+  `schema.TestTagReadings_MemberMeetsEveryDeclaration`,
+  `schema.TestTagReadings_ObjectMeetsWhatAComposedUnionAdmits`,
+  `schema.TestTagReadings_ACycleOfCompositionReadsAlikeFromAnyEntry`,
+  `schema.TestTagReadings_SweepsACycleAtMostTheBound`,
+  `schema.TestTagReadings_SweepsACycleUntilItsNullsSettle`,
+  `schema.TestTagReadings_ReadsASharedTypeOnce`, `schema.TestThroughAliases_ReadsAtMostTheBound`,
+  `schema.TestTagReadings_ReadAModelAsTheMapItSwapsFor`,
+  `schema.TestModelFields_ReportsAFoldFollowingAStoredReading`,
   `schema.TestDiscriminatorInference_ReadsTheTagASubtypeAdmits`,
+  `schema.TestDiscriminatorInference_ReadsAUnionItsSubtypesCompose`,
   `schema.TestSubtypeTagReading_ReportsWhatItCannotSettle`,
-  `schema.TestTypeStrings_ReadsAClosedSetOfStrings`,
   `schema.TestDiscriminatorInference_JoinsTheMarksANodeCarries`
-- Status: partly built: what a union a subtype composes admits is not read, so a name only it rules
-  out stands (#1712), and a declaration writing its strings as a union of values, `oneOf` or
-  `anyOf` of `const` branches, is read as admitting any, for a variant as for a subtype (#1715).
+- Status: partly built: a `mapping` naming some variants is read as written, so a route it implies
+  by a name its variant rejects stands (#1798), and a union kept verbatim beside or on a
+  subtype's `allOf` is not read (#1694).
 
 ### `string-const-union`
 
-A `oneOf` or `anyOf` whose every branch is a string `const`, a one-member string `enum` or such a
-union is a closed set of strings in another spelling. The compiler lowers it as any union
-([`union`](#union)), each branch to its `Literal` or `Enum` holding what the branch says of its
-value, and the engine's `const-unions` pass, not the compiler, normalizes it to the closed `Enum` of
-those values at the union's own ID, so an emitter meets one shape however the document wrote the
-set. A branch that is such a union is read as the `Enum` it becomes, in the same run, so no second
-run finds one. Each member is identified and named as the same value in an `enum` is
-([`enum-const`](#enum-const)), in branch order, and holds what its branch says of its value: its
-docs, deprecation, availability, examples and kept constructs. A branch's type nothing else
+A `oneOf` or `anyOf` whose every branch is a string `const`, a string `enum` or such a union is a
+closed set of strings in another spelling. The compiler lowers it as any union ([`union`](#union)),
+each branch to its `Literal` or `Enum` holding what the branch says of its values, and the engine's
+`const-unions` pass, not the compiler, normalizes it to the closed `Enum` of those values at the
+union's own ID, so an emitter meets one shape however the document wrote the set. A branch that is
+such a union is read as the values it holds, in the same run, so no second run finds one. Each
+member is identified and named as the same value in an `enum` is ([`enum-const`](#enum-const)), in
+branch order, and holds what is said of its value: a branch of one value gives its member the
+branch's docs, deprecation, availability, examples and kept constructs, and a branch of several
+gives each of its values what that value's own member holds. A branch's type nothing else
 references goes with the union.
 
 The union stays where an `Enum` could not say all it does: a branch naming a component, a type of
-its own that an `Enum` member is not; a branch holding several values, a set of its own that the
-`Enum` would copy into each union naming it, which a document can make grow with the square of its
-size; a value two branches hold, which a `oneOf` rejects and whose two branches may say two things
-of it; values typed by two primitives; a nullable branch; a construct a branch keeps verbatim for
-any reason but being a vendor extension, such as a constraint its `Literal` has no home for, which
-narrows the branch and would not narrow a member; a branch whose `Provenance.Inferred` names a
-heuristic, whose mark no member could carry; and one fact two places say of one value. A union of
-numbers, or of values of several kinds, is outside this rule and stays a union.
+its own that an `Enum` member is not; a branch holding several values that another node names too,
+or a member of which another node names, a set of its own that the `Enum` would copy into each
+union naming it, which a document can make grow with the square of its size; a branch holding
+several values that it or its variant says anything of, which no one member could hold; a value two
+branches hold, which a `oneOf` rejects and whose two branches may say two things of it; values typed
+by two primitives; a nullable branch; a construct a branch keeps verbatim for any reason but being a
+vendor extension, such as a constraint its `Literal` has no home for, which narrows the branch and
+would not narrow a member; a branch whose `Provenance.Inferred` names a heuristic, whose mark no
+member could carry; and one fact two places say of one value. A union of numbers, or of values of
+several kinds, is outside this rule and stays a union.
 
 - Cases: `string-const-union`
 - Tests: `e2e.TestStringConstUnion_NormalizesToItsEnumSpelling`
@@ -3039,6 +3147,39 @@ property, header or parameter that owns none, as `Secret`, inherited from a `$re
 - Cases: `secret-format`, `scalar-format`
 - Tests: `operation.TestParams_SchemaRedactionReachesTheParameter`,
   `operation.TestParams_SchemaRedactionStaysOnANode`
+
+### `secret-inference`
+
+The secret policy, `Options.SecretInference` and the text option `secret-inference`
+([`policies`](#policies)), redacts a value whose name says it is a credential where the document
+asks nothing about its redaction. A parameter, a header of a response or of an encoding, or a
+model's member is `Secret` where its name's canonical words, a number after them aside, end in
+`password`, `passwd`, `passphrase`, `secret` or `apikey`, in `pass` followed by `phrase`, in `api`,
+`access`, `secret` or `private` followed by `key`, or in `access`, `refresh`, `auth`, `bearer`,
+`session` or `api` followed by `token`, or are `authorization` or `proxy` `authorization` alone, the
+fields whose value RFC 9110 defines as credentials (§11.6.2, §11.7.2), and its type reads, through
+its scalars, as `string` or `bytes`. A name's last words decide what it names, so `secret_id`,
+`R2-Access-Key-Id`, `page_token` and `payment_authorization` name no credential while `password2`
+and `passPhrase` name one, and `token` alone names none, since one API calls a credential so and
+another a unit of text; a value of another type, as `has_password: {type: boolean}` or a `secret`
+object holding a credential's parts, is none either. Such a name on such a type is the policy's
+trigger, and it declines nothing that meets it: the document has spoken where the use is already
+`Secret` or its type `Sensitive` ([`password`](#password)), and where a redaction key the promotion
+maps is written on the use or on a node its type reads through, so `x-sensitive: false` keeps a
+credential's name from asking. What it fills the document leaves silent, so nothing is reported. The
+reading waits for the document to be whole, since a `$ref` can name a type built after its use. On
+the golden spec, of the 123 uses its words and types match, the document redacts 93 itself, and the
+policy marks the other 30: the 2 `R2-Secret-Access-Key` header parameters and 28 members, 17
+`authorization`, 4 `client_secret`, 3 `password`, 2 `secret_access_key`, a `build_token_secret` and
+an `r2_secret`. One of the `password` members, a leaked-credential detection's, holds the ruleset
+expression that finds a password in a request rather than a password, which its name cannot tell
+apart (spec @86556f6f).
+
+- Cases: `secret-inference`
+- Tests: `convention.TestRedact_ReadsTheNamesTail`, `convention.TestRedact_ReadsTheValuesType`,
+  `convention.TestRedact_LeavesWhatTheDocumentSays`, `convention.TestRedact_ReachesEveryUse`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `whole-schema-fallbacks`
 
@@ -3428,22 +3569,35 @@ keyword, so a lowering that carried one spelling and dropped another would still
 
 ### `path-keys`
 
-A Paths Object key lowers to `HTTPBinding.URITemplate` as written. One that breaks OpenAPI's path
-templating rules, those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path
-admits only percent-encoded, a brace outside a template expression, an expression used twice, an
-empty segment, or a query — lowers as declared and is reported as one `openapi/invalid-path-key`
-warning at its path item, naming each rule the key breaks. That every template expression has a path
-parameter, in the path item or in each of its operations, that every path parameter names an
-expression, and that no two templated paths differ only in their names is
-[`validation`](#validation)'s to report, as an error.
+A Paths Object key lowers to `HTTPBinding.URITemplate` as written, less a fragment: from the first
+`#` outside a template expression, or the first after a `?`, the key names a fragment, which no
+request sends (RFC 3986 §3.5). The template is the key before it, and each operation the path
+mounts keeps the fragment, the text after the `#`, on its HTTP binding as `openapi:fragment`, of
+reason `degraded_lowering`, at the key's pointer. The operation's ID and the name hint of one with
+no `operationId` read the whole key, so operations a document declares on one route under keys
+that differ only in a fragment keep names of their own, while grouping by path prefix
+([`path-prefix-groups`](#path-prefix-groups)) reads the template. A path operation whose method and
+template, each expression's name aside, another path operation sends too has
+`HTTPBinding.SharedRoute` set; a webhook's and a callback's operation are sent by the API to no
+route a client sends. A key that breaks OpenAPI's path templating rules,
+those of 3.2.0 §4.8.2 read at every version — no leading `/`, a character a path admits only
+percent-encoded, a brace outside a template expression, an expression used twice, an empty segment,
+a query, or a fragment — lowers as declared but for the fragment, and is reported as one
+`openapi/invalid-path-key` warning at its path item, naming each rule the key breaks and nothing in
+a fragment. That every template expression has a path parameter, in the path item or in each of its
+operations, that every path parameter names an expression of the key less its fragment, and that no
+two templated paths differ only in their names is [`validation`](#validation)'s to report, as an
+error.
 
-- Cases: `http-binding`
+- Cases: `http-binding`, `path-key-fragments`
 - Codes: `openapi/invalid-path-key`
 - Tests: `operation.TestPathKeys_MalformedKeyIsReportedOnce`,
   `operation.TestPathKeys_RulesAreNotVersionGated`,
-  `operation.TestPathKeys_FragmentIsLeftToGitHub602`
-- Status: partly built: a `#` and what follows it are not read, so a fragment lowers into the
-  template unreported (#602).
+  `operation.TestPathKeys_FragmentIsLeftOutOfTheTemplate`, `operation.TestPathKeyDefects`,
+  `operation.TestPathRoute_SplitsAsTheRuleTableDoes`,
+  `operation.TestSharedRoute_MarksEveryOperationSendingARouteAnotherSends`,
+  `operation.TestRouteShape_LeavesOutEachExpressionsName`,
+  `oas.TestCheck_PathTemplatesAnswerToPathParameters`, `oas.TestFragmentAt_SplitsAsTheLoweringDoes`
 
 ### `path-item-operations`
 
@@ -3490,8 +3644,13 @@ operation's own, lower as the document's do ([`servers`](#servers)): each server
 `Document.Servers`, registered once at the pointer of its Server Object in the document declaring
 it, however many mounts reach it. An operation names its own servers on `Operation.Servers` and its
 path item's where it declares none, since OpenAPI says the operation's override the path item's; one
-that neither declares names none, and its service's apply ([servers](../ir/servers.md)). A
-path item's list is registered even where every one of its operations overrides it. Two lists are
+that neither declares names none, and its service's apply ([servers](../ir/servers.md)), save to a
+webhook's or a callback's operation, which inherits none
+([servers](../ir/servers.md#inbound-operations)). An explicitly empty list, `servers: []`, declares
+none, as an absent one does, and so overrides nothing above it: OpenAPI equates an empty list with
+an absent one where it says what an empty list means, the document's, and an operation reading `[]`
+as no server would have none to be sent to, so nothing is kept or reported, as for the document's.
+A path item's list is registered even where every one of its operations overrides it. Two lists are
 not: one a nearer layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields)
 reports rather than lowers, and one written by a component path item no reference reaches, kept
 whole with that component ([`unreferenced-components`](#unreferenced-components)). A path item that
@@ -3501,18 +3660,23 @@ the service instead, or on the declaring operation's HTTP binding for a callback
 description as [`path-item-docs`](#path-item-docs) says, and its parameters as
 [`parameters`](#parameters) says. The item's pointer is in every key, since one carrier holds every
 such item, and a component item two paths mount is kept once per mount. It is reported as one
-`openapi/degraded-construct` warning at the mount.
+`openapi/degraded-construct` warning at the mount's use site, in the document writing it, saying
+what any of its layers kept: the mount for a path or a webhook, and the expression's key in its
+Callback Object for a callback expression, whose mount a `$ref`'d callback or parent addresses
+nowhere.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestOperations_PathItemServersNamedOnEveryRoute`,
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
+  `operation.TestOperations_AnEmptyServersListOverridesNothing`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
+  `operation.TestPathItem_WithNoOperationIsReportedAtItsUseSite`,
+  `operation.TestPathItemRefSiblings_UnmountedSaysOnceWhatEveryLayerKept`,
   `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
   `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`,
   `operation.TestPathItem_WithNoOperationKeepsEachMountApart`
-- Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
-  whether it should override the list above it is undecided (#1081).
 
 ### `path-item-docs`
 
@@ -3594,13 +3758,43 @@ repeated name, at the repeat, naming the first. Group and sibling order stay fir
 operations, with a missing ancestor created immediately before its first descendant, so a document
 that declares no parents groups exactly as it would were parents never read.
 
+A webhook's operation is filed in the synthesized `webhooks` group ([`webhooks`](#webhooks)) and a
+callback's in the group of the operation declaring it ([`callbacks`](#callbacks)), whatever tags
+either states, under this strategy and every other: each is a request the API sends, filed by the
+route mounting it, and `Operation.Tags` keeps its tags. Filing a callback by its own tags was
+weighed and rejected: one stating none, as callback operations commonly do, would land in the
+untagged group, apart from the operation whose exchange supplies its URL.
+
 - Cases: `tags-grouping`, `tags-grouping-32`, `group-identity`
-- Tests: `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
+- Tests: `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`,
+  `operation.TestGrouping_ParentCycleNestsNoMemberUnderAnother`,
   `operation.TestGrouping_DanglingParentStaysTopLevel`,
   `operation.TestGrouping_SameNameDeclaredTwiceIsDeterministic`,
   `operation.TestGrouping_BadgeOnlyOperationFallsToDefault`, `oas.TestCheck_TagParentsExist`,
   `oas.TestCheck_DuplicatesAreFound`
 - Status: partly built: a tag an operation repeats passes into the IR undeduplicated (#738).
+
+### `path-prefix-groups`
+
+Under the `path-prefix` grouping strategy (`Options.Grouping`), each path operation is filed in one
+group, named by the first non-empty segment of its path's URI template, the key less any fragment
+([`path-keys`](#path-keys)), so `/users` and `/users/{id}` share `users`. A segment that is a
+template expression names its group as written, `/{tenant}/users` filing under `{tenant}`, and the
+root path, whose segments are all empty, under the empty one. The group's ID is `g/path-prefix/`
+and the segment as one RFC 6901 token, the empty segment's `g/path-prefix`
+([identity](../ir/identity.md#operation-groups)); it is named by the segment, by a hint where the
+segment is empty, and has no docs, and group order is first-seen from the operations. A path names
+no resource, so the reading is policy (invariant 6), never the default: an operation it files lists
+`group-path-prefix` in its `Provenance.Inferred`. A webhook's operation stays in the webhook group,
+unmarked, and a callback's goes with the operation declaring it, marked as that one is
+([`tag-groups`](#tag-groups)). Nothing is reported.
+
+- Tests: `operation.TestGrouping_PathPrefixGroupsAreIdentifiedByTheirSegment`,
+  `operation.TestGrouping_ByPathPrefixInferred`, `operation.TestGrouping_PathPrefixRootPath`,
+  `operation.TestSharedRoute_PathPrefixGroupsTheRoute`,
+  `operation.TestGrouping_ACallbackGoesWithItsParentWhateverItsTags`
+- Status: partly built: the segment is read up to the next `/` alone, so a key's query reaches its
+  group, `/users?role=admin` filing under `users?role=admin` (#1823).
 
 ### `extension-groups`
 
@@ -3617,42 +3811,70 @@ writes the segments of a single path, as `x-fern-sdk-group-name` does, another s
 group the operation belongs to, as `x-speakeasy-group` does. So a list's reading is named beside the
 key, `segments` or `groups`, and is never taken from another key's: a key named without one is
 refused, as is one without the key. Under `segments` each entry adds its own segments; under
-`groups` the operation is filed under the first entry's path, and placing it under the others is a
-remount an emitter's plan reads from the kept extension, so no group is minted for them.
+`groups` the operation is filed under the first entry's path.
+
+An operation can belong to further groups than the one it is filed in: each path after the first a
+`groups` list names, and each an *alias* names. `GroupingExtension.Aliases` names the extension
+listing an operation's aliases, by default `x-forge-aliases` beside the default key, and none beside
+a key the caller names unless the caller names one: a list of objects, each stating a path under the
+grouping key as that key's own value does, read under its list reading, so the default's entries
+restate `x-fern-sdk-group-name` beside a method name of their own. An object stating no path names
+none. Each such path gets its groups too, nested as the operation's own are and holding no
+operation where none is filed there, so that a remount, which names a group by its ID
+([shaping hints](../emitters/contract/shaping-hints.md)), names one the IR holds; placing the
+operation there is the remount's, read from the kept extension, since an `Operation` sits in one
+group. Nothing marks such a group `Inferred`: an `OperationGroup` has no provenance, and the
+marker is on each operation the extension files, which a group holding none lacks. Leaving those
+groups to the remount was weighed and rejected: an ID is opaque to a consumer
+([identity](../ir/identity.md)), which could then neither name nor nest a group the IR does not hold.
+
+So the aliases extension has two readers, which must name the same key: `GroupingExtension.Aliases`
+(`--opt grouping-aliases`), for the groups an alias names, and the key an embedded-policy mapping
+reads into an operation's `AlsoMount` ([embedded policy](../emitters/contract/embedded-policy.md)),
+for the mounts in them, which the mapping names as `Unmodeled` holds it, `openapi:x-forge-aliases`
+for the default. A mapping has no default key, so the two pair only where its configuration names
+the key this option reads. A mapping reading another key can name a group the IR does not hold, a
+warning `emitters/unmatched-key` that mounts nothing ([a key that matches
+nothing](../emitters/write-integrate.md#a-key-that-matches-nothing)), and a group made for a key no
+mapping reads is named by no mount.
 
 A group's ID is `g/extension/` and the path's segments, each an RFC 6901 token
 ([identity](../ir/identity.md#operation-groups)). It follows from the path alone and never from the
 key, so a configuration can name a group, and a group nests in the one its prefix names whichever
 operation is met first. A group is named by its segment, and has no docs, as no Tag Object describes
-it; group and sibling order are first-seen from the operations, as under tags.
+it; group and sibling order are first-seen from the operations, as under tags, an operation's own
+groups before those its other paths name.
 
 An operation whose key is absent, or holds empty text, an empty list or null, is grouped by
-`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it.
-So is one whose value names no path: one that is neither text nor a list of text, or whose path has
-an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16 segments. A list is judged
-whole, so under `groups` an entry after the first that names no path is enough. That bound is over
-twice the deepest path the golden spec writes, and caps what a path's groups weigh: each group's ID
-spells the path to it, so their IDs weigh half the path's depth times its length. Such a value is
-reported as an info `openapi/degraded-construct` at the key in the operation's declaration, in
-whichever document declares it, so a path item two paths `$ref` is reported once. A value that does
-not serialize is reported where any extension's is ([`vendor-extensions`](#vendor-extensions)), and
-not again. A webhook's operation stays in the webhook group and a callback's in its parent's, as
-under tags, whatever its key states.
+`GroupingExtension.Fallback`, tags by default or path prefix, and marked as that strategy marks it;
+its aliases still name groups. So is one whose value names no path: one that is neither text nor a
+list of text, or whose path has an empty segment (`a..b`, `.a`, a list holding `""`) or more than 16
+segments. A list is judged whole, so under `groups` an entry after the first that names no path is
+enough. That bound is over twice the deepest path the golden spec writes, and caps what a path's
+groups weigh: each group's ID spells the path to it, so their IDs weigh half the path's depth times
+its length. An aliases list names no path where it is anything but a list of objects, null or
+empty, or where a path one of its objects states names none, and is judged whole too, so it names
+no group. Each value naming no path is reported as an info `openapi/degraded-construct` at its key
+in the operation's declaration, in whichever document declares it, so a path item two paths `$ref`
+is reported once. A value that does not serialize is reported where any extension's is
+([`vendor-extensions`](#vendor-extensions)), and not again. A webhook's operation stays in the
+webhook group and a callback's in its parent's, whatever its keys state ([`tag-groups`](#tag-groups)),
+and neither's keys name a group.
 
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestGrouping_ByExtensionNestsAGroupPerSegment`,
   `operation.TestGrouping_ByExtensionReportsAValueStatingNoPath`,
   `operation.TestGrouping_ByExtensionFallsBackToPathPrefix`,
-  `operation.TestGrouping_ByExtensionListOfGroupsFilesUnderTheFirst`,
+  `operation.TestGrouping_ByExtensionListOfGroupsMintsAGroupForEach`,
+  `operation.TestGrouping_ByExtensionMintsAGroupForEachAlias`,
+  `operation.TestGrouping_ByExtensionRemountsAreIndependentOfDeclarationOrder`,
   `operation.TestGrouping_ByExtensionReadsAReferencedPathItemWhereItIsDeclared`,
   `operation.TestGrouping_ByExtensionTreeIsIndependentOfDeclarationOrder`,
-  `lowering.TestGroupingExtension_PathReadsEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
+  `lowering.TestGroupingExtension_PathsReadEachSpelling`,
+  `lowering.TestGroupingExtension_AliasPathsReadEachSpelling`, `e2e.TestGolden_ExtensionGroups`,
   `e2e.TestGroupingByExtension_ReportsInTheDocumentDeclaringTheOperation`,
-  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`
-- Status: open: whether a callback operation is grouped by its own key or with its parent, as #1082
-  asks of its tags; and whether a path no operation is filed under gets a group a remount can name,
-  such as one a `groups` list names after the first or one another extension names as an alias
-  (#1726).
+  `openapi.TestCompile_GroupingExtensionDefaultsAndRefusals`,
+  `openapi.TestCompile_GroupingAliasesFollowTheKeysTheyRestate`
 
 ## 9. Parameters
 
@@ -3751,6 +3973,41 @@ call, not a compiler's, and the diagnostic lets an emitter suppress it.
 
 - Codes: `openapi/reserved-header-name`
 - Tests: `operation.TestParams_ReservedHeaderNamesAreReported`
+
+### `idempotency-inference`
+
+The idempotency policy, `Options.IdempotencyInference` and the text option `idempotency-inference`
+([`policies`](#policies)), reads an operation's idempotency token off the header its key travels
+in. Its trigger is a header parameter named `Idempotency-Key`, compared without case, the field the
+IETF HTTPAPI working group's Idempotency-Key draft defines for a caller's key; no other spelling is
+read, as no other header carries a key on the golden spec or in 1,840 public OpenAPI 3 documents,
+and the one other parameter the golden spec names for one, the query parameter `idemp_key` of
+`POST /accounts/{account_id}/bulk/subscriptions`, abbreviates the name and describes nothing. An
+operation bound by `POST`, `PUT`, `PATCH` or `DELETE`, the methods among OpenAPI's fixed fields that
+RFC 9110 does not define as safe (§9.2.1), that states no idempotency of its own and binds exactly
+one such header takes an `Idempotency` of the `idempotency_token` kind whose `TokenParam` names that
+parameter ([operations](../ir/operations.md)), with no report, as the document leaves the field
+silent. An operation a webhook or a callback declares takes its token too: the API sends that
+request, and the key tells its receiver a delivery it has seen.
+
+A safe method needs no key, and its binding already states what a token would, the plan reading the
+operation as safe off it, so the document has spoken: `GET`, `HEAD`, `OPTIONS`, `TRACE` and `QUERY`
+take no token and draw no report. Two cases meet the trigger and decline it, each reported as an
+info `openapi/undecided-idempotency` at the operation, saying why, the operation keeping the
+idempotency it states, which is none: a method only an `additionalOperations` entry declares, whose
+safety the compiler does not know, and two header parameters of that name, which can differ only in
+case and so name no one token. On the golden spec it names the token of the 6 operations declaring
+the header, 5 `POST` and a `PUT`, and reports none: 4 describe it as what makes a retry safe or keeps
+a request from applying twice, and 2 as a client command key whose reuse for another request is
+refused with a `409`, as a reused idempotency key is (spec @86556f6f).
+
+- Cases: `idempotency-inference`
+- Codes: `openapi/undecided-idempotency`
+- Tests: `convention.TestIdempotency_TheKeyHeaderIsTheToken`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`,
+  `convention.TestIdempotency_DisabledReadsNoToken`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
 
 ### `querystring`
 
@@ -4181,6 +4438,36 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
   (#635); and a `style` or `explode` beside a header's `content`, where they have no effect, lowers
   in silence, as a parameter's does (#887).
 
+### `http-date-inference`
+
+The HTTP-date policy, `Options.HTTPDateInference` and the text option `http-date-inference`
+([`policies`](#policies)), gives a response header the text its field's definition gives a date. A
+header of a response, an error case or the default, naming one field, whose name, compared without
+case, is a field an RFC defines as an HTTP-date, or as one in its date form, `Date`,
+`Last-Modified`, `If-Modified-Since`, `If-Unmodified-Since`, `Retry-After` and `If-Range` (RFC 9110
+§6.6.1, §8.8.2, §13.1.3, §13.1.4, §10.2.3, §13.1.5), `Expires` (RFC 9111 §5.3) and `Sunset` (RFC
+8594 §3), and whose type reads, through its scalars, as the `datetime_offset` `format: date-time`
+lowers to ([`string-formats`](#string-formats)), with no `Encoding` on the header, as the media type
+of one declared by `content` is, and no encoding named along that chain, takes an `Encoding` named
+`http-date` ([encodings](../ir/constraints.md#encodings)) on the header itself. Such a name on such
+a type is the policy's trigger, an encoding the document writes being where it has spoken, and it
+declines nothing that meets it. It is an override of that one use, so a component a `$ref` names
+keeps its own text wherever else it is used. An info `openapi/inferred-http-date` at the header
+reports it, since the reading replaces the RFC 3339 text `date-time` names, which the field's
+definition rules out. A header an encoding gives a part is a MIME header no such definition covers,
+and is not read. On the golden spec one header is read, the `Last-Modified` of
+`GET /accounts/{account_id}/dex/commands/{command_id}/downloads/{filename}`, whose example is an
+HTTP-date (spec @86556f6f).
+
+- Cases: `http-date-inference`
+- Codes: `openapi/inferred-http-date`
+- Tests: `convention.TestHTTPDate_AFieldItsRFCDefinesAsADate`,
+  `convention.TestHTTPDate_ReadsEveryResponseAndNoPart`,
+  `e2e.TestConventions_DeclarationOrderChangesNothing`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: partly built: a header parameter so declared, which an SDK writes, keeps RFC 3339's text,
+  as a parameter has no encoding of its own and a scalar hoisted to type it would sit at a pointer
+  a `$ref` can name (#1799).
+
 ### `links`
 
 A response's `links` lower to `Links` on the `Response`, the `ErrorCase` or the `Default` that
@@ -4250,9 +4537,12 @@ pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a web
 entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
 Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
 `security` describes requests clients send, and a webhook is one the API sends
-([auth](../ir/auth.md#inbound-operations)).
+([auth](../ir/auth.md#inbound-operations)). Its `Servers` are likewise what it and its path item
+state ([`path-item-servers`](#path-item-servers)), where the webhook is sent, and nothing of the
+document's ([servers](../ir/servers.md#inbound-operations)).
 
 - Cases: `webhooks`
+- Tests: `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`
 
 ### `callbacks`
 
@@ -4260,21 +4550,32 @@ An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each run
 each named callback, a `Callback` holding the callback's name and the expression as written and the
 `OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
 mounted at its own pointer below the declaring operation's
-(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
-operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
-webhook does. A key is a runtime expression, by the grammar each
-minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
-constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
-error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
-lowers as written.
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), filed in the declaring
+operation's group whatever its own tags or grouping extension state ([`tag-groups`](#tag-groups)),
+its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security` and no
+`servers`, as a webhook does ([`webhooks`](#webhooks)). A callback's operation may declare
+callbacks in turn, which OpenAPI also gives as requests the API sends, and they lower the same way,
+listed on its binding and filed in the same group, the deeper operations after the one declaring
+them, down to an operation nested in four callbacks. Past that bound, which stops a callback naming
+itself through a `$ref` from lowering without end, the deepest operation's `callbacks` are kept
+verbatim on its HTTP binding as `openapi:callbacks`, of reason `degraded_lowering`, and reported as
+an `openapi/degraded-construct` warning at that `callbacks` map. Each level's `$ref`s are charged as
+any are ([`source-budgets`](#source-budgets)), so one naming its callback several times over, whose
+copies multiply at each level, is refused once they pass the budget. A key is a runtime expression, by
+the grammar each minor gives, text embedding runtime expressions in braces, as OpenAPI's own example
+does, or a constant URL, which embeds none; one that is none of them is reported as an
+`openapi/validation` error, of the class `validation-invalid-format`, at the key
+([`validation`](#validation)), and lowers as written.
 
 - Cases: `callbacks`
-- Codes: `openapi/validation`
+- Codes: `openapi/validation`, `openapi/degraded-construct`
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
+  `operation.TestCallbacks_DeclaredOnACallbackLower`,
+  `operation.TestCallbacks_ACallbackNamingItselfStopsAtTheBound`,
+  `openapi.TestCompile_ACallbackNamingItselfIsChargedAtEachLevel`,
+  `operation.TestOperations_InboundOperationsNameOnlyTheServersTheyState`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
-- Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858).
 
 ## 13. Security
 
@@ -4475,6 +4776,57 @@ kept and reported as a written one is.
   `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
   (#396).
+
+### `policies`
+
+A fact the compiler fills by policy rather than reads off a keyword (invariant 6) is filled under
+one model, which each policy's rule cites rather than restates: a promotion's
+([`extension-promotion`](#extension-promotion)) and each inference's, as
+[`discriminator-inference`](#discriminator-inference) and
+[`idempotency-inference`](#idempotency-inference) are. Grouping
+([`tag-groups`](#tag-groups), [`extension-groups`](#extension-groups)) is outside it, since it picks
+how operations are arranged rather than filling a fact a node holds.
+
+1. **Injection.** Each policy is one field of `Options`, a struct whose zero value is the policy
+   switched on and whose `Disabled` switches it off, with a data member, such as the promotion's
+   `Targets` or a list of media types, only where a caller sets one. Each policy also has a text
+   option, a row of the compiler's one table of switches, spelled as the marker the policy leaves,
+   which `false` turns off.
+2. **Marking.** A fact is of one of three classes, which the `Inferred` list beside it tells apart
+   ([promotion](../ir/unmodeled.md#promotion)): declared by a keyword, with no marker; promoted from
+   an extension the document writes, marked `extension-promotion` on the node keeping the
+   extension; or inferred from a convention, marked on the node holding it by a name for the fact
+   in the form `<fact>-inference`, as `secret-inference` is. A flag a fact carries of its own, as
+   `Pagination.Inferred` and `Discriminator.Inferred` are, says only that no keyword declared it,
+   and the list says which of the other two classes filled it.
+3. **Precedence.** Where several state a fact, a keyword decides first, then a promotion, then an
+   inference; what a keyword's value states beside a promotion's key is the promotion's rule, as
+   [`extension-promotion`](#extension-promotion) says of a `deprecated: false`. To an inference,
+   the document has spoken wherever it writes a keyword, or a key a promotion maps to the fact's
+   target, whatever its value: a value filled, one that failed to resolve, and an explicit `false`
+   each keep the inference from filling that fact.
+4. **Reports.** An inference filling a field the document leaves silent reports nothing. One whose
+   reading replaces what the document writes, as an HTTP-date replaces the RFC 3339 text a written
+   `date-time` names, reports an info `openapi/inferred-<fact>`. One whose trigger, the evidence its
+   rule reads, is met where the document has not spoken, and which then declines to fill the fact,
+   reports an info `openapi/undecided-<fact>` saying why.
+5. **Placement and order.** A fact read once the document is whole is read in a package named for
+   the fact or for the convention, which imports only `ir` and the compiler's `diag` and
+   `lowering`, and so nothing of the walks that built the document. The compiler's run reads them
+   in one block, in one order: links ([`links`](#links)), then promotions, then inferences, then
+   the audits of what the policies read, so an inference sees what every promotion filled. A reading
+   a node needs while it lowers, as nullable widening's ([`nullable`](#nullable)), or while the
+   registry settles, as discriminator inference's, is made there instead.
+
+- Tests: `openapi.TestSwitchOptions_NameEveryPolicy`, `openapi.TestDecodeOptions_TextReachesEveryField`,
+  `lowering.TestPromoter_WritesSeesAKeyWhateverItSays`,
+  `replacement.TestMessage_YieldsToWhatTheDocumentSays`, `convention.TestRedact_LeavesWhatTheDocumentSays`,
+  `convention.TestIdempotency_ReportsWhatItCannotSettle`, `e2e.TestConventions_DisabledFillsNothing`
+- Status: partly built: the promotion has no text option (#658), and nothing audits what the
+  policies read (#657); no policy fills `Pagination` (#989); and the streaming and binary policies
+  mark `streaming-media-type` and `binary-media-type`, which their options `streaming-inference`
+  and `binary-inference` do not spell, while nullable widening marks `nullable-widening`, a name
+  for the reading rather than the fact (#1847).
 
 ### `extension-promotion`
 

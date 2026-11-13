@@ -94,11 +94,16 @@ that reading is its policy rather than a lowering.
 
 ## A union of strings
 
-A closed union whose every variant names an anonymous string `Literal`, a closed `Enum` of one
-string or a union of one value in turn, saying nothing else, is a closed set of strings in another
-spelling: a JSON Schema `oneOf` of `const`s, or OpenAPI 3.0's `anyOf` of one-member enums. A
-compiler keeps it a `Union`, each branch's docs and deprecation on the node it lowers to, and the
-engine's `const-unions` pass rewrites it as the closed `Enum` of its values at the union's own ID,
-each member holding what its branch says of its value, so a consumer meets one shape. Where the
-union says what no `Enum` can, it stays
-([`string-const-union`](../compilers/openapi.md#string-const-union)).
+A closed union whose every variant names an anonymous string `Literal`, a closed `Enum` of strings
+or a union of them in turn, saying nothing else, is a closed set of strings in another spelling: a
+JSON Schema `oneOf` of `const`s, or OpenAPI 3.0's `anyOf` of enums. A compiler keeps it a `Union`,
+each branch's docs and deprecation on the node it lowers to, and the engine's `const-unions` pass
+rewrites it as the closed `Enum` of its values at the union's own ID, each member holding what is
+said of its value, so a consumer meets one shape. A branch of several values is taken only where the
+union's variant is its one reference, so its values move into the `Enum` rather than being copied
+into each union naming it. Where the union says what no `Enum` can, it stays
+([`string-const-union`](../compilers/openapi.md#string-const-union)). A reading that runs before the
+pass and asks which strings a value admits, as discriminator inference does
+([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)), reads such a union
+as the set it holds, whether or not the pass will rewrite it, so its answer does not turn on how the
+document spelled the set.
