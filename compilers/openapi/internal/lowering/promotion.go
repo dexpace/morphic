@@ -125,8 +125,8 @@ type ExtensionSource struct {
 	// Values lists the values that state the target's fact, for a target that
 	// reads one (ListsValues), each compared with a string's text or a boolean's
 	// or number's JSON spelling. Empty reads the target's own vocabulary. A value
-	// it does not list states nothing, reported where no other target reads the
-	// same member of the key.
+	// it does not list states nothing, reported where no other source reads it
+	// off the same member of the key.
 	Values []string `json:"values,omitempty"`
 }
 
