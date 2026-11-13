@@ -5,6 +5,7 @@ package irverify_test
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -152,4 +153,79 @@ func TestVerify_ChannelIDMismatchIsAViolation(t *testing.T) {
 	got := verifyDeclared(doc)
 	require.NotEmpty(t, got)
 	assert.Contains(t, codesOf(got), "ir/channel-id-mismatch")
+}
+
+// malformedFindings is a finding breaking each invariant Verify holds a
+// document's findings to, read against a table of a spec and a document it
+// read, neither an overlay.
+func malformedFindings() []ir.Diagnostic {
+	finding := func(prov ir.Provenance) ir.Diagnostic {
+		return ir.Diagnostic{Severity: ir.SeverityWarning, Code: "c/x", Message: "m", Provenance: prov}
+	}
+	return []ir.Diagnostic{
+		finding(ir.Provenance{Pointer: "components"}),
+		finding(ir.Provenance{Position: ir.Position{Line: 0, Column: 3}}),
+		finding(ir.Provenance{Source: ir.NoSource, Pointer: "/a"}),
+		finding(ir.Provenance{Source: 2}),
+		finding(ir.Provenance{WrittenBy: 1}),
+		finding(ir.Provenance{Inferred: "b,a,a"}),
+		{Severity: ir.SeverityWarning, Code: "c/x", Message: "\xff"},
+	}
+}
+
+// findingsTable is the source table malformedFindings is read against.
+func findingsTable() []ir.SourceInfo {
+	return []ir.SourceInfo{{Format: "openapi@3.1", Path: "spec.yaml"}, {Format: "openapi@3.1", Path: "other.yaml"}}
+}
+
+// TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings holds the two
+// readings of a finding to one answer: each malformed finding, verified alone,
+// draws what Verify reports beneath doc.Diagnostics of a document holding it,
+// the path rebased onto findings. Each row must draw something, so a finding
+// neither reports cannot pass for agreement.
+func TestVerifyFindings_ReportsWhatVerifyReportsOfADocumentsFindings(t *testing.T) {
+	t.Parallel()
+	for i, d := range malformedFindings() {
+		doc := validDoc()
+		doc.Sources = findingsTable()
+		doc.Diagnostics = []ir.Diagnostic{d}
+
+		var want []irverify.Violation
+		for _, v := range irverify.Verify(doc) {
+			if rest, under := strings.CutPrefix(v.Path, "doc.Diagnostics"); under {
+				v.Path = "findings" + rest
+				want = append(want, v)
+			}
+		}
+		require.NotEmpty(t, want, "finding %d breaks no invariant Verify reports", i)
+		assert.Equal(t, want, irverify.VerifyFindings([]ir.Diagnostic{d}, findingsTable()), "finding %d", i)
+	}
+}
+
+// TestVerifyFindings_PlacesEachViolationAtItsFinding pins the paths: findings[i]
+// is the i-th finding, and a sound one draws nothing.
+func TestVerifyFindings_PlacesEachViolationAtItsFinding(t *testing.T) {
+	t.Parallel()
+	sound := ir.Diagnostic{Severity: ir.SeverityError, Code: "c/x", Message: "m",
+		Provenance: ir.Provenance{Source: 1, Pointer: "/a", Position: ir.Position{Line: 2, Column: 1}}}
+	broken := sound
+	broken.Provenance.Pointer = "a"
+
+	got := irverify.VerifyFindings([]ir.Diagnostic{sound, broken, sound}, findingsTable())
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/provenance-pointer-malformed", got[0].Code)
+	assert.Equal(t, "findings[1].Provenance", got[0].Path)
+
+	assert.Empty(t, irverify.VerifyFindings([]ir.Diagnostic{sound}, findingsTable()))
+	assert.Empty(t, irverify.VerifyFindings(nil, nil))
+}
+
+// TestVerifyFindings_ReadsTheSourcesItIsHanded holds the source range to the
+// table handed in: a finding in range of one table is out of range of a
+// shorter one.
+func TestVerifyFindings_ReadsTheSourcesItIsHanded(t *testing.T) {
+	t.Parallel()
+	d := []ir.Diagnostic{{Severity: ir.SeverityError, Code: "c/x", Message: "m", Provenance: ir.Provenance{Source: 1}}}
+	assert.Empty(t, irverify.VerifyFindings(d, findingsTable()))
+	assert.Equal(t, []string{"ir/provenance-source-out-of-range"}, codesOf(irverify.VerifyFindings(d, findingsTable()[:1])))
 }

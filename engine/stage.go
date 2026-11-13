@@ -59,7 +59,7 @@ func (p plan) runPasses(ctx context.Context, doc *ir.Document, sum fingerprint) 
 		if err != nil {
 			return nil, nil, err
 		}
-		if sum, err = p.afterPass(np, sum, doc, next); err != nil {
+		if sum, err = p.afterPass(np, sum, doc, next, diags); err != nil {
 			return nil, nil, err
 		}
 		doc, found = next, append(found, diags...)

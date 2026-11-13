@@ -44,9 +44,10 @@ pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --disable-pass validate under its older name.
 
 --verify holds the document the compiler returns, and each pass's, to the IR's
-structural invariants, and each pass to leaving its input as it found it. The
-first stage to break one ends the run (exit 2) with every invariant it broke.
-It is for developing a compiler or a pass, and slows the run.
+structural invariants, the findings each stage reports with it, and each pass
+to leaving its input as it found it. The first stage to break one ends the run
+(exit 2) with every invariant it broke. It is for developing a compiler or a
+pass, and slows the run.
 
 --cache-dir keeps each document in the directory it names, and answers a later
 run from there when nothing the document depends on has changed: this build,
@@ -54,6 +55,19 @@ the spec and every document it reads, the settings, the passes, and the working
 directory. The output and the exit status are the same either way. A cache
 that cannot be used costs the time and a warning on stderr, and a --verify run
 does not use it, as it exists to run the stages.
+
+--triage reads a JSON file of rules, each naming one diagnostic code exactly:
+a rule rates the code's findings at another severity, everywhere or at one
+place, or accepts the findings at one place, which then fail the run at no
+--fail-on. The README gives the file's form. A rule no finding matched is
+named after the findings.
+
+The findings go to stderr as text unless --diag-format json asks for one JSON
+report of the verdict and every finding as rated, beside the rule each met.
+Text writes each finding one per line, but for each code and severity only the
+first --diag-limit, 3 unless given and 0 for every one, and only those at or
+above --show, info unless given; it then counts what it did not write, and a
+finding a rule accepted is only counted.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -125,6 +139,10 @@ type specOptions struct {
 	disable      passFlag
 	settings     settingFlag
 	cacheDir     string
+	triagePath   string
+	format       formatFlag
+	show         showFlag
+	limit        limitFlag
 }
 
 // disabledPasses is the pass names the flags turn off: --disable-pass's, and
@@ -152,9 +170,10 @@ type compileOptions struct {
 func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	opts.settings = settingFlag{}
 	opts.failOn = failOnFlag(engine.FailOnError)
+	opts.format, opts.show, opts.limit = formatText, showFlag(ir.SeverityInfo), defaultDiagLimit
 
 	fs.Var(&opts.failOn, "fail-on",
-		"exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document")
+		"exit 1 on a finding rated at or above this severity that no --triage rule accepted: error, warning or info; none exits 1 only when the spec lowered to no document")
 	fs.BoolVar(&opts.skipValidate, "skip-validate", false,
 		"alias for --disable-pass validate")
 	fs.Var(&opts.disable, "disable-pass",
@@ -166,6 +185,15 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 	fs.StringVar(&opts.cacheDir, "cache-dir", "",
 		"keep compiled documents in this directory, and reuse one while nothing it depends on has changed")
 	fs.Lookup("cache-dir").Annotations = map[string][]string{cobra.BashCompSubdirsInDir: {}}
+	fs.StringVar(&opts.triagePath, "triage", "",
+		"rate or accept findings by code and place, as the rules this JSON file lists say")
+	fs.Lookup("triage").Annotations = map[string][]string{cobra.BashCompFilenameExt: {"json"}}
+	fs.Var(&opts.format, "diag-format",
+		"write the findings to stderr as text, for a person, or as one JSON report, for a program")
+	fs.Var(&opts.show, "show",
+		"in text, write each finding at or above this severity, error, warning or info, and count the rest")
+	fs.Var(&opts.limit, "diag-limit",
+		"in text, write this many findings of one code and severity, and count the rest; 0 writes every one")
 }
 
 // completeSpecFile offers spec files, by extension, for the one operand compile
@@ -194,31 +222,56 @@ func compileArgs(opts *compileOptions) cobra.PositionalArgs {
 }
 
 // specArgs checks what every spec-taking command takes once its flags are
-// parsed: exactly one spec file. The command's own name is in the message, so
-// a misuse names what was typed. No flag's value is checked here: --fail-on
-// refuses a bad one as it is set, and which pass names exist is the engine's
-// to say.
+// parsed: exactly one spec file, and no text option beside --diag-format json,
+// which would be accepted and ignored. The command's own name is in the
+// message, so a misuse names what was typed. No flag's value is checked here:
+// each refuses a bad one as it is set, and which pass names exist is the
+// engine's to say.
 func specArgs(cmd *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return misuse(cmd, cmd.Name()+" requires exactly one spec file")
+	}
+	fs := cmd.Flags()
+	if fs.Lookup("diag-format").Value.String() != string(formatJSON) {
+		return nil
+	}
+	for _, name := range []string{"show", "diag-limit"} {
+		if fs.Changed(name) {
+			return misuse(cmd, "--diag-format json writes every finding, so --"+name+" has nothing to withhold")
+		}
 	}
 	return nil
 }
 
 // runPipeline runs the engine over specPath under ctx and renders every
-// diagnostic the run produced to stderr.
+// finding the run produced to stderr, in the format opts names.
 //
 // A non-nil err ends the run with its exit code: 2 when the run could not
-// happen, the engine not built, failed or cancelled, and a refused diagnostics
-// write as writeFailureExit says, so no document follows findings nobody saw.
-// Otherwise code is the exit code the engine's verdict calls for, and res
-// holds the document, or is nil when the spec lowered to none.
+// happen, the triage file or the engine refused, the run failed or was
+// cancelled, and a refused diagnostics write as writeFailureExit says, so no
+// document follows findings nobody saw. Otherwise code is the exit code the
+// engine's verdict calls for, and res holds the document, or is nil when the
+// spec lowered to none.
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
-	cached, err := cacheOptions(ctx, opts.cacheDir, stderr)
+	rules, err := readTriage(ctx, opts.triagePath)
 	if err != nil {
 		return nil, 0, failure(err)
+	}
+	cached, warning, err := cacheOptions(ctx, opts.cacheDir)
+	if err != nil {
+		return nil, 0, failure(err)
+	}
+	// A JSON report is the one thing written to stderr, so it carries the
+	// warnings text writes as lines of their own.
+	var held []error
+	switch {
+	case warning == nil:
+	case opts.format == formatJSON:
+		held = append(held, warning)
+	default:
+		warnCache(stderr, warning)
 	}
 	eng, err := newEngine(cached...)
 	if err != nil {
@@ -230,6 +283,7 @@ func runPipeline(
 		DisablePasses:   opts.disabledPasses(),
 		FailOn:          engine.FailOn(opts.failOn),
 		Verify:          opts.verify,
+		Triage:          rules,
 	})
 	if err != nil {
 		return nil, 0, failure(err)
@@ -238,11 +292,8 @@ func runPipeline(
 	if res.Failed {
 		code = exitFindings
 	}
-	if err := report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources); err != nil {
+	if err := writeFindings(stderr, opts, res, held); err != nil {
 		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
-	}
-	if res.CacheErr != nil {
-		warnCache(stderr, res.CacheErr)
 	}
 	if res.Document == nil {
 		return nil, code, nil

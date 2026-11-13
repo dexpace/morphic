@@ -393,6 +393,28 @@ func TestWriteExplanation_RendersEachShape(t *testing.T) {
 	}
 }
 
+// TestWriteExplanation_EscapesWhatASpecWrites holds each string of the report a
+// spec can write, the coordinate, the IDs and pointers it names, and a
+// finding's code and message, to one printable line, as WriteText does.
+func TestWriteExplanation_EscapesWhatASpecWrites(t *testing.T) {
+	t.Parallel()
+	e := report.Explanation{
+		Pointer: "/S\x1b[31m",
+		Node:    &report.Interned{Pointer: "/S\x1b[31m", ID: "t/openapi/S\x1b[31m", Kind: "model\n"},
+		Below:   []report.Interned{{Pointer: "/S\x1b[31m/x\a", ID: "t/x\r", Kind: ir.KindEnum}},
+		Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "x/\x00",
+			Message: "M\x1b[31mY\nerror openapi-forged spec.yaml: forged"}},
+	}
+	var w strings.Builder
+	require.NoError(t, report.WriteExplanation(&w, e))
+	assert.Empty(t, cmp.Diff(`coordinate /S\x1b[31m`+"\n"+
+		`  node t/openapi/S\x1b[31m (model\n)`+"\n"+
+		"  interned below it (1):\n"+
+		`    /S\x1b[31m/x\a -> t/x\r (enum)`+"\n"+
+		"  diagnostics (1):\n"+
+		`    info x/\x00: M\x1b[31mY\nerror openapi-forged spec.yaml: forged`+"\n", w.String()))
+}
+
 // TestWriteExplanation_StopsAtFirstFailingWrite pins that a destination refusing
 // any line ends the rendering there: for each of the lines a full explanation
 // writes, exactly that many writes are attempted, none after the failing one,

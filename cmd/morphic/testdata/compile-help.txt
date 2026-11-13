@@ -16,9 +16,10 @@ pass carries is refused (exit 2) with the names that exist. --skip-validate is
 --disable-pass validate under its older name.
 
 --verify holds the document the compiler returns, and each pass's, to the IR's
-structural invariants, and each pass to leaving its input as it found it. The
-first stage to break one ends the run (exit 2) with every invariant it broke.
-It is for developing a compiler or a pass, and slows the run.
+structural invariants, the findings each stage reports with it, and each pass
+to leaving its input as it found it. The first stage to break one ends the run
+(exit 2) with every invariant it broke. It is for developing a compiler or a
+pass, and slows the run.
 
 --cache-dir keeps each document in the directory it names, and answers a later
 run from there when nothing the document depends on has changed: this build,
@@ -26,6 +27,19 @@ the spec and every document it reads, the settings, the passes, and the working
 directory. The output and the exit status are the same either way. A cache
 that cannot be used costs the time and a warning on stderr, and a --verify run
 does not use it, as it exists to run the stages.
+
+--triage reads a JSON file of rules, each naming one diagnostic code exactly:
+a rule rates the code's findings at another severity, everywhere or at one
+place, or accepts the findings at one place, which then fail the run at no
+--fail-on. The README gives the file's form. A rule no finding matched is
+named after the findings.
+
+The findings go to stderr as text unless --diag-format json asks for one JSON
+report of the verdict and every finding as rated, beside the rule each met.
+Text writes each finding one per line, but for each code and severity only the
+first --diag-limit, 3 unless given and 0 for every one, and only those at or
+above --show, info unless given; it then counts what it did not write, and a
+finding a rule accepted is only counted.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -64,12 +78,16 @@ Examples:
 
 Flags:
       --cache-dir string             keep compiled documents in this directory, and reuse one while nothing it depends on has changed
+      --diag-format format           write the findings to stderr as text, for a person, or as one JSON report, for a program (default text)
+      --diag-limit count             in text, write this many findings of one code and severity, and count the rest; 0 writes every one (default 3)
       --disable-pass name            turn off the IR pass with this name (repeatable)
       --explain pointer              report what compiling produced at this pointer instead of the IR; '' is the whole document
-      --fail-on threshold            exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
+      --fail-on threshold            exit 1 on a finding rated at or above this severity that no --triage rule accepted: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
   -h, --help[=true|false]            help for compile
       --opt key=value                set one key=value option on the compiler the spec selects (repeatable)
   -o, --output string                write IR JSON to this file instead of stdout
       --pretty[=true|false]          indent the IR JSON --output writes; stdout is indented either way
+      --show severity                in text, write each finding at or above this severity, error, warning or info, and count the rest (default info)
       --skip-validate[=true|false]   alias for --disable-pass validate
+      --triage string                rate or accept findings by code and place, as the rules this JSON file lists say
       --verify[=true|false]          check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow

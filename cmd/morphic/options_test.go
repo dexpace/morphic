@@ -92,3 +92,78 @@ func TestPassFlag_SetKeepsNamesAsTyped(t *testing.T) {
 	assert.Empty(t, cmp.Diff(passFlag{"validate", "validate", ""}, got))
 	assert.Equal(t, "validate validate ", got.String())
 }
+
+// TestFindingsFlags_ReadWhatTheyTake pins each value --diag-format, --show and
+// --diag-limit take, as literal text, and that each renders as typed.
+func TestFindingsFlags_ReadWhatTheyTake(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"text", "json"} {
+		var f formatFlag
+		require.NoError(t, f.Set(raw))
+		assert.Equal(t, raw, f.String())
+	}
+	for _, raw := range []string{"error", "warning", "info"} {
+		var f showFlag
+		require.NoError(t, f.Set(raw))
+		assert.Equal(t, raw, f.String())
+	}
+	for _, raw := range []string{"0", "1", "250"} {
+		var f limitFlag
+		require.NoError(t, f.Set(raw))
+		assert.Equal(t, raw, f.String())
+	}
+	var (
+		format formatFlag
+		show   showFlag
+		limit  limitFlag
+	)
+	assert.Equal(t, []string{"format", "severity", "count"}, []string{format.Type(), show.Type(), limit.Type()})
+}
+
+// TestFindingsFlags_RefuseWhatNamesNothing pins each refusal, the empty string
+// among them, which names no format, severity or count, and that a refused
+// value leaves the flag as it was.
+func TestFindingsFlags_RefuseWhatNamesNothing(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		flag interface {
+			Set(string) error
+			String() string
+		}
+		raw, want string
+	}{
+		{"an unknown format", new(formatText), "xml", `"xml" is no diagnostics format (known: text, json)`},
+		{"no format", new(formatText), "", `"" is no diagnostics format`},
+		{"an unknown severity", new(showFlag("info")), "fatal", `"fatal" is no severity (known: error, warning, info)`},
+		{"none, a threshold and no severity", new(showFlag("info")), "none", `"none" is no severity`},
+		{"no severity", new(showFlag("info")), "", `"" is no severity`},
+		{"a negative count", new(limitFlag(3)), "-1", `want a count of 0 or more, got "-1"`},
+		{"no number", new(limitFlag(3)), "all", `got "all"`},
+		{"no count", new(limitFlag(3)), "", `got ""`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			before := tc.flag.String()
+			err := tc.flag.Set(tc.raw)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+			assert.Equal(t, before, tc.flag.String())
+		})
+	}
+}
+
+// TestRun_FindingsFlagsRefuseABadValue pins a bad value of each flag as a
+// misuse, exit 2, before anything is read.
+func TestRun_FindingsFlagsRefuseABadValue(t *testing.T) {
+	t.Parallel()
+	for _, args := range [][]string{{"--diag-format", "xml"}, {"--show", "fatal"}, {"--diag-limit", "-1"}} {
+		t.Run(args[0], func(t *testing.T) {
+			t.Parallel()
+			code, stdout, stderr := runCommand(t, append([]string{"validate", specFile(t)}, args...)...)
+			assert.Equal(t, exitFailure, code)
+			assert.Empty(t, stdout)
+			assert.Contains(t, stderr, `invalid argument "`+args[1]+`" for "`+args[0]+`"`)
+		})
+	}
+}

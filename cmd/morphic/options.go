@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/engine/triage"
+	"github.com/dexpace/morphic/ir"
 )
 
 // settingFlag collects the repeated `--opt key=value` settings that configure
@@ -118,5 +121,80 @@ func (f *failOnFlag) Set(raw string) error {
 		return err
 	}
 	*f = failOnFlag(failOn)
+	return nil
+}
+
+// formatFlag is --diag-format's value: how the findings are written to stderr.
+type formatFlag string
+
+// The formats --diag-format takes: text for a person, json for a program.
+const (
+	formatText formatFlag = "text"
+	formatJSON formatFlag = "json"
+)
+
+// String renders the format as typed.
+func (f *formatFlag) String() string { return string(*f) }
+
+// Type names the value in flag documentation.
+func (f *formatFlag) Type() string { return "format" }
+
+// Set records the format raw names, refusing one there is no writer for.
+func (f *formatFlag) Set(raw string) error {
+	switch formatFlag(raw) {
+	case formatText, formatJSON:
+		*f = formatFlag(raw)
+		return nil
+	default:
+		return fmt.Errorf("%q is no diagnostics format (known: %s, %s)", raw, formatText, formatJSON)
+	}
+}
+
+// showFlag is --show's value: the least severity a finding is written one per
+// line at, the rest counted. It is parsed as it is set, as --fail-on is.
+type showFlag ir.Severity
+
+// String renders the severity as typed.
+func (f *showFlag) String() string { return string(*f) }
+
+// Type names the value in flag documentation.
+func (f *showFlag) Type() string { return "severity" }
+
+// Set records the severity raw names, refusing one the IR does not declare.
+func (f *showFlag) Set(raw string) error {
+	if _, ranked := triage.Rank(ir.Severity(raw)); !ranked {
+		return fmt.Errorf("%q is no severity (known: %s)", raw, severityNames())
+	}
+	*f = showFlag(raw)
+	return nil
+}
+
+// severityNames spells the IR's severities, most severe first.
+func severityNames() string {
+	names := make([]string, 0, len(triage.Severities()))
+	for _, sev := range slices.Backward(triage.Severities()) {
+		names = append(names, string(sev))
+	}
+	return strings.Join(names, ", ")
+}
+
+// limitFlag is --diag-limit's value: how many findings of one code and
+// severity the text format writes one per line, 0 for every one.
+type limitFlag int
+
+// String renders the count.
+func (f *limitFlag) String() string { return strconv.Itoa(int(*f)) }
+
+// Type names the value in flag documentation.
+func (f *limitFlag) Type() string { return "count" }
+
+// Set records the count raw spells, refusing one that is not a whole number
+// of 0 or more.
+func (f *limitFlag) Set(raw string) error {
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return fmt.Errorf("want a count of 0 or more, got %q", raw)
+	}
+	*f = limitFlag(n)
 	return nil
 }

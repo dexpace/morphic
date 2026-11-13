@@ -20,27 +20,32 @@ var buildID = cache.BuildID
 // cacheOptions returns the engine options --cache-dir, naming dir, asks for: a
 // cache in that directory under this executable's identity, or none without the
 // flag. An executable that cannot be read, as a mode of 0111 allows, leaves no
-// key sound, which costs the run its cache and a warning, and nothing else. A
-// stop meanwhile ends the run, as it would at any other step.
-func cacheOptions(ctx context.Context, dir string, stderr io.Writer) ([]engine.Option, error) {
+// key sound, which costs the run its cache and the warning returned, and
+// nothing else. A stop meanwhile ends the run, as it would at any other step.
+func cacheOptions(ctx context.Context, dir string) (opts []engine.Option, warning, err error) {
 	if dir == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	build, err := buildID(ctx)
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return nil, ctxErr
+		return nil, nil, ctxErr
 	}
 	store, storeErr := cache.NewDir(dir)
-	if err = errors.Join(err, storeErr); err != nil {
-		warnCache(stderr, err)
-		return nil, nil
+	if warning = errors.Join(err, storeErr); warning != nil {
+		return nil, warning, nil
 	}
-	return []engine.Option{engine.WithCache(store, build)}, nil
+	return []engine.Option{engine.WithCache(store, build)}, nil, nil
 }
 
 // warnCache reports err, why the run could not use its cache, on one line of
 // stderr. The run goes on without the cache, so it is a warning, not a failure,
 // and one line however many failures err joins.
 func warnCache(stderr io.Writer, err error) {
-	emitf(stderr, "morphic: warning: %s\n", strings.ReplaceAll(err.Error(), "\n", "; "))
+	emitf(stderr, "morphic: warning: %s\n", warningText(err))
+}
+
+// warningText spells err, a warning, on one line, however many failures it
+// joins.
+func warningText(err error) string {
+	return strings.ReplaceAll(err.Error(), "\n", "; ")
 }
