@@ -241,10 +241,12 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // validationOnlyAt collects the validation-only keywords
 // (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
-// among them where dialect defines it. closure is UnevaluatedRaw's.
+// among them where dialect defines it. own says s is the schema written at the
+// position rather than a voice, whose unevaluated keywords stay with its branch
+// (schema.foldEntry), and closure is UnevaluatedRaw's.
 //
 // Site-only: these constrain the value at the position that wrote them.
-func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
+func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
 
@@ -301,6 +303,9 @@ func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.D
 	craw, cKeys, cErr := ContainsRaw(s)
 	if craw != nil || cErr != nil {
 		keep("openapi:contains", craw, cErr, validationOnlyMessage("contains"), cKeys...)
+	}
+	if !own {
+		return p, diags
 	}
 	kept := unevaluatedKept(s, closure, dialect)
 	u, uKeys, uErr := unevaluatedRaw(s, kept)

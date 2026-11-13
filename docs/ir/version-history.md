@@ -613,7 +613,8 @@ it sees. Changes made together in one bump are listed together under it.
 - **0.56.0** — what the OpenAPI compiler writes for `unevaluatedProperties` and `unevaluatedItems`
   changed, the shape unchanged
   ([`additional-properties`](../compilers/openapi.md#additional-properties),
-  [`validation-only`](../compilers/openapi.md#validation-only)):
+  [`validation-only`](../compilers/openapi.md#validation-only),
+  [`allof-inline-residue`](../compilers/openapi.md#allof-inline-residue)):
   - `Model.Additional` is `closed_after_composition` only where no `additionalProperties` is written
     beside the `unevaluatedProperties: false`, which would leave it inert. Beside one the model is
     `closed` for `false`, and otherwise open with its catch-all, so `{type: object,
@@ -625,3 +626,8 @@ it sees. Changes made together in one bump are listed together under it.
     closure, where it was dropped, and holds an inert keyword together with the
     `additionalProperties`, `items` or `additionalItems` beside it that leaves it inert. A consumer
     pinned to 0.55.0 applying the entry read every keyword in it as live.
+  - Neither keyword an inline `allOf` branch writes folds into the position's `openapi:unevaluated`
+    any more: the branch is kept whole under `openapi:allOf/<n>`, as a branch writing
+    `unevaluatedProperties: false` already was. At the position the keyword exempted what the other
+    conjuncts evaluate, where on its branch it exempts only what the branch evaluates. A consumer
+    pinned to 0.55.0 finds the keyword at the position.

@@ -248,7 +248,7 @@ func TestValidationOnlyAt_AnInertUnevaluatedKeywordNamesWhatLeavesItInert(t *tes
 		"unevaluatedProperties: false\nitems: true\nunevaluatedItems: false\n":                   items + "; " + plain,
 		"additionalProperties: {}\nunevaluatedProperties: {}\nitems: {}\nunevaluatedItems: {}\n": props + "; " + items + "; " + plain,
 	} {
-		got, diags := validationOnlyAt(schemaFromYAML(t, body), "/S", sourced(0), Dialect{}, false)
+		got, diags := validationOnlyAt(schemaFromYAML(t, body), "/S", sourced(0), Dialect{}, true, false)
 		require.Contains(t, got, "openapi:unevaluated", "%s", body)
 		// contains is an entry of its own, reported first.
 		diags = slices.DeleteFunc(diags, func(d ir.Diagnostic) bool { return strings.Contains(d.Message, `"contains"`) })
@@ -274,7 +274,7 @@ func TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword(t *testi
 		"the unevaluated keyword": {[]jsontext.Pointer{"/S/unevaluatedProperties"}, 1},
 		"the other":               {[]jsontext.Pointer{"/S/additionalProperties"}, 0},
 	} {
-		got, _ := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, false)
+		got, _ := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, true, false)
 		require.Contains(t, got, "openapi:unevaluated", name)
 		assert.Equal(t, ir.Provenance{Pointer: "/S", WrittenBy: tc.want}, got["openapi:unevaluated"].Provenance, name)
 	}
@@ -318,7 +318,7 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 		"contains: {type: string}\nminContains: 1\n"+
 		"unevaluatedProperties: {type: string}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, true, false)
 
 	for _, key := range []string{
 		"openapi:not", "openapi:if-then-else", "openapi:dependentSchemas",
@@ -352,12 +352,12 @@ func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 func TestValidationOnlyAt_KeepsADraftsDependenciesWhereItsDialectDefinesThem(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependencies: {a: [b], c: {required: [d]}}\n")
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{Dependencies: true}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{Dependencies: true}, true, false)
 	require.Contains(t, got, "openapi:dependencies")
 	assert.Equal(t, ir.ReasonValidationOnly, got["openapi:dependencies"].Reason)
 	require.Len(t, diags, 1)
 	assert.Equal(t, `validation-only keyword "dependencies" kept verbatim under Unmodeled`, diags[0].Message)
-	got, diags = validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, false)
+	got, diags = validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, true, false)
 	assert.Empty(t, got)
 	assert.Empty(t, diags)
 }
@@ -369,7 +369,7 @@ func TestValidationOnlyAt_AnUnconvertibleKeywordIsReportedNotKept(t *testing.T) 
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\ncontains: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(0), Dialect{}, true, false)
 
 	assert.NotContains(t, got, "openapi:not")
 	assert.NotContains(t, got, "openapi:contains")
@@ -389,7 +389,7 @@ func TestValidationOnlyAt_AttributesTheEntryAtItsKeyword(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {type: integer}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), Dialect{}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), Dialect{}, true, false)
 
 	entry, ok := got["openapi:not"]
 	require.True(t, ok)
@@ -409,7 +409,7 @@ func TestValidationOnlyAt_AttributesAnUnconvertibleKeywordAtItsPointer(t *testin
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\nnot: {const: .nan}\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), Dialect{}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", overlaid("/components/schemas/S/not"), Dialect{}, true, false)
 
 	assert.NotContains(t, got, "openapi:not", "a keyword that will not render is not kept")
 	require.Len(t, diags, 1)
@@ -445,7 +445,7 @@ func TestValidationOnlyAt_AttributesACombinedEntryByItsKeywords(t *testing.T) {
 		"if, contains and unevaluatedItems": {[]jsontext.Pointer{"/S/if", "/S/contains", "/S/unevaluatedItems"}, 0, 0, 1},
 		"then and minContains":              {[]jsontext.Pointer{"/S/then", "/S/minContains"}, 0, 0, 0},
 	} {
-		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, true)
+		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, true, true)
 
 		for key, want := range map[string]ir.Provenance{
 			"openapi:not":          {Source: 0, Pointer: "/S/not"},
@@ -483,7 +483,7 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 		"if and contains":      {[]jsontext.Pointer{"/S/if", "/S/contains"}, 0},
 		"then and minContains": {[]jsontext.Pointer{"/S/then", "/S/minContains"}, 0},
 	} {
-		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, false)
+		got, diags := validationOnlyAt(s, "/S", overlaid(tc.wrote...), Dialect{}, true, false)
 
 		assert.Empty(t, got, "%s: an entry that will not render is not kept", name)
 		require.Len(t, diags, 2, name)
@@ -504,7 +504,7 @@ func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
 	t.Parallel()
 	built := &oas3.Schema{Not: oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})}
 
-	got, diags := validationOnlyAt(built, "/p", sourced(0), Dialect{}, false)
+	got, diags := validationOnlyAt(built, "/p", sourced(0), Dialect{}, true, false)
 
 	assert.Nil(t, got, "no raw bytes to keep, so nothing is kept")
 	assert.Empty(t, diags, "and nothing is announced for a keyword that was not kept")
@@ -518,7 +518,7 @@ func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")
 
-	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7), Dialect{}, false)
+	got, diags := validationOnlyAt(s, "/components/schemas/S", sourced(7), Dialect{}, true, false)
 
 	entry, ok := got["openapi:dependentRequired"]
 	require.True(t, ok, "dependentRequired must be kept verbatim")

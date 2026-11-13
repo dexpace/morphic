@@ -1688,9 +1688,11 @@ collection bounds, `format: password` ([`password`](#password)), vendor extensio
 validation-only keywords ([`validation-only`](#validation-only)) land where the same keyword beside
 the `allOf` lands, each read at the branch's own pointer and reported as that keyword is there,
 which for most is not at all. A `nullable` folds only from a branch writing no `properties`, under
-the nullable-widening policy ([`nullable`](#nullable)). An `unevaluatedProperties: false` does not
-fold: on a branch it holds the instance to what that branch alone evaluates, which is no closure of
-the composed model, so the branch kept whole is its record. A bound does not fold where the
+the nullable-widening policy ([`nullable`](#nullable)). Neither `unevaluatedProperties` nor
+`unevaluatedItems` folds, in any form: each applies to what no keyword beside it evaluates (JSON
+Schema 2020-12 §11.2, §11.3), so on a branch it holds the instance to what that branch alone
+evaluates, where beside the `allOf` it would exempt what the position and the other branches
+evaluate, and the branch kept whole is its record. A bound does not fold where the
 position has no field for it, as one beside the `allOf` reaches none
 ([`constraints`](#constraints)): a value bound on a node with no `Constraints` for one, and a
 collection bound on any node but a `List` or a `Tuple`, the `Union` of a type list holding one where
@@ -1768,7 +1770,7 @@ every entry reads that one twice.
   `schema.TestVoices_ARefusedBoundPartsNoWriter`,
   `schema.TestAgreement_ReadsABoundInTheDialectOfItsSchemas`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
-  `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
   `schema.TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode`,
   `schema.TestVoices_KeptAndMetBranchesHoldAtEveryOutcome`,
   `schema.TestAllOf_BranchResidueRidesEveryDistributedVariant`,
@@ -3574,10 +3576,11 @@ another kind to tell the two apart. The keyword the entry repeats beside an iner
 the IR holds it already, typed where the node has a home for it and kept verbatim where it has
 none ([`shape-applicator`](#shape-applicator)), and applying it twice adds nothing.
 `prefixItems`, `contains`, `properties` and `patternProperties` evaluate only what they match and
-leave the keyword live, and an entry holding only unevaluated keywords holds live ones. A branch of
-an `allOf` that folds ([`allof-inline-residue`](#allof-inline-residue)) folds its entry with the
-keyword beside it, so an inert one stays inert at the position, and folds no `unevaluatedProperties:
-false`. Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
+leave the keyword live, and an entry holding only unevaluated keywords holds live ones. One an
+`allOf` branch writes stays with the branch kept whole, whatever its form
+([`allof-inline-residue`](#allof-inline-residue)), since at the position it would exempt what the
+other conjuncts evaluate.
+Every dialect reads both keywords as 2020-12 does. In a schema read in JSON Schema draft
 4, 6 or 7 ([`dialect-keywords`](#dialect-keywords)), `dependencies`, which 2019-09 split into
 `dependentSchemas` and `dependentRequired`, is kept the same way under `openapi:dependencies`, and
 elsewhere is an unknown keyword ([`unknown-keys`](#unknown-keys)). Each entry is reported as an
@@ -3596,7 +3599,7 @@ holding an inert keyword naming it and the keyword that leaves it inert.
   `annotation.TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword`,
   `schema.TestClosureTyped_EveryOutcomeKeepsWhatItDoesNotType`,
   `schema.TestClosureTyped_ReadsAlikeInEitherBranchOrder`,
-  `schema.TestVoices_AnInertUnevaluatedKeywordFoldsBesideItsSibling`,
+  `schema.TestVoices_AnUnevaluatedKeywordStaysWithItsBranch`,
   `schema.TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert`
 
 ### `dynamic-ref`

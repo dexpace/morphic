@@ -205,19 +205,15 @@ func TestUse_ANarrowingOfTwoRefsLendsNothing(t *testing.T) {
 // TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert pins the dialect a site
 // reads an unevaluatedItems in (docs/compilers/openapi.md#validation-only): a
 // draft reading an `items` list as a tuple leaves the keyword inert beside the
-// `additionalItems` past the list, and live with none, an `items` schema leaves
-// it inert in any dialect, and 2020-12 reads a list of items as no schema, so
-// beside one it stays live. A branch folding the keyword is read so too: an
-// inert one and a live one disagree, so neither folds.
+// `additionalItems` past the list, and live with none, and an `items` schema
+// leaves it inert in any dialect.
 func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
 	t.Parallel()
 	const draft = "$schema: 'https://json-schema.org/draft/2019-09/schema', type: array, "
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
 		"    Rest: {"+draft+"items: [{type: string}], additionalItems: {type: integer}, unevaluatedItems: false}\n"+
 			"    NoRest: {"+draft+"items: [{type: string}], unevaluatedItems: false}\n"+
-			"    Schema: {"+draft+"items: {type: string}, unevaluatedItems: false}\n"+
-			"    Folded: {"+draft+"allOf: [{items: [{type: string}], additionalItems: false, unevaluatedItems: false}, "+
-			"{unevaluatedItems: false}]}\n"))
+			"    Schema: {"+draft+"items: {type: string}, unevaluatedItems: false}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for name, want := range map[string]string{
 		"Rest":   `{"additionalItems":{"type":"integer"},"unevaluatedItems":false}`,
@@ -228,8 +224,4 @@ func TestUse_ADraftsTupleRestLeavesUnevaluatedItemsInert(t *testing.T) {
 		require.True(t, ok, name)
 		assert.Equal(t, want, string(kept.Value), name)
 	}
-	folded := typeByName(doc, "Folded").Common().Unmodeled
-	assert.NotContains(t, folded, "openapi:unevaluated", "an inert and a live one disagree")
-	assert.Contains(t, folded, "openapi:allOf/0")
-	assert.Contains(t, folded, "openapi:allOf/1")
 }

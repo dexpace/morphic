@@ -21,7 +21,10 @@ import (
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
 // (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the bounds,
-// the extensions and the keywords that fold together.
+// the extensions and the keywords that fold together. No unevaluated keyword
+// folds: each applies to what its own schema evaluates, so on a branch it holds
+// the instance to what that branch alone evaluates, and the branch kept whole
+// is its record.
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
@@ -39,13 +42,6 @@ func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 		return "if", true
 	case "contains", "minContains", "maxContains":
 		return "contains", true
-	case "unevaluatedItems":
-		return "unevaluated", true
-	case "unevaluatedProperties":
-		// A branch's `false` holds the instance to what that branch alone
-		// evaluates, which is no closure of the composed model, so it stays with
-		// the branch kept whole.
-		return "unevaluated", !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
 	case "minItems", "maxItems", "uniqueItems":
@@ -71,9 +67,8 @@ func (r foldRendering) agrees(o foldRendering) bool {
 	return r.err == nil && o.err == nil && bytes.Equal(r.raw, o.raw)
 }
 
-// foldValue renders what s, a schema of c, writes for entry: an unevaluated
-// keyword as the voice holding it keeps it (annotation.Read).
-func foldValue(c lowering.Ctx, s *oas3.Schema, entry string) foldRendering {
+// foldValue renders what s writes for entry.
+func foldValue(s *oas3.Schema, entry string) foldRendering {
 	var r foldRendering
 	switch entry {
 	case "examples":
@@ -82,8 +77,6 @@ func foldValue(c lowering.Ctx, s *oas3.Schema, entry string) foldRendering {
 		r.raw, _, r.err = annotation.IfThenElseRaw(s)
 	case "contains":
 		r.raw, _, r.err = annotation.ContainsRaw(s)
-	case "unevaluated":
-		r.raw, _, r.err = annotation.UnevaluatedRaw(s, true, dialectIn(rulesOf(c, s), s))
 	default:
 		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
 	}
@@ -229,7 +222,7 @@ func writesIdentifier(s *oas3.Schema) bool {
 func foldsReference(c lowering.Ctx, bs *oas3.Schema) bool {
 	return slices.ContainsFunc(rawMappingKeys(bs.GetRootNode()), func(keyword string) bool {
 		entry, fold := foldEntry(c, bs, keyword)
-		return fold && annotation.WritesReference(foldValue(c, bs, entry).raw)
+		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
 	})
 }
 

@@ -56,28 +56,26 @@ var besideTheAllOf = map[string]struct{ beside, code, at string }{
 func TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt(t *testing.T) {
 	t.Parallel()
 	for name, keyword := range map[string]string{
-		"title":              "title: mine",
-		"description":        "description: mine",
-		"externalDocs":       "externalDocs: {url: 'https://example.com'}",
-		"deprecated":         "deprecated: true",
-		"readOnly":           "readOnly: true",
-		"default":            "default: {id: a}",
-		"example":            "example: {id: a}",
-		"examples":           "examples: [{id: a}]",
-		"xml":                "xml: {name: mine}",
-		"an extension":       "x-kept: 1",
-		"maxProperties":      "maxProperties: 2",
-		"not":                "not: {required: [a]}",
-		"if and then":        "if: {required: [a]}, then: {required: [b]}",
-		"else alone":         "else: {required: [b]}",
-		"contains":           "contains: {type: string}, minContains: 1",
-		"maxContains alone":  "maxContains: 1",
-		"unevaluatedItems":   "unevaluatedItems: false",
-		"a kept unevaluated": "unevaluatedProperties: {type: string}",
-		"dependentSchemas":   "dependentSchemas: {a: {required: [b]}}",
-		"dependentRequired":  "dependentRequired: {a: [b]}",
-		"propertyNames":      "propertyNames: {pattern: '^a'}",
-		"a redaction":        "format: password",
+		"title":             "title: mine",
+		"description":       "description: mine",
+		"externalDocs":      "externalDocs: {url: 'https://example.com'}",
+		"deprecated":        "deprecated: true",
+		"readOnly":          "readOnly: true",
+		"default":           "default: {id: a}",
+		"example":           "example: {id: a}",
+		"examples":          "examples: [{id: a}]",
+		"xml":               "xml: {name: mine}",
+		"an extension":      "x-kept: 1",
+		"maxProperties":     "maxProperties: 2",
+		"not":               "not: {required: [a]}",
+		"if and then":       "if: {required: [a]}, then: {required: [b]}",
+		"else alone":        "else: {required: [b]}",
+		"contains":          "contains: {type: string}, minContains: 1",
+		"maxContains alone": "maxContains: 1",
+		"dependentSchemas":  "dependentSchemas: {a: {required: [b]}}",
+		"dependentRequired": "dependentRequired: {a: [b]}",
+		"propertyNames":     "propertyNames: {pattern: '^a'}",
+		"a redaction":       "format: password",
 	} {
 		for shape, tc := range besideTheAllOf {
 			t.Run(shape+"/"+name, func(t *testing.T) {
@@ -247,8 +245,6 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 			"{contains: {type: string}, minContains: 2}]}", []string{"openapi:allOf/1", "openapi:allOf/2"}},
 		"the second keyword of an if": {"{allOf: [" + ref + ", {if: {required: [a]}, then: {required: [b]}}, " +
 			"{if: {required: [a]}, then: {required: [c]}}]}", []string{"openapi:allOf/1", "openapi:allOf/2"}},
-		"the second keyword of unevaluated": {"{allOf: [" + ref + ", {unevaluatedItems: true, unevaluatedProperties: {type: string}}, " +
-			"{unevaluatedItems: true, unevaluatedProperties: {type: integer}}]}", []string{"openapi:allOf/1", "openapi:allOf/2"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -465,7 +461,6 @@ func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	for name, branches := range map[string]string{
 		"if and then":            "{if: {required: [a]}}, {then: {required: [b]}}",
 		"contains and its bound": "{contains: {type: string}}, {minContains: 1}",
-		"unevaluated":            "{unevaluatedItems: true}, {unevaluatedProperties: {type: string}}",
 		"unrenderable if":        "{if: {required: [a]}}, {if: {x-t: " + unpreservableValue + "}}",
 		"unrenderable if first":  "{if: {x-t: " + unpreservableValue + "}}, {if: {required: [a]}}",
 		"both unrenderable":      "{if: {x-t: " + unpreservableValue + "}}, {if: {x-t: " + unpreservableValue + "}}",
@@ -477,7 +472,6 @@ func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 			require.True(t, ok)
 			assert.NotContains(t, m.Unmodeled, "openapi:if-then-else")
 			assert.NotContains(t, m.Unmodeled, "openapi:contains")
-			assert.NotContains(t, m.Unmodeled, "openapi:unevaluated")
 		})
 	}
 	doc, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", {if: {required: [a]}}, {if: {required: [a]}}]}"))
@@ -487,63 +481,46 @@ func TestVoices_KeywordsOneEntryHoldsDisagreeAsOne(t *testing.T) {
 	assert.Contains(t, m.Unmodeled, "openapi:if-then-else")
 }
 
-// TestVoices_UnevaluatedFalseStaysTheModels pins the one validation keyword no
-// fold reads: on a branch, `unevaluatedProperties: false` holds the instance to
-// what that branch alone evaluates, which is no closure of the composed model,
-// so it stays with the branch kept whole, whether or not the branch speaks for
-// the position, and the position keeps it nowhere else.
-func TestVoices_UnevaluatedFalseStaysTheModels(t *testing.T) {
+// TestVoices_AnUnevaluatedKeywordStaysWithItsBranch pins that no unevaluated
+// keyword folds: on a branch it applies to what that branch alone evaluates,
+// which beside the allOf it would not, so it stays with the branch kept whole,
+// whatever its form, whether or not the branch speaks for the position, and
+// the position keeps none of it.
+func TestVoices_AnUnevaluatedKeywordStaysWithItsBranch(t *testing.T) {
 	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
 	for name, branch := range map[string]string{
-		"alone":                       "{unevaluatedProperties: false}",
-		"beside what folds":           "{description: d, unevaluatedProperties: false}",
-		"beside its own catch-all":    "{description: d, additionalProperties: true, unevaluatedProperties: false}",
-		"beside a keyword of its kin": "{description: d, unevaluatedProperties: false, unevaluatedItems: true}",
+		"a closure":                   "{unevaluatedProperties: false}",
+		"a closure beside what folds": "{description: d, unevaluatedProperties: false}",
+		"a schema":                    "{unevaluatedProperties: {type: string}}",
+		"a schema beside what folds":  "{description: d, unevaluatedProperties: {type: string}}",
+		"items":                       "{unevaluatedItems: false}",
+		"items beside what folds":     "{description: d, unevaluatedItems: false}",
+		"inert beside its catch-all":  "{description: d, additionalProperties: true, unevaluatedProperties: false}",
+		"inert beside its items":      "{description: d, items: true, unevaluatedItems: false}",
+		"both":                        "{description: d, unevaluatedProperties: false, unevaluatedItems: true}",
 	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branch+"]}"))
-			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
-			require.True(t, ok)
-			assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
-			assert.Empty(t, m.Additional, "a branch's closure is not the model's")
-			if e, kept := m.Unmodeled["openapi:unevaluated"]; kept {
-				assert.NotContains(t, string(e.Value), "unevaluatedProperties", "the position keeps no second copy")
-			}
-		})
+		for shape, tc := range map[string]struct{ schema, at string }{
+			"a model":         {"{allOf: [" + ref + ", " + branch + "]}", "allOf/1"},
+			"a model, turned": {"{allOf: [" + branch + ", " + ref + "]}", "allOf/0"},
+			"a list":          {"{type: array, allOf: [" + branch + "]}", "allOf/0"},
+			"a tuple":         {"{type: array, prefixItems: [{type: string}], allOf: [" + branch + "]}", "allOf/0"},
+		} {
+			t.Run(shape+"/"+name, func(t *testing.T) {
+				t.Parallel()
+				doc, diags := parseFull(t, voicesDoc(tc.schema))
+				openapitest.RequireNoErrorDiags(t, diags)
+				common := typeByName(doc, "S").Common()
+				require.Contains(t, common.Unmodeled, "openapi:"+tc.at, "the branch is kept whole")
+				assert.NotContains(t, common.Unmodeled, "openapi:unevaluated", "the position keeps none of it")
+				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.ValidationOnlyKeyword, "/components/schemas/S/"+tc.at),
+					"nothing folds to be reported; got %v", diags)
+				if m, ok := typeByName(doc, "S").(*ir.Model); ok {
+					assert.Empty(t, m.Additional, "a branch's closure is not the model's")
+				}
+			})
+		}
 	}
-}
-
-// TestVoices_AnInertUnevaluatedKeywordFoldsBesideItsSibling pins the fold of an
-// unevaluated keyword a branch writes: it reaches the position with the keyword
-// that leaves it inert there, so it stays inert, and two branches writing it,
-// one inert and one live, disagree, so neither folds, in either order.
-func TestVoices_AnInertUnevaluatedKeywordFoldsBesideItsSibling(t *testing.T) {
-	t.Parallel()
-	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
-		"    S: {type: array, allOf: [{items: true, unevaluatedItems: false}]}\n"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	list, ok := typeByName(doc, "S").(*ir.List)
-	require.True(t, ok, "got %T", typeByName(doc, "S"))
-	require.Contains(t, list.Unmodeled, "openapi:unevaluated")
-	assert.Equal(t, `{"items":true,"unevaluatedItems":false}`, string(list.Unmodeled["openapi:unevaluated"].Value))
-
-	const ref, inert, live = "{$ref: '#/components/schemas/Base'}", "{items: true, unevaluatedItems: false}", "{unevaluatedItems: false}"
-	forward, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+inert+", "+live+"]}"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	backward, diags := parseFull(t, voicesDoc("{allOf: ["+ref+", "+live+", "+inert+"]}"))
-	openapitest.RequireNoErrorDiags(t, diags)
-	for _, doc := range []*ir.Document{forward, backward} {
-		m, ok := typeByName(doc, "S").(*ir.Model)
-		require.True(t, ok)
-		assert.NotContains(t, m.Unmodeled, "openapi:unevaluated", "neither folds")
-		assert.Contains(t, m.Unmodeled, "openapi:allOf/1")
-		assert.Contains(t, m.Unmodeled, "openapi:allOf/2")
-	}
-	f, b := typeByName(forward, "S").Common().Unmodeled, typeByName(backward, "S").Common().Unmodeled
-	assert.Equal(t, f["openapi:allOf/1"].Value, b["openapi:allOf/2"].Value, "each branch kept as written")
-	assert.Equal(t, f["openapi:allOf/2"].Value, b["openapi:allOf/1"].Value, "each branch kept as written")
 }
 
 // TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode pins readOnly and default

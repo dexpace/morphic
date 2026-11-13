@@ -45,7 +45,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			continue
 		}
 		entries = append(entries, entry)
-		rendered := foldValue(a.c, conjunct, entry)
+		rendered := foldValue(conjunct, entry)
 		if held, ok := a.first[entry]; !ok {
 			a.first[entry] = rendered
 		} else if !held.agrees(rendered) {
