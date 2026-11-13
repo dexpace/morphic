@@ -492,7 +492,23 @@ it sees. Changes made together in one bump are listed together under it.
     consumer pinned to 0.46.0 encoded a triple's `%` again.
   - `HTTPBinding.RequestContentTypes` lists the request body's media types in source order and
     states no preference among them, where it was worded as priority-ordered.
-- **0.48.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
+- **0.48.0** — four changes of meaning, made together, with no change of shape:
+  - An inbound operation's empty `Servers` names no server where it had named its service's
+    ([servers](./servers.md#inbound-operations)), as its `Auth` inherits nothing: the service's
+    servers are where the API is sent requests. A consumer pinned to 0.47.0 sends a webhook or a
+    callback to the API itself.
+  - An `OperationGroup` may hold no operation and no group. The OpenAPI compiler's grouping by
+    extension makes one for each path a `groups` list names after the first and each path an
+    operation's aliases name ([`extension-groups`](../compilers/openapi.md#extension-groups)), for a
+    remount to name. A consumer pinned to 0.47.0 meets a sub-client with nothing in it.
+  - A callback's operation may list callbacks of its own on its binding, each lowered as its
+    parent's are ([`callbacks`](../compilers/openapi.md#callbacks)), where the OpenAPI compiler had
+    dropped them. A consumer pinned to 0.47.0 that walks one level of callbacks misses them.
+  - The OpenAPI compiler leaves a path key's fragment out of `URITemplate`, keeping it on the binding
+    as `openapi:fragment`, and sets `SharedRoute` on each path operation whose method and route
+    another sends ([`path-keys`](../compilers/openapi.md#path-keys)). A consumer pinned to 0.47.0
+    builds the fragment into a URL and reads no route as shared.
+- **0.49.0** — no shape change. The engine's `const-unions` pass rewrites a closed union of strings
   whose variant names an anonymous branch of several values, a closed `Enum` of strings or a union of
   them, where that variant is the branch's one reference and neither says anything of all its
   values: the branch's values become members of the union's `Enum`, each holding what its own
@@ -500,5 +516,5 @@ it sees. Changes made together in one bump are listed together under it.
   ([`string-const-union`](../compilers/openapi.md#string-const-union)). A model's `Discriminator`
   may route to the model itself where it is not `Abstract`, from its `Mapping` or its `Default`,
   which `pass.Validate` had refused ([discriminator](./models.md#discriminator)). A consumer pinned
-  to 0.47.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
+  to 0.48.0 that read such a union as a `Union` finds an `Enum` there, no longer finds the branch
   type, and meets a base among the types its own discriminator routes to.

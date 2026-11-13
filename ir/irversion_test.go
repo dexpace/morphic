@@ -121,6 +121,9 @@ var generations = []generation{
 		names: "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675"},
 	{version: "0.48.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an inbound operation's empty Servers inherits none; an OperationGroup may hold no operation; a callback's operation lists the callbacks it declares; the OpenAPI compiler leaves a path key's fragment out of URITemplate, under openapi:fragment, and sets SharedRoute"},
+	{version: "0.49.0", format: 1, shape: "630671af6248c7ff1ebd79765cf645b7ee3fde7308e1d8d9b8002a59268eb847",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "a closed union of strings whose variant names an anonymous branch of several values only it references is the closed Enum of its values too, the branch gone, and a model's discriminator may route to the model itself where it is not Abstract"},
 }
 
