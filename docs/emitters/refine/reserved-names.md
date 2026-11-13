@@ -43,8 +43,15 @@ variants. In a scope compared folded
 one meets it. The escape is a trailing underscore, and for a Kotlin keyword backticks, which keep
 the name. The numeric suffix of the collision rule tells two spec names apart and answers no
 reservation. The escape reads the name and the reserved set and nothing else its scope holds, and no
-identifier casing renders ends in an underscore, so an escaped name is one no other declaration
-renders to. A suffix is one another can: a type `Error` given `Error2` for a reserved `Error` would
+identifier casing renders ends in an underscore, so an escaped name is one no other declaration of
+its scope renders to. A scope joining the names of several, as the Objective-C namespace every
+Kotlin unit's declarations share, holds each name as it exports, an explicit Swift name or the
+Kotlin name after its own scope's escape, and reserves the target's names as they export, so a name
+escaped in one scope can meet one escaped in another: it takes the escape again there, a type
+`Duration`, `Duration_` in Kotlin, exporting as `Duration__` beside the runtime's `Duration_`, and
+which unit's package sorts first decides nothing
+([Kotlin](../targets/kotlin/naming.md#reserved-names)). A suffix is one another can: a type `Error`
+given `Error2` for a reserved `Error` would
 hold what a type `error_2` renders to, and their IDs would decide which kept it. Names that meet one
 reserved name are escaped and then told apart as any two are, `Result_` and `Result_2`, and a suffix
 that would make a reserved name is passed over, as `com2` is. Two reservations are answered
@@ -60,7 +67,11 @@ names never yields to an import either: an import yields to it, so every referen
 begins with a name no nearer declaration takes, as each target says
 ([Go](../targets/go/naming.md#imports), [Kotlin](../targets/kotlin/naming.md#imports)). A Go caller
 names no parameter, so there a parameter the spec names yields to an import instead, and the
-function's scope reserves what its file imports. A Kotlin caller names one in a named argument, and
+function's scope reserves the name its file gives each import. The naming steps settle that name
+first, after the units' names, since on Go it reads only its package's name, what the target binds,
+the predeclared identifiers its file writes and its file's other imports: with Go 1.27.3, a
+parameter `time2`, escaped against `time` alone, hid the unit `time` its file then imported as
+`time2` (`time2.Zone is not a type`). A Kotlin caller names one in a named argument, and
 a Swift caller as its label, so there an import yields to every declaration of its file, at any
 depth, and no scope reserves an import. An import has no ID, so which of two keeps a name is each
 target's to say from what they import. That is why `ComputeImports` runs before the naming steps

@@ -65,10 +65,19 @@ with any changed signature. The Objective-C export shows no alias: a framework d
 the class alone in its header, a function taking the alias taking the class, so a Swift caller names
 `User` until `UserCreate` is a class (Kotlin/Native 2.4.0).
 
-An alias, as any declaration of a file that is no class, gives its file a class of kotlinc's,
-`UserKt` for `User.kt`, on the JVM and in the Objective-C header. No spec name meets one, since a
-unit reserves every name ending in `Kt` ([naming](naming.md#reserved-names)), so an alias sits in
-the file of the class it names. T-60 holds this section.
+An alias, as any declaration of a file that is no class, gives its file a class of kotlinc's on the
+JVM, `UserKt` for `User.kt`. No spec name meets one, since a unit reserves every name ending in `Kt`
+([naming](naming.md#reserved-names)), so an alias sits in the file of the class it names. The
+Objective-C header shows such a class only for a function or a property at a file's top level, and
+one class for every unit's file of that name: with Kotlin/Native 2.4.0, a `User.kt` holding a class
+and an alias gave the header no `UserKt`, while two units' `Kind.kt`, each declaring
+`const val KIND`, gave one class `KindKt` holding `KIND` and `KIND_`, the second the constant of the
+unit whose package sorts last, so a unit added could rename a shipped constant. So no file holding
+the spec's declarations declares a function or a property at its top level: a factory is a
+companion's member, as above, and a literal's constant a member of an `object` named for the
+literal, `object Kind { const val VALUE = "user" }`, which a Swift caller read as
+`Kind.shared.VALUE` in both orders of the units, the object told apart from another unit's `Kind` as
+any class is there ([Swift](swift.md)). T-60 holds this section.
 
 ## Nesting
 

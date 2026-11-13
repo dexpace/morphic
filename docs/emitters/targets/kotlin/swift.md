@@ -13,9 +13,12 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `zone_`, and for a method family the Kotlin name behind its role's leading word ([leading
   words](../../refine/naming.md#an-identifier-its-role-cannot-begin-with-takes-a-leading-word)),
   `callCopy()` and an entry `valueCopy`: Objective-C reads a family from how a selector begins, so
-  an underscore leaves the name in it, and Kotlin/Native 2.4.0 exported a method given `copy_` as
-  `doCopy_` and an entry as `theCopy_`. `@ObjCName` is experimental in Kotlin 2.4.0, and a file
-  using it without an opt-in fails to compile, so each such file opts in with
+  an underscore leaves the name in it, and Kotlin/Native 2.4.0 exported a method named or given
+  `copy_` as `doCopy_` and an entry given `copy_` as `theCopy_`. An entry's own trailing underscore
+  the export drops as it splits the name at each `_` (below), `COPY_` exporting as `theCopy` and
+  `ZONE_` as `zone`, which Swift read as `NSObject`'s, so an entry's escape reaches Swift only as
+  an explicit name, which keeps the underscore, `load_`. `@ObjCName` is experimental in Kotlin
+  2.4.0, and a file using it without an opt-in fails to compile, so each such file opts in with
   `@file:OptIn(ExperimentalObjCName::class)`. No caller inherits that, and no signature carries it
   ([the language floor](overview.md#the-language-floor)). `@ObjCName` takes ASCII letters, digits
   and `_` alone, a digit never first, in its name and its Swift name alike (Kotlin/Native 2.4.0's
@@ -24,10 +27,12 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
 - Every exported class extends `NSObject`, so a Swift caller sees `NSObject`'s members beside the
   class's own, and a member named as one is hidden by it, replaces it or breaks the header. Measured
   with Kotlin/Native 2.4.0 and Swift 6.2.3 against the macOS 26.2 SDK, a property, a method, a
-  `suspend` method and an enum entry were named for each of the 119 names the runtime's `NSObject.h`
-  and Foundation declare on `NSObject` and its protocol, and a method of one parameter for each of
-  their one-parameter selectors, split at each word. A property or a method `dealloc` left a header
-  no module builds from (`dealloc return type must be correctly specified as 'void' under ARC`), so
+  `suspend` method and an enum entry were named for each of 119 names, those of the runtime's
+  `NSObject.h` (43, each selector's first piece) and those the Swift symbols of Foundation and
+  `ObjectiveC` give `NSObject` and its protocol (91, each Swift name before its parameters), and a
+  method of one parameter for each of their one-parameter selectors, split at each word. A property
+  or a method `dealloc` left a header no module builds from (`dealloc return type must be correctly
+  specified as 'void' under ARC`), so
   no Swift file importing the framework compiled. A property `zone`, `copy`, `isProxy`,
   `retainCount` or `finalize` read as `NSObject`'s method, and `description` and `self` as the
   object's own; `hash`, `hashValue` and `superclass` were ambiguous, and `class`, `retain`,
@@ -44,17 +49,25 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   renames in a property too. A property, or a parameterless method that is not `suspend`, takes an
   explicit name where its name is a parameterless instance selector of the table or one of those
   members; an enum entry where its Swift name is a parameterless selector, the class's or an
-  instance's, or one of those members; and a method with parameters where the selector the export
+  instance's, one of those members, or one the export gives every enum class beside its entries,
+  `entries`, `values` or `companion`; and a method with parameters where the selector the export
   forms for it, its name, its first parameter's capitalized and each later parameter's, is in the
   table, which a `suspend` method's, ending in `completionHandler:`, never is. With such names a
   member of each kind above was reached, and `hash`, `copy()` and `responds(to:)` still answered as
-  `NSObject`'s. Comparing a property with every name of the table instead would rename `version`, a
-  class method's name alone, and `value`, the first piece of `valueForKey:`, which a Swift caller
-  read as written. Naming only what the export itself renames, `description` and `hash`, as this
-  rule once did, left the rest. On the golden spec the rule gives 782 properties of its models an
-  explicit name, 742 `description`, 14 `className`, 9 `class`, 9 `hash`, 5 `zone`, 2 `self` and 1
-  `copy`, and 80 enum entries, 20 `load`, 19 `copy` and 12 `zone` among them, and no operation's
-  method, while its 847 properties `value` and 98 `version` keep their names; 10 of its parameters
+  `NSObject`'s. Entries `ENTRIES`, `VALUES` and `COMPANION` exported as `entries`, `values` and
+  `companion`, moving the enum's own list to `entries_` and `values_()` and taking the accessor
+  `companion` from its companion object, so an entry a revision added would change what
+  `Status.entries` reads; with those entries given `entries_`, `values_` and `companion_` the enum
+  kept its own, and entries `NAME`, `ORDINAL` and `COMPARE_TO` kept their names beside an
+  instance's `name`, `ordinal` and `compareTo(other:)`, a Swift caller reaching both. Comparing a
+  property with every name of the
+  table instead would rename `version`, a class method's name alone, and `value`, the first piece of
+  `valueForKey:`, which a Swift caller read as written. Naming only what the export itself renames,
+  `description` and `hash`, as this rule once did, left the rest. On the golden spec the rule gives
+  782 properties of its models an explicit name, 742 `description`, 14 `className`, 9 `class`, 9
+  `hash`, 5 `zone`, 2 `self` and 1 `copy`, and 80 enum entries, 20 `load`, 19 `copy` and 12 `zone`
+  among them, none of its 32,915 named for an enum's own member, and no operation's method, while
+  its 847 properties `value` and 98 `version` keep their names; 10 of its parameters
   are named `description` or `hash`, and take one wherever a request type holds them as a property
   (spec @bc6fad24, morphic @fa253fe19, each name its words in camel case). T-19 holds it.
 - The export renames an enum entry in camel case, splitting it at each `_`, so it loses a break
@@ -107,8 +120,13 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   interface `Pet` nests, which Swift calls `PetDog` too; and a model `UserBuilder` as `UserBuilder_`
   in Objective-C beside `User.Builder`, whose Swift name keeps its nesting while every name in it is
   ASCII (above). Two declarations collide there when their exported names do, whichever units and
-  types hold them, and a name the target declares is reserved there in every unit
-  ([naming](naming.md#reserved-names)).
+  types hold them, and a name the target declares is reserved there in every unit, as it exports
+  ([naming](naming.md#reserved-names)). An escape in one scope can meet one in another there: the
+  runtime's `@ObjCName("Duration_") class Duration` beside a spec class `Duration_`, the escape of a
+  type `Duration` in its unit, exported the two as `Duration_` and `Duration__` when the runtime's
+  package sorted first and the other way round when it sorted last, moving the runtime's own Swift
+  name. With the spec class given `Duration__`, and a second unit's `Duration__2`, each kept the
+  name it was given in both orders, and a Swift caller built each beside Swift's own `Duration`.
 - A Swift caller has Swift's standard library and Foundation in scope beside the framework, and the
   export renames neither side. Measured with Kotlin 2.4.0 and Swift 6.2.3, a framework class named
   `Optional`, `Result` or `Duration` shadowed Swift's own in a caller's file (`cannot specialize

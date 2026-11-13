@@ -65,5 +65,7 @@ import computation follows placement, since a file imports what its declarations
 wherever those landed; the naming steps run last — casing, then reserved-word escaping, whose scopes
 reserve on Go what a file imports ([reserved names](reserved-names.md)), then collision resolution —
 so every name, a unit's and an import's among them, is settled once, after everything that names it
-exists. Because each step is idempotent and reads only its `Ctx`, a step-trace snapshot pins the
-whole lowering deterministically.
+exists. On Go the three run over the units' names and then each file's imports before any other
+scope, since a function's scope reserves the names its file's imports are given. Because each step
+is idempotent and reads only its `Ctx`, a step-trace snapshot pins the whole lowering
+deterministically.

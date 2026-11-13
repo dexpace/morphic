@@ -186,7 +186,8 @@ spelled here as a Pascal role composes it: each word of `Canonical` as `Source` 
 character upper-cased, with `_` before a word letter case cannot mark
 ([below](#a-break-letter-case-cannot-mark-takes-an-underscore)), and it reads back as other words
 where `ir.CanonicalWords` of that identifier is not its `Canonical`; with no `_` written, 6,650 do.
-Either rule would rewrite one spelled name in seventeen to part pairs the spec does not hold.
+Either rule would rewrite one spelled name in seventeen, or with no `_` written one in sixteen, to
+part pairs the spec does not hold.
 Writing `_` only in a name that met another, `UserI_D` beside `UserID`, was not taken either: a
 shipped name keeps its symbol ([collisions](#collisions-and-the-names-a-generation-shipped)), so
 only a newcomer could take it, and only where the newcomer is the one misread, which leaves the
@@ -422,7 +423,7 @@ names that keep the same words still differ in their last. A path the target nam
 identifier, as Go names a declaration's file, is shortened as its target says, and the identifier is
 not ([Go](../targets/go/naming.md#file-names)).
 
-The cap measures the identifier as it is written, backticks aside, and the hash reads that
+The cap measures the identifier as casing writes it, backticks aside, and the hash reads that
 identifier whole rather than `Naming.Canonical`, which a name with no words and a type named from a
 hint lack, and which holds no word a role or the plan adds: `____________` and `_____________`,
 twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type's `Create` and
@@ -430,7 +431,10 @@ twelve and thirteen `Underscore`s, would hash nothing and meet, and a long type'
 words alone. T-53 holds it.
 
 The cap leaves room for two names joined and the suffixes the Kotlin toolchain adds: two names of
-110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, and a
+110 bytes make 239 bytes in the serialization plugin's `Payment$Card$$serializer.class`, whose 16
+left hold what the naming steps add to each name after the cap, an `_`, the escape's or the one
+before a suffix, and a collision's suffix of up to seven digits, which only ten million names
+rendering alike in one scope pass, and a
 method of 110 bytes in a client of 110 makes at most 229 in a class kotlinc 2.4.0 writes for its
 body, `<client>$<method>$1.class`, over a plain, a paged and a streamed method each handing its
 lambdas to the runtime, with the kotlinx.coroutines kotlinc ships. That leaves 28 bytes after a

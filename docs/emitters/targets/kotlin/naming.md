@@ -59,7 +59,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     and a shape's declaration, whose name adds a word, not counted).
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
-  - Every name ending in `Kt`, in any letter case, the form of the class kotlinc compiles a file's
+  - Every name ending in `Kt` by the path fold, the form of the class kotlinc compiles a file's
     top-level declarations but its classes and objects into, a typealias among them: the file's name
     followed by `Kt`, `TimestampKt` for `Timestamp.kt`. A class `TimestampKt` beside a typealias in
     `Timestamp.kt` failed the JVM build ("duplicate JVM class name 'p/TimestampKt' generated from:
@@ -74,11 +74,14 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
     name joined to its outer's ([Swift](swift.md)): each name above that the target declares, the
     runtime's among them, in every unit, bar `AlphaApi`, `BetaApi` and `InternalSdkApi`, annotation
-    classes Kotlin/Native 2.4.0 leaves out of the header; the joined name of each public class the
-    target nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
-    `PaymentUnknown` beside a union `Payment`; and the names the export gives classes of its own,
-    `Base`, `MutableSet`, `MutableDictionary`, `Number` and each boxed number's, such as `Int`,
-    `Double` and `ULong`.
+    classes Kotlin/Native 2.4.0 leaves out of the header, each as it exports, which for one taking
+    an explicit name (below) is that name, the runtime's `Duration` reserved as `Duration_`; the
+    joined name of each public class the target nests in a type, such as `UserBuilder` and
+    `UserCompanion` beside a model `User` and `PaymentUnknown` beside a union `Payment`; and the
+    names the export gives classes of its own, `Base`, `MutableSet`, `MutableDictionary`, `Number`
+    and each boxed number's, such as `Int`, `Double` and `ULong`. A spec declaration whose exported
+    name meets one takes the escape on that name, so a type `Duration`, already `Duration_` in
+    Kotlin, exports as `Duration__` ([Swift](swift.md)).
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
@@ -102,8 +105,10 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   building once escaped.
 - **A member's Swift name**, on Multiplatform: each member `NSObject` and its protocol give every
   exported class, a table of the options version as the Swift type names above are, compared with a
-  property's, a method's and an enum entry's exported name as [Swift](swift.md) says. A member that
-  meets one keeps its Kotlin name and takes an explicit Objective-C and Swift name.
+  property's, a method's and an enum entry's exported name as [Swift](swift.md) says, and for an
+  enum entry the members the export gives every enum class beside its entries, `entries`, `values`
+  and `companion`. A member that meets one keeps its Kotlin name and takes an explicit Objective-C
+  and Swift name.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder`, `Companion` and `jsonDepth`, the depth a
   value records ([nesting](models.md#nesting)), and `jsonValues`, the count it records beside it.
 

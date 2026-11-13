@@ -114,8 +114,10 @@ throughout these documents.
     one among them, in names that differ in letter case alone, from each other and from a name the
     scope reserves, one of its types in each unit after each file a template writes there (`Client`
     beside Go's `api_client.go`) and, on Kotlin, after the class each file holding a typealias there
-    compiles to (`MoneyKt` beside `Money`), a variant after `WhenMappings` in a union whose code
-    switches over an enum of another file, types named `Error` and `error_2` in one unit, and its
+    compiles to (`MoneyKt` beside `Money`) and a type `TimestampKt` with no `Timestamp`, which is
+    `TimestampKt_` before and after a revision adds one, a variant after `WhenMappings` in a union
+    whose code switches over an enum of another file, types named `Error` and `error_2` in one unit,
+    on Multiplatform a type `Duration` in each of two units, and its
     groups after every units name, a keyword, `documentation` and each predeclared identifier of Go
     among them (`error`, `string`, `len`, `nil`), after each name a Kotlin build keeps at its root
     ([output units](../targets/kotlin/overview.md#output-units)), after the standard-library
@@ -126,14 +128,18 @@ throughout these documents.
     alike (`Straße` and `Strasse`, an `é` composed and decomposed, `ı` and `I`), generates code that
     compiles on every target, no two of its paths, an artifact's or a class file's, folding alike,
     the Go file holding two such types byte-identical in both declaration orders, with every
-    template's declared names held to what it binds, and on Kotlin the table of default-imported
-    classes to each name that resolves, on each platform the target builds for, in a file importing
-    nothing. Every name that meets a reserved one, or folds as one where its scope compares folded,
-    is its own name with the target's escape, whatever reserved it, and none is a name with a
+    template's declared names held to what it binds, on Go the table of predeclared identifiers to
+    `go/types.Universe.Names()` of the Go release the options version reads, and on Kotlin the table
+    of default-imported classes to each name that resolves, on each platform the target builds for,
+    in a file importing nothing. Every name that meets a reserved one, or folds as one where its
+    scope compares folded, is its own name with the target's escape, whatever reserved it, and none
+    is a name with a
     collision's suffix: the type `Error` is Kotlin's `Error_` beside an `Error2` that keeps its
     name, in both declaration orders, and two types that meet one reserved name are the escaped name
     and that name with a suffix. On Go a caller's package importing every unit under its own name
-    compiles its uses of `error`, `string`, `len` and `nil`. On Go `go list` lists every file the
+    compiles its uses of `error`, `string`, `len` and `nil`, and a method taking a parameter
+    `time2`, in a file importing the standard library's `time` and a unit `time`, compiles its
+    body's use of each. On Go `go list` lists every file the
     target writes among a package's `GoFiles`, none among the files it ignores or builds for tests
     alone, on each port `go tool dist list` gives, and `golang.org/x/mod/zip` zips the module, so
     every file and import path is one the module proxy takes
@@ -150,15 +156,18 @@ throughout these documents.
     name the export declares for a class of its own or for a class, object or interface of the
     standard library, so a Swift file that imports the framework and Foundation compiles its uses of
     both, `KotlinInt`, `KotlinThrowable` and `KotlinComparable` among them, and qualifies a name by
-    either module. The fixture also names a property, a parameterless method, a `suspend` method and
-    an enum entry after every member of the table of `NSObject`'s, `dealloc`, `zone`, `hash`,
-    `self`, `load` and `copy` among them, a method of one parameter after each of its one-parameter
-    selectors (`responds(toSelector:)`), and a method and an entry after a name of each method
-    family: the header builds a module, a Swift caller reads each property's own value, calls each
-    method and reaches each entry by the name the policy chose, which is the name the header gives
-    it, a property `value` and one `version` keep their names, `hash`, `copy()` and `responds(to:)`
-    on a model still answer as `NSObject`'s, and the table equals the selectors read from the SDK
-    the options version names ([Swift](../targets/kotlin/swift.md)).
+    either module; the two types `Duration` export as `Duration__` and `Duration__2` beside the
+    runtime's `Duration_` under both orders of their units' packages. The fixture also names a
+    property, a parameterless method, a `suspend` method and an enum entry after every member of the
+    table of `NSObject`'s, `dealloc`, `zone`, `hash`, `self`, `load` and `copy` among them, a method
+    of one parameter after each of its one-parameter selectors (`responds(toSelector:)`), a method
+    and an entry after a name of each method family, and entries `ENTRIES`, `VALUES` and
+    `COMPANION` of an enum with a companion object: the header builds a module, a Swift caller reads
+    each property's own value, calls each method and reaches each entry by the name the policy
+    chose, which is the name the header gives it, a property `value` and one `version` keep their
+    names, `hash`, `copy()` and `responds(to:)` on a model still answer as `NSObject`'s, and that
+    enum's `entries`, `values()` and `companion` as its own, and the table equals the selectors read
+    from the SDK the options version names ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -218,9 +227,11 @@ throughout these documents.
     and many give identical artifacts, and so do two runs under different `LC_ALL`, over a fixture
     whose sort order a collation would change. Two artifacts on one path, and two whose paths fold
     alike, each draw the error, and a segment of 86 three-byte characters, 258 bytes, where one of
-    85 draws nothing, a Windows device name before a first dot in two letter cases and before the
-    first of two (`aux.v1.go`), a character Windows refuses and a trailing dot or space each draw
-    `engine/artifact-path-unportable`. A template that fails the formatter draws a located error and
+    85 draws nothing, each Windows device name the rule lists, `conin$` and `com¹` among them,
+    before a first dot in two letter cases and before the first of two (`aux.v1.go`), each character
+    Windows refuses, U+001F among them, and a trailing dot or space each draw
+    `engine/artifact-path-unportable`, where a space inside a segment draws nothing. A template that
+    fails the formatter draws a located error and
     no artifact, and a build with and without `-trimpath` give identical artifacts. A `Scope`
     matching nothing and a document with nothing to emit each draw `no-artifacts`. `..`, an absolute
     path, a sibling sharing the root's prefix and a symlink leaving the root are each refused.
@@ -454,7 +465,9 @@ throughout these documents.
     suffix there, in the root unit as under a split by group, the incumbent's symbol unchanged; a
     suffix that would make a name the scope reserves, as two groups rendering `com` would on Kotlin,
     is passed over; a type added in a name differing from a shipped one's in letter case alone, its
-    ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; names
+    ID sorting first, leaves the incumbent's name as it shipped and on Kotlin takes a suffix; two
+    types that shipped as Kotlin's `Result_` and `Result_2` keep them beside a third `Result` added
+    with an ID sorting before both, which is `Result_3`; names
     whose words differ only at a break letter case cannot mark, properties `v1.2` beside `v12`,
     `a-日本` beside `a日本`, `count-ℤ` beside `countℤ` and `a-ß` beside `aß`, an enum's members `1.0`
     and `10`, and on Go the constants of `V1`'s member `2` and `V`'s `12`, render apart with no
@@ -575,7 +588,7 @@ throughout these documents.
     under `V1`, a label that is a Windows device name before a first dot, one holding a character
     Windows refuses, as a `:` is, or ending in a dot or a space, and two of 255 bytes that fold
     alike, the second's directory passing the limit, each drawing `engine/snapshot-label-invalid`
-    before any target runs, naming the label and the rule it breaks, a label with `#` or `?`
+    before any target runs, naming the label and the rule it breaks, a label with `#` or `%`
     percent-encoded in links, a target without `CrossVersion` named for its artifacts on a sliced
     document writing the one snapshot T-69 says, run for samples alone on each other, and the last
     label's run taking a prior's `""` entry when the document gains versions; only the run of the
@@ -913,16 +926,22 @@ throughout these documents.
     upper-casing before it and under a fold of ASCII letters alone each do. The other direction is
     held too: the names of two files that the fold joins in those sweeps equal a golden list, `aı`
     and `ai` among them, and the fold keeps apart each pair of a second table, `ℌx` and `hx`, `café`
-    and `cafe`, `नाम` and `नम`, so a fold joining more, by a compatibility decomposition or by
-    dropping marks, fails as one joining less does; and the fold of every character the tables hold
-    equals a golden, which a Go release moving them may extend and must not otherwise change ([the
-    path fold](../emit/rules.md)).
+    and `cafe`, `नाम` and `नम`, and `x` U+200D `y` and `xy`, so a fold joining more, by a
+    compatibility decomposition, by dropping marks or by dropping a format character, fails as one
+    joining less does; and the fold of every character the tables hold equals a golden, which a Go
+    release moving them may extend and must not otherwise change ([the path
+    fold](../emit/rules.md)). The gate's runners have no APFS volume, so the sweeps run on macOS
+    whenever a golden here is rewritten, recording which of their names APFS made one file, and on
+    every host the fold of those names is held to that record and to the golden list.
 53. **T-53 · Names past the length cap** — a fixture naming a type, a union and its variant, a
     group, an operation and a property at the cap, a byte past it and far past it, in ASCII and in
     characters of two, three and four bytes, the operation in the client of the group at the cap
     once as each shape a method lowers to, a plain, a paged and a streamed one, with and without its
-    `WithResponse` method, generates code that compiles on every target: each identifier of a role
-    written into a path within the cap, a shortened one keeping its leading words and its hash word
+    `WithResponse` method, and a type and a union's variant at the cap that meet a reserved name or
+    each other (`…Kt` and two variants folding alike), generates code that compiles on every target:
+    each identifier of a role written into a path within the cap but for its escape and its suffix,
+    which a type's class and its variant's serializer still hold under 255 bytes, a shortened one
+    keeping its leading words and its hash word
     and drawing one `emitters/<target>/name-shortened`, two that share their first 110 bytes apart,
     among them two names with no words (twelve and thirteen `_`), two types named from hints and one
     long type's create and patch declarations, the property's name whole, and no segment of a path
@@ -934,7 +953,9 @@ throughout these documents.
     does not know, U+0870 and past the BMP U+10570, with a digit it does not know, `a𐵀`, with a mark
     past the BMP, U+11046 after a letter, with `ɤx`, whose capital it does not know, with a name
     whose first word and one whose second begins with U+0301, and with names whose first letter Go
-    does not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, generates code that
+    does not export once cased, `名前`, `ʰx`, `ßx`, `ᾳx` and past the BMP `𐀀x`, and a type `UserKt`
+    spelled with a Kelvin sign beside `User` and its alias, which folds as a name ending in `Kt` and
+    on Kotlin is `UserKt_` with the sign kept, generates code that
     compiles on every target: on Go each character a role cannot hold written by its name once the
     identifier is cased, its `u` in lower case and its hex four digits at least (`Cafeu0301`,
     `Field_u0301x`, `u11046`), and every import path in ASCII; on Kotlin each such identifier in
@@ -974,7 +995,9 @@ throughout these documents.
     package, the rendered docs show each declaration's own name where its file imports it under an
     alias and open its page, and adding a variant, a model and a property renames no declaration the
     manifest records. On Go, a model whose fields and methods are named after each package its file
-    imports compiles ([Kotlin](../targets/kotlin/naming.md#imports),
+    imports compiles, and a file that writes `error` and imports, through a type-table row, a
+    package named `error`, which no unit can be, imports it as `error2`
+    ([Kotlin](../targets/kotlin/naming.md#imports),
     [Go](../targets/go/naming.md#imports)).
 56. **T-56 · The tag a variant's value carries** — on every target, a discriminated union whose
     variants leave the tag a plain string encodes a variant built with that member unset, or set to
@@ -1041,9 +1064,12 @@ throughout these documents.
     builds, whose variant it names in Go by the shape's wrapper, factory and interface and in Kotlin
     by the factory an alias reaches, the Swift export showing no alias; an enum, a scalar and a
     literal a shape reaches are declared once, under their own names, and a decorator not at all; a
-    Kotlin unit holding spec classes `UserKt` and `UserCreateKt` beside `User` and its alias builds
-    on the JVM and as a framework, whose header names both as written, no generated file there
-    declaring a function or a property at its top level; a model only a `PUT` writes, with a
+    Kotlin unit holding types `UserKt` and `UserCreateKt` beside `User` and its alias declares them
+    `UserKt_` and `UserCreateKt_` and builds on the JVM and as a framework whose header names no
+    class for the alias's file, and two units each holding a literal `Kind` give each constant, in
+    both orders of the units' packages, the Swift name the policy chose, `Kind.shared.VALUE` and the
+    other's under its object's suffix, no file holding the spec's declarations declaring a function
+    or a property at its top level; a model only a `PUT` writes, with a
     `readOnly` member, is `UserCreateUpdate` with no `User` beside it, and adding a `POST`, then an
     operation returning it, renames no declaration and regenerates the earlier ones byte for byte; a
     custom lifecycle `<class>:<member>` gives its class's words and then its member's; a filter an

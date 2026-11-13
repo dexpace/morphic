@@ -333,7 +333,7 @@ a way to show one entity across API versions. Each is decided by data, never by 
   `EmitterInput.Routes`, keyed by the label `Document.Versions` gives each version. An agent
   document's route, one for each target and language a run's samples name, is that run's own and in
   no table, though the collision check reads it. A label's directory is percent-encoded where a link
-  writes it, since a `#`, `?` or `%` in it would otherwise end or alter the URL, and a switcher
+  writes it, since a `#` or `%` in it would otherwise end or alter the URL, and a switcher
   shows the label as written though its directory takes a suffix. A switcher lists the labels
   `Routes` keys, in the order `Document.Versions` gives them, never one no snapshot was made for. A
   run finds its own entry under `EmitterInput.Snapshot`, the label of the snapshot it was handed,
