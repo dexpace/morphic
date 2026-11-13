@@ -24,7 +24,7 @@ import (
 // The query parameters and bodies the cases below combine.
 const (
 	pageParams = `[{name: q, in: query, schema: {type: string}}, {name: page, in: query, schema: {type: integer}},
-        {name: per_page, in: query, schema: {type: integer}}]`
+        {name: per_page, in: query, schema: {type: number}}]`
 	cursorParams = `[{name: cursor, in: query, schema: {type: string}},
         {name: per_page, in: query, schema: {type: integer}}]`
 	stringList = `{type: array, items: {type: string}}`
@@ -50,7 +50,7 @@ func TestInfer_ReadsEachStrategy(t *testing.T) {
 			"page cursor=page limit=- items=/ next=- count=- pages=- stop=[]"},
 		"an offset beside a limit, the total camel-cased": {listing(
 			`[{name: offset, in: query, schema: {type: integer, format: int32}},
-			  {name: limit, in: query, schema: {type: number}}]`,
+			  {name: limit, in: query, schema: {type: number, format: double}}]`,
 			`{type: object, properties: {data: `+stringList+`, totalCount: {type: integer}}}`),
 			"offset cursor=offset limit=limit items=/data next=- count=/totalCount pages=- stop=[]"},
 		"a cursor the page's info hands back": {listing(cursorParams,
@@ -123,11 +123,11 @@ func TestInfer_LeavesWhatItCannotSettle(t *testing.T) {
 			`query parameters "limit" and "per_page" each name the page size`},
 		"a continuation of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: string, enum: [p, q]}}]`, envelope),
-			`query parameter "page" names where a walk continues, and its type is no integer, number or string`},
+			`query parameter "page" names where a walk continues, and its type is no number or string`},
 		"a page size of no type a walk sends": {
 			listing(`[{name: page, in: query, schema: {type: integer}}, {name: per_page, in: query, schema: {type: boolean}}]`,
 				envelope),
-			`query parameter "per_page" names the page size, and its type is no integer, number or string`},
+			`query parameter "per_page" names the page size, and its type is no number or string`},
 		"a body neither an object nor a list": {listing(pageOnly, `{oneOf: [`+envelope+`, {type: string}]}`),
 			`the application/json response body is neither an object nor a list`},
 		"a list body for a cursor walk": {listing(cursorParams, stringList),
@@ -335,8 +335,9 @@ func TestInfer_KeepsAPaginationTheOperationHolds(t *testing.T) {
 
 	doc.Services[0].Groups[0].Operations[0].Pagination = nil
 	assert.Empty(t, pagination.Infer(c, doc))
-	assert.Equal(t, ir.PageStrategyPage, doc.Services[0].Groups[0].Operations[0].Pagination.Strategy,
-		"the same operation holding none is inferred")
+	inferred := doc.Services[0].Groups[0].Operations[0].Pagination
+	require.NotNil(t, inferred, "the same operation holding none is inferred")
+	assert.Equal(t, ir.PageStrategyPage, inferred.Strategy)
 }
 
 // TestInfer_ReadsTheSameInEitherOrder compiles each document with its
@@ -410,6 +411,10 @@ components:
 	for _, op := range ops {
 		assert.Equal(t, "page cursor=page limit=- items=/result next=- count=/result_info/total_count "+
 			"pages=/result_info/total_pages stop=[]", describe(doc, op), op.ID)
+	}
+	for _, op := range ops {
+		require.NotNil(t, op.Pagination)
+		require.NotNil(t, op.Pagination.TotalCount)
 	}
 	items, count := ops[1].Pagination.Items.Segments[0], ops[1].Pagination.TotalCount.Segments[0]
 	ops[0].Pagination.Items.Segments[0] = "p/elsewhere"

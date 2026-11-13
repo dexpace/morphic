@@ -113,14 +113,15 @@ func sendable(types ir.TypeRegistry, id ir.TypeID) (ir.PrimKind, bool) {
 }
 
 // sendableAs returns td's primitive when a walk can send it or count with it:
-// an integer of any width, a number or a string.
+// a number of any kind, which a value of it holding no integer leaves none to
+// count with, or a string, which carries a number as its decimal text.
 func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
 	p, ok := td.(*ir.Primitive)
 	if !ok {
 		return "", false
 	}
 	k := p.Prim
-	if k == ir.PrimString || k == ir.PrimNumber || k == ir.PrimInteger || k.StrictlyWithin(ir.PrimInteger) {
+	if k == ir.PrimString || k == ir.PrimNumber || k.StrictlyWithin(ir.PrimNumber) {
 		return k, true
 	}
 	return "", false
@@ -129,7 +130,7 @@ func sendableAs(td ir.TypeDef) (ir.PrimKind, bool) {
 // notSendable says that p names what a walk sends as what, and is of a type it
 // cannot send.
 func notSendable(p *ir.Parameter, what string) string {
-	return fmt.Sprintf("query parameter %q names %s, and its type is no integer, number or string", p.Name.Source, what)
+	return fmt.Sprintf("query parameter %q names %s, and its type is no number or string", p.Name.Source, what)
 }
 
 // quoted lists the parameters' names, two or more, as listed does.

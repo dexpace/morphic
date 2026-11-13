@@ -4511,9 +4511,9 @@ always wins. A name is compared by its canonical words (`Naming.Canonical`), so 
    strategy; `offset`, under `offset`; `cursor`, under `cursor`; or `page_token`, `next_token` or
    `continuation_token`, under `token`. It is `InputCursor`, and a query parameter named `per_page`,
    `page_size` or `limit` beside it is `InputLimit`. Each is a value a walk sends or counts with:
-   its type, read through alias scalars, is an integer of any width, `number` or `string`. A name
-   such as `after`, `marker` or `starting_after`, which names a cursor in one API and a filter or
-   an ID in another, is not read.
+   its type, read through alias scalars, is a number of any kind or a string, the text a number is
+   sent as. A name such as `after`, `marker` or `starting_after`, which names a cursor in one API
+   and a filter or an ID in another, is not read.
 2. **A page** is the body of each content of each success response, the `Default` aside, and each
    must hold what the walk reads at the same members, as a pager reads whichever arrives. A path
    starts at the body whole. A list body holds the items whole, an `Items` with no segment, and no
