@@ -47,19 +47,11 @@ func ClosesAfterComposition(s *oas3.Schema) bool {
 	return IsFalseSchema(s.GetUnevaluatedProperties()) && inertBeside(s, "unevaluatedProperties", Dialect{}) == ""
 }
 
-// UnevaluatedRaw combines the unevaluated keywords s writes into one raw JSON
-// object, each beside the keyword written next to it that leaves it nothing to
-// apply to (inertBeside), and names the unevaluated keywords it combines.
-// closure says the node took `unevaluatedProperties: false` as its openness, so
-// that form is left out; dialect says where s's dialect reads the elements past
-// a prefix.
-func UnevaluatedRaw(s *oas3.Schema, closure bool, dialect Dialect) (ir.RawValue, []string, error) {
-	return unevaluatedRaw(s, unevaluatedKept(s, closure, dialect))
-}
-
-// unevaluatedRaw renders the entry holding kept and names its unevaluated
-// keywords alone, which are what its provenance is asked about: the keyword
-// beside an inert one is context the entry holds whoever wrote it.
+// unevaluatedRaw renders the entry holding kept, each inert keyword beside the
+// keyword written next to it that leaves it nothing to apply to (inertBeside),
+// and names its unevaluated keywords alone, which are what its provenance is
+// asked about: the keyword beside an inert one is context the entry holds
+// whoever wrote it.
 func unevaluatedRaw(s *oas3.Schema, kept []keptUnevaluated) (ir.RawValue, []string, error) {
 	if len(kept) == 0 {
 		return nil, nil, nil
@@ -80,9 +72,10 @@ type keptUnevaluated struct {
 }
 
 // unevaluatedKept returns the unevaluated keywords s writes that an entry
-// keeps, in keyword order, as UnevaluatedRaw reads closure and dialect. It asks
-// the model first, so a schema writing neither, nearly every one, costs no
-// read of its node.
+// keeps, in keyword order. closure says the node took `unevaluatedProperties:
+// false` as its openness, so that form is left out, and dialect says where s's
+// dialect reads the elements past a prefix. It asks the model first, so a
+// schema writing neither, nearly every one, costs no read of its node.
 func unevaluatedKept(s *oas3.Schema, closure bool, dialect Dialect) []keptUnevaluated {
 	var out []keptUnevaluated
 	keep := func(keyword string) {
@@ -245,7 +238,7 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 // IR does not model, keeping each verbatim and announcing it, `dependencies`
 // among them where dialect defines it. own says s is the schema written at the
 // position rather than a voice, whose unevaluated keywords stay with its branch
-// (schema.foldEntry), and closure is UnevaluatedRaw's.
+// (schema.foldEntry), and closure is unevaluatedKept's.
 //
 // Site-only: these constrain the value at the position that wrote them.
 func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, doc provenance.Doc, dialect Dialect, own, closure bool) (ir.Unmodeled, []ir.Diagnostic) {

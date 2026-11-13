@@ -196,7 +196,8 @@ func TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert(t *testing.T)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, keys, err := UnevaluatedRaw(schemaFromYAMLUnvalidated(t, tc.body), tc.closure, Dialect{ListedTuple: tc.listed})
+			s := schemaFromYAMLUnvalidated(t, tc.body)
+			got, keys, err := unevaluatedRaw(s, unevaluatedKept(s, tc.closure, Dialect{ListedTuple: tc.listed}))
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, string(got), "each inert keyword just after what leaves it inert")
 			assert.Equal(t, tc.keys, keys)
@@ -280,10 +281,10 @@ func TestValidationOnlyAt_AttributesAnInertEntryByItsUnevaluatedKeyword(t *testi
 	}
 }
 
-// unevaluatedClosed is UnevaluatedRaw for a 2020-12 schema whose node holds a
+// unevaluatedClosed is unevaluatedRaw for a 2020-12 schema whose node holds a
 // false unevaluatedProperties as its closure, as a combining reader takes one.
 func unevaluatedClosed(s *oas3.Schema) (ir.RawValue, []string, error) {
-	return UnevaluatedRaw(s, true, Dialect{})
+	return unevaluatedRaw(s, unevaluatedKept(s, true, Dialect{}))
 }
 
 // TestJSONObject_PropagatesAQuoteFailure covers jsonObject's one failure mode:
