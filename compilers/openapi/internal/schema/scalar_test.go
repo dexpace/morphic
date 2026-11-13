@@ -85,7 +85,7 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 		{typ: "integer", format: "Int8", base: ir.PrimInteger},     // a format name is case-sensitive
 		{typ: "number", format: "double-int", base: ir.PrimNumber}, // a registry format with no primitive
 		{typ: "number", format: "float16", base: ir.PrimNumber},    // a width no PrimKind names
-		{typ: "string", format: "int64", base: ir.PrimString},      // GitHub #637's orientation
+		{typ: "string", format: "double-int", base: ir.PrimString}, // no number's format the table pairs
 	} {
 		t.Run(tc.typ+"/"+tc.format, func(t *testing.T) {
 			t.Parallel()
@@ -115,6 +115,54 @@ func TestScalar_NumericFormatPairings(t *testing.T) {
 			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target)
 			require.NotNil(t, sc.Encoding)
 			assert.Equal(t, tc.format, sc.Encoding.Name, "the format is kept verbatim")
+		})
+	}
+}
+
+// TestScalar_ANumberAsTextIsItsNumberOnAString pins a numeric format written on
+// a `type: string`: the number it selects under `number` is the Scalar's Base,
+// the logical type, its Encoding names a number written as its text, and the
+// string it travels as is the WireType, as byte's bytes and string are
+// (docs/compilers/openapi.md#string-formats). A contentEncoding beside it names
+// the encoding instead, and the format is kept.
+func TestScalar_ANumberAsTextIsItsNumberOnAString(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		format, extra string
+		base          ir.PrimKind
+		name          string
+		kept          bool
+	}{
+		{format: "int8", base: ir.PrimInt8, name: "string"},
+		{format: "int16", base: ir.PrimInt16, name: "string"},
+		{format: "int32", base: ir.PrimInt32, name: "string"},
+		{format: "int64", base: ir.PrimInt64, name: "string"},
+		{format: "uint8", base: ir.PrimUint8, name: "string"},
+		{format: "uint16", base: ir.PrimUint16, name: "string"},
+		{format: "uint32", base: ir.PrimUint32, name: "string"},
+		{format: "uint64", base: ir.PrimUint64, name: "string"},
+		{format: "float", base: ir.PrimFloat32, name: "string"},
+		{format: "double", base: ir.PrimFloat64, name: "string"},
+		{format: "decimal", base: ir.PrimDecimal, name: "string"},
+		{format: "decimal128", base: ir.PrimDecimal128, name: "string"},
+		{format: "int64", extra: ", contentEncoding: base64", base: ir.PrimInt64, name: "base64", kept: true},
+	} {
+		t.Run(tc.format+tc.extra, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(
+				"    H:\n      type: object\n      properties:\n        p: {type: string, format: %s%s}\n", tc.format, tc.extra)))
+			h, ok := typeByName(doc, "H").(*ir.Model)
+			require.True(t, ok)
+			sc, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Scalar)
+			require.True(t, ok, "the position hoists a Scalar")
+			require.NotNil(t, sc.Base)
+			assert.Equal(t, ir.PrimTypeID(tc.base), sc.Base.Target, "the base is the number")
+			require.NotNil(t, sc.Encoding)
+			assert.Equal(t, tc.name, sc.Encoding.Name)
+			require.NotNil(t, sc.Encoding.WireType, "the number travels as a string")
+			assert.Equal(t, ir.PrimTypeID(ir.PrimString), sc.Encoding.WireType.Target)
+			_, kept := sc.Unmodeled["openapi:format"]
+			assert.Equal(t, tc.kept, kept)
 		})
 	}
 }

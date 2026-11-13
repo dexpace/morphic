@@ -2913,13 +2913,19 @@ A `type: string` with a `format` the table names lowers to the shared primitive 
 and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
 to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
 `binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
-with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
-`ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
-format as written, case kept, since the compiler knows no registry of formats beyond the table, and
-the table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
+with the `string` it travels as in `WireType`. A numeric format the table pairs with `number`
+([`numeric-formats`](#numeric-formats)), such as `int64`, `decimal` or `double`, names a number
+written as its text, which is how a value too wide for a JSON number commonly travels, so it lowers
+the same way: to a hoisted `Scalar` over the primitive it selects under `number`, whose `Encoding`
+is `string`, a number written as the text of its value, with the `string` in `WireType`. The base is
+the logical type and `WireType` the wire's, for both, as [encodings](../ir/constraints.md#encodings)
+orients the triple. Any other format (`time`, `email`, `uri-reference`, `ipv4`, an invented one)
+lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the format as written, case
+kept, with no `WireType`, since the compiler knows no registry of formats beyond the table, and the
+table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
 primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
-`byte` or unknown format names the encoding instead; where the two name different encodings the
-format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
+`byte`, numeric or unknown format names the encoding instead; where the two name different encodings
+the format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
 `openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
 beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
 [`numeric-formats`](#numeric-formats)'.
@@ -2927,11 +2933,11 @@ beside it. The table is the same at every minor, and a pairing of `format` with 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
+  `schema.TestScalar_ANumberAsTextIsItsNumberOnAString`,
   `schema.TestLower_NamedScalarComponentResolves`,
+  `merge.TestKindOf_ANumberAsTextIsAString`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
-- Status: partly built: a `byte` string and a string-carried number put the logical and the wire
-  type on opposite fields (#637).
 
 ### `numeric-formats`
 
@@ -3204,7 +3210,9 @@ value is a schema and lowers like one — hoisted at its own source pointer and 
 rather than riding along as a payload a consumer would have to re-parse. Where the position lowers
 to a shape with no `Encoding` field, all three stay verbatim under `no_ir_home`, each under
 `openapi:<keyword>` and each reported as an info `openapi/degraded-construct` at it
-([boundaries](../ir/boundaries.md#validation-only-constructs)).
+([boundaries](../ir/boundaries.md#validation-only-constructs)). A `contentEncoding` on a string
+writing no format names what the string already is, the encoded text, so its `Encoding` names no
+`WireType` ([encodings](../ir/constraints.md#encodings)).
 
 - Cases: `content-vocabulary`
 - Codes: `openapi/degraded-construct`

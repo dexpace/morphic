@@ -18,11 +18,14 @@ import (
 )
 
 // scalarTypeID maps a scalar (type, format) pair to a TypeID via spelling.Lookup: a
-// known pairing interns the shared primitive; byte, a pairing the table does
-// not list, and the 2020-12 content vocabulary each hoist a named Scalar
-// wrapping the base primitive with an Encoding, so what the position wrote
-// never leaks onto the shared primitive every other declaration of that type
-// also resolves to.
+// known pairing interns the shared primitive; byte, a number carried as text,
+// a pairing the table does not list, and the 2020-12 content vocabulary each
+// hoist a named Scalar wrapping the base primitive with an Encoding, so what
+// the position wrote never leaks onto the shared primitive every other
+// declaration of that type also resolves to.
+//
+// byte and a number carried as text put the logical primitive in Base and the
+// string the value travels as in WireType (docs/compilers/openapi.md#string-formats).
 func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, st oas3.SchemaType, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	format := s.GetFormat()
 	if annotation.DeclaresRedaction(s) {
@@ -37,12 +40,30 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	}
 	prim, known := spelling.Lookup(key)
 	if !known {
+		if num, carried := numberAsText(st, format); carried {
+			return hoistScalar(c, ts, depth, s, num, numberTextEncoding, new(ir.PrimString), pointer)
+		}
 		return hoistScalar(c, ts, depth, s, baseForType(st), format, nil, pointer)
 	}
 	if !declaresContentVocabulary(s) {
 		return ts.PrimID(prim), nil
 	}
 	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
+}
+
+// numberTextEncoding is the Encoding.Name of a number written as the text of
+// its value in a string (docs/ir/constraints.md#encodings).
+const numberTextEncoding = "string"
+
+// numberAsText returns the numeric primitive format selects under
+// `type: number`, where a `type: string` writes it: the string is the text of
+// a number of that primitive, as an int64 or a decimal too wide for a JSON
+// number commonly travels.
+func numberAsText(st oas3.SchemaType, format string) (ir.PrimKind, bool) {
+	if st != oas3.SchemaTypeString || format == "" {
+		return "", false
+	}
+	return spelling.Lookup(string(oas3.SchemaTypeNumber) + "/" + format)
 }
 
 // formatPrimitive returns the primitive that s's one declared type and its

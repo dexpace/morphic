@@ -32,11 +32,13 @@ type Constraints struct {
 type Encoding struct {
     Name     string    // "rfc3339" | "unixTimestamp" | "base64" | "base64url" | "iso8601" |
                        // "seconds" | "http-date" | "varint" | "zigzag" | "fixed" |
-                       // "packed" | "expanded" | "delimited" | format strings
+                       // "packed" | "expanded" | "delimited" | "string" | format strings
                        // (packed/expanded are container encodings on List.Encoding; "delimited" =
-                       // protobuf group / editions DELIMITED message encoding)
-    WireType *TypeRef  // the on-wire primitive when it differs from the logical type
-                       // (utcDateTime encoded as int32; bytes as base64 string)
+                       // protobuf group / editions DELIMITED message encoding; "string" = a number
+                       // written as the text of its value)
+    WireType *TypeRef  // the on-wire primitive when the encoding turns the logical value into
+                       // another (utcDateTime encoded as int32; bytes, or a number, as a string;
+                       // over a string, text the encoding is applied to)
     MediaType string   // content media type of the value itself (Smithy @mediaType on string/blob,
                        // JSON Schema contentMediaType); "" = none
     Schema   *TypeRef  // the shape the encoded value has once decoded (JSON Schema contentSchema):
@@ -45,7 +47,18 @@ type Encoding struct {
 ```
 
 The logical-type / encoding-name / wire-type triple is TCGC's reification of TypeSpec `@encode`
-and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. `MediaType` and
+and also absorbs OpenAPI `format` and Protobuf's `sint*/fixed*` wire variants. It has one
+orientation: a scalar's `Base` is the logical type, the value a caller holds, and `WireType` the
+primitive the encoding turns it into on the wire, so `bytes` under `base64` and an `int64` under
+`string`, the number written as the text of its value, both travel as a `string`, as OpenAPI's
+`format: byte` and `type: string, format: int64` write them. Over a `string` the logical and the wire
+primitive are one, and `WireType` is what tells the two directions apart. Absent, the string is the
+encoded text already, as JSON Schema defines `contentEncoding`, and a consumer passes it through. A
+`WireType` of `string` makes it text the encoding is applied to on its way to the wire, as Smithy
+sends a `@mediaType` string in a header: its UTF-8 octets, encoded. The other spelling of that
+header, a `bytes` position under `base64`, was weighed and not taken: the header would then name a
+type of its own where it binds the string shape every other use names, and only the position's own
+`Encoding`, overriding the shape's, says how it travels there. `MediaType` and
 `Schema` sit beside it because they answer the same question one level in: what the encoded value
 *is*. `Schema` is a `TypeRef` like any other schema position — the decoded shape is hoisted into
 the registry at its own source pointer, never carried here as a raw payload. Encoding attaches

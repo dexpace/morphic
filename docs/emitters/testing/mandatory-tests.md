@@ -948,9 +948,11 @@ throughout these documents.
     GMT` and `Sun Nov  6 08:49:37 1994` as `1994-11-06T08:49:37Z`, and at
     `9999-12-31T23:59:59-01:00` fails before anything is sent; `base64`, `rfc3339` and `iso8601`
     write what their primitives' rows do; and a property whose own `Encoding` is `base64url`, typed
-    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `bytes` scalar under an encoding no
-    row names whose `WireType` is `string`, and a `datetime_offset` under one with no `WireType`,
-    are each a string in the SDK that is sent as given, with a warning
+    by a scalar declaring `base64`, writes `fb ff` as `-_8=`. A `string` under `base64` whose
+    `WireType` is `string` writes `hi` as `aGk=` and reads it back, and refuses `/w==`, whose octet
+    is no UTF-8, where one with no `WireType` sends `aGk=` as given. A `bytes` scalar under an
+    encoding no row names whose `WireType` is `string`, and a `datetime_offset` under one with no
+    `WireType`, are each a string in the SDK that is sent as given, with a warning
     `emitters/<target>/unmapped-encoding`; a `datetime_offset` under `unixTimestamp` whose
     `WireType` is `int64` is an `int64`; and a `string` under `email` stays a string with an info
     ([the type table](../contract/type-table.md#a-row-keyed-by-an-encoding)).
