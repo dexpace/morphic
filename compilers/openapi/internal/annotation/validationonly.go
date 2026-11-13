@@ -98,8 +98,8 @@ func unevaluatedKept(s *oas3.Schema, closure bool, dialect Dialect) []keptUneval
 }
 
 // unevaluatedMembers returns the members an entry holding kept writes, each
-// inert keyword after the keyword that leaves it so, which a consumer applying
-// the entry as a schema then reads as the source does.
+// inert keyword after the keyword that leaves it so, which a consumer reading
+// the entry beside what its position types then reads as the source does.
 func unevaluatedMembers(kept []keptUnevaluated) []string {
 	out := make([]string, 0, 2*len(kept))
 	for _, k := range kept {

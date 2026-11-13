@@ -137,7 +137,7 @@ func TestCombinedRaw_AnUnconvertibleMemberFailsTheWhole(t *testing.T) {
 // TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert pins the
 // unevaluated entry's members: a keyword the keyword written beside it leaves
 // nothing to apply to is kept with that keyword, just before it, so the entry
-// read as a schema means what the source means, and a live keyword is kept
+// read at its position means what the source means, and a live keyword is kept
 // alone. Only the unevaluated keywords are named, since the entry's provenance
 // asks after them alone.
 func TestUnevaluatedRaw_KeepsAnInertKeywordBesideWhatLeavesItInert(t *testing.T) {

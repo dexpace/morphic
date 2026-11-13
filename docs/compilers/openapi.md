@@ -3572,12 +3572,17 @@ keyword that evaluates every location it could apply to: an `additionalPropertie
 beside `unevaluatedProperties`, and beside `unevaluatedItems` an `items` schema or, where the
 dialect reads a list of `items` as a tuple ([`tuples`](#tuples)), the `additionalItems` written
 beside the list. An inert keyword is kept with that keyword, written just before it in the entry's
-object: `{"additionalProperties": true, "unevaluatedProperties": false}`. Read as a schema of its
-own, the entry then means what the source means, nothing where the keyword is inert, so a consumer
-applying it as written closes nothing the source leaves open, and needs no marker or reason of
-another kind to tell the two apart. The keyword the entry repeats beside an inert one is context:
-the IR holds it already, typed where the node has a home for it and kept verbatim where it has
-none ([`shape-applicator`](#shape-applicator)), and applying it twice adds nothing.
+object: `{"additionalProperties": true, "unevaluatedProperties": false}`. The entry's keywords are
+read as written in the schema at its position, beside the keywords the IR states there, as what an
+unevaluated keyword applies to depends on what stands beside it; read so, the entry means what the
+source means, nothing where the keyword is inert, and needs no marker or reason of another kind to
+tell the two apart. Read as a schema of its own it means something else:
+`{"additionalProperties": false, "unevaluatedProperties": false}` alone refuses a property the
+position's `properties` declare, and a live `{"unevaluatedProperties": false}` alone refuses every
+property. The keyword the entry repeats beside an inert one is context: the IR holds it already,
+typed where the node has a home for it and kept verbatim where it has none
+([`shape-applicator`](#shape-applicator)), and read where it was written it repeats a keyword
+already there.
 `prefixItems`, `contains`, `properties` and `patternProperties` evaluate only what they match and
 leave the keyword live, and an entry holding only unevaluated keywords holds live ones. One an
 `allOf` branch writes stays with the branch kept whole, whatever its form
