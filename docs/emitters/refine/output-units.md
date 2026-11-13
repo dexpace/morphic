@@ -143,13 +143,14 @@ target's document also says what generated code may not be, and T-64 holds a cal
 reaching nothing of the second kind by any of them.
 
 That second kind has no version of its own. The runtime is generated with the SDK and released with
-it, so a unit calls only the runtime of its own generation, and what generated code alone calls may
-change in any generation with no caller the worse. Each target says what holds a unit to that
-runtime where its build could mix two. Two SDKs in one program share no runtime, each declaring its
-own failure value: measured with Go 1.27.3, the failure one SDK returned was not the other's
-`*runtime.APIError` under `errors.As`, nor its `ErrNotFound` under `errors.Is`. That is what the
-published library below would have changed, and why a caller matches a failure against the SDK that
-returned it. T-64 holds both kinds to where they are declared.
+it, so a unit is generated to call only the runtime of its own generation, and what generated code
+alone calls may change in any generation with no caller the worse. Each target says what holds a
+unit to that runtime where its build could mix two, and what a build nothing holds meets. Two SDKs
+in one program share no runtime, each declaring its own failure value: measured with Go 1.27.3, the
+failure one SDK returned was not the other's `*runtime.APIError` under `errors.As`, nor its
+`ErrNotFound` under `errors.Is`. That is what the published library below would have changed, and
+why a caller matches a failure against the SDK that returned it. T-64 holds both kinds to where they
+are declared.
 
 Five other places were weighed, and each fails an input:
 

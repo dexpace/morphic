@@ -274,9 +274,9 @@ Each leaf's comment above gives its type, its default and its range, and a value
 - of another JSON type than the leaf's, `null` and a number in quotes among them: no leaf reads
   `null` as its default, since a layer leaves a member out to say that;
 - outside the range its comment gives, or a string outside its grammar: a header's name is an RFC
-  9110 token and an environment variable's a letter or `_` followed by letters, digits and `_`, so
-  neither holds a space, a line break or a `:`, and each is 64 bytes at most, a bound chosen and not
-  measured;
+  9110 token and an environment variable's an ASCII letter or `_` followed by ASCII letters, digits
+  and `_`, so neither holds a space, a line break or a `:`, and each is 64 bytes at most, a bound
+  chosen and not measured;
 - a header's name, compared without case, that names a field RFC 9110 registers (§18.4),
   `Transfer-Encoding`, `Cookie` or `Set-Cookie`, `Keep-Alive` or `Proxy-Connection`, or one the
   other of `Idempotency.Header` and `Telemetry.Client` names: the runtime would write the key or the
@@ -497,20 +497,41 @@ either language has. And a list of headers to hide fails the header it does not 
   ([auth](../operations/auth.md#where-a-credential-can-be-read)), so a key an injector or an
   `Authenticator` writes into the query is not in it;
 - for a URL a response supplied, a redirect's `Location`, a link to the next page or a place to
-  poll, resolved against the request's, its shown origin, then `/[REDACTED]`. A server signs such a
-  URL in its query, as a link to stored bytes is, or in its path, and nothing the document declares
-  says which part is the signature.
+  poll, its shown origin, then `/[REDACTED]`. A server signs such a URL in its query, as a link to
+  stored bytes is, or in its path, and nothing the document declares says which part is the
+  signature.
 
-**A shown origin** is a URL's scheme, host and port, each in a bounded form, so a log line takes no
-megabyte and no line break from a response: the scheme, `http` or `https`, in lower case; the host
-as the URL writes it where it is at most 255 bytes (RFC 1035 §2.3.4) of visible ASCII, and
-`[REDACTED]` otherwise; and the port, where the URL writes one, as the number it reads to, 0 to
-65535. A URL of another scheme, or whose port is no such number, has no shown origin: it is shown as
-`[REDACTED]` alone, and one a response supplied is not followed, as one that does not parse is not
-([libraries](../refine/redaction.md#nothing-a-library-wrote-is-shown)). So a shown origin is 269
-bytes at most. Go 1.27.3's `url.Parse` takes a scheme and a port of a megabyte each and Ktor 3.2.3's
-`Url` such a scheme, and the rule over what each parsed showed no URL tried, 19 and 16 of them, in
-more than 263 bytes.
+**A shown origin** is a URL's scheme, host and port, read from its text by this grammar, which is no
+library's, so every target shows one text and a log line takes no megabyte and no line break from a
+response:
+
+- the URL is `http` or `https` in any letter case, shown in lower case, then `://` and an authority,
+  which runs to the first `/`, `?` or `#` or to the end and holds a host and, where it writes one,
+  `:` and a port; every byte of it is visible ASCII other than `\`, which the URL Standard reads as
+  `/`;
+- the host is 1 to 255 bytes (RFC 1035 §2.3.4) of ASCII letters, digits, `-` and `.`, or `[`, an
+  IPv6 address as RFC 3986 §3.2.2 writes one, and `]`, shown as written;
+- the port is one to five ASCII digits reading to 1 to 65535, shown as written: Ktor 3.2.3's
+  `URLBuilder` read `:0` as no port and gave the scheme's, 443;
+- a reference a response supplied that names no scheme (RFC 3986 §4.2) takes the request's: one
+  starting `//` is read after the scheme the request was sent with and `:`, and any other has the
+  request's origin and is followed as the request was, whether the request's URL matches or not.
+
+A URL that does not match, as one holding a user or a password, which RFC 9110 §4.2.4 deprecates, a
+zone or a percent-encoded host, has no shown origin: it is shown as `[REDACTED]` alone, and one a
+response supplied is not followed
+([libraries](../refine/redaction.md#nothing-a-library-wrote-is-shown)). One whose origin is the
+request's, schemes and hosts compared with ASCII letter case folded and a port left out read as the
+scheme's, 80 or 443, is shown as the request's is, the marker alone where the request has no shown
+origin, so a variable in a server's host is `{name}` there too, as 7 of the golden spec's 12 servers
+place one (spec @bc6fad24, morphic @fa253fe19). So a shown origin is 269 bytes at most. Each target
+showing what its library parsed was built first, and Go 1.27.3's `url.Parse` and Ktor 3.2.3's
+`URLBuilder` read 18 of 54 URLs apart, a zone, a percent-encoded host, `:+443` and `\@` among them,
+and both read a megabyte of zeros before `80` as port 80. Written from this text in Go 1.27.3 and
+Kotlin 2.4.0, the grammar gave one text and one verdict for each of 134 URLs under three requests,
+one holding a user and one a variable in its host, those 54 and a user, a path and a port each a
+megabyte long among them, the longest origin it showed 269 bytes, and Go's `url` and Ktor's
+`URLBuilder` resolved each URL it follows to the origin it read, or to the request's.
 
 `RequestID` is text a server wrote, so it is kept only where it is at most 128 bytes of visible
 ASCII, and is empty otherwise: a log line takes no line break and no megabyte from a response. T-65

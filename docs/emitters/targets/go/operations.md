@@ -96,10 +96,11 @@ A service's receiver ([operations the API sends](../../operations/inbound.md)) i
 by `NewReceiver(cfg ReceiverConfig)`. `ReceiverConfig` is a struct holding a field for each scheme
 its operations name that the receiver can compare, named for the scheme, its zero value giving none;
 `Verify func(req *http.Request, body []byte, check runtime.InboundCheck) error` for the caller's
-check; and `Unauthenticated bool`, stating that an operation declaring no security admits any
-sender. The check reads the method, the target, the headers and `req.TLS.PeerCertificates` from
-`req`, the bytes from `body`, `req.Body` having been read, and from `check` what it stands in for:
-`Operation`, the parse method as the SDK names it, as an event names a call's ([what an event
+check; and `Unauthenticated bool`, stating that an operation declaring no security, or an
+alternative naming no scheme, admits any sender. The check reads the method, the target, the
+headers and `req.TLS.PeerCertificates` from `req`, the bytes from `body`, `req.Body` having been
+read, and from `check` what it stands in for: `Operation`, the parse method as the SDK names it,
+as an event names a call's ([what an event
 holds](../../contract/runtime-policy.md#what-an-event-holds)), `Alternative`, the alternative's
 place in the operation's `Auth`, from 0, `Scheme`, the name the document gives the scheme, empty for
 an alternative naming none, and `Scopes`, the scopes that use requires of it, a slice of the check's
@@ -148,6 +149,6 @@ sets ([runtime policy](../../contract/runtime-policy.md#what-a-layer-writes)) ar
 `WithMaxPolls`, a duration a `time.Duration` and a backoff the runtime's `Backoff{Initial, Max
 time.Duration; Multiplier, Jitter int}`, its ratios in thousandths, a `Multiplier` of 2000 doubling
 each wait. `c.WithOptions(opts ...Option) (*Client, error)` returns a client holding `c`'s settings
-with those replaced, sending through `c`'s transport and counting its calls in `c`'s `Event.Call`,
-as each sub-client does, for one call or several; its name is reserved among the client's members
-([naming](naming.md#reserved-names)).
+with those replaced, sending through `c`'s transport, or the one a `WithTransport` among `opts`
+gives, and counting its calls in `c`'s `Event.Call`, as each sub-client does, for one call or
+several; its name is reserved among the client's members ([naming](naming.md#reserved-names)).

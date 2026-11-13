@@ -130,10 +130,12 @@ states a path only in its message, a map's key unescaped in it, so one key `a'][
 a Go union starts at the union. A caller who wants the library's account decodes `RawBody` itself,
 its own value, which holds a body whole only up to `Policy.Errors`' bound
 ([failures](../operations/errors.md)): past it the bytes kept are cut, and the caller raises the
-bound, a client option, before calling. Measured with Go 1.27.3, none of the 1,073 renderings of
-each of a refused connection, a refused TLS handshake, bodies failing at a member and at a map key
-holding the value, an `Authenticator`'s error quoting it and a base URL that does not parse held the
-value, where `url.Parse` wrote the URL whole into its error; with Kotlin 2.4.0, Ktor 3.2.3 and
-kotlinx.serialization 1.8.1, none of the 28 renderings of each such failure did, where Ktor's
-timeout wrote the URL and kotlinx the body (`JSON input: {"id":"u1","token":…`), and a decoder's
-chain kept 9 of kotlinx.serialization's frames. T-65 holds this section.
+bound, a client option, before calling, as far as the 64 MiB its range ends at, and keeps a larger
+body in a `Transport` wrapper, which is handed each response as it arrives. Measured with Go 1.27.3,
+none of the 1,073 renderings of each of a refused connection, a refused TLS handshake, bodies
+failing at a member and at a map key holding the value, an `Authenticator`'s error quoting it and a
+base URL that does not parse held the value, where `url.Parse` wrote the URL whole into its error;
+with Kotlin 2.4.0, Ktor 3.2.3 and kotlinx.serialization 1.8.1, none of the 28 renderings of each
+such failure did, where Ktor's timeout wrote the URL and kotlinx the body
+(`JSON input: {"id":"u1","token":…`), and a decoder's chain kept 9 of kotlinx.serialization's
+frames. T-65 holds this section.

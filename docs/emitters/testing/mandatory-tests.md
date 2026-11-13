@@ -41,8 +41,9 @@ throughout these documents.
    with no unit and one in a unit the record lacks, a ratio with a fourth fraction digit, a sign or
    an exponent, `-0` among them, a `Template` holding a `{` or a `}` outside its two placeholders, a
    `Guards.Keys` entry that is empty or holds a space, a header's or a variable's name of 65 bytes,
-   one of 64 being taken, a header member naming, each in another letter case than written here,
-   `Authorization`, `Content-Length`, `Transfer-Encoding`, `Cookie`, `Set-Cookie`, `Keep-Alive` or
+   one of 64 being taken, a variable's name holding `É`, a header member naming, each in another
+   letter case than written here, each field RFC 9110 §18.4 registers, `Authorization`, `Trailer`
+   and `Content-Length` among them, `Transfer-Encoding`, `Cookie`, `Set-Cookie`, `Keep-Alive` or
    `Proxy-Connection`, or the field the other names, a list naming an entry twice or holding more
    than it may, a `Backoff` or a `Kinds` row written in part and a `Backoff` whose `Initial` passes
    its `Max`; so are a member the record does not declare, a `Kinds` row keyed `0404` among them, a
@@ -54,9 +55,10 @@ throughout these documents.
    case a header an operation declares as a parameter or an `apiKey` scheme of its `Auth` writes,
    resolves that operation with `Client` empty or `Generate` `declared` and draws the warning
    `emitters/policy/header-taken` naming the member, the operation and the parameter or scheme,
-   every other operation resolving as written. A leaf written at its zero, an empty list among them,
-   replaces the layer below where one left out does not, and a schedule of waits under a fractional
-   `Multiplier` is the same number of milliseconds on every target ([what a layer
+   every other operation resolving as written, a `PUT` declaring that header under `unsafe` among
+   them, which as an idempotent operation is given no key. A leaf written at its zero, an empty list
+   among them, replaces the layer below where one left out does not, and a schedule of waits under a
+   fractional `Multiplier` is the same number of milliseconds on every target ([what a layer
    writes](../contract/runtime-policy.md#what-a-layer-writes)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling), Go's ending in casing and then the escaping and
@@ -439,8 +441,11 @@ throughout these documents.
     setting it cannot apply; and each member a caller sets when it runs ([runtime
     policy](../contract/runtime-policy.md#what-a-layer-writes)), set on a client, changes what every
     operation does, one an operation's own layer sets included, set on a client `WithOptions`
-    derives changes that client's calls alone, and outside its range, or as a duration of 1500µs,
-    refuses the client.
+    derives changes that client's calls alone, as a transport given there does, and outside its
+    range, or as a duration of 1500µs, refuses the client; on Multiplatform a Swift caller sets each duration and
+    backoff as the runtime's `Duration`, the client reading 60000 ms for a `requestTimeout` of 60 s,
+    reads an event's `wait` as the wait made, and catches the refusal of a month and of 1500µs,
+    which a setter over `kotlin.time.Duration` or a `build()` with no `@Throws` fails.
 38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
     `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
     them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
@@ -1195,11 +1200,8 @@ throughout these documents.
     settings type or a state struct changes, and changes when a field or a method of a caller-facing
     type does. A Gradle build asking for two modules of one Kotlin SDK at different versions
     resolves every module to the newer and runs, as does a Maven build importing the SDK's platform
-    and naming no version, while one forcing any one module to another generation with `!!`, the
-    shared module under an unchanged runtime and the runtime under an unchanged shared module among
-    them, is refused when its client is built, naming the module and both stamps, which a stamp
-    digesting the runtime alone or held as a `const val` fails, and of two SDKs in one program each
-    failure matches its own SDK's failure value and not the other's ([the runtime's
+    and naming no version, and of two SDKs in one program each failure matches its own SDK's failure
+    value and not the other's ([the runtime's
     unit](../refine/output-units.md#the-runtimes-unit),
     [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
     [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)).
@@ -1207,28 +1209,34 @@ throughout these documents.
     credential is a value the test can search for, configured in turn for an `apiKey` in a header,
     in the query and in a cookie, for `http_basic` and `http_bearer`, and through an `Authenticator`
     writing a header, a query parameter and a cookie no document names, over a base URL holding a
-    user, a password, a path segment and a query of that value, and over a server whose variable
-    takes it. Across a call that returns, one a status fails with a `Set-Cookie` of the value, one
-    redirected to a `Location` holding it in its path and its query, one retried, one timed out, one
-    whose connection is refused, one whose TLS handshake is, one whose credential a header cannot
-    carry, one whose body fails to decode at a member and at a map key holding the value, one whose
-    `Authenticator` fails quoting it, one redirected to a `Location` that does not parse and a
-    request a receiver refuses, the value is found in no event, no failure, no response a method
-    returned, and no client, sub-client, stream or poller: not in any form the target's printing,
-    logging and encoders read of one held by reference, by value or in a field of the test's own
-    type, exported or not, each `fmt` verb, `%O` and `%p` among them, both `log/slog` handlers,
-    `encoding/json` and `encoding/json/v2` in Go, and `toString`, Gson and Jackson in Kotlin, not in
-    an event encoded as JSON, nor in what a Kotlin event's `copy` and each `componentN` hand on, and
-    not in the messages of a failure's chain, which holds no error or exception of a library's on
-    either target, a call past `Timeout.Request` and a stream past `Timeout.Idle` among the
-    failures, while Go's refused one still matches `syscall.ECONNREFUSED` under `errors.Is` and
-    Kotlin's chain on the JVM holds a frame of the library's. Each event's `URL` is the URL as
-    shown, a redirect's the shown origin and the marker, a relative `Location` taking the request's
-    origin and an explicit `:443` kept, a host of 256 bytes or holding a byte outside visible ASCII
-    the marker, a `Location` whose scheme is `ftp` or a megabyte of letters, or whose port is 65536
-    or a megabyte of digits, the marker alone and not followed, a server variable `{name}`, a base
-    URL's path the marker, and what a redacted parameter expanded to in the path the marker; an
-    `end` event's `Cause` is a type's name; a hook is handed the context its caller gave the method
+    user, a password, a path segment and a query of that value, and over a server whose host holds a
+    variable taking it. Across a call that returns, one a status fails with a `Set-Cookie` of the
+    value, one redirected to a `Location` holding it in its path and its query, one retried, one
+    timed out, one whose connection is refused, one whose TLS handshake is, one whose credential a
+    header cannot carry, one whose body fails to decode at a member and at a map key holding the
+    value, one whose `Authenticator` fails quoting it, one redirected to a `Location` that does not
+    parse and a request a receiver refuses, the value is found in no event, no failure, no response
+    a method returned, and no client, sub-client, stream or poller: not in any form the target's
+    printing, logging and encoders read of one held by reference, by value or in a field of the
+    test's own type, exported or not, each `fmt` verb, `%O` and `%p` among them, both `log/slog`
+    handlers, `encoding/json` and `encoding/json/v2` in Go, and `toString`, Gson and Jackson in
+    Kotlin, not in an event encoded as JSON, nor in what a Kotlin event's `copy` and each
+    `componentN` hand on, and not in the messages of a failure's chain, which holds no error or
+    exception of a library's on either target, a call past `Timeout.Request` and a stream past
+    `Timeout.Idle` among the failures, and lists 32 links of a library's chain of 18 nested
+    `errors.Join(e, e)` in Go and of two exceptions each the other's cause in Kotlin, while Go's
+    refused one still matches `syscall.ECONNREFUSED` under `errors.Is` and Kotlin's chain on the JVM
+    holds a frame of the library's. Each event's `URL` is the URL as shown, one text on every
+    target: a redirect's is the shown origin and the marker, a `Location` to another host keeping an
+    explicit `:443`, one to the request's origin, under the server whose host holds the variable,
+    showing the request's `{name}`, whether it is `?`-relative, `/`-relative, `//`-relative or
+    absolute with `:443` and another letter case, and one whose scheme is `ftp` or a megabyte of
+    letters, whose host is 256 bytes or holds a byte outside visible ASCII, a `%`, a `\`, a user or
+    an IPv6 zone, or whose port is 0, 65536, `+443`, digits past ASCII or a megabyte of zeros before
+    `80`, the marker alone and not followed, which a target showing what its URL library parsed
+    fails; a server variable is `{name}`, a base URL's path the marker, and what a redacted
+    parameter expanded to in the path the marker; an `end` event's
+    `Cause` is a type's name; a hook is handed the context its caller gave the method
     for a call's first event and what it returned for each later one, a span it adds at the first
     `attempt` reaching a `Transport` wrapper on every attempt, of two overlapping calls each its
     own, which a hook handed the caller's context alone fails, a Go hook returning nil leaves the
@@ -1391,7 +1399,8 @@ throughout these documents.
     without and passes an `admin` token without, asked once for each scheme use it stands in for and
     told that use's alternative and scopes, which a check asked once for the scheme fails; a check
     standing in for a scheme the receiver was given no value for is told that scheme, and one for an
-    operation declaring no security is told none; the check reads the body's bytes as they arrived,
+    operation declaring no security is told none; a Go check changing the `Scopes` it is handed
+    leaves what the next check is told unchanged; the check reads the body's bytes as they arrived,
     so an HMAC over them verifies, and the request's target and, over TLS, the client certificate,
     so a `mutual_tls` check and a query key verify; a query input no style arranges is read as the
     pairs its binding owns, in the order sent, and no pair another parameter owns; on Go, the

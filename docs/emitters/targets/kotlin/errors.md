@@ -71,7 +71,9 @@ the other platforms ignore. T-65 holds this section.
 
 An exception a library raises, in a send, while a request is built for it, in a decoder or in an
 `Authenticator`, never reaches a caller and is never a `cause`. The runtime throws its own, whose
-`cause` is a chain of `LibraryCause`, one per exception of the library's chain, outermost first
+`cause` is a chain of `LibraryCause`, one per exception of the library's chain, outermost first, its
+first 32 and no more, as Go's `Causes` ([Go](../go/errors.md#a-transports-failure)): on the JVM
+`initCause` let two exceptions each be the other's cause, a chain no walk without a bound leaves
 ([redaction](../../refine/redaction.md#nothing-a-library-wrote-is-shown)):
 
 ```kotlin

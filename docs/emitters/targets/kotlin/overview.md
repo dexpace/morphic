@@ -158,22 +158,17 @@ published in the Gradle module metadata. The POM beside it imports the platform 
 dependencies alone, so with Maven 3.9.16 the same application resolved the root and the runtime at
 1.0 beside the group's module at 1.1 and failed when run; importing the platform itself while still
 writing both versions, it resolved the runtime at 1.1 under the root at 1.0 and failed the same way;
-and it ran only importing the platform and writing no module's version. So a Maven build is held
-where it imports the platform and names no version, and nowhere else. Where nothing holds it, as
-there or where a build forces one module with a strict version (`!!`), which beats the platform's
-constraint, a stamp catches it: the run writes into every module one digest of every file it
-generates, the stamp's own text aside, behind a function generated code alone calls, and the client,
-whose module depends on each other module for that if for nothing else, compares its module's with
-each of theirs when built and refuses to be built where one differs, naming the module and both, so
-a mixed build fails there rather than at whichever call first meets a change. A digest of the
-runtime's module alone, and a stamp held as a `const val`, were built first and catch less: the
-runtime declares nothing named for a spec entity, so a regeneration over a changed document leaves
-its digest as it was, and the compiler copies a constant into the class that reads it, which then
-compares its own module with itself. Measured with Kotlin 2.4.0 over a root, a group's module, the
-shared module and the runtime's, with a model's constructor changed between two generations: each of
-five mixes of the two refused the client, naming the module, where under the runtime's digest three
-built and failed at the call (`NoSuchMethodError: 'void p.shared.Zone.<init>(java.lang.String,
-java.lang.String)'`) and under the constant none was refused.
+and it ran only importing the platform and writing no module's version. So the modules are
+published together under one version, which the platform aligns for a build that imports it, a
+Maven build where it names no version and nowhere else. Modules of two generations that a build
+forces together, as a strict version (`!!`) does past the platform's constraint, fail at the first
+call that meets a declaration changed between them (`NoSuchMethodError`), and nothing refuses them
+sooner. A digest of the generated files written into each module and compared when the client is
+built was weighed, and holds too little to keep: a receiver is built with no client
+([inbound](../../operations/inbound.md)), nor is a program using a group's module alone. Measured
+with Kotlin 2.4.0 over four modules of two generations, in 8 of the 14 mixes the client was refused
+while a receiver was built and failed at its parse (`NoSuchMethodError`), as a program on a group's
+module alone did.
 
 The cost is that a build asking for one module at an older version is given every module at the
 newest it asks for, with nothing said, as Gradle settles any conflict of versions, and a further
