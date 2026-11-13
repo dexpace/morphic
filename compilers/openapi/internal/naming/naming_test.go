@@ -269,7 +269,8 @@ func TestAt_AnswersAsAFreshNamerWould(t *testing.T) {
 // TestAt_ReadsAnOwnerAsTheParserDoes pins that an owner's name is read from
 // the document as the parser reads it: through an alias and a `<<` merge, a
 // number as the text it spells, and not at all where the field is null, no
-// scalar, or written in a mapping merged from past the depth the parser reads.
+// scalar, a scalar under a tag the parser reads no string from, or written in
+// a mapping merged from past the depth the parser reads.
 func TestAt_ReadsAnOwnerAsTheParserDoes(t *testing.T) {
 	t.Parallel()
 	spec := head + `x-names: {id: &id aliased}
@@ -289,6 +290,12 @@ paths:
       responses: {"200": {description: ok}}
       parameters:
         - {name: 42, in: query, schema: {type: object}}
+    patch:
+      operationId: !!binary aGVsbG8=
+      requestBody: {content: {application/json: {schema: {type: object}}}}
+      responses: {"200": {description: ok}}
+      parameters:
+        - {name: !local tagged, in: query, schema: {type: object}}
 `
 	read := naming.New(table(t, spec, nil))
 	assert.Equal(t, "aliased_request", read.At(at("/paths/~1a/post/requestBody/content/application~1json/schema")))
@@ -297,6 +304,9 @@ paths:
 	assert.Empty(t, read.At(at("/paths/~1a/post/parameters/2/schema")), "nor does one that is no scalar")
 	assert.Equal(t, "7_request", read.At(at("/paths/~1a/put/requestBody/content/application~1json/schema")))
 	assert.Equal(t, "42", read.At(at("/paths/~1a/put/parameters/0/schema")))
+	assert.Equal(t, "request", read.At(at("/paths/~1a/patch/requestBody/content/application~1json/schema")),
+		"a scalar the parser reads no string from, as !!binary, names nothing")
+	assert.Empty(t, read.At(at("/paths/~1a/patch/parameters/0/schema")), "nor does one under a local tag")
 }
 
 // TestAt_NamesABranchAfterItsTarget pins that a composition branch holding a
@@ -539,6 +549,9 @@ components:
         blank: {title: '***', type: object}
         merged: {<<: {title: Merged Title}, type: object}
         numbered: {title: 42, type: object}
+        floated: {title: 1.5, type: object}
+        flagged: {title: true, type: object}
+        stamped: {title: !!timestamp 2021-01-01, type: object}
         binary: {title: !!binary aGVsbG8=, type: object}
         tagged: {title: !acme Tagged, type: object}
         sentence: {title: 'A list of the things.', type: object}
@@ -606,6 +619,9 @@ func TestAt_NamesASchemaByItsTitle(t *testing.T) {
 		{"a title with no word", keyed + "/properties/blank", "blank"},
 		{"a title a merge key writes", keyed + "/properties/merged", "merged_title"},
 		{"a number, as the text it spells", keyed + "/properties/numbered", "42"},
+		{"a decimal, as the text it spells", keyed + "/properties/floated", "1_5"},
+		{"a boolean, as the text it spells", keyed + "/properties/flagged", "true"},
+		{"a timestamp tagged so, which the parser reads no string from", keyed + "/properties/stamped", "stamped"},
 		{"a scalar the parser reads no string from", keyed + "/properties/binary", "binary"},
 		{"a scalar under a local tag", keyed + "/properties/tagged", "tagged"},
 		{"a sentence, by its every word", keyed + "/properties/sentence", "a_list_of_the_things"},
