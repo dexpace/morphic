@@ -97,20 +97,19 @@ by `NewReceiver(cfg ReceiverConfig)`. `ReceiverConfig` is a struct holding a fie
 its operations name that the receiver can compare, named for the scheme, its zero value giving none;
 `Verify func(req *http.Request, body []byte, check runtime.InboundCheck) error` for the caller's
 check; and `Unauthenticated bool`, stating that an operation declaring no security, or an
-alternative naming no scheme, admits any sender. The check reads the method, the target, the
-headers and `req.TLS.PeerCertificates` from `req`, the bytes from `body`, `req.Body` having been
-read, and from `check` what it stands in for: `Operation`, the parse method as the SDK names it,
-as an event names a call's ([what an event
-holds](../../contract/runtime-policy.md#what-an-event-holds)), `Alternative`, the alternative's
-place in the operation's `Auth`, from 0, `Scheme`, the name the document gives the scheme, empty for
-an alternative naming none, and `Scopes`, the scopes that use requires of it, a slice of the check's
-own. The fields are a scope of the struct's own, where a scheme's field meets only `Verify` and
-`Unauthenticated` and yields to them, so the unit gains `Receiver`, `NewReceiver` and
-`ReceiverConfig` whatever the schemes are called. Options named as the client's are, `WithVerify`
-and one for each scheme, were rejected: the receiver sits in the client's unit, which already
-declares the client's option for a scheme of that name (`WithAPIKey redeclared in this block`), and
-a prefix only moves where they meet, a client's scheme `receiver key` and the receiver's `key` both
-rendering `WithReceiverKey`.
+alternative naming no scheme, admits any sender. The check reads the method, the target, the headers
+and `req.TLS.PeerCertificates` from `req`, the bytes from `body`, `req.Body` having been read, and
+from `check` what it stands in for: `Operation`, the parse method as the SDK names it, as an event
+names a call's ([what an event holds](../../contract/runtime-policy.md#what-an-event-holds)),
+`Alternative`, the alternative's place in the operation's `Auth`, from 0, `Scheme`, the name the
+document gives the scheme, empty for an alternative naming none, and `Scopes`, the scopes that use
+requires of it, a slice of the check's own. The fields are a scope of the struct's own, where a
+scheme's field meets only `Verify` and `Unauthenticated` and yields to them, so the unit gains
+`Receiver`, `NewReceiver` and `ReceiverConfig` whatever the schemes are called. Options named as the
+client's are, `WithVerify` and one for each scheme, were rejected: the receiver sits in the client's
+unit, which already declares the client's option for a scheme of that name (`WithAPIKey redeclared
+in this block`), and a prefix only moves where they meet, a client's scheme `receiver key` and the
+receiver's `key` both rendering `WithReceiverKey`.
 
 A parse method takes the `*http.Request` every Go HTTP server hands a handler, `func (r *Receiver)
 ParseZoneCreated(req *http.Request) (*webhooks.ZoneCreatedRequest, error)`, reading its body no

@@ -158,13 +158,13 @@ published in the Gradle module metadata. The POM beside it imports the platform 
 dependencies alone, so with Maven 3.9.16 the same application resolved the root and the runtime at
 1.0 beside the group's module at 1.1 and failed when run; importing the platform itself while still
 writing both versions, it resolved the runtime at 1.1 under the root at 1.0 and failed the same way;
-and it ran only importing the platform and writing no module's version. So the modules are
-published together under one version, which the platform aligns for a build that imports it, a
-Maven build where it names no version and nowhere else. Modules of two generations that a build
-forces together, as a strict version (`!!`) does past the platform's constraint, fail at the first
-call that meets a declaration changed between them (`NoSuchMethodError`), and nothing refuses them
-sooner. A digest of the generated files written into each module and compared when the client is
-built was weighed, and holds too little to keep: a receiver is built with no client
+and it ran only importing the platform and writing no module's version. So the modules are published
+together under one version, which the platform aligns for a build that imports it, a Maven build
+where it names no version and nowhere else. Modules of two generations that a build forces together,
+as a strict version (`!!`) does past the platform's constraint, fail at the first call that meets a
+declaration changed between them (`NoSuchMethodError`), and nothing refuses them sooner. A digest of
+the generated files written into each module and compared when the client is built was weighed, and
+holds too little to keep: a receiver is built with no client
 ([inbound](../../operations/inbound.md)), nor is a program using a group's module alone. Measured
 with Kotlin 2.4.0 over four modules of two generations, in 8 of the 14 mixes the client was refused
 while a receiver was built and failed at its parse (`NoSuchMethodError`), as a program on a group's

@@ -442,10 +442,11 @@ throughout these documents.
     policy](../contract/runtime-policy.md#what-a-layer-writes)), set on a client, changes what every
     operation does, one an operation's own layer sets included, set on a client `WithOptions`
     derives changes that client's calls alone, as a transport given there does, and outside its
-    range, or as a duration of 1500µs, refuses the client; on Multiplatform a Swift caller sets each duration and
-    backoff as the runtime's `Duration`, the client reading 60000 ms for a `requestTimeout` of 60 s,
-    reads an event's `wait` as the wait made, and catches the refusal of a month and of 1500µs,
-    which a setter over `kotlin.time.Duration` or a `build()` with no `@Throws` fails.
+    range, or as a duration of 1500µs, refuses the client; on Multiplatform a Swift caller sets each
+    duration and backoff as the runtime's `Duration`, the client reading 60000 ms for a
+    `requestTimeout` of 60 s, reads an event's `wait` as the wait made, and catches the refusal of a
+    month and of 1500µs, which a setter over `kotlin.time.Duration` or a `build()` with no `@Throws`
+    fails.
 38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
     `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
     them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
@@ -1201,8 +1202,7 @@ throughout these documents.
     type does. A Gradle build asking for two modules of one Kotlin SDK at different versions
     resolves every module to the newer and runs, as does a Maven build importing the SDK's platform
     and naming no version, and of two SDKs in one program each failure matches its own SDK's failure
-    value and not the other's ([the runtime's
-    unit](../refine/output-units.md#the-runtimes-unit),
+    value and not the other's ([the runtime's unit](../refine/output-units.md#the-runtimes-unit),
     [Go](../targets/go/overview.md#what-a-caller-reaches-of-the-runtime),
     [Kotlin](../targets/kotlin/overview.md#what-a-caller-reaches-of-the-runtime)).
 65. **T-65 · Credentials** — on every target, against the behavior server (T-14), a client whose
@@ -1235,22 +1235,21 @@ throughout these documents.
     an IPv6 zone, or whose port is 0, 65536, `+443`, digits past ASCII or a megabyte of zeros before
     `80`, the marker alone and not followed, which a target showing what its URL library parsed
     fails; a server variable is `{name}`, a base URL's path the marker, and what a redacted
-    parameter expanded to in the path the marker; an `end` event's
-    `Cause` is a type's name; a hook is handed the context its caller gave the method
-    for a call's first event and what it returned for each later one, a span it adds at the first
-    `attempt` reaching a `Transport` wrapper on every attempt, of two overlapping calls each its
-    own, which a hook handed the caller's context alone fails, a Go hook returning nil leaves the
-    call in the context it was handed, and the events of two overlapping calls are told apart by
-    `Call`, one made through a sub-client and one through a client `WithOptions` derives among them,
-    which a count each derived client keeps fails; an `Authenticator` is handed the method, the
-    query, the headers the builder wrote and the body's bytes, and signs them; a
-    `UserAgent.AgentEnv` variable holding the value adds `agent/<name>` and sends the value in no
-    request; a `RequestID` longer than 128 bytes or holding a line break is empty; a parameter in
-    the slot of a scheme its operation's options name is no input of the request type, and the slot
-    goes out once; one in the slot of a scheme they do not name, and a header parameter named
-    `Authorization` under no scheme, print as `[REDACTED]` in their request type; a value of a type
-    a scheme names as its `Credentials` prints as the marker; and the test fails when the event is
-    built after the auth step, which it is run once to show
+    parameter expanded to in the path the marker; an `end` event's `Cause` is a type's name; a hook
+    is handed the context its caller gave the method for a call's first event and what it returned
+    for each later one, a span it adds at the first `attempt` reaching a `Transport` wrapper on
+    every attempt, of two overlapping calls each its own, which a hook handed the caller's context
+    alone fails, a Go hook returning nil leaves the call in the context it was handed, and the
+    events of two overlapping calls are told apart by `Call`, one made through a sub-client and one
+    through a client `WithOptions` derives among them, which a count each derived client keeps
+    fails; an `Authenticator` is handed the method, the query, the headers the builder wrote and the
+    body's bytes, and signs them; a `UserAgent.AgentEnv` variable holding the value adds
+    `agent/<name>` and sends the value in no request; a `RequestID` longer than 128 bytes or holding
+    a line break is empty; a parameter in the slot of a scheme its operation's options name is no
+    input of the request type, and the slot goes out once; one in the slot of a scheme they do not
+    name, and a header parameter named `Authorization` under no scheme, print as `[REDACTED]` in
+    their request type; a value of a type a scheme names as its `Credentials` prints as the marker;
+    and the test fails when the event is built after the auth step, which it is run once to show
     ([auth](../operations/auth.md#where-a-credential-can-be-read), [what an event
     holds](../contract/runtime-policy.md#what-an-event-holds),
     [redaction](../refine/redaction.md#a-redacted-value),

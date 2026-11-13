@@ -80,8 +80,8 @@ which the export gives no declaration ([no value class](swift.md#no-value-class)
 milliseconds is declared, and is the bare number that [states no
 unit](../../contract/runtime-policy.md#what-a-layer-writes). Over the runtime's `Duration`, a Swift
 caller set each duration and backoff and read an event's `wait`, and the client read the
-milliseconds it was given. The builder's `build()` and `withOptions`, which refuse a client
-by throwing, carry `@Throws`, without which the refusal ends a Swift caller's process
+milliseconds it was given. The builder's `build()` and `withOptions`, which refuse a client by
+throwing, carry `@Throws`, without which the refusal ends a Swift caller's process
 ([Swift](swift.md)). `client.withOptions { maxPages(100) }` builds a client holding the client's
 settings with those replaced, sending through its `Transport`, or the one a `transport(t)` in the
 block gives, and counting its calls in the client's `Event.Call`; its name is reserved among the
@@ -95,15 +95,15 @@ built with a value for each scheme its operations name that the receiver can com
 Boolean`, stating that an operation declaring no security, or an alternative naming no scheme,
 admits any sender, each unset by default; a scheme named as either takes the escape, as any
 parameter meeting a name generated code binds does ([naming](naming.md#the-escape)). The check is
-handed the runtime's `InboundCheck(operation, alternative, scheme, scopes)`: the parse method as
-the SDK names it, the alternative's place in the operation's `Auth`, from 0, the name the document
-gives the scheme, null for an alternative naming none, and the scopes that use requires of it, a
-`List<String>`. A parse method takes the runtime's
-`InboundRequest(method, target, headers, body: ByteArray, peerCertificates: List<ByteArray>)`, the
-target its path and query as received and each certificate its DER bytes, the client's first and
-none where the server exposes none, since Kotlin has no request type every server hands over, and a
-JVM certificate type would not reach Swift; it returns the request type, throwing the runtime's
-`InboundException` on a refused check and a decode failure apart from it.
+handed the runtime's `InboundCheck(operation, alternative, scheme, scopes)`: the parse method as the
+SDK names it, the alternative's place in the operation's `Auth`, from 0, the name the document gives
+the scheme, null for an alternative naming none, and the scopes that use requires of it, a
+`List<String>`. A parse method takes the runtime's `InboundRequest(method, target, headers, body:
+ByteArray, peerCertificates: List<ByteArray>)`, the target its path and query as received and each
+certificate its DER bytes, the client's first and none where the server exposes none, since Kotlin
+has no request type every server hands over, and a JVM certificate type would not reach Swift; it
+returns the request type, throwing the runtime's `InboundException` on a refused check and a decode
+failure apart from it.
 
 The caller's server reads the body, so it holds the body to the bound, which the receiver states as
 `maxBodyBytes`, the largest of its operations' bounds: the server reads one byte past it and no

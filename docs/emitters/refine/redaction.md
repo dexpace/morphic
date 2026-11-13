@@ -136,6 +136,6 @@ none of the 1,073 renderings of each of a refused connection, a refused TLS hand
 failing at a member and at a map key holding the value, an `Authenticator`'s error quoting it and a
 base URL that does not parse held the value, where `url.Parse` wrote the URL whole into its error;
 with Kotlin 2.4.0, Ktor 3.2.3 and kotlinx.serialization 1.8.1, none of the 28 renderings of each
-such failure did, where Ktor's timeout wrote the URL and kotlinx the body
-(`JSON input: {"id":"u1","token":…`), and a decoder's chain kept 9 of kotlinx.serialization's
-frames. T-65 holds this section.
+such failure did, where Ktor's timeout wrote the URL and kotlinx the body (`JSON input:
+{"id":"u1","token":…`), and a decoder's chain kept 9 of kotlinx.serialization's frames. T-65 holds
+this section.
