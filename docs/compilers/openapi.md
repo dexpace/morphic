@@ -535,22 +535,42 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 ### `references`
 
 A `$ref` resolves within the source, as a JSON pointer. One naming another document is read through
-the reader the caller supplies (`compilers.Options.Reader`), against the directory of the source's
-path, each file or URL read once however many references name it, and held to the source's budgets
-and refusals ([`source-budgets`](#source-budgets)), where a document past one fails each reference
-naming it. The read stays inside the directory of the source's path, symbolic links included, and
-follows relative references alone, unless `Options.AllowExternalRefs` lets it reach any file and
-http(s) URLs: a `$ref` naming a document by a `file:` URI, or one other than the source by an
-absolute path, fails unread, whatever another `$ref` names that document by. Each is judged by its
-own spelling, so what the default reads depends neither on how the working directory is spelled nor
-on the order references are read in. In either mode a `$ref` naming a URL whose scheme is none of
-`http`, `https` and `file` fails unread, where a reader would take it for a path against the working
-directory; a file whose name holds a colon is written `./a:b.yaml`. A document outside fails each
-reference naming it, and with no reader no document is read.
+the reader the caller supplies (`compilers.Options.Reader`), each file or URL read and charged once
+however many references name it, by every spelling naming that one document (below), and held to the
+source's budgets and refusals ([`source-budgets`](#source-budgets)), where a document past one fails
+each reference naming it. Its document part is read against the document writing it, by RFC 3986
+§5.2, and the source's against where the source lies: the absolute path `compilers.Source.Location`
+names, which the engine sets with the symbolic links of the spec's directory resolved, or the
+source's `Path` where it is unset. Every file a compile names at an absolute path, the source
+included, lies where the reader places its directory (`compilers.DirectoryLocator`), its links
+resolved, so a file reached through a link to its directory and through the directory itself is one
+document. The working directory is never read, so what a reference names depends on no spelling of
+it, nor on how the spec was named, and a relative path names the file an absolute one does only
+where the source lies at an absolute path. A file's part is percent-decoded,
+so `my%20file.yaml` names the file `my file.yaml`, unless decoding would read it otherwise, as an
+escaped separator or `#` would, where it is read as written; and a `file:` URI names the file at its
+path, as a reader reads it. Against a document fetched over http(s), a part naming no scheme, an
+absolute path and a network-path reference among them, names what the document's URL makes of it, on
+the network. A reference written in a document read over http(s), the source included, is read
+only from an http(s) URL: one naming another location, by a `file:` URI, a drive path, or a base an
+`$id`, a draft 4 `id` or the source's `$self` moves onto one, fails unread where it is written, and
+the rest of the document is read. The read stays inside the directory the source lies in, symbolic
+links included, and follows relative references alone, unless `Options.AllowExternalRefs` lets it
+reach any file and http(s) URLs: a `$ref` naming a document other than the source by a `file:` URI
+or by an absolute path fails unread, whatever another `$ref` names that document by. Each is judged
+by its own spelling, so what the default reads depends on no order references are read in. In either
+mode a `$ref` naming a URL whose scheme is none of `http`, `https` and `file` fails unread, where a
+reader would take it for a path; a file whose name holds a colon is written `./a:b.yaml`, and is
+read as that file. A document outside fails each reference naming it, and with no reader no document
+is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
-ordered by its location from the source's directory, and what it declares lowers there, as the
-source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
+ordered by its location: its path from the directory the source lies in, or where no relative path
+reaches it, as from a source lying at a relative path to an absolute one, its own path. Its entry's
+path is that location joined to the directory of the source's `Path`, so a spec named relatively
+lists the documents beside it relatively, the `..` segments climbing out of that directory kept, as a
+link may place it elsewhere than cleaning them away would. What it declares lowers there, as
+the source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
 request body, response, header, example, callback, path item, security scheme or media type a
 reference brings in, with the schemas inline in it. A reference object written in what another
 document brings in is resolved against that document, as the source's are against the source, and
@@ -603,16 +623,12 @@ key of no schema vocabulary hold schemas, and within one a keyword reads as it d
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
-it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
-`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
-or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
-check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
-refused for one. In drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain
-name as an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's
-dialect rather than to the rule table's 2020-12 row; one
-beside a `$ref` gives it no base, roots no resource and declares no name, as those drafts ignore
-every keyword there; `definitions` holds schemas as `$defs` does, and so does `dependencies` where
-a value is one. A schema another holds roots a resource where it writes an identifier as the
+it `id`, its `$id` then naming nothing. In drafts 4, 6 and 7 one naming a fragment alone, `#name`,
+declares that plain name as an `$anchor` does, which is why the load phase holds an `$id`'s format
+to the schema's dialect rather than to the rule table's 2020-12 row; one beside a `$ref` gives it no
+base, roots no resource and declares no name, as those drafts ignore every keyword there;
+`definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
+schema another holds roots a resource where it writes an identifier as the
 dialect embedding it spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect
 its own `$schema` names does, unless it writes a `$ref` whose siblings the dialect embedding it
 ignores. An `$id` names the URI its part before the `#` resolves to against the base above it, by
@@ -724,6 +740,19 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestCompile_ARefOutsideTheSourcesDirectoryResolvesWhenAllowed`,
   `e2e.TestCompile_ByDefaultOnlyARelativeReferenceIsFollowed`,
   `e2e.TestCompile_ByDefaultEachReferenceIsJudgedByItsOwnSpelling`,
+  `e2e.TestCompile_AnAbsolutePathInANetworkDocumentNamesItsHost`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFile`, `resolve.TestLocate`,
+  `resolve.TestForResolver`, `resolve.TestFilePart`, `resolve.TestFileOf`, `resolve.TestSameDocument`,
+  `resolve.TestPlaces_PlacesAFileWhereItsDirectoryLies`,
+  `load.TestEscapes_RespellsADocumentPartTheResolverReadsOtherwise`,
+  `load.TestExternal_DoHoldsTheSourceAFileURINames`, `load.TestLoad_RejectsARelativeLocation`,
+  `load.TestLabelOf_IsTheLocationTheSourcesDirectoryReachesADocumentBy`,
+  `load.TestShownPathOf_NamesADocumentAsTheHandedPathNamesTheSource`,
+  `e2e.TestCompile_ANetworkDocumentReadsNoLocalFileByAnyReference`,
+  `e2e.TestCompile_ASourceReadOverTheNetworkReadsNoLocalFile`,
+  `load.TestEscapes_RefusesALocalReferenceOfANetworkDocument`,
+  `load.TestExternal_ASourceReadOverTheNetworkReadsNoFile`, `bind.TestReachable`,
+  `load.TestLoad_AFileURIAndAPathAreOneDocument`, `e2e.TestCompile_AFileNamedLikeAURLIsReadAsAFile`,
   `e2e.TestCompile_AURLNoReaderReadsIsRefusedUnread`,
   `e2e.TestCompile_ARefAnIDAnswersIsNeverRefusedUnread`,
   `e2e.TestCompile_ARelativeRefUnderAnIDReadsWhereTheIDPlacesIt`,
@@ -776,21 +805,18 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
   `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An absolute-path `$ref` in a remote document is read as a local path (#936); a remote
-  document can make the compiler request a private address (#937); and a remote document reaching a
-  local file is refused naming only its last such `$ref` (#940). A reference object's pointer
-  holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
-  object's message ends in the resolver's own wording, unless its chain ends on a position holding
-  no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
-  chain of documents each declaring the URI the one before it asked for costs a binding pass per
-  link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
-  it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
-  second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
-  JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
-  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
-  in the length of a chain of reference objects, each naming the next (#1468).
+  (#604). A remote document can make the compiler request a private address (#937). A reference
+  object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
+  unresolved reference object's message ends in the resolver's own wording, unless its chain ends on
+  a position holding no object of its kind (#809). A chain of documents each declaring the URI the
+  one before it asked for costs a binding pass per link (#1372). A reference object reaching raw
+  YAML of the source leaves the references inside what it reaches unresolved (#1320), and one
+  whose pointer ends in `/` declares what it reaches at a second pointer (#1330). A reference
+  object whose `$ref` is a scalar under a tag outside YAML's JSON schema ruleset, which the model
+  decodes no string from, lowers nothing, and nothing reports it (#1368). A schema `$ref` whose
+  pointer passes through a reference object's alias lowers what it reaches a second time, at the
+  pointer it spells (#1359). The parser's resolver takes time cubic in the length of a chain of
+  reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
@@ -849,7 +875,10 @@ and is reported, as for every construct a later minor added, with an
 - Cases: `self-uri`
 - Codes: `openapi/later-version-construct`
 - Tests: `openapi.TestCompile_RecordsSelfURI`
-- Status: partly built: `$self` is the base URI for some references and not others (#863).
+- Status: partly built: OpenAPI 3.2 makes `$self`, resolved against the retrieval URI, the base of
+  every relative reference in every document. A document a reference reaches has its `$self`
+  ignored, and the source's, read as written, is the base of its reference objects alone, not of
+  its schema `$ref`s or mapping values (#863).
 
 ### `verbatim-preservation`
 

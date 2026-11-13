@@ -240,8 +240,9 @@ func New(srcIndex int, doc *load.Document, p Policy) Ctx {
 
 		loaded: &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 			dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
-			reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-				Bindings: doc.Bindings}, readings: map[any]any{}, settled: map[any]any{}},
+			reads: resolve.Scope{SelfPath: doc.Location, Places: doc.Places, Holds: doc.Holds,
+				Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes, Bindings: doc.Bindings},
+			readings: map[any]any{}, settled: map[any]any{}},
 		reached:   resolve.NewReached(),
 		expansion: newExpansion(p.Limits.MaxReferenceExpansion),
 	}
@@ -519,9 +520,9 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 // there is one answer.
 func (c Ctx) RefScope() resolve.Scope {
 	r := c.loaded.reads
-	return resolve.Scope{Doc: c.Doc, SelfPath: c.Source.Path, Declares: c.schemas, Foreign: c.foreign,
-		Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds, Beside: r.Beside,
-		Writes: r.Writes, Bindings: r.Bindings}
+	return resolve.Scope{Doc: c.Doc, SelfPath: r.SelfPath, Places: r.Places, Declares: c.schemas,
+		Foreign: c.foreign, Holder: c.holder, Ends: resolve.ReferenceEnd, Reached: c.reached, Holds: r.Holds,
+		Beside: r.Beside, Writes: r.Writes, Bindings: r.Bindings}
 }
 
 // DiagAt builds one diagnostic at pointer, stamped with this compile's source

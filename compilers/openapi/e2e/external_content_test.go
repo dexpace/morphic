@@ -577,7 +577,8 @@ func TestExternalContent_ARefNamingTheSourceNamesIt(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			dir := t.TempDir()
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			require.NoError(t, err)
 			require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub"), 0o700))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, c.file), []byte("paths:\n  /x:\n"+item(c.ref)), 0o600))
 			root := foreignRoot("  /p: {$ref: './" + c.file + "#/paths/~1x'}\n")
