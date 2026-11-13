@@ -29,10 +29,12 @@ const taggedVariants = "    Json: {type: object, required: [type], properties: {
 // TestDiscriminatorInference_MapsAnUnmappedDiscriminator pins the policy's
 // reading of a declared discriminator with no mapping
 // (docs/compilers/openapi.md#discriminator-inference): where every variant pins
-// the tag to a distinct string and one of them is not the name the implicit
-// mapping routes it by, the mapping is read off the pinned values, the union
-// marked inferred and the reading reported once. Where the names are the
-// values, or a variant pins none or one another pins, nothing is read in.
+// the tag to a set of strings no other variant shares, and the implicit mapping
+// does not route each by all it admits, every string is mapped to its variant,
+// the union marked inferred and the reading reported once. A set is read off
+// an enum, a const, a union of them, or a union the variant composes. Where
+// each variant admits its name alone, or a variant pins none or shares a
+// string with another, nothing is read in.
 func TestDiscriminatorInference_MapsAnUnmappedDiscriminator(t *testing.T) {
 	t.Parallel()
 	const disc = "      discriminator: {propertyName: type}\n"
@@ -59,6 +61,31 @@ func TestDiscriminatorInference_MapsAnUnmappedDiscriminator(t *testing.T) {
 			"    Aliased: {type: object, required: [type], properties: {type: {$ref: '#/components/schemas/TagAlias'}}}\n" +
 				"    TagAlias: {$ref: '#/components/schemas/Tag'}\n    Tag: {const: tagged}\n",
 			map[string]string{"tagged": "Aliased", "text": "Text"}, `"tagged" where it routes by "Aliased"`},
+		{"inline variants pinning sets", "      oneOf: [" + inlinePin("{enum: [round, circle]}") + ", " +
+			inlinePin("{type: string, enum: [square, box]}") + "]\n", "",
+			map[string]string{"circle": "U/oneOf/0", "round": "U/oneOf/0", "square": "U/oneOf/1", "box": "U/oneOf/1"},
+			`"circle", "round" where it names none, "box", "square" where it names none`},
+		{"sets sharing a string", "      oneOf: [" + inlinePin("{enum: [a, b]}") + ", " + inlinePin("{enum: [b, c]}") + "]\n", "",
+			nil, ""},
+		{"a set holding its name", "      oneOf: [{$ref: '#/components/schemas/json'}, {$ref: '#/components/schemas/Text'}]\n",
+			"    json: {type: object, required: [type], properties: {type: {enum: [json, JSON]}}}\n",
+			map[string]string{"json": "json", "JSON": "json", "text": "Text"},
+			`"JSON", "json" where it routes by "json", "text" where it routes by "Text"`},
+		{"many in a set", "      oneOf: [{$ref: '#/components/schemas/Many'}, {$ref: '#/components/schemas/Text'}]\n",
+			"    Many: {type: object, required: [type], properties: {type: {enum: [a, b, c, d, e]}}}\n",
+			map[string]string{"a": "Many", "b": "Many", "c": "Many", "d": "Many", "e": "Many", "text": "Text"},
+			`"a", "b", "c" and 2 more where it routes by "Many"`},
+		{"a union of values", "      oneOf: [{$ref: '#/components/schemas/Circle'}, {$ref: '#/components/schemas/Text'}]\n",
+			"    Circle: {type: object, required: [type], properties: {type: {oneOf: [{const: circle}, {const: round}]}}}\n",
+			map[string]string{"circle": "Circle", "round": "Circle", "text": "Text"}, `"circle", "round" where it routes by "Circle"`},
+		{"a union a variant composes", "      oneOf: [{$ref: '#/components/schemas/Shaped'}, {$ref: '#/components/schemas/Text'}]\n",
+			"    Shaped: {allOf: [{$ref: '#/components/schemas/Shapes'}]}\n" +
+				"    Shapes: {oneOf: [" + inlinePin("{const: circle}") + ", " + inlinePin("{const: square}") + "]}\n",
+			map[string]string{"circle": "Shaped", "square": "Shaped", "text": "Text"},
+			`"circle", "square" where it routes by "Shaped"`},
+		{"an inline variant pinning the empty string", "      oneOf: [{$ref: '#/components/schemas/json'}, " +
+			inlinePin("{const: ''}") + "]\n", "    json: {type: object, required: [type], properties: {type: {const: json}}}\n",
+			map[string]string{"json": "json", "": "U/oneOf/1"}, `"" where it names none`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -118,10 +145,11 @@ func TestDiscriminatorInference_NamesAFewDisagreements(t *testing.T) {
 
 // TestDiscriminatorInference_InfersAnUndeclaredDiscriminator pins the policy's
 // reading of a union declaring no discriminator: where every variant requires
-// one property and pins it to a distinct string, the first such property of
-// the first variant is the inferred tag, and the union is tagged by it. A
-// property a variant may leave out, lacks, may hold null or pins to no string,
-// and a variant that is no model, read nothing in.
+// one property and pins it to a set of strings no other variant shares, the
+// first such property of the first variant is the inferred tag, and the union
+// is tagged by it. A property a variant may leave out, lacks, may hold null,
+// pins to no string or to a string another shares, and a variant that is no
+// model, read nothing in.
 func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 	t.Parallel()
 	variant := func(name, props string, required ...string) string {
@@ -139,6 +167,13 @@ func TestDiscriminatorInference_InfersAnUndeclaredDiscriminator(t *testing.T) {
 			variant("B", "y: {const: d}, x: {const: b}", "x", "y"), "x", map[string]string{"a": "A", "b": "B"}},
 		{"a later property where an earlier one is shared", variant("A", "v: {const: one}, kind: {const: a}", "v", "kind") +
 			variant("B", "v: {const: one}, kind: {const: b}", "v", "kind"), "kind", map[string]string{"a": "A", "b": "B"}},
+		{"pinned to sets", variant("A", "kind: {enum: [a, x]}", "kind") + variant("B", "kind: {const: b}", "kind"),
+			"kind", map[string]string{"a": "A", "x": "A", "b": "B"}},
+		{"pinned by a union of values", variant("A", "kind: {anyOf: [{const: a}, {const: x}]}", "kind") +
+			variant("B", "kind: {const: b}", "kind"), "kind", map[string]string{"a": "A", "x": "A", "b": "B"}},
+		{"sets sharing a string", variant("A", "kind: {enum: [a, b]}", "kind") + variant("B", "kind: {const: b}", "kind"), "", nil},
+		{"a union of values admitting null", variant("A", "kind: {anyOf: [{const: a}, {enum: [x, null]}]}", "kind") +
+			variant("B", "kind: {const: b}", "kind"), "", nil},
 		{"not required", variant("A", "kind: {const: a}", "kind") + variant("B", "kind: {const: b}, other: {type: string}", "other"), "", nil},
 		{"nullable", variant("A", "kind: {const: a}", "kind") + variant("B", "kind: {type: [string, 'null'], enum: [b, null]}", "kind"), "", nil},
 		{"a number", variant("A", "kind: {const: 1}", "kind") + variant("B", "kind: {const: 2}", "kind"), "", nil},
@@ -285,6 +320,11 @@ func TestDiscriminatorInference_ReadsADistributedUnion(t *testing.T) {
 			}
 		})
 	}
+}
+
+// inlinePin is an object requiring a `type` of the schema tag.
+func inlinePin(tag string) string {
+	return "{type: object, required: [type], properties: {type: " + tag + "}}"
 }
 
 // unionAt is where taggedOrders' union U is written.

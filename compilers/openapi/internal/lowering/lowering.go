@@ -166,8 +166,9 @@ type loadResult struct {
 	reads resolve.Scope
 	// readings remembers each answer Remembered read, in a map per type of key
 	// and answer (memo). Copies share it on purpose: an answer reads only the
-	// documents and their bindings, which no lowering changes, so what one copy
-	// remembers is what another would read.
+	// documents and their bindings, which no lowering changes, or the registry
+	// as no settlement rewrites it, so what one copy remembers is what another
+	// would read.
 	readings map[any]any
 }
 
@@ -284,9 +285,11 @@ func Scoped(c Ctx, at bind.Position) ScopedPosition {
 // Remembered returns read's answer for key, read once and remembered for every
 // copy of c. read must turn only on the documents and their bindings, which no
 // lowering changes, and key on all else it turns on; a package's own key type
-// keeps its readings from another's. Each type of key and answer has a map of
-// its own, so neither is boxed to be found or kept, and a key read for two
-// types of answer is read once for each.
+// keeps its readings from another's. An answer may instead be a store
+// settlements fill from the registry, holding only what none rewrites
+// (compile.Settlement). Each type of key and answer has a map of its own, so
+// neither is boxed to be found or kept, and a key read for two types of answer
+// is read once for each.
 func Remembered[K comparable, V any](c Ctx, key K, read func() V) V {
 	answers, ok := c.loaded.readings[memo[K, V]{}].(map[K]V)
 	if !ok {

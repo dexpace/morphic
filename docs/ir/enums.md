@@ -95,4 +95,8 @@ compiler keeps it a `Union`, each branch's docs and deprecation on the node it l
 engine's `const-unions` pass rewrites it as the closed `Enum` of its values at the union's own ID,
 each member holding what its branch says of its value, so a consumer meets one shape. Where the
 union says what no `Enum` can, it stays
-([`string-const-union`](../compilers/openapi.md#string-const-union)).
+([`string-const-union`](../compilers/openapi.md#string-const-union)). A reading that runs before the
+pass and asks which strings a value admits, as discriminator inference does
+([`discriminator-inference`](../compilers/openapi.md#discriminator-inference)), reads such a union
+as the set it holds, whether or not the pass will rewrite it, so its answer does not turn on how the
+document spelled the set.

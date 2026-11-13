@@ -315,8 +315,8 @@ type Discriminator struct {
 	// tuples, JSON arrays with a const head via prefixItems).
 	Index *int `json:"index,omitzero"`
 	// Mapping maps wire value to subtype, and no value is empty. Nil on a union,
-	// it routes by type name. In a model hierarchy, each subtype's
-	// DiscriminatorValue routes to it too.
+	// it routes by type name; otherwise it holds every route of the union. In a
+	// model hierarchy, each subtype's DiscriminatorValue routes to it too.
 	Mapping map[string]TypeID `json:"mapping,omitempty"`
 	// Default is the variant to use when the tag is absent/unrecognized (OpenAPI
 	// 3.2 defaultMapping); zero = none.

@@ -236,8 +236,8 @@ routes there. A tag routes to a variant where `Discrim.Mapping` names the varian
 as [above](#discriminators). The plan writes a union's routes out: the entries of the IR's
 `Mapping`, or, where the IR leaves it nil, each variant under the source name of its type, the name
 OpenAPI's implicit mapping routes by, which an anonymous variant lacks
-([discriminator](../../ir/models.md#discriminator)). What a mapping naming some variants implies for
-the others is #1702's to decide, and until then such a variant has the routes the IR states, none.
+([discriminator](../../ir/models.md#discriminator)). A `Mapping` holding an entry holds every route,
+the compiler writing in those the source implies, so a variant it leaves out has none.
 
 A variant's own tags are the tags routing to it that its tag member admits: every declaration of the
 member in the variant's flattening, the one it takes and those it overrides, admits the value of the
@@ -277,7 +277,7 @@ them admits, recognition holding a value only in a variant that admits it. Witho
 value would decode as one: on the golden spec (spec @bc6fad24, morphic @fa253fe19), 5 of the 145
 unions a property name routes declare no mapping over two inline variants, the `calculations` of the
 `workers-observability` query bodies, each variant pinning `operator` to several values, so the IR
-routes nothing to either. Of the 586 routes of the other 140, 575 lead to a variant that pins the
+routed nothing to either, as it still does with the discriminator-inference policy off. Of the 586 routes of the other 140, 575 lead to a variant that pins the
 tag, 34 of them as a number, 10 to one leaving the member a plain string, as `nsc_Interconnect`'s
 two do, and one to a union. Two variants, those of `infra_ServiceConfig`, admit both `http` and
 `tcp` through a base they share, and 5 variants own several tags, 50 between them.

@@ -12,15 +12,15 @@ import "github.com/dexpace/morphic/ir"
 const DiscriminatorInferenceHeuristic ir.Inferred = "discriminator-inference"
 
 // DiscriminatorInference is the discriminator-inference policy: whether a
-// union's tag is read off the value each variant pins its tag property to,
-// where the document declares no mapping or no discriminator, and a subtype's
-// off the values it admits, where it is routed by name.
+// union's tags are read off the strings each variant pins its tag property
+// to, where the document declares no mapping or no discriminator, and a
+// subtype's off the strings it admits, where it is routed by name.
 //
 // It is a policy because the reading guesses at intent (architecture principle
 // 6): OpenAPI routes an unmapped discriminator by component name, which a
-// variant or subtype pinning another value rejects, and an undeclared union
-// names its variant only by validation, though a required property each
-// variant pins distinctly tells them apart as a tag would.
+// variant or subtype pinning other values rejects, and an undeclared union
+// names its variant only by validation, though a required property its
+// variants pin apart tells them apart as a tag would.
 type DiscriminatorInference struct {
 	// Disabled turns the reading off: an unmapped discriminator then routes by
 	// component name, a subtype it routes by name keeping that name as its tag,
