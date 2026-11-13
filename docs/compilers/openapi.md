@@ -2676,9 +2676,9 @@ which is a redaction ([`password`](#password)). A member that no declared `type`
 under `type: integer` or a `!!binary` under `type: string`, matches no instance either, and is
 reported as an `openapi/degraded-construct` warning at it. Such a member is kept, the members
 lowering as written and the `type` kept verbatim under `openapi:type` (`degraded_lowering`) with the
-info at the schema: a list whose every entry the type rejects, such as unquoted numbers under
-`type: string`, more often means its members than its type, and dropping either side would guess
-which, where keeping both loses nothing. A `type` beside an `Enum` with no member types no value,
+info at the schema: the document contradicts itself, as unquoted numbers under `type: string` do,
+and keeping either side alone would guess which statement it means, where keeping both loses
+nothing. A `type` beside an `Enum` with no member types no value,
 and draws nothing. An enumeration an `Enum` cannot hold — a list or object member, or members of
 different kinds — lowers to a `Union` of `Literal`s over its entries but `null` instead, reported as
 an info `openapi/degraded-construct` at the schema, and a member whose value cannot convert makes the
@@ -2707,6 +2707,7 @@ at that position, whichever is lowered first.
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`, `schema.TestEnum_NullIsNeverAMember`,
+  `schema.TestEnum_NullAgreesWithTheOneOfSpelling`,
   `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
   `schema.TestEnum_AMemberNoTypeAdmitsIsReportedAndKept`,
   `schema.TestLiteral_ValueTypeReadsTheTypeAndFormatItsValueFits`,

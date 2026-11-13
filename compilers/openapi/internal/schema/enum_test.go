@@ -222,6 +222,29 @@ func TestEnum_NullIsNeverAMember(t *testing.T) {
 	}
 }
 
+// TestEnum_NullAgreesWithTheOneOfSpelling holds the two spellings of one value
+// set, an enum and a oneOf of consts and null, to one reading: a union of the
+// same values whose reference alone admits null (GitHub #618).
+func TestEnum_NullAgreesWithTheOneOfSpelling(t *testing.T) {
+	t.Parallel()
+	read := func(body string) ([]ir.Value, bool) {
+		doc, diags := schema.LowerSpec(t, enumPropertySpec("3.1.0", body))
+		openapitest.RequireNoErrorDiags(t, diags)
+		owner, ok := doc.Types[componentID("S")].(*ir.Model)
+		require.True(t, ok)
+		got, isUnion := enumValuesAt(t, doc, owner.Properties[0].Type.Target)
+		require.True(t, isUnion, "%s lowers to a union", body)
+		return got, owner.Properties[0].Type.Nullable
+	}
+	enumValues, enumNull := read(`{enum: [1, x, null]}`)
+	oneOfValues, oneOfNull := read(`{oneOf: [{const: 1}, {const: x}, {type: "null"}]}`)
+	if diff := cmp.Diff(oneOfValues, enumValues); diff != "" {
+		t.Errorf("the two spellings hold different values (-oneOf +enum):\n%s", diff)
+	}
+	assert.True(t, enumNull, "the null is the reference's")
+	assert.Equal(t, oneOfNull, enumNull)
+}
+
 // enumValuesAt returns the values the enum lowered at id holds: an Enum's
 // members, or the values of a Union's Literal variants, and whether it is the
 // Union.
@@ -555,6 +578,10 @@ func TestEnum_AMemberNoTypeAdmitsIsReportedAndKept(t *testing.T) {
 				assert.Equal(t, tc.want, e.ValueType, "the members' primitive")
 				_, kept := e.Unmodeled["openapi:type"]
 				assert.Equal(t, tc.rejected != nil, kept, "a type the members are not values of stays verbatim")
+			}
+			if isEnum && tc.rejected != nil {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at),
+					"lowered to an enum whose members are not all values of its declared type,", "the keeping says why")
 			}
 		})
 	}

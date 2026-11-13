@@ -208,14 +208,14 @@ const (
 	// belongs in its own field, but accepts this one.
 	InvalidMethodKey = "openapi/invalid-method-key"
 	// DegradedConstruct reports a construct the compiler could not carry into the
-	// IR as written: preserved raw for want of a structural home, lowered to a
-	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
-	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach. A
-	// promotion or grouping by extension reports it for an extension kept but
-	// read into no field or group (lowering.Promoter, operation.extensionLevels).
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every one is.
+	// IR as written: kept raw for want of a home, lowered to a weaker shape (a
+	// mixed enum as a union, an unconvertible value as the top type, a member or
+	// const its type rejects as written), or dropped (a default or example, an
+	// enum's excluded null, the fields beside a path item $ref the load phase's
+	// walk misses). A promotion or grouping by extension reports an extension
+	// kept but read into no field or group (lowering.Promoter,
+	// operation.extensionLevels). It marks the lossy lowerings reported, not
+	// every one.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
