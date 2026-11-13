@@ -36,13 +36,18 @@ func header(name string) ir.HTTPParamBinding {
 // TestIdempotency_TheKeyHeaderIsTheToken pins which operations take their
 // Idempotency-Key header as their token, marked beside what they carry: one
 // sent by a method RFC 9110 does not define as safe, binding exactly one header
-// of that name in any case, and stating no idempotency of its own.
+// of that name in any case, and stating no idempotency of its own, a webhook's
+// and a callback's among them.
 func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 	t.Parallel()
 	declared := keyed(http.MethodPost, header("Idempotency-Key"))
 	declared.Idempotency = ir.Idempotency{Kind: ir.IdempotencySafe}
 	twice := keyed(http.MethodPost, header("Idempotency-Key"))
 	twice.Bindings.HTTP = append(twice.Bindings.HTTP, twice.Bindings.HTTP[0])
+	hook := keyed(http.MethodPost, header("Idempotency-Key"))
+	hook.Bindings.HTTP[0].URITemplate, hook.Bindings.HTTP[0].WebhookName = "", "paid"
+	callback := keyed(http.MethodPost, header("Idempotency-Key"))
+	callback.Bindings.HTTP[0].URITemplate = "{$request.body#/url}"
 	for _, tc := range []struct {
 		name  string
 		op    ir.Operation
@@ -52,6 +57,8 @@ func TestIdempotency_TheKeyHeaderIsTheToken(t *testing.T) {
 		{"a PATCH", keyed(http.MethodPatch, header("Idempotency-Key")), "param/a"},
 		{"a PUT", keyed(http.MethodPut, header("Idempotency-Key")), "param/a"},
 		{"a DELETE", keyed(http.MethodDelete, header("Idempotency-Key")), "param/a"},
+		{"a webhook's POST", hook, "param/a"},
+		{"a callback's POST", callback, "param/a"},
 		{"the name in lower case, after another header", keyed(http.MethodPost, header("X-Trace"), header("idempotency-key")),
 			"param/b"},
 		{"a GET", keyed(http.MethodGet, header("Idempotency-Key")), ""},
