@@ -2740,6 +2740,7 @@ is a reference wherever its discriminator ends up.
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
   `schema.TestKeptDiscriminator_ResolvesItsValuesAtEverySite`,
   `schema.TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim`,
+  `schema.TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode`,
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
   `bind.TestBind_ReadsAMappingValueNamingNoComponentAsAReference`,
   `load.TestBindSchemas_ReadsTheComponentNamesTheModelReads`,
@@ -3146,8 +3147,9 @@ elected lowering of [`competing-keywords`](#competing-keywords) never reads is t
 joins the list, homed by a `Model` or `Union` that routes by it and by nothing else, so one beside
 any other node — the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the
 same way, its values still read as references ([`discriminator`](#discriminator)), and so is one
-naming the empty string as its tag on a `Model` or `Union` that cannot hold it, whose report says
-so. At a
+naming the empty string as its tag on a `Model`, or a `Union` a `oneOf` or `anyOf` builds, that
+cannot hold that tag, whose report says so, where the `Union` an enum or a type array lowers to
+routes by none and is reported as for any tag. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
 than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union

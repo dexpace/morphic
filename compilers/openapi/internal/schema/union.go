@@ -848,7 +848,8 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
+	// The union read s's discriminator, so one it cannot hold says why.
+	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, taglessShape(nil, s, distributedShape), nil, pointer)...)
 	where := "co-declared with structural keywords"
 	if u.holder != s {
 		where = "written on an allOf branch conjoins with the rest of the composition"

@@ -359,6 +359,30 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 	}
 }
 
+// TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode
+// pins the report of a discriminator naming the empty tag beside a Union no
+// discriminator routes, an enum's or a type array's, listing object or not: it
+// is kept and reported as one naming any other tag is, by what the node is, as
+// the empty name is not why the node holds none.
+func TestDiscriminator_AnEmptyPropertyNameBesideAnUntaggedUnionIsKeptForItsNode(t *testing.T) {
+	t.Parallel()
+	names := []string{"Mixed", "Multi", "Obj"}
+	for _, tag := range []string{"''", "kind"} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(
+			"    Mixed: {enum: [1, a], discriminator: {propertyName: "+tag+"}}\n"+
+				"    Multi: {type: [string, integer], discriminator: {propertyName: "+tag+"}}\n"+
+				"    Obj: {type: [object, string], properties: {kind: {type: string}}, discriminator: {propertyName: "+tag+"}}\n"))
+		openapitest.RequireNoErrorDiags(t, diags)
+		got := reported(withCode(diags, diag.DegradedConstruct))
+		for _, name := range names {
+			assert.Contains(t, got, "info "+diag.DegradedConstruct+" /components/schemas/"+name+`: this position lowered `+
+				`to a node of kind "union", which has no home for discriminator declared beside it; kept verbatim under `+
+				"Unmodeled", "%s, tag %s", name, tag)
+			assert.Equal(t, ir.ReasonDegradedLowering, typeByName(doc, name).Common().Unmodeled["openapi:discriminator"].Reason)
+		}
+	}
+}
+
 // discriminatorIn returns the discriminator the model or union td holds, or
 // nil for none or another kind.
 func discriminatorIn(td ir.TypeDef) *ir.Discriminator {
