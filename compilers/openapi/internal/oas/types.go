@@ -117,6 +117,10 @@ const (
 	// and is no JSON pointer, is a PlainName, as a draft 6 or 7 identifier
 	// naming a subschema must be (draft-handrews-json-schema-01 §8.2.3).
 	PlainNameURI
+	// FieldName is an HTTP field name: a Token, which HTTP compares in any case
+	// (RFC 9110 §5.1), so two keys of a map keyed by one that differ in case
+	// alone name one field.
+	FieldName
 )
 
 // Level is how firmly the specification states a rule.

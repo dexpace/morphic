@@ -184,6 +184,7 @@ func describeFormat(format Format) string {
 		URI: "a URI reference", AbsoluteURI: "a URI with a scheme", Email: "an email address",
 		ComponentName:     "a name of letters, digits, '.', '-' and '_'",
 		Token:             "a token of letters, digits and !#$%&'*+-.^_`|~",
+		FieldName:         "a token of letters, digits and !#$%&'*+-.^_`|~",
 		AuthScheme:        "a token of letters, digits and !#$%&'*+-.^_`|~",
 		RuntimeExpression: "a runtime expression, or text whose braces hold runtime expressions",
 		VersionNumber:     "a version number of the form major.minor.patch",

@@ -489,7 +489,7 @@ func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, de
 	ledger := newParamLedger(mountPtr)
 	for i, rp := range pi.GetParameters() {
 		slot, ok := paramKey(rp)
-		if !ok || cedes(constructOf(constructParameter, slot)) {
+		if !ok || cedes(paramConstruct(slot)) {
 			continue
 		}
 		p := resolve.Object[soa.Parameter](rp)

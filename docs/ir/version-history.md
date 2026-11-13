@@ -556,7 +556,44 @@ it sees. Changes made together in one bump are listed together under it.
   (`ir/content-item-without-stream`), and a streaming content of a request or a success response to
   its side's `StreamDetail` (`ir/content-stream-without-detail`). A consumer pinned to 0.51.0
   refuses a document with a streaming content.
-- **0.53.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
+- **0.53.0** — four changes of meaning, the shape kept:
+  - A `null` is no `Enum` member, no variant of the `Union` an enumeration lowers to and no
+    `Literal`'s value, but its reference's `Nullable` bit, so an enumeration of `null` alone and a
+    constant of `null` are each a closed `Enum` with no member behind a nullable reference
+    ([enums](./enums.md#the-empty-enum), [containers](./containers.md#literals)). The OpenAPI
+    compiler had lowered a `null` beside members of several kinds to a `null` `Literal` variant as
+    well as a nullable reference, `null` alone to a union of that one variant, and `const: null` to
+    a `null` `Literal`. A consumer pinned to 0.52.0 finds no `null` variant or `Literal` where it
+    read one.
+  - An `Enum`'s `ValueType` is a primitive every member is a value of. The OpenAPI compiler had
+    taken a declared `type` the members are not values of, a `type: integer` over strings among
+    them; it now takes the members' primitive and keeps the type verbatim.
+  - A number's format on a string, `type: string, format: int64` among them, is a `Scalar` over the
+    number whose `Encoding` is named `string`, a number written as the text of its value, with a
+    `string` `WireType`, as `bytes` under `base64` is ([encodings](./constraints.md#encodings)), and
+    its `Constraints`, which speak of the number ([constraints](./constraints.md#constraints)), hold
+    none of the bounds written beside it, which bound its text or no string instance and are kept
+    verbatim. It had been a `Scalar` over `string` whose encoding named the format, holding those
+    bounds. A consumer pinned to 0.52.0 reads such a value's base as the number where it read a
+    string.
+  - Over a `string`, a `WireType` of `string` marks text the encoding is applied to, and none marks
+    text already encoded. No compiler writes the first yet.
+- **0.54.0** — names an emitter renders moved, and one lowering changed, at an unmoved shape:
+  - The [word grammar](./naming.md#the-word-grammar) separates on a letter or mark that is a
+    `Default_Ignorable_Code_Point`, a variation selector or the Hangul filler U+3164 among them, as
+    on the format characters in that property, so a name of only such characters has no
+    `Canonical`, and `irverify` refuses one in a canonical or a hint. A consumer pinned to 0.53.0
+    meets `Canonical` and `Hint` it would have carried such a character in without it.
+  - The OpenAPI compiler names an anonymous schema that writes a `title`, a union branch's variant
+    included, by the title's words, where its position, its owner or the `$ref` beside it named it,
+    under a policy `title-names=false` turns off ([`naming`](../compilers/openapi.md#naming)); names the items of a `components/mediaTypes` entry
+    keyed `""` from the minted name rather than the pointer; and names a schema under a header of an
+    Encoding Object another nests by the header's key.
+  - The OpenAPI compiler compares a header parameter's name in any case
+    ([`parameters`](../compilers/openapi.md#parameters)), so an operation's `x-trace` overrides
+    its path item's `X-Trace`, and one list writing both reports the second as a repeat, each kept
+    under the ID its spelling gives it.
+- **0.55.0** — no shape change. The OpenAPI compiler expands a `$dynamicRef` to an anchor at any
   position of its schema resource, and JSON Schema 2019-09's `$recursiveRef` to the root of the
   resource it is written in ([`dynamic-ref`](../compilers/openapi.md#dynamic-ref)): such a
   reference's `TypeRef` names the type at that position where it named a node keeping
@@ -565,5 +602,5 @@ it sees. Changes made together in one bump are listed together under it.
   `openapi:$recursiveAnchor` is no longer kept in a 2019-09 schema. A body schema writing `$schema`
   or `$vocabulary` is a file where it was not ([`file-bodies`](../compilers/openapi.md#file-bodies)).
   A `prefixItems` beside a JSON Schema draft's `items` list is kept under `openapi:prefixItems`,
-  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.52.0
+  where it was dropped ([`tuples`](../compilers/openapi.md#tuples)). A consumer pinned to 0.54.0
   reads such a reference as the top type and such a body as a model.

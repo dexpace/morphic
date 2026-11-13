@@ -28,12 +28,20 @@ type Namer struct {
 	table *bind.Table
 	views map[bind.DocID]*nodeview.View
 	memo  map[bind.Position]string
+	// titles reads the title a schema names its node by, and is nil where
+	// titles name nothing.
+	titles *titles
 }
 
-// New returns a Namer over the documents table read. A nil table reads none,
-// and names each position by its pointer alone.
-func New(table *bind.Table) *Namer {
-	return &Namer{table: table, views: map[bind.DocID]*nodeview.View{}, memo: map[bind.Position]string{}}
+// New returns a Namer over the documents table read, naming a schema by its
+// title where byTitle holds (titles.at), and by its position where it does
+// not. A nil table reads none, and names each position by its pointer alone.
+func New(table *bind.Table, byTitle bool) *Namer {
+	n := &Namer{table: table, views: map[bind.DocID]*nodeview.View{}, memo: map[bind.Position]string{}}
+	if byTitle {
+		n.titles = &titles{table: table, read: map[*yaml.Node]string{}, lists: map[bind.Position]map[string]int{}}
+	}
+	return n
 }
 
 // At returns the hint the node at p is named by: the hint compile.NamingHint
@@ -54,18 +62,33 @@ func (n *Namer) At(p bind.Position) string {
 // than one followed from p, so a name remembered from either would make the
 // other depend on which was asked first.
 func (n *Namer) at(p bind.Position, hops int) string {
-	tokens := slices.Collect(p.Pointer.Tokens())
-	start, hint := n.owner(p, tokens)
-	hint, branch := steps(hint, tokens[start:])
+	hint, branch, _ := n.walk(p)
 	if branch {
 		hint = n.branch(p, hint, hops)
 	}
 	return hint
 }
 
-// branch names the composition branch at p, which steps named positionally:
-// a branch holding a $ref is named after it (Through), keeping its positional
-// name where the $ref suggests none.
+// walk names p from its owner down the structure to it (steps), reading the
+// title of each schema on the way (titles.at) where titles name, and reports
+// whether p is a composition branch its title does not name, and whether its
+// title names it.
+func (n *Namer) walk(p bind.Position) (hint string, branch, titled bool) {
+	tokens := slices.Collect(p.Pointer.Tokens())
+	r := n.read(p)
+	start, owner := n.owner(p, tokens, r.kinds)
+	var title titler
+	if n.titles != nil {
+		title = func(consumed int, union bool) string {
+			return n.titles.at(p.Doc, tokens[:start+consumed], r, union)
+		}
+	}
+	return steps(owner, tokens[start:], title)
+}
+
+// branch names the composition branch at p, which steps named positionally
+// for want of a title: a branch holding a $ref is named after it (Through),
+// keeping its positional name where the $ref suggests none.
 func (n *Namer) branch(p bind.Position, positional string, hops int) string {
 	return cmp.Or(n.through(p, hops), positional)
 }
@@ -100,14 +123,19 @@ func (n *Namer) node(doc bind.DocID, pointer jsontext.Pointer) *yaml.Node {
 	if n.table == nil || doc < 0 || int(doc) >= n.table.Documents() {
 		return nil
 	}
+	path, complete := n.view(doc).DocumentPath(n.table.Document(doc).Root, pointer)
+	if !complete {
+		return nil
+	}
+	return path[len(path)-1]
+}
+
+// view returns the view the document doc is read through, one per document.
+func (n *Namer) view(doc bind.DocID) *nodeview.View {
 	v, ok := n.views[doc]
 	if !ok {
 		v = nodeview.New()
 		n.views[doc] = v
 	}
-	path, complete := v.DocumentPath(n.table.Document(doc).Root, pointer)
-	if !complete {
-		return nil
-	}
-	return path[len(path)-1]
+	return v
 }
