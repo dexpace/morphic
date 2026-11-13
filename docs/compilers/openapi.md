@@ -272,7 +272,8 @@ absent, a value of the wrong type, a value outside the set the specification all
 exclude each other written together, a path template and its path parameters disagreeing, a list or
 map holding fewer entries than the specification requires or repeating one it requires to be unique,
 as JSON Schema requires of `allOf` and of `required`, or a value a grammar the specification cites
-refuses, such as a token or an anchor's name. Every mapping, values and extensions included, is held
+refuses, such as a token or an anchor's name, a headers map's key, which is a header's name, among
+them ([`header-style`](#header-style)). Every mapping, values and extensions included, is held
 to the Format section's rule that a key is a string, so a key that is no scalar, which the parser
 reads as the empty string ([`non-scalar-key`](../parser-library.md#non-scalar-key)), is an error,
 and so is a `<<` merge key naming neither a mapping nor a list of mappings, from which the parser
