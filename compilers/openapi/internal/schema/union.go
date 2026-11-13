@@ -884,12 +884,13 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 // last Mixin a Union minted for u (mintUnion), as an allOf naming a component
 // holding u composes it (docs/ir/models.md#a-union-a-composition-names). A
 // discriminator written beside u is the Union's, routing its variants, so the
-// Model neither lowers nor keeps it. The first lowering of the position composes
-// the union, and any later one finds it.
+// Model neither lowers nor keeps it, unless the Union cannot hold it
+// (tagLocated). The position's first lowering composes the union; a later one
+// finds it.
 func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	_, lowered := ts.Lookup(c.IDs().Coordinate(pointer))
 	d := dispatchOf(s)
-	if u.disc != nil && u.discAt == pointer {
+	if u.disc != nil && u.discAt == pointer && tagLocated(u.disc, nil) {
 		d.said = append(d.said, "discriminator")
 	}
 	id, diags := lowerElected(c, ts, depth, s, pointer, d)

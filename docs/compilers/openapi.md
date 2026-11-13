@@ -2667,7 +2667,8 @@ lowers it. No schema occupies that `Union`, so it is minted at the keyword writi
 namespace, apart from the branch's own node, which an outside `$ref` to the branch still finds. The
 `Model` keeps nothing of the union, what a branch writes beside it merging as any branch does, and a
 `discriminator` standing with the union is the `Union`'s, routing its variants, so the `Model`
-holds none. It is reported as an info `openapi/composition-lowering` at the schema. Whether a route
+holds none, but for one naming the empty string as its tag, which the `Union` cannot hold and the
+`Model` lowers and keeps as [`discriminator`](#discriminator) says. It is reported as an info `openapi/composition-lowering` at the schema. Whether a route
 names the schema is read at its position, and a discriminator written beside a union routes by name
 only what that union lists, so beside a schema it does not list, and no `mapping` key names, a union
 distributes.

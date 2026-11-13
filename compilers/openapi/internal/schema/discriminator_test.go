@@ -333,9 +333,10 @@ components:
 // TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim pins a discriminator
 // naming the empty string, a legal member name the IR's PropertyName cannot
 // hold, its empty value meaning none: on a model declaring no property of
-// that name, one inheriting it, and a union, plain or distributed, the node
-// holds no discriminator, the census keeps it verbatim and says why, once, and
-// a union is untagged, nothing inferred though its variants pin a tag. A model
+// that name, one inheriting it, a union, plain or distributed, and a routed
+// subtype's, the node holds no discriminator, the census keeps it verbatim and
+// says why, once, and a union is untagged, nothing inferred though its
+// variants pin a tag. A model
 // declaring the property locates the tag by its PropID. Each holds at every
 // minor, in either declaration order, the document valid and the IR whole.
 func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
@@ -351,6 +352,10 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 		"    Beside: {type: object, properties: {kind: {type: string}}, oneOf: [{type: object, properties: {x: {type: string}}}, " +
 			"{type: object, properties: {y: {type: string}}}], discriminator: {propertyName: ''}}\n",
 		"    Own: {type: object, properties: {'': {type: string}}, discriminator: {propertyName: ''}}\n",
+		"    Base: {type: object, properties: {kind: {type: string}}, " +
+			"discriminator: {propertyName: kind, mapping: {r: '#/components/schemas/Routed'}}}\n",
+		"    Routed: {allOf: [{$ref: '#/components/schemas/Base'}], oneOf: [{$ref: '#/components/schemas/A'}, " +
+			"{$ref: '#/components/schemas/B'}], discriminator: {propertyName: ''}}\n",
 	}
 	for _, version := range []string{"3.0.3", "3.1.1", "3.2.0"} {
 		for _, reversed := range []bool{false, true} {
@@ -358,7 +363,7 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Empty(t, irverify.Verify(doc), "%s, reversed %t", version, reversed)
 			assert.Empty(t, validated(t, doc))
-			names := []string{"Plain", "Inherits", "Mapped", "Union", "Beside"}
+			names := []string{"Plain", "Inherits", "Mapped", "Union", "Beside", "Routed"}
 			kept := make([]string, 0, len(names))
 			for _, name := range names {
 				td := typeByName(doc, name)
@@ -377,6 +382,9 @@ func TestDiscriminator_AnEmptyPropertyNameIsKeptVerbatim(t *testing.T) {
 				require.True(t, ok)
 				assert.False(t, u.WireTagged, "%s is untagged", name)
 			}
+			minted, ok := doc.Types["t/composed/components/schemas/Routed/oneOf"].(*ir.Union)
+			require.True(t, ok, "Routed composes its union as a mixin")
+			assert.Nil(t, minted.Discriminator, "the union Routed mints holds none")
 			own, ok := typeByName(doc, "Own").(*ir.Model)
 			require.True(t, ok)
 			require.NotNil(t, own.Discriminator)
