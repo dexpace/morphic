@@ -610,12 +610,34 @@ it sees. Changes made together in one bump are listed together under it.
   null to a type beside it gives that type. A consumer pinned to 0.54.0 that read such a count's
   field finds none there, one reading such a branch under `openapi:allOf/<n>` finds its keywords at
   the position instead, and one reading such a field may find a node minted for it.
-- **0.56.0** — no shape changed; what the OpenAPI compiler writes did:
+- **0.56.0** — three changes of meaning, the shape kept:
+  - A schema admitting `null` and nothing else is a closed `Enum` with no member behind a nullable
+    reference, whatever spells it ([enums](./enums.md#the-empty-enum)). The OpenAPI compiler had
+    lowered a `type` naming `null` alone to the `any` primitive behind a nullable reference, which
+    also admits every other value, or to a `Model` where `properties` was written beside it, and a
+    `oneOf` or `anyOf` of nothing but such branches to an alias over that `any`. A consumer pinned
+    to 0.55.0 finds an `Enum` with no member where it read nullable `any` or an alias of it.
+  - A union branch admitting `null` alone, written in place, is the union's `null` in every
+    spelling, carried by the reference to the union rather than by a variant
+    ([type-graph](./type-graph.md#type-references)). The OpenAPI compiler had lifted only a branch
+    of `type: "null"`, and kept an `enum` of `null` alone or a `const: null` as a variant naming an
+    `Enum` with no member, so a union of one such branch and one other is now a nullable reference
+    to the other, and a union of more has one variant fewer, while one written beside a structural
+    body is kept verbatim beside it, as one holding a `type: "null"` branch already was. A consumer
+    pinned to 0.55.0 finds no variant where it read one admitting `null` alone. The reverse holds
+    too: a `type: "null"` branch writing a `$ref`, a `$dynamicRef`, an `allOf`, a union, or an
+    `enum` or a `const` of other than `null` alone is a variant where the compiler had lifted it
+    and dropped what it wrote beside its type, so such a consumer also finds a variant where it
+    read none.
+  - Such a branch writing more than its `null`, a `description` among it, is kept whole under the
+    new key `openapi:oneOf/<index>` or `openapi:anyOf/<index>`, reason `no_ir_home`, where the
+    compiler had dropped what a lifted `type: "null"` branch wrote beside its type.
+- **0.57.0** — no shape changed; what the OpenAPI compiler writes did:
   - A `deprecated`, `readOnly` or `writeOnly` written `false` withdraws no `true` another schema of
     a use states, as JSON Schema reads the three, so `deprecated: false` beside a `$ref` to a
     deprecated target leaves the use's `Deprecation` set
     ([what a reference carries down](./annotations.md#what-a-reference-carries-down)). A consumer
-    pinned to 0.55.0 that read such a use as live finds it deprecated, and a `readOnly` or
+    pinned to 0.56.0 that read such a use as live finds it deprecated, and a `readOnly` or
     `writeOnly` it read as withdrawn in force. An `allOf` branch writing one `false` beside
     another's `true` no longer disagrees with it, so both fold where both were kept verbatim.
   - `Operation.Pagination` is filled from the extensions the promotion policy maps, by default those
@@ -623,7 +645,7 @@ it sees. Changes made together in one bump are listed together under it.
     with `Pagination.Inferred` set and each node whose key it read marked `extension-promotion`;
     `Server.Name` is filled from a key on a server the document names in no other way; and
     `HTTPParamBinding.AllowReserved` and `OAuthFlow.TokenEndpointAuthMethods` are filled where a
-    mapping names a key for them. A consumer pinned to 0.55.0 finds a pagination, a name or a field
+    mapping names a key for them. A consumer pinned to 0.56.0 finds a pagination, a name or a field
     where none was written.
   - A decorator over a target a keyword or a key deprecates holds the `Deprecation` its own keys'
     members state, which they were kept beside in silence.

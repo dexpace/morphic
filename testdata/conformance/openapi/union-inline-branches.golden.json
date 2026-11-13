@@ -779,7 +779,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it; union branches kept verbatim under Unmodeled",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch admits null alone, which the union lifts onto the position, so no variant can conjoin the body with it; union branches kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/MaybePlacement"
