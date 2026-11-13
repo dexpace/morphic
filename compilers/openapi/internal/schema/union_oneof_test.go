@@ -1353,12 +1353,11 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 // TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape holds a union read
 // past a budget, in its body or in value sets its branches write together, to
 // the degraded lowering: a reading cut short says nothing, and a value set cut
-// short would otherwise read as admitting nothing, which every keyword restates. What a
-// verdict does not need is not read, so it spends nothing: a branch writing
-// only what is judged without the body leaves it unread, one restating what the
-// body itself writes reads nothing it composes, one nesting nothing reads no
-// declarations below it, and a place many branches restate is read once, each
-// row one an eager or repeated read reddens.
+// short would otherwise read as admitting nothing, which every keyword restates.
+// What a verdict does not need is not read: a branch writing only what is
+// judged without the body leaves it unread, one restating the body's own
+// keywords reads nothing it composes, one nesting nothing reads no declarations
+// below it, and a place many branches restate is read once.
 func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	t.Parallel()
 	var onePlace, oneNestedPlace, declared, booleans string
@@ -1506,7 +1505,7 @@ func TestOneOf_CoDeclaredOwnReadingSettlesInAnyBranchOrder(t *testing.T) {
 		}
 		return "{properties: {" + strings.Join(props, ", ") + "}}"
 	}
-	var own []string
+	own := make([]string, 0, 260)
 	for i := range 260 {
 		own = append(own, fmt.Sprintf("p%d: {type: string}", i))
 	}

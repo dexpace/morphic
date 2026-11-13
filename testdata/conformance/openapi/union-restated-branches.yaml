@@ -106,3 +106,12 @@ components:
         - required: [links]
           properties:
             links: {allOf: [{$ref: '#/components/schemas/RenderLinks'}, {type: array, minItems: 1, items: {minLength: 1}}]}
+    # A body composing itself is a cycle no reading of what it composes
+    # finishes, but these branches restate only what the body itself writes,
+    # which its own reading settles, so the union is validation logic still.
+    RenderSelf:
+      allOf: [{$ref: '#/components/schemas/RenderSelf'}]
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf:
+        - {required: [html], properties: {html: {type: string}}}
+        - {required: [url]}

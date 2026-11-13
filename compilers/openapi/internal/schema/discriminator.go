@@ -27,11 +27,10 @@ import (
 // name implies #/components/schemas/<name>; nil stays nil, preserving
 // infer-by-name semantics), and the tag is located via exactly one of Property /
 // PropertyName / Index (docs/ir/models.md#discriminator). m is the model
-// declaring it, a plain object or an allOf composition, whose declaring
-// property's PropID locates the tag, else PropertyName if undeclared; a nil m,
-// for a oneOf/anyOf union with no single model, names it by PropertyName alone.
-// route is a union's, and zero for a model: what each variant names decides
-// what the mapping names (readsThrough).
+// declaring it, whose property's PropID locates the tag, else PropertyName if
+// undeclared; a nil m, for a union, names it by PropertyName alone. route is a
+// union's, and zero for a model: what each variant names decides what the
+// mapping names (readsThrough).
 func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, pointer jsontext.Pointer, m *ir.Model, route mappingRoute) (*ir.Discriminator, []ir.Diagnostic) {
 	if d == nil {
 		return nil, nil
@@ -65,12 +64,8 @@ func resolveDiscriminatorRoutes(c lowering.Ctx, ts *compile.Types, s *oas3.Schem
 }
 
 // variantTargets returns the set of types the variants name: the types a
-// union's discriminator may route to, as pass.Validate holds its mapping. It is
-// nil for none, which is a model's.
+// union's discriminator may route to, as pass.Validate holds its mapping.
 func variantTargets(variants []ir.Variant) map[ir.TypeID]bool {
-	if len(variants) == 0 {
-		return nil
-	}
 	targets := make(map[ir.TypeID]bool, len(variants))
 	for _, v := range variants {
 		targets[v.Type.Target] = true
@@ -99,7 +94,7 @@ func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
 
 // referencedVariants maps each type a branch's $ref names to its variant, for the
 // variants of the union holder writes, built in branch order past the null
-// branches. A type two
+// branches, one for each (spellImplicitRoutes reports a union holding fewer). A type two
 // branches name maps to neither: a mapping naming it says nothing of which, so
 // it stays on the type, which is itself a variant unless both alias it, and
 // that pass.Validate reports, valid as the document is (GitHub #1298). It reads
@@ -108,12 +103,9 @@ func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
 func referencedVariants(c lowering.Ctx, ts *compile.Types, holder *oas3.Schema, variants []ir.Variant) map[ir.TypeID]ir.TypeID {
 	branches, _, _ := unionBranches(holder)
 	branches = slices.DeleteFunc(slices.Clone(branches), isNullSchema)
-	if len(branches) != len(variants) {
-		return nil // a model's, which has no variants
-	}
 	referents := map[ir.TypeID]ir.TypeID{}
 	shared := map[ir.TypeID]bool{}
-	for i, b := range branches {
+	for i, b := range branches[:min(len(branches), len(variants))] {
 		named, ok := resolveSchemaRef(c, ts, b) // false for one written inline
 		if !ok {
 			continue

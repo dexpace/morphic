@@ -333,8 +333,8 @@ type branchUnionIndex struct {
 // the same union written beside the allOf
 // (docs/compilers/openapi.md#union-beside-structure), with the discriminator
 // written on the branch, else beside the allOf, and how the position lowers it
-// (classifyConjoined): ok is false where it distributes it nowhere, s being the
-// base of the hierarchy the discriminator routes or a subtype one routes to.
+// (classifyConjoined): ok is false where s is the base of the hierarchy the
+// discriminator routes, which leaves the union with its branch.
 func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unionAt, unionLowering, bool) {
 	at := branchUnionIndexOf(c, s)
 	if !at.ok {
@@ -346,7 +346,7 @@ func branchUnion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (unio
 		u.disc, u.discAt = d, e.pointer
 	}
 	how := classifyConjoined(c, s, u, pointer)
-	return u, how, how == unionDistributed
+	return u, how, how != unionHierarchyBase
 }
 
 // branchUnionIndexOf returns findBranchUnion's reading of s, read once a run, as
@@ -484,15 +484,15 @@ func typesDisjoint(types []oas3.SchemaType) bool {
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
-// keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
-// a keyword that narrows an instance without declaring one. When it does, the
-// union alone cannot represent the schema, so the sibling body is lowered too
-// (invariant 2, docs/ir/models.md#composition-beside-a-union), unless the
-// branches declare shape and say every one of those keywords (branchesSay): the
-// schema then means the union alone. Branches declaring none narrow the body,
-// whatever they repeat, and a discriminator routing to branches composing the
-// body keeps it, their base (composedByBranch). An allOf that refines is no
-// body: the union is one of its conjuncts (docs/compilers/openapi.md#allof-refinement).
+// keywords (a type, properties, a composing allOf, const/enum, ...) or a keyword
+// that narrows an instance without declaring one. When it does, the union alone
+// cannot represent the schema, so the sibling body is lowered too (invariant 2,
+// docs/ir/models.md#composition-beside-a-union), unless the branches declare
+// shape and say every one of those keywords (branchesSay): the schema then means
+// the union alone. Branches declaring none narrow the body, whatever they
+// repeat, and a discriminator routing to branches composing the body keeps it,
+// their base (composedByBranch). A refining allOf is no body
+// (docs/compilers/openapi.md#allof-refinement).
 func hasUnionSiblings(c lowering.Ctx, s *oas3.Schema) bool {
 	if !declaresUnion(s) || composedByBranch(c, s, besideUnion(s, "")) {
 		return writesSiblingKeyword(s) // no branch says it, or the body is their base
@@ -609,7 +609,8 @@ const (
 	unionHierarchyBase
 	// unionRoutedSubtype marks a body a discriminator on an ancestor routes to
 	// (routedSubtype). The route names the type the body lowers to, which as a
-	// union would be no subtype of that ancestor (GitHub #1694).
+	// union would be no subtype of that ancestor, so it stays a Model composing
+	// the union as a mixin (lowerSubtypeUnion).
 	unionRoutedSubtype
 )
 
@@ -639,9 +640,10 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Poin
 // classifyConjoined is how s, written at pointer, lowers the union u it
 // conjoins with a composing body, beside it or on a branch of its allOf, once
 // u's own shape allows distribution: kept whole where the discriminator standing
-// with u routes to branches composing s (composedByBranch), and where one on an
-// ancestor routes to s (routedSubtype); else distributed, the discriminator
-// routing the composed variants (referencedVariants).
+// with u routes to branches composing s (composedByBranch), composed as a mixin
+// where one on an ancestor routes to s (routedSubtype, lowerSubtypeUnion); else
+// distributed, the discriminator routing the composed variants
+// (referencedVariants).
 func classifyConjoined(c lowering.Ctx, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) unionLowering {
 	if composedByBranch(c, s, u) {
 		return unionHierarchyBase
@@ -764,8 +766,7 @@ func lowerCoDeclaredUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.
 		return beside(ir.ReasonDegradedLowering,
 			"a branch is a bare null, which the union lifts onto the position, so no variant can conjoin the body with it")
 	case unionRoutedSubtype:
-		return beside(ir.ReasonDegradedLowering,
-			"a discriminator on an ancestor routes to this schema as its subtype, which distributing it into a union would undo")
+		return lowerSubtypeUnion(c, ts, depth, s, besideUnion(s, pointer), pointer)
 	default: // unionHierarchyBase
 		return beside(ir.ReasonDegradedLowering,
 			"the discriminator beside it routes to branches composing this schema, its subtypes, which distributing them into a union would undo")
@@ -887,6 +888,73 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 	}
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf %s; the composition is distributed across the union variants", where))
+}
+
+// lowerSubtypeUnion lowers s, a subtype a discriminator on an ancestor routes to,
+// with the union u it conjoins, beside its allOf or on a branch: s stays the
+// Model its composition lowers to, a subtype of that ancestor, and names as its
+// last Mixin a Union minted for u (mintUnion), as an allOf naming a component
+// holding u composes it (docs/ir/models.md#a-union-a-composition-names). A
+// discriminator written beside u is the Union's, routing its variants, so the
+// Model neither lowers nor keeps it. The first lowering of the position composes
+// the union, and any later one finds it.
+func lowerSubtypeUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, u unionAt, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+	_, lowered := ts.Lookup(c.IDs().Coordinate(pointer))
+	d := dispatchOf(s)
+	if u.disc != nil && u.discAt == pointer {
+		d.said = append(d.said, "discriminator")
+	}
+	id, diags := lowerElected(c, ts, depth, s, pointer, d)
+	if lowered {
+		return id, diags
+	}
+	mixin, mintDiags := mintUnion(c, ts, depth, u)
+	diags = append(diags, mintDiags...)
+	diags = append(diags, composeMixin(c, ts, id, mixin, pointer)...)
+	where := "co-declared with"
+	if u.holder != s {
+		where = "written on an allOf branch of"
+	}
+	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
+		"oneOf/anyOf %s a schema a discriminator routes to as its subtype; the union is composed as a mixin of the model", where))
+}
+
+// mintUnion registers the Union u, a routed subtype's union (lowerSubtypeUnion),
+// at the keyword its holder writes it under, in the composed namespace: no
+// schema stands there, and a variant's path ends in an index, a field's in a
+// name. Each variant is its branch's own lowering, as a union written alone
+// lowers it, so the node is what a component holding u would be.
+func mintUnion(c lowering.Ctx, ts *compile.Types, depth int, u unionAt) (ir.TypeID, []ir.Diagnostic) {
+	_, key, _ := unionBranches(u.holder)
+	at := u.at + ids.Ptr(key)
+	id := c.IDs().ComposedType(at)
+	common := commonFor(c, id, at)
+	common.Name = compile.NamingHint(compile.SubHint(lowering.NameAt(c, u.at), key))
+	var diags []ir.Diagnostic
+	node, unionDiags := buildUnion(c, ts, u, common, func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
+		ref, refDiags := Ref(c, ts, depth, b, vptr)
+		diags = append(diags, refDiags...)
+		return ref
+	})
+	ts.Register(id, node)
+	return id, slices.Concat(diags, unionDiags)
+}
+
+// composeMixin appends mixin to the Mixins of the model id names, last, so the
+// $ref entries its source writes classify first. Its one caller has just
+// lowered the model, so any other node there is a compiler bug.
+func composeMixin(c lowering.Ctx, ts *compile.Types, id, mixin ir.TypeID, pointer jsontext.Pointer) []ir.Diagnostic {
+	td, ok, diags := registeredNode(c, ts, id, pointer)
+	if !ok {
+		return diags
+	}
+	m, isModel := td.(*ir.Model)
+	if !isModel {
+		return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+			"internal: type %q is not the model a routed subtype composes its union into", id)}
+	}
+	m.Mixins = append(m.Mixins, ir.TypeRef{Target: mixin})
+	return nil
 }
 
 // composedBody is the schema every distributed variant carries: the enclosing

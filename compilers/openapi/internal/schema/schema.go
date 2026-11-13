@@ -245,8 +245,12 @@ func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.
 		}
 		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
-	if u, _, ok := branchUnion(c, schema, pointer); ok {
-		id, unionDiags := lowerDistributedUnion(c, ts, depth, schema, u, pointer)
+	if u, how, ok := branchUnion(c, schema, pointer); ok {
+		lowerUnion := lowerDistributedUnion
+		if how == unionRoutedSubtype {
+			lowerUnion = lowerSubtypeUnion
+		}
+		id, unionDiags := lowerUnion(c, ts, depth, schema, u, pointer)
 		ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
 		return ref, append(unionDiags, nullDiags...)
 	}
@@ -315,7 +319,7 @@ func lowerElected(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		return unhomed(lowerAllOf(c, ts, depth, s, pointer, !slices.Contains(d.said, "discriminator")))
 	}
 	// won is "": the schema declares no family, or only an allOf that refines
 	// with no branch deciding what the position is, so the type set decides.

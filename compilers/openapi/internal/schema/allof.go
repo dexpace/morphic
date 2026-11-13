@@ -31,8 +31,9 @@ import (
 // Value constraints written beside the allOf (minProperties, ...), or on a branch
 // that folds, are read as lowerModel reads a plain object's, so they land on the
 // same field, not Unmodeled (GitHub #407). A composition that leaves only a
-// catch-all is a map, as a plain object's is (objectNode).
-func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+// catch-all is a map, as a plain object's is (objectNode). Where discriminated is
+// false, a union the model composes took s's discriminator (lowerSubtypeUnion).
+func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, discriminated bool) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
@@ -46,9 +47,9 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		requireMembers(m, compositionRequired(s.GetRequired(), comp))
 		diags = append(diags, fillAdditional(c, ts, depth, m, s, pointer)...)
 		diags = append(diags, applyFalseBranches(c, m, s, comp)...)
-		d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
-		diags = append(diags, discDiags...)
-		if d != nil {
+		if discriminated {
+			d, discDiags := lowerDiscriminator(c, ts, s.GetDiscriminator(), pointer, m, mappingRoute{})
+			diags = append(diags, discDiags...)
 			m.Discriminator = d
 		}
 		tag, tagDiags := subtypeDiscriminatorValue(c, s, common.ID, pointer)
